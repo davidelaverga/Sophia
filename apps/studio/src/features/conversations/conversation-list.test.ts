@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MissionDecision } from '@sophia/contracts'
-import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
+import type {
+  ConversationMessage,
+  ConversationReply,
+  ConversationSummary,
+  ProjectionCoverage,
+} from '../../api/conversations.ts'
 import {
   NAMED_AT_MOST,
   acceptedOf,
   continuesRun,
+  coverageWords,
   initialOf,
   withMessage,
   firstWords,
@@ -34,6 +40,9 @@ const ME = 'me'
 
 /** Only conversation a's thread held, as read here. */
 const heldForA = (held: ReturnType<typeof page>) => (id: string) => (id === 'a' ? held : undefined)
+
+/** What a row's coverage says, where there is a row. */
+const words = (c: ProjectionCoverage | undefined) => (c ? coverageWords(c) : 'no row')
 
 /** 01:0m on 7 October: Codex's minutes. */
 const minute = (m: number) => `2026-10-07T01:0${String(m)}:00.000Z`
@@ -721,7 +730,7 @@ describe('withWithdrawn: what a withdrawal takes off the screen at once (PR #199
 describe('a confirmed message, as the API would say its row after it (r4237298623, r4237298622)', () => {
   const at = '2026-10-07T10:00:00.000Z'
   const later = '2026-10-07T10:05:00.000Z'
-  const range = (state: 'current' | 'stale', newer: number) =>
+  const range = (state: 'current' | 'stale', newer: number, over: Partial<ProjectionCoverage> = {}) =>
     ({
       state,
       complete: true,
@@ -732,8 +741,9 @@ describe('a confirmed message, as the API would say its row after it (r423729862
       replyId: null,
       eligibilityRevision: 1,
       ledgerRevision: 1,
+      ...over,
     }) as const
-  const row = (over: Partial<ConversationSummary> = {}): ConversationSummary & Unnamed =>
+  const row = (over: Partial<ConversationSummary & Unnamed> = {}): ConversationSummary & Unnamed =>
     conversation({
       id: 'a',
       lastAt: at,
@@ -743,6 +753,11 @@ describe('a confirmed message, as the API would say its row after it (r423729862
       ...over,
     })
   const mine = { author: 'member' as const, actorId: ME, name: 'You', text: 'Three.', at: later, seq: 3 }
+  /** A row read at place 1. */
+  const readAt1 = {
+    messageSeq: 1,
+    lastMessage: { author: 'member', actorId: 'lucia', name: 'Lucía', text: 'One.', at, seq: 1 },
+  } as const
 
   it('your first message here: you are among those who wrote there, so «Mine» and the notice know it', () => {
     const [a] = withLastMessage([row()], 'a', mine)
@@ -785,6 +800,121 @@ describe('a confirmed message, as the API would say its row after it (r423729862
   it('a row the receipt may not take (read since): writers and projections as the list said them', () => {
     const since = row({ messageSeq: 3, summaryCoverage: range('current', 0) })
     assert.equal(withLastMessage([since], 'a', mine)[0], since)
+  })
+
+  it('places adjacent: nothing can lie between, so one more newer is a count, and said as one', () => {
+    const [a] = withLastMessage([row({ summaryCoverage: range('current', 0) })], 'a', mine)
+    assert.equal(words(a?.summaryCoverage), 'Covers messages 1–2; 1 newer since.')
+  })
+
+  it('a gap in the places (r4237385090): how many are newer isn’t known here, and no count is said', () => {
+    // Codex's: read at place 1, both projections through it; another wrote place 2 (eligible, or withdrawn since: the
+    // same row either way); yours is place 3, then 4.
+    const through1 = { fromSeq: 1, throughSeq: 1 }
+    const read = row({
+      ...readAt1,
+      summaryCoverage: range('current', 0, through1),
+      questionsCoverage: range('current', 0, { ...through1, complete: false }),
+    })
+    const [a] = withLastMessage([read], 'a', mine)
+    const uncounted = [
+      'Covers messages 1–1; newer messages since.',
+      'Covers messages 1–1, the newest then; newer messages since.',
+    ]
+    const said = (c: (ConversationSummary & Unnamed) | undefined) => [
+      words(c?.summaryCoverage),
+      words(c?.questionsCoverage),
+    ]
+    assert.equal(a?.summaryCoverage.state, 'stale')
+    assert.equal(a?.questionsCoverage.state, 'stale')
+    assert.deepEqual(said(a), uncounted)
+    // An adjacent receipt after it restores no count; the same receipt again, or an older one, leaves it as it is.
+    const [b] = withLastMessage(a ? [a] : [], 'a', { ...mine, seq: 4 })
+    assert.deepEqual(said(b), uncounted)
+    for (const again of [4, 3, 2]) {
+      const [c] = withLastMessage(b ? [b] : [], 'a', { ...mine, seq: again })
+      assert.equal(c, b)
+    }
+    // None assessed stays so.
+    assert.equal(withLastMessage([row(readAt1)], 'a', mine)[0]?.summaryCoverage.state, 'not_assessed')
+  })
+
+  it('uncounted, then withdrawn: the projections go back to not assessed, uncounted no longer', () => {
+    const read = row({ ...readAt1, summaryCoverage: range('current', 0, { throughSeq: 1 }) })
+    const [a] = withLastMessage([read], 'a', mine)
+    const list = { conversations: a ? [a] : [] } as unknown as Parameters<typeof listWithdrawn>[0]
+    const gone = listWithdrawn(list, 'a', { writer: ME, writerStays: false, sophiaStays: false })?.conversations[0]
+    assert.deepEqual(gone?.summaryCoverage, notAssessed)
+    assert.equal(words(gone?.summaryCoverage), null)
+  })
+
+  it('no places to tell (an API from before them): no count either', () => {
+    const unplaced = conversation({
+      id: 'a',
+      lastAt: at,
+      summaryCoverage: range('current', 0),
+      lastMessage: { author: 'member', actorId: 'lucia', name: 'Lucía', text: 'Two.', at },
+    })
+    const [a] = withLastMessage([unplaced], 'a', {
+      author: 'member',
+      actorId: ME,
+      name: 'You',
+      text: 'Three.',
+      at: later,
+    })
+    assert.equal(words(a?.summaryCoverage), 'Covers messages 1–2; newer messages since.')
+  })
+
+  it('a writer already there (r4237385093): their name as the receipt says it now, in the same place', () => {
+    const before = [
+      { actorId: 'lucia', name: 'Lucía' },
+      { actorId: ME, name: 'Synthetic Former Name' },
+      { actorId: 'tomas', name: 'Tomás' },
+    ]
+    const other = conversation({ id: 'b', contributors: [{ actorId: ME, name: 'Synthetic Former Name' }] })
+    const renamed = { ...mine, name: 'Synthetic Current Name' }
+    const [a, b] = withLastMessage([row({ contributors: before }), other], 'a', renamed)
+    assert.deepEqual(a?.contributors, [
+      { actorId: 'lucia', name: 'Lucía' },
+      { actorId: ME, name: 'Synthetic Current Name' },
+      { actorId: 'tomas', name: 'Tomás' },
+    ])
+    assert.equal(a?.lastMessage?.name, 'Synthetic Current Name')
+    // Another conversation's row, as it was.
+    assert.equal(b, other)
+    // Matched by who they are, never by a name: another writer named as the receipt's once was keeps that name.
+    const [c] = withLastMessage(
+      [row({ contributors: [{ actorId: 'lucia', name: 'Synthetic Former Name' }] })],
+      'a',
+      renamed,
+    )
+    assert.deepEqual(c?.contributors, [
+      { actorId: 'lucia', name: 'Synthetic Former Name' },
+      { actorId: ME, name: 'Synthetic Current Name' },
+    ])
+  })
+
+  it('renamed in a row naming as many as it may: the same place, the same count, the rest still unnamed', () => {
+    const full = Array.from({ length: NAMED_AT_MOST }, (_, i) =>
+      i === 57 ? { actorId: ME, name: 'Synthetic Former Name' } : { actorId: `p${String(i)}`, name: `P${String(i)}` },
+    )
+    const [a] = withLastMessage([row({ contributors: full, othersUnnamed: true })], 'a', {
+      ...mine,
+      name: 'Synthetic Current Name',
+    })
+    assert.equal(a?.contributors.length, NAMED_AT_MOST)
+    assert.deepEqual(a?.contributors[57], { actorId: ME, name: 'Synthetic Current Name' })
+    assert.deepEqual(
+      a?.contributors.filter((_, i) => i !== 57),
+      full.filter((_, i) => i !== 57),
+    )
+    assert.equal(a?.othersUnnamed, true)
+  })
+
+  it('an older receipt the row may not take: the name the row has, as it was', () => {
+    const since = row({ messageSeq: 3, contributors: [{ actorId: ME, name: 'Synthetic Current Name' }] })
+    const older = { ...mine, seq: 2, name: 'Synthetic Former Name' }
+    assert.equal(withLastMessage([since], 'a', older)[0], since)
   })
 })
 

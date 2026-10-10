@@ -1,12 +1,49 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
-import type { ConversationList } from '../../api/conversations.ts'
-import { LISTS, listKey } from './conversation-list.ts'
+import type { ConversationList, ConversationSummary } from '../../api/conversations.ts'
+import { LISTS, coverageWords, listKey, withLastMessage } from './conversation-list.ts'
 import { setListsData } from './list-data.ts'
 
 const listOf = (title: string) =>
   ({ projectId: 'p', conversations: [{ id: 'a', title }], more: false }) as unknown as ConversationList
+
+/** A row read at `seq`, its summary covering 1 to 1 with `newer` after it, as the API says one. */
+const assessedAt = (seq: number, newer: number) =>
+  ({
+    id: 'a',
+    messageSeq: seq,
+    lastAt: '2026-10-07T10:00:00.000Z',
+    contributors: [],
+    lastMessage: null,
+    summaryCoverage: {
+      state: newer > 0 ? 'stale' : 'current',
+      complete: true,
+      fromSeq: 1,
+      throughSeq: 1,
+      newer,
+      generatedAt: '2026-10-07T10:00:00.000Z',
+      replyId: null,
+      eligibilityRevision: 1,
+      ledgerRevision: 1,
+    },
+    questionsCoverage: {
+      state: 'not_assessed',
+      complete: false,
+      fromSeq: null,
+      throughSeq: null,
+      newer: 0,
+      generatedAt: null,
+      replyId: null,
+      eligibilityRevision: null,
+      ledgerRevision: null,
+    },
+  }) as unknown as ConversationSummary
+
+const summaryWords = (client: QueryClient, key: readonly unknown[]) => {
+  const c = client.getQueryData<ConversationList>(key)?.conversations[0]
+  return c ? coverageWords(c.summaryCoverage) : 'no row'
+}
 
 describe('setListsData: what this view writes into a list read, and nothing of its state (r4237298620)', () => {
   it('a failing list read takes the write and stays failing: its error, when and how often, as they were', async () => {
@@ -45,5 +82,28 @@ describe('setListsData: what this view writes into a list read, and nothing of i
     // A list key with no read yet is not created.
     setListsData(client, listKey('q', 'ana'), () => listOf('Made up'))
     assert.equal(client.getQueryData(listKey('q', 'ana')), undefined)
+  })
+
+  it('a count left unknown by a receipt is the list read’s again once it is read (r4237385090)', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const key = listKey('p', 'ana')
+    const answer = (row: ConversationSummary) =>
+      ({ projectId: 'p', conversations: [row], more: false }) as ConversationList
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(1, 0))) })
+    const mine = {
+      author: 'member' as const,
+      actorId: 'ana',
+      name: 'Ana',
+      text: 'Three.',
+      at: '2026-10-07T10:05:00.000Z',
+    }
+    setListsData(client, LISTS, (list) => ({
+      ...list,
+      conversations: withLastMessage(list.conversations, 'a', { ...mine, seq: 3 }),
+    }))
+    assert.equal(summaryWords(client, key), 'Covers messages 1–1; newer messages since.')
+    // Read again: the API counts the eligible messages after its range (place 2 and yours), and that is what is said.
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(3, 2))), staleTime: 0 })
+    assert.equal(summaryWords(client, key), 'Covers messages 1–1; 2 newer since.')
   })
 })
