@@ -17,16 +17,21 @@
 ## What changes
 
 - The signed-in Studio is its own chunk (`src/app/SignedIn.tsx`, from `App.tsx`): Home, the personal space, the
-  projects. `App` loads it lazily (`signed-in-load.ts`), once a session is there. One Suspense boundary holds it and
+  projects. `App` loads it lazily (`signed-in-load.ts`), once a session is there or likely. One Suspense boundary holds it and
   the opening's last step (`opening-prepares.ts`, `Studio`), so the opening still hands off only once Home is mounted;
   its fallback is the same «Sophia» the session's finding-out shows.
 - The chains are cut without changing what any module does: a source review's outcome (`review-outcome.ts`) apart
   from its store (`review-proposal.ts`, which reads no API); the opening's warming apart from its hook; the calls'
   timeouts in `api/timeouts.ts`, re-exported by the client.
 - Fetched ahead, never at rest: on the sign-in page once the person starts (a key, a press, caught before any field
-  keeps it), and with a link offered. While who is in is still found out, when a session is likely (`sessionLikely`:
-  supabase-js's own `sb-…-auth-token` key kept, or a sign-in's return, `?code=`): the chunk and the session's check go
+  keeps it), and with a link offered. While who is in is still found out, when an account's session is likely
+  (`sessionLikely`): a sign-in's return (a provider's `?code=`, a link's tokens, read as the page loads, as `auth.ts`
+  reads them, since signing in takes them out of the address before any effect runs), or supabase-js's own
+  `sb-…-auth-token` kept for an account, not a guest's left from a room's door. The chunk and the session's check go
   together, never one after the other. On a room's door only for a member, whom it hands to the Studio.
+- «Likely» is not «sure»: a kept session whose refresh then fails, or a return that fails, ends on the sign-in page
+  with the chunk fetched. A kept key from another Supabase project on the same address counts as well (the key is
+  matched by its shape, not computed from the project's address).
 - Why while finding out: the first CI run of this change failed `app-auth` (a session kept, «Account» not drawn within
   5 s). The check waited on the session, then the chunk, then its first compile on the test server: one after the
   other. A person with a session back, cache emptied or a new deploy, would wait the same way.
@@ -47,15 +52,17 @@
   past drawing), the sign-in page has asked for neither the signed-in Studio, the client nor the validators; once the
   person starts typing, the signed-in Studio is fetched; signed in with its chunk refused, the page says so and offers
   to load again; with a session kept (past its time, its refresh held), the chunk is asked for while the page still
-  finds out who is in. At rest, the page keeps supabase-js's key for a provider's sign-in started and left
-  (`…-auth-token-code-verifier`): that is no session, and fetches nothing.
-- `app-auth`, unchanged, passes: proposals kept and forgotten by account, through the new boundary. `opening` passes
+  finds out who is in, and so with a sign-in's return (`?code=`, its exchange held). At rest, the page keeps
+  supabase-js's key for a provider's sign-in started and left (`…-auth-token-code-verifier`): that is no session, and
+  fetches nothing; nor does a guest's session kept from a room's door, back at the Studio's sign-in.
+- `app-auth`, unchanged, passes here: proposals kept and forgotten by account, through the new boundary. `opening` passes
   too, on its own fixture page (which draws Home directly, without the boundary).
 - Mutants, with a control that passes: the signed-in Studio imported statically, the client imported by the sign-in
   again, a fetch at rest (after a short timer), no fetch ahead, and no boundary each fail their check. The failed
   fetch forgotten has none: its case is a fetch ahead that fails, then a sign-in on the same page, and these fixture
   pages can't sign in there (no Auth service answers a code). For the fetch while finding out: none at all, one
-  always, a session's key never matched, matched unanchored, and any key taken for one each fail their check.
+  always, a session's key never matched, matched unanchored, any key taken for one, a guest's session counted, no
+  return read, and the return read from the address once the effect runs (as the first try did) each fail their check.
 
 ## Left
 

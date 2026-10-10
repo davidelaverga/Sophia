@@ -11,13 +11,16 @@ const SESSION_KEY = 'sb-127-auth-token'
 
 const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
 
-/** A synthetic session, unsigned, for an account at sophia.test: only the synthetic Auth service ever sees it. */
-function session() {
+/**
+ * A synthetic session, unsigned, for an account at sophia.test (or a guest's, anonymous, as a room's door leaves):
+ * only the synthetic Auth service ever sees it.
+ */
+function session(anonymous = false) {
   const exp = Math.floor(Date.now() / 1000) + 24 * 3600
-  const user = { id: '00000000-0000-4000-8000-00000000d001', email: 'davide@sophia.test' }
+  const user = { id: '00000000-0000-4000-8000-00000000d001', email: anonymous ? '' : 'davide@sophia.test' }
   const claims = { sub: user.id, email: user.email, role: 'authenticated', aud: 'authenticated', exp }
   return {
-    access_token: `${part({ alg: 'none', typ: 'JWT' })}.${part({ ...claims, is_anonymous: false })}.synthetic`,
+    access_token: `${part({ alg: 'none', typ: 'JWT' })}.${part({ ...claims, is_anonymous: anonymous })}.synthetic`,
     refresh_token: `synthetic-refresh-${user.id}`,
     token_type: 'bearer',
     expires_in: 24 * 3600,
@@ -26,8 +29,8 @@ function session() {
       ...user,
       aud: 'authenticated',
       role: 'authenticated',
-      is_anonymous: false,
-      app_metadata: { provider: 'email' },
+      is_anonymous: anonymous,
+      app_metadata: { provider: anonymous ? 'anonymous' : 'email' },
       user_metadata: {},
       created_at: '2026-10-01T00:00:00Z',
     },
@@ -68,6 +71,27 @@ test('later · the sign-in page at rest asks for none of the signed-in Studio, i
   // Nothing asked for at rest: not on drawing, nor on an idle moment or a timer after it.
   await page.waitForTimeout(AT_REST_MS)
   expect(later(asked)).toEqual([])
+})
+
+test('later · a guest’s session left from a room’s door, back at the Studio, asks for none of it', async ({ page }) => {
+  const asked = recorded(page)
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [
+    SESSION_KEY,
+    JSON.stringify(session(true)),
+  ] as const)
+  await page.goto(`${APP}/app.html`)
+  // A guest is no account: the Studio asks them to sign in, and fetches nothing for it at rest.
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  await page.waitForTimeout(AT_REST_MS)
+  expect(later(asked)).toEqual([])
+})
+
+test('later · a sign-in’s return fetches the signed-in Studio while who is in is still found out', async ({ page }) => {
+  const asked = recorded(page)
+  await page.route('**/synthetic-auth/auth/v1/token*', () => undefined)
+  await page.goto(`${APP}/app.html?code=synthetic-code`)
+  await expect.poll(() => asked.some((p) => p.endsWith('/src/app/SignedIn.tsx'))).toBe(true)
 })
 
 test('later · the person starting to sign in fetches the signed-in Studio ahead', async ({ page }) => {
