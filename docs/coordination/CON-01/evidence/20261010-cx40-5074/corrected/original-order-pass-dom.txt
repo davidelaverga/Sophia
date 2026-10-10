@@ -1,0 +1,108 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/studio
+    - link "Conversations" [active]:
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/conversations
+    - link "Goals":
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/goals
+    - link "Tasks":
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/work
+    - link "Knowledge":
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/knowledge
+    - link "Updates":
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/updates
+    - link "Resources":
+      - /url: /p/ead10812-424e-4f13-aa02-bd8f41cb62c9/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Copy project link":
+    - generic: Copy project link
+    - generic: Link copied
+    - generic: For project members. To bring someone new, ask an editor to invite them.
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC contributor order regression" [pressed]:
+          - generic: SYNTHETIC contributor order regression
+          - generic: 14:12
+          - generic: "Synthetic C: SYNTHETIC C first message"
+          - generic: Synthetic C, Synthetic A, Synthetic B. No recorded questions yet. Last moved 14:12.
+    - region "Open conversation":
+      - heading "SYNTHETIC contributor order regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: S
+        - generic: "Contributors:"
+        - text: Synthetic C, Synthetic A, Synthetic B
+      - region "Messages":
+        - list:
+          - generic: Oct 10
+          - text: Synthetic C
+          - text: ·
+          - time: Oct 10, 14:12
+          - paragraph: SYNTHETIC C first message
+          - generic: 14:12
+          - text: Synthetic A
+          - text: ·
+          - time: Oct 10, 14:13
+          - paragraph: SYNTHETIC A surviving
+          - generic: 14:13
+          - text: Synthetic B
+          - text: ·
+          - time: Oct 10, 14:13
+          - paragraph: SYNTHETIC B surviving
+          - generic: 14:13
+          - text: A member
+          - text: ·
+          - time: Oct 10, 14:13
+          - paragraph: This message was withdrawn.
+          - generic: 14:13
+          - text: A member
+          - text: ·
+          - time: Oct 10, 14:13
+          - paragraph: This message was withdrawn.
+          - generic: 14:13
+      - paragraph: Viewers read conversations; members write in them.
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

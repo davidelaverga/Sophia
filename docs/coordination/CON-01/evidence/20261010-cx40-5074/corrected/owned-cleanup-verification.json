@@ -1,0 +1,14 @@
+{
+  "portsClosed": {
+    "60475": true,
+    "60476": true,
+    "60477": true
+  },
+  "ownedProcessesAbsent": {
+    "49117": true,
+    "49126": true,
+    "49127": true
+  },
+  "audit": "6human/3withdrawnbodyNULL/9semanticrequests/bootstrapgoal1/allmodeloperational0; all writes and canonical read succeeded0",
+  "tabClosed": "51"
+}

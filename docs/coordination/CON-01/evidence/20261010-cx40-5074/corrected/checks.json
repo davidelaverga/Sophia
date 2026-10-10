@@ -1,0 +1,58 @@
+{
+  "candidate": "0ba2f3b43bf0b71258f760c47174afe53fa38067",
+  "tree": "25b68032c4a93a1223d8ab3668bdae663b63130c",
+  "review": "Complete two-file5074\u21920ba2 delta read; no reviewer featurefix",
+  "focused": {
+    "passed": 115,
+    "suites": 37,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "studioTypecheck": {
+    "session": 21271,
+    "exit": 0
+  },
+  "external": {
+    "originalOrder": 4,
+    "changedFirst": 6,
+    "missingWriter": 7,
+    "readerCache": 6,
+    "withdrawal": 10,
+    "coverage": 8,
+    "receipt": 9,
+    "allExit": 0,
+    "failed": 0
+  },
+  "browser": "Original oldlist/restoredC,A,B then A6/withdrawA2 gives C,B,A Six in actual list/header+canonicalviewerread, list503/stalewarningretained; bounded L1 externalwrites/realAPIreads/browser/nofixture/authwrite/provider/hostedclaim",
+  "audit": "12:13:54.976UTC6human/3bodyNULL/9requests/bootstrapgoal1/allmodeloperational0",
+  "cleanup": "terminal42609exit0/DBdrop/PGstopclusterremove/ports60475\u201377closed/processesabsent/tab51closed; all29successfulstacks plusinitdbfailureclean",
+  "freshReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097366174",
+  "scope": "r4237533992 qualified for scoped resolution including original and subsequent firstmessagewithdrawal; no aggregate approval",
+  "hashes": {
+    "0ba2-coverage-transition-check-result.json": "51aa28f185be8121e2d9e62adde3645fcf358c7eafddc386fac69ce52034dff9",
+    "0ba2-focused.log": "1c8eb15f250105de9098223d3123726d8b2a8dcd9efac5131127f897070c0741",
+    "0ba2-missing-writer-check-result.json": "c252a40b60ee85bf9c5f932e3b764bc610e2f15fd2c83341b5e0a2aaa2226747",
+    "0ba2-order-transition-check-result.json": "af741b5d2c3464d7728c5a6759f478f80f7ea019ed261ba04481a3c88c8daacb",
+    "0ba2-reader-cache-check-result.json": "666f77832e3856507265e1d701ff0b0b814e1c38e9e342ba2fab9c2817e62c58",
+    "0ba2-receipt-regression-check-result.json": "62388de1c45d0255dbf60d4ace713ff591a0a494eafce915b1edfee27c049beb",
+    "0ba2-withdrawal-check-result.json": "b84f6cfd18beffcab030016c776e2e3a261d7cf6320c0fc8ab72c05f6d67683a",
+    "0ba2-writer-order-check-result.json": "8ccffdf031675ae239955e24d664da25265a1e03b4f6c027e38f377fcebfe1e1",
+    "browser-db-audit.json": "b06b7896183cd2161dcbb6745609099dd915059752d373e762f9c476a21a166f",
+    "browser-stack-cleanup.json": "c28359bfcaed7dcf5b667cc8f8fbbba0c655595ec37720bbebcfeb2d7e0413a4",
+    "browser-stack-receipt.json": "9f46b1731dc29e4a408ccd29a3d0f232bd2ac614d6d39306f94b67bd57f73400",
+    "buffered-response-receipts.json": "b68185b0b8468a439a527afc4b2b683b5897a34447cae79dd8073d4fc77c3002",
+    "conversation-read-receipts.json": "1259c1f43a8a7c2adb45f265fc43082ad7ee4be4f0b9be39db372c7e2404e1da",
+    "external-first-withdraw-result.json": "a46253eb8488f348299f1136f52862758ac61092a8fed15af9e9afdef6b661ae",
+    "external-first-withdraw.mjs": "b8475a51bdba3e6f6d20c5899b75d417b026a1c572933624f28d11af36619535",
+    "external-populate-withdraw-result.json": "86fa8c520a6a1c0e8f2200cc640585b27df1112d2a93cd78a874b311fc392424",
+    "external-populate-withdraw.mjs": "4b9b921f87ed9bf4e4927d12e06353ccefa1e6e6691f68305fc0c1237a478f32",
+    "first-withdraw-pass-dom.txt": "c55c358f257c1c6335f9d12e89548d6b75efca79b0f919744676e12eaacc419c",
+    "first-withdraw-pass.jpg": "8b1ae0e4eea000c71a2726ff53f2a5fa98d2094875c7b0f07db2fca582945009",
+    "g3-browser-stack.mjs": "283354b17ebc4f188757691593eb80c6d3f3fd7cd07a9d3c78ba54fc9a74ae8c",
+    "g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
+    "original-order-pass-dom.txt": "0194438f34df7a7d59d6d205ba63be54c10a0c3fb76bd2a5ed6d365e329c567b",
+    "owned-cleanup-verification.json": "4229ee7f36246f07516821a3c393050e6d6cd2520ad95c8ff367a974b3f20d4f",
+    "relay-finish-receipts.json": "52554beb784d0822b494d7d1ce5cfb762d3a09db91e6b45b4743049355d4da06"
+  }
+}

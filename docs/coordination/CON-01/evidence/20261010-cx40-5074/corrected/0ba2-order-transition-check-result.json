@@ -1,0 +1,15 @@
+{
+  "candidate": "0ba2f3b43bf0b71258f760c47174afe53fa38067",
+  "scope": "L0 production helpers, synthetic complete cached eligible sequence; no mounted subsequent-withdrawal claim",
+  "passed": 6,
+  "failed": 0,
+  "passedCases": [
+    "Initial view-added order C,A,B is correct",
+    "With all prior places held, next eligible first for A is6",
+    "Withdrawing A2 moves surviving A6 after B3 in direct reconciliation",
+    "View-local firstSeq must update to surviving6, not retain withdrawn2",
+    "Gap before earliest shown message does not invent first sequence",
+    "Surviving writers/count/name and withdrawn body stay governed"
+  ],
+  "failedCases": []
+}

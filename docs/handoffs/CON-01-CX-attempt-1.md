@@ -1,5 +1,7 @@
 # Current checkpoint — CX-0040
 
+Correction0ba2/tree25b68032 complete2filedelta read:115focused/typecheck0/50externalcasesPASS; actual29thstack original+residualwithdrawalPASS C,B,A Six vs canonicalviewerread/list503/stalewarningretained. Audit6human/3bodyNULL/9requests/bootstrapgoal1/allmodeloperational0. All29stacks plusinitdbfailureclean/tab51closed. r4237533992 suitable scopedresolution, fresh exactreview6097366174 pending/headheld; next currentreview thenimmutableearlyS1. Original5074failure belowretained.
+
 Exact5074/tree7c1543c6 complete4filedelta read;114focused/typecheck0/44originalregressioncases pass. Actualbe351 originalorderFAIL→5074PASS; subsequent first-messagewithdrawal FAILSL0+actual5074app vs canonicalviewerread C,B,A Six. Returnedearly; r4237533992 remainsopen/new correctionpending. [Durable record, screenshots, commands, audits and cleanup](../coordination/CON-01/CX-0040.md). All28successfulownedstacks plusinitdbfailureclean/tabs49and50closed; finalafteraudit6human/3bodyNULL/9requests/bootstrapgoal1/allmodeloperational0. Beforeauditwrongcwd failed; aftercanonicalreadnameerror reconciledreadonly/no write retry, limitsretained. S1CC42local unpublished/parked; e91fullgatefailed/unwaived; OPdrafts unapproved/mailbox-route-caps-policy-expiry-sharedwindow open/A24toolblocked/A30not_run/aggregateacceptancefalse. Next immutabletransitioncorrection/affectedactualbrowserthenS1; Davidefinaldecision.
 
 # Historical checkpoint — CX-0039
