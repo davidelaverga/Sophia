@@ -1080,29 +1080,6 @@ img.avatar {
   gap: 14px;
   width: 100%;
 }
-.title-input {
-  height: auto;
-  padding: 6px 0 10px;
-  border: 0;
-  border-bottom: 1px solid var(--line-2);
-  border-radius: 0;
-  background: transparent;
-  text-align: center;
-  font-size: clamp(20px, 2vw, 24px);
-  font-weight: 500;
-  letter-spacing: -0.02em;
-}
-.title-input:hover {
-  border-bottom-color: var(--line-3);
-}
-.title-input:focus-visible {
-  background: transparent;
-  box-shadow: none;
-  border-bottom-color: rgba(185, 168, 255, 0.7);
-}
-.title-input::placeholder {
-  color: var(--text-4);
-}
 .outcome {
   display: flex;
   gap: 8px;
