@@ -481,9 +481,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* What a task hangs on is read, not a mark: the third ink, as the line above it; only the rule leading in stays faint. */
 .task-tile-hangs {
   overflow: hidden;
-  color: var(--text-4);
+  color: var(--text-3);
   font-size: var(--type-small);
   white-space: nowrap;
   text-overflow: ellipsis;

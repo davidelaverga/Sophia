@@ -22,6 +22,32 @@ export const DRAWN = {
     (page) => page.getByText(/\b1 note\b/).first(),
   ],
   room: [BAR, (page) => page.getByText('The room is ready')],
+  goals: [BAR, (page) => page.getByText('Roll the new onboarding out to every region').first()],
+  // The board: its plan and the tasks under it; and the research's card, whose foot comes with its last read (its
+  // detail, then its report's versions).
+  tasks: [
+    BAR,
+    (page) => page.getByText('The translation passes its review'),
+    (page) => page.getByText('Translate the checklist for the second region').first(),
+    (page) => page.locator('.work-card-foot').getByRole('button', { name: /^\d+ sources?$/ }),
+  ],
+  work: [
+    BAR,
+    (page) => page.getByText('A retry candidate passes its review'),
+    (page) => page.getByText('Implement the PDF retry').first(),
+  ],
+  // The resources, and what each is doing (its own read).
+  resources: [
+    BAR,
+    (page) => page.getByText('3 of 3 resources shown'),
+    (page) => page.getByText('Asked to run pnpm --filter @sophia/report test').first(),
+  ],
+  signin: [(page) => page.getByRole('button', { name: 'Email me a link' })],
+  // The invitation, read before the door shows.
+  join: [
+    (page) => page.getByText('Lucia invited you to the room'),
+    (page) => page.getByRole('button', { name: 'Ask to come in' }),
+  ],
   knowledge: [
     BAR,
     (page) => page.getByText('Pilot readout: what kept 12 of 14 teams').first(),

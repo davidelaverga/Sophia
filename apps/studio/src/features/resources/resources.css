@@ -65,15 +65,6 @@
   min-width: 0;
   font-size: var(--type-body);
 }
-.filter-count {
-  margin-left: 6px;
-  font-family: var(--mono);
-  font-size: var(--type-small);
-  color: var(--text-4);
-}
-.resource-filters button[aria-selected='true'] .filter-count {
-  color: var(--text-3);
-}
 
 /* The tiles: one object repeated, same edges and lines from one to the next; the capacity line sits at the foot. */
 .resource-grid {
