@@ -29,7 +29,7 @@
   of its option, Knowledge's 2 px narrow, once Geist had loaded without widening the box.
 - **Seven boxes move onto `Segmented`**, their look unchanged: the room's lenses, the board's lenses, Resources'
   filters, Knowledge's two filters, the places' switch, and the report viewer's format switch (`size="sm"`, 26 → 24).
-- `e2e/segmented-scale.spec.ts`: on six pages, every visible box is 36 with 28 presses (32 with 24 when small) and its
+- `e2e/segmented-scale.spec.ts`: on five pages (home's fixture has no segmented: Codex on #222), every visible box is 36 with 28 presses (32 with 24 when small) and its
   thumb lies under the press that is on; the report viewer's switch is the small one; on Resources the arrows move the
   choice and the focus, and the row has one Tab stop. `segmented-class.test.ts`: the classes, the roles, the states,
   the scale, the arrows.

@@ -29,7 +29,9 @@
   least, the arrival; `.menu-top`, `.menu-start`, `.menu-center` (centred with `translate`, which the arrival's
   `transform` leaves alone). Its rows: 32 px, the body type, the lavender `.menu-mark`, the `.menu-detail`; 44 px to
   a finger (`pointer: coarse`, where they were 40). Each menu keeps only what is its own: the account's 230, the
-  sort's width (its field's), the days' place under the pill, the pass list's 140 and its warm.
+  sort's width (its field's), the days' place under the pill, the pass list's 140 and its warm; each width named with
+  the menu (`.menu.pass-list`, `.menu.resource-sort-menu`) so it outweighs the plane's 160 whatever the order the
+  sheets load in (Codex on #227: the sort's measured 160 where its field's 128 had lost to the plane's).
 - **The four menus move onto `Menu`**: the account's (8 → 6 px, 12 → 13 px), the sort's (12 → 13 px), the days'
   (`.muted` → `detail`), the pass list (10 → 6 px, 4 → 6 of padding, the kit's shadow and arrival, 500 → 400, its
   own arrows and blur-out gone: it closes like the others, on a press outside, Escape or Tab).

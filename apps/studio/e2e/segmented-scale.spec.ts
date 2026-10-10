@@ -5,8 +5,8 @@ import { DRAWN, drawn } from './drawn.ts'
 // drawn, every visible `.segmented` box is 36 px with 28 px presses, or 32 with 24 when small; its thumb lies under
 // the press that is on; and, as tabs or radios, the arrows move the choice and the focus with it.
 
+// Home is not here: its fixture draws the welcome alone, and the places' switch is the places bar's, not home's.
 const PAGES = [
-  ['home', '/home.html?demo=1', DRAWN.home],
   ['the room', '/room.html?demo=1', DRAWN.room],
   ['Tasks', '/room.html?demo=1&place=work', DRAWN.tasks],
   ['Knowledge', '/room.html?demo=1&place=knowledge', DRAWN.knowledge],

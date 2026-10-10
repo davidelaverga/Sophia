@@ -2184,7 +2184,8 @@ button.contribution-quote:hover {
 .pass-menu {
   position: relative;
 }
-.pass-list {
+/* Named with the menu, so its width outweighs the plane's 160 whatever the order the sheets load in. */
+.menu.pass-list {
   min-width: 140px;
 }
 .pass-list [role='menuitem'] {
