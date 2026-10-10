@@ -1,15 +1,24 @@
 // Sends the bridge's voice qualification receipts to the API (POST /v1/media/evidence, A15), off the audio path: send()
 // only queues, and one write is in flight at a time, in sequence order. A receipt takes the exchange's next sequence
-// number when it is queued. A lost answer or a 5xx is sent again, with the same number and the same body (the API keeps
-// a receipt once per number and answers a repeat as the first), a bounded number of times; then the receipt is dropped
-// and counted. A refusal (4xx) is not sent again: the same body would be refused again. Each drop is logged with its
-// number and kind, never its body. An answer that says the API's guard ended the exchange is passed on once.
+// number when it is queued. Each attempt has EVIDENCE_ATTEMPT_MS to be answered, its body read included; past it the
+// request is cancelled (Codex P2 r4235355799). A lost or late answer, or a 5xx, is sent again, with the same number and
+// the same body (the API keeps a receipt once per number and answers a repeat as the first: 0046
+// media_record_evidence), a bounded number of times; then the receipt is dropped and counted, and the next goes. A
+// refusal (4xx) is not sent again: the same body would be refused again. Each drop is logged with its number and kind,
+// never its body. An answer that says the API's guard ended the exchange is passed on once.
 import type { MediaEvidenceAck, MediaEvidenceWrite } from '@sophia/contracts'
 import type { Receipt } from './qualification-recorder.ts'
 import { type MediaService, ServiceError } from './service.ts'
 
 /** Waits before a receipt whose answer was lost is sent again. */
 export const EVIDENCE_RETRY_MS = [500, 2000, 5000]
+/**
+ * How long one attempt may take to be answered, its body read included (Codex P2 r4235355799): the reservation's own
+ * attempt bound (qualification-ledger RESERVE_TIMEOUT_MS). A receipt is so given up within 4 x 3 s + 0.5 + 2 + 5 s =
+ * 19.5 s, and the next one goes; a session's close waits for its receipts at most CLOSE_FLUSH_MS (3 s), then abandons
+ * the rest, so the bound never holds a close past it.
+ */
+export const EVIDENCE_ATTEMPT_MS = 3000
 /** A15's sequence numbers run 1–99,999 per exchange; past them nothing more is sent. */
 export const MAX_SEQ = 99_999
 /** Receipts waiting to be sent, at most: an API that does not answer cannot grow the queue without bound. */
@@ -25,6 +34,8 @@ export interface SenderDeps {
   /** The exchange's next sequence number (shared by every session of the exchange in this process). */
   nextSeq: () => number
   retryMs: readonly number[]
+  /** One attempt's bound (EVIDENCE_ATTEMPT_MS unless a test says otherwise). */
+  attemptMs?: number
   /** The API's guard ended the exchange: called once. */
   ended: (reason: MediaEvidenceAck['reason']) => void
   log: (event: string, detail?: Record<string, unknown>) => void
@@ -82,11 +93,35 @@ export class EvidenceSender {
   /** The same write (same number, same body) until it is answered, refused, or its attempts run out. */
   async #deliver(write: MediaEvidenceWrite): Promise<void> {
     for (let attempt = 0; ; attempt += 1) {
-      const ack = await this.#deps.record(write).catch((err: unknown) => this.#unanswered(write, attempt, err))
+      const ack = await this.#attempt(write).catch((err: unknown) => this.#unanswered(write, attempt, err))
       if (ack === 'again') continue
       if (ack === null) return
       this.sent += 1
       return this.#acked(ack)
+    }
+  }
+
+  /**
+   * One attempt, answered within its bound or given up: its signal cancels the request (its socket closed), and the
+   * attempt fails then whether or not the service honours the signal. Its timer is cleared either way.
+   */
+  async #attempt(write: MediaEvidenceWrite): Promise<MediaEvidenceAck> {
+    const ms = this.#deps.attemptMs ?? EVIDENCE_ATTEMPT_MS
+    const controller = new AbortController()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const late = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const why = new Error(`no answer within ${String(ms)} ms`)
+        controller.abort(why)
+        reject(why)
+      }, ms)
+      // The bound never keeps a process alive by itself: the request's own socket does while it is open.
+      timer.unref()
+    })
+    try {
+      return await Promise.race([this.#deps.record(write, controller.signal), late])
+    } finally {
+      clearTimeout(timer)
     }
   }
 

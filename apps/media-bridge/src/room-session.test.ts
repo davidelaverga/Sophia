@@ -3897,6 +3897,25 @@ describe('room session: voice qualification evidence (A15), off by default', () 
 })
 
 describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE_EVIDENCE=on and a grant', () => {
+  it('each receipt goes with its own attempt’s signal, so the service can cancel it at its bound (Codex r4235355799)', async () => {
+    voiceEvidence = true
+    const signals: Array<AbortSignal | undefined> = []
+    service.recordEvidence = async (w: MediaEvidenceWrite, signal?: AbortSignal) => {
+      await Promise.resolve()
+      signals.push(signal)
+      service.evidence.push(w)
+      return service.ack
+    }
+    const { session } = await ready({ qualification: grant() })
+    await until('a receipt sent', () => signals.length > 0)
+    await session.close()
+    assert.ok(
+      signals.every((signal) => signal instanceof AbortSignal && !signal.aborted),
+      'every attempt had a signal of its own, not aborted: answered in time',
+    )
+    assert.equal(new Set(signals).size, signals.length, 'one per attempt')
+  })
+
   it('the principal’s turn, its reply, a tool round with its WHEN_IDLE continuation, usage and the close', async () => {
     voiceEvidence = true
     const { session, room, live } = await ready({ qualification: grant() })

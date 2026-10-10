@@ -93,6 +93,7 @@ An input window opens only for the principal's own forwarded audio; the provider
 - The bridge numbers an exchange's receipts once per process, across the sessions that replace one another on it (a lost room). A new process starts again at 1: the numbers an earlier process used are refused (409), dropped and counted.
 - Sending never blocks or delays audio. Receipts are queued (at most 1,000; past that, dropped) and sent one at a time, in order.
 - A lost answer or a 5xx is sent again with the same `seq` and body, after 0.5, 2 and 5 s; then the receipt is dropped. A 4xx is dropped at once.
+- Each attempt has `EVIDENCE_ATTEMPT_MS` = 3000 ms to be answered, its body read included; past it the request is cancelled (its socket closed) and the attempt counts as unanswered (Codex P2 r4235355799). So a receipt is given up within 4 × 3 s + 0.5 + 2 + 5 s = 19.5 s and the next one goes, never stuck behind it. A repeat is safe: the API keeps a receipt once per `seq` and answers the same body again as it answered the first (0046 `media_record_evidence`: the same receipt again is a no-op, and the ack is read from the exchange's state).
 - A session's close waits at most 3 s for its queue; the rest is dropped.
 - Each drop is logged (`evidence.dropped`: seq, kind, why, a running count), never its body; the close logs `evidence.closed` (sent, dropped).
 - An answer `{ended: true}` closes the session at once, its provider connection included; the assignment poll then drops it.

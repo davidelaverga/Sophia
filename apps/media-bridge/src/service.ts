@@ -38,9 +38,10 @@ export interface MediaService {
   toolSurface: (guide: GuideVersion) => Promise<MediaToolSurface>
   /**
    * A receipt for an exchange under a voice qualification grant (A15), sent only with SOPHIA_VOICE_EVIDENCE=on. The
-   * answer says whether the API's guard has ended the exchange.
+   * answer says whether the API's guard has ended the exchange. `signal` ends the attempt, its body's read included
+   * (Codex P2 r4235355799).
    */
-  recordEvidence: (write: MediaEvidenceWrite) => Promise<MediaEvidenceAck>
+  recordEvidence: (write: MediaEvidenceWrite, signal?: AbortSignal) => Promise<MediaEvidenceAck>
   /**
    * The exchange's durable bound under a voice qualification grant (A15): a provider connection or a generation,
    * reserved before it is spent. A refusal has ended the exchange. `signal` limits how long the bridge waits.
@@ -66,6 +67,11 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
   const base = baseUrl.replace(/\/+$/, '')
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
 
+  /**
+   * One request. Its `signal`, when given, bounds all of it: fetch applies it to the response's body too, so an
+   * abort while the body is read rejects `res.text()` and cancels the request, its socket closed (Codex P2
+   * r4235355799).
+   */
   async function send(path: string, init: RequestInit): Promise<unknown> {
     const res = await fetchImpl(`${base}${path}`, { ...init, headers })
     if (res.status === 204) return undefined
@@ -92,7 +98,7 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     toolCall: async (call) => parseMediaToolResult(await post('/v1/media/tool-calls', call)),
     toolSurface: async (guide) =>
       parseMediaToolSurface(await send(`/v1/media/tool-surface?guide=${guide}`, { method: 'GET' })),
-    recordEvidence: async (write) => parseMediaEvidenceAck(await post('/v1/media/evidence', write)),
+    recordEvidence: async (write, signal) => parseMediaEvidenceAck(await post('/v1/media/evidence', write, signal)),
     reserveQualification: async (reserve, signal) =>
       parseMediaQualificationReservation(await post('/v1/media/qualification-reserve', reserve, signal)),
   }

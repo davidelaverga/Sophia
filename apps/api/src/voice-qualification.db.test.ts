@@ -4,6 +4,7 @@
 // runs the media bridge's own session (RoomSession, its HTTP client) against this API, with LABELLED FAKES for LiveKit
 // and Gemini Live: it proves the bridge's receipts cross the real contract, not that a model or a room heard anything.
 import { createHash, randomUUID } from 'node:crypto'
+import http from 'node:http'
 import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import pg from 'pg'
@@ -1852,5 +1853,92 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     assert.equal(h.sent[1], 1, 'the exchange had three generations; the replacement got the one that was left')
     assert.equal((await endedOf(exchangeId))?.reason, 'turns')
     await h.bridge.stop()
+  })
+})
+
+describe('a receipt sent again after its answer was lost gets the same answer from the API (Codex r4235355799)', () => {
+  it('the first attempt commits, its answer is held back and the bridge gives it up; the same number and body again: the same ack, one receipt kept', async () => {
+    const { projectId } = await project()
+    const grantId = await grant(projectId)
+    const exchangeId = await open(projectId)
+    const api = await baseUrl()
+    // A relay in front of the real API: the first write goes through (it commits) and its answer is held back, as a
+    // lost answer is; every later request is relayed as it is.
+    const acks: string[] = []
+    let held: http.ServerResponse | null = null
+    const relay = http.createServer((req, res) => {
+      let body = ''
+      req.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')))
+      req.on('end', () => {
+        void fetch(`${api}${req.url ?? ''}`, {
+          method: req.method ?? 'POST',
+          headers: { authorization: req.headers.authorization ?? '', 'content-type': 'application/json' },
+          body,
+        }).then(async (answered) => {
+          const text = await answered.text()
+          acks.push(text)
+          if (acks.length === 1) {
+            held = res
+            return
+          }
+          res.writeHead(answered.status, { 'content-type': 'application/json' })
+          res.end(text)
+        })
+      })
+    })
+    await new Promise<void>((resolve) => relay.listen(0, '127.0.0.1', resolve))
+    const address = relay.address()
+    assert.ok(address !== null && typeof address === 'object')
+    const service = httpMediaService(`http://127.0.0.1:${String(address.port)}`, MEDIA_TOKEN)
+    const evidence: MediaEvidenceWrite = {
+      exchangeId,
+      grantId,
+      seq: 1,
+      receipt: {
+        kind: 'session_closed',
+        schema: 'sophia.bridge.voice_qualification.v1',
+        grantId,
+        runBindingSha256: RUN,
+        atMs: Date.now(),
+        providerClosed: true,
+        windows: 0,
+        turns: 0,
+        replies: 0,
+        toolCalls: 0,
+        typedMessages: 0,
+        transcriptRetained: false,
+        reason: 'ended',
+      },
+    }
+    try {
+      // The bridge's attempt, bounded as EvidenceSender bounds it: given up, never answered.
+      const attempt = new AbortController()
+      const timer = setTimeout(() => attempt.abort(new Error('no answer in time')), 1000)
+      const first = await Promise.race([
+        service.recordEvidence(evidence, attempt.signal).then(
+          () => 'answered',
+          () => 'given up',
+        ),
+        new Promise<'stuck'>((resolve) => setTimeout(() => resolve('stuck'), 5000)),
+      ])
+      clearTimeout(timer)
+      assert.equal(first, 'given up', 'the bridge gave the first attempt up')
+      assert.equal(acks.length, 1, 'the API answered it: it committed')
+      const again = await service.recordEvidence(evidence)
+      assert.deepEqual(again, JSON.parse(acks[0] ?? 'null'), 'the same ack as the first')
+      assert.deepEqual(again, { ended: false, reason: null })
+      const kept = await owner((c) =>
+        c.query<{ receipt: unknown }>(
+          `SELECT receipt FROM sophia.voice_qualification_evidence WHERE exchange_id=$1 AND source='bridge' AND seq=1`,
+          [exchangeId],
+        ),
+      )
+      assert.equal(kept.rows.length, 1, 'kept once')
+      assert.deepEqual(kept.rows[0]?.receipt, evidence.receipt, 'as it was sent')
+    } finally {
+      ;(held as http.ServerResponse | null)?.destroy()
+      relay.closeAllConnections()
+      await new Promise((resolve) => relay.close(resolve))
+    }
   })
 })

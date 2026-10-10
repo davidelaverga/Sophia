@@ -684,7 +684,7 @@ export class RoomSession {
       model: deps.model,
       instructionSha256: deps.guide.combined.sha256,
       bridgeCommit: deps.bridgeCommit ?? null,
-      record: (write) => deps.service.recordEvidence(write),
+      record: (write, signal) => deps.service.recordEvidence(write, signal),
       nextSeq: deps.evidenceSequence?.(this.exchangeId) ?? (() => (seq += 1)),
       retryMs: deps.evidenceRetryMs ?? EVIDENCE_RETRY_MS,
       now: () => deps.now(),
