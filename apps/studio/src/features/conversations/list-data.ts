@@ -41,7 +41,7 @@ function startedIn(list: ConversationList, row: ConversationStarted['conversatio
  * proves the new row only, so only the list's data takes it: a list read failing stays failing, its error and «This may
  * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985).
  *
- * Its first message goes into the thread only where nothing was read there yet and the receipt is current where this
+ * Its first message goes into the thread only where no read of it exists yet and the receipt is current where this
  * page's feed stands (`pageAt`): a receipt landing after a withdrawal the page already knows of, or onto a read made
  * meanwhile (the conversation opened from the list while the start was on its way), writes nothing there, and the
  * thread's own read says what is so. What it writes is stamped where the receipt itself is current (its `cursor`, read in
@@ -58,7 +58,9 @@ export function putStarted(
   const current = followedAt(cursor, pageAt)
   setListsData(queryClient, key, (list) => startedIn(list, conversation, current))
   const thread = messagesKey(conversation.id, account)
-  if (queryClient.getQueryData(thread) === undefined && current) {
+  // Only into a thread with no read at all: one opened meanwhile, its read under way, failed (a 404 once erased) or
+  // answered, says what is so, and is never written over (PR #199 r4238023979).
+  if (current && queryClient.getQueryCache().find({ queryKey: thread, exact: true }) === undefined) {
     queryClient.setQueryData(thread, {
       pages: [{ messages: [message], before: null, readAt: cursor }],
       pageParams: [null],

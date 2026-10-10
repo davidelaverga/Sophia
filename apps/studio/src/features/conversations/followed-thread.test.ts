@@ -155,6 +155,32 @@ describe('a start’s receipt: stamped where it is current, written only where t
     stop()
   })
 
+  it('a read that failed meanwhile (404, erased), the page’s feed lagging at the receipt: never written over', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    await client
+      .fetchInfiniteQuery({
+        queryKey: b,
+        queryFn: () => Promise.reject(new Error('404')),
+        initialPageParam: null as string | null,
+      })
+      .catch(() => undefined)
+    putStarted(client, 'p', 'ana', startedAt('6'), '6')
+    const state = client.getQueryCache().find({ queryKey: b, exact: true })?.state
+    assert.equal(state?.status, 'error')
+    assert.equal(state?.data, undefined)
+  })
+
+  it('a read under way meanwhile is left to answer: nothing written into it', () => {
+    const client = new QueryClient()
+    void client.prefetchInfiniteQuery({
+      queryKey: b,
+      queryFn: () => new Promise<never>(() => undefined),
+      initialPageParam: null as string | null,
+    })
+    putStarted(client, 'p', 'ana', startedAt('6'), '6')
+    assert.equal(client.getQueryData(b), undefined)
+  })
+
   it('a read made meanwhile is never overwritten by the receipt', () => {
     const client = new QueryClient()
     client.setQueryData(b, {
