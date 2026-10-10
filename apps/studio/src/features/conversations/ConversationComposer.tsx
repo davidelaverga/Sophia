@@ -95,7 +95,7 @@ function useMessageWrite(props: Props, askSophia: boolean) {
       // Its data only: a list whose reads are failing still says so (PR #199 r4237298620).
       setListsData(queryClient, LISTS, (read) => ({
         ...read,
-        conversations: withLastMessage(read.conversations, conversationId, last),
+        conversations: withLastMessage(read.conversations, conversationId, last, now),
       }))
     }
     void queryClient.invalidateQueries({ queryKey: LISTS })

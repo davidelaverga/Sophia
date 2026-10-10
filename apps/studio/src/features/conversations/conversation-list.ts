@@ -302,10 +302,11 @@ export interface Remains {
   /** Whether the writer is the one who reads here (whom the API always names, in the last place kept at the cap). */
   writerIsReader: boolean
   /**
-   * The place of the writer's first message still shown, where the pages read hold every place before it (places run
-   * from 1, a withdrawn message keeping its own), so it is known to be their first; else null, never guessed.
+   * Each member's first message still shown, by place, where the pages read hold every place before it (places run
+   * from 1, a withdrawn message keeping its own), so it is known to be their first; a member whose first isn't known
+   * has none here, never a guess (`firstsIn`).
    */
-  writerFirst: number | null
+  firsts: ReadonlyMap<string, number>
   sophiaStays: boolean
   /** The withdrawn message's place. */
   seq: number
@@ -320,14 +321,18 @@ const shown = (m: ConversationMessage) => !m.withdrawn && m.text !== null
 const newestOf = (all: readonly ConversationMessage[]) =>
   all.reduce<ConversationMessage | null>((n, m) => (n === null || m.seq > n.seq ? m : n), null)
 
-/** The oldest of these by place; null for none. */
-const oldestOf = (all: readonly ConversationMessage[]) =>
-  all.reduce<ConversationMessage | null>((n, m) => (n === null || m.seq < n.seq ? m : n), null)
-
-/** Whether these pages hold every place before `seq`, from 1. */
-const heldBefore = (all: readonly ConversationMessage[], seq: number) => {
+/** Each member's first place still shown in these pages, where they hold every place before it from 1 (`Remains`). */
+export function firstsIn(thread: ThreadHeld): ReadonlyMap<string, number> {
+  const all = (thread?.pages ?? []).flatMap((p) => p.messages)
   const places = new Set(all.map((m) => m.seq))
-  return Array.from({ length: Math.max(seq - 1, 0) }, (_, i) => i + 1).every((place) => places.has(place))
+  const held = (seq: number) =>
+    Array.from({ length: Math.max(seq - 1, 0) }, (_, i) => i + 1).every((n) => places.has(n))
+  const firsts = new Map<string, number>()
+  for (const m of all.filter(shown)) {
+    const was = m.author === 'member' && m.actorId !== null ? firsts.get(m.actorId) : null
+    if (m.actorId !== null && was !== null && (was === undefined || m.seq < was)) firsts.set(m.actorId, m.seq)
+  }
+  return new Map([...firsts].filter(([, seq]) => held(seq)))
 }
 
 /** What a withdrawal leaves in the pages read (`Remains`), for the reader `reader` (their actor id; null if unknown). */
@@ -335,15 +340,13 @@ export function remainsAfter(after: ThreadHeld, gone: ConversationMessage, reade
   const all = (after?.pages ?? []).flatMap((p) => p.messages)
   const now = all.filter(shown)
   const writer = gone.author === 'member' ? gone.actorId : null
-  const said = now.filter((m) => m.author === 'member' && m.actorId === writer)
-  const theirs = newestOf(said)
-  const first = oldestOf(said)
+  const theirs = newestOf(now.filter((m) => m.author === 'member' && m.actorId === writer))
   return {
     writer,
     writerStays: theirs !== null,
     writerName: theirs === null ? null : (theirs.name ?? 'A member'),
     writerIsReader: writer !== null && writer === reader,
-    writerFirst: first !== null && heldBefore(all, first.seq) ? first.seq : null,
+    firsts: firstsIn(after),
     sophiaStays: now.some((m) => m.author === 'sophia'),
     seq: gone.seq,
     newestShown: newestOf(now)?.seq ?? null,
@@ -410,42 +413,39 @@ function writersAfter(
   // The list read's own writer (or the reader in the last place kept, at the cap) keeps their place, named again.
   if (was !== undefined && was.added === undefined) return { contributors: renamedIn(contributors, writer, writerName) }
   const them = { actorId: writer, name: writerName }
-  const placed = remains.writerFirst === null ? them : { ...them, firstSeq: remains.writerFirst }
-  // One this view added is placed again by their first message still shown now: a first withdrawn since never stays
-  // (CX-0040); one no longer known goes last.
-  if (was !== undefined)
-    return {
-      contributors: withAdded(
-        contributors.filter((p) => p !== was),
-        placed,
-      ),
-    }
-  if (contributors.length < NAMED_AT_MOST) return { contributors: withAdded(contributors, placed) }
+  const added: Placed = { ...them, added: true }
+  // One this view added is placed again, all of them by their first messages still shown now (`inOrder`): a first
+  // withdrawn since never stays (CX-0040).
+  const others = contributors.filter((p) => p !== was)
+  if (was !== undefined || others.length < NAMED_AT_MOST)
+    return { contributors: inOrder([...others, added], remains.firsts) }
   if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
   return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
 
 /**
  * A writer as this view holds them: `added` where this view named them since the list read (a receipt's sender, or a
- * writer restored by a withdrawal), with where their first message still shown is, where known (`firstSeq`).
+ * writer restored by a withdrawal).
  */
-type Placed = ConversationSummary['contributors'][number] & { added?: true; firstSeq?: number }
+type Placed = ConversationSummary['contributors'][number] & { added?: true }
 
 /** These writers, `writer` named `name`, each in their place. */
 const renamedIn = (all: readonly Placed[], writer: string, name: string) =>
   all.map((p) => (p.actorId === writer && p.name !== name ? { ...p, name } : p))
 
 /**
- * Those who wrote there with `them` among the writers this view added since the list read. The list read's own writers
- * all first wrote before it, so they stay first, in their places. The added ones go in the order of their first message
- * still shown, as the API orders writers (PR #199 r4237533992), where that is known (`Remains.writerFirst`); one whose
- * first isn't known goes last, its place not invented.
+ * The writers, those this view added since the list read put in order again (PR #199 r4237533992, r4237576952). The
+ * list read's own writers all first wrote before it, so they stay first, in their places. The added ones follow, each
+ * by their first message still shown, as the API orders writers, where the pages read prove it (`firsts`); those whose
+ * first isn't proven follow them, as they were, no place invented. Derived again each time, from the pages as read
+ * now: a first withdrawn since never keeps a writer ahead (CX-0040), and a receipt's sender is ordered like the rest.
  */
-function withAdded(contributors: readonly Placed[], them: Placed): Placed[] {
-  const first = them.firstSeq
-  const at = first === undefined ? -1 : contributors.findIndex((p) => p.firstSeq !== undefined && p.firstSeq > first)
-  const added: Placed = { ...them, added: true }
-  return at < 0 ? [...contributors, added] : [...contributors.slice(0, at), added, ...contributors.slice(at)]
+function inOrder(contributors: readonly Placed[], firsts: ReadonlyMap<string, number>): Placed[] {
+  const own = contributors.filter((p) => p.added === undefined)
+  const added = contributors.filter((p) => p.added !== undefined)
+  const first = (p: Placed) => firsts.get(p.actorId)
+  const known = added.filter((p) => first(p) !== undefined).toSorted((a, b) => (first(a) ?? 0) - (first(b) ?? 0))
+  return [...own, ...known, ...added.filter((p) => first(p) === undefined)]
 }
 
 /**
@@ -579,8 +579,10 @@ function saysWithdrawn(
  * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
  * messages at all (A18 proposed), only where the row may take it (`takes`); its watermark moves up to the message's
  * place with it (so an older receipt after it never passes). With it, as the API would say them after this message:
- * - its writer is among those who wrote there (PR #199 r4237298623): added in the last place kept when the row names as
- *   many as it may (`NAMED_AT_MOST`), the rest then unnamed, as the API keeps a reader who wrote;
+ * - its writer is among those who wrote there (PR #199 r4237298623): among the writers this view added, by their first
+ *   message as `thread` (the conversation's pages as read, with this message) proves it, never by this message's place
+ *   alone (`inOrder`, r4237576952); or in the last place kept when the row names as many as it may (`NAMED_AT_MOST`),
+ *   the rest then unnamed, as the API keeps a reader who wrote;
  * - its writer's name, where they are already among them, as the receipt says it now (or «A member», where it says
  *   none), in the same place (PR #199 r4237385093: the API names each writer by their newest message);
  * - a summary or question projection with a range is behind, and `current` becomes `stale` (PR #199 r4237298622); one
@@ -594,6 +596,7 @@ export function withLastMessage<T extends ConversationSummary & Unnamed>(
   list: readonly T[],
   conversationId: string,
   m: Pick<ConversationMessage, 'author' | 'actorId' | 'name' | 'text' | 'at'> & { seq?: number },
+  thread?: ThreadHeld,
 ): readonly T[] {
   const text = m.text
   if (text === null) return list
@@ -605,7 +608,7 @@ export function withLastMessage<T extends ConversationSummary & Unnamed>(
     return {
       ...c,
       ...watermark,
-      ...withWriter(c, m),
+      ...withWriter(c, m, thread),
       summaryCoverage: behind(c.summaryCoverage, adjacent),
       questionsCoverage: behind(c.questionsCoverage, adjacent),
       lastMessage: {
@@ -628,13 +631,16 @@ export function withLastMessage<T extends ConversationSummary & Unnamed>(
 function withWriter(
   c: ConversationSummary & Unnamed,
   m: Pick<ConversationMessage, 'author' | 'actorId' | 'name'>,
+  thread: ThreadHeld,
 ): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
   const writer = m.author === 'member' ? m.actorId : null
   if (writer === null) return { contributors: c.contributors }
   const name = m.name ?? 'A member'
   if (c.contributors.some((p) => p.actorId === writer)) return { contributors: renamedIn(c.contributors, writer, name) }
   const them = { actorId: writer, name }
-  if (c.contributors.length < NAMED_AT_MOST) return { contributors: withAdded(c.contributors, them) }
+  if (c.contributors.length < NAMED_AT_MOST) {
+    return { contributors: inOrder([...c.contributors, { ...them, added: true }], firstsIn(thread)) }
+  }
   return { contributors: [...c.contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
 

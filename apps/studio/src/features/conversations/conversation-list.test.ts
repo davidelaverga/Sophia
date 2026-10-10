@@ -46,7 +46,7 @@ const remainsOf = (over: Partial<Remains>): Remains => ({
   writerStays: false,
   writerName: null,
   writerIsReader: false,
-  writerFirst: null,
+  firsts: new Map<string, number>(),
   sophiaStays: true,
   seq: 3,
   newestShown: null,
@@ -1059,7 +1059,7 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
       writerStays: false,
       writerName: null,
       writerIsReader: false,
-      writerFirst: null,
+      firsts: new Map<string, number>(),
       sophiaStays: false,
       seq: 3,
       newestShown: 2,
@@ -1279,13 +1279,60 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     )
   })
 
+  it('a receipt’s sender and a writer restored later go in the order of their first messages (r4237576952)', () => {
+    // A row read at C1. A (lucía) writes 2 elsewhere; B (me) is confirmed at 3; A's 4 is withdrawn, her 2 still shown.
+    const stale = assessed({
+      messageSeq: 1,
+      contributors: [{ actorId: 'carla', name: 'Carla' }],
+      lastMessage: { author: 'member', actorId: 'carla', name: 'Carla', text: 'One.', at, seq: 1 },
+    })
+    const one = msg(1, { actorId: 'carla', name: 'Carla' })
+    const two = msg(2, { actorId: 'lucia', name: 'Lucía' })
+    const three = msg(3, { name: 'Me', text: 'Three.' })
+    const four = msg(4, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+    const mine = { author: 'member' as const, actorId: ME, name: 'Me', text: 'Three.', at, seq: 3 }
+    const [sent] = withLastMessage([stale], 'a', mine, page([one, two, three]))
+    assert.deepEqual(
+      sent?.contributors.map((p) => p.actorId),
+      ['carla', ME],
+    )
+    const [a] = rowsKnown(sent ? [sent] : [], heldForA(page([one, two, three, four])), () => true)
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      ['carla', 'lucia', ME],
+    )
+    // The same receipt with no pages to read: then by the withdrawal's pages.
+    const [bare] = withLastMessage([stale], 'a', mine)
+    const b = listWithdrawn(oneRow(bare ?? stale), 'a', remainsAfter(page([one, two, three, four]), four))
+    assert.deepEqual(
+      b?.conversations[0]?.contributors.map((p) => p.actorId),
+      ['carla', 'lucia', ME],
+    )
+  })
+
+  it('a receipt’s place is never taken for its sender’s first: with place 1 not read, no order is invented', () => {
+    // As above, but the pages read start at 2: earlier messages of the sender's may lie before them.
+    const stale = assessed({ messageSeq: 1, contributors: [{ actorId: 'carla', name: 'Carla' }] })
+    const two = msg(2, { actorId: 'lucia', name: 'Lucía' })
+    const three = msg(3, { name: 'Me', text: 'Three.' })
+    const four = msg(4, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+    const mine = { author: 'member' as const, actorId: ME, name: 'Me', text: 'Three.', at, seq: 3 }
+    const [sent] = withLastMessage([stale], 'a', mine, page([two, three]))
+    const [a] = rowsKnown(sent ? [sent] : [], heldForA(page([two, three, four])), () => true)
+    // Neither first is proven: they stay as they came, each once.
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      ['carla', ME, 'lucia'],
+    )
+  })
+
   it('a first place the pages read don’t hold from the start is never invented: such a writer goes last', () => {
     // Place 1 isn't read here, so neither writer's first message still shown is known to be their first.
     const stale = assessed({ messageSeq: 1, contributors: [{ actorId: ME, name: 'Me' }] })
     const written = [msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3, { actorId: 'tomas', name: 'Tomás' })]
     const five = msg(5, { actorId: 'tomas', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
     const six = msg(6, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:01:00.000Z' } })
-    assert.equal(remainsAfter(page([...written, five]), five).writerFirst, null)
+    assert.equal(remainsAfter(page([...written, five]), five).firsts.size, 0)
     const afterFive = listWithdrawn(oneRow(stale), 'a', remainsAfter(page([...written, five]), five))
     const afterSix = listWithdrawn(afterFive, 'a', remainsAfter(page([...written, five, six]), six))
     // As they came, each once.

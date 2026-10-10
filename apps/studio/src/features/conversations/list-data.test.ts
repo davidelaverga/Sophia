@@ -119,7 +119,7 @@ describe('setListsData: what this view writes into a list read, and nothing of i
       writerStays: false,
       writerName: null,
       writerIsReader: false,
-      writerFirst: null,
+      firsts: new Map<string, number>(),
       sophiaStays: false,
       seq: 2,
       newestShown: 1,
