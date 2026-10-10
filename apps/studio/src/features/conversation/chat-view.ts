@@ -145,7 +145,7 @@ export function chatEntry(inRoom: boolean, presence: SophiaPresence | undefined)
 }
 
 /** A typed message the room never answered: it may have arrived, and it isn't sent again unless the person does. */
-export const DELIVERY_NOT_CONFIRMED = 'Not confirmed: it may have arrived. Nothing is sent again on its own.'
+export const DELIVERY_NOT_CONFIRMED = 'Not confirmed: your message may have arrived. Nothing is sent again on its own.'
 
 /**
  * The one error the chat's foot says. Why the call ended or failed comes first: it is the room's state now, and a

@@ -109,7 +109,10 @@ export function usePassageTask(props: {
   return { offered: VISION && canInvite(me) && !write.held && !asked, start, node }
 }
 
-/** What the last Create did, in the pane's foot: added, with See tasks; or, the form closed, not sent, with Try again. */
+/**
+ * What the last Create did, in the pane's foot: added, with See tasks; or, the form closed, not confirmed, with Try
+ * again.
+ */
 function TaskLine(props: {
   lineRef: RefObject<HTMLParagraphElement | null>
   said: string | null

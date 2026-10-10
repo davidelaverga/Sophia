@@ -56,10 +56,16 @@ const TEAM = /\b(Davide|Luis)\b/
 
 /**
  * The ways an outcome nobody knows was once put that aren't «Not confirmed», then the next step: as a failure («Not
- * sent. Try again.» where no reply came), or «unconfirmed» in a sentence («Delivery unconfirmed», «Reply unconfirmed»,
- * «Your choice is unconfirmed»), or «Not confirmed it was kept». A state's one-word label («unconfirmed») stays.
+ * sent. Try again.», «Not sent to the room: …» where no reply came), or «unconfirmed» in a sentence («Delivery
+ * unconfirmed», «Reply unconfirmed», «Your choice is unconfirmed»), or «Not confirmed it was kept». A state's one-word
+ * label («unconfirmed») stays, and so does «Not sent» where it is known (a refusal, words given back to the field).
  */
-const ELSEWISE = [/^Not sent\. Try again\.$/, /\s.*\bunconfirmed\b|\bunconfirmed\b.*\s/i, /\bNot confirmed it was\b/]
+const ELSEWISE = [
+  /^Not sent\. Try again\.$/,
+  /^Not sent to\b/,
+  /\s.*\bunconfirmed\b|\bunconfirmed\b.*\s/i,
+  /\bNot confirmed it was\b/,
+]
 
 describe('what a person reads', () => {
   it('names nobody who builds the Studio', () => {
