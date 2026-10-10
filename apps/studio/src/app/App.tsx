@@ -147,9 +147,11 @@ export function App() {
   if (joinPage) {
     return (
       <QueryClientProvider client={queryClient}>
-        <Suspense fallback={<Centered title="Opening the room…" busy />}>
-          <JoinFlow auth={state} onChooseDev={switchIdentity} onSignOut={leaveSession} onOpenProject={routing.open} />
-        </Suspense>
+        <LoadFailed>
+          <Suspense fallback={<Centered title="Opening the room…" busy />}>
+            <JoinFlow auth={state} onChooseDev={switchIdentity} onSignOut={leaveSession} onOpenProject={routing.open} />
+          </Suspense>
+        </LoadFailed>
       </QueryClientProvider>
     )
   }

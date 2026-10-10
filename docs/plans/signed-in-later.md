@@ -26,9 +26,10 @@
 - Fetched ahead, never at rest: on the sign-in page once the person starts (a key, a press, caught before any field
   keeps it), and with a link offered. Not while who is in is still found out (nobody may be: a session back has the
   chunk in the browser's cache, its name hashed). On a room's door only for a member, whom it hands to the Studio.
-- A chunk that doesn't arrive (a deploy replaced it, the connection dropped) is said, never a blank screen: «Sophia
-  couldn't finish opening», with «Load again» (`LoadFailed.tsx`, the app's first error boundary, around the signed-in
-  Studio). A failed fetch is forgotten, so the next asks again.
+- A chunk that doesn't arrive (a deploy replaced it, the connection dropped), or a part that fails to draw, is said,
+  never a blank screen: «Sophia couldn't finish opening», with «Load again» (`LoadFailed.tsx`, the app's first error
+  boundary, around the signed-in Studio and around a room's door). A failed fetch is forgotten, so the next asks
+  again.
 - The opening still covers the chunk's fetch, within its own 5 s: on a path that never fetched ahead (a link opened in
   another tab, a provider's return) on a slow connection, it may hand off to «Sophia» while the chunk arrives.
 - Production build, what the sign-in downloads: 103 kB gzip of script (from 335) and 15 kB gzip of style (from 40).
@@ -44,7 +45,8 @@
   too, on its own fixture page (which draws Home directly, without the boundary).
 - Mutants, with a control that passes: the signed-in Studio imported statically, the client imported by the sign-in
   again, a fetch at rest (after a short timer), no fetch ahead, and no boundary each fail their check. The failed
-  fetch forgotten has no check of its own: a page loaded again fetches afresh either way.
+  fetch forgotten has none: its case is a fetch ahead that fails, then a sign-in on the same page, and these fixture
+  pages can't sign in there (no Auth service answers a code).
 
 ## Left
 
