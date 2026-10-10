@@ -1,0 +1,19 @@
+{
+  "privateJournalReference": "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/g3-high-watermark-recheck",
+  "scripts": {
+    "g3-browser-stack.py": "ddcf23021839de22d8dd39ded04e6e39bc7605573631b595ab699b7b9dcce42b",
+    "g3-browser-stack.mjs": "cdf8c0c4a095413af1239e51ffd583e7e6c0d3750e4cd5021224a58f20d2d681",
+    "list-only-withdraw.mjs": "10aa5493cf378cf8f883556eef09c9df4cd9e3d35d1f125fc1b324645ce8e8c2",
+    "controlled-list-withdraw.mjs": "cf3e1d75302a6f30c3f62ae4c255b8360ba80e9bc6f6fbec39b777892c258d60"
+  },
+  "entryPoint": "python3 /Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/g3-high-watermark-recheck/g3-browser-stack.py",
+  "environmentReferences": {
+    "CON01_CANDIDATE_ROOT": "/Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-candidate",
+    "CON01_JOURNAL": "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/g3-high-watermark-recheck",
+    "CON01_PG_BIN": "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/pg17-owned/package/native/bin"
+  },
+  "stopCommand": "touch /Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/g3-high-watermark-recheck/browser-stop",
+  "withdrawalMechanism": "private helper connects using disposable nonowner sophia_api role; withActor(admin, write) calls real withdrawConversationMessage; readConversationList as editor; owner connection only queries bounded synthetic metadata/body/counts. Not an admin browser/HTTP withdrawal test.",
+  "cleanupVerified": "exec29854 exit0; cleanup JSON; ps21776/21799/21807/21808 absent; socketconnect127.0.0.1:58502/58503/58504 closed; CUA tab32.close observed successful",
+  "noCredentialValuesExported": true
+}
