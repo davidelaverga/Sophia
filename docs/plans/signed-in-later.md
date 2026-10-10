@@ -24,14 +24,20 @@
   from its store (`review-proposal.ts`, which reads no API); the opening's warming apart from its hook; the calls'
   timeouts in `api/timeouts.ts`, re-exported by the client.
 - Fetched ahead, never at rest: on the sign-in page once the person starts (a key, a press, caught before any field
-  keeps it), and with a link offered. Not while who is in is still found out (nobody may be: a session back has the
-  chunk in the browser's cache, its name hashed). On a room's door only for a member, whom it hands to the Studio.
+  keeps it), and with a link offered. While who is in is still found out, when a session is likely (`sessionLikely`:
+  supabase-js's own `sb-…-auth-token` key kept, or a sign-in's return, `?code=`): the chunk and the session's check go
+  together, never one after the other. On a room's door only for a member, whom it hands to the Studio.
+- Why while finding out: the first CI run of this change failed `app-auth` (a session kept, «Account» not drawn within
+  5 s). The check waited on the session, then the chunk, then its first compile on the test server: one after the
+  other. A person with a session back, cache emptied or a new deploy, would wait the same way.
+- The app's test server (`vite.app.config.ts`) prepares the chunk as it starts (`server.warmup`), as a build's chunk
+  is ready on its host: no check waits on its first compile.
 - A chunk that doesn't arrive (a deploy replaced it, the connection dropped), or a part that fails to draw, is said,
   never a blank screen: «Sophia couldn't finish opening», with «Load again» (`LoadFailed.tsx`, the app's first error
   boundary, around the signed-in Studio and around a room's door). A failed fetch is forgotten, so the next asks
   again.
-- The opening still covers the chunk's fetch, within its own 5 s: on a path that never fetched ahead (a link opened in
-  another tab, a provider's return) on a slow connection, it may hand off to «Sophia» while the chunk arrives.
+- The opening still covers the chunk's fetch, within its own 5 s: on a slow connection, a chunk still on its way
+  then, it hands off to «Sophia» while the chunk arrives.
 - Production build, what the sign-in downloads: 104 kB gzip of script (from 335) and 15 kB gzip of style (from 40).
   The signed-in Studio (162 kB gzip) and the validators (81 kB gzip) come once a session is there.
 
@@ -40,13 +46,16 @@
 - `e2e/signed-in-later.spec.ts`, on the app itself (`app.html`), every request recorded as it leaves: at rest (2 s
   past drawing), the sign-in page has asked for neither the signed-in Studio, the client nor the validators; once the
   person starts typing, the signed-in Studio is fetched; signed in with its chunk refused, the page says so and offers
-  to load again.
+  to load again; with a session kept (past its time, its refresh held), the chunk is asked for while the page still
+  finds out who is in. At rest, the page keeps supabase-js's key for a provider's sign-in started and left
+  (`…-auth-token-code-verifier`): that is no session, and fetches nothing.
 - `app-auth`, unchanged, passes: proposals kept and forgotten by account, through the new boundary. `opening` passes
   too, on its own fixture page (which draws Home directly, without the boundary).
 - Mutants, with a control that passes: the signed-in Studio imported statically, the client imported by the sign-in
   again, a fetch at rest (after a short timer), no fetch ahead, and no boundary each fail their check. The failed
   fetch forgotten has none: its case is a fetch ahead that fails, then a sign-in on the same page, and these fixture
-  pages can't sign in there (no Auth service answers a code).
+  pages can't sign in there (no Auth service answers a code). For the fetch while finding out: none at all, one
+  always, a session's key never matched, matched unanchored, and any key taken for one each fail their check.
 
 ## Left
 

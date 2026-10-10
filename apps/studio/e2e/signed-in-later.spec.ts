@@ -59,6 +59,9 @@ test('later · the sign-in page at rest asks for none of the signed-in Studio, i
   page,
 }) => {
   const asked = recorded(page)
+  // What a provider's sign-in, started and left, keeps: supabase-js's own key beside the session's, no session.
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate((key) => localStorage.setItem(key, '"synthetic-verifier"'), `${SESSION_KEY}-code-verifier`)
   await page.goto(`${APP}/app.html`)
   await expect(page.locator('input[type="email"]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
@@ -87,4 +90,22 @@ test('later · a signed-in Studio that doesn’t arrive says so, with the page a
   await page.goto(`${APP}/app.html`)
   await expect(page.getByRole('heading', { name: 'Sophia couldn’t finish opening' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Load again' })).toBeVisible()
+})
+
+test('later · with a session kept, the signed-in Studio is fetched while who is in is still found out', async ({
+  page,
+}) => {
+  const asked = recorded(page)
+  // A session past its time: finding out who is in waits on its refresh, which this check holds.
+  await page.route('**/synthetic-auth/auth/v1/token*', () => undefined)
+  await page.goto(`${APP}/favicon.svg`)
+  const past = Math.floor(Date.now() / 1000) - 60
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [
+    SESSION_KEY,
+    JSON.stringify({ ...session(), expires_at: past, expires_in: -60 }),
+  ] as const)
+  await page.goto(`${APP}/app.html`)
+  // Still finding out, the chunk already asked for: never one after the other.
+  await expect.poll(() => asked.some((p) => p.endsWith('/src/app/SignedIn.tsx'))).toBe(true)
+  await expect(page.locator('main.screen[aria-busy="true"]')).toBeVisible()
 })

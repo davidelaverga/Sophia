@@ -13,6 +13,23 @@ export function loadSignedIn(): Promise<{ Studio: typeof Studio }> {
   return loading
 }
 
+/** Supabase's own key for a session it keeps (`sb-<project>-auth-token`). */
+const KEPT_SESSION = /^sb-.+-auth-token$/
+
+/**
+ * Whether who is in will most likely be someone: a session this browser keeps, or a sign-in's return (`?code=`). Read
+ * from the page alone, so the chunk can be fetched while the session is still found out, never after it.
+ */
+export function sessionLikely(): boolean {
+  if (new URL(window.location.href).searchParams.has('code')) return true
+  try {
+    for (let i = 0; i < localStorage.length; i++) if (KEPT_SESSION.test(localStorage.key(i) ?? '')) return true
+  } catch {
+    // Storage refused: nothing is known ahead, and the chunk comes once the session is.
+  }
+  return false
+}
+
 /** Fetched ahead, never waited on: not on a connection that asks to save data. */
 export function warmSignedIn(): void {
   const saving = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
