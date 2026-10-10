@@ -1,0 +1,70 @@
+{
+  "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+  "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+  "scope": "L0 production page freshness and correlation helpers; synthetic records, no mounted native/provider answer",
+  "results": [
+    {
+      "name": "matching older page fresh after deferred landing",
+      "readFrom": 8,
+      "result": {
+        "ended": false,
+        "waiting": true
+      },
+      "pass": true
+    },
+    {
+      "name": "fresh newest cannot make stale matching older page current",
+      "readFrom": 6,
+      "result": {
+        "ended": false,
+        "waiting": false
+      },
+      "pass": true
+    },
+    {
+      "name": "matching page read set out equal to landing is insufficient",
+      "readFrom": 7,
+      "result": {
+        "ended": false,
+        "waiting": false
+      },
+      "pass": true
+    },
+    {
+      "name": "fresh wrong reply cannot claim wait",
+      "readFrom": 8,
+      "result": {
+        "ended": false,
+        "waiting": false
+      },
+      "pass": true
+    },
+    {
+      "name": "ended matching reply settles despite stale page",
+      "readFrom": 6,
+      "result": {
+        "ended": true,
+        "waiting": false
+      },
+      "pass": true
+    },
+    {
+      "name": "missing matching page cannot claim deferred wait",
+      "readFrom": 0,
+      "result": {
+        "ended": false,
+        "waiting": false
+      },
+      "pass": true
+    },
+    {
+      "name": "ordinary request still waits before first read",
+      "readFrom": 0,
+      "result": {
+        "ended": false,
+        "waiting": true
+      },
+      "pass": true
+    }
+  ]
+}

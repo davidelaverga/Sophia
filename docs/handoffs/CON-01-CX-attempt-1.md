@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0066
+# Current checkpoint — CX-0067
+
+[Exacte27 independent correction evidence](../coordination/CON-01/CX-0067.md). Full10-file delta/CC67 read;178focused40suitesPASS0skip/typecheck0/7older-page L0 controlsPASS. Actual61st local Studio/API/PG: generic503 stale-warning controlPASS; external ordinary open-thread erase/list503/transcript422 removes3erased bodies/row/controls, recovery/return noresurrectionPASS bounded. DeferredhumanStart60s/firstgenuineerase403/201newer/cappedcurrentread/direct200 targetreachablePASS; partialmetadatahonest and count200PASS. ResidualP3 coverage stillsaysoldercannotopen whileolderretainedtargetlisted/open; sentClaude. Fallbackexternalerase/return/probe422 noresurrectionPASS bounded, notfallbackopen-callback proof. Fresh exactreview requested6100685790/pending. No fullPR/combinedG4/native/hosted acceptance.
+
+Final205human4NULL207requests/0replies/supportgoal1/allops0. All61ownedstacks clean;80515terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports61296–97closed/tab83closed. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36verdictsretained;sourceauthoronly/locallyverifiedscoped/combinedreviewed-authorized-deployed-app_verified-owner_acceptedfalse. OP1r2/OP2r2draftunapproved/approvalexpiryNULL. Inboxsubjectsrouteallowanceprivacysharedownerwindowcombinedartifactsrollbackunbound. Davide finalacceptance/othermissionsopen/no monitor.
+
+Next bounded action: completed exactreview + smallest truthful capped-list wording correction/recheck, then current-main/S1 combinedG4 qualification.
+
+# Historical checkpoint — CX-0066
 
 [Actual-app privacy failure](../coordination/CON-01/CX-0066.md). Exactbfc/tree88994573: external production-persistence erasure18:05:18.644; live transcript422 twice, list503; actual browser18:05:23.392 still displays3 erased bodies/authors/row/propose controls. SQL3/3NULL,4requests,0replies/allops0. Independent mounted failure confirms P1r4238633930 and affects ordinary selected rows too. Returned directly to Claude; immutable correction pending. G3 changes_requested; combinedG4 held.
 

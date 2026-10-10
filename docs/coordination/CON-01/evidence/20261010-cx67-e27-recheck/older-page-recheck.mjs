@@ -1,0 +1,13 @@
+import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';import {writeFileSync} from 'node:fs';import assert from 'node:assert/strict';
+const root=process.cwd(),f=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/followed-thread.ts'))),d=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/list-data.ts')));
+const held=(newest,older,state='running',id='r1')=>({pages:[{messages:[{id:'new',ask:null}],before:'2',readFrom:newest},{messages:[{id:'old',ask:{id,state}}],before:null,readFrom:older}],pageParams:[null,'2']});
+const results=[];const check=(name,h,a,expected)=>{const readFrom=f.readFromOf(h,a.messageId),result=d.replyWait(h?.pages.toReversed().flatMap(p=>p.messages)??[],a,readFrom);assert.deepEqual(result,expected);results.push({name,readFrom,result,pass:true})};
+const a={replyId:'r1',messageId:'old',after:7};
+check('matching older page fresh after deferred landing',held(6,8),a,{ended:false,waiting:true});
+check('fresh newest cannot make stale matching older page current',held(9,6),a,{ended:false,waiting:false});
+check('matching page read set out equal to landing is insufficient',held(9,7),a,{ended:false,waiting:false});
+check('fresh wrong reply cannot claim wait',held(6,8,'running','r2'),a,{ended:false,waiting:false});
+check('ended matching reply settles despite stale page',held(6,6,'blocked'),a,{ended:true,waiting:false});
+check('missing matching page cannot claim deferred wait',held(9,8),{...a,messageId:'missing'},{ended:false,waiting:false});
+check('ordinary request still waits before first read',undefined,{...a,after:null},{ended:false,waiting:true});
+const out={candidate:'e27fa3778349f163220e5f30e496cf73a80f0482',tree:'e5f07c2e040c480cae2c09f4061a82f323da1e8c',scope:'L0 production page freshness and correlation helpers; synthetic records, no mounted native/provider answer',results};writeFileSync(resolve(process.env.CON01_JOURNAL,'older-page-result.json'),JSON.stringify(out,null,2));console.log(JSON.stringify(out));

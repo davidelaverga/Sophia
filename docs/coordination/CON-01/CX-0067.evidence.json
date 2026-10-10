@@ -1,0 +1,239 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0067",
+  "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+  "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+  "sourceDelta": {
+    "parent": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+    "files": 10,
+    "fullyRead": true,
+    "authorReceipt": 6100663015
+  },
+  "scope": "L1 real local Studio/API/PostgreSQL17.6 synthetic development identities; L0 older-page helpers; no fixture/native/provider/hosted acceptance",
+  "focused": {
+    "tests": 178,
+    "suites": 40,
+    "pass": 178,
+    "fail": 0,
+    "skip": 0,
+    "exit": 0,
+    "typecheckExit": 0
+  },
+  "actualVerdicts": [
+    {
+      "case": "ordinary503 transport control",
+      "verdict": "PASS bounded",
+      "observed": "cached3human messages kept with stale warnings; owned proxy fault, not genuine server503"
+    },
+    {
+      "case": "external ordinary selected conversation erasure/list503/real transcript422",
+      "verdict": "PASS bounded",
+      "erasureAt": "2026-10-10T18:14:43.773Z",
+      "screenshotAt": "2026-10-10T18:14:48.864455+00:00",
+      "observed": "erased3bodies/authors/row/controls removed after two transcript422, list failure retained without false erase toast"
+    },
+    {
+      "case": "current list recovery and Tasks/return after ordinary external erasure",
+      "verdict": "PASS bounded, no resurrection"
+    },
+    {
+      "case": "deferred humanStart60s/real first erase403/capped read/direct200",
+      "verdict": "PASS bounded target remains open and reachable",
+      "target": "6e5d5b34-c454-496d-a34e-88eb9d5381f4"
+    },
+    {
+      "case": "partial fallback contributor/time/gist/openflag and newest count",
+      "verdict": "PASS bounded actual mounted row; unknown contributors, no invented metadata, count200"
+    },
+    {
+      "case": "coverage older cannot-open sentence",
+      "verdict": "FAIL residual P3",
+      "observed": "older retained target listed/open while sentence says older cannot open; filtered1of201 actual screenshot",
+      "sentToClaude": true
+    },
+    {
+      "case": "external fallback erasure/list503/return",
+      "verdict": "PASS bounded row/text absent after return/probe422",
+      "limitation": "selection resets to newest on view return; does not prove fallback open-thread callback specifically; ordinary open-thread arm above is the callback proof"
+    }
+  ],
+  "olderPageL0": {
+    "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+    "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+    "scope": "L0 production page freshness and correlation helpers; synthetic records, no mounted native/provider answer",
+    "results": [
+      {
+        "name": "matching older page fresh after deferred landing",
+        "readFrom": 8,
+        "result": {
+          "ended": false,
+          "waiting": true
+        },
+        "pass": true
+      },
+      {
+        "name": "fresh newest cannot make stale matching older page current",
+        "readFrom": 6,
+        "result": {
+          "ended": false,
+          "waiting": false
+        },
+        "pass": true
+      },
+      {
+        "name": "matching page read set out equal to landing is insufficient",
+        "readFrom": 7,
+        "result": {
+          "ended": false,
+          "waiting": false
+        },
+        "pass": true
+      },
+      {
+        "name": "fresh wrong reply cannot claim wait",
+        "readFrom": 8,
+        "result": {
+          "ended": false,
+          "waiting": false
+        },
+        "pass": true
+      },
+      {
+        "name": "ended matching reply settles despite stale page",
+        "readFrom": 6,
+        "result": {
+          "ended": true,
+          "waiting": false
+        },
+        "pass": true
+      },
+      {
+        "name": "missing matching page cannot claim deferred wait",
+        "readFrom": 0,
+        "result": {
+          "ended": false,
+          "waiting": false
+        },
+        "pass": true
+      },
+      {
+        "name": "ordinary request still waits before first read",
+        "readFrom": 0,
+        "result": {
+          "ended": false,
+          "waiting": true
+        },
+        "pass": true
+      }
+    ]
+  },
+  "audits": [
+    {
+      "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+      "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+      "observedAt": "2026-10-10T18:14:59.346Z",
+      "projectId": "66c95e14-4560-4281-91f2-bb0c399edbdd",
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      },
+      "human": 3,
+      "nullBodies": 3,
+      "requests": 4,
+      "replies": []
+    },
+    {
+      "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+      "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+      "observedAt": "2026-10-10T18:18:31.062Z",
+      "projectId": "66c95e14-4560-4281-91f2-bb0c399edbdd",
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      },
+      "human": 205,
+      "nullBodies": 4,
+      "requests": 207,
+      "replies": []
+    }
+  ],
+  "cleanup": {
+    "execSession": 80515,
+    "terminalExit": 0,
+    "tab83Closed": true,
+    "all61OwnedBrowserStacksClean": true,
+    "independent": {
+      "at": "2026-10-10T18:18:58.836406+00:00",
+      "pids": {
+        "pid": {
+          "pid": 95769,
+          "alive": false
+        },
+        "apiPid": {
+          "pid": 95778,
+          "alive": false
+        },
+        "studioPid": {
+          "pid": 95779,
+          "alive": false
+        }
+      },
+      "ports": {
+        "apiPort": {
+          "port": 61296,
+          "open": false
+        },
+        "studioPort": {
+          "port": 61297,
+          "open": false
+        }
+      },
+      "tab83Closed": true,
+      "after-external-erasure.jpgAt": "2026-10-10T18:14:48.864455+00:00",
+      "cap-partial.jpgAt": "2026-10-10T18:17:19.559637+00:00"
+    }
+  },
+  "automaticReview": {
+    "request": 6100685790,
+    "exactCandidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+    "status": "pending at18:18:59UTC; no completed review/finding observed with pagination"
+  },
+  "limits": {
+    "hostedEffects": 0,
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "unresolvedLocalWrite": false,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "readiness": {
+    "source_ready": "author candidate only",
+    "locally_verified": "bounded privacy/return/cap/metadata and L0 freshness passes; residualP3",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Smallest truthful capped-list wording correction; read completed exact-head review and independently recheck affected scope before current-main/S1 combinedG4"
+}

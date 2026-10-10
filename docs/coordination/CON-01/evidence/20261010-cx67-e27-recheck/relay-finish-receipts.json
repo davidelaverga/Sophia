@@ -1,0 +1,24 @@
+[
+  {
+    "at": "2026-10-10T18:15:58.095Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/6e5d5b34-c454-496d-a34e-88eb9d5381f4/erasure",
+    "idempotencyKey": "9447c901-f2bb-4aba-8024-7edcf5a445f3",
+    "actualApiStatus": 403,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T18:16:30.465Z",
+    "kind": "start",
+    "path": "/api/v1/projects/66c95e14-4560-4281-91f2-bb0c399edbdd/conversations",
+    "idempotencyKey": "330b343b-f9ac-41e7-ab0a-4c84a07ace2b",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]

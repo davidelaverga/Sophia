@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-10T18:18:58.836406+00:00",
+  "pids": {
+    "pid": {
+      "pid": 95769,
+      "alive": false
+    },
+    "apiPid": {
+      "pid": 95778,
+      "alive": false
+    },
+    "studioPid": {
+      "pid": 95779,
+      "alive": false
+    }
+  },
+  "ports": {
+    "apiPort": {
+      "port": 61296,
+      "open": false
+    },
+    "studioPort": {
+      "port": 61297,
+      "open": false
+    }
+  },
+  "tab83Closed": true,
+  "after-external-erasure.jpgAt": "2026-10-10T18:14:48.864455+00:00",
+  "cap-partial.jpgAt": "2026-10-10T18:17:19.559637+00:00"
+}

@@ -1,0 +1,82 @@
+Browser tab: 83, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/conversations
+	3 container root
+		5 container
+			6 button Home
+			7 button Work
+			8 heading CON01 independent synthetic browser project, Value: 1
+				9 text CON01 independent synthetic browser project
+			10 container Project views
+				11 link Description: Studio, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/studio
+				12 link Description: Conversations, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/conversations
+				13 link Description: Goals, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/goals
+				14 link Description: Tasks, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/work
+				15 link Description: Knowledge, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/knowledge
+				16 link Description: Updates, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/updates
+				17 link Description: Resources, Value: 127.0.0.1:61297/p/66c95e14-4560-4281-91f2-bb0c399edbdd/resources
+			18 container Reconnecting
+				19 text RECONNECTING
+			20 button Invite
+			21 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		89 container Conversations
+			90 container All conversations
+				91 heading Conversations, Value: 2, ID: conversations-title
+					92 text Conversations
+				93 checkbox Description: New conversation, Value: 0
+				941 container
+					942 text This may be out of date.
+					943 button Try again
+				94 container
+					95 text Only the newest  200  conversations are listed here: older ones can’t be opened from this list yet.
+				96 search text field (settable) Description: Filter conversations, Value: SYNTHETIC E27
+				97 container Show only
+					98 checkbox Open, Value: 0
+					99 checkbox Mine, Value: 0
+					944 text No conversation’s title has «SYNTHETIC E27».
+				945 container
+					946 text No conversation’s title has «SYNTHETIC E27».
+					947 button Clear
+			901 container Open conversation
+				902 container
+					903 heading SYNTHETIC CAP 200, Value: 3
+						904 text SYNTHETIC CAP 200
+					905 text Contributors: You
+				906 container Messages
+					907 content list
+						908 container
+							909 text You
+							910 text · 
+							911 text Oct 10, 20:16
+							912 text SYNTHETIC LOCAL CAP SETUP 200
+							913 button Propose as decision
+							914 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
+				915 container Continue this conversation
+					916 text entry area (settable) Continue this question with the team
+					917 container
+						918 checkbox (settable, integer) Description: Ask Sophia, Value: 1
+						919 text Ask Sophia
+					920 button (disabled) Send
+					921 text Sophia doesn’t answer here yet Enter sends · Shift+Enter, a new line
+			922 container Description: Project context, ID: conv-context
+				923 container This conversation
+					924 heading This conversation, Value: 4
+						925 text This conversation
+					926 text No summary yet.
+					927 text No recorded questions yet
+				928 heading Project context, Value: 3
+					929 text Project context
+				930 text No mission accepted yet.
+				931 container Accepted decisions
+					932 heading Accepted decisions, Value: 4
+						933 text Accepted decisions
+					934 text None accepted yet.
+				935 container Still open
+					936 heading Still open, Value: 4
+						937 text Still open
+					938 text Nothing waits for a decision.
+				939 button (collapsed) How conversation context works, Secondary Actions: Expand
+					940 text How conversation context works
+		87 container Project room
+			88 button Join the room
+
+The focused UI element is 96 search text field (settable) Description: Filter conversations, Value: SYNTHETIC E27
