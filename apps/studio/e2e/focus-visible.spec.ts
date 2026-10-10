@@ -35,8 +35,12 @@ function readStop() {
   // Met by element, not by name: two «Copy» presses are two stops.
   if (el.dataset.walked !== undefined) return { again: true, name: '', shows: true }
   el.dataset.walked = ''
-  const RGBA = /rgba\((?:\s*[\d.]+,){3}\s*([\d.]+)\)/
-  const alpha = (c: string) => (c === 'transparent' ? 0 : Number(RGBA.exec(c)?.[1] ?? 1))
+  // A colour's alpha as Chromium computes it: `rgba(r, g, b, a)`, or `… / a)` (color(srgb …), oklch …); else opaque.
+  const ALPHA = /rgba\((?:\s*[\d.]+,){3}\s*([\d.]+)\)|\/\s*([\d.]+)\)$/
+  const alpha = (c: string) => {
+    const found = ALPHA.exec(c)
+    return found ? Number(found[1] ?? found[2]) : 1
+  }
   const shown = (s: CSSStyleDeclaration) =>
     [
       s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 1 && alpha(s.outlineColor) > 0
