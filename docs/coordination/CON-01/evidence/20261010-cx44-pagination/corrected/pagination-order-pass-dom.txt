@@ -1,0 +1,1033 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/studio
+    - link "Conversations":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/conversations
+    - link "Goals":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/goals
+    - link "Tasks":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/work
+    - link "Knowledge":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/knowledge
+    - link "Updates":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/updates
+    - link "Resources":
+      - /url: /p/e712a5b0-eb75-439f-93a5-dacf0396fc83/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC paged contributor regression" [pressed]:
+          - generic: SYNTHETIC paged contributor regression
+          - generic: 15:18
+          - generic: You, Synthetic A, Synthetic B. No recorded questions yet. Last moved 15:18.
+    - region "Open conversation":
+      - heading "SYNTHETIC paged contributor regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: S
+        - generic: "Contributors:"
+        - text: You, Synthetic A, Synthetic B
+      - region "Messages":
+        - list:
+          - generic: Oct 10
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC C first
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: Synthetic A
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic A position 2
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - generic: 15:18
+          - text: Synthetic B
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic B position 3
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 4
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 5
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 6
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 7
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 8
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 9
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 10
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 11
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 12
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 13
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 14
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 15
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 16
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 17
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 18
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 19
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 20
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 21
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 22
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 23
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 24
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 25
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 26
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 27
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 28
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 29
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 30
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 31
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 32
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 33
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 34
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 35
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 36
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 37
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 38
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 39
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 40
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 41
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 42
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 43
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 44
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 45
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 46
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 47
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 48
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 49
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 50
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 51
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 52
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 53
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: A member
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: This message was withdrawn.
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 55
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 56
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 57
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 58
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 59
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 60
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 61
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 62
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 63
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 64
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 65
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 66
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 67
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 68
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 69
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 70
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 71
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 72
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 73
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 74
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 75
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 76
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 77
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 78
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 79
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 80
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 81
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 82
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 83
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 84
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 85
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 86
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 87
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 88
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 89
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 90
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 91
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 92
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 93
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 94
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 95
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 96
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 97
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 98
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 99
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 100
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 101
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 102
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 103
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: SYNTHETIC Synthetic C position 104
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:18
+          - text: A member
+          - text: ·
+          - time: Oct 10, 15:18
+          - paragraph: This message was withdrawn.
+          - generic: 15:18
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - paragraph:
+          - generic: Sophia doesn’t answer here yet
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+        - button "Erase this conversation"
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

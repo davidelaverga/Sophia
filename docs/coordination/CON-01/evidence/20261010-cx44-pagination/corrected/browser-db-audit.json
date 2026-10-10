@@ -1,0 +1,2245 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "tree": "551d666c8579f78ae647df1d4595f7a02ebbcded",
+  "observedAt": "2026-10-10T13:19:16.289Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "e712a5b0-eb75-439f-93a5-dacf0396fc83",
+  "messages": [
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "8379d7d7-da90-4b4b-bc01-148f960c692a",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "1",
+      "body": "SYNTHETIC C first",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "5f4de029-990b-494e-b79a-d17084ae2325",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "456cb8c9-7e32-4c81-b3fc-fc6399b75cdd",
+      "seq": "2",
+      "body": "SYNTHETIC Synthetic A position 2",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "edffed65-3ba4-4839-b798-092f4e1fce42",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "9202723e-28eb-4b65-9858-74b7fad0d859",
+      "seq": "3",
+      "body": "SYNTHETIC Synthetic B position 3",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "df6a9d18-6f20-4e10-b150-6c38b98a6346",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "4",
+      "body": "SYNTHETIC Synthetic C position 4",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "66af1a43-4118-4f9d-bca0-aa70b7844f32",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "5",
+      "body": "SYNTHETIC Synthetic C position 5",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "c4912e16-433d-40be-8b5e-39f6b4d0fa45",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "6",
+      "body": "SYNTHETIC Synthetic C position 6",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "e3c9d35b-0c52-4948-ae7d-be1b2851da36",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "7",
+      "body": "SYNTHETIC Synthetic C position 7",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "94f73d05-61b2-4e98-b14b-0b758db1cbd7",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "8",
+      "body": "SYNTHETIC Synthetic C position 8",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "08923d6d-c660-4852-a19c-3bb447200e7f",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "9",
+      "body": "SYNTHETIC Synthetic C position 9",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "082ef0e0-9ca5-4370-a415-4d69f3f0b7dc",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "10",
+      "body": "SYNTHETIC Synthetic C position 10",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "e78a2859-ea26-49dd-a5b9-6bc429f2158f",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "11",
+      "body": "SYNTHETIC Synthetic C position 11",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "43c7377d-93d8-45e2-a51c-55fab23a6e1c",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "12",
+      "body": "SYNTHETIC Synthetic C position 12",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "dc386857-4f24-419b-ada1-8c911f8fb2c6",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "13",
+      "body": "SYNTHETIC Synthetic C position 13",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "e6c885ab-93a6-4fd4-a4ea-f452189b0e26",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "14",
+      "body": "SYNTHETIC Synthetic C position 14",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "bc2ec5fe-dfa4-496c-b666-04168ee23cb1",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "15",
+      "body": "SYNTHETIC Synthetic C position 15",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "184e6b0a-c14b-4669-a5b5-fbfd42c05ceb",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "16",
+      "body": "SYNTHETIC Synthetic C position 16",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "8a563121-ead9-442d-a2ad-99b6aedda58d",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "17",
+      "body": "SYNTHETIC Synthetic C position 17",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "04b7c181-5014-4424-babb-668b6be36e46",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "18",
+      "body": "SYNTHETIC Synthetic C position 18",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "3a7661ee-f5ef-416a-9113-e8f7c83074a1",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "19",
+      "body": "SYNTHETIC Synthetic C position 19",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "79057586-7418-410f-8b0b-07cad2ff47aa",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "20",
+      "body": "SYNTHETIC Synthetic C position 20",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "b743b13d-9dab-4fa2-96fb-cd3022190a5e",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "21",
+      "body": "SYNTHETIC Synthetic C position 21",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "5d64a7c7-9f5c-4681-8651-89201f014bc8",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "22",
+      "body": "SYNTHETIC Synthetic C position 22",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "4d82ed2b-745e-4f5a-939b-f96316dac936",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "23",
+      "body": "SYNTHETIC Synthetic C position 23",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "58d44249-55ed-486c-89bc-34bd1d5a285c",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "24",
+      "body": "SYNTHETIC Synthetic C position 24",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "37ebb3bd-57fe-4207-a1c7-c5d0d8a73d6a",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "25",
+      "body": "SYNTHETIC Synthetic C position 25",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "bb928974-4a9e-4d1f-936d-aec3fc50c492",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "26",
+      "body": "SYNTHETIC Synthetic C position 26",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "2f3f5459-aeb2-48f6-80a2-b8ae5ce5692c",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "27",
+      "body": "SYNTHETIC Synthetic C position 27",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "6b1b6741-bd57-4a0f-93ce-1116f5f75e16",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "28",
+      "body": "SYNTHETIC Synthetic C position 28",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "4cd19e49-2470-42ff-b41b-418f63d3daa2",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "29",
+      "body": "SYNTHETIC Synthetic C position 29",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "3d229ccd-8b63-40df-9ab3-fb2a42da0983",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "30",
+      "body": "SYNTHETIC Synthetic C position 30",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "884c0ee6-8745-4b8c-960a-3b81f8714bda",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "31",
+      "body": "SYNTHETIC Synthetic C position 31",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "b76bde99-3403-4fe1-91de-ff5519540c6b",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "32",
+      "body": "SYNTHETIC Synthetic C position 32",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "a3fb0966-e9a7-41b0-a9ad-4006f4e9d5ff",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "33",
+      "body": "SYNTHETIC Synthetic C position 33",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "0137e0f2-e467-47d3-bf29-9010f48fb48b",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "34",
+      "body": "SYNTHETIC Synthetic C position 34",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "831f8550-4cee-4a17-87a9-1785f5ccb4ad",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "35",
+      "body": "SYNTHETIC Synthetic C position 35",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "794dc6d3-f768-4414-92fe-c3cd408c4c23",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "36",
+      "body": "SYNTHETIC Synthetic C position 36",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "d8119022-4d95-48de-804a-60153bcfe6bd",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "37",
+      "body": "SYNTHETIC Synthetic C position 37",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "30ee7e62-3ce2-4f21-9eb9-91bc28e5ef90",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "38",
+      "body": "SYNTHETIC Synthetic C position 38",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "c7d1ecbb-8d37-4298-87f4-fdf628476179",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "39",
+      "body": "SYNTHETIC Synthetic C position 39",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "62f256ac-9d74-42f1-b641-ae9729632e3d",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "40",
+      "body": "SYNTHETIC Synthetic C position 40",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "a8e21522-08ed-417d-a257-8eb1bb7e4fc2",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "41",
+      "body": "SYNTHETIC Synthetic C position 41",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "e091c42c-e9cc-403b-a05b-c471b2e605eb",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "42",
+      "body": "SYNTHETIC Synthetic C position 42",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "b1a54041-b256-49ca-95ed-3ee11916acfd",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "43",
+      "body": "SYNTHETIC Synthetic C position 43",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "f2587c91-3105-4f1a-8484-9f4974ee39c3",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "44",
+      "body": "SYNTHETIC Synthetic C position 44",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "6e0db47a-1e0c-4cd4-b7de-e7689ae6370f",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "45",
+      "body": "SYNTHETIC Synthetic C position 45",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "53e75cf6-b3e3-4c72-bf8d-0b5f7ffecbcf",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "46",
+      "body": "SYNTHETIC Synthetic C position 46",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "d14115f4-2593-49f2-b070-a971cc955b05",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "47",
+      "body": "SYNTHETIC Synthetic C position 47",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "a24fd7fd-4ed8-4309-99c8-8c8c3873dbe1",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "48",
+      "body": "SYNTHETIC Synthetic C position 48",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "0e6c7110-029a-43ea-aad8-f74685a39a39",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "49",
+      "body": "SYNTHETIC Synthetic C position 49",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "509c2217-9a68-47da-929b-d606c7d4e59a",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "50",
+      "body": "SYNTHETIC Synthetic C position 50",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "da44c492-bada-4c8d-898b-55ac649eb72c",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "51",
+      "body": "SYNTHETIC Synthetic C position 51",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "010fb859-cd3a-4688-94ed-3bb9df482b15",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "52",
+      "body": "SYNTHETIC Synthetic C position 52",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "70dd3682-e169-4a63-9ba9-dc34f06885c8",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "53",
+      "body": "SYNTHETIC Synthetic C position 53",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "304b1014-22eb-470c-9717-aa629173d280",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "456cb8c9-7e32-4c81-b3fc-fc6399b75cdd",
+      "seq": "54",
+      "body": null,
+      "withdrawn_at": "2026-10-10T13:18:47.993Z"
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "bfaa431e-84fa-4476-ad27-2f066d3ce89f",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "55",
+      "body": "SYNTHETIC Synthetic C position 55",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "644fe230-0b0a-4820-9bc1-5581de01e130",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "56",
+      "body": "SYNTHETIC Synthetic C position 56",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "9c36de9d-56db-4cdc-b6dc-166289216d17",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "57",
+      "body": "SYNTHETIC Synthetic C position 57",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "9b7c2882-e35d-4d63-9475-6ce03d84e083",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "58",
+      "body": "SYNTHETIC Synthetic C position 58",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "a7a84c35-b73a-4e35-9522-406ff146ab81",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "59",
+      "body": "SYNTHETIC Synthetic C position 59",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "65820d14-989a-4844-884d-6bf5b7144e4e",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "60",
+      "body": "SYNTHETIC Synthetic C position 60",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "f1b79fad-4464-4968-bfc3-a4f0c262b6d6",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "61",
+      "body": "SYNTHETIC Synthetic C position 61",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "0c07d264-c009-47d8-b4f8-a872329f8bca",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "62",
+      "body": "SYNTHETIC Synthetic C position 62",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "6910db8f-b4c8-4e94-a184-83c015862566",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "63",
+      "body": "SYNTHETIC Synthetic C position 63",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "e28eb771-8b9a-4cd1-adf8-7123dc90487e",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "64",
+      "body": "SYNTHETIC Synthetic C position 64",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "56951812-a9b8-4598-8781-24aea5f8dd7f",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "65",
+      "body": "SYNTHETIC Synthetic C position 65",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "2f9edb78-196a-450d-b3f0-8a17739fc047",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "66",
+      "body": "SYNTHETIC Synthetic C position 66",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "64c9fead-6bdc-47e9-8922-3ca6d5ec50b8",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "67",
+      "body": "SYNTHETIC Synthetic C position 67",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "79f9b75f-dfda-476b-a641-0d6f61952968",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "68",
+      "body": "SYNTHETIC Synthetic C position 68",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "e8ab2624-3bb9-4b04-ab61-265624728fe5",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "69",
+      "body": "SYNTHETIC Synthetic C position 69",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "70d5d0cc-291a-4b3a-9624-dce7a2fb3d63",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "70",
+      "body": "SYNTHETIC Synthetic C position 70",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "c0d7b9fc-fc16-482d-8712-38eeba4146a6",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "71",
+      "body": "SYNTHETIC Synthetic C position 71",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "f1086582-6d95-4a79-a518-d940ad721ae3",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "72",
+      "body": "SYNTHETIC Synthetic C position 72",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "2fbb5527-430f-40f1-87a8-13c291a698a3",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "73",
+      "body": "SYNTHETIC Synthetic C position 73",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "35a0bf1c-a58f-4819-8dbe-7ef5e986ce0b",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "74",
+      "body": "SYNTHETIC Synthetic C position 74",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "2b29c1b3-52cf-44fb-8fd1-e83f70da744d",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "75",
+      "body": "SYNTHETIC Synthetic C position 75",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "12205003-81eb-4d49-955a-51ff4e31ed05",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "76",
+      "body": "SYNTHETIC Synthetic C position 76",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "02c4a273-683e-42bc-b70f-6f686c1446c3",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "77",
+      "body": "SYNTHETIC Synthetic C position 77",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "07b4b9a0-58e5-452a-9c0d-fcc0ff3d412e",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "78",
+      "body": "SYNTHETIC Synthetic C position 78",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "20372d40-0f3e-4b3e-b034-6fa788a82306",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "79",
+      "body": "SYNTHETIC Synthetic C position 79",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "58c5f6b4-5cd1-4921-a370-8ade47db924a",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "80",
+      "body": "SYNTHETIC Synthetic C position 80",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "1f00ba53-f2b0-4a3e-a245-cee8f745d415",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "81",
+      "body": "SYNTHETIC Synthetic C position 81",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "fd975e4a-27d8-41ce-88c6-d148d580a9c2",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "82",
+      "body": "SYNTHETIC Synthetic C position 82",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "68213e67-f085-4f34-a1c8-ccb1d2a279e1",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "83",
+      "body": "SYNTHETIC Synthetic C position 83",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "54e37f36-f656-48e7-af5c-71c6d7743cc8",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "84",
+      "body": "SYNTHETIC Synthetic C position 84",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "3e72b25c-544b-45aa-8dae-bdc84139cb22",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "85",
+      "body": "SYNTHETIC Synthetic C position 85",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "b96115c6-e241-463c-951b-a22bf66ab424",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "86",
+      "body": "SYNTHETIC Synthetic C position 86",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "2d9b5ccb-9c04-4778-8fd2-09f84e9f5898",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "87",
+      "body": "SYNTHETIC Synthetic C position 87",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "4e7663f8-d046-4981-986e-1e09dbc0875a",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "88",
+      "body": "SYNTHETIC Synthetic C position 88",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "6327d920-a13d-4761-bd16-94ad37941e01",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "89",
+      "body": "SYNTHETIC Synthetic C position 89",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "75098afa-341e-4aca-b1c0-061f6609c235",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "90",
+      "body": "SYNTHETIC Synthetic C position 90",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "9c5ac579-4f6b-4403-ba23-96e62c04c9fc",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "91",
+      "body": "SYNTHETIC Synthetic C position 91",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "cbe7f4bc-68b5-4fde-bfad-c5ca18c340be",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "92",
+      "body": "SYNTHETIC Synthetic C position 92",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "9470bbb3-6c16-4b86-9907-f54eec3b2797",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "93",
+      "body": "SYNTHETIC Synthetic C position 93",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "3f7e9271-56e6-4756-ac7b-716323b07532",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "94",
+      "body": "SYNTHETIC Synthetic C position 94",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "814ff342-0e33-4bc2-80ee-b7bc4f675ec5",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "95",
+      "body": "SYNTHETIC Synthetic C position 95",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "b8c37ff8-2716-44a8-9c16-3191c408b031",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "96",
+      "body": "SYNTHETIC Synthetic C position 96",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "0c4e283c-5aec-4b28-b4d0-8741a87301e7",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "97",
+      "body": "SYNTHETIC Synthetic C position 97",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "0d4321db-61cb-4707-9261-834aef862e71",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "98",
+      "body": "SYNTHETIC Synthetic C position 98",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "d85adda8-a510-4612-8308-dc0f341da182",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "99",
+      "body": "SYNTHETIC Synthetic C position 99",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "4909e235-5c2e-4d50-917b-8dd90cf2046a",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "100",
+      "body": "SYNTHETIC Synthetic C position 100",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "81cd8820-b794-49db-b655-90e4893dceb9",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "101",
+      "body": "SYNTHETIC Synthetic C position 101",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "d34bfe08-937f-407c-a9e9-3823cf10c84b",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "102",
+      "body": "SYNTHETIC Synthetic C position 102",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "a45c624b-bbae-4180-a9dd-4c673413a186",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "103",
+      "body": "SYNTHETIC Synthetic C position 103",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "b63846c1-d529-4206-ba44-ce6cddea1b36",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "seq": "104",
+      "body": "SYNTHETIC Synthetic C position 104",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC paged contributor regression",
+      "id": "1963cf66-3c83-43b1-bfce-40be61544e08",
+      "conversation_id": "4318e5ac-8c02-4546-a8a6-544939abfa3b",
+      "actor_id": "9202723e-28eb-4b65-9858-74b7fad0d859",
+      "seq": "105",
+      "body": null,
+      "withdrawn_at": "2026-10-10T13:18:47.996Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "240101cc-af12-4ac1-a19f-3d10fd4d2759",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "ae1ef4336904b905dbea7f603b18759baf93e63ecd80b2e914276cbd69cf531b",
+        "titleSha256": "e10620d705e1c2eca835fd5d70c094858c791893eec62c7cc8ffab1cbb20a5bf"
+      },
+      "message_id": "8379d7d7-da90-4b4b-bc01-148f960c692a"
+    },
+    {
+      "actor_id": "456cb8c9-7e32-4c81-b3fc-fc6399b75cdd",
+      "idempotency_key": "0c632ffd-8178-4178-8e46-3ebaa7a68e57",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "e8e6a7b05f07748a95df68c4ceff4fa8e4f8b901f11541c27ecbfa252851596a",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "5f4de029-990b-494e-b79a-d17084ae2325"
+    },
+    {
+      "actor_id": "9202723e-28eb-4b65-9858-74b7fad0d859",
+      "idempotency_key": "943dad18-3701-4436-8d2a-982d8e25be5b",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "17fc09e110e2bd8d63ae80be42ca8e10105a7f1b32cab70431b347575de02930",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "edffed65-3ba4-4839-b798-092f4e1fce42"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "2c65d10c-d70a-4e73-a2a0-29d7be2542db",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f6747071c7a9da1800685abfe836304dddbb70598d64a802d23476b4dac1b99a",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "df6a9d18-6f20-4e10-b150-6c38b98a6346"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "5e737882-090b-4575-a902-4604f56500b3",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "dc524404abfaf3c78cac101649dbdc16a21e32beb0c020fb959233f3bad3d3ba",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "66af1a43-4118-4f9d-bca0-aa70b7844f32"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "cb2e92f9-59e9-45c0-8649-64aaa926afcd",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f40e5b00700ce510824b25ebf19ec81bdf2330233bd2eae34fbd0469ed7b1ec2",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "c4912e16-433d-40be-8b5e-39f6b4d0fa45"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "34a4e339-82f2-4db9-accb-153b6541fe3e",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "67c3b58acb98cc80c610fdc8ba5d29bbf8e7444dbc6c5d3522d1f4b89fdea3de",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "e3c9d35b-0c52-4948-ae7d-be1b2851da36"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "943e8ae8-bcee-42c2-ae04-3d76790812c1",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "22c6c7bc6d7afccaf4736642f26c89835efe44c918357afa9c73810d12cd2121",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "94f73d05-61b2-4e98-b14b-0b758db1cbd7"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "8b277f39-1724-4ee0-ac47-348e92a09644",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "4d9f2dd6a177c4e5fe7f484658ec5907038324b641e4778d81351df3ea170b07",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "08923d6d-c660-4852-a19c-3bb447200e7f"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "3e7b7193-695d-4ac2-9088-71bd0b029113",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "63bfd0fefd525feadc30036c03dcc711a4840f592fe8601e221b107d7d7c1d8f",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "082ef0e0-9ca5-4370-a415-4d69f3f0b7dc"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "01c897d1-8871-41ca-8fb2-bbcbbe7869a2",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "cfe9a63b797be1ff6232425aad0635376f84de84b4ff19152af97a5376fb509b",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "e78a2859-ea26-49dd-a5b9-6bc429f2158f"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "e4626e2a-7922-40dc-aff5-5baeae058788",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "494e0c2f375ceccd5ee8b479ca899e1002d0067fdadf16cd4068f2a14443e370",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "43c7377d-93d8-45e2-a51c-55fab23a6e1c"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "7e72c9f3-aeae-42f5-b7b9-69a7ce2bf65f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f2a8be7280ff765eac215dcc86525cc0add4458d2e1b3fb896fc858d07cd0105",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "dc386857-4f24-419b-ada1-8c911f8fb2c6"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f7ac7685-c88c-49a2-b11b-5f60d38ec6ab",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "01eaaa5c5862520abe63658ab93cddc52eadf3b3e9ee481247ce5971741813f2",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "e6c885ab-93a6-4fd4-a4ea-f452189b0e26"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "a0df4b34-64d5-4141-b6b7-6c939ee865ce",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "da1b3df021a0dcb472fbb454bdd334760a788928eb05d719eda8a6076bc35704",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "bc2ec5fe-dfa4-496c-b666-04168ee23cb1"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "6d3b8513-b6d4-4ed7-94c5-8068b7cbfbc6",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "932c0e595c9a0be90e6809108cb161134c9565d0f5b203b778fe9f476e19519d",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "184e6b0a-c14b-4669-a5b5-fbfd42c05ceb"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "b82d34c5-5908-4d3c-8449-6dbc67176ae4",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "e9e762c74f087348cd974924faadba06fcea1b37a64b4f6d0e3466b47e8594f5",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "8a563121-ead9-442d-a2ad-99b6aedda58d"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "62c25ec7-cea1-40d5-bcad-7654db65648d",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ec26a74b95eabea288844e6fcee572cff3ef98d04b968fc9cc911bf8b901a478",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "04b7c181-5014-4424-babb-668b6be36e46"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "4e4e41f4-a469-43d6-8296-909197586ac4",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "7ca23d7b95308d59831cb30834c3173e1aad431d81e19645dc6a74ac327ba996",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "3a7661ee-f5ef-416a-9113-e8f7c83074a1"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "ab3b6393-9fa6-43df-8f00-8b8e0b078af6",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "4eea02e704c742696b27137e2dce70e9180c58bc9d8e579cf3aae7a0e712cf42",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "79057586-7418-410f-8b0b-07cad2ff47aa"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "89f8d1ca-b14c-4106-a6f8-7fb0278a338a",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "dd36e7e6263bbdae8cb99dcc6c13f1ac8b00fefb41f2823a89aea5e2fff5962a",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "b743b13d-9dab-4fa2-96fb-cd3022190a5e"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "eea831d2-bc8e-4109-bee3-618b1f4e31a8",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "b250f14c7186eb7a1eb44c3a1ae921c96a5a492c57bf1db2a41e989a7c3b39f0",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "5d64a7c7-9f5c-4681-8651-89201f014bc8"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "0b19b887-004d-4d0e-9b84-196066e2b8af",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "7ca73ca70c3f760851a6549bf5b0b213944816a00cb5bda3309f966b921dbfda",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "4d82ed2b-745e-4f5a-939b-f96316dac936"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "eb05bb3a-2e1a-41ef-a831-6c4b25f76723",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "51e585808312127927ec06696f62c2ec379ca95034bce333ab569794cb0834ff",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "58d44249-55ed-486c-89bc-34bd1d5a285c"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "bc123046-2cce-497a-8c5a-fb99913ac026",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "8217e9dd8e83c786859d91ed3af848705591d06e69977094525abea9d770c93f",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "37ebb3bd-57fe-4207-a1c7-c5d0d8a73d6a"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "8382db0a-a3c1-453e-ac5d-223ffb935f90",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f7c89e2e815fd0d0c26da2c42536049046e1bb0da1ec5836381e8691c2ba7ba0",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "bb928974-4a9e-4d1f-936d-aec3fc50c492"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "363223cd-967b-45f2-adbc-8902b3b1e6d5",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "6c4e0777cefe79e25c864b6d2e3c757839459ce1347e2f50536a540709239036",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "2f3f5459-aeb2-48f6-80a2-b8ae5ce5692c"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "9f59e3c7-204f-4a1e-89a1-2f040eb42a10",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "497bf53fe6a878e2bb1dee4aab215dcfccdcd6208e6fc2b36bdc45712c66d268",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "6b1b6741-bd57-4a0f-93ce-1116f5f75e16"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "9225c298-8ddb-4fe6-b9ee-78cce8341405",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "fe099a99edc6f359496d096e44f7ad6f6a4c88f8c1fa1cfc5cd603ed191b28b6",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "4cd19e49-2470-42ff-b41b-418f63d3daa2"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "353ba23f-eadc-4d6a-9f30-f6678acb3a44",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "fd9cec26b326ede604d064a39717e9c598073f76e739b6cb21b55f5585f17882",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "3d229ccd-8b63-40df-9ab3-fb2a42da0983"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "020e1750-2630-4416-96cc-680c7daf5350",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "9d29503c029a76658780ca3ae09fa4da98ea3ab1944ff11bdb0663d489056c31",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "884c0ee6-8745-4b8c-960a-3b81f8714bda"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "3c180fe7-074d-4921-97b3-12499bf8007b",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "17753f887a74b8723bc1ffc42d983912259205704f2abe216cc9f113c612a464",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "b76bde99-3403-4fe1-91de-ff5519540c6b"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "bd5feced-e1de-4422-911b-76463f3fc0be",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "0f6b98167fc4fae970442b77783eeb63adc6abc851272596630ae19b0acbac70",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "a3fb0966-e9a7-41b0-a9ad-4006f4e9d5ff"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "1baad916-328c-4d52-a662-b530e2c6be1e",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "33701a3ec7d270407b1d516e05172d118ba5e41adf69c11edd8b9b9a270dc2d3",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "0137e0f2-e467-47d3-bf29-9010f48fb48b"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "a351f086-ce45-4717-8e14-4f813ac7e3ee",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ffcbcd02ddf7a32e145c9fd7a9ea7539ddb6cd5a8341b66f7ba2723adab4e154",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "831f8550-4cee-4a17-87a9-1785f5ccb4ad"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "62b9d200-665d-4586-99fb-c46c9c81bd0e",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "61e9048bc9d72915aeafaea19d801945e2a45ae3faf98d612dc7122c29966463",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "794dc6d3-f768-4414-92fe-c3cd408c4c23"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "bc6c6ddb-8e65-4e91-b535-0a518b42dbf0",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ee4c25033cf4dcf8170e5629f10a102378c0b57aabf16ec128fb5c4a22e831a9",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "d8119022-4d95-48de-804a-60153bcfe6bd"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "650c6df3-8ccc-418c-80fc-e2c12ce63997",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f89a39519c4556ce5ac4abedb252d8d1132539c758a504e9adf2411bd43b269b",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "30ee7e62-3ce2-4f21-9eb9-91bc28e5ef90"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "ddc8f5aa-c161-4b91-81a0-473e7c54904a",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "22df10f851d61a3c6fdb61b0a45b4c5bfcee43376e2f5392be8a303d2ceaf51d",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "c7d1ecbb-8d37-4298-87f4-fdf628476179"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "bc786df8-c47b-4727-be5f-c3b6b44752c8",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "a4c95192e8f9873b233280975a34122e1039d349b62fa142db8fb037d03adc7e",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "62f256ac-9d74-42f1-b641-ae9729632e3d"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "9b1df085-eb32-4598-8380-17ea4a6b5c87",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "0f645236d313ea0b26c1621b688dd33f5fff36661978b148ec610620f3d12ae6",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "a8e21522-08ed-417d-a257-8eb1bb7e4fc2"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "c34995f0-3849-49e3-8a96-edfb0ecd140d",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "2a024eb8ce3b3e3982999c927ca682729d894eeee82845a3955d156a2802555d",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "e091c42c-e9cc-403b-a05b-c471b2e605eb"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "45f64acd-04e1-48c3-85d3-8d9990d25480",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "e799060480affa3d0e0c44e35e8694630e3ec1b5fb49b2917db604b59c23642c",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "b1a54041-b256-49ca-95ed-3ee11916acfd"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "fab4a73c-22bf-4add-820a-3d7826e8652c",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "030dd1f5f8c0ea9d977dae93cffea2c2898c7014244b23e0490a4d9ebe37f555",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "f2587c91-3105-4f1a-8484-9f4974ee39c3"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "af69e8e5-2150-4d22-9fc5-7c69a4226d9d",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "b9da1138a2f6b02ce16fb80040428ed22fb9c243835829a42f46cf796db76648",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "6e0db47a-1e0c-4cd4-b7de-e7689ae6370f"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "770250db-4382-4046-9a85-44262c792a67",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "14ca1dfad28d0285f552e78c9b9ea632ba4f698a719f72e0b7a83b781b1d9d72",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "53e75cf6-b3e3-4c72-bf8d-0b5f7ffecbcf"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "cbc7ae29-bda6-4461-93b5-c864f0a2a6fa",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "9f5635f938c77c9730116efe1005db560a187417e4cb992c3d21623c27a649c3",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "d14115f4-2593-49f2-b070-a971cc955b05"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "4d85d398-5e9b-412b-b7b7-67a3160ce8f3",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ab23d4668328899342375cfe17231ab8f11a2c6704ee7255af3bac91cbb09ca1",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "a24fd7fd-4ed8-4309-99c8-8c8c3873dbe1"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "96a251f1-2633-4f5c-855e-6e231d9f8342",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "8ad5cfbbf7d46b4aefcf30119024f872a928a8283aa659d4947931e7edb3d3bd",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "0e6c7110-029a-43ea-aad8-f74685a39a39"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "4bbd3a1e-513e-4eb5-b74d-6a6ecfc2b6eb",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "70fd9a7607fc01f04a129cb8ff9c7790b162c48b6915bad2a8270c6f2dd5a60a",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "509c2217-9a68-47da-929b-d606c7d4e59a"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "7a817bb0-ba71-4006-aa3f-c3454f711f14",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "415cf492dd66680bb0bd7c8db11097f96ca346e6aeeb2f0347c8aa275210ee26",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "da44c492-bada-4c8d-898b-55ac649eb72c"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "e2484b32-3322-4f6d-a6f5-87a765def11b",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "4e4bbbce471b5621017ed75b3b49e1541d0288217a219c45fda4f1bec54ecb7b",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "010fb859-cd3a-4688-94ed-3bb9df482b15"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "7bfddfc1-bbf7-44c3-9760-842b2f42dae5",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "7004ecb0bc7730c8bcf0fabea6acb44e2bbea0a2fffefe87837f88490ae22579",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "70dd3682-e169-4a63-9ba9-dc34f06885c8"
+    },
+    {
+      "actor_id": "456cb8c9-7e32-4c81-b3fc-fc6399b75cdd",
+      "idempotency_key": "66b275c4-ae11-4f47-bf40-4e5d5462ceef",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "304b1014-22eb-470c-9717-aa629173d280"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "e171f488-482e-4953-ba49-f5ccd440cbf0",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "87313b45bbd122b874b96f15022963b5137b50b9864309dad7434e548e88baa7",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "bfaa431e-84fa-4476-ad27-2f066d3ce89f"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "b0ed0e3e-bac7-42ad-912d-825180a625e2",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f6fa2bdee36ed3c9ac108dcae206928a56f2e70d632880723d9f17ce35088bfe",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "644fe230-0b0a-4820-9bc1-5581de01e130"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "b4e59a24-73c7-411b-ab6a-0baf3b2357ea",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "6e3b17b389ef04f9069491657260ecc784996288682ff4f41550467509b2d163",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "9c36de9d-56db-4cdc-b6dc-166289216d17"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "7ae6dcb3-8e04-4301-8449-8ba68a16b555",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ee5cc81d6ea7effcd5ad8c60d67cf35ef72337572f2d2b2b8b71ab4329111ce8",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "9b7c2882-e35d-4d63-9475-6ce03d84e083"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "fc818996-0cd3-4fd9-b570-1e21a3150a6a",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "7a071a9644bc7d2a8080ed4ae142f61db0e1df0ed3c2dcbc00ae6933e8108c04",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "a7a84c35-b73a-4e35-9522-406ff146ab81"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "59d62682-342d-44de-8c5b-fa113fdb1ed7",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "8c7b86ecfdb2c39d0a5b3a4f17ef5b6a10125ab4c48a50ea416b5fb0646b6e6d",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "65820d14-989a-4844-884d-6bf5b7144e4e"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "dc8d06e2-b541-4cb2-b27a-997ce0868021",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "16f0c018fd9c65de4d2ba7b39e0cc3337f78b41ad83af94ebfc8cd1709b42c70",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "f1b79fad-4464-4968-bfc3-a4f0c262b6d6"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "4c4abf8d-87d4-4c25-a832-8a50ff55c486",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "9f89b61c6e0b426ac092c2b64b5a441e9c91c82a7c49731da43d722d08c5fb2c",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "0c07d264-c009-47d8-b4f8-a872329f8bca"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "8aee74ef-00df-41ab-a260-4490d04e7745",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "39705a95bb3df5c6bf6ecf253a4659e207dc00d311eab8f97e44529b3c3d8664",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "6910db8f-b4c8-4e94-a184-83c015862566"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f2cbdb32-797a-4aae-b409-2d075e7398ea",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "db654bb7345602444c4994e622b48f4156eeed487b6a450bb86b8d1160940d3c",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "e28eb771-8b9a-4cd1-adf8-7123dc90487e"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "af49bfe9-5ce8-4ab5-b2a2-9d178e7542d6",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "db6d1c424a68c4056f39073a5207b2e8ee2b9dec1276daa7e96ee809d69be8dd",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "56951812-a9b8-4598-8781-24aea5f8dd7f"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "bdaabe1b-4285-4c3e-954e-a1528d0faef0",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "6866dc904797a1174642394a16ff4e98da0f3a4d3d1fb4136bb2ef544d8c8205",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "2f9edb78-196a-450d-b3f0-8a17739fc047"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "61256a90-fd19-4c4b-991f-c42865fe8108",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "a456f83e203d7fa804eb5f3dc875f2cde6177ba8b748f54db859148b06fec931",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "64c9fead-6bdc-47e9-8922-3ca6d5ec50b8"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "9f1f3139-e62d-49cd-a4f0-950e284e44ee",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "0a2a8173268d901e865d3ed7f8c22ae2b83b24b62305dbb5284fb7fc16a97bf0",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "79f9b75f-dfda-476b-a641-0d6f61952968"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "aefecceb-2fab-43a6-8e72-95f0993f968a",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "01bd5c460fa5b4b16cb6c293ba897c7e0585ae700521b0152ab67d085a0ccb37",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "e8ab2624-3bb9-4b04-ab61-265624728fe5"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f9bf8861-a1c9-4a03-80c5-6538db9fca5f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "b152e9eb0d7634937c0254ee64582404ea782905d608acff99ea009b89813ca9",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "70d5d0cc-291a-4b3a-9624-dce7a2fb3d63"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "bd8f1cbd-144e-4f10-8ef1-4299f61402de",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "c2d4c5eaac618a7c0d68f73e07d3ace59bb71de228494ad06d3eee7d82d26988",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "c0d7b9fc-fc16-482d-8712-38eeba4146a6"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "7e8a1633-29f5-4eae-87dd-9b43bf1a12ec",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "eb3ae42b4c9ea471763bac910680727ebddf24b3d4ad281e3c4c2d41f15a9142",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "f1086582-6d95-4a79-a518-d940ad721ae3"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "8c3f75f4-061c-4ef9-a73d-3de07594a3f6",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "fd42f2e3349fb41879e1f1671de9e9affa44f764f6dc64bbba1d873727478bee",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "2fbb5527-430f-40f1-87a8-13c291a698a3"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "b08a47f9-38cf-4fdd-973d-7ff0a1ecb6ce",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "795d86ebced08235a6148cf4bb71a9da2075c838ffe63456bbcb22e3cdee53da",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "35a0bf1c-a58f-4819-8dbe-7ef5e986ce0b"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "52486353-2274-42c5-8515-ecabab055f6c",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "796744e962168f1de8684159c018866bcee9e10a75880cd0692330ab9cdbaf1b",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "2b29c1b3-52cf-44fb-8fd1-e83f70da744d"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "63e58ffe-9ecc-49a9-8320-040c33d3ef92",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "4c69d8a9f6bec2af524b9496d78100620e97fbf0058f76b93444a03d158f4b98",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "12205003-81eb-4d49-955a-51ff4e31ed05"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "6862a96c-1e67-4235-a38c-c08ccf7b90e2",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "969c3b3df38254f10cf52b4371c45fe84b1914771b75c8323ae03b590a5207b4",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "02c4a273-683e-42bc-b70f-6f686c1446c3"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f43698f5-734d-49d4-9348-4b6786db08e9",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "af031ab502222c5e3730596c043aef39a5b04f63e3675a91fca70e7585d16d34",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "07b4b9a0-58e5-452a-9c0d-fcc0ff3d412e"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "6384ccc2-c138-4a6e-8b53-19b96e4d0df1",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "75ad270ea113a4afebb924345abd2093f7e8cee17eab5d0324f0e2ab13775a28",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "20372d40-0f3e-4b3e-b034-6fa788a82306"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "03a1c647-c63a-4a0d-bd39-6f6d7d77e906",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "a777333ff4c70b4a004d4a9418b34678e557cf093a2e0da49b1c423f630d1d65",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "58c5f6b4-5cd1-4921-a370-8ade47db924a"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "ef981a2a-035d-4eaa-befe-58f2ddd64f15",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "b261e759f0e0363b8a2c716fe9298280390244eba40224ca01d27d65d2e2ea66",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "1f00ba53-f2b0-4a3e-a245-cee8f745d415"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f71f30bd-fb18-4433-a852-1c6b5fe10525",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "65b64421a1cb6a77a5428e21c2f0a62437952dbb10fdc9572fac816346bb167e",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "fd975e4a-27d8-41ce-88c6-d148d580a9c2"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "ffe8ee57-e631-4072-a37b-d165f38b8862",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "697dfd7a97faa5f8d8d62a5ec5781922ad1c0e9a71f4dc6c1f2958bfd740bca7",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "68213e67-f085-4f34-a1c8-ccb1d2a279e1"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "0963996c-52e8-41ea-b684-d6242f81a1e1",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "877457cb70a0e8d23d45f9767a635894c0aef298fad47e6fd28a6a3873aefd71",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "54e37f36-f656-48e7-af5c-71c6d7743cc8"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "d1cdddd4-5f92-4b59-98cc-06ac6bf1e7c3",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "60a99c6a482a0d7dcbf91e7cb171aaaf663a72cc89eeaa4c224d0d3d21a0b076",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "3e72b25c-544b-45aa-8dae-bdc84139cb22"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "66ff6ab7-26b2-4b33-ab11-462e83b70f64",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "2efc631c1d401497a6d6c54ad60af69053253d5b909e37a35e960bdcdd5baf42",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "b96115c6-e241-463c-951b-a22bf66ab424"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "cbe3a1de-7810-44e5-a3c7-84c5efee194f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "a18c26f8854ce4f3e25a23a3ccf531656597e01b65d859285a006f5400eadadd",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "2d9b5ccb-9c04-4778-8fd2-09f84e9f5898"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "6bf0f763-92c3-4810-8c51-1799e0243d93",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "726f2c18f95c51ed9434d62856db37070555db65a3afc0344c5be0f4d0172598",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "4e7663f8-d046-4981-986e-1e09dbc0875a"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f38a85d3-b970-4c28-bce7-a514a355c0dc",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "8d83188714525a529ff87cd9d0cf88e037b7846068e1f167d7f7ce94a27eb7a6",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "6327d920-a13d-4761-bd16-94ad37941e01"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "b6a37cc3-a954-47cc-8515-b0882d40593f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "7c59ddc4ee9670732049bdf22297e3d060f22c3768c12718abb3ac6c2f6a4ab6",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "75098afa-341e-4aca-b1c0-061f6609c235"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "4ec985dd-487b-4ec3-b5cd-bd863117a89f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "72aee85255215e9493d390b847fed2c2f2f28653ac9c36d250b1f21576801620",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "9c5ac579-4f6b-4403-ba23-96e62c04c9fc"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "24c2be8c-dd10-4be5-ad70-da3262813fd4",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "35bb7cc52a5342242ca118e109e26ea933c482c781fdf3cbcaf0502586977d45",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "cbe7f4bc-68b5-4fde-bfad-c5ca18c340be"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "cb25f507-f5f9-41c5-b6c5-1b24e10c701e",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "f445b5752d55b1d8630050895ccddfeea83a5a948059f3a0c29816f4cd3ca07d",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "9470bbb3-6c16-4b86-9907-f54eec3b2797"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "5e67bb09-1ec0-4f36-b6fc-9f7f8e71e841",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "04c345f71ca9637d15256c9029c2166e8eb34da59bafe955c12214927ba2ee3c",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "3f7e9271-56e6-4756-ac7b-716323b07532"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "f84d3b25-68a1-4844-a226-2f723d0e9cd3",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "fa041144fb3e32599924f70c8db7b86df25c712e525207cfdd78146bb01754e0",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "814ff342-0e33-4bc2-80ee-b7bc4f675ec5"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "0b1d1136-de1a-459d-8108-78425f90518f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "c47fef9f806ea5249f2f99cdfeeb6dc2063d7b819483d31bdaa9f535443df169",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "b8c37ff8-2716-44a8-9c16-3191c408b031"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "a3c2e01a-5b3a-45b6-a1ec-cfed6f46fc7e",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "fcc437706d96400ddcbf233e4083bacbe042bcf4ef87b57a5943cc22c529a5d1",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "0c4e283c-5aec-4b28-b4d0-8741a87301e7"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "d90a7a01-ad97-4200-8dff-fd4794b03b87",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "9f4b543cd33bbfa40ba03dc28df045dc3e0f8c5b313dbdd22d00a9d93204d713",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "0d4321db-61cb-4707-9261-834aef862e71"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "618e8c36-3116-4038-9ca3-ae5b0309250c",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "abe36a9f918947d3de53af804eac7f2f875995165d76dafe44a88573aa82eafa",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "d85adda8-a510-4612-8308-dc0f341da182"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "86d7097c-b0c6-4c49-9c04-2c7b27679000",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "0dcad1f0fa13e5cc9ae4d49815cc5dfab5be10e8cc53ecabceef05e52ffa3b7c",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "4909e235-5c2e-4d50-917b-8dd90cf2046a"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "382f659d-e9a9-430a-b679-d6c5c1e53a3d",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "4ed9d1ca6e91a67cd2760e66be5b4df7c06559bc474e9d5da8632cdbf7161ed3",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "81cd8820-b794-49db-b655-90e4893dceb9"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "8c3ab363-1306-4226-95dd-050487780236",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "225fab2d6363705f5271ca1e320da94a36bfe188705e96d4becd24d13cedba5e",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "d34bfe08-937f-407c-a9e9-3823cf10c84b"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "2e1eb38a-1c38-4d50-b824-1e787f2ad753",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "928c9cb52ed8ac9d7001c68a4c84d324451735b543a96979be491fa7c0845fa1",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "a45c624b-bbae-4180-a9dd-4c673413a186"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "d49cbf83-6305-4260-9399-a0931deb9bf3",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "fce13336d534c5b6ae81e4300dc9b3eb6214fce548234128acc3f377923a32f7",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": "b63846c1-d529-4206-ba44-ce6cddea1b36"
+    },
+    {
+      "actor_id": "9202723e-28eb-4b65-9858-74b7fad0d859",
+      "idempotency_key": "0565329a-636a-4108-ba1a-44b820a72fe0",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "1963cf66-3c83-43b1-bfce-40be61544e08"
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "2868aa4a-eaa8-42aa-8009-0c1127086808",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "304b1014-22eb-470c-9717-aa629173d280",
+        "operation": "withdraw",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "dbc82ecd-bf73-4c40-9f34-43080754c192",
+      "idempotency_key": "8c7b20eb-dc81-4a5b-94e8-caa8834f7e4c",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "1963cf66-3c83-43b1-bfce-40be61544e08",
+        "operation": "withdraw",
+        "conversationId": "4318e5ac-8c02-4546-a8a6-544939abfa3b"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

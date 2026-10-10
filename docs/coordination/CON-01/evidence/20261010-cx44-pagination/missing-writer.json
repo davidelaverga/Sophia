@@ -1,0 +1,16 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "level": "L0 actual helpers, synthetic late pre-first-contribution row and eligible cached thread; no mounted race claim",
+  "passed": 7,
+  "failed": 0,
+  "passedCases": [
+    "Direct withdrawal adds known surviving writer absent from stale row",
+    "Late row reconciliation adds known surviving writer absent from stale row",
+    "Mine includes current reader A whose surviving message is in the cached thread",
+    "Unrelated existing writer B preserved",
+    "No withdrawn name restored",
+    "Repeated reconciliation does not duplicate contributors",
+    "Full contributor list stays bounded200 and retains existing reader B"
+  ],
+  "failedCases": []
+}

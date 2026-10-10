@@ -1,0 +1,92 @@
+{
+  "at": "2026-10-10T13:16:14.182Z",
+  "scope": "External supported withdrawals A54/B105; no provider",
+  "keys": {
+    "a": "3cb45b3c-a6d3-4ba5-8bdd-a1ebede8a6cd",
+    "b": "1a1c3a78-fb2b-4519-8c60-2741627f558b"
+  },
+  "withdrawals": [
+    {
+      "messageId": "25f52346-61a1-4ae0-af7a-185339560f87",
+      "conversationId": "b3a9dac4-1d19-4cc2-9978-12ed58cd7a1e"
+    },
+    {
+      "messageId": "6f8b91c6-dc8a-42d7-bfd4-295bd01c06ef",
+      "conversationId": "b3a9dac4-1d19-4cc2-9978-12ed58cd7a1e"
+    }
+  ],
+  "canonical": {
+    "projectId": "71c263ec-132b-499f-9616-eaa01db92896",
+    "conversations": [
+      {
+        "id": "b3a9dac4-1d19-4cc2-9978-12ed58cd7a1e",
+        "title": "SYNTHETIC paged contributor regression",
+        "revision": 213,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T13:15:21.430Z",
+        "messageSeq": 105,
+        "contributors": [
+          {
+            "actorId": "94e5e129-f2ce-4f36-a265-3dc30c54dfc8",
+            "name": "Synthetic C"
+          },
+          {
+            "actorId": "3245d9ce-3580-421b-bb4c-0ea85a1a8778",
+            "name": "Synthetic A"
+          },
+          {
+            "actorId": "33ae810d-c6dc-4ec9-a8e3-fe74101b7ae0",
+            "name": "Synthetic B"
+          }
+        ],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": {
+          "author": "member",
+          "actorId": "94e5e129-f2ce-4f36-a265-3dc30c54dfc8",
+          "name": "Synthetic C",
+          "text": "SYNTHETIC Synthetic C position 104",
+          "at": "2026-10-10T13:15:21.430Z",
+          "seq": 104
+        }
+      }
+    ],
+    "more": false,
+    "policy": {
+      "id": "conversation-text-v1",
+      "notice": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "retention": "until_withdrawn_or_erased",
+      "audience": "project_members"
+    },
+    "capability": {
+      "state": "enabled",
+      "write": false,
+      "moderate": false,
+      "ask": "unavailable",
+      "askReason": "replies_not_enabled"
+    }
+  }
+}

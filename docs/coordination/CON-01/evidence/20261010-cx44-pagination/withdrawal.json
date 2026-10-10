@@ -1,0 +1,19 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "level": "L0 actual production helpers; synthetic eligible thread and assessed projections; no app/native/provider claim",
+  "passed": 10,
+  "failed": 0,
+  "passedCases": [
+    "Direct withdrawal cannot retain name sourced solely from withdrawn latest message",
+    "Header row correction cannot retain withdrawn latest name",
+    "Same-actor older null name uses surviving fallback, not withdrawn latest name",
+    "Valid summary through5 survives withdrawal6",
+    "Valid question assessment through5 survives withdrawal6",
+    "Late prewithdrawal row cannot revive withdrawn contributor name even if no other fields change",
+    "Sole writer removed; unrelated writer preserved",
+    "Summary overlapping withdrawn6 cleared",
+    "Question projection overlapping withdrawn6 cleared",
+    "Unrelated conversation unchanged"
+  ],
+  "failedCases": []
+}

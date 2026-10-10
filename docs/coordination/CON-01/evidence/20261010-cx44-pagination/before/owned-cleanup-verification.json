@@ -1,0 +1,19 @@
+{
+  "candidate": "c6c3424f6b9ce14b8f7e9dbf2e029b9a60f236d4",
+  "tree": "8907c95a20a7ee07b42552a7dbbee2acce82a733",
+  "ownedPids": [
+    57913,
+    57936,
+    57945,
+    57946
+  ],
+  "absent": true,
+  "portsClosed": {
+    "50390": true,
+    "50391": true,
+    "50392": true
+  },
+  "terminalExit": 0,
+  "postgresStopped": true,
+  "clusterRemoved": true
+}

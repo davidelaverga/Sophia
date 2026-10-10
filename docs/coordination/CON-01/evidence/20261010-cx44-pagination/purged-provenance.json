@@ -1,0 +1,13 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "scope": "L0 production helpers; valid canonical row, partial fail-closed cache then complete pages; no mounted claim",
+  "passed": 4,
+  "failed": 0,
+  "passedCases": [
+    "Partial cache fails closed and removes writers whose surviving messages were not held",
+    "Complete pages restore previously named surviving writers in canonical order after fail-closed purge",
+    "Fresh canonical row control retains canonical order",
+    "Actual QueryClient restores previously purged writers in API order after oldest page arrives"
+  ],
+  "failedCases": []
+}

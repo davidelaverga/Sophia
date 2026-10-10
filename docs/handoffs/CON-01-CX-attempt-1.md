@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0043
+# Current checkpoint — CX-0044
+
+Exactabcfe255/tree551d666c pagination provenance correction independently scoped-qualified: full2filedelta,79externalhelper/actualQueryClient cases,117focused/typecheck0. Actual105-messageAPI/PG/Studio beforec6cYou,B,A FAIL→afterabcYou,A,B PASS matches canonicalC,A,B; partialpages stillfailclosed. [Full evidence/actions/verdicts](../coordination/CON-01/CX-0044.md). r4237660062eligibleforscopedresolution/fresh exactabcreviewpending/headheldbeforeS1integration.
+
+Eachaudit105human/2NULL/107requests/bootstrapgoal1/allmodeloperational0. All38successfulownedstacks+earlierinitdbfailureclean;98822/24986terminal0/portsclosed/PIDsabsent/PGstoppedclustersremoved/tabs59/60closed. No hosted/provider/spend/uncertaineffect. S1reviewonly32b0/PR209immutable/scopedsourceprepqualified, actualnative/provider/accounting/hostcopyunqualified. Main444/PR1908a39 unchanged/CIpending/olde91aggregateFAILEDunwaived; all36statusespreserved/A09A13nativeA30not_run/A24toollimitation. Combinedreadinessfalse/Davideacceptsproduct/othermissionsopen.
+
+OP0001r2/OP0002r2draftunapproved/approvalexpiryNULL; inbox/subjects/subscriptionroutecredentialpayerfinitecapexpiry/privacybackupproviderlimits/sharedruntimewindow/artifacts/governedrollbackremainopen. Historical10:01–03UTC servingtuplebelowunrefreshed; currentStudioSHA/installedcompositionunknown. Nextboundedaction fresh exactabcreview, then immutablecombinedS1candidateaffectedrechecks/ownercoordinatedG2window. No autonomousmonitor.
+
+# Historical checkpoint — CX-0043
 
 Exactc6c3424f/tree8907c95 independently passes the actual local stale-sender crossing after cf3 and457 failures: B,A,You matches canonicalB,A,C under failed list/message reads.116focused/typecheck0/71unchanged external passes. NEW P2 valid105-message pagination sequence loses original contributor provenance after fail-closed purge, then restores C,B,A rather thanC,A,B; helper and actualQueryClient independently FAIL, freshrow/partialpurge controlsPASS. Finding r4237660062 remainsopen; correction requested directly. [Full source, evidence, actions and limits](../coordination/CON-01/CX-0043.md).
 
