@@ -47,6 +47,20 @@ CREATE TABLE sophia.conversation_grants (
 );
 CREATE UNIQUE INDEX conversation_grants_current ON sophia.conversation_grants(project_id) WHERE current;
 
+-- Every approval ever used for a project's allowance, by any lineage, at its creation or by a setter: each is used
+-- once, so no approval used before (A, then B, then A again) can mint an allowance or reset a counter (PR #211 review).
+-- The spec's digest lets the same new-lineage call, its answer lost, be returned rather than refused.
+CREATE TABLE sophia.conversation_grant_approvals (
+ project_id uuid NOT NULL,
+ approval_ref text NOT NULL CHECK(approval_ref ~ '^[a-z0-9][a-z0-9._:-]{0,127}$'),
+ lineage_id uuid NOT NULL,
+ used_by text NOT NULL CHECK(used_by IN ('new_lineage','set_grant')),
+ spec_sha256 text NOT NULL CHECK(spec_sha256 ~ '^[0-9a-f]{64}$'),
+ used_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(project_id,approval_ref),
+ FOREIGN KEY(project_id,lineage_id) REFERENCES sophia.conversation_grants(project_id,lineage_id)
+);
+
 -- The asking subjects a lineage lends the owner's resource to: a project grant alone lends nobody anything.
 CREATE TABLE sophia.conversation_grant_subjects (
  project_id uuid NOT NULL, lineage_id uuid NOT NULL, actor_id uuid NOT NULL,
@@ -103,7 +117,7 @@ BEGIN
   IF (NEW.project_id,NEW.lineage_id,NEW.unit)<>(OLD.project_id,OLD.lineage_id,OLD.unit) THEN
    RAISE EXCEPTION 'unit_is_fixed' USING ERRCODE='55000'; END IF;
   IF NEW.current AND NOT OLD.current THEN RAISE EXCEPTION 'lineage_closed' USING ERRCODE='55000'; END IF;
- ELSIF TG_TABLE_NAME='conversation_reply_allowances' THEN
+ ELSIF TG_TABLE_NAME IN ('conversation_reply_allowances','conversation_grant_approvals') THEN
   RAISE EXCEPTION 'ledger_kept' USING ERRCODE='55000';
  ELSIF TG_TABLE_NAME='conversation_reservations' THEN
   IF (NEW.project_id,NEW.reply_id,NEW.call_ordinal,NEW.lineage_id,NEW.grant_revision,NEW.unit,NEW.route_id,
@@ -120,6 +134,8 @@ END $$;
 CREATE TRIGGER conversation_grants_kept BEFORE UPDATE OR DELETE ON sophia.conversation_grants
  FOR EACH ROW EXECUTE FUNCTION sophia.conversation_ledger_kept();
 CREATE TRIGGER conversation_reply_allowances_kept BEFORE UPDATE OR DELETE ON sophia.conversation_reply_allowances
+ FOR EACH ROW EXECUTE FUNCTION sophia.conversation_ledger_kept();
+CREATE TRIGGER conversation_grant_approvals_kept BEFORE UPDATE OR DELETE ON sophia.conversation_grant_approvals
  FOR EACH ROW EXECUTE FUNCTION sophia.conversation_ledger_kept();
 CREATE TRIGGER conversation_reservations_kept BEFORE UPDATE OR DELETE ON sophia.conversation_reservations
  FOR EACH ROW EXECUTE FUNCTION sophia.conversation_ledger_kept();
@@ -156,19 +172,29 @@ BEGIN
   SELECT g.project_id,g.lineage_id,x,g.grant_revision FROM unnest(wanted) x ON CONFLICT DO NOTHING;
 END $$;
 
--- Operator only: a new lineage, in a unit of its own, with a new approval, only while nothing is outstanding on the
--- current one; the old lineage keeps its counters, no longer current. Nothing converts one unit into another.
+-- Operator only: a new lineage, in a unit of its own, under an approval never used before for this project (by any
+-- lineage, at its creation or by a setter), only while nothing is outstanding on the current one; the old lineage keeps
+-- its counters, no longer current. Nothing converts one unit into another. The same call again (its answer lost)
+-- returns the lineage it made while that is still current; any other use of a used approval is refused.
 CREATE FUNCTION sophia.conversation_new_lineage(p_project uuid, p_spec jsonb) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE g sophia.conversation_grants; was sophia.conversation_grants; unit text:=p_spec->>'unit';
+ digest text:=encode(sha256(convert_to(p_spec::text,'UTF8')),'hex'); used sophia.conversation_grant_approvals;
 BEGIN
  SELECT * INTO was FROM sophia.conversation_grants WHERE project_id=p_project AND current FOR UPDATE;
+ SELECT * INTO used FROM sophia.conversation_grant_approvals
+  WHERE project_id=p_project AND approval_ref=p_spec->>'approvalRef';
  IF FOUND THEN
+  IF used.used_by='new_lineage' AND used.spec_sha256=digest AND used.lineage_id=was.lineage_id THEN
+   RETURN jsonb_build_object('lineageId',was.lineage_id,'grantRevision',was.grant_revision,'unit',was.unit,
+    'state',was.state);
+  END IF;
+  RAISE EXCEPTION 'approval_reused' USING ERRCODE='22023';
+ END IF;
+ IF was.project_id IS NOT NULL THEN
   IF EXISTS(SELECT 1 FROM sophia.conversation_reservations r WHERE r.project_id=p_project
      AND r.lineage_id=was.lineage_id AND r.state IN ('reserved','uncertain')) THEN
    RAISE EXCEPTION 'outstanding' USING ERRCODE='55000'; END IF;
-  IF p_spec->>'approvalRef' IS NOT DISTINCT FROM was.approval_ref THEN
-   RAISE EXCEPTION 'approval_reused' USING ERRCODE='22023'; END IF;
   UPDATE sophia.conversation_grants SET current=false WHERE project_id=p_project AND lineage_id=was.lineage_id;
  END IF;
  INSERT INTO sophia.conversation_grants(project_id,unit,state,route_id,credential_ref,owner_resource_ref,approval_ref,
@@ -182,13 +208,16 @@ BEGIN
   CASE WHEN unit='usd' THEN sophia.conversation_ledger_amount(p_spec,'replyPriceCapMicros') END,
   CASE WHEN unit='usd' THEN sophia.conversation_ledger_amount(p_spec,'totalPriceCapMicros') END)
  RETURNING * INTO g;
+ INSERT INTO sophia.conversation_grant_approvals(project_id,approval_ref,lineage_id,used_by,spec_sha256)
+ VALUES(p_project,g.approval_ref,g.lineage_id,'new_lineage',digest);
  PERFORM sophia.conversation_grant_subjects_set(g,p_spec);
  RETURN jsonb_build_object('lineageId',g.lineage_id,'grantRevision',g.grant_revision,'unit',g.unit,'state',g.state);
 END $$;
 
 -- Operator only: the current lineage's configuration (state, route and references, expiry, caps, subjects). Its
 -- lineage, unit and counters are never written here, and no reservation is touched: an outstanding one keeps the route,
--- credential and revision it was made under. Lowering a cap below what is used only refuses new reservations.
+-- credential and revision it was made under. Lowering a cap below what is used only refuses new reservations. Another
+-- approval is taken only if it was never used for this project, and is recorded as used.
 CREATE FUNCTION sophia.conversation_set_grant(p_project uuid, p_spec jsonb) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE g sophia.conversation_grants;
@@ -197,6 +226,14 @@ BEGIN
  IF NOT FOUND THEN RAISE EXCEPTION 'no_grant' USING ERRCODE='55000'; END IF;
  IF p_spec ? 'unit' AND p_spec->>'unit' IS DISTINCT FROM g.unit THEN
   RAISE EXCEPTION 'unit_is_fixed' USING ERRCODE='55000'; END IF;
+ IF p_spec ? 'approvalRef' AND p_spec->>'approvalRef' IS DISTINCT FROM g.approval_ref THEN
+  IF EXISTS(SELECT 1 FROM sophia.conversation_grant_approvals
+     WHERE project_id=p_project AND approval_ref=p_spec->>'approvalRef') THEN
+   RAISE EXCEPTION 'approval_reused' USING ERRCODE='22023'; END IF;
+  INSERT INTO sophia.conversation_grant_approvals(project_id,approval_ref,lineage_id,used_by,spec_sha256)
+  VALUES(p_project,p_spec->>'approvalRef',g.lineage_id,'set_grant',
+   encode(sha256(convert_to(p_spec::text,'UTF8')),'hex'));
+ END IF;
  UPDATE sophia.conversation_grants SET
   state=coalesce(p_spec->>'state',state),
   route_id=coalesce(p_spec->>'routeId',route_id),
@@ -272,6 +309,11 @@ BEGIN
    INTO last_ordinal,reply_tokens,reply_price
    FROM sophia.conversation_reservations WHERE project_id=p_project AND reply_id=p_reply;
  IF p_ordinal<>last_ordinal+1 THEN RAISE EXCEPTION 'ordinal_out_of_order' USING ERRCODE='22023'; END IF;
+ -- No fresh call for a reply while one of its calls is uncertain: only an operator's reconcile ends that. A reservation
+ -- is accounting, never permission to dispatch (PR #211 review).
+ IF EXISTS(SELECT 1 FROM sophia.conversation_reservations
+    WHERE project_id=p_project AND reply_id=p_reply AND state='uncertain') THEN
+  RAISE EXCEPTION 'uncertain_outstanding' USING ERRCODE='55000'; END IF;
  IF (g.unit='calls_tokens' AND reply_tokens+tokens>g.reply_token_cap)
     OR (g.unit='usd' AND reply_price+price>g.reply_price_cap_micros)
     OR g.spent_calls+g.reserved_calls+g.uncertain_calls+1>g.total_call_cap
@@ -364,8 +406,9 @@ ALTER TABLE sophia.conversation_grants ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.conversation_grant_subjects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.conversation_reply_allowances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sophia.conversation_reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sophia.conversation_grant_approvals ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON sophia.conversation_grants, sophia.conversation_grant_subjects, sophia.conversation_reply_allowances,
- sophia.conversation_reservations FROM PUBLIC, sophia_api, sophia_worker;
+ sophia.conversation_reservations, sophia.conversation_grant_approvals FROM PUBLIC, sophia_api, sophia_worker;
 REVOKE ALL ON FUNCTION sophia.conversation_ledger_kept(), sophia.conversation_ledger_amount(jsonb,text),
  sophia.conversation_reservation_receipt(sophia.conversation_reservations),
  sophia.conversation_grant_subjects_set(sophia.conversation_grants,jsonb), sophia.conversation_new_lineage(uuid,jsonb),

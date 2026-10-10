@@ -621,7 +621,11 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
   - It takes the grant row `FOR UPDATE`, writes only configuration and `grant_revision`, and keeps `lineage_id` and `unit`. A spec naming another unit is refused (`unit_is_fixed`).
   - It never writes `reserved`, `spent` or `uncertain`, and never touches a reservation. An outstanding reservation keeps the route, credential and revision it was made under, and settles against them.
   - Lowering a cap below what is already used is allowed. It only refuses new reservations.
-- **`conversation_new_lineage(project, spec)`** is operator-only, with a new `approval_ref`. It starts a lineage in a unit of its own, and only when the current lineage has no reservation `reserved` or `uncertain`, so nothing outstanding is reassociated. The old lineage stays with its counters, no longer current. Nothing converts one unit into another.
+- **`conversation_new_lineage(project, spec)`** is operator-only. It starts a lineage in a unit of its own, and only when the current lineage has no reservation `reserved` or `uncertain`, so nothing outstanding is reassociated. The old lineage stays with its counters, no longer current. Nothing converts one unit into another.
+- **Each approval is used once, across the project's whole history** (the #211 review). `conversation_grant_approvals` (`project_id`, `approval_ref` primary key, `lineage_id`, `used_by`, `spec_sha256`, `used_at`) records every approval ever used, at a lineage's creation or by a setter. Its rows never change.
+  - A new lineage under an approval in that record is refused (`approval_reused`). So A, then B, then A again mints nothing and resets nothing.
+  - The one exception is the same new-lineage call again, its answer lost: the same approval, the same spec digest, and its lineage still current. It returns that lineage.
+  - A setter takes another approval only if it was never used, and records it.
 - **The states:**
 
   | From | To | By | What happens |
@@ -637,6 +641,7 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
   1. Lock the reply `FOR SHARE`, then the grant `FOR UPDATE`. Only then sample `clock_timestamp()`, so a waiter that crossed `expires_at` while blocked is refused (`grant_expired`).
   2. **Replay:** for an existing key, the call is compared field by field with the stored original fingerprint (`route_id`, `credential_ref`, `owner_resource_ref`, `lineage_id`, `unit`, amount). The stored `grant_revision` stays as it was; the grant's current revision is not compared, so a renewal or a route change since doesn't break a replay. An equal call returns the stored receipt in its current state (reserved, settled, released or uncertain), even after expiry or disable. A different one is refused (`key_reused`) and changes nothing.
      - **No logical call is used twice.** A key that ended (settled, released or uncertain) only replays its receipt. A further call takes the next ordinal, and past the lineage's `max_calls_per_reply` it is refused (`calls_exhausted`). After an uncertain call, its ordinal is never reused.
+     - **No fresh call while one is uncertain** (the #211 review). While any call of the reply is `uncertain`, a new ordinal is refused (`uncertain_outstanding`) until an operator reconciles it. A reservation is accounting only, never permission to dispatch: the future dispatcher must also refuse fresh execution for a reply with an uncertain call, and keep §8.3's fences.
   3. **A new key** needs:
      - the current lineage `enabled` and unexpired;
      - the call's route and credential reference equal to the grant's;
@@ -682,6 +687,12 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
   - a spec naming another unit is refused;
   - an outstanding reservation keeps its old fingerprint and settles against it;
   - an exact replay after a renewal returns the original receipt, with its original `grant_revision`.
+- **Approvals:**
+  - A, then B, then A again is refused, with no new lineage and nothing reset;
+  - a setter's used approval is refused, and a fresh one is recorded;
+  - the same new-lineage call again returns its lineage, while another spec under the approval is refused;
+  - approval rows can't change or go.
+- **The uncertain fence:** ordinal 2 is refused while ordinal 1 is uncertain, and no counter moves.
 - **A new lineage:**
   - it is refused while a reservation is `reserved` or `uncertain`;
   - started after everything settled, it keeps the old lineage's counters as they were;
@@ -1030,6 +1041,7 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 | 2026-10-10 | §8.7, G2-S2 and G2-S3 footprint, normalized: the reply ledger's lineage, immutable fingerprint, expiry after the lock and lent subjects; S3 reuses `readMissionContext` (pinned `sophia.mission-context.v1`), with deterministic byte ceilings and one locked assembly-and-record that derives every source itself | CX45 (#198 6097962061) and its compiler correction; no number reserved, no shared file |
 | 2026-10-10 | §8.7 revised for the CC-0049 review: message provenance of its own and the context copy in the record, scrubbed in S3 by two additive triggers; compiled lists reversed to newest first, ties by id; the unit fixed per lineage, replay against the original fingerprint, ordinals never reused; a NOLOGIN assembler role in one REPEATABLE READ transaction, exact fragment verification; the public lock-taking writers' census, the membership revocation protocol, post-lock rereads and an unknown commit's replay | Codex's review of CC-0049 (five gaps); still no number, shared file, caller or grant |
 | 2026-10-10 | §8.7, CX49's three bindings and the CC-0054 review: typed per-dimension counters and amounts, a logical reply bound to its lineage (`lineage_changed`), the counter transfers, release and reconcile proofs (`never_claimed` fences the exact outbox row and attempt in the same transaction, correlated to reply, ordinal and create; both race orders), both refused until wired; the assembler dormant until a least-privilege path; the `source_objects` trigger held with its footprint; what SQL validates and what it only trusts; the digest not recorded | CX49 (#198 6098429475) and the CC-0054 review; still no number, shared file, caller or grant |
+| 2026-10-10 | §8.7.1, the #211 review: each approval used once across the project's history (`conversation_grant_approvals`; a lost new-lineage answer replays); no fresh call for a reply while one of its calls is uncertain, and a reservation is never dispatch permission | Codex's review of #211 at `f010577a` (approval A→B→A) |
 | 2026-10-10 | Revision 8, CX-0031 wording: the four inherited descriptors are the launcher's boundary just before `exec`; the running child's later descriptors are opened under the ruleset and accounted for by provenance | CX-0031 |
 | 2026-10-10 | Revision 8, third part, CX-0029/CX-0030. Cleanup waits on the full acknowledgment barrier (every journal key, capture's result, the usage of every call, each reservation ended or uncertain, the terminal receipt, the request terminal), not on observation keys alone. The restart sweep signals through a `pidfd` after checking the five fields, and signals nothing where `pidfd` is unavailable. Landlock is qualified on the host (ABI 3 or later, every right handled, inherited descriptors closed, self-test) and fails closed. The stale "G2's source is built" sentence is corrected. D-7's setup draft is prepared; the mailbox, roles and subjects remain unbound | CX-0029, CX-0030 |
 | 2026-10-10 | Revision 8, second part, Codex's subscription review. §8.4's OpenAI row: Sign in with ChatGPT plan usage is documented for a user-operated open-source app locally or on a self-hosted remote VM, under OpenAI's conditions; a paid or remote service is directed to the partner process; app-server authentication is a separate limit; remote location alone proves nothing; today's hosted route is unverified and unbound; no token copied, no transfer authorized. §8.6: the owner-native resource connection recorded as a dependency on `11_OMNIGENT_BINDINGS.md` and its SCM owners, not built by CON-01, and not CON-01's reply route; the display rules aligned with its `:181`; D-7's mailbox reference pending | Codex's subscription review |

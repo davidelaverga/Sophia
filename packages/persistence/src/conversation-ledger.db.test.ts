@@ -14,6 +14,7 @@ import { createPool, startConversation, withActor } from './index.ts'
 const CANDIDATE = new URL('../../../db/candidates/con01-s2-conversation-reply-ledger.sql', import.meta.url)
 const TABLES = [
   'conversation_grants',
+  'conversation_grant_approvals',
   'conversation_grant_subjects',
   'conversation_reply_allowances',
   'conversation_reservations',
@@ -165,7 +166,7 @@ describe('the S2 candidate as installed', () => {
         ORDER BY relname`,
       [TABLES],
     )
-    assert.ok(rls.length === 4 && rls.every((r) => r.relrowsecurity))
+    assert.ok(rls.length === TABLES.length && rls.every((r) => r.relrowsecurity))
     const functions = await owner<{ proname: string; open: boolean }>(
       `SELECT p.proname,
               has_function_privilege('sophia_api', p.oid, 'EXECUTE')
@@ -202,6 +203,9 @@ describe('the S2 candidate as installed', () => {
     assert.deepEqual(
       text.map((c) => `${c.table_name}.${c.column_name}`),
       [
+        'conversation_grant_approvals.approval_ref',
+        'conversation_grant_approvals.spec_sha256',
+        'conversation_grant_approvals.used_by',
         'conversation_grants.approval_ref',
         'conversation_grants.credential_ref',
         'conversation_grants.owner_resource_ref',
@@ -273,6 +277,18 @@ describe('reservations: keys, replay and the fingerprint', () => {
     )
     assert.equal(
       await codeOf(owner(`DELETE FROM sophia.conversation_reply_allowances WHERE reply_id=$1`, [reply])),
+      'ledger_kept',
+    )
+    assert.equal(
+      await codeOf(owner(`DELETE FROM sophia.conversation_grant_approvals WHERE project_id=$1`, [p.projectId])),
+      'ledger_kept',
+    )
+    assert.equal(
+      await codeOf(
+        owner(`UPDATE sophia.conversation_grant_approvals SET approval_ref='approval-9' WHERE project_id=$1`, [
+          p.projectId,
+        ]),
+      ),
       'ledger_kept',
     )
   })
@@ -484,5 +500,74 @@ describe('ordinals, the reply’s ceilings and the total', () => {
     const q = await setup()
     await newLineage(q.projectId, tokensGrant())
     assert.equal(await codeOf(reserve(q.projectId, reply, 1, tokensCall(10))), 'no_reply')
+  })
+})
+
+describe('approvals are used once, across every lineage and setter (PR #211 review)', () => {
+  it('A, then B, then A again: refused; no new lineage, nothing reset', async () => {
+    const p = await setup()
+    const a = (await newLineage(p.projectId, tokensGrant()))[0]?.g as { lineageId: string }
+    const reply = await p.reply()
+    await reserve(p.projectId, reply, 1, tokensCall(100))
+    await settle(p.projectId, reply, 1, { calls: 1, tokens: 100, priceMicros: 0 })
+    const b = (await newLineage(p.projectId, tokensGrant({ approvalRef: 'approval-2' })))[0]?.g as {
+      lineageId: string
+    }
+    assert.equal(await codeOf(newLineage(p.projectId, tokensGrant({ approvalRef: 'approval-1' }))), 'approval_reused')
+    const lineages = await owner<{ lineage_id: string; current: boolean }>(
+      `SELECT lineage_id, current FROM sophia.conversation_grants WHERE project_id=$1 ORDER BY created_at`,
+      [p.projectId],
+    )
+    assert.deepEqual(lineages, [
+      { lineage_id: a.lineageId, current: false },
+      { lineage_id: b.lineageId, current: true },
+    ])
+    assert.deepEqual(await counters(p.projectId, a.lineageId), counted({ spent_calls: '1', spent_tokens: '100' }))
+  })
+
+  it('a setter takes only a never-used approval, and records it: no lineage may use it again', async () => {
+    const p = await setup()
+    await newLineage(p.projectId, tokensGrant())
+    await newLineage(p.projectId, tokensGrant({ approvalRef: 'approval-2' }))
+    assert.equal(await codeOf(setGrant(p.projectId, { approvalRef: 'approval-1' })), 'approval_reused')
+    await setGrant(p.projectId, { approvalRef: 'approval-3' })
+    assert.equal(await codeOf(newLineage(p.projectId, tokensGrant({ approvalRef: 'approval-3' }))), 'approval_reused')
+    const used = await owner<{ approval_ref: string; used_by: string }>(
+      `SELECT approval_ref, used_by FROM sophia.conversation_grant_approvals WHERE project_id=$1 ORDER BY approval_ref`,
+      [p.projectId],
+    )
+    assert.deepEqual(used, [
+      { approval_ref: 'approval-1', used_by: 'new_lineage' },
+      { approval_ref: 'approval-2', used_by: 'new_lineage' },
+      { approval_ref: 'approval-3', used_by: 'set_grant' },
+    ])
+  })
+
+  it('the same new-lineage call again (its answer lost) returns the lineage it made; another spec is refused', async () => {
+    const p = await setup()
+    const spec = tokensGrant()
+    const made = (await newLineage(p.projectId, spec))[0]?.g as { lineageId: string }
+    const again = (await newLineage(p.projectId, spec))[0]?.g as { lineageId: string }
+    assert.equal(again.lineageId, made.lineageId)
+    assert.equal(await codeOf(newLineage(p.projectId, { ...spec, totalCallCap: 11 })), 'approval_reused')
+    const [n] = await owner<{ n: number }>(
+      `SELECT count(*)::int AS n FROM sophia.conversation_grants WHERE project_id=$1`,
+      [p.projectId],
+    )
+    assert.equal(n?.n, 1)
+  })
+})
+
+describe('no fresh call while one of a reply’s calls is uncertain (PR #211 review)', () => {
+  it('ordinal 2 is refused while ordinal 1 is uncertain, and nothing moves', async () => {
+    const p = await setup()
+    await newLineage(p.projectId, tokensGrant())
+    const reply = await p.reply()
+    await reserve(p.projectId, reply, 1, tokensCall(100))
+    await uncertain(p.projectId, reply)
+    const marked = await counters(p.projectId)
+    assert.equal(await codeOf(reserve(p.projectId, reply, 2, tokensCall(100))), 'uncertain_outstanding')
+    assert.deepEqual(await counters(p.projectId), marked)
+    assert.deepEqual(marked, counted({ uncertain_calls: '1', uncertain_tokens: '100' }))
   })
 })
