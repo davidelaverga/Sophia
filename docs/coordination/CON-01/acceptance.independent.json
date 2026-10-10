@@ -908,14 +908,14 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0067.md",
+    "record": "CX-0068.md",
     "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
     "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
-    "currentMain": "41f6a9add19a661a8b364fe49d778fab7f8f25c6",
-    "statement": "CX67 exacte27/treee5f07c2e:178focused/typecheck and7olderpageL0controlsPASS; actual external open-thread erasure/list503/real422 purge/recovery/returnPASS bounded. DeferredStart cap reachability, honest partialmetadata and count200PASS; residualP3 older-cannot-open wording inaccurate. Native/hosted/fullcombined unqualified/status unchanged.",
+    "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+    "statement": "CX68 actual revoked-cache P1 FAIL and partial projection L0 P2 FAIL; CX67 scoped passes retained; G3 changes_requested/combinedG4 held; native/hosted unqualified.",
     "readiness": {
       "source_ready": "author candidate only",
-      "locally_verified": "bounded privacy/return/cap/metadata and L0 freshness passes; residualP3",
+      "locally_verified": "CX67 bounded passes; CX68 revoked cached transcript P1 FAIL and partial projection P2 L0 FAIL",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
@@ -923,7 +923,7 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r2 draft_not_authorized;approvalexpiryNULL",
-    "cleanup": "all61 stacks clean;80515terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports61296\u201397closed/tab83closed",
-    "next": "Smallest truthful capped-list wording correction; read completed exact-head review and independently recheck affected scope before current-main/S1 combinedG4"
+    "cleanup": "all62ownedstacks clean;1906terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports62108\u201309closed/tab84closed",
+    "next": "Claude publishes smallest immutable P1/P2/P3 correction; reviewer independently rechecks revoked-cache adverse, ordinary erasure success and partial consumers, then current-main/S1 combined G4"
   }
 }

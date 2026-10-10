@@ -1,0 +1,23 @@
+[
+  {
+    "at": "2026-10-10T18:23:01.854Z",
+    "path": "/api/v1/conversations/0fb40e2d-6c8f-48ff-81a3-ab4ad9ea6a0e/messages",
+    "status": 503,
+    "upstream": false,
+    "scope": "owned local snapshot/one cached transcript transport outage"
+  },
+  {
+    "at": "2026-10-10T18:23:01.856Z",
+    "path": "/api/v1/conversations/0fb40e2d-6c8f-48ff-81a3-ab4ad9ea6a0e/messages",
+    "status": 503,
+    "upstream": false,
+    "scope": "owned local snapshot/one cached transcript transport outage"
+  },
+  {
+    "at": "2026-10-10T18:23:02.863Z",
+    "path": "/api/v1/conversations/0fb40e2d-6c8f-48ff-81a3-ab4ad9ea6a0e/messages",
+    "status": 503,
+    "upstream": false,
+    "scope": "owned local snapshot/one cached transcript transport outage"
+  }
+]

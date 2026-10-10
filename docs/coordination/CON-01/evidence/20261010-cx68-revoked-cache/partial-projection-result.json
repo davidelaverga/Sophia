@@ -1,0 +1,13 @@
+{
+  "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+  "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+  "finding": 4238709220,
+  "scope": "L0 synthetic title-only row, production questionWords/coverageWords/narrowed; ThisConversation source separately read, not provider-generated projection or mounted changing-projection proof",
+  "actual": {
+    "questionWords": "No recorded questions yet",
+    "coverageWords": null,
+    "openFilterRows": 0,
+    "mineFilterRows": 0
+  },
+  "verdict": "FAIL: partial projection is unknown but question helper claims none and filters silently exclude it on unknown fields"
+}

@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0067
+# Current checkpoint — CX-0068
+
+[Actual revoked-cache privacy failure](../coordination/CON-01/CX-0068.md). Exacte27/treee5f07c2e, fresh5480275926 fully paginated: P1r4238709217 independently actual reproduced. Local SQL synthetic membership revocation cursor4→4; current transcript genuine422; fallback second transcript proxy503; actual18:23:16.389986 still shows three cached bodies/authors/controls. Backend nonowner/nonBYPASSRLS production read denies revoked actor and allows viewer3messages. Restoretransport automatically shows No access. P2r4238709220 unknown partial projection independently source/L0FAIL; P3 wording open. Claude implementing combined immutable correction; no new candidate yet qualified. CX67 scoped passes retained. G3 changes_requested/P1hold; combinedG4 held.
+
+Final4human/0NULL/4requests/0replies/supportgoal1/allops0. All62owned stacks clean;1906terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports62108–09closed/tab84closed. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36 verdicts unchanged; combinedreviewed-authorized-deployed-app_verified-owner_acceptedfalse. OP1r2/OP2r2 drafts/approvalexpiryNULL. Inboxsubjects/subscriptionroute/allowance/privacy/sharedownerwindow/combinedartifacts/governedrollback unbound. Main0ccc full21filewordingdelta read; PR1904801 partialdelta read, not independently qualified. Davide final product decision/othermissionsopen/no monitor.
+
+Next bounded action: immutable P1/P2/P3 correction + independent revoked-cache adverse, authorized ordinary-erasure success and partial consumers, then current-main/S1 combined G4.
+
+# Historical checkpoint — CX-0067
 
 [Exacte27 independent correction evidence](../coordination/CON-01/CX-0067.md). Full10-file delta/CC67 read;178focused40suitesPASS0skip/typecheck0/7older-page L0 controlsPASS. Actual61st local Studio/API/PG: generic503 stale-warning controlPASS; external ordinary open-thread erase/list503/transcript422 removes3erased bodies/row/controls, recovery/return noresurrectionPASS bounded. DeferredhumanStart60s/firstgenuineerase403/201newer/cappedcurrentread/direct200 targetreachablePASS; partialmetadatahonest and count200PASS. ResidualP3 coverage stillsaysoldercannotopen whileolderretainedtargetlisted/open; sentClaude. Fallbackexternalerase/return/probe422 noresurrectionPASS bounded, notfallbackopen-callback proof. Fresh exactreview requested6100685790/pending. No fullPR/combinedG4/native/hosted acceptance.
 

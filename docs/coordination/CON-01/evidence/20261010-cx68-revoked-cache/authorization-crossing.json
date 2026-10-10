@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-10T18:24:08.690Z",
+  "scope": "actual PostgreSQL read under generated non-owner non-BYPASSRLS API role, production actor context/readConversationPage; no UI/provider claim",
+  "rows": [
+    {
+      "name": "revoked",
+      "allowed": false,
+      "code": "not_found"
+    },
+    {
+      "name": "authorizedViewer",
+      "allowed": true,
+      "role": {
+        "current_user": "sophia_api_t_c0c05923b97b",
+        "rolsuper": false,
+        "rolbypassrls": false
+      },
+      "messages": 3
+    }
+  ]
+}

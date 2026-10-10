@@ -1,0 +1,98 @@
+Browser tab: 84, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations
+	1 container root
+		2 container
+			3 button Home
+			4 button Work
+			5 heading CON01 independent synthetic browser project, Value: 1
+				6 text CON01 independent synthetic browser project
+			7 container Project views
+				8 link Description: Studio, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/studio
+				9 link Description: Conversations, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations
+				10 link Description: Goals, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/goals
+				11 link Description: Tasks, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/work
+				12 link Description: Knowledge, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/knowledge
+				13 link Description: Updates, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/updates
+				14 link Description: Resources, Value: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/resources
+			15 container Reconnecting
+				16 text RECONNECTING
+			17 button Invite
+			18 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		80 container Conversations
+			81 container All conversations
+				82 heading Conversations, Value: 2, ID: conversations-title
+					83 text Conversations
+				84 checkbox Description: New conversation, Value: 0
+				139 container
+					140 text This may be out of date.
+					141 button Try again
+				85 search text field (settable) Filter conversations
+				86 container Show only
+					87 checkbox Open, Value: 0
+					88 checkbox Mine, Value: 0
+				89 content list
+					94 checkbox SYNTHETIC stale sender regression, Value: 1
+						95 text SYNTHETIC stale sender regression
+						96 container
+							97 text Synthetic A Surviving: SYNTHETIC A surviving third You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 20:22.
+			142 container Open conversation
+				143 container
+					144 heading SYNTHETIC stale sender regression, Value: 3
+						145 text SYNTHETIC stale sender regression
+					146 text Contributors: You, Synthetic C Old, Synthetic A Surviving
+				147 container Messages
+					148 container
+						149 text This may be out of date.
+						150 button Try again
+					151 content list
+						152 container
+							153 text You
+							154 text · 
+							155 text Oct 10, 20:22
+							156 text SYNTHETIC B first message
+							157 button Propose as decision
+							158 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
+						159 container
+							160 text Synthetic C Old ·  Oct 10, 20:22
+							161 text SYNTHETIC C old second message
+							162 button Propose as decision
+							163 button (collapsed) Description: Remove message, Secondary Actions: Expand
+						164 container
+							165 text Synthetic A Surviving ·  Oct 10, 20:22
+							166 text SYNTHETIC A surviving third
+							167 button Propose as decision
+							168 button (collapsed) Description: Remove message, Secondary Actions: Expand
+				169 container Continue this conversation
+					170 text entry area (settable) Continue this question with the team
+					171 container
+						172 checkbox (settable, integer) Description: Ask Sophia, Value: 1
+						173 text Ask Sophia
+					174 button (disabled) Send
+					175 text Sophia doesn’t answer here yet Enter sends · Shift+Enter, a new line
+			119 container Description: Project context, ID: conv-context
+				176 container This conversation
+					177 heading This conversation, Value: 4
+						178 text This conversation
+					179 text No summary yet.
+					180 text No recorded questions yet
+					181 button (collapsed) Erase this conversation, Secondary Actions: Expand
+				126 heading Project context, Value: 3
+					127 text Project context
+				182 container
+					183 text This may be out of date.
+					184 button Try again
+				128 text No mission accepted yet.
+				129 container Accepted decisions
+					130 heading Accepted decisions, Value: 4
+						131 text Accepted decisions
+					132 text None accepted yet.
+				133 container Still open
+					134 heading Still open, Value: 4
+						135 text Still open
+					136 text Nothing waits for a decision.
+				137 button (collapsed) How conversation context works, Secondary Actions: Expand
+					138 text How conversation context works
+		78 container Project room
+			79 button Join the room
+
+The focused UI element is 9 link Description: Conversations, URL: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations

@@ -1,0 +1,157 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0068",
+  "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+  "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6, synthetic development identities; no fixtures/native/provider/hosted acceptance",
+  "automaticReview": {
+    "id": 5480275926,
+    "submittedAt": "2026-10-10T18:20:18Z",
+    "fullyReadWithPagination": true,
+    "findings": [
+      4238709217,
+      4238709220
+    ]
+  },
+  "actualVerdicts": [
+    {
+      "case": "revoked member, same project cursor, selected transcript not_found, cached second transcript transport503",
+      "verdict": "FAIL P1 r4238709217",
+      "screenshotAt": "2026-10-10T18:23:16.389986+00:00",
+      "observed": "second cached conversation three bodies/authors/propose/remove/erase controls visible after first genuine422; not a newly authorized backend read",
+      "stimulus": "owned disposable SQL membership delete18:22:55.254; projecteventcursor4\u21924; feed/list blocked, second transcript503; snapshot fault armed but no snapshot503 observed in failed interval"
+    },
+    {
+      "case": "production read under generated nonowner nonBYPASSRLS APIrole",
+      "verdict": "PASS bounded negative/success crossing",
+      "revokedActor": "not_found",
+      "authorizedViewerMessages": 3
+    },
+    {
+      "case": "restore local transport",
+      "verdict": "PASS bounded recovery",
+      "observed": "project shell automatically shows No access to this project; attempted stale locator failed/no action; no clicked retry claim"
+    },
+    {
+      "case": "partial projection unknown consumers",
+      "verdict": "FAIL P2 r4238709220",
+      "scope": "L0 production questionWords/coverageWords/narrowed synthetic partial row plus independently read ThisConversation; no mounted changed-provider-projection proof"
+    }
+  ],
+  "audit": {
+    "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
+    "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+    "observedAt": "2026-10-10T18:24:08.736Z",
+    "projectId": "25c41476-d8da-4960-85ab-a9d5b4b50873",
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "human": 4,
+    "nullBodies": 0,
+    "requests": 4,
+    "replies": []
+  },
+  "authorization": {
+    "at": "2026-10-10T18:24:08.690Z",
+    "scope": "actual PostgreSQL read under generated non-owner non-BYPASSRLS API role, production actor context/readConversationPage; no UI/provider claim",
+    "rows": [
+      {
+        "name": "revoked",
+        "allowed": false,
+        "code": "not_found"
+      },
+      {
+        "name": "authorizedViewer",
+        "allowed": true,
+        "role": {
+          "current_user": "sophia_api_t_c0c05923b97b",
+          "rolsuper": false,
+          "rolbypassrls": false
+        },
+        "messages": 3
+      }
+    ]
+  },
+  "cleanup": {
+    "execSession": 1906,
+    "terminalExit": 0,
+    "all62OwnedBrowserStacksClean": true,
+    "dbDropped": true,
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "tab84Closed": true,
+    "independent": {
+      "at": "2026-10-10T18:25:15.831619+00:00",
+      "pids": {
+        "pid": {
+          "pid": 96964,
+          "alive": false
+        },
+        "apiPid": {
+          "pid": 96973,
+          "alive": false
+        },
+        "studioPid": {
+          "pid": 96974,
+          "alive": false
+        }
+      },
+      "ports": {
+        "apiPort": {
+          "port": 62108,
+          "open": false
+        },
+        "studioPort": {
+          "port": 62109,
+          "open": false
+        }
+      },
+      "tab84Closed": true,
+      "screenshotAt": "2026-10-10T18:23:16.389986+00:00"
+    }
+  },
+  "limits": {
+    "hostedEffects": 0,
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "unresolvedLocalWrite": false,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "readiness": {
+    "source_ready": "author candidate only",
+    "locally_verified": "CX67 bounded passes; CX68 revoked cached transcript P1 FAIL and partial projection P2 L0 FAIL",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "mainObserved": {
+    "sha": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+    "tree": "0cb4aa5b5264a673a430423dbe0775aa385726e9",
+    "deltaFrom41f": "21 files fully read; wording changes, no integration qualification"
+  },
+  "PR190Observed": {
+    "sha": "4801f44785cf24aca0e51d8f76397acb9bbefbd0",
+    "tree": "a58a1465b9c5b5987592d9301ea47ba527d9d92d",
+    "deltaFrom49d": "59 files inventoried; production tx/media/bridge-index read; combined docs output truncated; no full-delta independent review claim",
+    "sharedOwnerWindow": "not bound",
+    "providerBillingP1s": "two open owner-policy findings"
+  },
+  "next": "Claude publishes smallest immutable P1/P2/P3 correction; reviewer independently rechecks revoked-cache adverse, ordinary erasure success and partial consumers, then current-main/S1 combined G4"
+}

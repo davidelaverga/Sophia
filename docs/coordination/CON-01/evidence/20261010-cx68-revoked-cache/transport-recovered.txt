@@ -1,0 +1,16 @@
+Browser tab: 84, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations
+	1 container root
+		2 container
+			3 button Home
+			4 button Work
+			5 heading CON01 independent synthetic browser project, Value: 1
+				6 text CON01 independent synthetic browser project
+			18 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		19 container
+			20 heading No access to this project, Value: 2
+				21 text No access to this project
+			22 text Review admin isn’t a member. Ask a project admin to add you, or open another project.
+			23 button Back to projects
+
+The focused UI element is 0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:62109/p/25c41476-d8da-4960-85ab-a9d5b4b50873/conversations
