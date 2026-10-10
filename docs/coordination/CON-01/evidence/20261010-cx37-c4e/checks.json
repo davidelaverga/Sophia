@@ -1,0 +1,105 @@
+{
+  "candidate": "c4e0da277754067ea370bafd319881f131080ff7",
+  "tree": "2d7107033240e3c2315a1b1ebb19f2c767957e28",
+  "parent": "3c4ba8d1fe2809916636663413488a67925bf18c",
+  "parentTree": "e5b2b0df64c5b09e2d5cc7d423a4cc1723794d63",
+  "sourceRead": "Complete2files70771-to3c4 and3files3c4-toc4e; dependencies/schema/runtime/A08 unchanged",
+  "focused": {
+    "command": "node --test conversation-list.test.ts withdrawn-purge.test.ts talk-store.test.ts revalidation.test.ts list-data.test.ts (full paths in CX35)",
+    "passed": 107,
+    "suites": 37,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "typecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "before3c4Session": 5191,
+    "beforeExit": 0,
+    "currentSession": 31426,
+    "exit": 0
+  },
+  "external": {
+    "withdrawal": 10,
+    "transition": 8,
+    "receiptRegression": 9,
+    "failures": 0,
+    "level": "L0 actual production helpers/QueryClient, synthetic assessed fields"
+  },
+  "failBefore3c4": {
+    "withdrawal": {
+      "passed": 8,
+      "failed": 2,
+      "exit": 1
+    },
+    "transition": {
+      "passed": 3,
+      "failed": 5,
+      "exit": 1
+    }
+  },
+  "actualBrowser": {
+    "beforeCandidate": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+    "afterCandidate": "3c4ba8d1fe2809916636663413488a67925bf18c",
+    "currentNamesSourceUnchanged": true,
+    "path": "External supported persistence moderator withdrawal + actual API viewer reads and CUA browser; no UI mutation/new API-authentication/native/provider claim",
+    "beforeVerdict": "P1 visible withdrawnname in list+header after real tombstone",
+    "afterVerdict": "P1 bounded pass: survivingname list+header, withdrawnname absent, stale warning retained"
+  },
+  "cleanup": {
+    "successfulOwnedStacksClean": 26,
+    "additionalInitdbOnlyFailureClean": 1,
+    "sessions": [
+      21619,
+      98991
+    ],
+    "exits": [
+      0,
+      0
+    ],
+    "tabsClosed": [
+      46,
+      47,
+      48
+    ],
+    "portsClosed": true,
+    "processesAbsent": true,
+    "databasesDropped": true,
+    "postgresStoppedClustersRemoved": true
+  },
+  "effects": {
+    "hostedWrites": 0,
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "spend": 0,
+    "uncertainPaidOutcome": 0
+  },
+  "hashes": {
+    "3c4-transition-result.json": "e7c12cab7a425c5746f7debf08f2ee2465a116ea080c169fa631112b610e58e6",
+    "3c4-withdrawal-result.json": "4f8c75574c8063b8b34ce5a138c2a6cee8f83db6d65e0d0bcc739f3e241d79c0",
+    "after/browser-db-audit.json": "dee378df612f52ea2c55c60824fac003f2da3a041e1657bfeb7555f98fe391ec",
+    "after/browser-stack-cleanup.json": "80a9c642ea420959bd3fbf2649042c9026857630a3bfacdf545dc087ed49f581",
+    "after/browser-stack-receipt.json": "de5063d911f6314edfc689e85063d506caea401a732107b0e429307a9b90c18c",
+    "after/conversation-read-receipts.json": "fffb770951602305273c57bc909eb9dd5c8f8f917e33aa0bd5aae06716303742",
+    "after/external-withdraw-result.json": "01cee4dc088abe7267b5064fe8222bf6d2fceeefb0e696644a7dde9cc5cbe2fa",
+    "after/name-correction-pass.jpg": "e8052ba9b6e007601dcf399faa7ee79895d7db03600b339e0d4bee6103eeaa05",
+    "after/owned-cleanup-verification.json": "fde873f4f258adf1f429d858507ac05ae1281002a19df65634b25676dfa42e11",
+    "after/viewer-after-withdraw-dom.txt": "08f328e44ac88bd62ade232bf555a95619ef2c77db5d0e3c8e093ff88357cb9e",
+    "before/browser-db-audit.json": "1025bdc37f9515d1c0d93244e9592946270dc8ae7d8725c953681cd4a084c583",
+    "before/browser-stack-cleanup.json": "7760f1fbb7f1cb4b8c7b5a68e24eaa6cc675e86ebd2c7f707f5e365ab56463c6",
+    "before/browser-stack-receipt.json": "0e9b0f8c1808bbd41cd356f11d2c1bd72a34f1d2b581e79af3f28c3e073eea11",
+    "before/conversation-read-receipts.json": "43d816758892d0b0bfa4281a6c1784a20dbddb8556d0a24c45dc3f9a229bd117",
+    "before/external-withdraw-result.json": "34667986bcc6a285a9f2fc447a2b33c4e200c92e0fd05b409c27ace565e69415",
+    "before/name-leak.jpg": "5e00980bde890785d2abea589a19d17b03f27ee1004480989ddb7b25fad80f88",
+    "before/owned-cleanup-verification.json": "fde873f4f258adf1f429d858507ac05ae1281002a19df65634b25676dfa42e11",
+    "before/setup-failed-receipt.json": "1dbf129d88a58ab407a59a29a97e4265d01efd04bd87c30f52a50bd731d7e6be",
+    "before/setup-failure-cleanup.json": "5418980ca717ea077538e2c956b69d51742c90850cdc97d9728dec4666a97500",
+    "before/viewer-after-withdraw-dom.txt": "602aaf011cfde6daf5390b5c65f9cef67578ef8763b9020e036589986bdc20e5",
+    "c4e-receipt-regression.json": "e52ebb34893293572dc70af66a5a7ffd43cc8154b7dbb44879f0c7b739f96465",
+    "c4e-transition-result.json": "8126ffb1df26d76b9062dc06818716f5ec356d173be1bbcaee4bf7325a431d2e",
+    "c4e-withdrawal-result.json": "6790067b82d441aca0e864c8bb9b69ca198eebc7603117f84f1149304faef6df",
+    "coverage-transition-check.mjs": "841750b38b945856221950c458440f8d06723f12905994a920492042d3fb1cee",
+    "receipt-regression-check.mjs": "9c3672f4b71646d7988d4fc33527ef538783b0bfd00fb0ac3f162c955bf96860",
+    "withdrawal-check.mjs": "b2471f518b835cad0731f5fa460e2ddb375668001806f5cef4221d12a9b558b1"
+  }
+}

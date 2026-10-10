@@ -1,0 +1,5 @@
+{
+  "error": "old external binary installation missing postgres.bki; initdb exit1, no PG/API/Studio started",
+  "ownedTempClusterRemoved": true,
+  "retry": "existing CON01 owned PG17.6 installation, no package installation"
+}

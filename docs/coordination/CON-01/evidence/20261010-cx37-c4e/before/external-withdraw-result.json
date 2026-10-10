@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-10T11:27:11.777Z",
+  "path": "External supported persistence function under synthetic moderator actor; not an API authentication or UI write claim",
+  "result": {
+    "messageId": "008aa799-bb77-4bfd-8210-98472b15108b",
+    "conversationId": "6e457324-02fd-4b16-8d9b-d7565000bfd5"
+  },
+  "rows": [
+    {
+      "seq": "1",
+      "author_name": "Synthetic Surviving Name",
+      "body": "SYNTHETIC eligible older message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T11:27:11.775Z"
+    }
+  ]
+}

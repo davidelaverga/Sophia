@@ -1,0 +1,93 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/studio
+    - link "Conversations" [active]:
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/conversations
+    - link "Goals":
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/goals
+    - link "Tasks":
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/work
+    - link "Knowledge":
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/knowledge
+    - link "Updates":
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/updates
+    - link "Resources":
+      - /url: /p/2e74997c-dd42-44bc-b82f-735f62ce5f18/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Copy project link":
+    - generic: Copy project link
+    - generic: Link copied
+    - generic: For project members. To bring someone new, ask an editor to invite them.
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC withdrawn-name regression" [pressed]:
+          - generic: SYNTHETIC withdrawn-name regression
+          - generic: 13:29
+          - generic: Synthetic Surviving Name. No recorded questions yet. Last moved 13:29.
+    - region "Open conversation":
+      - heading "SYNTHETIC withdrawn-name regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: "Contributors:"
+        - text: Synthetic Surviving Name
+      - region "Messages":
+        - list:
+          - generic: Oct 10
+          - text: Synthetic Surviving Name
+          - text: ·
+          - time: Oct 10, 13:29
+          - paragraph: SYNTHETIC eligible older message
+          - generic: 13:29
+          - text: A member
+          - text: ·
+          - time: Oct 10, 13:29
+          - paragraph: This message was withdrawn.
+          - generic: 13:29
+      - paragraph: Viewers read conversations; members write in them.
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

@@ -1,0 +1,33 @@
+{
+  "candidate": "3c4ba8d1fe2809916636663413488a67925bf18c",
+  "level": "L0 production helpers/actual QueryClient with synthetic assessed inputs",
+  "passed": 3,
+  "failed": 5,
+  "passedCases": [
+    "Known surviving newer message uses uncounted newer wording and preserves projection",
+    "Known decision-only stale state not promoted or mislabeled newer",
+    "Successful real QueryClient authoritative reread removes view-local uncertainty"
+  ],
+  "failedCases": [
+    {
+      "name": "Sole newer withdrawal retains partial summary and count with neutral uncertain-since wording",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ null\n- 'Synthetic eligible projection'\n"
+    },
+    {
+      "name": "Uncertain since remains honest after a later adjacent accepted send",
+      "error": "The \"string\" argument must be of type string. Received type object (null)"
+    },
+    {
+      "name": "Gap in cached eligible pages cannot turn unknown since into a numeric count",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ null\n- 'Synthetic eligible projection'\n"
+    },
+    {
+      "name": "Each range independent: overlap removed while prior summary remains",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ null\n- 'Synthetic eligible projection'\n"
+    },
+    {
+      "name": "Repeated withdrawal is idempotent for retained projection and count",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ null\n- 'Synthetic eligible projection'\n"
+    }
+  ]
+}

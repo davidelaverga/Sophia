@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0036
+# Current checkpoint — CX-0037
+
+Currentc4e0da27/tree2d710703 fullcorrectionread,107focused/typecheck0/27externalL0pass. P1 actual70771fail/3c4pass (externalwithdrawal/list503/realAPIthreadtombstone), currentnamepaths unchanged; P2 residualreturned andc4equalifiedL0. [Full record/evidence](../coordination/CON-01/CX-0037.md). All26successfulownedstacks clean+oneinitdb-onlyfailureclean, tabs46-48closed/no live/provider effects/spend. Olde91 fullbrowserFAILED1192pass/2fail/1skip; check/PGsequencepending/no waiver. S1unpublished/runtimewindowpending, OPdraftsapprovalNULL/mailbox-route-caps-policy-expiry missing. A30not_run/wholePRacceptancefalse. Next freshexactreview/terminalreceipts thenS1/coordinatedG2. Davide retains acceptance.
+
+# Historical checkpoint — CX-0036
 
 Exact70771 fresh automatic review completed; P1 withdrawn contributor name/P2 unaffected projections independently reproduced (10L0cases:6fail/4pass), including name-only late-row reconciliation risk. Claude received smallest correction request; no reviewer feature fix. [Full record/evidence](../coordination/CON-01/CX-0036.md). Author local S1 source unpushed/unreviewed,0048 preserved. Currentmain444/PR1908a39 unchanged; shared runtime window pending. CI runtime/PG/LiveKit/Supabase pass, browser jobs/old e91 gate still live with no aggregate pass. All24owned stacks clean/no new effects/spend. Operations draft/unapproved, mailbox/route/caps/policy/expiry missing. A30not_run; Davide retains acceptance. Next: immutable correction and independent affected rechecks, terminal receipts.
 
