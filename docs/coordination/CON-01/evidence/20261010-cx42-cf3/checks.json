@@ -37,7 +37,14 @@
   ],
   "freshReview": {
     "request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097636385",
-    "status": "pending"
+    "completedAt": "2026-10-10T12:48:17.761878Z",
+    "newFinding": 4237660062,
+    "independent": {
+      "failed": 1,
+      "passedControls": 3,
+      "exit": 1,
+      "scope": "L0 productionhelper/synthetic currentAPIrow+stale heldthread only"
+    }
   },
   "readiness": {
     "source_ready": "bounded",
@@ -54,12 +61,14 @@
     "reader-cache-check.json": "71d2970a8bb123fad9c7d22998df932d4ec684fb3710a2052429484357bde0e1",
     "missing-writer-check.json": "4d8b38c7f7375f0e37c499bdbdb17de572199a2610c676645578f0d12f901b78",
     "writer-order-check.json": "6100a3cf37f870918dee6a81ae5026ff2ec3eca8d220c159f2d5248e331cc9ed",
+    "stale-thread-order-result.json": "d37739c54bd90c39e4c94d654b791cd1452457847138bb57888ce0771c49011d",
     "receipt-order-check.json": "6f0c3bb77d830271f7e7ad3a8b7b1517c2b7b53215a5712fc1c295a7430444b5",
     "withdrawal-check.json": "b45261dceeb9df0bf49817ccdfa1b9a352954cb5e82dcb763a4f32a363960cac",
     "order-transition-c5e-check.json": "98c607d70689d1568ae225e102acc8d640ca9ebc443e0522f127200c73106c9c",
     "original-and-highseq-check.json": "42472cd3350c1162fd930f4eeaa2077f31ac02ed024bfa2232372f9edd229052",
     "coverage-transition-check.json": "6bdad98599be17c54ef2514537b856cad4590967e4d0ce0397e548dc19439d5f",
     "receipt-regression-check.json": "759542d4d0b000099bb9cedd72095ea75b6fbf49f80edd8f14bfc61f3c9b12ab",
+    "stale-thread-order-check.mjs": "0ad0e563a7f4f779056d2391cf9c232307b65aad3a24ef039e85dab319c6501d",
     "realistic-reader-cache-check.json": "91aa33c47b6f19cac74302a8f339c1c865e1ce7699e50d00b25a6c4d7e8d928e",
     "focused-1.log": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d",
     "focused-0.log": "bc588179a04864adcc95b39c89abc1dabaa4bd9015a041073805622f0701a327",

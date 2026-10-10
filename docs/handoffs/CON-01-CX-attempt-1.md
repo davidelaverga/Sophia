@@ -1,10 +1,12 @@
 # Current checkpoint — CX-0042
 
+Fresh exactcf3 review completed12:48:17UTC with newP2r4237660062. Independently1fail/3controls: newercanonicalB,A row regressesA,B,C whenC4receipt usesstaleA1,B2,A3 pages afterA1withdraw. Freshtombstone/gap/oldreceipt controls pass. ReturnedtoClaude; correctionunpublished/S1held. Prior scopedpasses below stand. Nextboundedaction immutablefreshnesscorrection/affectedindependent app rechecks.
+
 Exact `cf3d83171ade2d2f3064ea83beb6e2a720785c64`, tree `b092197b4a08cefe932b2d3c120f9c43c19c40ed`, independently qualifies original-writer and highseq corrections:5new+54prior+6realisticcache cases,114focused/typecheck0. Actual local UI/API/PostgreSQL beforec5eFAILA,B → aftercf3PASSB,A matchescanonicalviewer underlist503/stalewarning. [Full source review, actions, verdicts and evidence](../coordination/CON-01/CX-0042.md).
 
-Bothaudits3human/1bodyNULL/4requests/bootstrapgoal1/allmodeloperational0; all33successfulownedstacks+earlierinitdbfailureclean, tabs54/55closed. Bothnewfindings scopedresolved; fresh exactcf3 review6097636385pending, S1held. Earlier e91 aggregateStudio gateFAILED2unwaived failures.36statuses retained/A24toollimitation/A30not_run; combined reviewed/authorized/deployed/app_verified/owner_acceptedfalse.
+Bothaudits3human/1bodyNULL/4requests/bootstrapgoal1/allmodeloperational0; all33successfulownedstacks+earlierinitdbfailureclean, tabs54/55closed. Bothnewfindings scopedresolved; fresh exactcf3 review6097636385completed/newfindingabove, S1held. Earlier e91 aggregateStudio gateFAILED2unwaived failures.36statuses retained/A24toollimitation/A30not_run; combined reviewed/authorized/deployed/app_verified/owner_acceptedfalse.
 
-OP0001r2/OP0002r2unapproved/approvalexpiryNULL. Pendingmailbox/actualsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacybackupproviderlimits/sharedruntimewindow/combinedartifact/governedrollback remainopen. No hosted/provider/spend effect. Historical servingtuple10:01–03UTC below remains unrefreshed; currentinstalledcomposition/StudiosourceSHA unproven. Davide retainsacceptance; othermissionsopen. Nextboundedaction exactcf3reviewcheckpoint then independent immutableS1review.
+OP0001r2/OP0002r2unapproved/approvalexpiryNULL. Pendingmailbox/actualsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacybackupproviderlimits/sharedruntimewindow/combinedartifact/governedrollback remainopen. No hosted/provider/spend effect. Historical servingtuple10:01–03UTC below remains unrefreshed; currentinstalledcomposition/StudiosourceSHA unproven. Davide retainsacceptance; othermissionsopen. Nextboundedaction immutablefreshnesscorrection/independentrechecks then independent immutableS1review.
 
 # Historical checkpoint — CX-0041
 

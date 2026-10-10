@@ -59,7 +59,7 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX42cf3qualifiesoriginalwriter/highseq5new+54prior+6realisticcache/114focused/typecheck0; actualbeforec5eFAILaftercf3PASSB,A; scopedfindingsresolved/freshexactreviewpending/noaggregateacceptance.",
+      "latest_checkpoint": "CX42cf3originalwriter/highseqscopedPASS5new+54prior+6realisticcache/114focused/typecheck/actualapp; freshexactreviewnewP2stale-threadorder independentlyFAIL1/controls3; correctionunpublished/S1held/noaggregateacceptance.",
       "current_checkpoint": "CX-0042.md"
     },
     {
