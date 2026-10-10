@@ -28,7 +28,7 @@ const PENDING: Record<PendingViewName, Pending> = {
   // S1-09, owner-operated connections.
   resources: {
     title: 'Resources',
-    body: 'The engineering connections the owners run (Davide’s Codex and Claude, Luis’s Claude) will be listed here.',
+    body: 'The tools your team connects to this project will live here.',
   },
 }
 
