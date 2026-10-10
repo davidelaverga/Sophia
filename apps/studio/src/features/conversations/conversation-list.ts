@@ -37,6 +37,11 @@ export interface Unnamed {
    */
   listSeq?: number
   /**
+   * The last activity the list read said (its `lastAt`), kept where a confirmed message has moved `lastAt` on since: a
+   * withdrawal no older than it is one that read may not have known (`rowKnown`; PR #199 r4238826987).
+   */
+  listAt?: string
+  /**
    * Writers this view took out of the row on a withdrawal, their words not shown in the pages read (`writersAfter`):
    * the list read named them, so their places are no less theirs for it (`firstsFor`; CX-0043).
    */
@@ -587,7 +592,7 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
  * - Otherwise (an API from before them): only if the row's last activity (`lastAt`, which 0048 stamps with the
  *   message's own time and a withdrawal leaves) is earlier, and so is the opening it says. As read, that opening is
  *   never later than `lastAt`; one this view put there since is its receipt's, and it bounds the next (Codex at
- *   7969d40: receipts 3 then 2 took the row back to 2), while `lastAt` stays as the list read said it. Equal times keep
+ *   7969d40: receipts 3 then 2 took the row back to 2), and `lastAt` moves up with it, never back. Equal times keep
  *   the row: it lags until the list is read again (a bounded loss), and never goes back.
  * The watermark is an order this view observed, never proof that a message is still eligible: a current list read, or
  * the thread's tombstone (listTombstoned), says that.
@@ -637,7 +642,7 @@ function rowKnown<T extends ConversationSummary & Unnamed>(
   if (!held.some((m) => m.withdrawn)) return c
   let row = c.lastMessage && saysWithdrawn(c.lastMessage, held) ? { ...c, lastMessage: null } : c
   const since = (m: ConversationMessage) =>
-    m.withdrawn !== null && seenSince(m) && Date.parse(m.withdrawn.at) >= Date.parse(c.lastAt)
+    m.withdrawn !== null && seenSince(m) && Date.parse(m.withdrawn.at) >= Date.parse(c.listAt ?? c.lastAt)
   for (const m of held.filter(since)) row = rowWithdrawn(row, remainsAfter(thread, m, reader))
   return sameRow(row, c) ? c : row
 }
@@ -684,8 +689,11 @@ function saysWithdrawn(
  *   not assessed stays so. `newer` is one more only where the row's place and the message's are adjacent, so nothing
  *   can lie between; across a gap (another's message, eligible or withdrawn since) or with no places to tell, the count
  *   is unknown here (`Coverage`), and stays so until the list is read again (r4237385090).
- * Nothing else of the row is made up: not its revision, its last activity or a projection's words or count. The rest,
- * and a list that doesn't say them, as they were.
+ * - its last activity (`lastAt`) moves up to the message's time where that is later: the receipt's own time is when
+ *   the conversation last moved at the least, so the row sorts and says «Last moved» by it, and an older receipt
+ *   never moves it back. The list read's is kept (`listAt`) for what that read knew (PR #199 r4238826987).
+ * Nothing else of the row is made up: not its revision, or a projection's words or count. The rest, and a list that
+ * doesn't say them, as they were.
  */
 export function withLastMessage<T extends ConversationSummary & Unnamed>(
   list: readonly T[],
@@ -701,9 +709,11 @@ export function withLastMessage<T extends ConversationSummary & Unnamed>(
     const watermark =
       c.messageSeq !== undefined && m.seq !== undefined ? { messageSeq: m.seq, listSeq: c.listSeq ?? c.messageSeq } : {}
     const adjacent = c.messageSeq !== undefined && m.seq === c.messageSeq + 1
+    const moved = Date.parse(m.at) > Date.parse(c.lastAt) ? { lastAt: m.at, listAt: c.listAt ?? c.lastAt } : {}
     return {
       ...c,
       ...watermark,
+      ...moved,
       ...withWriter(c, m, thread),
       summaryCoverage: behind(c.summaryCoverage, adjacent),
       questionsCoverage: behind(c.questionsCoverage, adjacent),

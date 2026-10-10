@@ -221,6 +221,47 @@ describe('withLastMessage', () => {
   })
 })
 
+describe('a confirmed message moves its row’s last activity up, never back (PR #199 r4238826987)', () => {
+  const said = (at: string, seq?: number) => ({
+    author: 'member' as const,
+    actorId: ME,
+    name: 'You',
+    text: 'Sent.',
+    at,
+    ...(seq === undefined ? {} : { seq }),
+  })
+
+  it('later than the row: its time is the row’s now, so it sorts first and says it; the list read’s is kept', () => {
+    const list: (ConversationSummary & Unnamed)[] = [
+      conversation({ id: 'b', lastAt: '2026-10-07T10:00:00.000Z' }),
+      conversation({ id: 'a', lastAt: '2026-10-07T09:00:00.000Z' }),
+    ]
+    const next = withLastMessage(list, 'a', said('2026-10-07T10:05:00.000Z'))
+    const a = next.find((c) => c.id === 'a')
+    assert.equal(a?.lastAt, '2026-10-07T10:05:00.000Z')
+    assert.equal(a?.listAt, '2026-10-07T09:00:00.000Z')
+    assert.deepEqual(
+      byActivity(next).map((c) => c.id),
+      ['a', 'b'],
+    )
+  })
+
+  it('an older receipt never moves it back; one taken by its place but stamped earlier keeps the later time', () => {
+    const row: ConversationSummary & Unnamed = conversation({
+      id: 'a',
+      lastAt: '2026-10-07T09:00:00.000Z',
+      messageSeq: 1,
+    })
+    const once = withLastMessage([row], 'a', said('2026-10-07T10:05:00.000Z', 3))
+    assert.equal(withLastMessage(once, 'a', said('2026-10-07T10:01:00.000Z', 2))[0]?.lastAt, '2026-10-07T10:05:00.000Z')
+    const skewed = withLastMessage(once, 'a', said('2026-10-07T10:04:00.000Z', 4))[0]
+    assert.equal(skewed?.lastMessage?.seq, 4)
+    assert.equal(skewed?.lastAt, '2026-10-07T10:05:00.000Z')
+    const again = withLastMessage(once, 'a', said('2026-10-07T10:09:00.000Z', 5))[0]
+    assert.deepEqual([again?.lastAt, again?.listAt], ['2026-10-07T10:09:00.000Z', '2026-10-07T09:00:00.000Z'])
+  })
+})
+
 describe('a receipt against the list’s row: only a row read before the message takes it (Codex, CX-0027)', () => {
   const sentAt = '2026-10-07T10:00:00.000Z'
   const receipt = { author: 'member' as const, actorId: ME, name: 'You', text: 'Seq 2, withdrawn since.', at: sentAt }
@@ -293,9 +334,14 @@ describe('a receipt against a row that says its order: messageSeq decides (CC-00
     assert.equal(take(row(undefined, said(1)), later)?.lastMessage?.text, 'Unplaced, later.')
   })
 
-  it('a row without messageSeq, receipts 3 then 2: the opening put there bounds it, and lastAt is left as read (Codex)', () => {
+  it('a row without messageSeq, receipts 3 then 2: the opening put there bounds it; lastAt moves up, never back (Codex)', () => {
     // Codex's L0 at 7969d40: {lastAt 01:00, no opening}; seq 3 at 01:03, then seq 2 at 01:02 took the row back to 2.
-    const bare = conversation({ id: 'a', lastAt: minute(0), revision: 6, lastMessage: null })
+    const bare: ConversationSummary & Unnamed = conversation({
+      id: 'a',
+      lastAt: minute(0),
+      revision: 6,
+      lastMessage: null,
+    })
     const step = (r: typeof bare, seq: number | undefined, m: number) =>
       withLastMessage([r], 'a', {
         author: 'member',
@@ -307,7 +353,8 @@ describe('a receipt against a row that says its order: messageSeq decides (CC-00
       })[0] ?? r
     const after3 = step(bare, 3, 3)
     assert.equal(after3.lastMessage?.text, 'Seq 3.')
-    assert.equal(after3.lastAt, minute(0))
+    // Its last activity is the receipt's time now, the list read's kept (PR #199 r4238826987).
+    assert.deepEqual([after3.lastAt, after3.listAt], [minute(3), minute(0)])
     assert.equal(after3.revision, 6)
     assert.equal(after3.messageSeq, undefined)
     assert.equal(step(after3, 2, 2).lastMessage?.text, 'Seq 3.')
@@ -408,6 +455,17 @@ describe('rowsKnown: who wrote there and Sophia’s part, for a withdrawal its l
       rowsKnown(knew, heldForA(held()), () => true),
       knew,
     )
+  })
+
+  it('its last activity moved on since by a confirmed message: judged by what the list read said (r4238826987)', () => {
+    const says3 = { author: 'member' as const, actorId: ME, name: 'You', text: 'Seq 3.', at, seq: 3 }
+    const moved = [{ ...rowA(says3, { lastAt: '2026-10-07T10:02:00.000Z' }), listAt: at }]
+    const [a] = rowsKnown(moved, heldForA(held()), () => true)
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      [ME],
+    )
+    assert.equal(a?.sophia, false)
   })
 })
 

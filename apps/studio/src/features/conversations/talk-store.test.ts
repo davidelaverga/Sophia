@@ -10,8 +10,12 @@ import {
   keepsFor,
   keptAt,
   liftFence,
+  unfoundRead,
+  unfoundSettles,
   withErasure,
   withFence,
+  withFound,
+  withUnfound,
   withStanding,
   withHome,
   withListed,
@@ -120,12 +124,14 @@ describe('withStanding: a conversation in doubt ends it only on a read set out s
   })
 })
 
-describe('the fence: a transcript read’s not found holds until a list read set out since answers (PR #199 r4238709217)', () => {
-  const fenced = withFence(keptWith({ drafts: { c1: 'kept words' } }), { at: 5, id: 'c1' })
+describe('the fence: a read’s not found holds until a list read set out after the latest answers (PR #199 r4238709217, r4238826981)', () => {
+  const fenced = withFence(keptWith({ drafts: { c1: 'kept words' } }), 5)
 
-  it('fenced once: a second not found leaves the first as it was, and nothing else kept changes', () => {
-    assert.deepEqual(fenced.fence, { at: 5, id: 'c1' })
-    assert.equal(withFence(fenced, { at: 7, id: 'c2' }), fenced)
+  it('fenced at the latest not found: an earlier one moves it nothing, a later one on; nothing else kept changes', () => {
+    assert.deepEqual(fenced.fence, { at: 5 })
+    assert.equal(withFence(fenced, 3), fenced)
+    assert.equal(withFence(fenced, 5), fenced)
+    assert.deepEqual(withFence(fenced, 7).fence, { at: 7 })
     assert.equal(fenced.drafts.c1, 'kept words')
     assert.deepEqual(fenced.erased, {})
   })
@@ -147,10 +153,54 @@ describe('the fence: a transcript read’s not found holds until a list read set
 
   it('kept with everything else, and forgotten with it', () => {
     forgetKept()
-    changeKept(PLACE, (k) => withFence(k, { at: 3, id: 'c1' }))
-    assert.deepEqual(keptAt(PLACE)?.fence, { at: 3, id: 'c1' })
+    changeKept(PLACE, (k) => withFence(k, 3))
+    assert.deepEqual(keptAt(PLACE)?.fence, { at: 3 })
     forgetKept()
     assert.equal(keptAt(PLACE), undefined)
+  })
+})
+
+describe('unfound: a direct read’s not found settles nothing until a list read set out since says (PR #199 r4238826981)', () => {
+  const unfound = withUnfound(keptWith({ drafts: { c1: 'kept words' } }), 'c1', 5)
+
+  it('noted, its draft kept and kept for (so read again), nothing erased; a direct read that answers ends it', () => {
+    assert.deepEqual(unfound.unfound, { c1: { at: 5 } })
+    assert.equal(unfound.drafts.c1, 'kept words')
+    assert.deepEqual(unfound.erased, {})
+    assert.equal(keepsFor(withUnfound(keptWith({}), 'c2', 5), 'c2'), true)
+    assert.deepEqual(withFound(unfound, 'c1').unfound, {})
+  })
+
+  it('a list read from before it, or when, says nothing', () => {
+    assert.deepEqual(unfoundRead(unfound, 5, [], true), { kept: unfound, settle: [], recheck: [] })
+  })
+
+  it('one since that lists it: it stands, unfound no more, nothing settled', () => {
+    const after = unfoundRead(unfound, 6, ['c1'], false)
+    assert.deepEqual([after.kept.unfound, after.settle, after.recheck], [{}, [], []])
+  })
+
+  it('a whole list since without it: erased, settled by the view', () => {
+    const after = unfoundRead(unfound, 6, [], true)
+    assert.deepEqual([after.settle, after.recheck], [['c1'], []])
+  })
+
+  it('one of the newest only since without it: read directly again, and only a read set out after it settles it', () => {
+    const after = unfoundRead(unfound, 6, [], false)
+    assert.deepEqual([after.kept.unfound, after.settle, after.recheck], [{ c1: { at: 5, checked: 6 } }, [], ['c1']])
+    assert.equal(unfoundSettles(after.kept, 'c1', 6), false)
+    assert.equal(unfoundSettles(after.kept, 'c1', 7), true)
+    assert.equal(unfoundSettles(unfound, 'c1', 9), false)
+    // Checked already: a later list of the newest only without it changes nothing; erased, it goes.
+    assert.equal(unfoundRead(after.kept, 8, [], false).kept, after.kept)
+    assert.deepEqual(withoutConversation(after.kept, 'c1').unfound, {})
+  })
+
+  it('erased here already: never unfound, and a list read listing it again never notes it seen (no change, CX-0071)', () => {
+    const erased = withoutConversation(keptWith({}), 'c1')
+    assert.equal(withUnfound(erased, 'c1', 5), erased)
+    assert.equal(withListed(erased, ['c1'], false), erased)
+    assert.deepEqual(withListed(erased, ['c1', 'c2'], true).listed, { c2: true })
   })
 })
 

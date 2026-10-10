@@ -36,13 +36,17 @@ import {
   fenceLifts,
   liftFence,
   START,
+  unfoundRead,
+  unfoundSettles,
   awaiting,
   useKept,
   withEntry,
   withErasure,
   withFence,
+  withFound,
   withListed,
   withStanding,
+  withUnfound,
   withoutConversation,
   type Kept,
 } from './talk-store.ts'
@@ -166,7 +170,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     ask(to.conversationId)
     panes.show()
   })
-  const erased = useErased(talk, panes, { ...reader, seen: list.isSuccess }, identity)
+  const erased = useErased(talk, panes, { ...reader, seen: list.isSuccess, projectId }, identity)
   const feedAt = useLatest(cursor)
   const start = useStart(projectId, identity, feedAt, talk, (id) => {
     erased.clear()
@@ -469,9 +473,11 @@ function Open(props: {
   const { conversation: c, talk, start, panes } = props
   const queryClient = useQueryClient()
   // Its own read answered not found: erased, or the reader no longer in the project. Fenced (talk-store `fence`): no
-  // conversation shows, its own included, until a list read set out since answers; the list is read again now.
+  // conversation shows, its own included, until a list read set out since answers, which says what it is (`unfound`);
+  // the list is read again now.
   const gone = () => {
-    talk.change((k) => withFence(k, { at: orderNow(), id: c.id }))
+    const at = orderNow()
+    talk.change((k) => withUnfound(withFence(k, at), c.id, at))
     void queryClient.invalidateQueries({ queryKey: listKey(props.projectId, accountOf(props.identity)) })
   }
   return (
@@ -623,8 +629,7 @@ function useErased(
     toList()
     setDue(true)
   }, [all, due, toList])
-  useSeen(talk, read, settle, useProbes(identity, settle, talk))
-  useLift(talk, read, settle)
+  useSeen(talk, read, settle, useProbes(identity, read.projectId, settle, talk))
   useEffect(() => {
     const at = landing.current
     if (!due || !at || screen !== 'list' || context) return
@@ -659,22 +664,33 @@ interface Listed {
   whole: boolean
   /** Where in this view's order the read held set out (withdrawn-purge `listReadSetsOut`). */
   readFrom: number
+  /** The project whose list it is: read again when a direct read answers not found (useProbes). */
+  projectId: string
 }
 
 /**
- * A fence (talk-store `fence`) lifts once a list read set out since answers: the reader is still in the project, so its
- * conversation, unless that read lists it, is erased, and settled as one (PR #199 r4238709217). A read refused, failing
- * or from before keeps it, and nothing is settled.
+ * What waits on a list read set out since, once one answers: the reader is still in the project (PR #199 r4238709217,
+ * r4238826981). A fence (talk-store `fence`) lifts, its conversation then unfound as a direct read's not found is. Each
+ * unfound one the read lists stands; a whole list without it says it is erased, settled here; one of the newest only
+ * without it is read directly again (`unfoundRead`). A read refused, failing or from before changes nothing.
  */
-function useLift(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void) {
-  const { kept, change } = talk
-  const { all, readFrom } = read
+function useSince(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void, probes: Probes) {
+  const { kept, change, latest } = talk
+  const { all, readFrom, whole } = read
   useEffect(() => {
-    const { fence } = kept
-    if (!fence || !fenceLifts(kept, readFrom)) return
-    change((k) => liftFence(k, readFrom))
-    if (!all.some((c) => c.id === fence.id)) settle(fence.id)
-  }, [kept, readFrom, all, change, settle])
+    const now = latest()
+    const base = liftFence(now, readFrom)
+    const after = unfoundRead(
+      base,
+      readFrom,
+      all.map((c) => c.id),
+      whole,
+    )
+    if (after.kept === now && after.settle.length === 0) return
+    if (after.kept !== now) change(() => after.kept)
+    for (const id of after.settle) settle(id)
+    for (const id of after.recheck) probes.start(id)
+  }, [kept, readFrom, all, whole, latest, change, settle, probes])
 }
 
 /**
@@ -683,6 +699,7 @@ function useLift(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: st
  * A list of the newest only leaving one out proves nothing.
  */
 function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void, probes: Probes) {
+  useSince(talk, read, settle, probes)
   const { kept, change } = talk
   const { all, seen, whole } = read
   useEffect(() => {
@@ -699,33 +716,52 @@ function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: st
 
 /**
  * The conversations left out of a list of the newest only that something is kept for here, read directly (probes.ts):
- * the API's not found settles one; nothing else does. Every read stops with the view.
+ * the API's not found settles one, and only to a read set out after a list read confirmed the reader is still here
+ * (talk-store `unfound`; PR #199 r4238826981); nothing else does. Every read stops with the view.
  */
 function useProbes(
   identity: Identity,
+  projectId: string,
   settle: (id: string) => void,
   talk: { latest: () => Kept; change: (f: (k: Kept) => Kept) => void },
 ): Probes {
   const queryClient = useQueryClient()
   const account = accountOf(identity)
   const { latest, change } = talk
-  const probes = useMemo(
-    () =>
-      new Probes({
-        // Answering, it says where in this view's order it set out: a doubt from before it ends (withStanding).
-        read: (id, signal) => {
-          const from = orderNow()
-          return getConversationMessages(identity.token, id, null, signal).then(() => from)
-        },
-        keeps: (id) => keepsFor(latest(), id) || queryClient.getQueryData(messagesKey(id, account)) !== undefined,
-        settle,
-        found: (id, from) => {
-          if (typeof from === 'number') change((k) => withStanding(k, [id], from))
-        },
-        notFound: (err) => err instanceof ApiError && err.code === 'not_found',
-      }),
-    [identity.token, settle, latest, change, queryClient, account],
-  )
+  const probes = useMemo(() => {
+    // Where in this view's order each conversation's last read set out (one at a time per conversation).
+    const setOut = new Map<string, number>()
+    return new Probes({
+      // Answering, it says where in this view's order it set out: a doubt from before it ends (withStanding).
+      read: (id, signal) => {
+        const from = orderNow()
+        setOut.set(id, from)
+        return getConversationMessages(identity.token, id, null, signal).then(() => from)
+      },
+      // One unfound waits on a list read since, not read directly meanwhile (its not found would fence anew).
+      keeps: (id) => {
+        const k = latest()
+        if (k.unfound[id] && k.unfound[id].checked === undefined) return false
+        return keepsFor(k, id) || queryClient.getQueryData(messagesKey(id, account)) !== undefined
+      },
+      // Not found: erased, or the reader no longer in the project, which the API answers alike. Settled only by a
+      // read set out after a list read since the last not found answered; else, as the open one's own, the view is
+      // fenced and it is unfound (talk-store) until a list read set out since says, read again now (r4238826981).
+      settle: (id) => {
+        // An erasure of it pressed here and unanswered: this is its answer, as its reply would be.
+        const was = latest()
+        if ((was.erasures[id] ?? null) !== null || unfoundSettles(was, id, setOut.get(id) ?? 0)) return settle(id)
+        const at = orderNow()
+        change((k) => withUnfound(withFence(k, at), id, at))
+        void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
+      },
+      found: (id, from) => {
+        change((k) => withFound(k, id))
+        if (typeof from === 'number') change((k) => withStanding(k, [id], from))
+      },
+      notFound: (err) => err instanceof ApiError && err.code === 'not_found',
+    })
+  }, [identity.token, projectId, settle, latest, change, queryClient, account])
   // Opened with the view, closed as it goes: a remount (StrictMode's setup, cleanup, setup) leaves it open.
   useEffect(() => {
     probes.open()

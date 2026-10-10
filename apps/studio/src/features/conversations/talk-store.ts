@@ -82,13 +82,24 @@ export interface Kept {
    */
   reached: Readonly<Record<string, ConversationSummary>>
   /**
-   * An open conversation's own read answered not found, at this view's order then (withdrawn-purge `orderNow`): it is
-   * erased, or this reader is no longer in the project, which the API answers alike (PR #199 r4238709217). Until a list
-   * read set out since answers, which only a reader still in the project gets, the view shows no conversation's row,
-   * thread or summary, cached or not, and settles nothing; a list read refused or failing keeps it so (`liftFence`).
-   * Kept across trips to another view.
+   * A conversation's read answered not found (the open one's own, or a direct read: useProbes), at this view's order
+   * then (withdrawn-purge `orderNow`), the latest such: it is erased, or this reader is no longer in the project,
+   * which the API answers alike (PR #199 r4238709217, r4238826981). Until a list read set out since answers, which
+   * only a reader still in the project gets, the view shows no conversation's row, thread or summary, cached or not;
+   * a list read refused or failing keeps it so (`liftFence`). Which conversation answered so is `unfound`. Kept across
+   * trips to another view.
    */
-  fence: { at: number; id: string } | null
+  fence: { at: number } | null
+  /**
+   * The conversations whose read answered not found (the open one's own, or a direct read: useProbes), each with this
+   * view's order then (`at`). It is erased, or this reader is no longer in
+   * the project: the API answers both alike (PR #199 r4238826981). Nothing is settled for one until a list read set
+   * out since answers, which only a reader still in the project gets (`unfoundRead`). If that read lists it, it
+   * stands. A whole list without it says it is erased. A list of the newest only without it proves nothing, so it is
+   * read directly again (`checked`: that list read's order), and only a not found to a read set out after it settles
+   * it. A direct read that answers says it stands. A list read refused or failing settles nothing.
+   */
+  unfound: Readonly<Record<string, { at: number; checked?: number }>>
 }
 
 /**
@@ -134,6 +145,7 @@ const EMPTY: Kept = {
   listed: {},
   reached: {},
   fence: null,
+  unfound: {},
 }
 
 const kept = new Map<string, Kept>()
@@ -225,7 +237,18 @@ const holdsAny = (out: Readonly<Record<string, true>>) => (r: Readonly<Record<st
 export function retired(k: Kept): Kept {
   const { gone, erased } = k
   const messages = [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes]
-  const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.doubted, k.listed, k.reached]
+  const conversations = [
+    k.drafts,
+    k.asks,
+    k.holds,
+    k.refusals,
+    k.asked,
+    k.erasures,
+    k.doubted,
+    k.listed,
+    k.reached,
+    k.unfound,
+  ]
   const back = k.start.heldBack
   const backErased = back !== null && erased[back.receipt.conversation.id] === true
   if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased)) && !backErased) return k
@@ -241,6 +264,7 @@ export function retired(k: Kept): Kept {
     doubted: without(k.doubted, erased),
     listed: without(k.listed, erased),
     reached: without(k.reached, erased),
+    unfound: without(k.unfound, erased),
     proposals: without(k.proposals, gone),
     proposalRefusals: without(k.proposalRefusals, gone),
     proposed: without(k.proposed, gone),
@@ -325,8 +349,8 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
   return [...knew].filter((id) => !here.has(id))
 }
 
-/** Fenced (`fence`) by an open conversation's read answering not found; one already fenced stays as it was. */
-export const withFence = (k: Kept, fence: NonNullable<Kept['fence']>): Kept => (k.fence ? k : { ...k, fence })
+/** Fenced (`fence`) by a read answering not found at `at`: until a list read set out after the latest such. */
+export const withFence = (k: Kept, at: number): Kept => (k.fence && k.fence.at >= at ? k : { ...k, fence: { at } })
 
 /** Whether a list read set out at `readFrom` (this view's order) is since the fence, and so lifts it (`liftFence`). */
 export const fenceLifts = (k: Kept, readFrom: number): boolean => k.fence !== null && readFrom > k.fence.at
@@ -336,6 +360,46 @@ export const fenceLifts = (k: Kept, readFrom: number): boolean => k.fence !== nu
  * before it goes. A read from before the fence, or from the same moment, changes nothing.
  */
 export const liftFence = (k: Kept, readFrom: number): Kept => (fenceLifts(k, readFrom) ? { ...k, fence: null } : k)
+
+/** Answered not found at `at` (`unfound`): kept, nothing settled, until a list read set out since says. */
+export const withUnfound = (k: Kept, id: string, at: number): Kept =>
+  k.erased[id] ? k : { ...k, unfound: withEntry(k.unfound, id, { at }) }
+
+/** A direct read answered: it stands, whatever not found an earlier read had. */
+export const withFound = (k: Kept, id: string): Kept =>
+  id in k.unfound ? { ...k, unfound: withoutEntry(k.unfound, id) } : k
+
+/** Whether a not found to a direct read set out at `from` settles it: after a list read since its last one answered. */
+export function unfoundSettles(k: Kept, id: string, from: number): boolean {
+  const checked = k.unfound[id]?.checked
+  return checked !== undefined && from > checked
+}
+
+/**
+ * What a list read set out at `readFrom` says of each conversation unfound before it (`unfound`), listing `listed`,
+ * whole or of the newest only: listed, it stands (kept no more as unfound); a whole list without it, it is erased
+ * (`settle`: the view settles it); one of the newest only without it, it is read directly again (`recheck`), noted
+ * as checked at that read. One checked already waits on its own read. Kept as it was when nothing changes.
+ */
+export function unfoundRead(
+  k: Kept,
+  readFrom: number,
+  listed: readonly string[],
+  whole: boolean,
+): { kept: Kept; settle: string[]; recheck: string[] } {
+  const due = Object.entries(k.unfound).filter(([, u]) => u.at < readFrom)
+  const stands = due.filter(([id]) => listed.includes(id)).map(([id]) => id)
+  const missing = due.filter(([id]) => !listed.includes(id))
+  const settle = whole ? missing.map(([id]) => id) : []
+  const recheck = whole ? [] : missing.filter(([, u]) => u.checked === undefined).map(([id]) => id)
+  if (stands.length === 0 && recheck.length === 0) return { kept: k, settle, recheck }
+  const unfound = Object.fromEntries(
+    Object.entries(k.unfound)
+      .filter(([id]) => !stands.includes(id))
+      .map(([id, u]) => [id, recheck.includes(id) ? { at: u.at, checked: readFrom } : u]),
+  )
+  return { kept: { ...k, unfound }, settle, recheck }
+}
 
 /** The conversations in doubt (`doubted`) with no erasure of them held here now: a list read made since says. */
 export const awaiting = (k: Kept): string[] => Object.keys(k.doubted).filter((id) => (k.erasures[id] ?? null) === null)
@@ -360,8 +424,8 @@ const held = (v: unknown) => v !== null && v !== undefined
  * recorded, or a withdrawal held.
  */
 export function keepsFor(k: Kept, id: string): boolean {
-  if ((k.drafts[id] ?? '').trim() !== '' || id in k.doubted || id in k.reached || heldBackFor(k).includes(id))
-    return true
+  if ((k.drafts[id] ?? '').trim() !== '' || id in k.doubted || id in k.reached || id in k.unfound) return true
+  if (heldBackFor(k).includes(id)) return true
   if ([k.holds[id], k.refusals[id], k.asked[id], k.erasures[id]].some(held)) return true
   const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
   return messages.some((m) => [k.proposals[m], k.proposalRefusals[m], k.proposed[m], k.withdrawals[m]].some(held))
@@ -371,7 +435,9 @@ export function keepsFor(k: Kept, id: string): boolean {
  * What is kept with the conversations a list read now holds seen: a whole list's are the ones seen from now on (what it
  * left out was settled before: goneFrom); a list of the newest only adds its own, and forgets none it left out.
  */
-export function withListed(k: Kept, now: readonly string[], whole: boolean): Kept {
+export function withListed(k: Kept, listedNow: readonly string[], whole: boolean): Kept {
+  // One erased here is never noted seen again (`retired` would take it back out, at every change: CX-0071).
+  const now = listedNow.filter((id) => !k.erased[id])
   const added = now.filter((id) => !k.listed[id])
   const dropped = whole ? Object.keys(k.listed).filter((id) => !now.includes(id)) : []
   if (added.length === 0 && dropped.length === 0) return k
