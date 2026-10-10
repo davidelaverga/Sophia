@@ -15,7 +15,8 @@ function readMenu() {
   const cs = getComputedStyle(menu)
   const m = menu.getBoundingClientRect()
   // The control as seen: its field, when it stands in one (the sort's button in its quiet field).
-  const o = (opener.closest('.field') ?? opener).getBoundingClientRect()
+  const control = opener.closest('.field') ?? opener
+  const o = control.getBoundingClientRect()
   const rows = [...menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')]
   // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
   const near = (a: number, b: number) => Math.abs(a - b) <= 1
@@ -34,7 +35,8 @@ function readMenu() {
     label: menu.getAttribute('aria-label') ?? '',
     plane: `${cs.padding} · ${cs.borderRadius} · ${cs.borderTopWidth} ${cs.borderTopColor}`,
     at: `${String(gap)} px ${under ? 'under' : 'over'}, ${aligned}`,
-    size: near(m.width, o.width) ? 'the control’s' : `${String(Math.round(m.width))} px`,
+    // A menu as wide as its control fills the control's padding box: the field's edge stays outside it.
+    size: near(m.width, control.clientWidth) ? 'the control’s' : `${String(Math.round(m.width))} px`,
     rows: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
     type: [...new Set(rows.map((r) => getComputedStyle(r).fontSize))],
     stops: rows.every((r) => r.tabIndex === -1),
