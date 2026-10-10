@@ -170,7 +170,11 @@ test('task · another member’s task shows as the feed moves', async ({ page })
 
 test('task · a Done with no reply says so, and Try again records it once', async ({ page }) => {
   await open(page)
+  const before = await reads(page)
   await page.evaluate(() => window.fixture?.taskBy(null))
+  // The task's own feed move is read before Done: read after it, it would bring the Done recorded with no reply, and
+  // settle the row (rightly) before Try again could be pressed.
+  await expect.poll(() => reads(page)).toBeGreaterThan(before)
   await tasksTab(page).click()
   await page.evaluate(() => window.fixture?.loseNextTaskReply())
   await rows(page).first().getByRole('button', { name: 'Done' }).click()
