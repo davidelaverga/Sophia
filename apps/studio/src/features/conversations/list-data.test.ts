@@ -1,10 +1,21 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
+import { ApiError } from '../../api/client.ts'
 import type { ConversationList, ConversationStarted, ConversationSummary } from '../../api/conversations.ts'
 import { LISTS, coverageWords, listKey, listWithdrawn, messagesKey, withLastMessage } from './conversation-list.ts'
-import { landed, putStarted, setListsData } from './list-data.ts'
-import { NO_WORDS, changeKept, forgetKept, keptAt, withoutConversation } from './talk-store.ts'
+import { useHeldWrite, type Held } from './held-write.ts'
+import { landed, putStarted, released, releasing, setListsData, startHeld } from './list-data.ts'
+import {
+  NO_WORDS,
+  changeKept,
+  currentGeneration,
+  forgetKept,
+  keptAt,
+  keptFor,
+  withErasure,
+  withoutConversation,
+} from './talk-store.ts'
 
 const listOf = (title: string) =>
   ({ projectId: 'p', conversations: [{ id: 'a', title }], more: false }) as unknown as ConversationList
@@ -265,12 +276,9 @@ describe('a start’s receipt and the list read: a newer row kept, a stale recei
   })
 })
 
-/** What a view keeps for Ana in project p, as `landed` reads and changes it. */
+/** What a view keeps for Ana in project p, as `landed` reads and changes it: a view born now (useKept). */
 const PLACE = 'p ana'
-const talkHere = {
-  of: (id: string) => ({ gone: () => keptAt(PLACE)?.erased[id] === true }),
-  change: (f: Parameters<typeof changeKept>[1]) => changeKept(PLACE, f),
-}
+const talkHere = () => keptFor(PLACE, currentGeneration())
 
 describe('a start’s receipt for a conversation erased here meanwhile brings nothing back (PR #199 r4238111781)', () => {
   it('erased here, its row and read taken away: the late receipt changes nothing, and it is not opened', () => {
@@ -281,7 +289,7 @@ describe('a start’s receipt for a conversation erased here meanwhile brings no
     changeKept(PLACE, (k) => ({ ...withoutConversation(k, 'b'), start: { ...k.start, fields: words } }))
     const before = keptAt(PLACE)
     const late = receipt('6')
-    const open = landed(talkHere, late, () => putStarted(client, 'p', 'ana', late, '6'))
+    const open = landed(talkHere(), late, () => putStarted(client, 'p', 'ana', late, '6'))
     assert.equal(open, false)
     assert.deepEqual(ids(client, listKey('p', 'ana')), ['a'])
     assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
@@ -294,10 +302,222 @@ describe('a start’s receipt for a conversation erased here meanwhile brings no
     const client = new QueryClient()
     client.setQueryData(listKey('p', 'ana'), listOf('Older'))
     const fresh = receipt('6')
-    const open = landed(talkHere, fresh, () => putStarted(client, 'p', 'ana', fresh, '6'))
+    const open = landed(talkHere(), fresh, () => putStarted(client, 'p', 'ana', fresh, '6'))
     assert.equal(open, true)
     assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
     assert.notEqual(client.getQueryData(messagesKey('b', 'ana')), undefined)
     assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
+  })
+})
+
+/** An erasure's refusal outright (no reply is never one: held-write sends it again under its key). */
+const refusedAs = (status: number, code: string) => new ApiError(status, code, 'Refused', 'never')
+const refusal = { words: null, onWords: () => undefined, say: () => 'refused' }
+
+describe('a start’s receipt while an erasure of it pressed here is unanswered: held back, then landed once or let go (PR #199 r4238177970)', () => {
+  /** The receipt of a start that asked Sophia. */
+  const asking = { ...receipt('6'), reply: { id: 'r1', messageId: 'b1' } } as unknown as ConversationStarted
+  const words = { title: 'Started', text: 'Words of the start.', askSophia: true }
+  /** A list read, the form's words, and an erasure of the new conversation pressed here: on its way, no reply, none. */
+  function erasing(sending: boolean | null) {
+    forgetKept()
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'ana'), listOf('Older'))
+    changeKept(PLACE, (k) => {
+      const held = sending === null ? k : withErasure(k, 'b', { key: 'e1', ask: 'b', sending })
+      return { ...held, start: { ...held.start, fields: words } }
+    })
+    // The view as it was then: what it keeps for Ana in p, read and changed as a view born now does.
+    const talk = talkHere()
+    const puts: string[] = []
+    let opened = 0
+    const land = (r: ConversationStarted, stood?: typeof NO_WORDS) => {
+      const put = () => {
+        puts.push(r.conversation.id)
+        putStarted(client, 'p', 'ana', r, '6')
+      }
+      if (landed(talk, r, put, stood)) opened += 1
+    }
+    return { client, talk, puts, land, opens: () => opened }
+  }
+  /** Nothing of the start shown, kept or awaited: the list as read, no thread, the form's words, no wait. */
+  const untouched = (client: QueryClient) => {
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['a'])
+    assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
+    assert.deepEqual(keptAt(PLACE)?.start.fields, words)
+    assert.equal(keptAt(PLACE)?.asked.b ?? null, null)
+  }
+
+  it('its erasure on its way: nothing put, opened, cleared or awaited; the receipt held back with the start', () => {
+    const { client, puts, land, opens } = erasing(true)
+    land(asking)
+    assert.deepEqual(puts, [])
+    assert.equal(opens(), 0)
+    untouched(client)
+    assert.deepEqual(keptAt(PLACE)?.start.heldBack, { receipt: asking, fields: words })
+  })
+
+  it('its erasure with no reply: the same, and the form starts nothing new meanwhile', async () => {
+    const { client, talk, puts, land } = erasing(false)
+    land(asking)
+    assert.deepEqual(puts, [])
+    untouched(client)
+    const { start } = talk.latest()
+    assert.deepEqual(startHeld(start), { key: 'b', ask: words, sending: true })
+    const sent: string[] = []
+    const send = (key: string) => {
+      sent.push(key)
+      return Promise.resolve(asking)
+    }
+    const write = useHeldWrite(startHeld(start), () => undefined, send, refusal)
+    assert.equal(write.busy, true)
+    assert.equal(await write.run(words), undefined)
+    assert.deepEqual(sent, [])
+  })
+
+  it('erased then (its reply, or a whole list without it): the receipt goes and never lands; the words stay, the form free', () => {
+    const { client, talk, puts, land } = erasing(true)
+    land(asking)
+    changeKept(PLACE, (k) => withoutConversation(k, 'b'))
+    assert.equal(keptAt(PLACE)?.start.heldBack, null)
+    released(talk, 'b', refusedAs(403, 'forbidden'), land)
+    assert.deepEqual(puts, [])
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['a'])
+    assert.deepEqual(keptAt(PLACE)?.start.fields, words)
+    assert.equal(startHeld(talk.latest().start), null)
+  })
+
+  it('its erasure refused outright: the receipt lands then, once: listed, its words gone, the wait noted', () => {
+    const { client, talk, puts, land, opens } = erasing(true)
+    land(asking)
+    changeKept(PLACE, (k) => withErasure(k, 'b', null))
+    released(talk, 'b', refusedAs(403, 'forbidden'), land)
+    released(talk, 'b', refusedAs(403, 'forbidden'), land)
+    assert.deepEqual(puts, ['b'])
+    assert.equal(opens(), 1)
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
+    assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
+    assert.equal(keptAt(PLACE)?.asked.b?.replyId, 'r1')
+    assert.equal(keptAt(PLACE)?.start.heldBack, null)
+  })
+
+  it('refused as not found, or by the server failing: it may be gone, so it never lands; the words stay', () => {
+    for (const err of [refusedAs(422, 'not_found'), refusedAs(503, 'unavailable'), refusedAs(502, 'http_502')]) {
+      const { client, talk, puts, land } = erasing(true)
+      land(asking)
+      changeKept(PLACE, (k) => withErasure(k, 'b', null))
+      released(talk, 'b', err, land)
+      assert.deepEqual(puts, [], err.code)
+      untouched(client)
+      assert.equal(keptAt(PLACE)?.start.heldBack, null)
+    }
+  })
+
+  it('another conversation’s erasure refused, or another account’s or project’s: nothing lands, nothing of theirs moves', () => {
+    const { talk, puts, land } = erasing(true)
+    changeKept('p bea', (k) => ({ ...k, start: { ...k.start, fields: words } }))
+    const bea = keptAt('p bea')
+    land(asking)
+    released(talk, 'c', refusedAs(403, 'forbidden'), land)
+    released(keptFor('p bea', currentGeneration()), 'b', refusedAs(403, 'forbidden'), land)
+    released(keptFor('q ana', currentGeneration()), 'b', refusedAs(403, 'forbidden'), land)
+    assert.deepEqual(puts, [])
+    assert.deepEqual(keptAt(PLACE)?.start.heldBack, { receipt: asking, fields: words })
+    assert.equal(keptAt('p bea'), bea)
+    assert.equal(keptAt('q ana'), undefined)
+  })
+
+  it('the account forgotten (signed out, another identity): the receipt goes with it, and a late refusal lands nothing', () => {
+    const { client, talk, puts, land } = erasing(true)
+    land(asking)
+    forgetKept()
+    // Ana again, a view born since: holds back nothing, and the old view's refusal reaches none of it.
+    changeKept(PLACE, (k) => ({ ...k, start: { ...k.start, fields: words } }))
+    released(talk, 'b', refusedAs(403, 'forbidden'), land)
+    assert.deepEqual(puts, [])
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['a'])
+    assert.equal(keptAt(PLACE)?.start.heldBack, null)
+    assert.deepEqual(keptAt(PLACE)?.start.fields, words)
+  })
+
+  it('kept while the view is away: back, the form still holds it; refused then, it lands once with those words', () => {
+    const { talk, puts, land } = erasing(true)
+    land(asking)
+    // The view goes to Work and comes back: a view born now reads what was kept.
+    const back = talkHere()
+    assert.deepEqual(startHeld(back.latest().start), { key: 'b', ask: words, sending: true })
+    changeKept(PLACE, (k) => withErasure(k, 'b', null))
+    released(talk, 'b', refusedAs(409, 'conflict'), land)
+    assert.deepEqual(puts, ['b'])
+    assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
+  })
+
+  it('words written in the form since it was held back are never cleared by its landing', () => {
+    const { talk, puts, land } = erasing(true)
+    land(asking)
+    const later = { title: 'Another question', text: 'Written since.', askSophia: false }
+    changeKept(PLACE, (k) => ({ ...withErasure(k, 'b', null), start: { ...k.start, fields: later } }))
+    released(talk, 'b', refusedAs(403, 'forbidden'), land)
+    assert.deepEqual(puts, ['b'])
+    assert.deepEqual(keptAt(PLACE)?.start.fields, later)
+  })
+
+  it('no erasure here: it lands at once, as before (control)', () => {
+    const { client, puts, land, opens } = erasing(null)
+    land(asking)
+    assert.deepEqual(puts, ['b'])
+    assert.equal(opens(), 1)
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
+    assert.equal(keptAt(PLACE)?.start.heldBack, null)
+  })
+
+  /** The erasure's own write, as EraseHere sends it: held here as it goes, its refusal said through `releasing`. */
+  function erasure(talk: ReturnType<typeof talkHere>, land: (r: ConversationStarted, words: typeof NO_WORDS) => void) {
+    const replies: { settle?: (fail: ApiError | null) => void } = {}
+    const keys: string[] = []
+    const send = (key: string) => {
+      keys.push(key)
+      return new Promise<{ conversationId: string }>((resolve, reject) => {
+        replies.settle = (fail) => (fail ? reject(fail) : resolve({ conversationId: 'b' }))
+      })
+    }
+    return {
+      keys,
+      send,
+      onHeld: (next: Held<string> | null) => changeKept(PLACE, (k) => withErasure(k, 'b', next)),
+      refusal: releasing(refusal, (err) => released(talk, 'b', err, land)),
+      settle: (fail: ApiError | null) => replies.settle?.(fail),
+    }
+  }
+
+  it('through the erasure’s own write: refused outright, it lands once; with no reply, held back under the same key', async () => {
+    const refused = erasing(null)
+    const e = erasure(refused.talk, refused.land)
+    const running = useHeldWrite(null, e.onHeld, e.send, e.refusal).run('b')
+    refused.land(asking)
+    assert.deepEqual(refused.puts, [])
+    e.settle(refusedAs(403, 'forbidden'))
+    await running
+    assert.deepEqual(refused.puts, ['b'])
+    assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
+
+    const unknown = erasing(null)
+    const again = erasure(unknown.talk, unknown.land)
+    const first = useHeldWrite(null, again.onHeld, again.send, again.refusal).run('b')
+    unknown.land(asking)
+    again.settle(new ApiError(0, 'outcome_unknown', 'No reply from Sophia', 'same_admission_key'))
+    await first
+    assert.deepEqual(unknown.puts, [])
+    assert.equal(keptAt(PLACE)?.erasures.b?.sending, false)
+    assert.deepEqual(keptAt(PLACE)?.start.heldBack, { receipt: asking, fields: words })
+    const second = useHeldWrite(keptAt(PLACE)?.erasures.b ?? null, again.onHeld, again.send, again.refusal).run('b')
+    again.settle(null)
+    await second
+    assert.equal(again.keys[1], again.keys[0])
+    // Its reply settles it, as the view does (useErased): the receipt goes with it, never landing.
+    changeKept(PLACE, (k) => withoutConversation(k, 'b'))
+    assert.deepEqual(unknown.puts, [])
+    untouched(unknown.client)
+    assert.equal(keptAt(PLACE)?.start.heldBack, null)
   })
 })

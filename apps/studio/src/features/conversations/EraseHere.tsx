@@ -12,7 +12,7 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { focusLater } from '../personal/focus.ts'
 import { LISTS, listKey } from './conversation-list.ts'
-import { setListsData } from './list-data.ts'
+import { releasing, setListsData } from './list-data.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 /** Where an admin may erase: the project, who reads, where the focus lands, and what the view does once it is erased. */
@@ -21,6 +21,8 @@ export interface Erase {
   identity: Identity
   arm: (conversationId: string, land: (el: HTMLElement | null) => void) => void
   onErased: (conversationId: string) => void
+  /** Refused outright (never for no reply): a start's receipt held back for it may land (list-data `released`). */
+  onRefused: (conversationId: string, err: ApiError) => void
   /** The erasure on its way, or sent with no reply, as the view keeps it for each conversation (talk-store.ts). */
   held: (conversationId: string) => Held<string> | null
   onHeld: (conversationId: string, next: Held<string> | null) => void
@@ -47,7 +49,9 @@ export function useEraseHere(erase: Erase | null, conversationId: string): { pre
     erase?.held(conversationId) ?? null,
     (next) => erase?.onHeld(conversationId, next),
     (key, id) => eraseConversation(erase?.identity.token ?? '', id, key),
-    { words: refused, onWords: setRefused, say: eraseRefusal },
+    releasing({ words: refused, onWords: setRefused, say: eraseRefusal }, (err) =>
+      erase?.onRefused(conversationId, err),
+    ),
   )
   if (!erase) return { press: null, form: null }
   const close = () => {

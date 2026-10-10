@@ -42,7 +42,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, putStarted } from './list-data.ts'
+import { landed, putStarted, released, startHeld } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -182,7 +182,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         {...{ projectId, identity, cursor }}
         conversation={shown}
         notice={notice}
-        erase={reader.moderate ? eraseOf(projectId, identity, erased, talk) : null}
+        erase={reader.moderate ? eraseOf(projectId, identity, erased, talk, start.release) : null}
         opened={panes.context}
         onClose={panes.closeContext}
       />
@@ -504,12 +504,14 @@ function eraseOf(
   identity: Identity,
   erased: ReturnType<typeof useErased>,
   talk: ReturnType<typeof useTalk>,
+  release: Erase['onRefused'],
 ): Erase {
   return {
     projectId,
     identity,
     arm: erased.arm,
     onErased: erased.on,
+    onRefused: release,
     held: (id) => talk.kept.erasures[id] ?? null,
     onHeld: (id, next) => talk.change((k) => withErasure(k, id, next)),
   }
@@ -698,9 +700,11 @@ function useStart(
     onForm.current = shown
     setStarting(shown)
   }
-  const started = (receipt: ConversationStarted) => {
+  // Landed (or held back while an erasure of it here is unanswered, to land once that erasure is refused: `release`,
+  // with the form's `words` as they stood then).
+  const started = (receipt: ConversationStarted, words?: ConversationAsk) => {
     const put = () => putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
-    if (!landed(talk, receipt, put) || !onForm.current) return
+    if (!landed(talk, receipt, put, words) || !onForm.current) return
     open(receipt.conversation.id)
     setArrived(receipt.conversation.id)
     setForm(false)
@@ -712,11 +716,11 @@ function useStart(
   const form = {
     fields: kept.start.fields,
     onFields: (fields: ConversationAsk) => change((k) => ({ ...k, start: { ...k.start, fields } })),
-    held: kept.start.held,
+    held: startHeld(kept.start),
     onHeld: (held: Held<ConversationAsk> | null) => change((k) => ({ ...k, start: { ...k.start, held } })),
-    refused: kept.refusals[START] ?? null,
+    refused: kept.start.heldBack ? HELD_BACK : (kept.refusals[START] ?? null),
     onRefused: (words: string | null) => change((k) => ({ ...k, refusals: withEntry(k.refusals, START, words) })),
-    onStarted: started,
+    onStarted: (receipt: ConversationStarted) => started(receipt),
     onCancel: cancel,
   }
   return {
@@ -727,8 +731,12 @@ function useStart(
     toggle: () => (starting ? cancel() : setForm(true)),
     close: () => setForm(false),
     form,
+    release: (id: string, err: ApiError) => released(talk, id, err, started),
   }
 }
+
+/** What the form says while its start's receipt is held back for an erasure of that conversation pressed here. */
+const HELD_BACK = 'Started, while you erase that conversation: it opens here only if the erase doesn’t go through.'
 
 /** An API that serves no conversations (A16 switched off) answers the list with 404: not a failure to try again. */
 const unserved = (error: unknown) => error instanceof ApiError && error.status === 404

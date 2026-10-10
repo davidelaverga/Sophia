@@ -3,8 +3,8 @@
 // and coming back finds it all. Each draft; each message on its way, or sent with no reply (its key and its words);
 // a refusal that answered one meanwhile; since when Sophia was asked; and the start's words and intent. Forgotten on
 // signing out or switching identity (App), as the cached reads are.
-import { useCallback, useSyncExternalStore } from 'react'
-import type { ConversationAsk, MessageAsk } from '../../api/conversations.ts'
+import { useMemo, useSyncExternalStore } from 'react'
+import type { ConversationAsk, ConversationStarted, MessageAsk } from '../../api/conversations.ts'
 import type { DecisionAsk, ProposedMark } from './decide.ts'
 import type { Held } from './held-write.ts'
 
@@ -17,7 +17,17 @@ export interface Kept {
   refusals: Readonly<Record<string, string | null>>
   /** When Sophia was asked to answer there, by conversation. */
   asked: Readonly<Record<string, Asked | null>>
-  start: { fields: ConversationAsk; held: Held<ConversationAsk> | null }
+  start: {
+    fields: ConversationAsk
+    held: Held<ConversationAsk> | null
+    /**
+     * A start's receipt held back, with the form's words as they stood then: it came while an erasure of its
+     * conversation pressed here was on its way or had no reply (PR #199 r4238177970). It lands once that erasure is
+     * refused (list-data `released`), never once the conversation is erased (`retired`); until then the form starts
+     * nothing new.
+     */
+    heldBack: { receipt: ConversationStarted; fields: ConversationAsk } | null
+  }
   /** A message's proposal on its way, or sent with no reply (its key and words), by message: never sent twice. */
   proposals: Readonly<Record<string, Held<string> | null>>
   /** The words of a refusal that answered a message's proposal, until its next press. */
@@ -78,7 +88,7 @@ const EMPTY: Kept = {
   holds: {},
   refusals: {},
   asked: {},
-  start: { fields: NO_WORDS, held: null },
+  start: { fields: NO_WORDS, held: null, heldBack: null },
   proposals: {},
   proposalRefusals: {},
   proposed: {},
@@ -131,15 +141,24 @@ export function forgetKept(): void {
   for (const listener of listeners) listener()
 }
 
+/**
+ * What is kept for one project and account (`place`) as a reader born at `born` changes and reads it: a write still on
+ * its way when the account was forgotten answers into nothing, never back into the store, and reads nothing kept since.
+ */
+export function keptFor(place: string, born: number) {
+  return {
+    change: (f: (was: Kept) => Kept) => changeIfCurrent(place, born, f),
+    /** What is kept now (not as a render read it): for an answer that comes late. */
+    latest: (): Kept => (born === generation ? (kept.get(place) ?? EMPTY) : EMPTY),
+  }
+}
+
 /** What is kept for this project and account, and how to change it. */
 export function useKept(projectId: string, name: string) {
   const place = `${projectId} ${name}`
   const value = useSyncExternalStore(subscribe, () => kept.get(place) ?? EMPTY)
   const born = useSyncExternalStore(subscribe, currentGeneration)
-  // A write still on its way when the account was forgotten answers into nothing: never back into the store.
-  const change = useCallback((f: (was: Kept) => Kept) => changeIfCurrent(place, born, f), [place, born])
-  /** What is kept now (not as this render read it): for an answer that comes late. */
-  const latest = useCallback(() => kept.get(place) ?? EMPTY, [place])
+  const { change, latest } = useMemo(() => keptFor(place, born), [place, born])
   return { kept: value, change, latest }
 }
 
@@ -165,16 +184,20 @@ const holdsAny = (out: Readonly<Record<string, true>>) => (r: Readonly<Record<st
 
 /**
  * What is kept with no part for a conversation erased (its draft, intent, message held, refusal, wait, erasure, seen
- * listed) or a message gone (its proposal held, refused or recorded, its withdrawal held). A late answer that wrote one
- * back (a send with no reply, main's ProposeHere writing its own) is left out here, at every change.
+ * listed, a start's receipt held back for it) or a message gone (its proposal held, refused or recorded, its withdrawal
+ * held). A late answer that wrote one back (a send with no reply, main's ProposeHere writing its own) is left out here,
+ * at every change.
  */
 export function retired(k: Kept): Kept {
   const { gone, erased } = k
   const messages = [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes]
   const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.listed]
-  if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased))) return k
+  const back = k.start.heldBack
+  const backErased = back !== null && erased[back.receipt.conversation.id] === true
+  if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased)) && !backErased) return k
   return {
     ...k,
+    start: backErased ? { ...k.start, heldBack: null } : k.start,
     drafts: without(k.drafts, erased),
     asks: without(k.asks, erased),
     holds: without(k.holds, erased),
