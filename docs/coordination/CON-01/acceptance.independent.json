@@ -796,10 +796,10 @@
       "studioTypecheckExit": 0,
       "fullPnpmCheck": false
     },
-    "fullGate": "CC19 author653 format/lint/typecheck0/1054 Studio units; its browser cases unrun. Frozen a342 now author-reported terminal1150/four failures; isolated/baseline attribution reported, exact receipt pending, no waiver. Unpublished dev fixture run in progress.",
+    "fullGate": "CC19 author653 format/lint/typecheck0/1054 Studio units; its browser cases unrun. Frozen a342 now author-reported terminal1150/four failures; isolated/baseline attribution reported, exact receipt pending, no waiver. Unpublished dev fixture run in progress. Dev removal/panes/writes author-reported two failures; expectation repairs under review, no independent newer pass.",
     "operation": "draft_not_authorized; owner/setup/exact batch missing",
     "cleanup": "All sixteen owned stacks clean/processes absent/ports closed/tab28 closed/no hosted/provider effects",
-    "automaticReview": "exact653 requested6091867410; terminal review pending",
+    "automaticReview": "6535476739975 P2r4235731017 independently confirmed L0; placeholder-value correction pending. Independent lifecycle/ambiguous ordering findings also open.",
     "sharedPR190": "d2e2ec712a91dd71a91f5399d4a84aba9f23803f"
   }
 }
