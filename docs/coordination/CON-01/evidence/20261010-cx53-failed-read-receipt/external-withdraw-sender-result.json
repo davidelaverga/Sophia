@@ -1,0 +1,130 @@
+{
+  "at": "2026-10-10T14:56:20.719Z",
+  "scope": "External supported withdrawal of delayed Start first message and canonical viewer read",
+  "keys": {
+    "send": "0b3a48b1-5305-46bd-a880-15fff9fe8870",
+    "withdraw": "2cedcc04-29b5-4860-8544-171f338a998d"
+  },
+  "withdrawal": {
+    "messageId": "baa5704c-608e-47bd-8fd1-3cfc69fdef04",
+    "conversationId": "4b87aa4b-5779-4b69-8841-19efc73af8b5"
+  },
+  "canonical": {
+    "projectId": "75d82207-7e0e-45e3-a9db-592c6c5f551d",
+    "conversations": [
+      {
+        "id": "4b87aa4b-5779-4b69-8841-19efc73af8b5",
+        "title": "SYNTHETIC delayed Start privacy",
+        "revision": 4,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T14:56:16.187Z",
+        "messageSeq": 1,
+        "contributors": [],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": null
+      },
+      {
+        "id": "c2cda7d8-1413-43ad-bef1-faef3353dd9b",
+        "title": "SYNTHETIC stale sender regression",
+        "revision": 7,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T14:55:30.032Z",
+        "messageSeq": 3,
+        "contributors": [
+          {
+            "actorId": "3df12e3d-9b82-4491-a42a-e317c4df4b44",
+            "name": "Synthetic B"
+          },
+          {
+            "actorId": "0a78b253-d1ed-4a4e-b3db-5829224948d4",
+            "name": "Synthetic C Old"
+          },
+          {
+            "actorId": "c0cd7bd1-d29b-4a45-bc48-7bc51ae7fb46",
+            "name": "Synthetic A Surviving"
+          }
+        ],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": {
+          "author": "member",
+          "actorId": "c0cd7bd1-d29b-4a45-bc48-7bc51ae7fb46",
+          "name": "Synthetic A Surviving",
+          "text": "SYNTHETIC A surviving third",
+          "at": "2026-10-10T14:55:30.032Z",
+          "seq": 3
+        }
+      }
+    ],
+    "more": false,
+    "policy": {
+      "id": "conversation-text-v1",
+      "notice": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "retention": "until_withdrawn_or_erased",
+      "audience": "project_members"
+    },
+    "capability": {
+      "state": "enabled",
+      "write": false,
+      "moderate": false,
+      "ask": "unavailable",
+      "askReason": "replies_not_enabled"
+    }
+  },
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "0a78b253-d1ed-4a4e-b3db-5829224948d4",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T14:56:20.715Z"
+    }
+  ]
+}

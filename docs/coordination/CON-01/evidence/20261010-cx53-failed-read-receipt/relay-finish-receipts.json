@@ -1,0 +1,35 @@
+[
+  {
+    "at": "2026-10-10T14:56:46.224Z",
+    "kind": "start",
+    "path": "/api/v1/projects/75d82207-7e0e-45e3-a9db-592c6c5f551d/conversations",
+    "idempotencyKey": "5c17658c-73a6-43cb-bbd4-b7f377015eb0",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T14:58:44.701Z",
+    "kind": "start",
+    "path": "/api/v1/projects/75d82207-7e0e-45e3-a9db-592c6c5f551d/conversations",
+    "idempotencyKey": "364272e6-924e-429c-9ebe-f49267b00113",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T14:59:44.583Z",
+    "kind": "start",
+    "path": "/api/v1/projects/75d82207-7e0e-45e3-a9db-592c6c5f551d/conversations",
+    "idempotencyKey": "5453f784-d41f-41e8-963b-0b7be40abce6",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]

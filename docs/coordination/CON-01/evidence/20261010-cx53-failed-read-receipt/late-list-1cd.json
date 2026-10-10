@@ -1,0 +1,11 @@
+{
+  "candidate": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+  "scope": "L0 actual QueryClient and production putStarted, synthetic valid shape; current list revision2 vs delayed receipt revision1",
+  "passed": 2,
+  "failed": 0,
+  "passedCases": [
+    "Newer current list row remains after an older Start receipt lands",
+    "Eligible new Start adds its own row"
+  ],
+  "failedCases": []
+}

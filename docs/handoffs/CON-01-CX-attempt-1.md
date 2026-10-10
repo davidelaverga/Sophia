@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0052
+# Current checkpoint — CX-0053
+
+[Exact1cd list correction and failed-read privacy finding](../coordination/CON-01/CX-0053.md): complete2-file delta/194focused54suites/typecheck0/list2+active4PASS. Actual bothGET503 withdrawal-before-receipt list/header/thread withholding PASS; eligible delayedStart PASS. New actual FAILED503-read→adminERASE→late receipt restores erasedbody+Propose/Withdraw with feedReconnecting; restorefeed/list removes erasedconversation. Exact404-before-receipt is L0only1FAIL/2controls, not actual404proof; eventcutoffnotinstrumented. Automatic617 review5479439516 completed14:54:33UTC: listP1r4238023973 scopedcorrected, newP1r4238023979 open/sentClaude. Correctionpending/S1held; author1cd terminalgatepending/fullaggregateunwaived.
+
+Audit6human/2NULL/8requests/supportgoal1/allmodeloperational0. All48 ownedbrowserstacks clean/12230terminal0/PGstoppedclusterremoved/DBdropped/APIStudio stopped/ports59255–57closed/PIDsabsent/tab70closed. No hosted/provider/spend/uncertain effect; remoteempty/dummy disclosed. S2reviewonlyPR211/f010577a attached/base617/sourcebindingreviewpending/no sharedwindow/grants/callers/migrationnumberpermission.
+
+All36verdictspreserved; combined reviewed/authorized/deployed/app_verified/owner_acceptedfalse. OP1r2/OP2r2draftunapproved/expiryNULL; inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/runtimewindow/artifacts/governedrollback unbound. Historicalservingtupleunrefreshed/main444/publishedPR1908a39lastunchanged. Nextboundedaction immutablefailed-readfix + actualerasure/exact404timing/eligiblecontrols; isolatedS2reviewwhileheld. Davideacceptsproduct/othermissionsopen/no monitor.
+
+# Historical checkpoint — CX-0052
 
 [Exact617 browser correction and new list privacy failure](../coordination/CON-01/CX-0052.md): full6-file delta/190focused/53suites/typecheck0; actual browser boots. Eligible delayedStart confirmedbody+honest stale warning PASS; withdrawal-before-receipt messagepane withholds body/controls PASS; clean active-open-before-receipt repeat PASS/recovery tombstone. New P1: delayed receipt replaces current noauthor list with withdrawn preview/You, headerContributors:You while list+messageGET503; DBbodyNULL. Shared6098742753/directClaude; correctionunpublished. L0late-list1FAIL/1control; activegate4PASS. BootP1scopedresolvedreply4238015123/threadtrue. Fresh automaticrequest6098742900 pending; author617 scopedterminalreceipt6098715928 fullyread, all0, not fullaggregate waiver.
 

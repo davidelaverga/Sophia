@@ -1,0 +1,13 @@
+{
+  "candidate": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+  "scope": "L0 actual QueryClient/InfiniteQueryObserver and production Start/drop helpers; synthetic valid receipts/read failure; no mounted-hook/API/privacy-receipt claim",
+  "passed": 4,
+  "failed": 0,
+  "passedCases": [
+    "Active thread with refused read does not display stale Start body after current feed already includes withdrawal",
+    "Inactive stale receipt is dropped on later opening (existing correction control)",
+    "Eligible receipt stays available when no event past it is known",
+    "Receipt for one reader does not populate another readers thread"
+  ],
+  "failedCases": []
+}
