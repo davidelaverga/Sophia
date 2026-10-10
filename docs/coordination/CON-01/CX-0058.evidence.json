@@ -1,0 +1,172 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0058",
+  "candidate": "3e16080d2af5f6efe5e289b25d2af64d429b51dd",
+  "tree": "fe1b271fa94f156bab407210892d2da20ec7f3ae",
+  "scope": "L1 actual local Studio/API/PostgreSQL with synthetic development auth; no fixture/native/provider/hosted acceptance",
+  "projectId": "6649201b-342c-4535-8a33-f0a9e8de0f69",
+  "automaticReview": {
+    "id": 5479625793,
+    "at": "2026-10-10T15:38:53Z",
+    "finding": 4238177970,
+    "severity": "P2",
+    "independentReply": 4238199103
+  },
+  "helperProbe": {
+    "candidate": "3e16080d2af5f6efe5e289b25d2af64d429b51dd",
+    "scope": "L0 production landed/talk-store/QueryClient; pending and unknown erasure; not actual API/UI proof",
+    "passed": 2,
+    "failed": 2,
+    "passedCases": [
+      "Known erased remains refused before effects",
+      "Definitively refused erasure allows eligible Start without duplicating intent"
+    ],
+    "failedCases": [
+      {
+        "name": "Erasure pending fences Start before put/open/draft/wait effects",
+        "error": "Expected values to be strictly equal:\n\n1 !== 0\n"
+      },
+      {
+        "name": "Erasure unknown fences Start before put/open/draft/wait effects",
+        "error": "Expected values to be strictly equal:\n\n1 !== 0\n"
+      }
+    ]
+  },
+  "bufferedResponses": [
+    {
+      "at": "2026-10-10T15:43:29.627Z",
+      "kind": "start",
+      "path": "/api/v1/projects/6649201b-342c-4535-8a33-f0a9e8de0f69/conversations",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    },
+    {
+      "at": "2026-10-10T15:43:58.705Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/9d0a062f-d54b-4475-aeb5-ba6570206cf2/erasure",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 90000,
+      "substituted": false,
+      "evidence": "Complete upstream body buffered before delay; content omitted"
+    }
+  ],
+  "writes": [
+    {
+      "at": "2026-10-10T15:43:29.627Z",
+      "kind": "start",
+      "path": "/api/v1/projects/6649201b-342c-4535-8a33-f0a9e8de0f69/conversations",
+      "idempotencyKey": "0c85b870-6a5e-454e-a8d2-993057f7f56a",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    },
+    {
+      "at": "2026-10-10T15:43:58.705Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/9d0a062f-d54b-4475-aeb5-ba6570206cf2/erasure",
+      "idempotencyKey": "e1be7da0-a22b-4e4f-871d-99df6d23b7c7",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    },
+    {
+      "at": "2026-10-10T15:46:53.153Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/9d0a062f-d54b-4475-aeb5-ba6570206cf2/erasure",
+      "idempotencyKey": "e1be7da0-a22b-4e4f-871d-99df6d23b7c7",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    }
+  ],
+  "deliveryReceipts": [
+    {
+      "at": "2026-10-10T15:44:29.629Z",
+      "kind": "start",
+      "path": "/api/v1/projects/6649201b-342c-4535-8a33-f0a9e8de0f69/conversations",
+      "idempotencyKey": "0c85b870-6a5e-454e-a8d2-993057f7f56a",
+      "actualApiStatus": 202,
+      "delayed": true,
+      "delayMs": 60000,
+      "substituted": false,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    },
+    {
+      "at": "2026-10-10T15:46:53.154Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/9d0a062f-d54b-4475-aeb5-ba6570206cf2/erasure",
+      "idempotencyKey": "e1be7da0-a22b-4e4f-871d-99df6d23b7c7",
+      "actualApiStatus": 202,
+      "delayed": false,
+      "delayMs": 0,
+      "substituted": false,
+      "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+    }
+  ],
+  "beforeStartDelivery": {
+    "observedAt": "2026-10-10T15:44:21.656Z",
+    "humanMessages": 4,
+    "nullBodies": 1,
+    "semanticRequests": 5,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    }
+  },
+  "finalAudit": {
+    "observedAt": "2026-10-10T15:47:17.937Z",
+    "humanMessages": 4,
+    "nullBodies": 1,
+    "semanticRequests": 5,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    }
+  },
+  "verdict": "FAIL: Start autoopens and clears form while erasure unresolved; later erasure settlement does not restore form words",
+  "unknownPrecision": "Start landed during pending erasure. Erasure later reached the real 90000ms write timeout; original delivery did not finish. UI same-key retry returned genuine202. Start arriving after an already-unknown erasure is L0 only.",
+  "cleanup": {
+    "candidate": "3e16080d2af5f6efe5e289b25d2af64d429b51dd",
+    "tree": "fe1b271fa94f156bab407210892d2da20ec7f3ae",
+    "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+    "apiPort": 63138,
+    "studioPort": 63139,
+    "pid": 77127,
+    "exit": 0,
+    "postgresStopped": true,
+    "clusterRemoved": true
+  },
+  "processVerification": {
+    "at": "2026-10-10T15:48:03.081962+00:00",
+    "pids": {
+      "77150": "absent",
+      "77165": "absent",
+      "77166": "absent"
+    },
+    "ports": {
+      "63138": "closed",
+      "63139": "closed",
+      "63140": "closed"
+    }
+  },
+  "browserTabClosed": 74,
+  "modelCalls": 0,
+  "spend": 0,
+  "uncertainSpend": 0,
+  "remainingUncertainEffects": []
+}
