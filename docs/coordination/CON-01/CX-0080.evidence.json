@@ -1,0 +1,163 @@
+{
+  "record": "CX-0080",
+  "episode": 72,
+  "candidate": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+  "tree": "df075eaf1b911df581cb499f650c7a0b146b9df3",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "source": "Complete two-file +49/-3 delta independently read; Thread terminal error/retry only, no server/contracts/SQL/runtime changes",
+  "authorSourceReady": {
+    "comment": 6102401638,
+    "precommit": "author38removal/1212units/static0; fail-before3/3 fail, after3/3 pass",
+    "terminal": "cand a1dd-checks.sh active, not yet attributed as terminalPASS"
+  },
+  "verdicts": {
+    "CX79RecoveryP2": "SCOPED_RESOLVED: actualterminal503truthfulerror+retry/nooldbodycomposer",
+    "oneExplicitRetry": "PASS:2targetGETs then terminal503, no hiddenbody",
+    "successfulRetry": "PASS: samebutton withoutremount actual200 restores4humanbodies/authors/exactdraft",
+    "unknownOwnErasure": "PASS: originalpendingintent/key survives, retryactual202 exactlyoneSQLerase",
+    "old200AfterNew403": "PASS scoped actualmountedlocal: authorizedC1probe200buffered, currentC2read403fences, old200relaysclientopen, laterDOMfenceholds",
+    "studioTypecheck": "exit0"
+  },
+  "order": {
+    "observedAt": "2026-10-10T21:35:41.387Z",
+    "fenceObservedAt": "2026-10-10T21:35:29.708Z",
+    "revocation": {
+      "at": "2026-10-10T21:35:29.356Z",
+      "removed": 1,
+      "projectId": "83701f1a-ed6b-41d4-80cf-5bb8bddab157",
+      "before": "206",
+      "after": "206",
+      "scope": "owned disposable membership revocation through owner SQL; synthetic stimulus, no hosted effects or feed event"
+    },
+    "oldRelease": {
+      "at": "2026-10-10T21:35:41.295Z",
+      "path": "/api/v1/projects/83701f1a-ed6b-41d4-80cf-5bb8bddab157/conversations/a790a3d9-8876-411d-8972-a5e1d8dadd3f/messages",
+      "status": 200,
+      "clientAlreadyClosed": false,
+      "evidence": "bytes handed to transport only; browser consumption independently observed"
+    },
+    "fenceStillShown": true,
+    "bodyVisible": false,
+    "composerVisible": false,
+    "limits": "Actual mounted app behavior after transport release; no hidden cache access or subframe claim; transport alone not browser consumption"
+  },
+  "settledOrder": {
+    "at": "2026-10-10T21:35:57.946Z",
+    "fenced": true,
+    "cachedWordsVisible": false,
+    "composerVisible": false
+  },
+  "retry": {
+    "at": "2026-10-10T21:36:42.135Z",
+    "before": 7,
+    "after": 9,
+    "readsForOnePress": 2,
+    "terminalUnavailable": true,
+    "bodyVisible": false
+  },
+  "audit": {
+    "at": "2026-10-10T21:37:24.510Z",
+    "candidate": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+    "tree": "df075eaf1b911df581cb499f650c7a0b146b9df3",
+    "humanMessages": 206,
+    "nullBodies": 4,
+    "requests": 207,
+    "replies": 0,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "originalKey": "06e0c1a5-6535-4413-940c-48581ba2197b",
+    "erasureRequests": [
+      {
+        "actor_id": "488511d2-b678-49d7-af01-ab39c483c835",
+        "idempotency_key": "06e0c1a5-6535-4413-940c-48581ba2197b",
+        "operation": "erase",
+        "semantic_request": {
+          "operation": "erase",
+          "conversationId": "e72d3bde-ddca-46a2-b0f1-34676aa37e51"
+        },
+        "message_id": null
+      }
+    ],
+    "writeReceipts": [
+      {
+        "at": "2026-10-10T21:37:07.066Z",
+        "kind": "erasure",
+        "path": "/api/v1/conversations/e72d3bde-ddca-46a2-b0f1-34676aa37e51/erasure",
+        "idempotencyKey": "06e0c1a5-6535-4413-940c-48581ba2197b",
+        "actualApiStatus": 202,
+        "bodyWithheld": false
+      }
+    ],
+    "readCeiling": {
+      "count": 27,
+      "limit": 200,
+      "armedAt": "2026-10-10T21:34:54.835Z",
+      "contained": false
+    }
+  },
+  "cleanup": {
+    "pids": {
+      "21570": false,
+      "21608": false,
+      "21617": false,
+      "21618": false
+    },
+    "ports": {
+      "52793": false,
+      "52794": false
+    },
+    "stack": {
+      "candidate": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+      "tree": "df075eaf1b911df581cb499f650c7a0b146b9df3",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 52793,
+      "studioPort": 52794,
+      "pid": 21570,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "finalAudit": {
+      "at": "2026-10-10T21:37:24.837Z",
+      "exit": 0,
+      "phase": "API/Studio stopped, before disposable DB drop"
+    },
+    "quiescedAggregateMatches": true,
+    "quiescedAuditAt": "2026-10-10T21:37:24.833Z"
+  },
+  "tab95Closed": true,
+  "all72OwnedStacksClean": true,
+  "feedback": {
+    "claudeMessage": 389,
+    "reviewerFeatureFix": false,
+    "nextAuthorRequest": "Keepa1ddfrozen throughterminal/freshreview; then smallest isolated currentmain+CON+S1combinedsourcecandidate forG4, no installed/shared/native/livegrant"
+  },
+  "limits": [
+    "L1 actual localPG17.6/API/Studio with synthetic development identities/JWT only; nofixtures/native/provider/hosted",
+    "Late200 actual transportclientopen+laterUI behavior, not hiddenqueryinspection/perframe/providerreplydestination proof",
+    "Preforwardunknownerasure only, not upstreamcompletedlost202",
+    "Current correction independently tested desktop1280x720 only; no newmobilewholeG3qualification",
+    "No combinedG4, nativeusefulness/hostcopycleanup/subscription/tworealaccount/hosted acceptance"
+  ],
+  "readiness": {
+    "source_ready": "author exacta1dd CC75; terminalpending",
+    "locally_verified": "named independentL1 crossings/typecheckPASS",
+    "reviewed": false,
+    "scoped_delta_reviewed": true,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL",
+  "next": "Author exacta1dd terminal/freshautomaticreview; current-main/S1/PR190 concretecombinedG4 candidate with affectedbrowser/mobile/API/contracts/artifact identity review; operational inputs and approval stillrequired"
+}

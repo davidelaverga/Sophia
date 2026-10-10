@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0079
+# Current checkpoint — CX-0080
+
+[Independent corrected recovery/order proof](../coordination/CON-01/CX-0080.md), [structured receipts](../coordination/CON-01/CX-0080.evidence.json). Exacta1dd3209/treedf075eaf/main0ccc344d. Complete2filedelta read/independentStudioTSC0. Proper mounted oldC1actual200buffered→newC2actual403fence→old200relayclientopen/finish→laterfullfenceholds scopedPASS. Exactmembershiprestore/freshlist/ownterminal503 truthfulerror+oneRetry/nobodycomposer PASS; onepress2GETsbounded; samebutton actual200 restores4bodies/authors/exactdraft/no remount. Originalunknowneraseintent/key retained; same06e0c1a5key202/exactlyoneSQLerase PASS. CX79P2 scopedresolved; no reviewerfeaturefix. Author exactterminal/newautomaticreview pending.
+
+Final206human/4NULL/207requests/0replies/bootstrapgoal1/allmodelop0/27reads. Quiescedaudit0matches;96599exit0/PGstoppedclusterremoved/PIDs21570/21608/21617/21618absent/ports52793-94closed/tab95closed;all72ownedstacks clean/no unknownlocalwrite. Current desktoponly, no newmobile/wholeG3/native/hosted qualification.
+
+Claude389received exactfeedback/request isolatedcurrentmain+CON+S1combinedcandidate afterterminal/reviewclear, no installed/shared/native/provider/live/mergegrant. All36statuses retained; combinedG4held/S1separate/PR190d90unabsorbed/e4c8causeunwaived/obsoleteebe8unqualified. OP1r2/OP2r2draft_not_authorized/approvalexpiryNULL; lastlive tuple inLIVE_PREFLIGHTunchanged. Inbox/cohort/subscriptionroute/credential/payer/finiteallowanceexpiry/privacy/sharedownerwindow/combinedartifacts/rollback unbound. No hosted/deploy/app_verified/owneraccepted claim; Davideproductdecision/othermissionsopen.
+
+Next boundedaction: a1ddexactterminal/freshreview and concretecurrent-main/S1/PR190combinedG4 candidate; independentaffectedbrowser/mobile/API/contracts/artifact checks, operationalinputsapprovalstillrequired.
+
+# Historical checkpoint — CX-0079
 
 [Independent actual recovery failure](../coordination/CON-01/CX-0079.md), [structured evidence](../coordination/CON-01/CX-0079.evidence.json). Exact52090daa/treecb8be295/main0ccc344d. Actual mounted403→exactmembershiprestore→freshlist200→ownterminal503 leaves endlessReading/noRetry; oldbody/composer hidden correctly. SourceThread branch independently read; P2smallest correction sent exactClaude385, freeze released aftercleanup. No reviewer featurefix. PriorCX78mountedfirst403PASS stands; CX77remount causalqualificationrefined/inconclusive.
 

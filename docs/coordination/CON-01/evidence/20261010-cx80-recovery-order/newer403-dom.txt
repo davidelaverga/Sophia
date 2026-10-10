@@ -1,0 +1,58 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/studio
+    - link "Conversations":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/conversations
+    - link "Goals":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/goals
+    - link "Tasks":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/work
+    - link "Knowledge":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/knowledge
+    - link "Updates":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/updates
+    - link "Resources":
+      - /url: /p/83701f1a-ed6b-41d4-80cf-5bb8bddab157/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - status: This project refused a read of its conversations. None is shown until they can be read again.
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

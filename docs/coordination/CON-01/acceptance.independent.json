@@ -942,23 +942,24 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0079.md",
-    "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
-    "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+    "record": "CX-0080.md",
+    "candidate": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+    "tree": "df075eaf1b911df581cb499f650c7a0b146b9df3",
     "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
-    "statement": "New actual recoveryP2FAIL: terminal503 after refusal/restore leaves endlessWaiting/noRetry. Own-erasure draft/originalkey retained scopedPASS. Old200order NOTQUALIFIED. All36 statuses retained.",
+    "statement": "CX79recoveryP2 scopedresolved; boundedretry/exactdraft/originalkeyerasure and actualold200-after-new403 scopedPASS. All36statuses retained; wholeG3/native/hosted/combinedG4 unqualified.",
     "readiness": {
-      "source_ready": "author frozen5209; newcorrection requested",
-      "locally_verified": "named scopedPASS and recoveryP2FAIL",
+      "source_ready": "author exacta1dd CC75; terminalpending",
+      "locally_verified": "named independentL1 crossings/typecheckPASS",
       "reviewed": false,
+      "scoped_delta_reviewed": true,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL",
-    "cleanup": "all71ownedstacks clean;3449exit0/quiescedaudit0/PGstoppedclusterremoved/PIDsabsent/ports51791-92closed/tab94closed",
-    "next": "Immutable Claude recovery correction; independent affected failure/success/retry and synchronized late200 crossing with final audit; then current-main/S1/PR190 combinedG4"
+    "cleanup": "all72ownedstacks clean;96599exit0/quiescedaudit0/PGstoppedclusterremoved/PIDsabsent/ports52793-94closed/tab95closed",
+    "next": "Author exacta1dd terminal/freshautomaticreview; current-main/S1/PR190 concretecombinedG4 candidate with affectedbrowser/mobile/API/contracts/artifact identity review; operational inputs and approval stillrequired"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1044,6 +1045,25 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized;expiryNULL",
       "cleanup": "all70ownedstacks clean;93649exit0/PGstoppedclusterremoved/PIDsabsent/ports50597-99closed/tab93closed",
       "next": "Bounded actual old200-after-new403 and restored draft/same-key erasure recheck on frozen5209, final SQL audit before deadline, then current-main/shared combinedG4"
+    },
+    {
+      "record": "CX-0079.md",
+      "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+      "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+      "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+      "statement": "New actual recoveryP2FAIL: terminal503 after refusal/restore leaves endlessWaiting/noRetry. Own-erasure draft/originalkey retained scopedPASS. Old200order NOTQUALIFIED. All36 statuses retained.",
+      "readiness": {
+        "source_ready": "author frozen5209; newcorrection requested",
+        "locally_verified": "named scopedPASS and recoveryP2FAIL",
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL",
+      "cleanup": "all71ownedstacks clean;3449exit0/quiescedaudit0/PGstoppedclusterremoved/PIDsabsent/ports51791-92closed/tab94closed",
+      "next": "Immutable Claude recovery correction; independent affected failure/success/retry and synchronized late200 crossing with final audit; then current-main/S1/PR190 combinedG4"
     }
   ]
 }
