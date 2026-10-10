@@ -12,8 +12,9 @@ const RETRY_DELAYS_MS = [500, 1000, 2000, 5000, 10_000]
  * The most a stop may take: server.ts exits once it resolves (SIGINT, SIGTERM). Its sessions close in parallel, and each
  * close is bounded on its own except for leaving the LiveKit room: its announcements and its receipts at 3 s each, and
  * what it owes the exchange's ledger at 30.75 s with the defaults (qualification.ts settle(): SETTLE_DEPTH, 3, times
- * one request's 10.25 s; Codex r4235490757). It must stay below the host's shutdown grace: on Render, the bridge
- * service's maxShutdownDelaySeconds must be at least 35 (its default, 30, is not enough). Past it, the stop resolves
+ * one request's 10.25 s; Codex r4235490757). It must stay below the host's shutdown grace, with margin for the process
+ * to exit after it: on Render, the bridge service's maxShutdownDelaySeconds must be at least 40, this 35 s and 5 s more,
+ * the margin the 30 s default left over the 25 s before (its default, 30, is not enough). Past it, the stop resolves
  * anyway and logs how many sessions had not closed.
  */
 export const STOP_DEADLINE_MS = 35_000
