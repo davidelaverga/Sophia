@@ -178,7 +178,7 @@ The token holds for the call it opened. A grant revoked or expired during that c
 |---|---|---|
 | API | `GET /health` → `{ok, commit}` | `RENDER_GIT_COMMIT` (40 hex), or null; served whether or not voice qualification is on |
 | Bridge | `provider` receipts' `bridgeCommit` | same |
-| Studio | `<meta name="sophia-build" content="<commit>">` in the page's head, only when the build sets `VITE_SOPHIA_COMMIT` | `VITE_SOPHIA_COMMIT` at build time (40 lowercase hex, as `RENDER_GIT_COMMIT`); any other value, or none, is no tag at all. No build in this repository sets it yet. |
+| Studio | `<meta name="sophia-build" content="<commit>">` in the page's head, only when the build sets `VITE_SOPHIA_COMMIT` | `VITE_SOPHIA_COMMIT` at build time (40 lowercase hex, as `RENDER_GIT_COMMIT`); any other value, or none, is no tag at all. The release build sets it (`pnpm --filter @sophia/studio build:release`, deploy/S1-05A-release.md; Codex r4233230048): the clean checkout's HEAD, and it fails unless the built `index.html` names exactly that commit once. A plain `vite build` still names none. |
 
 A missing identity is typed unavailable by the Lab, never guessed.
 

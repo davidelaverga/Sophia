@@ -67,7 +67,7 @@ Corrections to commit messages, which stay as they are:
 
 ## Decisions and changes
 
-- **Migrations.** Only 0046 is added. 0001–0045 are blob-identical to the base. 0046 is applied nowhere and was edited in place until handover; once applied it is never edited.
+- **Migrations.** 0046 and 0047 are added; 0001–0045 are blob-identical to the base. Neither is applied anywhere. 0046 is frozen. 0047 (`live_call_keys`, the call keys and their claims) was edited in place during the review to carry the call fences' generations (`live_call_fences`, Codex P1 r4234782534): no foreign key, no lock of its own beyond the rows it writes. Once applied, neither is edited; any later change is an additive migration after them (0048 on), and none is authorized yet.
 - **Contracts.** Amendment A15 adds the routes and fields, regenerated with `pnpm --filter @sophia/contracts generate`.
 - **Product status codes, which the Lab follows:**
   - 422 `not_found` for a missing or foreign object;
@@ -82,10 +82,20 @@ Corrections to commit messages, which stay as they are:
   - whether Gemini Live's `usageMetadata.totalTokenCount` is cumulative per provider session;
   - a model id outside A15's pattern, which would have every provider receipt refused.
 - **The owner's batch, none of it done:**
-  - Deploy order, on: the bridge and the Studio first, then 0046, then `SOPHIA_VOICE_QUALIFICATION`, then `SOPHIA_VOICE_EVIDENCE`. Off: the reverse.
-  - Nothing sets `VITE_SOPHIA_COMMIT` or either flag yet.
+  - Deploy order, on, as docs/plans/voice-qualification-g7.md gives it (each step needs the one before it):
+    1. apply 0046 and 0047 with `pnpm db:migrate` (in order, neither skippable), every switch off, before any API built from this change goes out, with any migration after them that the deployed head carries, in order;
+    2. deploy the API, the media bridge and the Studio built from this change; the Studio with `build:release` (below);
+    3. `SOPHIA_VOICE_QUALIFICATION=on` on the API;
+    4. `SOPHIA_VOICE_EVIDENCE=on` on the bridge.
+    Off: the reverse, flags first.
+  - Readiness, unchanged: the new API's `/ready` answers 503 `schema` without 0047's claim (`REQUIRED_SCHEMA`), whatever the flag says, and, with `SOPHIA_VOICE_QUALIFICATION=on`, without 0046's functions and 0047's fence functions (`VOICE_SCHEMA`).
+  - Activation preconditions, for the operator, none of them set or sent by this change:
+    - the bridge service's shutdown grace on Render (`maxShutdownDelaySeconds`) at least 40 s, checked, before step 4: a close may wait 35 s (`STOP_DEADLINE_MS`), and the default, 30 s, is not enough;
+    - the database's connection limit allows, for each API process, its pool (`max`, 10 by default) plus the call fences' own sessions (`CALL_FENCE_SESSIONS`, 8): at most 18 sessions per API process with voice qualification on;
+    - the Studio built with `pnpm --filter @sophia/studio build:release` at the deploy commit, so its page names that commit (`<meta name="sophia-build">`), and uploaded with `--meta commit=` that same commit.
+  - Neither flag is set, and no Studio has been built with its commit yet.
   - No grant exists.
-- **Known and not fixed:** a bridge restarted mid-exchange begins receipt numbers at 1 again, and the API refuses the numbers already used (409, dropped and counted). The bridge's own stop no longer depends on a receipt (`6262d61b`).
+- **Known and not fixed:** a bridge restarted mid-exchange begins receipt numbers at 1 again, and the API refuses the numbers already used (409, dropped and counted); Codex r4232908444's options are with root. The bridge's own stop no longer depends on a receipt (`6262d61b`).
 - **Wording, not changed:** after the withdrawal, Stop by voice is refused with "the report is still at version 1" while the page is at version 2. That is the report's version, not the page's.
 - **Lab side.** Voice Lab deltas 1–6 are in `voice-lab/studio-livekit-g7`. They are handed over separately, each with its own review and receipts.
 
