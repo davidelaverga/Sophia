@@ -7,7 +7,7 @@
 // byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { ApiError } from '../../api/client.ts'
 import {
   getConversationMessages,
@@ -143,7 +143,7 @@ export function OpenConversation(props: Props) {
         onScroll={follow.onScroll}
       >
         <Thread
-          shown={shows(read.data, props.deniedAt)}
+          shown={visible(read, props.deniedAt)}
           read={read}
           me={me}
           awaiting={awaiting}
@@ -153,7 +153,7 @@ export function OpenConversation(props: Props) {
           withdraw={{ projectId: props.projectId, conversationId: c.id, identity, me, moderate: props.moderate }}
         />
       </div>
-      {props.writer === true && shows(read.data, props.deniedAt) && (
+      {props.writer === true && visible(read, props.deniedAt) && (
         <ConversationComposer
           conversationId={c.id}
           identity={identity}
@@ -337,7 +337,8 @@ function useTranscript(
     },
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.before,
-    retry: 1,
+    // Refused, it is not asked again: the reader isn't a current member (PR #199 r4239161783).
+    retry: (failures, err) => failures < 1 && !isRefusal(err),
   })
   useReadAgain(cursor, read.refetch)
   // Its own read within the project says what it is, only from a read made since it opened: an answer the cache kept
@@ -346,10 +347,13 @@ function useTranscript(
   // failure (a refused cursor, an outage) proves nothing: what was read stays, said possibly out of date.
   const code = read.isFetchedAfterMount && read.error instanceof ApiError ? read.error.code : null
   const { onGone, onDenied, onFound } = on
+  // Refused: fenced before the browser paints, so no frame shows the view as it was (r4239161783).
+  useLayoutEffect(() => {
+    if (code === 'forbidden') onDenied()
+  }, [code, onDenied])
   useEffect(() => {
     if (code === 'not_found') onGone()
-    else if (code === 'forbidden') onDenied()
-  }, [code, onGone, onDenied])
+  }, [code, onGone])
   // Answered since it opened: where its newest page's read set out (an older answer ends no refusal: CX-0074).
   const newest = read.isFetchedAfterMount && read.isSuccess ? read.data.pages[0] : undefined
   const from = newest && 'readFrom' in newest && typeof newest.readFrom === 'number' ? newest.readFrom : null
@@ -358,6 +362,19 @@ function useTranscript(
   }, [from, onFound])
   return read
 }
+
+/** The project's refusal (403): the reader isn't a current member of it. */
+const isRefusal = (err: unknown) => err instanceof ApiError && err.code === 'forbidden'
+
+/**
+ * Its own read since it opened refused: nothing it holds shows, nor its composer, from the render that refusal comes
+ * in, before the view is fenced (PR #199 r4239161783).
+ */
+const refusedNow = (read: ReturnType<typeof useTranscript>) => read.isFetchedAfterMount && isRefusal(read.error)
+
+/** Whether what its read holds shows now: not refused since it opened, and read since any refusal (`shows`). */
+const visible = (read: ReturnType<typeof useTranscript>, deniedAt: number | undefined) =>
+  shows(read.data, deniedAt) && !refusedNow(read)
 
 /**
  * The messages, or, where what is held may not show yet (`shows`), that it is being read again; in a scrolled region

@@ -488,6 +488,39 @@ test('removal · its own read refused (403), the list’s reads failing: nothing
   expect((await kept(page))?.erased[C1]).toBeUndefined()
 })
 
+test('removal · its read refused (403) as the feed moves, while open: asked once, and no frame shows its messages or composer after', async ({
+  page,
+}) => {
+  // PR #199 r4239161783: refused, its read is not asked again (a retry would leave what it held on screen meanwhile),
+  // and its messages and composer go in the render that refusal comes in, before any paint, then the view is fenced.
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toBeVisible()
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  // Each frame from the refusal on: whether a message or the composer of the open one is on screen.
+  await page.evaluate(() => {
+    const frames = document.documentElement.dataset
+    frames.shownAfterRefusal = '0'
+    const here = '[aria-label="Open conversation"]'
+    const tick = () => {
+      const refused = (window.fixture?.served ?? []).includes('messages-refused:c1')
+      if (refused && document.querySelector(`${here} .conv-messages > li, ${here} textarea`))
+        frames.shownAfterRefusal = String(Number(frames.shownAfterRefusal) + 1)
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect(rows(page)).toHaveCount(0)
+  await page.waitForTimeout(1500)
+  // The answer itself takes a frame or two to come in after the fixture serves it; a retry's wait would take ~60.
+  expect(await page.evaluate(() => Number(document.documentElement.dataset.shownAfterRefusal))).toBeLessThanOrEqual(3)
+  const refusals = (await served(page)).filter((s) => s === 'messages-refused:c1')
+  expect(refusals).toHaveLength(1)
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+})
+
 test('removal · reads set out before another’s refusal (403) answer after it: the fence holds, and nothing shows until read since', async ({
   page,
 }) => {
