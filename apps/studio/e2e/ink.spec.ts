@@ -3,8 +3,7 @@ import { colourOf, lowContrast } from './contrast.ts'
 import { DRAWN, drawn } from './drawn.ts'
 
 // The third ink reads (docs/plans/tertiary-ink.md, ink-every-page.md): every word a page shows at rest reads at 4.5:1
-// or more, on the screens a person meets first. On the fixture pages; only the API is faked. Conversations check their
-// own (conversation-thread.spec.ts and the others).
+// or more, on the screens a person meets first. On the fixture pages; only the API is faked.
 
 const PAGES = [
   ['home', '/home.html?demo=1', DRAWN.home],

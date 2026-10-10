@@ -28,7 +28,7 @@
 
 ## Checks (written first)
 
-- `ink.spec.ts` with the six pages: it failed on Tasks, Resources and the work space, desktop and phone (the counts at
+- `ink.spec.ts` with the seven pages: it failed on Tasks, Resources and the work space, desktop and phone (the counts at
   2.05:1, the hangs-on line at 2.13:1); with the change, every page passes.
 - New in `ink.spec.ts`: on Resources and the work space, the chosen filter's count stands a step above the others,
   under its word.
