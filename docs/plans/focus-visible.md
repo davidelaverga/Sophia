@@ -10,13 +10,16 @@
   - one stop shows nothing: a task tile in the Unassigned lane (Tasks and the work space). Its own dashed edge
     (`[data-mark='free']`, and `'unknown'` the same) has the focus ring's weight and comes after it, so it wins.
   - every other stop on the twelve pages shows its focus.
-- With reduced motion asked for, no animation still runs on any page.
+- Measured apart (a probe, not this spec): with reduced motion asked for, no animation still runs on any page.
 
 ## What changes
 
 - A task tile's focus ring wins over its mark's dashed edge, whatever their order (`.task-tile[data-mark]:focus-visible`).
 - `e2e/focus-visible.spec.ts`: on each of the twelve fixture pages, once drawn and with transitions off, every stop
-  Tab reaches looks different focused than at rest, itself or its rows.
+  Tab reaches shows something a person sees focused that it doesn't at rest, itself or its three rows: an outline
+  with width and ink, a shadow, an edge or a ground with ink, an underline, a colour (a line field's focus is its
+  bottom edge). The walk meets stops by element, not by name (two «Copy» presses are two), ends when it goes round
+  or at 40, and measures one at least. Read by CSS alone: what a script sets on blur lands after both reads.
 
 ## Checks (written first)
 

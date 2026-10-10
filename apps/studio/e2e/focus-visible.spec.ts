@@ -23,41 +23,64 @@ const PAGES = [
 /** How many stops each page is walked through: past its bar, into its content. */
 const STOPS = 40
 
-/** Each stop Tab reaches whose look, with the three rows around it, is the same focused as at rest. */
-async function unseenStops(page: Page): Promise<string[]> {
+/**
+ * In the page: the stop Tab has reached; whether the walk has met it before (it has gone round); and whether it, with
+ * the three rows around it, shows anything a person sees more focused than at rest. What doesn't show isn't counted:
+ * an outline with no width or no ink, a transparent ground or border. Read by CSS alone: a state set by a script on
+ * blur lands after both reads, so it can only fail a stop, never pass one.
+ */
+function readStop() {
+  const el = document.activeElement
+  if (!(el instanceof HTMLElement) || el === document.body) return null
+  // Met by element, not by name: two «Copy» presses are two stops.
+  if (el.dataset.walked !== undefined) return { again: true, name: '', shows: true }
+  el.dataset.walked = ''
+  const RGBA = /rgba\((?:\s*[\d.]+,){3}\s*([\d.]+)\)/
+  const alpha = (c: string) => (c === 'transparent' ? 0 : Number(RGBA.exec(c)?.[1] ?? 1))
+  const shown = (s: CSSStyleDeclaration) =>
+    [
+      s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 1 && alpha(s.outlineColor) > 0
+        ? `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor}`
+        : '',
+      s.boxShadow === 'none' ? '' : s.boxShadow,
+      // Each edge drawn (a line field's focus is its bottom edge).
+      ...(['Top', 'Right', 'Bottom', 'Left'] as const).map((side) =>
+        parseFloat(s[`border${side}Width`]) > 0 && alpha(s[`border${side}Color`]) > 0 ? s[`border${side}Color`] : '',
+      ),
+      alpha(s.backgroundColor) > 0 ? s.backgroundColor : '',
+      s.textDecorationLine,
+      s.color,
+    ].join('|')
+  const look = () => {
+    const parts: string[] = []
+    for (let up: Element | null = el, n = 0; up && n < 4; up = up.parentElement, n++) {
+      for (const pseudo of [null, '::before', '::after']) parts.push(shown(getComputedStyle(up, pseudo)))
+    }
+    return parts.join('/')
+  }
+  const words = (el.getAttribute('aria-label') ?? el.textContent).trim().replace(/\s+/g, ' ')
+  const name = `${el.tagName.toLowerCase()} «${(words || (el.getAttribute('placeholder') ?? '')).slice(0, 40)}»`
+  const focused = look()
+  el.blur()
+  const rest = look()
+  // Given back where it was: the next Tab goes on from here, as a person's would.
+  el.focus({ preventScroll: true })
+  return { again: false, name, shows: focused !== rest }
+}
+
+/** Walks a page by Tab: the stops it measured, and those that show nothing focused. */
+async function walk(page: Page) {
   const unseen: string[] = []
-  const passed = new Set<string>()
+  let measured = 0
   for (let i = 0; i < STOPS; i++) {
     await page.keyboard.press('Tab')
-    const stop = await page.evaluate(() => {
-      const el = document.activeElement
-      if (!(el instanceof HTMLElement) || el === document.body) return null
-      const look = () => {
-        const parts: string[] = []
-        for (let up: Element | null = el, n = 0; up && n < 4; up = up.parentElement, n++) {
-          for (const pseudo of [null, '::before', '::after']) {
-            const s = getComputedStyle(up, pseudo)
-            parts.push(
-              `${s.outline}|${s.boxShadow}|${s.backgroundColor}|${s.borderColor}|${s.textDecorationLine}|${s.color}`,
-            )
-          }
-        }
-        return parts.join('/')
-      }
-      const words = (el.getAttribute('aria-label') ?? el.textContent).trim().replace(/\s+/g, ' ')
-      const name = words || (el.getAttribute('placeholder') ?? '')
-      const focused = look()
-      el.blur()
-      const rest = look()
-      el.focus({ preventScroll: true })
-      return { name: `${el.tagName.toLowerCase()} «${name.slice(0, 40)}»`, same: focused === rest }
-    })
+    const stop = await page.evaluate(readStop)
     if (!stop) continue
-    if (passed.has(stop.name)) break // round again
-    passed.add(stop.name)
-    if (stop.same) unseen.push(stop.name)
+    if (stop.again) break // round again
+    measured += 1
+    if (!stop.shows) unseen.push(stop.name)
   }
-  return unseen
+  return { measured, unseen }
 }
 
 for (const [name, url, parts] of PAGES) {
@@ -65,6 +88,8 @@ for (const [name, url, parts] of PAGES) {
     await page.goto(url)
     await drawn(page, parts)
     await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; }' })
-    expect(await unseenStops(page)).toEqual([])
+    const { measured, unseen } = await walk(page)
+    expect(measured).toBeGreaterThan(0)
+    expect(unseen).toEqual([])
   })
 }
