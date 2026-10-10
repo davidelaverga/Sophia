@@ -1,5 +1,13 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Runtime registration metadata — 2026-10-10, 19:25 UTC
+
+A new bounded metadata-only transaction used the existing private DB credential reference, connection/query timeout7s, statement_timeout5s, `BEGIN READ ONLY`, and terminal `ROLLBACK`. PostgreSQL17.6/read_only=on; four registration rows, no truncation. [Safe receipt](evidence/20261010-live-runtime-registration-1925.json). The bundle column was hashed locally; no token, lease/session ID, project content, readiness reason or unrecovered content was disclosed. No runtime hello/poll/ready or other operational function was called.
+
+At19:25:05.580UTC, active m03 advertised protocol1/dsh0.2.0-rc.2/two roles, last_seen19:24:48.066 (18s old); its ready report dates fromOct2. Active m02 still says ready but was last seenOct2; active s1-03 still says ready but was last seenSep30, and self-reports dsh0.1.7-rc.1. The fourth m02 row is revoked/not_ready. All four report zero unrecovered entries, which is a historical report rather than independent reconciliation. Six m03 bindings still say running, two s1-03 settled. Preserve concurrent work: freshness/status is not a safe drain or settlement receipt.
+
+These are self-reported database registrations, not verified installed artifacts, composition, tool/role configuration, selected subscription route, current CON native execution or product acceptance. All three non-null bundle labels have the same fingerprint; this does not establish equal runtime binaries/configuration. API/worker/bridge/Studio dashboard identities and migration-ledger observations were not refreshed by this query. OP0001r2/OP0002r2 remain draft_not_authorized; no new authority, hosted mutation, provider/native call, spend or uncertain paid outcome.
+
 ## Read-only refresh — 2026-10-10, 18:35–18:37 UTC
 
 Authenticated CUA temporary tab85 re-read API/runtime/worker/bridge Render deployment identities and Vercel Studio Production Deployment. All four live deployment IDs/source SHAs below remain unchanged; Studio remains Ready/Production `dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1`, manual `vercel deploy`, source SHA unknown. [Safe dashboard receipt](evidence/20261010-live-dashboard-1836.json) records exact capture timestamps. No config/environment/log/secret/deploy controls used. Tab85 closed; user-owned hosted tab1 untouched. No CON candidate is deployed and no app/native/provider acceptance is inferred.

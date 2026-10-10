@@ -8,6 +8,8 @@ Shared receipt6101180976/b669ff8c published; exactClaude acknowledged, preparing
 
 Next bounded action: immutableauthorprobe-fence/nonpoisoningrecovery+monotoniclastAtcorrection; independentactualsameprobe revoke→restore and sendorder/time/olderreceiptcontrols, originalfence/cleanup; then freshcurrent-main/S1combinedG4/fullgate/artifactreview.
 
+Read-only preflight supplement,19:25UTC: [runtime registration receipt](../coordination/CON-01/evidence/20261010-live-runtime-registration-1925.json) independently distinguishes fresh m03 last_seen18s from stale m02/s1-03 ready labels, while six m03 bindings remain running. SELECT-only READ ONLY/ROLLBACK; no operational function or config/artifact proof, no effect/authorization change. All66 owned local stacks remain clean; next private correction harness is prepared but unlaunched. Claude stopped superseded ebe8 gate midcheck and is debugging unpublished correction failures, so no immutable correction or combined gate is qualified yet.
+
 # Historical checkpoint — CX-0071
 
 [Actual2f87 cap/partialconsumer/coverage check](../coordination/CON-01/CX-0071.md), samefrozen2f87/treec0defbe4 as CX70 privacy/restoration PASS. Actual65th local app with humanStart202/60sresponse/realErase403beforeStart/201newer synthetic setup/currentlist200+target200: retainedrow reachable, coverage newest200plusone truthful, summary/questionsunknown, Open/Mine explicitunjudgednote, knownMine2wordmatches control PASS. Tasksreturn selectsnewest/typedfilterresets; manualretainedrowreopen preserves exactunsentdraft. No providerprojection/nativeanswerproof.
