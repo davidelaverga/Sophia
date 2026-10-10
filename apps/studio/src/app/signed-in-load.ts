@@ -55,3 +55,7 @@ export function warmSignedIn(): void {
   const saving = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true
   if (!saving) void loadSignedIn().catch(() => undefined)
 }
+
+// An account's session likely as the page loads: the chunk goes as the app starts, beside the session's check, never
+// after the first render (one more round of requests, which a slow connection or a dev server's modules pay in full).
+if (sessionLikely()) warmSignedIn()

@@ -123,6 +123,27 @@ test('later · a signed-in Studio that doesn’t arrive says so, with the page a
   await expect(page.getByRole('button', { name: 'Load again' })).toBeVisible()
 })
 
+test('later · with a session kept, the signed-in Studio is asked for beside the app’s own modules, not after them', async ({
+  page,
+}) => {
+  const asked = recorded(page)
+  // The app's own modules held at App: what the page asks for meanwhile goes beside them (index.html's early script).
+  const { promise: held, resolve: release } = Promise.withResolvers<void>()
+  await page.route('**/src/app/App.tsx*', async (route) => {
+    await held
+    await route.continue()
+  })
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [
+    SESSION_KEY,
+    JSON.stringify(session()),
+  ] as const)
+  await page.goto(`${APP}/app.html`, { waitUntil: 'commit' })
+  await expect.poll(() => asked.some((p) => p.endsWith('/src/app/SignedIn.tsx'))).toBe(true)
+  release()
+  await expect(page.getByRole('button', { name: 'Account' }).first()).toBeVisible()
+})
+
 test('later · with a session kept, the signed-in Studio is fetched while who is in is still found out', async ({
   page,
 }) => {

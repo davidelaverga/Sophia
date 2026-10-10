@@ -115,6 +115,11 @@
       <p class="entry-slow" role="status">Taking longer than usual. <a class="entry-again" href="/">Start over</a></p>
     </div>
     <div id="root"></div>
+    <!--
+      The signed-in Studio's chunk, asked for beside the app's own start when a session is likely (signed-in-load.ts,
+      docs/plans/signed-in-early.md): its own small script, so the request never waits on the app's modules.
+    -->
+    <script type="module" src="/src/app/signed-in-load.ts"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

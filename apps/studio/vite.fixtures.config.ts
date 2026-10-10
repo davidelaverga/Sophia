@@ -9,6 +9,9 @@ process.env.VITE_SOPHIA_VISION = '1'
 
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
 const studioPage = fileURLToPath(new URL('./index.html', import.meta.url))
+/** index.html's early script (signed-in-load.ts), by the path these servers serve it at: their root is fixtures/. */
+const EARLY = '/src/app/signed-in-load.ts'
+const early = `/@fs/${fileURLToPath(new URL(`.${EARLY}`, import.meta.url)).replaceAll('\\', '/')}`
 
 /**
  * LiveKit's place on the fixture pages: the room controller's `import('./livekit-room.ts')` (useProjectRoom) loads
@@ -24,7 +27,7 @@ const noLiveKit: Plugin = {
 
 /**
  * A page that is the Studio's own index.html, as it ships, with the app's part played by `entry` (a fixture) instead of
- * src/main.tsx.
+ * src/main.tsx; its early script is the Studio's own.
  */
 export const studioPageAs = (path: string, entry: string): Plugin => ({
   name: `sophia-fixture-studio-page${path}`,
@@ -33,7 +36,9 @@ export const studioPageAs = (path: string, entry: string): Plugin => ({
       if (!req.url?.startsWith(path)) return next()
       const page = readFileSync(studioPage, 'utf8')
       if (!page.includes('/src/main.tsx')) throw new Error('index.html no longer loads /src/main.tsx')
-      void server.transformIndexHtml(req.url, page.replace('/src/main.tsx', entry)).then((html) => {
+      if (!page.includes(EARLY)) throw new Error(`index.html no longer loads ${EARLY}`)
+      const served = page.replace('/src/main.tsx', entry).replace(EARLY, early)
+      void server.transformIndexHtml(req.url, served).then((html) => {
         res.setHeader('content-type', 'text/html')
         res.end(html)
       }, next)
