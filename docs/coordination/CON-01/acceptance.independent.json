@@ -912,9 +912,11 @@
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097225451",
       "reviewStatus": "Exactbe351 completed11:58:18UTC/newP2order independentlyreproduced",
       "twoThreadsResolved": "4237439145/4237439149 resolved within explicitP1boundedactualexternalwithdrawal+L0/P2L0scopes; no wholePR approval",
-      "sharedSourceWindow": "renewed exactfootprint request6096904900, no acknowledgment inferred"
+      "sharedSourceWindow": "renewed exactfootprint request6096904900, no acknowledgment inferred",
+      "orderAddendum": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097269237",
+      "originalMissingWriterResolution": "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4237531319; PRRT_kwDOUqJnR86rDpa8 resolved=true"
     },
-    "g2S1": "Local unpublished CC41 b89469f8docs/2c89a65eStudio on be351; author browser beforefail/after3of3, static/focused running; source not independently available.0048 preserved/shared runtime pending.",
+    "g2S1": "Local unpublished CC41 b89469f8docs/2c89a65eStudio: author beforefail/after3of3, focusedbrowser162/162, static0/1113units; parked for newordercorrection, no independent source pass.0048/sharedboundarypreserved.",
     "newExternalWithdrawalProbe": {
       "passed": 10,
       "failed": 0,
@@ -944,6 +946,7 @@
       "failed": 2,
       "exit": 1,
       "level": "L0 production helpers/synthetic complete eligible order"
-    }
+    },
+    "orderCorrectionCheckpoint": "Author acknowledged, checking gap-safe firstsequence evidence and running units/lint/typecheck, unpublished/unqualified."
   }
 }
