@@ -227,9 +227,11 @@ export function initialOf(name: string | null): string {
 /**
  * Whether a reply request is still under way: its answer, or its end, is still to come. Only the request itself says
  * so: a message of Sophia's settles only the request it names (`replyTo`), never one asked before it by time (A16).
+ * `pending` and `running` only: an uncertain one (`outcome_unknown`) has ended, and nothing is ever published for it
+ * (binding map §8.2.1, the state set 0049 binds; G1 never produces it).
  */
 export const replyOpen = (r: Pick<ConversationReply, 'state'>): boolean =>
-  r.state === 'pending' || r.state === 'running' || r.state === 'outcome_unknown'
+  r.state === 'pending' || r.state === 'running'
 
 /** The request a message asked, as the pages read hold it now; undefined while that message isn't among them. */
 export const replyOf = (
@@ -246,6 +248,11 @@ export function replyEndWords(r: Pick<ConversationReply, 'state' | 'reason'>): s
     return 'Sophia’s answers aren’t on for this project now, so she didn’t answer this.'
   }
   if (r.state === 'failed') return 'Sophia couldn’t answer this. Asking again tries once more.'
+  // The Ask's own end, not the Send's unconfirmed receipt (client.ts): the wait is over, whether her work on it ran and
+  // what it used aren't settled, and that use still counts; nothing goes again by itself (§8.2.1, §8.4).
+  if (r.state === 'outcome_unknown') {
+    return 'No answer came, and none will. What became of Sophia’s work on it isn’t known yet, and what it may have used still counts. Asking again asks anew.'
+  }
   if (r.state === 'cancelled') {
     if (r.reason === 'source_withdrawn') return 'Not answered: something it would have read was withdrawn.'
     if (r.reason === 'asker_removed') return 'Not answered: who asked is no longer a member here.'
