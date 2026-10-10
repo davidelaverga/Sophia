@@ -1,0 +1,122 @@
+{
+  "at": "2026-10-10T12:22:51.396Z",
+  "scope": "External supported A4send/moderatorwithdraw and canonicalviewerread; UI B3 handled separately",
+  "keys": {
+    "send": "f1db66bc-9b73-4c16-869c-9ce858edf0fd",
+    "withdraw": "7ff00945-5311-4d59-852f-3835ec8f655c"
+  },
+  "send": {
+    "sophia": "not_asked",
+    "replyId": null,
+    "messageId": "80d81dd6-ca8e-4768-ac58-287d647b1a0d",
+    "conversationId": "0f99f45d-6495-4bff-8190-04afc215c434"
+  },
+  "withdrawal": {
+    "messageId": "80d81dd6-ca8e-4768-ac58-287d647b1a0d",
+    "conversationId": "0f99f45d-6495-4bff-8190-04afc215c434"
+  },
+  "canonical": {
+    "projectId": "9220c8e8-2095-4e71-9ca3-502c86abd743",
+    "conversations": [
+      {
+        "id": "0f99f45d-6495-4bff-8190-04afc215c434",
+        "title": "SYNTHETIC receipt order regression",
+        "revision": 10,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T12:22:51.389Z",
+        "messageSeq": 4,
+        "contributors": [
+          {
+            "actorId": "ef2eb701-1252-4f6d-8814-d5e555fbe363",
+            "name": "Synthetic C"
+          },
+          {
+            "actorId": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+            "name": "Synthetic A"
+          },
+          {
+            "actorId": "b922be6b-6ffb-4120-9875-9ba6c31ed02d",
+            "name": "b922be6b@synthetic.example.test"
+          }
+        ],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": {
+          "author": "member",
+          "actorId": "b922be6b-6ffb-4120-9875-9ba6c31ed02d",
+          "name": "b922be6b@synthetic.example.test",
+          "text": "SYNTHETIC B local human-only third",
+          "at": "2026-10-10T12:22:29.196Z",
+          "seq": 3
+        }
+      }
+    ],
+    "more": false,
+    "policy": {
+      "id": "conversation-text-v1",
+      "notice": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "retention": "until_withdrawn_or_erased",
+      "audience": "project_members"
+    },
+    "capability": {
+      "state": "enabled",
+      "write": false,
+      "moderate": false,
+      "ask": "unavailable",
+      "askReason": "replies_not_enabled"
+    }
+  },
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "ef2eb701-1252-4f6d-8814-d5e555fbe363",
+      "author_name": "Synthetic C",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "actor_id": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+      "author_name": "Synthetic A",
+      "body": "SYNTHETIC A earlier eligible two",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "3",
+      "actor_id": "b922be6b-6ffb-4120-9875-9ba6c31ed02d",
+      "author_name": "b922be6b@synthetic.example.test",
+      "body": "SYNTHETIC B local human-only third",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "4",
+      "actor_id": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:22:51.392Z"
+    }
+  ]
+}

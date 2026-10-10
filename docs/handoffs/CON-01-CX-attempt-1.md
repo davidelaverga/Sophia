@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0040
+# Current checkpoint — CX-0041
+
+Exact `c5eaa9cfb4beb1ee3fa5538b780e4c07b184e9f5`, tree `d5d4d82f98213e774877c90991a51016d7868ca4`, corrects receipt-added writer ordering. Independently read four-file delta;54 external cases,111 focused tests and Studio typecheck pass. Actual local browser/API/PostgreSQL before0ba2FAIL C,B,A → afterc5ePASS C,A,B, matching canonical viewer read under list503. [Full commands, acceptance limits, evidence and cleanup](../coordination/CON-01/CX-0041.md).
+
+Both audits4human/1bodyNULL/5requests/bootstrapgoal1/allmodeloperational0. All31 successful owned stacks and earlier initdb failure clean; tabs52/53 closed. Fresh exact-source review is pending; S1 unpublished/held. Earlier aggregate e91 gate FAILED2unwaived failures. All36 verdicts retained, A24tool limitation/A30not_run; combined reviewed/authorized/deployed/app_verified/owner_accepted false.
+
+OP0001r2/OP0002r2 approval/expiryNULL. Pending mailbox answer, actual subjects, subscription route/credential/payer/finite cap/expiry, privacy/backup/provider limits, shared window/combined artifacts/governed rollback proof remain open. No hosted effect or spending. Historical serving tuple10:01–03UTC below is not refreshed. Davide decides final acceptance; other missions remain open. Next bounded action: fresh exactc5e review checkpoint, then independent immutable S1 review.
+
+# Historical checkpoint — CX-0040
 
 Fresh exact0ba2 review completed at12:16:50UTC with new P2r4237576952. Independent receipt-order probe fails two cases and passes two controls: receipt-added B3 precedes restored eligible A2, despite canonical C,A,B order. Returned to Claude; correction is unpublished and S1 remains held. Earlier order/withdrawal passes below remain scoped facts, not whole-PR approval. Next bounded action is immutable receipt-order correction review and affected independent rechecks, including actual browser proof.
 

@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-10T12:28:30.920Z",
+  "scope": "External supported local synthetic writer A, not UIwrite",
+  "key": "5ab3c2a7-6796-4721-9dd8-8fd9ed39a93d",
+  "result": {
+    "sophia": "not_asked",
+    "replyId": null,
+    "messageId": "69a44267-8134-4c67-859f-c641b0f9e361",
+    "conversationId": "0962f7c6-08a9-4071-860d-85b1b6149e75"
+  },
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "3a0ef715-7434-4362-ba83-1cb03bc23e89",
+      "author_name": "Synthetic C",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "actor_id": "d612eb70-2bf9-4e2d-a44f-db27a195205f",
+      "author_name": "Synthetic A",
+      "body": "SYNTHETIC A earlier eligible two",
+      "withdrawn_at": null
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';
+const h=await import(pathToFileURL(resolve(process.env.CON01_CANDIDATE_ROOT,'apps/studio/src/features/conversations/conversation-list.ts')));const at='2026-10-10T12:06:00Z';
+const m=(seq,a,withdrawn=false)=>({id:'m'+seq,seq,author:'member',actorId:a,name:withdrawn?null:'Synthetic '+a,text:withdrawn?null:'Synthetic '+seq,at,withdrawn:withdrawn?{at}:null,ask:null,replyTo:null});
+const cov={state:'not_assessed',complete:false,fromSeq:null,throughSeq:null,newer:0,generatedAt:null,replyId:null,eligibilityRevision:null,ledgerRevision:null};
+const row={id:'c',title:'Synthetic',revision:1,summary:null,summaryCoverage:cov,lastAt:at,messageSeq:1,contributors:[{actorId:'C',name:'Synthetic C'}],sophia:false,openQuestions:0,questionsCoverage:cov,output:null,lastMessage:null};
+const messages=[m(1,'C'),m(2,'A'),m(3,'B'),m(4,'B',true),m(5,'A',true),m(6,'A')];const page=ms=>({pages:[{messages:ms,before:null}],pageParams:[null]});
+const goneA2=m(2,'A',true),held=page(messages);let rows={conversations:[row]};for(const i of [4,5])rows=h.listWithdrawn(rows,'c',h.remainsAfter(held,messages[i-1],'C'));const initial=rows.conversations[0];
+const after=h.withWithdrawn(held,goneA2);const remains=h.remainsAfter(after,goneA2,'C');const changed=h.listWithdrawn(rows,'c',remains).conversations[0];const passed=[],failed=[];const check=(n,f)=>{try{f();passed.push(n)}catch(e){failed.push({name:n,error:e.message})}};
+check('Initial view-added order C,A,B is correct',()=>assert.deepEqual(initial.contributors.map(x=>x.actorId),['C','A','B']));
+check('With all prior places held, next eligible first for A is6',()=>assert.equal(remains.firsts.get('A'),6));
+check('Withdrawing A2 moves surviving A6 after B3 in direct reconciliation',()=>assert.deepEqual(changed.contributors.map(x=>x.actorId),['C','B','A']));
+check('Repeated reconciliation retains correct current first-message order',()=>assert.deepEqual(h.listWithdrawn({conversations:[changed]},'c',remains).conversations.map(x=>x.contributors.map(y=>y.actorId)),[['C','B','A']]));
+check('Gap before earliest shown message does not invent first sequence',()=>assert.equal(h.remainsAfter(page(messages.filter(x=>x.seq!==1)),messages[4],'C').firsts.has('A'),false));
+check('Surviving writers/count/name and withdrawn body stay governed',()=>{assert.equal(changed.contributors.length,3);assert.equal(changed.contributors.find(x=>x.actorId==='A').name,'Synthetic A');assert.equal(after.pages[0].messages.find(x=>x.seq===2).text,null)});
+console.log(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,scope:'L0 production helpers, synthetic complete cached eligible sequence; no mounted subsequent-withdrawal claim',passed:passed.length,failed:failed.length,passedCases:passed,failedCases:failed},null,2));process.exitCode=failed.length?1:0;

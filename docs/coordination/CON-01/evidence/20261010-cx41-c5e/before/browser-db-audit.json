@@ -1,0 +1,116 @@
+{
+  "candidate": "0ba2f3b43bf0b71258f760c47174afe53fa38067",
+  "tree": "25b68032c4a93a1223d8ab3668bdae663b63130c",
+  "observedAt": "2026-10-10T12:23:29.722Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "9220c8e8-2095-4e71-9ca3-502c86abd743",
+  "messages": [
+    {
+      "title": "SYNTHETIC receipt order regression",
+      "id": "0e98a9bb-d0d9-4d3d-bc4d-53c068450a4c",
+      "conversation_id": "0f99f45d-6495-4bff-8190-04afc215c434",
+      "actor_id": "ef2eb701-1252-4f6d-8814-d5e555fbe363",
+      "seq": "1",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC receipt order regression",
+      "id": "598bef20-bfa7-4a3b-b9e2-68dece19868a",
+      "conversation_id": "0f99f45d-6495-4bff-8190-04afc215c434",
+      "actor_id": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+      "seq": "2",
+      "body": "SYNTHETIC A earlier eligible two",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC receipt order regression",
+      "id": "727a72ae-f265-425d-b2a8-cfa6775332da",
+      "conversation_id": "0f99f45d-6495-4bff-8190-04afc215c434",
+      "actor_id": "b922be6b-6ffb-4120-9875-9ba6c31ed02d",
+      "seq": "3",
+      "body": "SYNTHETIC B local human-only third",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC receipt order regression",
+      "id": "80d81dd6-ca8e-4768-ac58-287d647b1a0d",
+      "conversation_id": "0f99f45d-6495-4bff-8190-04afc215c434",
+      "actor_id": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+      "seq": "4",
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:22:51.392Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "ef2eb701-1252-4f6d-8814-d5e555fbe363",
+      "idempotency_key": "b0a4754a-1a72-4e22-a623-6814e44279f4",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "68994266b49e0ab9ed4f15e68c0914eb209c5861bef874f59fa13b38ddc0ce89",
+        "titleSha256": "ca2f7bccb7cd1d14995d9b665f370edaf0400788435271acbb16cd59b9a3f386"
+      },
+      "message_id": "0e98a9bb-d0d9-4d3d-bc4d-53c068450a4c"
+    },
+    {
+      "actor_id": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+      "idempotency_key": "84d4515a-1ced-471f-bb66-7870f3dd69bb",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "0ed3453a14705eece0eebccf5728b6bdeda5d0dff5f907f6afd3de82f8fe4170",
+        "conversationId": "0f99f45d-6495-4bff-8190-04afc215c434"
+      },
+      "message_id": "598bef20-bfa7-4a3b-b9e2-68dece19868a"
+    },
+    {
+      "actor_id": "b922be6b-6ffb-4120-9875-9ba6c31ed02d",
+      "idempotency_key": "ecb92c55-9270-4e92-8f8f-ea842c5d2d01",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "40f356d3c7ff790e22d837996c64df18517421870f15ee5b14123aade1f39d96",
+        "conversationId": "0f99f45d-6495-4bff-8190-04afc215c434"
+      },
+      "message_id": "727a72ae-f265-425d-b2a8-cfa6775332da"
+    },
+    {
+      "actor_id": "39fc1e7f-46a5-416d-ada3-595db2af7412",
+      "idempotency_key": "f1db66bc-9b73-4c16-869c-9ce858edf0fd",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "80d81dd6-ca8e-4768-ac58-287d647b1a0d"
+    },
+    {
+      "actor_id": "ef2eb701-1252-4f6d-8814-d5e555fbe363",
+      "idempotency_key": "7ff00945-5311-4d59-852f-3835ec8f655c",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "80d81dd6-ca8e-4768-ac58-287d647b1a0d",
+        "operation": "withdraw",
+        "conversationId": "0f99f45d-6495-4bff-8190-04afc215c434"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}
