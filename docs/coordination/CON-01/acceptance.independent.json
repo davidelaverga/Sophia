@@ -896,10 +896,11 @@
     },
     "next": "Fresh exact70771 automatic review/terminal gates, then revised Studio-onlyS1 and shared-owner coordination.",
     "publication": {
-      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6096748870",
-      "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096749011",
-      "fourThreadsResolved": "within explicit L0/L1/hardening scopes; no mounted proposal race or wholePR acceptance",
-      "freshAutomaticReviewResult": "5478696692 completed with2findings10:56:37UTC"
+      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6096904900",
+      "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096905038",
+      "reviewStatus": "confirmed running exact70771 since11:14:37UTC, no result yet",
+      "twoThreadsResolved": "4237385090/4237385093 within explicitL0 helper/cache scope; no native/browser/account rename claim",
+      "sharedSourceWindow": "renewed exactfootprint request6096904900, no acknowledgment inferred"
     },
     "g2S1": "0048 edit proposal withdrawn perWORKING_PROTOCOL\u00a72; separateStudio-only preparation, SQLadditive aftercoordination; no new window/effect authority."
   }
