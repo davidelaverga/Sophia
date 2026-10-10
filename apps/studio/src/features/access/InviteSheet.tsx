@@ -3,11 +3,10 @@
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
 import { useEffect, useRef, useState } from 'react'
 import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
-import { ConfirmButton, Icon, SwapLabel, Tip } from '@sophia/ui'
+import { ConfirmButton, Icon, SwapLabel, Tabs, Tip } from '@sophia/ui'
 import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
-import { nextInRow } from '../../app/roving.ts'
 import { SheetCall } from '../../app/call-in-reach.tsx'
 import { useDialog } from '../../app/useDialog.ts'
 import { admissionLabel, doorNote, invitationState, linkLimits } from './access-view.ts'
@@ -23,7 +22,6 @@ const TABS: ReadonlyArray<[Tab, string]> = [
   ['members', 'Members'],
   ['calendar', 'Calendar'],
 ]
-const TAB_ROW = TABS.map(([t]) => t)
 
 const isOpen = (i: Invitation, now: number) => !i.revokedAt && Date.parse(i.expiresAt) > now && i.uses < i.maxUses
 
@@ -81,34 +79,15 @@ function TabPanel({ tab, shown, children }: { tab: Tab; shown: Tab; children: Re
 }
 
 function SheetTabs({ tab, onTab }: { tab: Tab; onTab: (t: Tab) => void }) {
-  const buttons = useRef(new Map<Tab, HTMLButtonElement>())
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    const next = nextInRow(TAB_ROW, tab, e.key)
-    if (!next) return
-    e.preventDefault()
-    onTab(next)
-    buttons.current.get(next)?.focus()
-  }
   return (
-    <div className="sheet-tabs" role="tablist" aria-label="Invite" onKeyDown={onKeyDown}>
-      {TABS.map(([t, label]) => (
-        <button
-          key={t}
-          ref={(el) => {
-            if (el) buttons.current.set(t, el)
-          }}
-          type="button"
-          role="tab"
-          id={`invite-tab-${t}`}
-          aria-selected={t === tab}
-          aria-controls={`invite-panel-${t}`}
-          tabIndex={t === tab ? 0 : -1}
-          onClick={() => onTab(t)}
-        >
-          {label}
-        </button>
-      ))}
-    </div>
+    <Tabs
+      label="Invite"
+      className="sheet-tabs"
+      items={TABS.map(([t, label]) => ({ id: t, label, controls: `invite-panel-${t}` }))}
+      value={tab}
+      onChange={onTab}
+      idFor={(t) => `invite-tab-${t}`}
+    />
   )
 }
 
