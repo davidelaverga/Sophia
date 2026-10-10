@@ -1,0 +1,101 @@
+{
+  "at": "2026-10-10T12:03:57.594Z",
+  "scope": "External supported persistence under authorized synthetic actors, no UI or API auth write claim",
+  "actions": [
+    {
+      "at": "2026-10-10T12:03:57.585Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "2b17a48b-9f84-4aee-b2ae-73296ff796da",
+        "conversationId": "e45c75e0-5bc7-46a1-b578-dc5d753182e4"
+      }
+    },
+    {
+      "at": "2026-10-10T12:03:57.587Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "f496e91f-c459-446f-80d3-94c98aed73cc",
+        "conversationId": "e45c75e0-5bc7-46a1-b578-dc5d753182e4"
+      }
+    },
+    {
+      "at": "2026-10-10T12:03:57.588Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "2c0359fe-2b08-45a0-9e93-955645361fe3",
+        "conversationId": "e45c75e0-5bc7-46a1-b578-dc5d753182e4"
+      }
+    },
+    {
+      "at": "2026-10-10T12:03:57.590Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "145e641f-0b10-487a-803e-c704a9491574",
+        "conversationId": "e45c75e0-5bc7-46a1-b578-dc5d753182e4"
+      }
+    },
+    {
+      "at": "2026-10-10T12:03:57.593Z",
+      "kind": "withdraw",
+      "seq": 4,
+      "result": {
+        "messageId": "2c0359fe-2b08-45a0-9e93-955645361fe3",
+        "conversationId": "e45c75e0-5bc7-46a1-b578-dc5d753182e4"
+      }
+    },
+    {
+      "at": "2026-10-10T12:03:57.594Z",
+      "kind": "withdraw",
+      "seq": 5,
+      "result": {
+        "messageId": "145e641f-0b10-487a-803e-c704a9491574",
+        "conversationId": "e45c75e0-5bc7-46a1-b578-dc5d753182e4"
+      }
+    }
+  ],
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "fd9c6f33-d646-46f4-bc9b-8ae507a159a1",
+      "author_name": "Synthetic C",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "actor_id": "ad69b565-45d3-4d76-bee5-af9f5d1c0559",
+      "author_name": "Synthetic A",
+      "body": "SYNTHETIC A surviving",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "3",
+      "actor_id": "1b5d3e5c-9474-4e22-8079-26e9aed988f5",
+      "author_name": "Synthetic B",
+      "body": "SYNTHETIC B surviving",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "4",
+      "actor_id": "1b5d3e5c-9474-4e22-8079-26e9aed988f5",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:03:57.591Z"
+    },
+    {
+      "seq": "5",
+      "actor_id": "ad69b565-45d3-4d76-bee5-af9f5d1c0559",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:03:57.593Z"
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "candidate": "5074eb15eb77ce1d4837e09def273226dad4a781",
+  "tree": "7c1543c6b4b8fba9ef6f77db164c49df8f65d428",
+  "observedAt": "2026-10-10T12:07:54.393Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "cf3f3f8c-9a11-4c44-a2f9-1045a9171777",
+  "messages": [
+    {
+      "title": "SYNTHETIC contributor order regression",
+      "id": "679fa0fc-2ae4-4cd4-a5b1-45dc6e09b123",
+      "conversation_id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "seq": "1",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC contributor order regression",
+      "id": "c20585b3-c9a7-40fa-82cd-a3ec9dab6b84",
+      "conversation_id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:07:35.190Z"
+    },
+    {
+      "title": "SYNTHETIC contributor order regression",
+      "id": "49db32ba-173a-4801-bb6a-2be472b545bd",
+      "conversation_id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "seq": "3",
+      "body": "SYNTHETIC B surviving",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC contributor order regression",
+      "id": "d56922c3-e8b5-42e2-9f1b-3fa11611695b",
+      "conversation_id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "seq": "4",
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:06:25.136Z"
+    },
+    {
+      "title": "SYNTHETIC contributor order regression",
+      "id": "114a2e44-8464-4fe0-845d-b52c85d8b1f7",
+      "conversation_id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "seq": "5",
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:06:25.138Z"
+    },
+    {
+      "title": "SYNTHETIC contributor order regression",
+      "id": "92620679-7063-4269-ad33-5ef8ece085d7",
+      "conversation_id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "seq": "6",
+      "body": "SYNTHETIC A newer surviving six",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "idempotency_key": "d29487ec-7233-4625-aac6-d85f4101621f",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "68994266b49e0ab9ed4f15e68c0914eb209c5861bef874f59fa13b38ddc0ce89",
+        "titleSha256": "0f3cb0512243abca2e9be0702696433738fb4ab5240c276a8e6f51d023d53aba"
+      },
+      "message_id": "679fa0fc-2ae4-4cd4-a5b1-45dc6e09b123"
+    },
+    {
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "idempotency_key": "8ffb3513-c1dc-45f0-a30d-2e4dbe0ed9b8",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "c20585b3-c9a7-40fa-82cd-a3ec9dab6b84"
+    },
+    {
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "idempotency_key": "f1b17363-5a6a-41b1-82c7-4244414b5c1f",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "20d0b3dddb0a640a79cfa57e35aee014a5e528d94e4c9701678b63df4eaa6c58",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      },
+      "message_id": "49db32ba-173a-4801-bb6a-2be472b545bd"
+    },
+    {
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "idempotency_key": "5bf10b17-f58f-473b-989a-f13fdbd9904e",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "d56922c3-e8b5-42e2-9f1b-3fa11611695b"
+    },
+    {
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "idempotency_key": "df1eccdb-7135-485b-9ed0-967b3fc8a953",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "114a2e44-8464-4fe0-845d-b52c85d8b1f7"
+    },
+    {
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "idempotency_key": "27f6a852-59ba-4ccb-b4f3-1b5924490539",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "d56922c3-e8b5-42e2-9f1b-3fa11611695b",
+        "operation": "withdraw",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "idempotency_key": "9dd1d319-3432-4856-89a5-83b82eb5950d",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "114a2e44-8464-4fe0-845d-b52c85d8b1f7",
+        "operation": "withdraw",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "idempotency_key": "c666d48b-a281-420c-a551-0ecdc5559c26",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "0e95cf525e737a5dc857178c12fcd48c39bea9aa0b3710c676ce76e50d787ad2",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      },
+      "message_id": "92620679-7063-4269-ad33-5ef8ece085d7"
+    },
+    {
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "idempotency_key": "107ef3b5-7178-4106-b8bc-488dbac1e8c0",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "c20585b3-c9a7-40fa-82cd-a3ec9dab6b84",
+        "operation": "withdraw",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

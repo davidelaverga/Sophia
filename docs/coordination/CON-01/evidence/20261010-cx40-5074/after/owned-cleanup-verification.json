@@ -1,0 +1,14 @@
+{
+  "portsClosed": {
+    "60155": true,
+    "60156": true,
+    "60157": true
+  },
+  "ownedProcessesAbsent": {
+    "48571": true,
+    "48580": true,
+    "48581": true
+  },
+  "audit": "Final actual audit succeeded6human/3withdrawnbodyNULL/9semanticrequests/bootstrapgoal1/allmodeloperational0. Transition writes committed before mistaken readConversations name; read-only reconciliation confirmed6rows+canonical C,B,A, no write retried.",
+  "tabClosed": "50"
+}

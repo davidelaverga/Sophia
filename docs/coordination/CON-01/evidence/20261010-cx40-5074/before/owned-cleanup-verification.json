@@ -1,0 +1,14 @@
+{
+  "portsClosed": {
+    "59965": true,
+    "59966": true,
+    "59967": true
+  },
+  "ownedProcessesAbsent": {
+    "48349": true,
+    "48358": true,
+    "48359": true
+  },
+  "tabClosed": "49",
+  "audit": "Attempt failed MODULE_NOT_FOUND before DB connection due to wrong cwd; no final DB audit claimed. External supported-write result captured5human/2withdrawn bodyNULL before cleanup."
+}

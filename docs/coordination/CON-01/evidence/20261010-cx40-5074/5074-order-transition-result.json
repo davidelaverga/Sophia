@@ -1,0 +1,22 @@
+{
+  "candidate": "5074eb15eb77ce1d4837e09def273226dad4a781",
+  "scope": "L0 production helpers, synthetic complete cached eligible sequence; no mounted subsequent-withdrawal claim",
+  "passed": 4,
+  "failed": 2,
+  "passedCases": [
+    "Initial view-added order C,A,B is correct",
+    "With all prior places held, next eligible first for A is6",
+    "Gap before earliest shown message does not invent first sequence",
+    "Surviving writers/count/name and withdrawn body stay governed"
+  ],
+  "failedCases": [
+    {
+      "name": "Withdrawing A2 moves surviving A6 after B3 in direct reconciliation",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'A',\n    'B',\n-   'A'\n  ]\n"
+    },
+    {
+      "name": "View-local firstSeq must update to surviving6, not retain withdrawn2",
+      "error": "Expected values to be strictly equal:\n\n2 !== 6\n"
+    }
+  ]
+}

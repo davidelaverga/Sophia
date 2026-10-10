@@ -1,0 +1,101 @@
+{
+  "at": "2026-10-10T12:06:25.140Z",
+  "scope": "External supported persistence under authorized synthetic actors, no UI or API auth write claim",
+  "actions": [
+    {
+      "at": "2026-10-10T12:06:25.130Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "c20585b3-c9a7-40fa-82cd-a3ec9dab6b84",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      }
+    },
+    {
+      "at": "2026-10-10T12:06:25.132Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "49db32ba-173a-4801-bb6a-2be472b545bd",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      }
+    },
+    {
+      "at": "2026-10-10T12:06:25.133Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "d56922c3-e8b5-42e2-9f1b-3fa11611695b",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      }
+    },
+    {
+      "at": "2026-10-10T12:06:25.134Z",
+      "kind": "send",
+      "result": {
+        "sophia": "not_asked",
+        "replyId": null,
+        "messageId": "114a2e44-8464-4fe0-845d-b52c85d8b1f7",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      }
+    },
+    {
+      "at": "2026-10-10T12:06:25.137Z",
+      "kind": "withdraw",
+      "seq": 4,
+      "result": {
+        "messageId": "d56922c3-e8b5-42e2-9f1b-3fa11611695b",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      }
+    },
+    {
+      "at": "2026-10-10T12:06:25.139Z",
+      "kind": "withdraw",
+      "seq": 5,
+      "result": {
+        "messageId": "114a2e44-8464-4fe0-845d-b52c85d8b1f7",
+        "conversationId": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca"
+      }
+    }
+  ],
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "author_name": "Synthetic C",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "author_name": "Synthetic A",
+      "body": "SYNTHETIC A surviving",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "3",
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "author_name": "Synthetic B",
+      "body": "SYNTHETIC B surviving",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "4",
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:06:25.136Z"
+    },
+    {
+      "seq": "5",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:06:25.138Z"
+    }
+  ]
+}

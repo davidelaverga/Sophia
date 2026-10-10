@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0039
+# Current checkpoint — CX-0040
+
+Exact5074/tree7c1543c6 complete4filedelta read;114focused/typecheck0/44originalregressioncases pass. Actualbe351 originalorderFAIL→5074PASS; subsequent first-messagewithdrawal FAILSL0+actual5074app vs canonicalviewerread C,B,A Six. Returnedearly; r4237533992 remainsopen/new correctionpending. [Durable record, screenshots, commands, audits and cleanup](../coordination/CON-01/CX-0040.md). All28successfulownedstacks plusinitdbfailureclean/tabs49and50closed; finalafteraudit6human/3bodyNULL/9requests/bootstrapgoal1/allmodeloperational0. Beforeauditwrongcwd failed; aftercanonicalreadnameerror reconciledreadonly/no write retry, limitsretained. S1CC42local unpublished/parked; e91fullgatefailed/unwaived; OPdrafts unapproved/mailbox-route-caps-policy-expiry-sharedwindow open/A24toolblocked/A30not_run/aggregateacceptancefalse. Next immutabletransitioncorrection/affectedactualbrowserthenS1; Davidefinaldecision.
+
+# Historical checkpoint — CX-0039
 
 Freshbe351review completed11:58:18UTC/newP2r4237533992 independentlyreproduced2fail/2controls: two restored writers ordered by withdrawal instead of firsteligible sequence. Returned directly; correctionpending, S1publicationheld. Original scopedresolution retained. IndependentplannedS1beforeprobe4expectedfails/3controls ready. Next immutableorder correction/capidentityrechecks then S1.
 

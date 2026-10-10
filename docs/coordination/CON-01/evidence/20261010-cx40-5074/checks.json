@@ -1,0 +1,101 @@
+{
+  "candidate": "5074eb15eb77ce1d4837e09def273226dad4a781",
+  "tree": "7c1543c6b4b8fba9ef6f77db164c49df8f65d428",
+  "diff": "Complete four-file be351\u21925074 delta read, no reviewer feature edit",
+  "focused": {
+    "passed": 114,
+    "suites": 37,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "studioTypecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "session": 57202,
+    "exit": 0
+  },
+  "originalOrderProbe": {
+    "passed": 4,
+    "failed": 0,
+    "exit": 0
+  },
+  "priorProbes": {
+    "missingWriter": 7,
+    "readerCache": 6,
+    "withdrawal": 10,
+    "coverage": 8,
+    "receipt": 9,
+    "failed": 0,
+    "allExit": 0
+  },
+  "residualOrderTransition": {
+    "passed": 4,
+    "failed": 2,
+    "exit": 1,
+    "level": "L0 actual helpers; existing view-added writer keeps withdrawn firstSeq2 after authoritative known survivingfirst6"
+  },
+  "actualBrowser": {
+    "before": "be351e25/treecdb378 originalFAIL C,B,A",
+    "after": "5074eb15eb77ce1d4837e09def273226dad4a781 originalPASS C,A,B, subsequent firstwithdrawalFAIL C,A Six,B while canonical viewer persistence C,B,A Six",
+    "level": "L1 actual local browser/API/PG17.6; external supported synthetic writes; no fixtures/native/provider/hosted/APIauthwrite claim",
+    "finalAudit": "6human/3withdrawnbodyNULL/9semanticrequests/bootstrapgoal1/allmodeloperational0",
+    "auditLimits": "Before final audit invocation wrong cwd failed before connecting; external write result captured5human/2bodyNULL only. After initial canonical function name incorrect after writes; reconciled through readConversationList+DB audit, no write retried."
+  },
+  "commands": [
+    "CON01_CANDIDATE_ROOT=<owned candidate> CON01_CANDIDATE_SHA=5074eb15eb77ce1d4837e09def273226dad4a781 node <journal>/cx39/writer-order-check.mjs",
+    "CON01_CANDIDATE_ROOT=<owned candidate> CON01_CANDIDATE_SHA=5074eb15eb77ce1d4837e09def273226dad4a781 node <journal>/cx40/order-transition-check.mjs",
+    "node --test apps/studio/src/features/conversations/{conversation-list,withdrawn-purge,talk-store,revalidation,list-data}.test.ts",
+    "CON01_CANDIDATE_ROOT=<owned exactstage> CON01_JOURNAL=<owned stagejournal> CON01_PG_BIN=<existing CON01-owned PG17.6> python3 <stage>/g3-browser-stack.py",
+    "node <stage>/external-populate-withdraw.mjs, after only external-first-withdraw.mjs (read function error after writes), then reconcile-first-withdraw.mjs (read only), g3-browser-db-audit.mjs from candidatecwd",
+    "CUA synthetic viewer\u2192project\u2192Conversations; screenshot/DOM; browser-stop marker\u2192await terminal65416/44773\u2192process/port checks\u2192close49/50"
+  ],
+  "cleanup": "All28successful owned stacks plus prior initdb-only failure cleaned; both terminal0/PGstopped/clusterremoved/DBdropped/processesabsent/portsclosed/tabs49and50closed/nooverride",
+  "effects": "Local disposable synthetic human data only; no hosted/account/email/project/invite/schema/config/deploy/cohort/native/provider/model/spend/uncertain paid effect",
+  "hashes": {
+    "5074-coverage-transition-check-result.json": "d8935bc96e7bc73278b9d98a9d3d3d84906b748df5a4f98378e7615eebedcb92",
+    "5074-focused.log": "1e4f013b5daddcba4d7cde895a732874c48c2fa49d67d26cd81e6d29b3e233c8",
+    "5074-missing-writer-check-result.json": "de918a95c3b47b3f7d80f1184fedeff7716f04082db89c0565ceb7dd3ce7a766",
+    "5074-order-transition-result.json": "c1f26ba8b644e048fe1b067c543028a0f95d716387eb6582b615b8ffbf9abf20",
+    "5074-reader-cache-check-result.json": "b9070c412a1a5f847ddb5aa4ffb044d059aa72ccd67f35549516d7ae952d6fe7",
+    "5074-receipt-regression-check-result.json": "08c9561f6dddcbfc1d6d70c49dc8d1361199f836c9e7805bcba14adac2553922",
+    "5074-withdrawal-check-result.json": "367ec38d6f89b840667370e6da10fdc55f555c338e215516e3b284e6b4ffc89b",
+    "5074-writer-order-result.json": "e1b66a998c630a2005946e1c76a450551dd37b72ea258a07c74fcdee20336491",
+    "after/browser-db-audit.json": "670fbe6376191b34b39c32a27f823221b7f6dddb54ba08b98ef7c567c14720d8",
+    "after/browser-stack-cleanup.json": "62586ff594779a8c001b27f93e7d7ae4edf6f5fdab86b27fda7d849b391541e9",
+    "after/browser-stack-receipt.json": "53ac0325d3eb56424e9878b2f1b23b0e4f47b78e43a7cd9bc3ab452603674522",
+    "after/buffered-response-receipts.json": "5d74e20613bc815e7b3208777b6a0263838bf6fbf2b914f6d843efe1b6bd029a",
+    "after/conversation-read-receipts.json": "aab2c06b62f1e4d361f7e9524bb04f3da4301443892a387e62b0c773177e8ffe",
+    "after/external-first-withdraw-result.json": "b64be67bb8bc7b6791928ee32e4718481e157845bec556e524f0d6088d80b924",
+    "after/external-first-withdraw.mjs": "e9078e8519f38227a8dcd71e8fc8a6d9ca327d42abee237954d0ebd806f7f9b6",
+    "after/external-populate-withdraw-result.json": "ce9ab78bc718189353f41245143bf8745a90687268181be9141f492f6e66feba",
+    "after/external-populate-withdraw.mjs": "4b9b921f87ed9bf4e4927d12e06353ccefa1e6e6691f68305fc0c1237a478f32",
+    "after/first-withdraw-fail-dom.txt": "df3f9ecbe4b9e4407c1f68ca1245878584a458360fbb929fe12c5014c42797c1",
+    "after/first-withdraw-fail.jpg": "198541cd6a4202c9451cd871e2fe4bcebe23ecc405d1478fca762f11b2b67a64",
+    "after/g3-browser-stack.mjs": "283354b17ebc4f188757691593eb80c6d3f3fd7cd07a9d3c78ba54fc9a74ae8c",
+    "after/g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
+    "after/order-pass-dom.txt": "657a1b02ed1f96d96720db962d30f9aecf9720f9999ea95d76b23354dd5ddc3b",
+    "after/order-pass.jpg": "2eaf29816197cc41f1c8c24086c681529ad4e7ac914eacdf098d7d9aa033e317",
+    "after/owned-cleanup-verification.json": "d0444d3efbcba9de6f1fe775d4ab38bebdd50af4d7239bd903cb1ae60e631753",
+    "after/reconcile-first-withdraw.mjs": "8e5f9880edc324ff01ecc2da461773b16d39e406206893ddfbe665b9c4ba25b1",
+    "after/relay-finish-receipts.json": "6d5ffb6b1be3520703d1fafd98c3d3872c0d4c89a0621b30d8bd1f94853bc59b",
+    "before/browser-stack-cleanup.json": "3486baba22db315cdec940751d93bd35ec47d5a12b18cb1354f3838c8719797d",
+    "before/browser-stack-receipt.json": "f8154a0d6776675869f402e266b269ebda3e27aaa633dca8efc37e1650e53ac4",
+    "before/buffered-response-receipts.json": "e789969c73c9b4a58e6850face3860873f397520e07b27330ed7d0283dd866a2",
+    "before/conversation-read-receipts.json": "f6860708e5a8213cc97e81c0c65ec94c7d90c39045cdc65f4a0773b4df060d33",
+    "before/external-populate-withdraw-result.json": "ba876aed3a376155e260c2999c3e2fab93b2906f5403c0b04061c0561ee4d227",
+    "before/external-populate-withdraw.mjs": "4b9b921f87ed9bf4e4927d12e06353ccefa1e6e6691f68305fc0c1237a478f32",
+    "before/g3-browser-stack.mjs": "283354b17ebc4f188757691593eb80c6d3f3fd7cd07a9d3c78ba54fc9a74ae8c",
+    "before/g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
+    "before/order-fail-dom.txt": "711c271a7424811274a210866ed13afdaa714d565045426a02a5219ac5ef246c",
+    "before/order-fail.jpg": "5527448272fbdc703a922501c299745817dc90f2de369450db7955a7bc833858",
+    "before/owned-cleanup-verification.json": "0fe4c11ae8c1d1cd454225f51a0f675413697f8136e686a10c47a498a219caa7",
+    "before/relay-finish-receipts.json": "a4f4161207d3665590edbbc0a3ad99628b6f9f68fe2d922820ed507c5aab8fbc",
+    "coverage-transition-check.mjs": "841750b38b945856221950c458440f8d06723f12905994a920492042d3fb1cee",
+    "missing-writer-check.mjs": "dc85ae3548ad5ac65f764f8b77537247bad20984be475179cac4eabef9d1e517",
+    "order-transition-check.mjs": "fc17844ccddce1d73222c0839d2dbedd352166cc530e93135d9eeb3e8ebc7962",
+    "reader-cache-check.mjs": "8ce09b3ab740546333255db519558cb5e7f5cd0709b4a8f42f510f871238eb9b",
+    "receipt-regression-check.mjs": "9c3672f4b71646d7988d4fc33527ef538783b0bfd00fb0ac3f162c955bf96860",
+    "withdrawal-check.mjs": "b2471f518b835cad0731f5fa460e2ddb375668001806f5cef4221d12a9b558b1",
+    "writer-order-check.mjs": "2871209e4075cfee17d2d4e8c48747101a037d386117eb984955d1307feaec1a"
+  }
+}

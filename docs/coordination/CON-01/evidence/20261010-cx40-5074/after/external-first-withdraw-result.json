@@ -1,0 +1,122 @@
+{
+  "at": "2026-10-10T12:07:54.292Z",
+  "scope": "Read-only reconciliation after previous canonical reader name error; no write retried",
+  "canonical": {
+    "projectId": "cf3f3f8c-9a11-4c44-a2f9-1045a9171777",
+    "conversations": [
+      {
+        "id": "f7ebeba9-9b09-47ce-be41-9e691af3d1ca",
+        "title": "SYNTHETIC contributor order regression",
+        "revision": 16,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T12:07:35.188Z",
+        "messageSeq": 6,
+        "contributors": [
+          {
+            "actorId": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+            "name": "Synthetic C"
+          },
+          {
+            "actorId": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+            "name": "Synthetic B"
+          },
+          {
+            "actorId": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+            "name": "Synthetic A Six"
+          }
+        ],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": {
+          "author": "member",
+          "actorId": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+          "name": "Synthetic A Six",
+          "text": "SYNTHETIC A newer surviving six",
+          "at": "2026-10-10T12:07:35.188Z",
+          "seq": 6
+        }
+      }
+    ],
+    "more": false,
+    "policy": {
+      "id": "conversation-text-v1",
+      "notice": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "retention": "until_withdrawn_or_erased",
+      "audience": "project_members"
+    },
+    "capability": {
+      "state": "enabled",
+      "write": false,
+      "moderate": false,
+      "ask": "unavailable",
+      "askReason": "replies_not_enabled"
+    }
+  },
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "9a6d44dd-967b-4aa1-9efc-81abab6353f1",
+      "author_name": "Synthetic C",
+      "body": "SYNTHETIC C first message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:07:35.190Z"
+    },
+    {
+      "seq": "3",
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "author_name": "Synthetic B",
+      "body": "SYNTHETIC B surviving",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "4",
+      "actor_id": "da07def3-583c-49a1-b2a3-acaf748d10f3",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:06:25.136Z"
+    },
+    {
+      "seq": "5",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:06:25.138Z"
+    },
+    {
+      "seq": "6",
+      "actor_id": "73ece06e-5880-43dc-9811-f7e0aa09d277",
+      "author_name": "Synthetic A Six",
+      "body": "SYNTHETIC A newer surviving six",
+      "withdrawn_at": null
+    }
+  ]
+}

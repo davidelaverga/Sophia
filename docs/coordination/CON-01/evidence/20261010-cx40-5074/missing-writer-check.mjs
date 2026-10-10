@@ -1,0 +1,27 @@
+import assert from 'node:assert/strict';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const h=await import(pathToFileURL(resolve(process.env.CON01_CANDIDATE_ROOT,'apps/studio/src/features/conversations/conversation-list.ts')));
+const at='2026-10-10T11:00:00Z';
+const noCoverage={state:'not_assessed',complete:false,fromSeq:null,throughSeq:null,newer:0,generatedAt:null,replyId:null,eligibilityRevision:null,ledgerRevision:null};
+const row={id:'c',title:'Synthetic',revision:1,summary:null,summaryCoverage:noCoverage,lastAt:at,messageSeq:1,contributors:[{actorId:'B',name:'Synthetic B'}],sophia:false,openQuestions:0,questionsCoverage:noCoverage,output:null,lastMessage:null};
+const msg=(seq,actorId,name)=>({id:'m'+seq,seq,author:'member',actorId,name,text:'Synthetic '+seq,at,withdrawn:null,ask:null,replyTo:null});
+const gone={...msg(3,'A','Synthetic Withdrawn'),text:null,name:null,withdrawn:{at:'2026-10-10T11:01:00Z'}};
+const thread={pages:[{messages:[msg(1,'B','Synthetic B'),msg(2,'A','Synthetic Surviving'),gone],before:null}],pageParams:[null]};
+const remains=h.remainsAfter(thread,gone);
+const direct=h.listWithdrawn({conversations:[row]},'c',remains).conversations[0];
+const late=h.rowsKnown([row],()=>thread,()=>true)[0];
+const passed=[],failed=[];
+const check=(name,fn)=>{try{fn();passed.push(name)}catch(e){failed.push({name,error:e.message})}};
+check('Direct withdrawal adds known surviving writer absent from stale row',()=>assert.equal(direct.contributors.find(p=>p.actorId==='A')?.name,'Synthetic Surviving'));
+check('Late row reconciliation adds known surviving writer absent from stale row',()=>assert.equal(late.contributors.find(p=>p.actorId==='A')?.name,'Synthetic Surviving'));
+check('Mine includes current reader A whose surviving message is in the cached thread',()=>assert.equal(h.narrowed([late],{typed:'',open:false,mine:true},'A').length,1));
+check('Unrelated existing writer B preserved',()=>assert.equal(late.contributors.find(p=>p.actorId==='B')?.name,'Synthetic B'));
+check('No withdrawn name restored',()=>assert.ok(late.contributors.every(p=>p.name!=='Synthetic Withdrawn')));
+check('Repeated reconciliation does not duplicate contributors',()=>{const again=h.rowsKnown([late],()=>thread,()=>true)[0];assert.equal(new Set(again.contributors.map(p=>p.actorId)).size,again.contributors.length)});
+check('Full contributor list stays bounded200 and retains existing reader B',()=>{
+ const contributors=Array.from({length:200},(_,i)=>({actorId:i===199?'B':'X'+i,name:'Synthetic '+i}));
+ const full=h.rowsKnown([{...row,contributors}],()=>thread,()=>true)[0];
+ assert.ok(full.contributors.length<=200);assert.ok(full.contributors.some(p=>p.actorId==='B'));
+});
+console.log(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,level:'L0 actual helpers, synthetic late pre-first-contribution row and eligible cached thread; no mounted race claim',passed:passed.length,failed:failed.length,passedCases:passed,failedCases:failed},null,2));process.exitCode=failed.length?1:0;

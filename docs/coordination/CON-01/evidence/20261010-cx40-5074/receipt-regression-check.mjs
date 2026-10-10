@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const root=process.env.CON01_CANDIDATE_ROOT;
+const h=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/conversation-list.ts')));
+const req=createRequire(resolve(root,'apps/studio/package.json'));
+const {QueryClient}=req('@tanstack/react-query');
+const at='2026-10-10T10:00:00Z';
+const coverage={state:'current',complete:false,fromSeq:1,throughSeq:1,newer:0,generatedAt:at,replyId:'reply',eligibilityRevision:1,ledgerRevision:1};
+const row={id:'conversation',title:'Synthetic',revision:1,summary:'Synthetic summary',summaryCoverage:coverage,lastAt:at,messageSeq:1,contributors:[{actorId:'A',name:'Synthetic Former'},{actorId:'B',name:'Synthetic B'}],sophia:false,openQuestions:1,questionsCoverage:coverage,output:null,lastMessage:null};
+const receipt={id:'m3',author:'member',actorId:'A',name:'Synthetic Current',text:'Synthetic third',at:'2026-10-10T10:01:00Z',seq:3};
+const failures=[],passed=[];
+const check=(name,f)=>{try{f();passed.push(name)}catch(e){failures.push({name,error:e.message})}};
+const gap=h.withLastMessage([row],'conversation',receipt)[0];
+const next=h.withLastMessage([gap],'conversation',{...receipt,id:'m4',seq:4})[0];
+const unknown=c=>{const w=h.coverageWords(c);assert.match(w,/messages 1–1/);assert.match(w,/newest/);assert.doesNotMatch(w,/\b\d+ newer since/);assert.match(w,/newer messages since/i)};
+check('Gap keeps useful range/partial label without exact newer count for both projections',()=>{unknown(gap.summaryCoverage);unknown(gap.questionsCoverage)});
+check('Unknown remains unknown on later adjacent own receipt',()=>{unknown(next.summaryCoverage);unknown(next.questionsCoverage)});
+check('Older API without sequence cannot assert exact unseen message count',()=>{const legacy={...row};delete legacy.messageSeq;const r=h.withLastMessage([legacy],'conversation',receipt)[0];unknown(r.questionsCoverage)});
+check('Trusted rename updates same actor in position and preserves unrelated identity',()=>{assert.equal(gap.contributors[0].name,'Synthetic Current');assert.deepEqual(gap.contributors.map(x=>x.actorId),['A','B']);assert.equal(gap.contributors[1].name,'Synthetic B')});
+check('Rename in full row preserves200 bound/order/unnamed marker',()=>{const contributors=Array.from({length:200},(_,i)=>({actorId:i?'X'+i:'A',name:'Synthetic '+i}));const r=h.withLastMessage([{...row,contributors,othersUnnamed:true}],'conversation',receipt)[0];assert.equal(r.contributors.length,200);assert.equal(r.contributors[0].name,'Synthetic Current');assert.equal(r.othersUnnamed,true);assert.equal(r.contributors[199].actorId,'X199')});
+check('Null trusted name replaces former name with authoritative A member fallback',()=>{const r=h.withLastMessage([row],'conversation',{...receipt,name:null})[0];assert.equal(r.contributors[0].name,'A member');assert.equal(r.lastMessage.name,null);assert.equal(r.contributors[1].name,'Synthetic B')});
+check('Not-taken old receipt cannot regress trusted current name or count',()=>{assert.equal(h.withLastMessage([next],'conversation',{...receipt,seq:2,name:'Synthetic obsolete'})[0],next)});
+check('Withdrawal clears range/unknown and words, unrelated writer stays',()=>{const r=h.listWithdrawn({conversations:[next]},'conversation',{writer:'A',writerStays:false,writerName:null,sophiaStays:false,seq:1,newestShown:null}).conversations[0];assert.equal(r.summaryCoverage.state,'not_assessed');assert.equal(r.questionsCoverage.state,'not_assessed');assert.equal(h.coverageWords(r.questionsCoverage),null);assert.equal(r.summary,null);assert.equal(r.contributors[0].actorId,'B')});
+const qc=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});
+try{
+ const key=h.listKey('project','A');qc.setQueryData(key,{projectId:'project',conversations:[gap]});
+ const authoritative={...row,messageSeq:3,summaryCoverage:{...coverage,state:'stale',complete:true,newer:2},questionsCoverage:{...coverage,state:'stale',complete:true,newer:2}};
+ await qc.fetchQuery({queryKey:key,queryFn:async()=>({projectId:'project',conversations:[authoritative]})});
+ check('Successful actual QueryClient reread restores exact authoritative count',()=>{const r=qc.getQueryData(key).conversations[0];assert.match(h.coverageWords(r.questionsCoverage),/2 newer since/);assert.match(h.coverageWords(r.summaryCoverage),/2 newer since/)});
+}finally{qc.clear()}
+console.log(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,level:'L0 actual production helpers and QueryClient; synthetic assessed fields/trusted receipts',passed:passed.length,failures:failures.length,passedCases:passed,failedCases:failures},null,2));
+process.exitCode=failures.length?1:0;

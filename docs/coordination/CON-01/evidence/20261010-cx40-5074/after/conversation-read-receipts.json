@@ -1,0 +1,39 @@
+[
+  {
+    "at": "2026-10-10T12:06:19.254Z",
+    "path": "/api/v1/projects/cf3f3f8c-9a11-4c44-a2f9-1045a9171777/conversations",
+    "status": 200
+  },
+  {
+    "at": "2026-10-10T12:06:19.260Z",
+    "path": "/api/v1/projects/cf3f3f8c-9a11-4c44-a2f9-1045a9171777/conversations",
+    "status": 200
+  },
+  {
+    "at": "2026-10-10T12:06:39.308Z",
+    "path": "/api/v1/conversations/f7ebeba9-9b09-47ce-be41-9e691af3d1ca/messages",
+    "status": 200
+  },
+  {
+    "at": "2026-10-10T12:06:39.310Z",
+    "path": "/api/v1/conversations/f7ebeba9-9b09-47ce-be41-9e691af3d1ca/messages",
+    "status": 200
+  },
+  {
+    "at": "2026-10-10T12:07:35.332Z",
+    "path": "/api/v1/projects/cf3f3f8c-9a11-4c44-a2f9-1045a9171777/conversations",
+    "status": 503,
+    "upstream": false
+  },
+  {
+    "at": "2026-10-10T12:07:35.334Z",
+    "path": "/api/v1/conversations/f7ebeba9-9b09-47ce-be41-9e691af3d1ca/messages",
+    "status": 200
+  },
+  {
+    "at": "2026-10-10T12:07:36.342Z",
+    "path": "/api/v1/projects/cf3f3f8c-9a11-4c44-a2f9-1045a9171777/conversations",
+    "status": 503,
+    "upstream": false
+  }
+]

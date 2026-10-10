@@ -47,7 +47,8 @@
         "CX-0036.md",
         "CX-0037.md",
         "CX-0038.md",
-        "CX-0039.md"
+        "CX-0039.md",
+        "CX-0040.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. Current7660 bounded recheck in CX16 supersedes the affected CX15 failures: human contributor metadata,201-writer contract and original mobile focus pass; late erase navigation fails. New4575 source is not yet qualified. Native/provider/hosted acceptance remains open. Exact0f affected erasure navigation/retry/feed cases pass locally (CX17); current-main/A08 correction is newer unqualified source. G2/native/provider/hosted acceptance remains open. CX18 independently reproduces P1 false erasure/draft loss under capped-list churn on0f; source unchanged5c, automatic review confirms. Overall erasure/privacy release qualification is withheld pending correction.",
       "live_blockers": [
@@ -56,8 +57,8 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX39 be351 originalmissingwriter/capcasespass13new+27regressions/112focused/typecheck0; freshP2order independentlyreproduced2fail/2controls, unresolved. No currentmounted/native/provider/hosted/fullacceptance claim.",
-      "current_checkpoint": "CX-0039.md"
+      "latest_checkpoint": "CX40 exact5074 originalorderpasses L0+actualapp, residual first-messagewithdrawalFAILSL0+actualapp;114focused/typecheck0/44originalregressioncases pass. New correctionpending/no native/provider/hosted/full acceptance.",
+      "current_checkpoint": "CX-0040.md"
     },
     {
       "id": "CON-01-T03",
@@ -127,7 +128,8 @@
       "evidence_refs": [
         "CX-0013.md",
         "CX-0038.md",
-        "CX-0039.md"
+        "CX-0039.md",
+        "CX-0040.md"
       ],
       "limitation": "Independent actual HTTP/PG synthetic-JWT same-email/distinct-subject, rename replay and project-key isolation passed on338878df. Actual authorized two-account browser/native/hosted arms remain open.",
       "live_blockers": [
@@ -138,8 +140,8 @@
       "baseline_evidence": [
         "Focused Studio/auth baseline included in 74 passing tests; candidate/browser-account crossing remains open."
       ],
-      "current_checkpoint": "CX-0039.md",
-      "latest_checkpoint": "CX39 be351 originalmissingwriter/capcasespass13new+27regressions/112focused/typecheck0; freshP2order independentlyreproduced2fail/2controls, unresolved. No currentmounted/native/provider/hosted/fullacceptance claim."
+      "current_checkpoint": "CX-0040.md",
+      "latest_checkpoint": "CX40 exact5074 originalorderpasses L0+actualapp, residual first-messagewithdrawalFAILSL0+actualapp;114focused/typecheck0/44originalregressioncases pass. New correctionpending/no native/provider/hosted/full acceptance."
     },
     {
       "id": "CON01-A01",
@@ -433,12 +435,13 @@
         "CX-0036.md",
         "CX-0037.md",
         "CX-0038.md",
-        "CX-0039.md"
+        "CX-0039.md",
+        "CX-0040.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [],
-      "latest_checkpoint": "CX39 be351 originalmissingwriter/capcasespass13new+27regressions/112focused/typecheck0; freshP2order independentlyreproduced2fail/2controls, unresolved. No currentmounted/native/provider/hosted/fullacceptance claim.",
-      "current_checkpoint": "CX-0039.md"
+      "latest_checkpoint": "CX40 exact5074 originalorderpasses L0+actualapp, residual first-messagewithdrawalFAILSL0+actualapp;114focused/typecheck0/44originalregressioncases pass. New correctionpending/no native/provider/hosted/full acceptance.",
+      "current_checkpoint": "CX-0040.md"
     },
     {
       "id": "CON01-A19",
@@ -850,16 +853,16 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0039.md",
-    "candidate": "be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd",
-    "tree": "cdb378219b84b0d2e198b2f43ccab470d203563a",
+    "record": "CX-0040.md",
+    "candidate": "5074eb15eb77ce1d4837e09def273226dad4a781",
+    "tree": "7c1543c6b4b8fba9ef6f77db164c49df8f65d428",
     "actualAppCandidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
     "actualAppTree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "Original missing-writer/reader-cap correction passes boundedL0, but freshbe351 review raises newP2r4237533992 contributor order, independently reproduced2fail/2controls; correctionpending.",
+    "statement": "Original contributor-order correction independently passes L0 and bounded actuallocalapp; subsequent withdrawal of restoredfirstmessage FAILS L0andactualapp; correctionpending.",
     "independentFocusedTests": {
       "command": "node --test apps/studio/src/features/conversations/{conversation-list,withdrawn-purge,talk-store,revalidation,list-data}.test.ts",
-      "passed": 112,
+      "passed": 114,
       "suites": 37,
       "failed": 0,
       "skipped": 0,
@@ -874,9 +877,9 @@
     },
     "studioTypecheckExit": 0,
     "fullGate": "Author frozen e91 terminal fullStudio FAILED1192pass/2fail/1skip/exit1; all remaining focused/check/PGintegration/627DB/46migration5SQL steps exit0. e91 only; no be351 aggregate G4.",
-    "findings": "r4237494296 resolved boundedL0; newr4237533992 order independentlyreproduced/unresolved. No wholePR approval.",
+    "findings": "r4237533992 originalcase corrected but residual firstmessage withdrawal independentlyfails L0+actualapp, unresolved. Prior missingwriter scopedresolution retained. No wholePR approval.",
     "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
-    "cleanup": "All26successfulownedstacks clean+oneinitdb-onlyfailureclean; tabs46-48closed; DBdrop/PGstopclusterremove/portsclosed/processesabsent. No hosted/provider/native/spend/uncertain paid effects.",
+    "cleanup": "All28successful owned stacks plus prior initdb-only failure cleaned; both terminal0/PGstopped/clusterremoved/DBdropped/processesabsent/portsclosed/tabs49and50closed/nooverride",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
     "sharedCoordination": "6096561293 provisional0051 technical filename coordination only; final census and A15/A16 integration/regenerate-second required, no exclusive runtime window.",
     "liveRefresh": "Last unchanged authenticated Render/Vercel10:01\u201303UTC observation; not refreshed here; installed composition/StudioSHA unknown.",
@@ -906,17 +909,17 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "next": "Immutable contributor-order correction rechecked with cap/identity controls, then S1 source/currentgates/sharedownerwindow.",
+    "next": "Immutable residual first-message transition correction read/rechecked including affected actualbrowser, thenS1/currentgates/sharedG2.",
     "publication": {
       "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097241367",
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097225451",
-      "reviewStatus": "Exactbe351 completed11:58:18UTC/newP2order independentlyreproduced",
+      "reviewStatus": "No new5074 automaticreview requested while known residualindependentorderfailure awaits correction; prior exactbe351 completed/newP2 remainsopen.",
       "twoThreadsResolved": "4237439145/4237439149 resolved within explicitP1boundedactualexternalwithdrawal+L0/P2L0scopes; no wholePR approval",
       "sharedSourceWindow": "renewed exactfootprint request6096904900, no acknowledgment inferred",
       "orderAddendum": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097269237",
       "originalMissingWriterResolution": "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4237531319; PRRT_kwDOUqJnR86rDpa8 resolved=true"
     },
-    "g2S1": "Local unpublished CC41 b89469f8docs/2c89a65eStudio: author beforefail/after3of3, focusedbrowser162/162, static0/1113units; parked for newordercorrection, no independent source pass.0048/sharedboundarypreserved.",
+    "g2S1": "Local unpublished CC42 d0b7189bdocs/35af65e1Studio on5074; checksrunning; parked for residualordercorrection/no independent source pass.0048/sharedboundarypreserved.",
     "newExternalWithdrawalProbe": {
       "passed": 10,
       "failed": 0,
@@ -942,11 +945,24 @@
       "scope": "L0 actual QueryClient subscription/purge; synthetic UUID accounts"
     },
     "newOrderProbe": {
-      "passed": 2,
+      "passed": 4,
+      "failed": 0,
+      "exit": 0,
+      "candidate": "5074eb15eb77ce1d4837e09def273226dad4a781"
+    },
+    "orderCorrectionCheckpoint": "Author acknowledged, checking gap-safe firstsequence evidence and running units/lint/typecheck, unpublished/unqualified.",
+    "latestOrderBrowser": {
+      "before": "be351e25/treecdb378 originalFAIL C,B,A",
+      "after": "5074eb15eb77ce1d4837e09def273226dad4a781 originalPASS C,A,B, subsequent firstwithdrawalFAIL C,A Six,B while canonical viewer persistence C,B,A Six",
+      "level": "L1 actual local browser/API/PG17.6; external supported synthetic writes; no fixtures/native/provider/hosted/APIauthwrite claim",
+      "finalAudit": "6human/3withdrawnbodyNULL/9semanticrequests/bootstrapgoal1/allmodeloperational0",
+      "auditLimits": "Before final audit invocation wrong cwd failed before connecting; external write result captured5human/2bodyNULL only. After initial canonical function name incorrect after writes; reconciled through readConversationList+DB audit, no write retried."
+    },
+    "newOrderTransitionProbe": {
+      "passed": 4,
       "failed": 2,
       "exit": 1,
-      "level": "L0 production helpers/synthetic complete eligible order"
-    },
-    "orderCorrectionCheckpoint": "Author acknowledged, checking gap-safe firstsequence evidence and running units/lint/typecheck, unpublished/unqualified."
+      "level": "L0 actual helpers; existing view-added writer keeps withdrawn firstSeq2 after authoritative known survivingfirst6"
+    }
   }
 }
