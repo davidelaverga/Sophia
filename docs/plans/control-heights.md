@@ -33,9 +33,12 @@
 - **Five presses move onto `Button`**, the ones off the scale: the goal's criteria fold (ghost sm, 24), Home's
   microphone (icon sm, 28), New conversation (icon md, 32), Open and Mine (ghost, 28), Resources' sort (ghost lg, 32).
   Their feature CSS loses the sizes it set and keeps only its look (a round mic, a borderless square, the first ink).
-- `e2e/control-heights.spec.ts`: on each of the thirteen pages, once drawn, every visible single-line press under
-  48 px is 24, 28, 32 or 36 px; rows, tiles, covers and cards (48 px or more, or two lines) are not presses on the
-  scale; a page measures one at least. `button-class.test.ts`: the classes of each kind and size, the modifier only off the kind's own size, the
+- `e2e/control-heights.spec.ts`: on each of the thirteen pages, once drawn, every visible single-line press is
+  24, 28, 32 or 36 px: one with words on one line, or a square with no words (an icon press). A row, a tile or a
+  cover is named in the spec (home's rows, a conversation's row and what it made, a meeting's row, a report's cover,
+  a resource's tile), and an edge's word stands on end: neither is a press on the scale, and nothing is told apart by
+  its size (Codex on #220, twice: a cutoff at 48 px would have let a press grown to 48 pass, and a press as wide as
+  its parent dropped the sort's button in its shrink-wrapped field); a page measures one at least. `button-class.test.ts`: the classes of each kind and size, the modifier only off the kind's own size, the
   text kind one height, every height on the scale.
 
 ## States

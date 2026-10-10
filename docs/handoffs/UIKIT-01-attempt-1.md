@@ -8,7 +8,8 @@ Ending commit/tree and changed files: `c36c1d6f` (tree `6a02b1f8a887`): 18 files
 `button-class.ts`, `button-class.test.ts`, `e2e/control-heights.spec.ts`, `docs/plans/control-heights.md`, this
 handoff). The commit after it (this PR's second) moves Conversations' three other icon presses (back, Context, its
 Close) onto `Button` too and restores their shared look rule: CI's phone check found them 30×20 once the rule had
-gone with New conversation's; and corrects these numbers.
+gone with New conversation's; and corrects these numbers. A third commit answers Codex's P2 on the spec: presses are
+told apart by what they hold (words on one line, or a square with none), never by a height cutoff.
 
 ## Outcome
 
