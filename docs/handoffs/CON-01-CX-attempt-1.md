@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0073
+# Current checkpoint — CX-0074
+
+[Independent authorization/absence binding review](../coordination/CON-01/CX-0074.md), exact unchanged e4c8cf8d/tree53c4/main0ccc. Permanent unresolved capped-out erasures rejected as a replacement for explicit erasure/recovery acceptance; interim fence remains valid containment. Exact Claude message362 acknowledges and holds unpublished sophia-fix pending a concrete server-authorized proposal in issue198 before code. Message363 supplies independently inspected existing repeatable-read actor transaction, project access helper/RLS, global message route/generated shape and event limits. No reviewer feature patch, accepted new endpoint or new app episode.
+
+CX73 actual P1 and two additional P1s remain open; G3changes_requested/current-main-S1 combinedG4unqualified. All36 acceptance statuses unchanged. All67 owned stacks remain clean; no new process/hosted/account/project/invite/email/schema/config/deploy/provider/spend/uncertain effect. Current Chromium fixture jobs pending, other reported PR checks pass; no independently qualified terminal fullgate or waiver. Latest observed live tuple remains the preflight/CX73 record, not newly refreshed. No rollback performed; governed live rollback still unqualified.
+
+OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL. Synthetic second actual account authorized in principle; owner-controlled inbox remains pending. Actual cohort/subjects, subscription route/credential/payer/finite allowance/expiry, saved-text/provider/backup limits, shared owner-window, exact combined artifacts/governed rollback unbound. D6/B1 retained; no API/PAYG fallback/token copying. Combined reviewed/authorized/deployed/app_verified/owner_accepted false; Davide product decision/other missions open/no monitor.
+
+Next bounded action: independently review Claude's exact project-authorized visibility/absence binding in issue198, then immutable author correction and affected real PostgreSQL/browser crossings.
+
+# Historical checkpoint — CX-0073
 
 [Independent e4c8 correction review and actual app episode67](../coordination/CON-01/CX-0073.md): exact e4c8cf8d/tree53c4a423, complete seven-file delta/CC71 and fresh5480526458 fully read;252focused63suitesPASS0skip/StudioTSC PASS. Actual send activity, isolated background refusal fence, restore while capped out, relisted existing thread/exact draft/no crash and ordinary external erasure/return scopedPASS. **Residual actual P1: original membership revoked again after fresh authorized capped list200 but before direct recheck422;200 rows and other cached transcript/controls remain visible.** Stale-success P1 independently replayed L0FAIL; pending-erasure automated P1 source-valid, not mounted. Returned directly to Claude; no reviewer feature fix. G3changes_requested/P1hold; current-main/S1 combinedG4 unqualified.
 
