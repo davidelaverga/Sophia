@@ -34,12 +34,16 @@ export interface Unnamed {
 }
 
 /**
- * A summary's or question list's coverage as this view may hold it: `newerUncounted` where a confirmed message came
- * after a gap in the row's places, or with no places to tell (`withLastMessage`), so how many eligible messages follow
- * its range isn't known here (PR #199 r4237385090). Its `newer` is then no count, and is never said as one; the next list
- * read answers for itself, and a withdrawal takes the projection back to not assessed.
+ * A summary's or question list's coverage as this view may hold it, where what came since its range is no longer known
+ * as a count (`since`). Its `newer` is then no count, and is never said as one; the next list read answers for itself.
+ * - `uncounted`: newer messages are known, not how many. A confirmed message came after a gap in the row's places, or
+ *   with no places to tell (`withLastMessage`; PR #199 r4237385090), or a withdrawal took one the count may have held
+ *   while a newer one is still shown (`afterWithdrawal`).
+ * - `unknown`: nothing newer is known, and whether the project's decisions moved isn't known here either. A withdrawal
+ *   took the only newer message known (CX-0036): the projection is kept, as it never read it, and said possibly out
+ *   of date; never `current`, which only the API can say.
  */
-export type Coverage = ProjectionCoverage & { newerUncounted?: true }
+export type Coverage = ProjectionCoverage & { since?: 'uncounted' | 'unknown' }
 
 export function contributorsLine(
   c: Pick<ConversationSummary, 'contributors' | 'sophia'> & Unnamed,
@@ -71,15 +75,14 @@ export function coverageWords(c: Coverage): string | null {
   }
   const range = `messages ${String(c.fromSeq)}–${String(c.throughSeq)}${c.complete ? '' : ', the newest then'}`
   if (c.state === 'unavailable') return `It couldn’t be updated just now: it covers ${range}.`
-  if (c.state === 'stale') {
-    const since = c.newerUncounted
-      ? 'newer messages since'
-      : c.newer > 0
-        ? `${String(c.newer)} newer since`
-        : 'the project’s decisions have changed since'
-    return `Covers ${range}; ${since}.`
-  }
-  return `Covers ${range}.`
+  return c.state === 'stale' ? `Covers ${range}; ${sinceWords(c)}.` : `Covers ${range}.`
+}
+
+/** What a stale projection says came since its range (`Coverage`). */
+function sinceWords(c: Coverage): string {
+  if (c.since === 'unknown') return 'it may be out of date'
+  if (c.since === 'uncounted') return 'newer messages since'
+  return c.newer > 0 ? `${String(c.newer)} newer since` : 'the project’s decisions have changed since'
 }
 
 /** Newest activity first, whatever order they came in. */
@@ -373,17 +376,17 @@ function writersAfter(contributors: ConversationSummary['contributors'], remains
 /**
  * A projection as the withdrawal of the message at `remains.seq` leaves it (PR #199 r4237222580, r4237439149):
  * - one with no range, or whose range reaches that place, may rest on the words withdrawn: not assessed;
- * - one whose range ends before it never read it, and stays. What it says came since is all that may change. A count
- *   that can't have held the message stays: `current`, or `stale` with none counted newer (the project's decisions
- *   moved). One that may have held it is no count any more, whether or not the list read or a receipt counted it: said
- *   uncounted where a newer message is still shown here, else not assessed, nothing true being left to say of what
- *   came since. Never made `current`: nothing here knows the project's decisions.
+ * - one whose range ends before it never read it, and stays, words, range and questions. What it says came since is
+ *   all that may change. A count that can't have held the message stays: `current`, or `stale` with none counted newer
+ *   (the project's decisions moved). One that may have held it is no count any more, whether or not the list read or a
+ *   receipt counted it (`Coverage`): `uncounted` where a newer message is still shown here, else `unknown` (CX-0036).
+ *   Never made `current`: nothing here knows the project's decisions.
  */
 function afterWithdrawal(coverage: Coverage, remains: Remains): Coverage {
   if (coverage.throughSeq === null || coverage.throughSeq >= remains.seq) return NOT_ASSESSED
-  if (coverage.state !== 'stale' || (coverage.newer === 0 && !coverage.newerUncounted)) return coverage
+  if (coverage.state !== 'stale' || (coverage.newer === 0 && coverage.since === undefined)) return coverage
   const newerShown = remains.newestShown !== null && remains.newestShown > coverage.throughSeq
-  return newerShown ? { ...coverage, newerUncounted: true } : NOT_ASSESSED
+  return { ...coverage, since: newerShown ? 'uncounted' : 'unknown' }
 }
 
 /**
@@ -562,12 +565,13 @@ function withWriter(
 
 /**
  * A projection with a range, behind by a confirmed message: one more newer where the places were adjacent and it was
- * counted, else uncounted (`Coverage`); one not assessed, as it is.
+ * counted, else `uncounted` (`Coverage`): the message is newer, so newer messages are known, never how many; one not
+ * assessed, as it is.
  */
 function behind(coverage: Coverage, adjacent: boolean): Coverage {
   if (coverage.throughSeq === null) return coverage
   const state = coverage.state === 'current' ? 'stale' : coverage.state
-  return adjacent && !coverage.newerUncounted
+  return adjacent && coverage.since === undefined
     ? { ...coverage, state, newer: coverage.newer + 1 }
-    : { ...coverage, state, newerUncounted: true }
+    : { ...coverage, state, since: 'uncounted' }
 }

@@ -846,11 +846,11 @@ describe('a confirmed message, as the API would say its row after it (r423729862
     assert.equal(withLastMessage([row(readAt1)], 'a', mine)[0]?.summaryCoverage.state, 'not_assessed')
   })
 
-  it('uncounted, then withdrawn: the projections go back to not assessed, uncounted no longer', () => {
+  it('uncounted, then a withdrawal its range reached: back to not assessed, uncounted no longer', () => {
     const read = row({ ...readAt1, summaryCoverage: range('current', 0, { throughSeq: 1 }) })
     const [a] = withLastMessage([read], 'a', mine)
     const list = { conversations: a ? [a] : [] } as unknown as Parameters<typeof listWithdrawn>[0]
-    const gone = listWithdrawn(list, 'a', remainsOf({ writer: ME, sophiaStays: false }))?.conversations[0]
+    const gone = listWithdrawn(list, 'a', remainsOf({ writer: ME, sophiaStays: false, seq: 1 }))?.conversations[0]
     assert.deepEqual(gone?.summaryCoverage, notAssessed)
     assert.equal(words(gone?.summaryCoverage), null)
   })
@@ -1143,10 +1143,37 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     assert.equal(words(a?.summaryCoverage), 'Covers messages 1–5; newer messages since.')
   })
 
-  it('and with nothing newer still shown, nothing true is left to say of what came since: not assessed', () => {
-    const a = withdrawnIn(assessed({ summaryCoverage: through(5, 'stale', 1) }), before)
-    assert.equal(a?.summary, null)
-    assert.equal(a?.summaryCoverage.state, 'not_assessed')
+  it('and with nothing newer still shown: kept, words and questions, said only that it may be out of date (CX-0036)', () => {
+    // Codex's common case: through 5, one newer counted, only 6 withdrawn; whether the decisions moved isn't known here.
+    const row = assessed({ summaryCoverage: through(5, 'stale', 1), questionsCoverage: through(5, 'stale', 1) })
+    for (const shownBefore of [before, [msg(1)]]) {
+      const a = withdrawnIn(row, shownBefore)
+      assert.equal(a?.summary, 'Said so far.')
+      assert.equal(a?.openQuestions, 2)
+      assert.equal(a?.summaryCoverage.state, 'stale')
+      assert.equal(words(a?.summaryCoverage), 'Covers messages 1–5; it may be out of date.')
+      assert.equal(words(a?.questionsCoverage), 'Covers messages 1–5; it may be out of date.')
+    }
+    // A partial one keeps its label.
+    const partial = assessed({ summaryCoverage: { ...through(5, 'stale', 1), complete: false } })
+    assert.equal(
+      words(withdrawnIn(partial, before)?.summaryCoverage),
+      'Covers messages 1–5, the newest then; it may be out of date.',
+    )
+  })
+
+  it('out of date, then a newer message confirmed: newer messages, never a count; withdrawn again with none: out of date', () => {
+    const row = assessed({ messageSeq: 6, summaryCoverage: through(5, 'stale', 1) })
+    const a = withdrawnIn(row, before)
+    const mineAt7 = { author: 'member' as const, actorId: ME, name: 'Me', text: 'Seven.', at, seq: 7 }
+    const [b] = withLastMessage(a ? [a] : [], 'a', mineAt7)
+    assert.equal(words(b?.summaryCoverage), 'Covers messages 1–5; newer messages since.')
+    // That one withdrawn too, nothing newer shown: back to out of date, the words still kept.
+    const seven = msg(7, { text: null, name: null, withdrawn: { at: '2026-10-06T10:05:00.000Z' } })
+    const list = oneRow(b ?? row)
+    const c = listWithdrawn(list, 'a', remainsAfter(page([...before, gone, seven]), seven))?.conversations[0]
+    assert.equal(c?.summary, 'Said so far.')
+    assert.equal(words(c?.summaryCoverage), 'Covers messages 1–5; it may be out of date.')
   })
 
   it('stale for the project’s decisions only (none newer counted): as it was', () => {

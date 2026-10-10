@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
 import type { ConversationList, ConversationSummary } from '../../api/conversations.ts'
-import { LISTS, coverageWords, listKey, withLastMessage } from './conversation-list.ts'
+import { LISTS, coverageWords, listKey, listWithdrawn, withLastMessage } from './conversation-list.ts'
 import { setListsData } from './list-data.ts'
 
 const listOf = (title: string) =>
@@ -107,5 +107,24 @@ describe('setListsData: what this view writes into a list read, and nothing of i
     // Read again: the API counts the eligible messages after its range (place 2 and yours), and that is what is said.
     await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(3, 2))), staleTime: 0 })
     assert.equal(summaryWords(client, key), 'Covers messages 1–1; 2 newer since.')
+  })
+
+  it('out of date after a withdrawal: only a list read says current again, and it does (CX-0036)', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const key = listKey('p', 'ana')
+    // Read at place 2: the summary through 1, place 2 counted newer. Place 2 is then withdrawn, nothing newer shown.
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(2, 1))) })
+    const remains = {
+      writer: null,
+      writerStays: false,
+      writerName: null,
+      sophiaStays: false,
+      seq: 2,
+      newestShown: 1,
+    }
+    setListsData(client, LISTS, (list) => listWithdrawn(list, 'a', remains) ?? list)
+    assert.equal(summaryWords(client, key), 'Covers messages 1–1; it may be out of date.')
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(2, 0))), staleTime: 0 })
+    assert.equal(summaryWords(client, key), 'Covers messages 1–1.')
   })
 })
