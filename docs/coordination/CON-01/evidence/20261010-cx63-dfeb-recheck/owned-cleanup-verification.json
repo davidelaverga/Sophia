@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-10T17:41:50.060864+00:00",
+  "pids": {
+    "pid": "absent",
+    "apiPid": "absent",
+    "studioPid": "absent"
+  },
+  "ports": {
+    "apiPort": {
+      "port": 55632,
+      "closed": true
+    },
+    "studioPort": {
+      "port": 55633,
+      "closed": true
+    }
+  }
+}

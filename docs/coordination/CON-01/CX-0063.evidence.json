@@ -1,0 +1,197 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0063",
+  "candidate": "dfeb3815e40f2a5a2bebc480960def54055bfab9",
+  "tree": "ac969d5002f064f277a6e68a010f7c6521855530",
+  "scope": "L1 real local Studio/API/PostgreSQL17.6; synthetic development identities; blocked reply/no native/provider/hosted acceptance",
+  "focused": {
+    "tests": 83,
+    "suites": 19,
+    "pass": 83,
+    "fail": 0,
+    "skip": 0,
+    "typecheckExit": 0
+  },
+  "sourceDelta": {
+    "files": 5,
+    "fullyRead": true,
+    "authorReceipt": 6100301910
+  },
+  "verdicts": [
+    {
+      "case": "deferred blocked reply/current list200/message GET503",
+      "verdict": "PASS bounded",
+      "finding": 4238533090,
+      "observed": "Readerror without false answering claim; current message recovery honest blocked notice"
+    },
+    {
+      "case": "capped direct successful read/landing/subsequent refetch",
+      "verdict": "FAIL P2",
+      "finding": 4238533084,
+      "target": "954e88d2-3786-4b57-84ff-ee6f2a776390",
+      "wrongDestination": "366bd3cf-620a-4af2-a482-0e4b734811af",
+      "observed": "Temporary title-only insertion lost on own current capped-list refetch; form cleared/target omitted/UI switches to SYNTHETIC CAP200"
+    }
+  ],
+  "automaticReview": {
+    "request": 6100349033,
+    "commit": "dfeb3815e40f2a5a2bebc480960def54055bfab9",
+    "submission": "pending inspection"
+  },
+  "audits": [
+    {
+      "file": "audit-blocked-before-landing.json",
+      "at": "2026-10-10T17:36:59.854Z",
+      "humanMessages": 4,
+      "nullBodies": 0,
+      "semanticRequests": 4,
+      "replies": [
+        {
+          "id": "eb2b723c-25da-42ec-903c-8defffc92d05",
+          "conversation_id": "92d204b8-7b33-4c62-ab43-f4be0ad1a2a3",
+          "message_id": "b38c72f5-82b5-40bd-b281-2e990cd3109b",
+          "asked_by": "d6867a13-c754-4a4c-8fc2-d7a6ab8ad10c",
+          "cutoff_seq": "1",
+          "state": "blocked",
+          "reason": "replies_not_enabled"
+        }
+      ],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 1
+      }
+    },
+    {
+      "file": "audit-cap-before-landing.json",
+      "at": "2026-10-10T17:39:04.389Z",
+      "humanMessages": 206,
+      "nullBodies": 0,
+      "semanticRequests": 206,
+      "replies": [
+        {
+          "id": "eb2b723c-25da-42ec-903c-8defffc92d05",
+          "conversation_id": "92d204b8-7b33-4c62-ab43-f4be0ad1a2a3",
+          "message_id": "b38c72f5-82b5-40bd-b281-2e990cd3109b",
+          "asked_by": "d6867a13-c754-4a4c-8fc2-d7a6ab8ad10c",
+          "cutoff_seq": "1",
+          "state": "blocked",
+          "reason": "replies_not_enabled"
+        }
+      ],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 1
+      }
+    },
+    {
+      "file": "audit-final.json",
+      "at": "2026-10-10T17:39:50.099Z",
+      "humanMessages": 206,
+      "nullBodies": 0,
+      "semanticRequests": 206,
+      "replies": [
+        {
+          "id": "eb2b723c-25da-42ec-903c-8defffc92d05",
+          "conversation_id": "92d204b8-7b33-4c62-ab43-f4be0ad1a2a3",
+          "message_id": "b38c72f5-82b5-40bd-b281-2e990cd3109b",
+          "asked_by": "d6867a13-c754-4a4c-8fc2-d7a6ab8ad10c",
+          "cutoff_seq": "1",
+          "state": "blocked",
+          "reason": "replies_not_enabled"
+        }
+      ],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 1
+      }
+    }
+  ],
+  "cleanup": {
+    "stack": {
+      "candidate": "dfeb3815e40f2a5a2bebc480960def54055bfab9",
+      "tree": "ac969d5002f064f277a6e68a010f7c6521855530",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 55632,
+      "studioPort": 55633,
+      "pid": 90085,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "children": {
+      "projectId": "e5989bfd-fa13-4875-a975-86935385a976",
+      "apiStopped": true,
+      "studioStopped": true,
+      "databaseDropped": true
+    },
+    "independent": {
+      "at": "2026-10-10T17:41:50.060864+00:00",
+      "pids": {
+        "pid": "absent",
+        "apiPid": "absent",
+        "studioPid": "absent"
+      },
+      "ports": {
+        "apiPort": {
+          "port": 55632,
+          "closed": true
+        },
+        "studioPort": {
+          "port": 55633,
+          "closed": true
+        }
+      }
+    },
+    "execSession": 47228,
+    "terminalExit": 0,
+    "tab": 80,
+    "tabClosed": true,
+    "all58OwnedBrowserStacksClean": true
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "hostedEffects": 0,
+    "unresolvedLocalWrite": false,
+    "sourceFrozen": true,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "readiness": {
+    "source_ready": "author candidate only",
+    "locally_verified": "scoped passes and cap failure",
+    "combined_reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Immutable capped reachability across refetch correction; independently rerun actual target/current-read/privacy/return cases before current-main/S1 combinedG4."
+}

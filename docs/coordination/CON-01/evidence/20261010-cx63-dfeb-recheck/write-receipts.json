@@ -1,0 +1,34 @@
+[
+  {
+    "at": "2026-10-10T17:35:54.218Z",
+    "kind": "start",
+    "path": "/api/v1/projects/e5989bfd-fa13-4875-a975-86935385a976/conversations",
+    "idempotencyKey": "c488a171-d1ed-4a35-af39-ceb7efdbf828",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-10T17:36:39.020Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/92d204b8-7b33-4c62-ab43-f4be0ad1a2a3/erasure",
+    "idempotencyKey": "e83de6dd-a000-4e20-87b6-c2cb75eb45bd",
+    "actualApiStatus": 403,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-10T17:37:59.489Z",
+    "kind": "start",
+    "path": "/api/v1/projects/e5989bfd-fa13-4875-a975-86935385a976/conversations",
+    "idempotencyKey": "e8e5eba2-1f98-42ca-83da-0a984d4c3b2b",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-10T17:38:26.389Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/954e88d2-3786-4b57-84ff-ee6f2a776390/erasure",
+    "idempotencyKey": "6c5b214f-fa6f-48a7-8d7c-7678148ab91b",
+    "actualApiStatus": 403,
+    "bodyWithheld": false
+  }
+]

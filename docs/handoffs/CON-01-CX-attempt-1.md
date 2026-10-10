@@ -1,4 +1,10 @@
-# Current checkpoint — CX-0062
+# Current checkpoint — CX-0063
+
+[Exactdfeb correction recheck](../coordination/CON-01/CX-0063.md). Full5filedelta/83focused19suitesPASS0skip/typecheck0. Actualblockedwait correctionPASS: failedGETafterdeferredlanding showsno falseanswering/currentGEThonestblockednotice. CappedtargetstillactualFAIL: directGET200→temporarytitleonlyrow→owncappedrefetch removesrow/formcleared/UIwronglyopensCAP200. r4238533084open/smallestfixreturnedtoClaude; freshexactreview6100349033requested/currentG3changes_requested/combinedheld.
+
+Final206human0NULL206requests1blockedreply includes201syntheticpersistencesetup/supportgoal1/allopsmodel0. All58ownedbrowserstacks+historicinitdbfailure+3PGbatchesclean;47228terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports55632–33closed/tab80closed. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36statusesretained/sourceauthorcandidateonly/locallyverifiedscoped/combinedreviewed-authorized-deployed-app_verified-owner_acceptedfalse. OP1r2OP2r2draftunapproved/approvalexpiryNULL. Inboxsubjectsroutecredentialpayerfinitecapexpiryprivacysharedownerwindowartifactrollbackunbound/historicalhostedtuple/Davidefinaldecision/othermissionsopen/no monitor. Nextboundedaction immutablecaprefetchfix+affectedactualcurrentread/privacy/returnrechecks, then currentmainS1G4ifclear.
+
+# Historical checkpoint — CX-0062
 
 [Actual blocked-reply falsewait failure](../coordination/CON-01/CX-0062.md). Exact35d actualAskStart202delayed60s/erasurefirst403/deferredreceipt/currentlist200/messageGET503: UI falselyclaimsSophiaisanswering, SQLblocked/replies_not_enabled. RestoremessageGET+UIretry→honestblockednotice/falsewaitgonePASS. Bothfresh5480084066P2findingsnowindependentlyactualreproduced (capCX61/waitCX62); firstpage-reviewretrieval corrected/paginated5480084066 submitted17:22:43. Claude implementing immutable correction/notaccepted.
 
