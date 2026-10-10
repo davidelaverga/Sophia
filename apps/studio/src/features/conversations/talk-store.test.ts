@@ -142,6 +142,27 @@ describe('a gone message’s part (PR #199 r4235397318, r4235397321)', () => {
   })
 })
 
+describe('an erased conversation’s own part (Codex on a3422f4)', () => {
+  const sendHeld = { key: 's1', ask: { text: 'SYNTHETIC-ERASED-SEND-WORDS', askSophia: false }, sending: false }
+
+  it('a late answer to a send writing its held message, refusal or wait back is left out; another’s and the decision stay', () => {
+    keptWith({ drafts: { c1: 'gone', c2: 'stays' }, holds: { c2: null }, decision: DECISION })
+    changeKept(PLACE, (k) => withoutConversation(k, 'c1'))
+    changeKept(PLACE, (k) => ({ ...k, holds: { ...k.holds, c1: sendHeld } }))
+    changeKept(PLACE, (k) => ({ ...k, refusals: { ...k.refusals, c1: 'refused late' } }))
+    changeKept(PLACE, (k) => ({ ...k, asked: { ...k.asked, c1: { replyId: 'r1', messageId: 'm1', here: 1 } } }))
+    changeKept(PLACE, (k) => ({ ...k, drafts: { ...k.drafts, c1: 'typed late' } }))
+    const now = keptAt(PLACE)
+    assert.ok(now)
+    assert.deepEqual(
+      [now.holds.c1, now.refusals.c1, now.asked.c1, now.drafts.c1],
+      [undefined, undefined, undefined, undefined],
+    )
+    assert.equal(now.drafts.c2, 'stays')
+    assert.deepEqual(now.decision, DECISION)
+  })
+})
+
 describe('goneFrom and withListed: only a whole list says one is gone', () => {
   it('seen in a list of the newest only, left out of one: kept; left out of a whole list later: gone', () => {
     // Opened on a project already past the newest the list holds: every list read so far is capped.

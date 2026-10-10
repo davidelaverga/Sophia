@@ -455,8 +455,10 @@ function useChosen(all: readonly ConversationSummary[], settled: boolean) {
  * way or sent with no reply, the refusal that answered it, and since when Sophia was asked there.
  */
 function useTalk(projectId: string, name: string) {
-  const { kept, change } = useKept(projectId, name)
+  const { kept, change, latest } = useKept(projectId, name)
   const of = (id: string) => ({
+    /** Erased since (its reply, or a whole list without it): an answer that comes late keeps nothing of it. */
+    gone: () => latest().erased[id] === true,
     draft: kept.drafts[id] ?? '',
     askSophia: kept.asks[id] ?? true,
     onAskSophia: (on: boolean) => change((k) => ({ ...k, asks: withEntry(k.asks, id, on) })),

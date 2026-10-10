@@ -62,6 +62,8 @@ interface Props {
   /** The message on its way here, or sent with no reply (held by the view). */
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
+  /** Erased since, as the view knows it now: a late answer here keeps nothing (PR #199, Codex on `a3422f4`). */
+  gone: () => boolean
   /** The refusal that answered the last press here (kept by the view). */
   refused: string | null
   onRefused: (words: string | null) => void
@@ -145,6 +147,7 @@ export function OpenConversation(props: Props) {
           onClearIf={props.onClearIf}
           held={props.held}
           onHeld={props.onHeld}
+          gone={props.gone}
           refused={props.refused}
           onRefused={props.onRefused}
           onSent={(sent) => {

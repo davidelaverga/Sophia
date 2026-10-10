@@ -104,7 +104,10 @@ const subscribe = (listener: () => void) => {
   }
 }
 
-/** Changes what is kept for one project and account (never anything for a message gone); everyone reads it again. */
+/**
+ * Changes what is kept for one project and account (never anything for a conversation erased or a message gone, a late
+ * answer's write included: `retired`); everyone reading it reads it again.
+ */
 export function changeKept(place: string, change: (was: Kept) => Kept): void {
   kept.set(place, retired(change(kept.get(place) ?? EMPTY)))
   for (const listener of listeners) listener()
@@ -135,7 +138,9 @@ export function useKept(projectId: string, name: string) {
   const born = useSyncExternalStore(subscribe, currentGeneration)
   // A write still on its way when the account was forgotten answers into nothing: never back into the store.
   const change = useCallback((f: (was: Kept) => Kept) => changeIfCurrent(place, born, f), [place, born])
-  return { kept: value, change }
+  /** What is kept now (not as this render read it): for an answer that comes late. */
+  const latest = useCallback(() => kept.get(place) ?? EMPTY, [place])
+  return { kept: value, change, latest }
 }
 
 /** A record with one entry changed. */
@@ -154,21 +159,34 @@ const without = <T>(
   out: Readonly<Record<string, true>>,
 ): Readonly<Record<string, T>> => Object.fromEntries(Object.entries(was).filter(([k]) => out[k] !== true))
 
+/** Whether a record holds an entry `out` names. */
+const holdsAny = (out: Readonly<Record<string, true>>) => (r: Readonly<Record<string, unknown>>) =>
+  Object.keys(r).some((id) => out[id])
+
 /**
- * What is kept with no part for a message gone: its proposal (held, refused or recorded) and its withdrawal held. A
- * late answer that wrote one back (main's ProposeHere writes its own) is left out here, at every change.
+ * What is kept with no part for a conversation erased (its draft, intent, message held, refusal, wait, erasure, seen
+ * listed) or a message gone (its proposal held, refused or recorded, its withdrawal held). A late answer that wrote one
+ * back (a send with no reply, main's ProposeHere writing its own) is left out here, at every change.
  */
 export function retired(k: Kept): Kept {
-  const out = k.gone
-  const any = (r: Readonly<Record<string, unknown>>) => Object.keys(r).some((id) => out[id])
-  if (![k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes].some(any)) return k
+  const { gone, erased } = k
+  const messages = [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes]
+  const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.listed]
+  if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased))) return k
   return {
     ...k,
-    proposals: without(k.proposals, out),
-    proposalRefusals: without(k.proposalRefusals, out),
-    proposed: without(k.proposed, out),
-    withdrawals: without(k.withdrawals, out),
-    homes: without(k.homes, out),
+    drafts: without(k.drafts, erased),
+    asks: without(k.asks, erased),
+    holds: without(k.holds, erased),
+    refusals: without(k.refusals, erased),
+    asked: without(k.asked, erased),
+    erasures: without(k.erasures, erased),
+    listed: without(k.listed, erased),
+    proposals: without(k.proposals, gone),
+    proposalRefusals: without(k.proposalRefusals, gone),
+    proposed: without(k.proposed, gone),
+    withdrawals: without(k.withdrawals, gone),
+    homes: without(k.homes, gone),
   }
 }
 

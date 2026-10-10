@@ -18,6 +18,7 @@ const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?
 const written = async (page: Page, kind: string) => (await served(page)).filter((s) => s.startsWith(`${kind}:`))
 const FIRST = 'What makes a report worth reading?'
 const C1 = '00000000-0000-4000-8000-0000000000c1'
+const C2 = '00000000-0000-4000-8000-0000000000c2'
 /** What the view keeps for this project and account (talk-store.ts), as the fixture page reads it. */
 const kept = (page: Page) => page.evaluate(() => window.fixture?.kept())
 const field = (page: Page) => open(page).getByRole('textbox', { name: 'Continue this question with the team' })
@@ -382,6 +383,40 @@ test('removal · erased elsewhere: a list of the newest only proves nothing; a w
   await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
   await expect(messages(page)).toHaveCount(2)
 })
+
+for (const send of ['lostSlow', 'slow'] as const) {
+  test(`removal · erased while a message is on its way (${send === 'slow' ? 'its receipt' : 'no reply'} after): it keeps nothing, another’s draft stays`, async ({
+    page,
+  }) => {
+    // Codex on a3422f4: a late answer to a send (no reply, or its receipt) writes nothing back for an erased conversation.
+    await page.goto(`${PAGE}&send=${send}`)
+    await expect(messages(page)).toHaveCount(6)
+    await rows(page).nth(1).click()
+    await expect(messages(page)).toHaveCount(2)
+    await field(page).fill('SYNTHETIC-OTHER-DRAFT-STAYS')
+    await rows(page).first().click()
+    await expect(messages(page)).toHaveCount(6)
+    await field(page).fill('SYNTHETIC-ERASED-SEND-WORDS')
+    await open(page).getByRole('button', { name: 'Send' }).click()
+    // On its way (1.5 s): the conversation is erased meanwhile.
+    const toggle = open(page).getByRole('button', { name: 'Context' })
+    if (await toggle.isVisible()) await toggle.click()
+    await erase(page).click()
+    await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
+    await expect(list(page)).not.toContainText(FIRST)
+    await page.waitForTimeout(2500)
+    const after = await kept(page)
+    expect([after?.holds[C1], after?.drafts[C1], after?.refusals[C1], after?.asked[C1]]).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    ])
+    expect(await page.evaluate((c) => window.fixture?.cachedMessages(c), C1)).toBe(false)
+    expect(after?.drafts[C2]).toBe('SYNTHETIC-OTHER-DRAFT-STAYS')
+    await expect(page.getByText('SYNTHETIC-ERASED-SEND-WORDS')).toHaveCount(0)
+  })
+}
 
 test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
   await opened(page, '&erase=lost')

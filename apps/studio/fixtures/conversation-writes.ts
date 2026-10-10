@@ -22,7 +22,7 @@ export interface TalkWrites {
    * `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused; `send=refusedSlow`:
    * refused 1.5 s on; `send=slow`: each reply takes 1.5 s; `send=thenFail`: it lands, then the conversation's reads fail.
    */
-  send: 'lost' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail' | null
+  send: 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail' | null
   /** `start=lost`: the first conversation started lands, its reply lost; `start=slow`: its reply takes 1.5 s. */
   start: 'lost' | 'slow' | null
   /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
@@ -88,6 +88,10 @@ const next = (list: readonly FixtureConversation[]) =>
 /** An answer `ms` later. */
 const later = (ms: number, answer: () => Response) =>
   new Promise<Response>((resolve) => setTimeout(() => resolve(answer()), ms))
+
+/** A reply lost `ms` on, as a dropped connection fails a fetch. */
+const lostLater = (ms: number) =>
+  new Promise<Response>((_, reject) => setTimeout(() => reject(new TypeError('Failed to fetch')), ms))
 
 const bodyOf = (init: RequestInit | undefined): Record<string, unknown> | null => {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
@@ -196,6 +200,8 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
 function replied(talk: TalkWrites, id: string, receipt: unknown, ctx: Context) {
   // It landed; the page never hears so, and only sending again under the same key can tell it.
   if (talk.send === 'lost' && sent === 1) return Promise.reject(new TypeError('Failed to fetch'))
+  // `send=lostSlow`: the first one lands, and 1.5 s on its reply is lost.
+  if (talk.send === 'lostSlow' && sent === 1) return lostLater(1500)
   if (talk.send === 'slow') {
     return later(1500, () => {
       ctx.record('reply:message') // the receipt reaches the page now

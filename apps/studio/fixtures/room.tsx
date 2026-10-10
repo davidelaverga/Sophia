@@ -21,6 +21,7 @@ import type { ChatCaption } from '@sophia/contracts/room-chat'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { forgetKept, keptAt, type Kept } from '../src/features/conversations/talk-store.ts'
 import { accountOf } from '../src/app/auth-callback.ts'
+import { messagesKey } from '../src/features/conversations/conversation-list.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
@@ -159,6 +160,8 @@ interface Fixture {
   listMore: (on: boolean) => void
   /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
   kept: () => Kept | undefined
+  /** Whether this page holds a read of the conversation's messages (its query's data), as a check reads it. */
+  cachedMessages: (conversationId: string) => boolean
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
@@ -623,6 +626,8 @@ window.fixture = {
     publish(project)
   },
   kept: () => keptAt(`${PROJECT} ${accountOf(identity)}`),
+  cachedMessages: (conversationId) =>
+    queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   failMission: (on) => {
     project.missionFails = on
   },
@@ -907,11 +912,11 @@ function startAsked(which: string | null): 'lost' | 'slow' | null {
   return which === 'lost' || which === 'slow' ? which : null
 }
 
-type Send = 'lost' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail'
+type Send = 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail'
 
 /** Read while the page's project is made, before any module constant below it: the list is its own. */
 function sendAsked(which: string | null): Send | null {
-  const sends: readonly Send[] = ['lost', 'refused', 'refusedSlow', 'slow', 'thenFail']
+  const sends: readonly Send[] = ['lost', 'lostSlow', 'refused', 'refusedSlow', 'slow', 'thenFail']
   return sends.find((s) => s === which) ?? null
 }
 

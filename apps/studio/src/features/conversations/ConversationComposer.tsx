@@ -42,6 +42,8 @@ interface Props {
   onClearIf: (text: string) => void
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
+  /** The conversation erased since, as the view knows it now: a receipt that comes late keeps nothing of it. */
+  gone: () => boolean
   /** The refusal that answered the last press here, kept by the view. */
   refused: string | null
   onRefused: (words: string | null) => void
@@ -72,6 +74,8 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     // Undefined too for an account forgotten meanwhile: its receipt never comes back into the cache.
     const sent = await write.run({ text, askSophia: asking })
     if (!sent) return false
+    // The conversation erased while this was on its way: its receipt (its words) goes into no page and no list.
+    if (props.gone()) return false
     // The receipt's message shows at once, and stays should reading the conversation again fail; then the list moves
     // too (its order, who wrote there).
     const pages = messagesKey(conversationId, accountOf(identity))
