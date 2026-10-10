@@ -1,0 +1,85 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/studio
+    - link "Conversations":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/conversations
+    - link "Goals":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/goals
+    - link "Tasks":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/work
+    - link "Knowledge":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/knowledge
+    - link "Updates":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/updates
+    - link "Resources":
+      - /url: /p/3e5a3034-c534-4343-855f-9425f9398d8b/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation" [pressed]:
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC eligible delayed Start":
+          - generic: SYNTHETIC eligible delayed Start
+          - generic: 16:45
+          - generic: "You: SYNTHETIC eligible first words remain available"
+          - generic: You. No recorded questions yet. Last moved 16:45.
+        - button "SYNTHETIC stale sender regression":
+          - generic: SYNTHETIC stale sender regression
+          - generic: 16:45
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: Synthetic B, You, Synthetic A Surviving. No recorded questions yet. Last moved 16:45.
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - generic: Question
+      - textbox "Question":
+        - /placeholder: What do you want to figure out?
+        - text: SYNTHETIC eligible delayed Start
+      - generic: Context, if it helps
+      - textbox "Context, if it helps": SYNTHETIC eligible first words remain available
+      - checkbox "Ask Sophia" [disabled]
+      - text: Ask Sophia
+      - button "Starting…" [disabled] [active]
+      - button "Cancel" [disabled]
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

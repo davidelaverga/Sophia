@@ -1,0 +1,42 @@
+[
+  {
+    "at": "2026-10-10T14:45:42.241Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3e5a3034-c534-4343-855f-9425f9398d8b/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T14:46:44.302Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3e5a3034-c534-4343-855f-9425f9398d8b/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T14:48:27.703Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3e5a3034-c534-4343-855f-9425f9398d8b/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T14:50:23.621Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3e5a3034-c534-4343-855f-9425f9398d8b/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]

@@ -1,0 +1,15 @@
+{
+  "candidate": "617209a3ec8dcf5a268d4c9b4cb0b6485417cb87",
+  "scope": "L0 actual QueryClient and production putStarted, synthetic valid shape; current list revision2 vs delayed receipt revision1",
+  "passed": 1,
+  "failed": 1,
+  "passedCases": [
+    "Eligible new Start adds its own row"
+  ],
+  "failedCases": [
+    {
+      "name": "Newer current list row remains after an older Start receipt lands",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    {\n+     contributors: [\n+       {\n+         id: 'reader',\n+         name: 'Synthetic writer'\n+       }\n+     ],\n-     contributors: [],\n      id: 'new',\n+     lastMessage: {\n+       text: 'SYNTHETIC WITHDRAWN FIRST WORDS'\n+     },\n+     revision: 1,\n-     lastMessage: null,\n-     revision: 2,\n      title: 'Synthetic'\n    }\n  ]\n"
+    }
+  ]
+}

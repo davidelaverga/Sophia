@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0051
+# Current checkpoint — CX-0052
+
+[Exact617 browser correction and new list privacy failure](../coordination/CON-01/CX-0052.md): full6-file delta/190focused/53suites/typecheck0; actual browser boots. Eligible delayedStart confirmedbody+honest stale warning PASS; withdrawal-before-receipt messagepane withholds body/controls PASS; clean active-open-before-receipt repeat PASS/recovery tombstone. New P1: delayed receipt replaces current noauthor list with withdrawn preview/You, headerContributors:You while list+messageGET503; DBbodyNULL. Shared6098742753/directClaude; correctionunpublished. L0late-list1FAIL/1control; activegate4PASS. BootP1scopedresolvedreply4238015123/threadtrue. Fresh automaticrequest6098742900 pending; author617 scopedterminalreceipt6098715928 fullyread, all0, not fullaggregate waiver.
+
+Audit7human/3NULL/10requests/supportgoal1/allmodeloperational0. Private firstactiveepisode409keyconflict rejected/noeffect, correctedwithdrawafterreceipt explicitly not qualification; separate cleanrepeat correcttiming. All47 ownedbrowserstacks clean/33852terminal0/PGstoppedclusterremoved/DBdropped/APIStudio stopped/ports58535–37closed/PIDsabsent/tab69closed. No hosted/provider/spend/uncertain effect. Remoteempty/dummy disclosed. Main444/PR190published8a39 refreshedunchanged; S1held. CC54releasefence amendment/isolatedS2 stillpreparationonly/no sharedwindow.
+
+All36verdictsretained; combined reviewed/authorized/deployed/app_verified/owner_acceptedfalse. OP1r2/OP2r2draftunapproved/approvalexpiryNULL; inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/runtimewindow/artifacts/governedrollback unbound. Historical servingtupleunrefreshed/currentcompositionunknown. Nextboundedaction immutablelistfix + actualbothreadoutage/eligible/activecontrols + freshreview; Davideacceptsproduct/othermissionsopen/no monitor.
+
+# Historical checkpoint — CX-0051
 
 [Independent7ff source/PG and actual browser failure](../coordination/CON-01/CX-0051.md): full15-file delta and OpenAPI-only ConversationStarted change;126focused/typecheck/contracts0;35 actualPGtests/8suites including6 independent subtests+parent, allpass. Actual browser blank before identity selection: server-only contracts root/node:fs import, P1r4237960249. Separate L0 active-thread delayed receipt1FAIL/3controls; Claude617 correction published, source/app qualification pending. No actual delayed episode passed on7ff.
 
