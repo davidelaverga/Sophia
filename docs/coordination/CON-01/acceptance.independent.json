@@ -793,13 +793,13 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0029.md",
-    "candidate": "3c1158dbb166e8f2b857d7a1389655a01d661b08",
-    "tree": "5f5b5a6f3adf2138f6334debea62081ca09c313a",
+    "record": "CX-0030.md",
+    "candidate": "d92328dab38f513c7f5cf7bfe802fea8d194f2e9",
+    "tree": "2e5c13dd4ce3fe68fe04f287334c4e7f071d932b",
     "actualAppCandidate": "b9815b1163efe5c53e4a0aec56581733d02dcb98",
     "actualAppTree": "8cacf81dca80113ead2bb081e7d7bbb9978fcdd8",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "Bounded current-source lateSend/lateList/contributor and message-only stale-warning crossings pass locally. G2 revision7 direction reviewed; durable replay-after-cleanup, crash delivery recovery and child identity corrections requested before contract finalization. No real provider/hosted acceptance.",
+    "statement": "CX29 local browser crossings remain bounded. Rev8 addresses rev7 design gaps; suitable for owner-coordinated implementation, with full acknowledgment barrier/identity-bound signal/actual containment qualification carried forward. Not a G2 source/native/provider pass. New question projection P2 independently reproduced L0 on b981/4252; author correction pending immutable recheck.",
     "independentFocusedTests": {
       "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts",
       "exit": 0,
@@ -812,8 +812,8 @@
     "fullGate": "Author4252 pnpmcheck/PG pass; local full browser FAILED2/1160. GitHub all checks success atb981; separate environments.",
     "operation": "OP-0001-r2 draft_not_authorized; D6/B1 source-design accepted. New project and synthetic actual account requested, not created. Supported subscription route/credential/finite allowance/expiry/shared window/exact effect approval unbound.",
     "cleanup": "All21ownedstacks cleaned; twentieth interrupted before completed app proof; current21st audited and cleaned. No provider/native/hosted effects/spend/uncertainpaidoutcome.",
-    "automaticReview": "Fresh b981 request6096247230 pending; prior findings bounded rechecked as CX29.",
+    "automaticReview": "r4237222580 independently reproduced L0; author correction still running unpublished at last exact Claude checkpoint. Other bounded CX29 supersessions retained.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
-    "liveRefresh": "Last serving tuple01:51\u201355 readonly;09:49 Supabase authentication dashboard reachable and real new-user form inspected without mutation. No feature deployment."
+    "liveRefresh": "Render/Vercel dashboard tuple independently unchanged between10:01:57.540Z and10:03:23.913Z. No deployed CON candidate; installed composition/StudioSHA unknown; DB not freshly probed. All temporary setup/dashboard tabs closed, no account/project created."
   }
 }

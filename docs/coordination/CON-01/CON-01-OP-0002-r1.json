@@ -16,7 +16,7 @@
     "studio": "https://studio.sophia-ei.com/work",
     "auth": "Supabase sophia-next/main PRODUCTION/ikigawvpaxnvdjzzzhws",
     "api": "Render srv-daqrn08473hc73flhi8g",
-    "identity_observation_ref": "LIVE_PREFLIGHT.md; 01:51\u201355 tuple is historical; setup forms reachable later without mutation"
+    "identity_observation_ref": "LIVE_PREFLIGHT.md and evidence/20261010-live-dashboard-1002.json; Render/Vercel unchanged10:01\u201303, serving StudioSHA and owner subject still unknown"
   },
   "credential_references": {
     "project_creation": "Existing signed-in Davide Studio session; server derives actor, no vendor token custody",

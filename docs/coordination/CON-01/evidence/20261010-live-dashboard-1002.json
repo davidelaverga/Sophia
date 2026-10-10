@@ -1,5 +1,4 @@
 {
-  "observed_at_utc": "2026-10-10T10:01:57Z/10:03:30Z",
   "method": "Authenticated CUA dashboard AX observations, read-only; manually transcribed; no logs/env values/deploy/config controls used",
   "api": {
     "service": "srv-daqrn08473hc73flhi8g",
@@ -44,5 +43,8 @@
     "account_or_project_creations": 0,
     "provider_calls": 0,
     "new_spend": 0
-  }
+  },
+  "observation_started_at_utc": "2026-10-10T10:01:57.540Z",
+  "cleanup_checkpoint_at_utc": "2026-10-10T10:03:23.913Z",
+  "cleanup": "Temporary dashboard tab39 closed. Setup draft cancelled without submission and temporary tab34 closed; user-owned hosted tab1 untouched."
 }
