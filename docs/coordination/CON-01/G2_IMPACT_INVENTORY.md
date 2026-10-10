@@ -101,7 +101,10 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 | A04's `RuntimeWorkBinding` (amended in A16), `dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts`, `dsh-bundle/dist` | Contracts and runtime writer | `oneOf` goal or reply |
 | `config/specialists.json` + schema, `role-registry.ts`, `cordis.patch.yml`, `runtime-unit.json` (id, presets, `role_routes`, `model_routes`), lock and digests | Davide (LFE-00) | One role, one preset and one route (D-4). `pnpm artifacts:record` once, on the combined candidate |
 
-**Requested here:** acknowledgment from #190's owner (SDD-01 G7) and from the WBC-02/SDD-01 runtime owner, plus a named `main` window, before 0049 and before the runtime artifacts are recorded.
+| `apps/execution-host/src/runtime-supervisor.ts`, `scripts/runtime-host.mjs` (B-1, BINDING_MAP §8.5) | Runtime writer (WBC-02/SDD-01) | Spawning a reply child per reply, with its own home and environment; its lease; the restart sweep of `<root>/replies/*`. The goal path is unchanged |
+| `packages/dsh-bundle/src/control-bridge.ts`, `session-events.ts`, `index.ts`, and the reply profile (`config/dsh/…`) | Runtime writer; the profile rows are Davide's (LFE-00) | A reply `create` hands off to the child (prompt on a pipe, observations on fd 3, nothing journaled by the parent); the `retire` kind (delete the home whole, verify, then `checked`, else `failed`); the reply profile with the local credential store disabled |
+
+**Requested here:** acknowledgment from #190's owner (SDD-01 G7) and from the WBC-02/SDD-01 runtime owner, plus a named `main` window, before 0049 and before the runtime artifacts are recorded. The runtime files above are part of the same request. No route or credential file is changed: none is bound (BINDING_MAP §8.4).
 
 ## 8. Why still C, and not B
 
