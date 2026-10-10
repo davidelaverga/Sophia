@@ -156,6 +156,8 @@ interface Fixture {
   capPast: (conversationId: string | null) => void
   /** Another admin, elsewhere, erases this conversation: it leaves the list and its messages go; the feed moves. */
   eraseElsewhere: (conversationId: string) => void
+  /** Every read of this conversation's messages, and of the list, fails from now on (null: they answer again). */
+  failConversationReads: (conversationId: string | null) => void
   /** The list says (or stops saying) that it holds the newest only (`more`); the feed moves. */
   listMore: (on: boolean) => void
   /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
@@ -620,6 +622,11 @@ window.fixture = {
     ;(talk.erasedIds ??= new Set()).add(conversationId)
     publish(project)
   },
+  failConversationReads: (conversationId) => {
+    if (!project.conversations) return
+    project.conversations.failList = conversationId !== null
+    project.conversations.failMessagesOf = conversationId
+  },
   listMore: (on) => {
     if (!project.conversations) return
     project.conversations.more = on
@@ -912,11 +919,11 @@ function startAsked(which: string | null): 'lost' | 'slow' | null {
   return which === 'lost' || which === 'slow' ? which : null
 }
 
-type Send = 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail'
+type Send = 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'late' | 'thenFail'
 
 /** Read while the page's project is made, before any module constant below it: the list is its own. */
 function sendAsked(which: string | null): Send | null {
-  const sends: readonly Send[] = ['lost', 'lostSlow', 'refused', 'refusedSlow', 'slow', 'thenFail']
+  const sends: readonly Send[] = ['lost', 'lostSlow', 'refused', 'refusedSlow', 'slow', 'late', 'thenFail']
   return sends.find((s) => s === which) ?? null
 }
 
@@ -941,7 +948,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',
       cappedOut: null as string | null,
-      failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,

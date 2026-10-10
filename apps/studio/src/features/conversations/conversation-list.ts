@@ -200,8 +200,20 @@ export interface ReadPages<M> {
 }
 
 /**
+ * The newest message these pages hold with its words (by its place in the conversation, `seq`; withdrawn ones say
+ * nothing), if they hold any: what a confirmed message may say on the list's row, only if it is this one.
+ */
+export function lastSaid<M extends { id: string; seq: number; text: string | null; withdrawn: unknown }>(
+  read: ReadPages<M> | undefined,
+): M | undefined {
+  const said = (read?.pages ?? []).flatMap((p) => p.messages).filter((m) => m.text !== null && !m.withdrawn)
+  return said.reduce<M | undefined>((last, m) => (last && last.seq > m.seq ? last : m), undefined)
+}
+
+/**
  * The pages with a message the API accepted at the end of the newest one, once (its receipt's): it shows at once, and
- * stays should reading the conversation again fail.
+ * stays should reading the conversation again fail. Already held (read again before its receipt came, withdrawn
+ * since, say), it stays as held: a receipt never brings back what was learned after it was sent.
  */
 export function withMessage<M extends { id: string }>(
   read: ReadPages<M> | undefined,
@@ -324,7 +336,9 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
 
 /**
  * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
- * messages at all (A18 proposed). The rest, and a list that doesn't say them, as they were.
+ * messages at all (A18 proposed), unless the row already says one as late or later (a receipt that comes late never
+ * takes a newer message's place; on equal times, which may be two messages, the row stays). The rest, and a list that
+ * doesn't say them, as they were.
  */
 export function withLastMessage(
   list: readonly ConversationSummary[],
@@ -333,8 +347,9 @@ export function withLastMessage(
 ): readonly ConversationSummary[] {
   const text = m.text
   if (text === null) return list
+  const later = (c: ConversationSummary) => c.lastMessage && Date.parse(c.lastMessage.at) >= Date.parse(m.at)
   return list.map((c) =>
-    c.id === conversationId
+    c.id === conversationId && !later(c)
       ? {
           ...c,
           lastMessage: { author: m.author, actorId: m.actorId, name: m.name, text: text.slice(0, 140), at: m.at },

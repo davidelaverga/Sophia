@@ -22,7 +22,7 @@ export interface TalkWrites {
    * `send=lost`: the first message lands, its reply lost; `send=refused`: messages are refused; `send=refusedSlow`:
    * refused 1.5 s on; `send=slow`: each reply takes 1.5 s; `send=thenFail`: it lands, then the conversation's reads fail.
    */
-  send: 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'thenFail' | null
+  send: 'lost' | 'lostSlow' | 'refused' | 'refusedSlow' | 'slow' | 'late' | 'thenFail' | null
   /** `start=lost`: the first conversation started lands, its reply lost; `start=slow`: its reply takes 1.5 s. */
   start: 'lost' | 'slow' | null
   /** How long Sophia takes to answer (`answer=slow`: 10 s; else 0.9 s). */
@@ -205,6 +205,14 @@ function replied(talk: TalkWrites, id: string, receipt: unknown, ctx: Context) {
   if (talk.send === 'slow') {
     return later(1500, () => {
       ctx.record('reply:message') // the receipt reaches the page now
+      return json(receipt, 201)
+    })
+  }
+  // `send=late`: the feed shows it landed at once, and its receipt comes 4 s on (withdrawn meanwhile, it may be).
+  if (talk.send === 'late') {
+    ctx.moved()
+    return later(4000, () => {
+      ctx.record('reply:message')
       return json(receipt, 201)
     })
   }

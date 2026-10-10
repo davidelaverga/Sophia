@@ -10,6 +10,7 @@ import {
   firstWords,
   gistOf,
   withLastMessage,
+  lastSaid,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -156,6 +157,40 @@ describe('withLastMessage', () => {
     assert.equal(withLastMessage(list, 'a', { ...said, text: 'x'.repeat(200) })[0]?.lastMessage?.text.length, 140)
     // A withdrawn message (no words) is never anyone's last line.
     assert.equal(withLastMessage(list, 'a', { ...said, text: null })[0]?.lastMessage, null)
+  })
+
+  it('never puts a late receipt in place of a later message the row already says, nor one at the same time', () => {
+    const late = {
+      author: 'member' as const,
+      actorId: ME,
+      name: 'You',
+      text: 'Sent first.',
+      at: '2026-10-07T10:00:00.000Z',
+    }
+    const newer = { ...late, text: 'Said since.', at: '2026-10-07T10:05:00.000Z' }
+    const later = withLastMessage([conversation({ id: 'a', lastMessage: newer })], 'a', late)
+    assert.equal(later[0]?.lastMessage?.text, 'Said since.')
+    // Equal times may be two messages (the API's times can tie): the row stays.
+    const tied = { ...late, text: 'Said next, same time.' }
+    const same = withLastMessage([conversation({ id: 'a', lastMessage: tied })], 'a', late)
+    assert.equal(same[0]?.lastMessage?.text, 'Said next, same time.')
+  })
+})
+
+describe('a receipt after its message was withdrawn, or a later one said (Codex, CX-0022)', () => {
+  it('leaves the pages holding it withdrawn; the thread’s last words are another’s: none from the receipt', () => {
+    const gone = message('m9', { seq: 9, text: null, name: null, withdrawn: { at: '2026-10-07T10:01:00.000Z' } })
+    const read = page([message('m1', { seq: 1 }), gone])
+    const after = withMessage(read, message('m9', { seq: 9, text: 'SYNTHETIC-WITHDRAWN-LATE-SEND' }))
+    assert.equal(after, read)
+    assert.equal(lastSaid(after)?.id, 'm1')
+    assert.equal(lastSaid(undefined), undefined)
+  })
+
+  it('a later message said since, its time tied with the receipt’s, is the thread’s last: the receipt says nothing', () => {
+    const at = '2026-10-07T10:00:00.000Z'
+    const read = page([message('m9', { seq: 9, at }), message('m10', { seq: 10, at })])
+    assert.equal(lastSaid(withMessage(read, message('m9', { seq: 9, at })))?.id, 'm10')
   })
 })
 

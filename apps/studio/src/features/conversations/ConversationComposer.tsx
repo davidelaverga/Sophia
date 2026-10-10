@@ -18,7 +18,15 @@ import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { firstWords, LISTS, messagesKey, withLastMessage, withMessage, type ReadPages } from './conversation-list.ts'
+import {
+  firstWords,
+  lastSaid,
+  LISTS,
+  messagesKey,
+  withLastMessage,
+  withMessage,
+  type ReadPages,
+} from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 
 interface Props {
@@ -79,13 +87,20 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     // The receipt's message shows at once, and stays should reading the conversation again fail; then the list moves
     // too (its order, who wrote there).
     const pages = messagesKey(conversationId, accountOf(identity))
-    queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) => withMessage(read, sent.message))
-    void queryClient.invalidateQueries({ queryKey: pages })
-    // Its row says it at once, before the list is read again (or should that read fail).
-    queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
-      { queryKey: LISTS },
-      (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, sent.message) },
+    const now = queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) =>
+      withMessage(read, sent.message),
     )
+    void queryClient.invalidateQueries({ queryKey: pages })
+    // Its row says it at once, before the list is read again (or should that read fail), but only while the thread
+    // holds it as its newest message with words: withdrawn meanwhile, a later one said since, or the thread not held
+    // here, the row says nothing from this receipt (Codex, CX-0022), and the list's own read says what is so.
+    const last = lastSaid(now)
+    if (last?.id === sent.message.id) {
+      queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
+        { queryKey: LISTS },
+        (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, last) },
+      )
+    }
     void queryClient.invalidateQueries({ queryKey: LISTS })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.

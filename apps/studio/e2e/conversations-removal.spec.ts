@@ -418,6 +418,33 @@ for (const send of ['lostSlow', 'slow'] as const) {
   })
 }
 
+test('removal · withdrawn while its send’s receipt is on its way, every read after failing: its words come back nowhere', async ({
+  page,
+}) => {
+  // Codex, CX-0022 (actual app at 89eb193): the late receipt put the withdrawn words back in the list's row.
+  await page.goto(`${PAGE}&send=late&last=1`)
+  await expect(messages(page)).toHaveCount(6)
+  const ask = open(page)
+    .locator('.conv-compose')
+    .getByRole('checkbox', { name: /Ask Sophia/ })
+  if (await ask.isChecked()) await ask.uncheck()
+  await field(page).fill('SYNTHETIC-WITHDRAWN-LATE-SEND-MUST-NOT-RETURN')
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  // The feed shows it landed; its receipt comes 4 s on. Withdrawn meanwhile.
+  const mine = messages(page).filter({ hasText: 'SYNTHETIC-WITHDRAWN-LATE-SEND-MUST-NOT-RETURN' })
+  await expect(mine).toHaveCount(1)
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Withdraw message' }).click()
+  await page.getByRole('group', { name: 'Withdraw this message' }).getByRole('button', { name: 'Withdraw' }).click()
+  await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
+  // Every read after it fails; then the old receipt comes.
+  await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
+  await expect.poll(() => written(page, 'reply'), { timeout: 6000 }).toEqual(['reply:message'])
+  await page.waitForTimeout(500)
+  await expect(page.getByText('SYNTHETIC-WITHDRAWN-LATE-SEND-MUST-NOT-RETURN')).toHaveCount(0)
+  await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
+})
+
 test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
   await opened(page, '&erase=lost')
   await erase(page).click()
