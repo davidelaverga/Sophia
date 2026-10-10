@@ -55,7 +55,7 @@ handoff.
   the panel after the top.
 - The report viewer keeps its own pane; only its head's presses took the sheet's.
 
-- Codex on #224 (three P2s), fixed in the commit after the handoff: `.sheet-section` for the Invite's panels (the
+- Codex on #224 (three P2s), fixed in the commit after the handoff: `.sheet-tab-body` for the Invite's panels (the
   body's padding and arrival once), `CopyLink` keyed by the resource, the viewer's head presses 40 wide to a finger.
 
 ## Remaining obligations
