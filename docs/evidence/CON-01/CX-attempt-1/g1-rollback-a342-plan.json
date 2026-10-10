@@ -1,0 +1,13 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "scope": "L1 actual local reader rollback UI/API/PostgreSQL only",
+  "effects": [
+    "start disposable owned PG/API/Studio; no runtime/provider",
+    "human-only synthetic conversation and separate explicit decision",
+    "owner local test setting to read_only; no hosted settings",
+    "ordinary browser read/withdraw/erase, denied new write and return/restart if needed",
+    "audit; drop disposable cluster and stop processes"
+  ],
+  "limit": "one owned synthetic project, max30min inner/1900s outer, zero provider calls/spend",
+  "rollback": "remove owned disposable cluster only; no production effect"
+}

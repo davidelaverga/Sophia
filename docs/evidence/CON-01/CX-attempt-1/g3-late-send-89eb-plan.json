@@ -1,0 +1,13 @@
+{
+  "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+  "scope": "L1 local actual API/PostgreSQL/browser privacy, late Send vs withdrawal; no provider/native",
+  "limit": "one owned synthetic project, zero spend,30min/1900s lifetime",
+  "effects": [
+    "delay one actual Send success body30s",
+    "another account withdraws saved message before old receipt",
+    "read current withdrawn state, then locally block reads",
+    "observe late receipt cannot restore withdrawn words in list",
+    "audit then clean owned stack/tabs"
+  ],
+  "reason": "new guard only whole-conversation erased; withLastMessage still accepts raw Send receipt. Source concern, not yet reproduced."
+}

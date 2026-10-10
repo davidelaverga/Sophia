@@ -1,0 +1,63 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "tree": "ecfd9f6e32e43f8f0d5c06fb384a83b8f23fbc7a",
+  "observedAt": "2026-10-10T00:09:54.336Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "be3a4df5-cf24-4795-85af-29f8cbe00dcc",
+  "messages": [
+    {
+      "title": null,
+      "id": "8c862ee8-3a64-4e02-a851-9c0313371c83",
+      "conversation_id": "33397946-4886-4843-b1fd-77a71e0b51cc",
+      "actor_id": "082bff20-3714-4a69-9d0e-77cca0629ad6",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-10T00:09:42.818Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "082bff20-3714-4a69-9d0e-77cca0629ad6",
+      "idempotency_key": "cbffcc88-d270-42c8-b77a-56dce9e943e4",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "8c862ee8-3a64-4e02-a851-9c0313371c83"
+    },
+    {
+      "actor_id": "082bff20-3714-4a69-9d0e-77cca0629ad6",
+      "idempotency_key": "22d32dda-59a6-4372-9650-9c829943a7a2",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "8c862ee8-3a64-4e02-a851-9c0313371c83",
+        "operation": "withdraw",
+        "conversationId": "33397946-4886-4843-b1fd-77a71e0b51cc"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "082bff20-3714-4a69-9d0e-77cca0629ad6",
+      "idempotency_key": "4cb84319-a798-4cbc-928c-ed8892112177",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "33397946-4886-4843-b1fd-77a71e0b51cc"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

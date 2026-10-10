@@ -1,5 +1,17 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0022, P1 release hold
+
+Exact89eb193b/tree294fa081: earlier whole-conversation late-Send guard passes independent L0/source,35 focused units/typecheck. New actual local Studio/API/PG P1: after sender already sees message withdrawn, delayed real Send success restores withdrawn words in list preview under failed reads; thread/DB stay withdrawn. Claude implements correction; no reviewer feature fix. [CX-0022](../coordination/CON-01/CX-0022.md) owns exact falsifier/evidence.
+
+Additional actual a342 G1 rollback: read_only refuses stale Send403, retains saved read and withdraw/erase after API replacement, re-enable never revives erased title/body; original request redacted. Current-reader/API proof only, no older-artifact/G2/native/production rollback acceptance. Minor role-copy mismatch recorded.
+
+Automatic a3425476507184 confirms prior P1; fresh89eb review requested6091468072. Full gate still not established for89eb; author a342 focused150 reported/full suite running, actual live process handle requested. Main3e6d57b1/sharedPR1909b5e76a6 last observed, no owner window/combined runtime acknowledgment. G2 code/native/provider usefulness and live setup/authority remain absent.
+
+OP-0001-r1 draft_not_authorized; missing owner D6/B1/cohort/two subjects/provider/credential-reference/payer/cap/expiry and exact executable approval. No new serving tuple/hosted effect/provider call/spend/uncertainty. All fourteen owned stacks cleaned,13th+14th exit0/API+Studio stopped/DB dropped/PG stopped+cluster removed/tabs23+24+25 closed. No owned unresolved effect; other missions untouched.
+
+Partial source_ready/bounded locally_verified, P1 changes_requested; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. Next bounded action: immutable author preview-reconciliation correction independently rechecked against actual falsifier, then exact gates/G2 authority/source. Davide makes final product decision; no unattended monitor or broader completion.
+
 ## Current authoritative checkpoint — CX-0021
 
 Exact a3422f48/treeecfd9f6e: actual local browser/API/PG withdrawal same-key retry, capped omission draft/intent preservation, capped-origin→complete external erasure, separate A08 decision and phone selected-row H3 focus pass within bounded L1.34 focused units/typecheck pass; no full gate/native/provider/hosted acceptance. New P2 L0 exact store updater restores held Send plaintext after whole erasure; related late-success cache guard source concern returned to Claude, who is implementing separately. [CX-0021](../coordination/CON-01/CX-0021.md) and36-case ledger own verdicts. Reviewer authored no feature fix.

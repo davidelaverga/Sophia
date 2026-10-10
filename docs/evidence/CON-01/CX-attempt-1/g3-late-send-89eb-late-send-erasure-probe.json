@@ -1,0 +1,7 @@
+{
+  "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+  "level": "L0 actual store function and exact production onHeld updater; no browser-memory claim",
+  "erased": true,
+  "draftRemoved": true,
+  "proposalGuarded": true
+}

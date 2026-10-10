@@ -1,0 +1,40 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "scope": "L1 actual local Studio/API/PostgreSQL only; no G2/native/provider/older-artifact rollback claim",
+  "projectId": "be3a4df5-cf24-4795-85af-29f8cbe00dcc",
+  "conversationId": "33397946-4886-4843-b1fd-77a71e0b51cc",
+  "observations": [
+    {
+      "at": "2026-10-10T00:09:08.257Z",
+      "action": "stale writer Send after operator local setting read_only",
+      "status": 403,
+      "ui": "That didn\u2019t go through. Try again.",
+      "noNewMessage": true
+    },
+    {
+      "action": "reload after API replacement10844\u219211002",
+      "textReadable": true,
+      "newConversationComposerAbsent": true,
+      "withdrawAndEraseAvailable": true
+    },
+    {
+      "at": "2026-10-10T00:09:42.818Z",
+      "action": "withdraw in read_only",
+      "ui": "This message was withdrawn.",
+      "actualBody": null
+    },
+    {
+      "at": "2026-10-10T00:09:47.330Z",
+      "action": "erase whole in read_only",
+      "ui": "No conversations; The conversation was erased."
+    },
+    {
+      "at": "2026-10-10T00:10:12.266Z",
+      "action": "restore setting enabled and reload",
+      "erasedConversationAbsent": true,
+      "width": 1280
+    }
+  ],
+  "minorCopyObservation": "Admin in read_only sees Viewers read conversations; members write in them. Informational copy mismatches reason; no privilege bypass observed.",
+  "cleanup": "exit0/API+Studio stopped/database dropped/PG stopped/cluster removed/tab23 closed"
+}

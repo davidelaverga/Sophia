@@ -1,0 +1,14 @@
+{
+  "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+  "tree": "294fa081e364175652f01688dc7baa8e5607a980",
+  "focusedTests": {
+    "passed": 35,
+    "failed": 0,
+    "skipped": 0
+  },
+  "studioTypecheckExit": 0,
+  "whitespaceExit": 0,
+  "lateErasedConversationHeldSendRestored": false,
+  "fullPnpmCheck": false,
+  "automaticReviewRequest": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6091468072"
+}

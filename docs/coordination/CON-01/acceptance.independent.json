@@ -460,7 +460,8 @@
         "CX-0018.md",
         "CX-0019.md",
         "CX-0020.md",
-        "CX-0021.md"
+        "CX-0021.md",
+        "CX-0022.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Exact CX18 cap falsifier now passes actual L1: draft and unknown key survive omission; same-key actual erase once, late lost response preserves new draft. Required G2/native/provider/hosted arms remain open. CurrentCX20: Actual unknown withdrawal key lost after conversation switch, two durable same-intent requests, P2 changes_requested.",
       "baseline_evidence": [],
@@ -470,9 +471,9 @@
         "verdict": "Actual unknown withdrawal key lost after conversation switch, two durable same-intent requests, P2 changes_requested."
       },
       "current_checkpoint": {
-        "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-        "record": "CX-0021.md",
-        "verdict": "partial_L1; late Send privacy changes_requested; native/provider/live open"
+        "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+        "record": "CX-0022.md",
+        "verdict": "P1 changes_requested: actual withdrawn preview resurrection; earlier erasure guard bounded L0 pass; native/provider/live open"
       }
     },
     {
@@ -548,7 +549,8 @@
         "CX-0018.md",
         "CX-0019.md",
         "CX-0020.md",
-        "CX-0021.md"
+        "CX-0021.md",
+        "CX-0022.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Actual cap false-erasure claim corrected; target words NULL after one same-key actual erase, other thread/draft/accepted A08 retained. Native/hosted privacy remains open. Required G2/native/provider/hosted arms remain open. CurrentCX20: L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested.",
       "live_blockers": [
@@ -563,9 +565,9 @@
         "verdict": "L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested."
       },
       "current_checkpoint": {
-        "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-        "record": "CX-0021.md",
-        "verdict": "partial_L1; late Send privacy changes_requested; native/provider/live open"
+        "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+        "record": "CX-0022.md",
+        "verdict": "P1 changes_requested: actual withdrawn preview resurrection; earlier erasure guard bounded L0 pass; native/provider/live open"
       }
     },
     {
@@ -590,7 +592,8 @@
         "CX-0018.md",
         "CX-0019.md",
         "CX-0020.md",
-        "CX-0021.md"
+        "CX-0021.md",
+        "CX-0022.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 proposal logic byte-identical/composed and actual A08 reread passes; overall collateral/full gate still open. Required G2/native/provider/hosted arms remain open. CurrentCX20: New privacy/retry arms open; author full82f gate invalidated/stopped after Vite source edits, no complete gate pass.",
       "live_blockers": [
@@ -607,9 +610,9 @@
         "verdict": "New privacy/retry arms open; author full82f gate invalidated/stopped after Vite source edits, no complete gate pass."
       },
       "current_checkpoint": {
-        "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-        "record": "CX-0021.md",
-        "verdict": "partial_L1; late Send privacy changes_requested; native/provider/live open"
+        "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+        "record": "CX-0022.md",
+        "verdict": "P1 changes_requested: actual withdrawn preview resurrection; earlier erasure guard bounded L0 pass; native/provider/live open"
       }
     },
     {
@@ -635,7 +638,8 @@
         "CX-0018.md",
         "CX-0019.md",
         "CX-0020.md",
-        "CX-0021.md"
+        "CX-0021.md",
+        "CX-0022.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. CX19 supersedes affected CX18 failures within exact82f local scope: Local erasure continuity bounded pass; no hosted rollback executed or qualified. Required G2/native/provider/hosted arms remain open. CurrentCX20: External-client local state and message-level derived state cleanup unqualified; hosted governed rollback still not run.",
       "live_blockers": [
@@ -650,9 +654,9 @@
         "verdict": "External-client local state and message-level derived state cleanup unqualified; hosted governed rollback still not run."
       },
       "current_checkpoint": {
-        "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-        "record": "CX-0021.md",
-        "verdict": "partial_L1; late Send privacy changes_requested; native/provider/live open"
+        "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+        "record": "CX-0022.md",
+        "verdict": "partial_L1: G1 current reader read_only/API restart/withdraw/erase/re-enable pass; old-artifact/G2/native/production rollback open"
       }
     },
     {
@@ -685,7 +689,8 @@
       "evidence_refs": [
         "CX-0018.md",
         "CX-0019.md",
-        "CX-0021.md"
+        "CX-0021.md",
+        "CX-0022.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound. Required G2/native/provider/hosted arms remain open.",
       "baseline_evidence": [],
@@ -695,9 +700,9 @@
         "verdict": "Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound."
       },
       "current_checkpoint": {
-        "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-        "record": "CX-0021.md",
-        "verdict": "partial_L1; late Send privacy changes_requested; native/provider/live open"
+        "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+        "record": "CX-0022.md",
+        "verdict": "P1 changes_requested: actual withdrawn preview resurrection; earlier erasure guard bounded L0 pass; native/provider/live open"
       }
     }
   ],
@@ -767,22 +772,22 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0021.md",
-    "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-    "tree": "ecfd9f6e32e43f8f0d5c06fb384a83b8f23fbc7a",
+    "record": "CX-0022.md",
+    "candidate": "89eb193bdc68bb82036520e82fad8a1aed457021",
+    "tree": "294fa081e364175652f01688dc7baa8e5607a980",
     "currentMain": "3e6d57b13ee8eabe62cb8e5e1d0ee2e7ebd76b3c",
-    "statement": "Exact a342 actual withdrawal same-key retry, capped omission preserving draft/intent, capped-origin\u2192complete external erase and separate A08 decision plus phone focus pass bounded L1. Message proposal cleanup passes L0. New late uncertain Send restores erased conversation held plaintext at L0; successful cache receipt lacks source guard, author correction requested. No G2/live acceptance.",
+    "statement": "P1 actual late Send restores already-withdrawn words in list preview under failed reads; thread/DB remain withdrawn. Earlier whole-conversation held-Send correction passes L0/source/35focused units. Additional a342 actual G1 read_only rollback/API restart/read/withdraw/erase/re-enable preserves tombstones; G2/native/production rollback unqualified.",
     "independentFocusedTests": {
-      "passed": 34,
+      "passed": 35,
       "failed": 0,
       "skipped": 0,
       "studioTypecheckExit": 0,
       "fullPnpmCheck": false
     },
-    "fullGate": "Author67 focused browser and1042 units reported; full exact gate not independently established, newer Send correction underway. CI queued/in-progress.",
-    "operation": "draft_not_authorized; missing owner setup values/policies/batch approval",
-    "cleanup": "All twelve owned stacks cleaned; tabs21/22 closed; viewport reset requested; no hosted effects/provider use",
-    "automaticReview": "Exact a342 requested6091381207; no fresh clean verdict",
+    "fullGate": "Author a342 focused150 reported; full a342 running, live process handle requested; not89eb full gate.",
+    "operation": "draft_not_authorized; owner/setup/exact batch missing",
+    "cleanup": "All fourteen owned stacks clean/tabs closed/no hosted/provider effects",
+    "automaticReview": "a3425476507184 P1r4235535893; fresh89eb requested6091468072",
     "sharedPR190": "9b5e76a675324879532d182d4e3cda25a1fa1950"
   }
 }

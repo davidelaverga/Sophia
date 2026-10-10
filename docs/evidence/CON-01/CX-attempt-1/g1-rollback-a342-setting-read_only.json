@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-10T00:09:04.769Z",
+  "scope": "owned local synthetic project only",
+  "setting": {
+    "project_id": "be3a4df5-cf24-4795-85af-29f8cbe00dcc",
+    "state": "read_only",
+    "policy": "conversation-text-v1",
+    "approval_ref": "CON01-local-rollback-only",
+    "revision": 2
+  }
+}
