@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0049
+# Current checkpoint — CX-0050
+
+[Exactbc65 newP1 independently actual reproduced](../coordination/CON-01/CX-0050.md): freshreview6098455429 completed14:24:16UTC/newP1r4237924424. RealStart202body held30s/supportedadminwithdrawfirstmessage before response/currentlist removeswriter-preview/messageGET503; stale receipt restoreswithdrawn words+Propose/Withdraw whileDBbodyNULL. ActualFAIL; liftingreadfault/Tryagain→realtombstonePASSrecovery. Candidatewithheld/correctionunpublished/S1held. P2 prior scopedresolution tool-confirmed, no aggregateprivacyqualification.
+
+Audit4human/1NULL/5requests/bootstrapgoal1/allmodeloperational0. All45ownedstacks clean/64396terminal0/PGstoppedclusterremoved/DBdropped/ports57248–50closed/PIDsabsent/tab67closed. No hosted/provider/spend/unknownwrite. CC52terminalfullread/staticunit1135/fixturebrowser161/PG19+API8authorpass explicitly does not cover feed-movingStart and marksbc65superseded. Receipt-owned same-transaction cursor proposal suitable direction/sourceunqualified; preserveA16RuntimeWorkBinding/A04/frozenmigrations/sharedownership. CC51threebindingspending/no sharedwindow/schema-runtimequalification.
+
+All36verdictsretained/currentA23A25partialwithP1/nativeA09A13/A30hostednot_run/A24widthlimitation. OP1r2/OP2r2draftunapproved/approvalexpiryNULL, inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/sharedwindow/combinedartifacts/governedrollbackunbound. Historicalservingtuplebelowunrefreshed/installedcompositionunknown. Main444/PR190draft8a39/WBC02merged107lastrefreshedunchanged. Combinedreviewed/authorized/deployed/app_verified/owner_acceptedfalse. Remoteempty/dummyleftoverdisclosed; Davideacceptsproduct/othermissionsopen. Nextboundedaction immutable receiptprovenancecorrection/bothactualepisodesandaffectedreplay-isolation-errorchecks; no autonomousmonitor/futurepromise.
+
+# Historical checkpoint — CX-0049
 
 [Exactbc65 Start cursor correction and early binding review](../coordination/CON-01/CX-0049.md). NewP2r4237890625 freshca6 review independently actualFAIL→bc65PASS: one realStart202body held30s/feedlist advance/messageGET503; confirmed words now retained with honest stale warning, real retry clears it. Complete one-file17+/3−delta read;121focused/33suites/typecheck0/15affected external controls pass. Currentbc65/tree0990c248; freshreview6098455429pending/headheld/S1separate. P1 prior scoped thread tool-resolved, no aggregateapproval.
 
