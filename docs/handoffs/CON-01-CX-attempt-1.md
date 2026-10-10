@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0047
+# Current checkpoint — CX-0048
+
+[Independent ca6 correction and actual local app AFTER](../coordination/CON-01/CX-0048.md): complete five-file delta read;145 focused/42 suites/typecheck0, six new actual QueryClient/observer/store controls plus nine prior affected controls pass. Actual A→B/external withdrawal/current feed/messageGET503/reopenA now withholds old transcript and controls, shows read error; both drafts survive and recovery reads real tombstone. Parent8e58 actual failure remains inCX47. P1 suitable scoped resolution, fresh exactca6 review6098348678 pending/head held/S1 separate.
+
+Audit4human/1NULL/5requests/bootstrapgoal1/allmodeloperational0. All42 owned stacks clean/30874terminal0/PGstoppedclusterremoved/APIStudioDBclean/ports55493–95closed/PIDsabsent/tab64closed; no provider/spend/hosted/uncertain effect. CC49 five binding gaps still changes_requested; amended proposal pending, no shared owner window or schema/runtime qualification. Main444/publishedPR1908a39 last unchanged, current aggregate gate unqualified/earlier e91 failures unwaived.
+
+All36 verdicts retained/A23A25partial/nativeA09A13/A30hostednot_run/A24tool limitation. OP1r2/OP2r2 drafts/unapproved/expiryNULL; owner inbox/subjects/subscription route/credential/payer/finite allowance/expiry/privacy/runtime window/combined artifacts/governed rollback unbound. Historical serving tuple below unrefreshed/installed composition unknown. combined reviewed/authorized/deployed/app_verified/owner_accepted false; Davide decides acceptance/other missions open. Remote empty/dummy leftover remains disclosed. Next bounded action: fresh exactca6 review and amendedS2S3binding, then immutable combinedS1candidate affected rechecks if clear. No autonomous monitor.
+
+# Historical checkpoint — CX-0047
 
 [Exact8e58 P1 actual app reproduction and normalized S2/S3 design review](../coordination/CON-01/CX-0047.md). Fresh review6098148788 completed13:52:38UTC with newP1r4237833438: inactiveA's withdrawn words and Propose/Withdraw controls reappear on return while messageGETs fail. Actual local Studio/API/PG independently FAIL; list/feed update observed inB, DB bodyNULL. Lifting fault + threadTryagain gives real tombstone/pass recovery. Author correction unpublished/unqualified; S1held.
 

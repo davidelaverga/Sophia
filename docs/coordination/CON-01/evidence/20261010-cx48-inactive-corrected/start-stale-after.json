@@ -1,0 +1,12 @@
+{
+  "candidate": "ca6a0a615531f4b5c55c2a30bd4c4cc868c7895e",
+  "scope": "L0 exact exported production helper imported from its new list-data.ts location; identical assertions to CX45, actual QueryClient, synthetic receipt/no mounted claim",
+  "passed": 3,
+  "failed": 0,
+  "passedCases": [
+    "Start receipt preserves independent list read failure and error",
+    "Start still inserts one new row and its message",
+    "Data-only helper control preserves exact independent failure"
+  ],
+  "failedCases": []
+}

@@ -1,0 +1,15 @@
+{
+  "candidate": "ca6a0a615531f4b5c55c2a30bd4c4cc868c7895e",
+  "scope": "L0 real QueryClient/InfiniteQueryObserver, production drop helper and talk-store, synthetic snapshots/controlled promises; no mounted hook/native/API/A08 claim",
+  "passed": 6,
+  "failed": 0,
+  "passedCases": [
+    "Reopening an inactive old-feed transcript exposes no old messages to its actual Query observer",
+    "Other reader, conversation/project and list snapshots stay after one inactive transcript is discarded",
+    "Unsent drafts and uncertain Send/proposal/withdrawal keys remain exactly as held while old read is dropped",
+    "A cancelled in-flight inactive read cannot repopulate the new empty cache entry when its answer arrives late",
+    "A currently observed thread remains for its mounted read flow",
+    "A positively same-feed snapshot is retained without another discard"
+  ],
+  "failedCases": []
+}
