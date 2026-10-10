@@ -538,6 +538,90 @@ describe('voice qualification through the API (A15, 0046)', () => {
   })
 })
 
+/** The grant a room token names for `actor`, through the real route (rooms.ts), as the Studio asks for one; or null. */
+async function tokenGrant(projectId: string, actor = P): Promise<string | null> {
+  const snap = await withActor(pool, actor, 'read', (c) => readSnapshot(c, projectId))
+  assert.ok(snap)
+  const res = await call('POST', `/api/v1/projects/${projectId}/room-token`, {
+    actor,
+    body: { roomId: snap.room.id, expectedAudienceRevision: snap.audienceRevision },
+  })
+  assert.equal(res.status, 200, JSON.stringify(res.json))
+  return (res.json.qualification as { grantId: string } | undefined)?.grantId ?? null
+}
+
+/** The grant an exchange is under (0046 voice_grant_of, as the bridge's assignment names it), or null. */
+const coveredBy = async (exchangeId: string) =>
+  (
+    await owner((c) =>
+      c.query<{ g: string | null }>(
+        `SELECT (sophia.voice_grant_of(e.project_id,e.opened_at)).id AS g FROM sophia.room_exchanges e WHERE e.id=$1`,
+        [exchangeId],
+      ),
+    )
+  ).rows[0]?.g ?? null
+
+const endExchange = (exchangeId: string) =>
+  owner((c) => c.query(`UPDATE sophia.room_exchanges SET state='ended', ended_at=now() WHERE id=$1`, [exchangeId]))
+
+describe('a room token names a grant only while the room’s open exchange, if any, is under it (Codex P1 r4232975804, 0051)', () => {
+  it('R1, root’s sequence: an exchange opened under no grant, then a grant for its principal: none while that exchange is open; the grant once it ends, and for a fresh exchange under it', async () => {
+    const { projectId } = await project()
+    const uncovered = await open(projectId)
+    const grantId = await grant(projectId)
+    assert.equal(await coveredBy(uncovered), null, 'the open exchange is under no grant')
+    assert.equal(await tokenGrant(projectId), null, 'so the token names none')
+    await endExchange(uncovered)
+    assert.equal(await tokenGrant(projectId), grantId, 'once it ended')
+    const fresh = await open(projectId)
+    assert.equal(await coveredBy(fresh), grantId)
+    assert.equal(await tokenGrant(projectId), grantId)
+  })
+
+  it('C1, C2, C3 (controls): a grant before any exchange, a fresh exchange under it, and an exchange ended before the grant: the token names it; another member, never', async () => {
+    const first = await project()
+    const grantId = await grant(first.projectId)
+    assert.equal(await tokenGrant(first.projectId), grantId, 'C1: no exchange')
+    const fresh = await open(first.projectId)
+    assert.equal(await coveredBy(fresh), grantId)
+    assert.equal(await tokenGrant(first.projectId), grantId, 'C2: a fresh exchange under it')
+    assert.equal(await tokenGrant(first.projectId, E), null, 'another member: none')
+    const second = await project()
+    await endExchange(await open(second.projectId))
+    const later = await grant(second.projectId)
+    assert.equal(await tokenGrant(second.projectId), later, 'C3: an exchange ended before the grant')
+  })
+
+  it('a grant superseded while an exchange is open under it: the new grant is not named until that exchange ends', async () => {
+    const { projectId } = await project()
+    const earlier = await grant(projectId)
+    const underEarlier = await open(projectId)
+    const later = await grant(projectId)
+    assert.notEqual(later, earlier)
+    assert.equal(await coveredBy(underEarlier), earlier, 'the open exchange stays under the grant it opened under')
+    assert.equal(await tokenGrant(projectId), null, 'the new grant is not that exchange’s')
+    await endExchange(underEarlier)
+    assert.equal(await tokenGrant(projectId), later)
+  })
+
+  it('keeps 0046’s authority: executed by the API’s role alone, as the definer, with its search path', async () => {
+    const { rows } = await owner((c) =>
+      c.query<{ api: boolean; public: boolean; definer: boolean; config: string[] }>(
+        `SELECT has_function_privilege('sophia_api','sophia.voice_room_qualification(uuid)','EXECUTE') AS api,
+                has_function_privilege('public','sophia.voice_room_qualification(uuid)','EXECUTE') AS public,
+                p.prosecdef AS definer, p.proconfig AS config
+           FROM pg_proc p WHERE p.oid='sophia.voice_room_qualification(uuid)'::regprocedure`,
+      ),
+    )
+    assert.deepEqual(rows[0], {
+      api: true,
+      public: false,
+      definer: true,
+      config: ['search_path=pg_catalog, sophia'],
+    })
+  })
+})
+
 describe('the exchange of a voice-created task, and the room as the bridge last saw it (A15, 0046)', () => {
   /**
    * A brief admitted by `actor` under `key`. `forCall`: admitted as the API admits a recorded voice call's command

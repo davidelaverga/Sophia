@@ -151,7 +151,7 @@ On this transport the chain covers **the PCM the bridge forwarded or played**. I
 
 ## Studio receipts (page only, never stored)
 
-**When they are emitted.** Only when the room-token answer carries `qualification`, which the API adds only for the grant's principal while the grant is active. The Studio then dispatches `window` `CustomEvent('sophia:voice-qualification', {detail})`. It has no setting of its own. Without `qualification`, it adds no listener at all and dispatches nothing.
+**When they are emitted.** Only when the room-token answer carries `qualification`, which the API adds only for the grant's principal while the grant is active, and only while the room has no exchange that is not ended or that exchange is under this very grant (`voice_grant_of(project, opened_at)`, as the bridge's assignment names it; migration 0051, provisional number pending owner/root confirmation on #198; Codex P1 r4232975804). So a token asked for while the room's exchange is under no grant, or under an earlier one a new grant superseded, names none, and the next join once that exchange ended names the grant. The check is one statement in the token's own read transaction. It does not close the inversion of an exchange's `opened_at`, which is its transaction's start (T4): that is a proposal of its own. The Studio then dispatches `window` `CustomEvent('sophia:voice-qualification', {detail})`. It has no setting of its own. Without `qualification`, it adds no listener at all and dispatches nothing.
 
 The token holds for the call it opened. A grant revoked or expired during that call still names the grant on its receipts; the next join asks for a new token.
 

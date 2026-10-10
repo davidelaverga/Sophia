@@ -145,7 +145,10 @@ export async function readQualificationEvidence(c: pg.PoolClient, exchangeId: st
   return onlyRow(rows, 'voice_qualification_evidence_read').evidence
 }
 
-/** The grant a room token names for its principal while it is active, or null. Call inside withActor. */
+/**
+ * The grant a room token names for its principal while it is active, and while the room's open exchange, if any, is under
+ * it (0051; Codex P1 r4232975804), or null. Call inside withActor.
+ */
 export async function roomQualification(
   c: pg.PoolClient,
   roomId: string,

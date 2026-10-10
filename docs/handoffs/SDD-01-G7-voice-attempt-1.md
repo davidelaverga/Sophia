@@ -28,6 +28,7 @@ What exists in source, under a grant:
 - **The service numbers the receipts (0051, Codex P1 r4232908444).** Under the project's and the exchange's locks, from a durable high-water counter per exchange and grant, never lowered and never read from the receipts kept: a repeat of a write is answered with its own number (`replayed`), another receipt under its identity is refused (409) and spends none, and a refused write spends none, so the numbers run densely from 1. A process started again mid-exchange, or two at once, take the next numbers. Writes are taken until 24 h less one minute after the exchange's first (before any identity expires), then refused; past 99,999, refused. The bridge's own numbering (`POST /v1/media/evidence`) answers 410 and keeps nothing.
 - **The Studio's page receipts and build identity.**
   - Page receipts are window events fired only under a grant, only for Sophia's element, with listeners that end with her subscription and with the call.
+  - The room token names the grant only while the room's open exchange, if any, is under it (0051, provisional number; Codex P1 r4232975804, root's option (b)): `voice_room_qualification` replaced with the same signature and authority. The transaction-start inversion of `opened_at` (T4) stays open, with its own proposal.
   - The build identity is `<meta name="sophia-build">`.
 - **Canonical joins for the Lab:**
   - `NativeTask.exchangeId`, linked by the transaction that inserted the command, never by key;

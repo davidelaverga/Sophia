@@ -18,6 +18,8 @@
 -- then no identity has expired yet. After it, every write is refused (22023), never numbered again.
 -- 0046 is frozen and untouched: its media_record_evidence still keeps each receipt (it is called here with the number
 -- given); the 'service' source (the guard's receipt, seq 0) is not counted.
+-- It also replaces 0046's voice_room_qualification (below): a room token names a grant only while the room's open
+-- exchange, if any, is under it (Codex P1 r4232975804).
 BEGIN;
 
 CREATE TABLE sophia.voice_evidence_high_water (
@@ -83,5 +85,22 @@ END $$;
 
 REVOKE ALL ON FUNCTION sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb) TO sophia_api;
+
+-- What a room token names of the grant (Codex P1 r4232975804; root's decision (b)). 0046 named the principal's active
+-- grant whatever the room was doing, so a token minted while the room's open exchange was under no grant, or under an
+-- earlier one, named a grant that exchange is not under: the Studio's page receipts then claimed a run the bridge was not
+-- recording. Now the grant is named only while the room has no exchange that is not ended, or while that exchange is
+-- under this very grant (voice_grant_of(project, opened_at), as the bridge's assignment names it). The same signature,
+-- language, volatility, definer and search path as 0046's: CREATE OR REPLACE keeps its owner and its grants (EXECUTE
+-- to sophia_api alone). One statement, so one snapshot: the token path's own read transaction. It does not close the
+-- timestamp inversion of an exchange whose opened_at is its transaction's start (T4): that is a proposal of its own.
+CREATE OR REPLACE FUNCTION sophia.voice_room_qualification(p_room uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT jsonb_build_object('grantId',g.id,'runBindingSha256',g.run_binding_sha256)
+ FROM sophia.room_state r JOIN sophia.voice_qualification_grants g ON g.project_id=r.project_id
+ WHERE r.id=p_room AND g.revoked_at IS NULL AND g.expires_at>now() AND g.principal_actor_id=sophia.actor_id()
+  AND sophia.is_member(r.project_id)
+  AND NOT EXISTS(SELECT 1 FROM sophia.room_exchanges e WHERE e.room_id=r.id AND e.state<>'ended'
+   AND (sophia.voice_grant_of(e.project_id,e.opened_at)).id IS DISTINCT FROM g.id) $$;
 
 COMMIT;
