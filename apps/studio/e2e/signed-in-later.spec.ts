@@ -62,9 +62,16 @@ test('later · the sign-in page at rest asks for none of the signed-in Studio, i
   page,
 }) => {
   const asked = recorded(page)
-  // What a provider's sign-in, started and left, keeps: supabase-js's own key beside the session's, no session.
+  // supabase-js's own keys beside the session's, no session: a provider's sign-in started and left, and an account's
+  // user as it is kept apart (its `-user` key) — an account's, by its value, but no session by its key.
   await page.goto(`${APP}/favicon.svg`)
-  await page.evaluate((key) => localStorage.setItem(key, '"synthetic-verifier"'), `${SESSION_KEY}-code-verifier`)
+  await page.evaluate(
+    ([verifier, user, value]) => {
+      localStorage.setItem(verifier, '"synthetic-verifier"')
+      localStorage.setItem(user, value)
+    },
+    [`${SESSION_KEY}-code-verifier`, `${SESSION_KEY}-user`, JSON.stringify({ user: session().user })] as const,
+  )
   await page.goto(`${APP}/app.html`)
   await expect(page.locator('input[type="email"]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)

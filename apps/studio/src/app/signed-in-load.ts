@@ -20,8 +20,10 @@ const KEPT_SESSION = /^sb-.+-auth-token$/
 /** A kept session that is an account's, as supabase-js keeps it: not a guest's left from a room's door. */
 function anAccounts(kept: string | null): boolean {
   try {
-    const session = JSON.parse(kept ?? 'null') as { user?: { is_anonymous?: boolean } } | null
-    return session !== null && session.user?.is_anonymous !== true
+    const session: unknown = JSON.parse(kept ?? 'null')
+    if (typeof session !== 'object' || session === null) return false
+    const user: unknown = 'user' in session ? session.user : null
+    return !(typeof user === 'object' && user !== null && 'is_anonymous' in user && user.is_anonymous === true)
   } catch {
     return false
   }

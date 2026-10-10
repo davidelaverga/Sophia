@@ -53,8 +53,8 @@
   person starts typing, the signed-in Studio is fetched; signed in with its chunk refused, the page says so and offers
   to load again; with a session kept (past its time, its refresh held), the chunk is asked for while the page still
   finds out who is in, and so with a sign-in's return (`?code=`, its exchange held). At rest, the page keeps
-  supabase-js's key for a provider's sign-in started and left (`…-auth-token-code-verifier`): that is no session, and
-  fetches nothing; nor does a guest's session kept from a room's door, back at the Studio's sign-in.
+  supabase-js's keys for a provider's sign-in started and left (`…-auth-token-code-verifier`) and for an account's user
+  kept apart (`…-auth-token-user`): neither is a session, and nothing is fetched; nor does a guest's session kept from a room's door, back at the Studio's sign-in.
 - `app-auth`, unchanged, passes here: proposals kept and forgotten by account, through the new boundary. `opening` passes
   too, on its own fixture page (which draws Home directly, without the boundary).
 - Mutants, with a control that passes: the signed-in Studio imported statically, the client imported by the sign-in
