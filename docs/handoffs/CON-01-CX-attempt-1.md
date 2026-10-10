@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0071
+# Current checkpoint — CX-0072
+
+[Independent actual2f87 P1/P2 failures](../coordination/CON-01/CX-0072.md), samefrozen2f87/treec0defbe4 as CX70/CX71scopedpasses. Exactautomatic5480403978/P1r4238826981/P2r4238826987 fullypaginated/read. Actual66th localPG/API/Studio: humanSend202/list503/newmessage21:05 butrowstillsecond/time21:04 FAILP2. OmittedC2probeheldbeforeupstream/revokeoriginalmembership/releasegenuine422→cachedCAP200body/rows/controls stillvisible FAILP1; backendpropernonownerdeny/viewer4successPASS. Restoreoriginalmember/editorbumpexistingC2once/freshlist200→ReactMaximumUpdateDepth/wholeappblank FAILP1. Sourceclearsdraft/permanenterasedmarker; no successfuldraftreopeningobserved.
+
+All66stacks clean/68721terminal0/DBdropped/APIStudioPGstoppedclusterremoved/tab89closed/PIDsabsent/ports58746–47closed. Final207human0NULL207requests/0replies/supportgoal1/allopsusage0. Privatebumpcommittedonce thenreceiptshapeerror; read-onlyreconciledone seq5/no retry/no unresolvedwrite. No hosted/provider/spend/reviewerfeaturefix. All36verdictstatusesretained; G3changes_requested/P1P2hold; combinedG4unqualified. Authorisolatedebe8inheritsaffectedsource/unpublished/unreviewed. OP1r2/OP2r2drafts/approvalexpiryNULL; inboxsubjects/route/allowance/privacy/sharedownerwindow/artifacts/governedrollback unbound. No livegrant. Davidefinaldecision/othermissionsopen.
+
+Next bounded action: immutableauthorprobe-fence/nonpoisoningrecovery+monotoniclastAtcorrection; independentactualsameprobe revoke→restore and sendorder/time/olderreceiptcontrols, originalfence/cleanup; then freshcurrent-main/S1combinedG4/fullgate/artifactreview.
+
+# Historical checkpoint — CX-0071
 
 [Actual2f87 cap/partialconsumer/coverage check](../coordination/CON-01/CX-0071.md), samefrozen2f87/treec0defbe4 as CX70 privacy/restoration PASS. Actual65th local app with humanStart202/60sresponse/realErase403beforeStart/201newer synthetic setup/currentlist200+target200: retainedrow reachable, coverage newest200plusone truthful, summary/questionsunknown, Open/Mine explicitunjudgednote, knownMine2wordmatches control PASS. Tasksreturn selectsnewest/typedfilterresets; manualretainedrowreopen preserves exactunsentdraft. No providerprojection/nativeanswerproof.
 

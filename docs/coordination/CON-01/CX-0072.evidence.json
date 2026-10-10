@@ -1,0 +1,25 @@
+{
+  "candidate": "2f87eb36a38ec0ac018ea5c07d6e1df334c05134",
+  "tree": "c0defbe4445c60bb7dfb2504e1ab1737624caa23",
+  "actualEpisode": 66,
+  "level": "L1 actual local Studio/API/PostgreSQL17.6 synthetic development identities; no fixtures/native/provider",
+  "automatedReview": 5480403978,
+  "findings": [
+    4238826981,
+    4238826987
+  ],
+  "P1probeRevocation": "FAIL actual releasedAPI422 retainscachedrows/body/controls afterrevocation; source settlesdraft and poisons erased state",
+  "P1restoration": "FAIL actualfreshlist200 afterrestoration/existingtargetbump causesReactMaximumUpdateDepth/appblank",
+  "draftRestoration": "not observed because appcrashed; source withoutConversation removesdraft",
+  "P2confirmedSend": "FAIL actualSend202/newmessage21:05/rowstillsecondlastAt21:04/list503",
+  "authorizationCrossing": "PASS bounded revokednotfound/viewer4/nonowner-nonBYPASSRLS",
+  "allOwnedStacksClean": 66,
+  "setupBumpReceiptError": "write committed once, receipt-shapeerror; read-only reconciliation1rowseq5/no retry; resolved",
+  "hostedEffects": 0,
+  "providerCalls": 0,
+  "paidSpend": 0,
+  "uncertainWrite": false,
+  "liveBatchAuthorized": false,
+  "combinedG4": "unqualified; oldebe8dependsfailedsource",
+  "acceptanceStatusesChanged": false
+}

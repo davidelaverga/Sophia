@@ -1,0 +1,14 @@
+[
+  {
+    "level": "error",
+    "message": "Error: Maximum update depth exceeded. This can happen when a component repeatedly calls setState inside componentWillUpdate or componentDidUpdate. React limits the number of nested updates to prevent infinite loops.\n    at getRootForUpdatedFiber (http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f:2786:166)\n    at enqueueConcurrentRenderForLane (http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f:2776:11)\n    at forceStoreRerender (http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f:4772:15)\n    at http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f:4758:101\n    at changeKept (http://127.0.0.1:58747/src/features/conversations/talk-store.ts:56:36)\n    at changeIfCurrent (http://127.0.0.1:58747/src/features/conversations/talk-store.ts:62:27)\n    at change (http://127.0.0.1:58747/src/features/conversations/talk-store.ts:78:18)\n    at http://127.0.0.1:58747/src/features/conversations/ConversationsView.tsx:822:46\n    at Object.react_stack_bottom_frame (http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f:14178:13)\n    at runWithFiberInDEV (http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f:944:66)",
+    "timestamp": "2026-10-10T19:07:56.268Z",
+    "url": "http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f"
+  },
+  {
+    "level": "warn",
+    "message": "%s\n\n%s\n An error occurred in the <ConversationsView> component. Consider adding an error boundary to your tree to customize error handling behavior.\nVisit https://react.dev/link/error-boundaries to learn more about error boundaries.",
+    "timestamp": "2026-10-10T19:07:56.268Z",
+    "url": "http://127.0.0.1:58747/node_modules/.vite/deps/react-dom_client.js?v=3ceb958f"
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-10T19:07:47.839Z",
+  "conversationId": "9d38ae5c-3b65-4eea-b037-540a0da59417",
+  "matches": 1,
+  "rows": [
+    {
+      "id": "a73eee23-d1c8-47fa-9b17-e35d26857fc1",
+      "seq": "5",
+      "created_at": "2026-10-10T19:07:32.387Z"
+    }
+  ],
+  "scope": "read-only owned reconciliation of setup write after reviewer receipt-shape error; no retry"
+}

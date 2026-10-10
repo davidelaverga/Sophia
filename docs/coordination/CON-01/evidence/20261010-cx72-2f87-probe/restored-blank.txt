@@ -1,0 +1,4 @@
+Browser tab: 89, Title: "Sophia Studio", URL: "http://127.0.0.1:58747/p/a4fd719f-5d6d-4cd4-83fa-9d3e3fa1f520/conversations".
+0 AXWebArea Sophia Studio, URL: 127.0.0.1:58747/p/a4fd719f-5d6d-4cd4-83fa-9d3e3fa1f520/conversations
+
+The focused UI element is 0 AXWebArea Sophia Studio, URL: 127.0.0.1:58747/p/a4fd719f-5d6d-4cd4-83fa-9d3e3fa1f520/conversations
