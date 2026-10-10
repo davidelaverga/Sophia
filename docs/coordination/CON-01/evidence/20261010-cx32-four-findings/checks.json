@@ -1,0 +1,41 @@
+{
+  "candidate": "2e5fe53bfa5f2f1259da7f3b3105b8639c179535",
+  "tree": "e4ec6c0327843a918134010182afbb7e8e20c16d",
+  "mechanicalTree": "e4ec6c0327843a918134010182afbb7e8e20c16d",
+  "mainSideByteIdentical": [
+    "apps/studio/e2e/contrast.ts",
+    "apps/studio/e2e/drawn.spec.ts",
+    "apps/studio/e2e/drawn.ts",
+    "apps/studio/e2e/focus-visible.spec.ts",
+    "apps/studio/e2e/ink-states.spec.ts",
+    "apps/studio/e2e/ink.spec.ts",
+    "apps/studio/src/app/theme.css",
+    "apps/studio/src/features/resources/resources.css",
+    "apps/studio/src/features/work/planning/board.css",
+    "docs/handoffs/FOCUSVISIBLE-attempt-1.md",
+    "docs/handoffs/INKEVERYPAGE-attempt-1.md",
+    "docs/handoffs/INKSTATES-attempt-1.md",
+    "docs/handoffs/KNOWLEDGECOVERS-attempt-1.md",
+    "docs/handoffs/PLACEHOLDERINK-attempt-1.md",
+    "docs/plans/focus-visible.md",
+    "docs/plans/ink-every-page.md",
+    "docs/plans/ink-states.md",
+    "docs/plans/knowledge-covers-drawn.md",
+    "docs/plans/placeholder-ink.md"
+  ],
+  "composedFixturePaths": [
+    "apps/studio/fixtures/fixture-api.ts",
+    "apps/studio/fixtures/room.tsx"
+  ],
+  "conversationSourceDelta": "",
+  "acceptanceCases": 36,
+  "probeExit": 0,
+  "probeSha256": "47f1d2d9608124a9545e589ae5f5d50e0d825ddca8573df23922456d6af86bf0",
+  "effects": {
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "hostedWrites": 0,
+    "newSpend": 0
+  },
+  "fullG4": "not_qualified"
+}

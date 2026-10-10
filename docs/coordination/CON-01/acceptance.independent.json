@@ -814,6 +814,11 @@
     "cleanup": "All22owned local stacks cleaned; tabs40/41closed, processesabsent, portsclosed, PG/DBremoved; no provider/native/hosted/spend/uncertain paid effect.",
     "automaticReview": "P2r4237222580 qualifiedforresolution bounded L0; latest sourcec524 fresh CIqueued. New automatic review request to be recorded.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
-    "liveRefresh": "Render/Vercel dashboard tuple independently unchanged between10:01:57.540Z and10:03:23.913Z. No deployed CON candidate; installed composition/StudioSHA unknown; DB not freshly probed. All temporary setup/dashboard tabs closed, no account/project created."
+    "liveRefresh": "Render/Vercel dashboard tuple independently unchanged between10:01:57.540Z and10:03:23.913Z. No deployed CON candidate; installed composition/StudioSHA unknown; DB not freshly probed. All temporary setup/dashboard tabs closed, no account/project created.",
+    "automatic_review_request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096473793",
+    "automatic_review_outcome": "Completed on c524: four new P2 findings4237298613/20/22/23. Three independently confirmed L0; proposal association store gap confirmed but mounted UI timing unqualified. All remain open pending exact correction review.",
+    "setup_operation_request": "CON-01-OP-0002-r2.json; draft_not_authorized, designated mailbox pending, zero live effects",
+    "integration_state": "Published combined2e5fe53bfa5f2f1259da7f3b3105b8639c179535/treee4ec6c0327843a918134010182afbb7e8e20c16d. Mechanical merge-tree equality independently verified. Conversation/API/persistence source byte-identical to c524; binding wording refinement read. Author full gates running, not a G4 pass.",
+    "new_findings_evidence": "CX-0032.md and evidence/20261010-cx32-four-findings/"
   }
 }

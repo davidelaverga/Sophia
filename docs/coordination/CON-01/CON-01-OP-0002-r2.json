@@ -1,0 +1,122 @@
+{
+  "schema": "sophia.part2.operation-request.v1",
+  "template": false,
+  "mission_id": "CON-01",
+  "request_id": "CON-01-OP-0002",
+  "revision": 2,
+  "status": "draft_not_authorized",
+  "approval_ref": null,
+  "approved_by": null,
+  "expires_at": null,
+  "proposed_validity": "60 minutes from explicit approval of the finalized batch; no expiry inferred until approved",
+  "purpose": "One synthetic actual-account/project setup only; no inference, deployment or CON feature enablement",
+  "candidate_sha": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6",
+  "candidate_identity": "Last independently observed serving API source and exact Studio deployment below; refresh both before approval. Studio source SHA remains unknown, so no CON candidate or frontend source qualification is inferred.",
+  "target": {
+    "studio": "https://studio.sophia-ei.com/work",
+    "auth": "Supabase sophia-next/main PRODUCTION/ikigawvpaxnvdjzzzhws",
+    "api": "Render srv-daqrn08473hc73flhi8g",
+    "identity_observation_ref": "LIVE_PREFLIGHT.md and evidence/20261010-live-dashboard-1002.json; Render/Vercel unchanged10:01\u201303, serving StudioSHA and owner subject still unknown"
+  },
+  "credential_references": {
+    "project_creation": "Existing signed-in Davide Studio session; server derives actor, no vendor token custody",
+    "account_creation": "Supported invited-member email OTP flow through existing Studio and Supabase Auth; shouldCreateUser true. Owner-controlled mailbox required; no dashboard password account, direct auth SQL, synthetic JWT or admin key.",
+    "test_mailbox": null
+  },
+  "project": {
+    "title": "CON-01 Synthetic Review \u00b7 2026-10-10",
+    "maximum_created": 1,
+    "project_id": null,
+    "owner_subject": null,
+    "initial_role": "creator/admin"
+  },
+  "synthetic_account": {
+    "maximum_created": 1,
+    "email_ref": null,
+    "subject": null,
+    "authentication": "Actual Supabase sign-in and app session; no synthetic JWT/fixture",
+    "membership_role_proposal": "editor on this project only; owner choice/approval pending",
+    "credential_entry": "Any new credential entry through UI is completed by owner; do not record passwords/codes in public evidence"
+  },
+  "ordered_effects": [
+    {
+      "order": 1,
+      "effect": "Read-only pin serving artifact/API/auth target and owner subject; check no preexisting project/account under designated title/mailbox and no competing setup operation"
+    },
+    {
+      "order": 2,
+      "effect": "Create exactly one project through Work/New project/Start the project (POST /api/v1/projects, server-generated actor; stable UI admission key for unknown outcome retries); verify returned project ID and owner membership"
+    },
+    {
+      "order": 3,
+      "effect": "Create one member invitation through Invite / Members / Send invitation, kind member and approved editor role, for only the designated mailbox. POST /api/v1/projects/:projectId/invitations returns 200 under stable UI admission key; email delivery uses invitation-ID/version key. Record ID and delivery status privately. An unknown result is reconciled under the same key; no reissue."
+    },
+    {
+      "order": 4,
+      "effect": "Open the invitation in a dedicated test tab. Deliberately switch the shared browser auth session from owner to the synthetic account using the supported sign-out/sign-in UI; do not copy tokens or assume different tabs isolate accounts. Email me a sign-in code invokes Supabase shouldCreateUser true, creating at most one actual account. Owner completes code/credential/terms input if needed. Accept and open the project posts /api/v1/join/accept; verify returned project and actual subject/membership. This action does not request a call."
+    },
+    {
+      "order": 5,
+      "effect": "Verify synthetic-account return and a denied unrelated-project route, then switch back to the owner through normal sign-in if needed and verify owner membership. Sequential two-account verification is distinct from two concurrent signed-in identities. Record exact setup writes and auth subjects privately. No conversation or room joining."
+    }
+  ],
+  "allowance": {
+    "maximum_new_spend": 0,
+    "currency": "USD",
+    "provider_calls": 0,
+    "native_model_calls": 0,
+    "deployments": 0,
+    "schema_changes": 0,
+    "provider_or_extra_credit_purchase": false,
+    "new_payer_allowed": false,
+    "member_invitations": 1,
+    "invitation_reissues": 0,
+    "synthetic_auth_code_sends": 1,
+    "unexpected_auth_resends": 0,
+    "membership_acceptances": 1,
+    "room_joins": 0,
+    "owner_reauthentication": "Existing owner identity only if needed to restore original session; no new account. Exact supported flow must be confirmed before approval."
+  },
+  "preconditions": [
+    "Exact serving tuple and source/artifact identity refreshed",
+    "Designated owner-controlled test inbox and supported real sign-in bound",
+    "Owner and synthetic subjects distinct; project role approved",
+    "No broad permissions, vendor credential custody, new resource enrollment or quota collector in this setup batch",
+    "User approval of this concrete finalized batch recorded under WORKING_PROTOCOL section3 and mission pack08",
+    "Invitation link configuration and real email delivery or supported private link handoff verified; not inferred from source alone",
+    "Current Studio UI must expose the reviewed member-invitation and invited-sign-in flow; sourceSHA unknown",
+    "Mailbox belongs to owner, recipient and synthetic-only project role appear in final approval; invitation email is part of the approved setup effects"
+  ],
+  "recovery": {
+    "partial_failure": "Stop further setup effects; retain private synthetic project/account and exact IDs, reconcile unknown write under original admission key; no destructive cleanup inferred",
+    "membership": "No access outside designated synthetic project; revocation/cleanup requires its exact approved scope",
+    "data": "Retain governed records; no SQL DELETE or direct auth-table insertion, no auth-policy weakening"
+  },
+  "unbound": [
+    "Fresh serving candidate/artifact identities and owner subject reference",
+    "Owner-controlled mailbox and usable authentication flow",
+    "Synthetic subject ID (returned only after creation)",
+    "Final invitation/join role and target confirmation",
+    "Approval reference and exact expiry"
+  ],
+  "related_release_request": "CON-01-OP-0001-r2.json",
+  "serving_artifacts": {
+    "api_deployment": "dep-db0h6jad0e5s73bkine0",
+    "studio_deployment": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+    "studio_source_sha": null,
+    "observation_ref": "evidence/20261010-live-dashboard-1002.json"
+  },
+  "source_review": {
+    "reviewed_candidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
+    "api_access_and_projects": "Byte-identical to serving API source1e912b7; git diff exit0, no output",
+    "paths": [
+      "apps/api/src/routes/access.ts",
+      "apps/api/src/routes/projects.ts",
+      "apps/studio/src/features/access/InviteSheet.tsx",
+      "apps/studio/src/features/access/JoinFlow.tsx",
+      "apps/studio/src/app/auth.ts",
+      "apps/studio/src/api/access.ts"
+    ],
+    "limits": "Source inspection only. Actual deployed Studio source, invite configuration, mailbox deliverability and two-account app episode remain unverified. No live effect."
+  }
+}

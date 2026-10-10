@@ -1,0 +1,28 @@
+{
+  "candidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
+  "findings": [
+    {
+      "id": 4237298620,
+      "observed": "Actual QueryClient call used by composer replaces error with success and null error after successful Send. Before status error; after success.",
+      "level": "L0 actual QueryClient operation, no mounted UI"
+    },
+    {
+      "id": 4237298622,
+      "observed": "Trusted receipt seq3 updates messageSeq to3 while summary/questions still current through2 with newer0.",
+      "level": "L0 production helper, synthetic assessed projections; API before G2 does not emit assessments"
+    },
+    {
+      "id": 4237298623,
+      "observed": "First confirmed sender remains absent from contributors and Mine; unrelated writer remains. Current helper.",
+      "level": "L0 production helper, no mounted first-writer browser arm"
+    },
+    {
+      "id": 4237298613,
+      "observed": "Unassociated store state survives withoutConversation and accepts late success. This proves only the store gap; ordinary UI opens a proposal form first and may flush useHome before submission, so mounted timing/reachability is unproven.",
+      "level": "L0 manually sequenced production store; no mounted race claim"
+    }
+  ],
+  "positiveControls": 3,
+  "featureEdits": 0,
+  "limits": "L0 only. No browser/provider/native/hosted effect."
+}
