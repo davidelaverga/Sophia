@@ -273,17 +273,20 @@ const talkHere = {
 }
 
 describe('a start’s receipt for a conversation erased here meanwhile brings nothing back (PR #199 r4238111781)', () => {
-  it('erased here, its row and read taken away: the late receipt writes neither, and it is not opened', () => {
+  it('erased here, its row and read taken away: the late receipt changes nothing, and it is not opened', () => {
     forgetKept()
     const client = new QueryClient()
     client.setQueryData(listKey('p', 'ana'), listOf('Older'))
-    changeKept(PLACE, (k) => withoutConversation(k, 'b'))
+    const words = { title: 'Started', text: 'Words of the start.', askSophia: true }
+    changeKept(PLACE, (k) => ({ ...withoutConversation(k, 'b'), start: { ...k.start, fields: words } }))
+    const before = keptAt(PLACE)
     const late = receipt('6')
     const open = landed(talkHere, late, () => putStarted(client, 'p', 'ana', late, '6'))
     assert.equal(open, false)
     assert.deepEqual(ids(client, listKey('p', 'ana')), ['a'])
     assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
-    assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
+    assert.equal(keptAt(PLACE), before)
+    assert.deepEqual(keptAt(PLACE)?.start.fields, words)
   })
 
   it('not erased: listed, its thread written, and it may be opened (control)', () => {
@@ -295,5 +298,6 @@ describe('a start’s receipt for a conversation erased here meanwhile brings no
     assert.equal(open, true)
     assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
     assert.notEqual(client.getQueryData(messagesKey('b', 'ana')), undefined)
+    assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
   })
 })

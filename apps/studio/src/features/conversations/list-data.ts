@@ -79,15 +79,16 @@ interface Talk {
 }
 
 /**
- * A start's receipt landed: the form's words go and Sophia's wait is noted, and it is put in the list and its thread
- * (`put`, putStarted), unless this view knows the conversation erased since (talk-store `erased`: its erasure here, or a
- * whole list read without it). Those take its read and its row away, so no read left there proves nothing, and the
- * receipt would bring the erased words and row back (PR #199 r4238111781). Whether it may be opened.
+ * A start's receipt landed: it is put in the list and its thread (`put`, putStarted), the form's words go and Sophia's
+ * wait is noted, and it may be opened. Unless this view knows the conversation erased since (talk-store `erased`: its
+ * erasure here, or a whole list read without it): those take its read and its row away, so no read left there proves
+ * nothing, and the receipt would bring the erased words and row back (PR #199 r4238111781). Such a receipt is refused
+ * before any of it: nothing listed or written, the form's words kept, no wait noted, nothing opened.
  */
 export function landed(talk: Talk, receipt: ConversationStarted, put: () => void): boolean {
   const { conversation, reply } = receipt
-  const gone = talk.of(conversation.id).gone()
-  if (!gone) put()
+  if (talk.of(conversation.id).gone()) return false
+  put()
   talk.change((k) => ({
     ...k,
     start: { ...k.start, fields: NO_WORDS },
@@ -95,5 +96,5 @@ export function landed(talk: Talk, receipt: ConversationStarted, put: () => void
       ? withEntry(k.asked, conversation.id, { replyId: reply.id, messageId: reply.messageId, here: Date.now() })
       : k.asked,
   }))
-  return !gone
+  return true
 }
