@@ -22,12 +22,11 @@ export interface Kept {
     held: Held<ConversationAsk> | null
     /**
      * A start's receipt held back, with the form's words as they stood then: it came while an erasure of its
-     * conversation pressed here was on its way or had no reply (PR #199 r4238177970). Never landed on that erasure's
-     * answer alone: erased, it goes (`retired`); answered otherwise (`answered`: refused, whatever the refusal, which
-     * proves nothing of an earlier try that had no reply; PR #199 r4238256883, CX-0059), it waits for a list read made
-     * since to say whether the conversation stands (list-data `standing`). Until then the form starts nothing new.
+     * conversation pressed here was on its way, had no reply, or was in doubt (`doubted`; PR #199 r4238177970). Erased,
+     * it goes (`retired`); its doubt cleared by a list read made since, it lands (list-data `standing`). Until then the
+     * form starts nothing new.
      */
-    heldBack: { receipt: ConversationStarted; fields: ConversationAsk; answered: boolean } | null
+    heldBack: { receipt: ConversationStarted; fields: ConversationAsk } | null
   }
   /** A message's proposal on its way, or sent with no reply (its key and words), by message: never sent twice. */
   proposals: Readonly<Record<string, Held<string> | null>>
@@ -52,6 +51,13 @@ export interface Kept {
    * them again, so a late answer to their erasure (a failure, or no reply) never brings its intent back.
    */
   erased: Readonly<Record<string, true>>
+  /**
+   * The conversations whose erasure here was let go without being known erased (refused, whatever the refusal: it
+   * answers its own try only, never an earlier one that had no reply; PR #199 r4238256883, CX-0059, CX-0060): whether
+   * they stand is in doubt until a list read made since lists them (list-data `standing`), or they are known erased.
+   * Kept whether or not a start's receipt for one has come yet: one that comes is held back meanwhile.
+   */
+  doubted: Readonly<Record<string, true>>
   /** A message's withdrawal on its way, or sent with no reply (its key), by message: sent again under the same key. */
   withdrawals: Readonly<Record<string, Held<string> | null>>
   /** The conversation of each message that has something kept here (a withdrawal or a proposal), by message. */
@@ -97,6 +103,7 @@ const EMPTY: Kept = {
   decisionRefusal: null,
   erasures: {},
   erased: {},
+  doubted: {},
   withdrawals: {},
   homes: {},
   gone: {},
@@ -192,7 +199,7 @@ const holdsAny = (out: Readonly<Record<string, true>>) => (r: Readonly<Record<st
 export function retired(k: Kept): Kept {
   const { gone, erased } = k
   const messages = [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes]
-  const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.listed]
+  const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.doubted, k.listed]
   const back = k.start.heldBack
   const backErased = back !== null && erased[back.receipt.conversation.id] === true
   if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased)) && !backErased) return k
@@ -205,6 +212,7 @@ export function retired(k: Kept): Kept {
     refusals: without(k.refusals, erased),
     asked: without(k.asked, erased),
     erasures: without(k.erasures, erased),
+    doubted: without(k.doubted, erased),
     listed: without(k.listed, erased),
     proposals: without(k.proposals, gone),
     proposalRefusals: without(k.proposalRefusals, gone),
@@ -274,14 +282,28 @@ export const withHome = (k: Kept, messageId: string, conversationId: string): Ke
 const heldBackFor = (k: Kept): string[] => (k.start.heldBack ? [k.start.heldBack.receipt.conversation.id] : [])
 
 /**
- * The conversations a whole list read now no longer holds, of those seen listed here, with an erasure held here, or
- * with a start's receipt held back for them: gone (erased, here or by anyone else). Only a whole list says so: call it
- * with nothing else.
+ * The conversations a whole list read now no longer holds, of those seen listed here, with an erasure held here or in
+ * doubt, or with a start's receipt held back for them: gone (erased, here or by anyone else). Only a whole list says
+ * so: call it with nothing else.
  */
 export function goneFrom(k: Kept, now: readonly string[]): string[] {
   const here = new Set(now)
-  const knew = new Set([...Object.keys(k.listed), ...Object.keys(k.erasures), ...heldBackFor(k)])
+  const knew = new Set([
+    ...Object.keys(k.listed),
+    ...Object.keys(k.erasures),
+    ...Object.keys(k.doubted),
+    ...heldBackFor(k),
+  ])
   return [...knew].filter((id) => !here.has(id))
+}
+
+/** The conversations in doubt (`doubted`) with no erasure of them held here now: a list read made since says. */
+export const awaiting = (k: Kept): string[] => Object.keys(k.doubted).filter((id) => (k.erasures[id] ?? null) === null)
+
+/** What is kept once a list read made since lists these conversations: they stand, no longer in doubt. */
+export function withStanding(k: Kept, ids: readonly string[]): Kept {
+  const out = Object.fromEntries(ids.map((id) => [id, true as const]))
+  return ids.some((id) => k.doubted[id]) ? { ...k, doubted: without(k.doubted, out) } : k
 }
 
 /** An entry that holds something (not left empty, not cleared). */
@@ -289,11 +311,11 @@ const held = (v: unknown) => v !== null && v !== undefined
 
 /**
  * Whether anything is kept here for this conversation, by what is kept, not by an entry left empty (PR #199
- * r4235731017): a draft with words; a message held, its refusal or its wait; its erasure held (its key); a start's
- * receipt held back for it; or a message of it with a proposal held, refused or recorded, or a withdrawal held.
+ * r4235731017): a draft with words; a message held, its refusal or its wait; its erasure held (its key) or in doubt; a
+ * start's receipt held back for it; or a message of it with a proposal held, refused or recorded, or a withdrawal held.
  */
 export function keepsFor(k: Kept, id: string): boolean {
-  if ((k.drafts[id] ?? '').trim() !== '' || heldBackFor(k).includes(id)) return true
+  if ((k.drafts[id] ?? '').trim() !== '' || k.doubted[id] || heldBackFor(k).includes(id)) return true
   if ([k.holds[id], k.refusals[id], k.asked[id], k.erasures[id]].some(held)) return true
   const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
   return messages.some((m) => [k.proposals[m], k.proposalRefusals[m], k.proposed[m], k.withdrawals[m]].some(held))
@@ -320,12 +342,11 @@ export function withWithdrawal(k: Kept, messageId: string, conversationId: strin
 
 /**
  * One conversation's erasure intent, changed (on its way, with no reply, or answered): unless it was settled already,
- * when a late answer to it changes nothing. A start's receipt held back for it notes whether it was answered (let go:
- * erased, settled next, or refused) or is held again (PR #199 r4238256883).
+ * when a late answer to it changes nothing. Answered (let go), it is in doubt (`doubted`) until known erased (its reply
+ * settles it next) or listed by a read made since (PR #199 r4238256883, CX-0059, CX-0060).
  */
 export function withErasure(k: Kept, id: string, next: Held<string> | null): Kept {
   if (k.erased[id]) return k
-  const back = k.start.heldBack
-  const start = back?.receipt.conversation.id === id ? { ...k.start, heldBack: { ...back, answered: !next } } : k.start
-  return { ...k, start, erasures: next ? withEntry(k.erasures, id, next) : withoutEntry(k.erasures, id) }
+  if (next) return { ...k, erasures: withEntry(k.erasures, id, next) }
+  return { ...k, erasures: withoutEntry(k.erasures, id), doubted: withEntry(k.doubted, id, true) }
 }

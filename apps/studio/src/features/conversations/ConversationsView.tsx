@@ -34,6 +34,7 @@ import {
   goneFrom,
   keepsFor,
   START,
+  awaiting,
   useKept,
   withEntry,
   withErasure,
@@ -702,8 +703,8 @@ function useStart(
     onForm.current = shown
     setStarting(shown)
   }
-  // Landed (or held back while an erasure of it here is unanswered, to land once a list read since lists it: `stand`,
-  // with the form's `words` as they stood then).
+  // Landed (or held back while an erasure of it here is unanswered or in doubt, to land once a list read since lists
+  // it: `stand`, with the form's `words` as they stood then).
   const started = (receipt: ConversationStarted, words?: ConversationAsk) => {
     const put = () => putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
     if (!landed(talk, receipt, put, words) || !onForm.current) return
@@ -738,9 +739,9 @@ function useStart(
 }
 
 /**
- * A start's receipt held back for an erasure answered without erasing it here (list-data `standing`): a list read is
- * asked for now, and the first one set out since says whether the conversation stands (it lands) or not (a whole one
- * lets it go: useSeen). Asked again each time the view comes back while it waits.
+ * The conversations in doubt here (an erasure let go without being known erased; list-data `standing`): a list read is
+ * asked for now, and those that one set out since lists stand (a start's receipt held back for one lands); a whole one
+ * without one lets it go (useSeen). Asked again as the doubt changes, and each time the view comes back while it lasts.
  */
 function useStanding(
   projectId: string,
@@ -750,12 +751,12 @@ function useStanding(
   stand: ReturnType<typeof useStart>['stand'],
 ) {
   const queryClient = useQueryClient()
-  const waiting = talk.kept.start.heldBack?.answered === true
+  const doubt = awaiting(talk.kept).join(' ')
   const since = useRef<number | null>(null)
   useEffect(() => {
-    since.current = waiting ? orderNow() : null
-    if (waiting) void queryClient.invalidateQueries({ queryKey: listKey(projectId, accountOf(identity)) })
-  }, [waiting, queryClient, projectId, identity])
+    since.current = doubt ? orderNow() : null
+    if (doubt) void queryClient.invalidateQueries({ queryKey: listKey(projectId, accountOf(identity)) })
+  }, [doubt, queryClient, projectId, identity])
   const { all, readFrom } = read
   useEffect(() => stand({ listed: all.map((c) => c.id), readFrom }, since.current), [all, readFrom, stand])
 }

@@ -7,7 +7,7 @@ import type { ConversationAsk, ConversationList, ConversationStarted } from '../
 import { listKey, messagesKey } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
-import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
+import { NO_WORDS, awaiting, withEntry, withStanding, type Kept } from './talk-store.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
 export function setListsData(
@@ -88,21 +88,18 @@ interface Talk {
  * nothing, and the receipt would bring the erased words and row back (PR #199 r4238111781). Such a receipt is refused
  * before any of it: nothing listed or written, the form's words kept, no wait noted, nothing opened.
  *
- * Nor while an erasure of it pressed here is on its way or has had no reply: it may have erased already. The receipt is
- * held back with the start (`heldBack`), with none of that done, and the form starts nothing new meanwhile (startHeld):
- * erased, it goes (talk-store `retired`); answered otherwise, a list read made since says whether it lands (`standing`;
- * PR #199 r4238177970, r4238256883). Held back where this view keeps things for this project and account: forgotten
- * with the account, kept while the view is away.
+ * Nor while an erasure of it pressed here is on its way, has had no reply, or was let go in doubt (talk-store
+ * `doubted`, whenever that was): it may have erased already. The receipt is held back with the start (`heldBack`), with
+ * none of that done, and the form starts nothing new meanwhile (startHeld): erased, it goes (talk-store `retired`);
+ * listed by a read made since, it lands (`standing`; PR #199 r4238177970, r4238256883, CX-0060). Held back where this
+ * view keeps things for this project and account: forgotten with the account, kept while the view is away.
  */
 export function landed(talk: Talk, receipt: ConversationStarted, put: () => void, words?: ConversationAsk): boolean {
   const { conversation, reply } = receipt
   const k = talk.latest()
   if (k.erased[conversation.id]) return false
-  if ((k.erasures[conversation.id] ?? null) !== null) {
-    talk.change((was) => ({
-      ...was,
-      start: { ...was.start, heldBack: { receipt, fields: was.start.fields, answered: false } },
-    }))
+  if ((k.erasures[conversation.id] ?? null) !== null || k.doubted[conversation.id]) {
+    talk.change((was) => ({ ...was, start: { ...was.start, heldBack: { receipt, fields: was.start.fields } } }))
     return false
   }
   put()
@@ -130,13 +127,14 @@ export function startHeld(start: Kept['start']): Held<ConversationAsk> | null {
 }
 
 /**
- * A start's receipt held back for an erasure answered without erasing it here (talk-store `heldBack.answered`): a
- * refusal of that erasure proves nothing of an earlier try that had no reply, whatever it says (PR #199 r4238256883,
- * CX-0059), so only a list read set out since (`read.readFrom` past `since`, this view's order when it asked: a read
- * cached or under way before says nothing) says. Listing it, it stands: the receipt lands, once (`land`, as if it had
- * just come, with the form's words as they stood when it was held back; putStarted's gates as ever), and nothing is
- * sent. Not listing it, nothing lands: a whole list without it lets it go (useSeen settles it, goneFrom naming it), and
- * one of the newest only has it read directly (probes, keepsFor): its not found lets it go, any other answer keeps it.
+ * The conversations in doubt here (talk-store `doubted`: an erasure let go without being known erased, whose refusal
+ * proves nothing of an earlier try that had no reply; PR #199 r4238256883, CX-0059, CX-0060) that a list read set out
+ * since (`read.readFrom` past `since`, this view's order when it asked: a read cached or under way before says
+ * nothing) lists: they stand, no longer in doubt, and a start's receipt held back for one lands, once (`land`, as if it
+ * had just come, with the form's words as they stood when it was held back; putStarted's gates as ever). Nothing is
+ * sent. One not listed stays in doubt: a whole list without it lets it go (useSeen settles it, goneFrom naming it), and
+ * one of the newest only has it read directly (probes, keepsFor): its not found lets it go, any other answer keeps the
+ * doubt.
  */
 export function standing(
   talk: Talk,
@@ -144,7 +142,11 @@ export function standing(
   since: number | null,
   land: (receipt: ConversationStarted, words: ConversationAsk) => void,
 ): void {
-  const back = talk.latest().start.heldBack
-  if (since === null || read.readFrom <= since || !back?.answered) return
-  if (read.listed.includes(back.receipt.conversation.id)) land(back.receipt, back.fields)
+  if (since === null || read.readFrom <= since) return
+  const k = talk.latest()
+  const stood = awaiting(k).filter((id) => read.listed.includes(id))
+  if (stood.length === 0) return
+  talk.change((was) => withStanding(was, stood))
+  const back = k.start.heldBack
+  if (back && stood.includes(back.receipt.conversation.id)) land(back.receipt, back.fields)
 }
