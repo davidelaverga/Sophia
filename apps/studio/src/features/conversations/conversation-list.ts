@@ -335,25 +335,41 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
 }
 
 /**
+ * Whether a row's last message is as late as `m` or later, in the same conversation. Where both say their place
+ * (A16's optional `seq`, CON-01-CC-0021), the place decides, equal times included. Where either doesn't (an API from
+ * before it), the time does, and on equal times the row stays: its writer, time and words can be a later message's
+ * too (Codex on 653fe9a), and a row that lags until the list is read again is honest, one that goes back is not.
+ */
+function laterOrSame(row: NonNullable<ConversationSummary['lastMessage']>, m: { at: string; seq?: number }): boolean {
+  if (row.seq !== undefined && m.seq !== undefined) return row.seq >= m.seq
+  return Date.parse(row.at) >= Date.parse(m.at)
+}
+
+/**
  * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
- * messages at all (A18 proposed), unless the row already says one as late or later. A receipt that comes late never
- * takes a newer message's place; on equal times the row stays, since the row carries no message identity and its
- * writer, time and words can be another, later message's too (Codex on 653fe9a): a row that lags until the list is read
- * again is honest, one that goes back is not. The rest, and a list that doesn't say them, as they were.
+ * messages at all (A18 proposed), unless the row already says one as late or later (laterOrSame): a receipt that comes
+ * late never takes a newer message's place. The rest, and a list that doesn't say them, as they were. Only for a
+ * message the thread holds as its newest with words (lastSaid): this never decides a withdrawn message's fate.
  */
 export function withLastMessage(
   list: readonly ConversationSummary[],
   conversationId: string,
-  m: Pick<ConversationMessage, 'author' | 'actorId' | 'name' | 'text' | 'at'>,
+  m: Pick<ConversationMessage, 'author' | 'actorId' | 'name' | 'text' | 'at'> & { seq?: number },
 ): readonly ConversationSummary[] {
   const text = m.text
   if (text === null) return list
-  const later = (c: ConversationSummary) => c.lastMessage && Date.parse(c.lastMessage.at) >= Date.parse(m.at)
   return list.map((c) =>
-    c.id === conversationId && !later(c)
+    c.id === conversationId && !(c.lastMessage && laterOrSame(c.lastMessage, m))
       ? {
           ...c,
-          lastMessage: { author: m.author, actorId: m.actorId, name: m.name, text: text.slice(0, 140), at: m.at },
+          lastMessage: {
+            author: m.author,
+            actorId: m.actorId,
+            name: m.name,
+            text: text.slice(0, 140),
+            at: m.at,
+            ...(m.seq === undefined ? {} : { seq: m.seq }),
+          },
         }
       : c,
   )

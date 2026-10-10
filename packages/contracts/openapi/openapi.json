@@ -28905,6 +28905,12 @@
           "at": {
             "type": "string",
             "format": "date-time"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "The message's place in its conversation (as on the message itself). Optional: an API that doesn't say it leaves a reader to order the row by its time alone. On equal times, a newer place is a later message."
           }
         },
         "required": [
