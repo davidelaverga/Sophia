@@ -7,7 +7,8 @@ import { useEffect, useState } from 'react'
 import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from '@sophia/contracts'
 import { proposeReview, recordedProposal, reviewAvailability } from '../../../api/work.ts'
 import type { Identity } from '../../../app/dev-identity.ts'
-import { EARLIER, outcomeOf, proposals, proposalViewer, type Asked, type Sent } from './review-proposal.ts'
+import { outcomeOf } from './review-outcome.ts'
+import { EARLIER, proposals, proposalViewer, type Asked, type Sent } from './review-proposal.ts'
 import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
 
 interface Props {

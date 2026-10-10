@@ -2,9 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../../api/client.ts'
 import type { AuthState } from '../../../app/auth.ts'
+import { outcomeOf } from './review-outcome.ts'
 import {
   EARLIER,
-  outcomeOf,
   proposalKey,
   Proposals,
   proposalsKeptFor,

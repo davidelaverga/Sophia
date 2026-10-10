@@ -21,6 +21,7 @@ import {
   parseSnapshot,
 } from '@sophia/contracts/validate'
 import { apiUrl } from './base.ts'
+import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
 export class ApiError extends Error {
   readonly status: number
@@ -68,12 +69,7 @@ async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: A
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` })
 
-/**
- * How long a call waits for its whole reply. A read is short: whoever needs it asks again. A write is long: it may
- * be the call that wakes an idle server, and one slow answer is better than a failure to retry by hand.
- */
-export const READ_TIMEOUT_MS = 30_000
-export const WRITE_TIMEOUT_MS = 90_000
+export { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
 /**
  * No wait is endless. `run` gets a signal that aborts when `ms` pass before it settles (the reply's headers and
