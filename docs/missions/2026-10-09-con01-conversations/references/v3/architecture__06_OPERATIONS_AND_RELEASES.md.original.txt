@@ -1,0 +1,37 @@
+# Operations, recovery, evidence and releases
+
+## Design is not authorization
+
+Source writes, repository merge, provider spending, migrations, account linking, sandbox creation and production deployment each need their applicable assignment/approval. This pack performs none. Read current in-flight work and release records; do not replay earlier batches because an old goal names them.
+
+For actual operations use one exact candidate and its generated artifact/runtime identity, actual target, ordered effects, named credential references, payer, bounded allowance, expiry, preconditions and rollback. Unknown requirements stay unqualified rather than using another person's credentials or an arbitrary fallback.
+
+## Durable obligations at distributed boundaries
+
+Before acknowledging a consequential input, retain its content or governed source reference, actor, destination, work/source revision, control generation and delivery identity. UI optimism is not admission. Pending native-input UI caches are not a durable instruction ledger.
+
+Application-owned tool calls become recorded obligations. Recover differently when an operation was never sent, may have happened, or has a recorded result whose reply was lost. Reconcile before repeating non-idempotent effects; retry recorded result delivery rather than re-executing work. Human approvals are separate requests, not synthetic tool success needed to unstick a session.
+
+## Stop and uncertainty
+
+Record control immediately and make old commands ineligible. Ask the selected runtime to stop through its supported path, then establish settlement. An unreachable process stays outcome-unknown; a local control epoch is not an OS kill switch. Do not give a second writer unresolved shared source/effects. Hold preserves a continuation path; a lost observer run cannot destroy the work.
+
+Every record says what was requested, accepted, observed and verified. A provider/control notification may not include acknowledgement. Cap retries and escalation; do not turn stopped work into a watchdog's mandatory restart. Standalone telemetry failure cannot alter canonical results or grant authority.
+
+## Exact source migration
+
+New work may opt into a qualified new route; existing work remains bound to its controller/runtime until a safe handover. Drain and reconcile old external effects, snapshot permitted source and remaining requirements, authorize the destination and record new lineage. Rollback disables new admissions to the new route while preserving old cleanup, control and reader access.
+
+For current WBC-02 uncertain host writes, retain its operator-fence rules until an explicit reviewed replacement. Wall-clock expiry or a dead process alone may not settle a database effect. Do not weaken that behavior to make a general adapter simpler.
+
+## Evidence levels
+
+Documentation validation; design-model rehearsal; source inspection; fixture/local crossing; installed authenticated service; live provider/native; deployed app; human acceptance. Keep these distinct. This pack's checks only cover the first two and its source-read manifest. Included historical test reports remain attributed, not rerun.
+
+## Product measures
+
+Measure time to first useful preview, exact-target preservation, original guidance retained, duplicate-effect rate, unresolved controls, owner handback success, context re-explanation, comparable accepted-result quality, human correction burden and total resource cost. Provider quota, project allowance and recorded cost are separate. Self-hosted compute is not free just because token-price data is absent.
+
+## Enterprise claims
+
+Model independence does not establish SSO/SCIM, complete private deployment, regulatory certification, data residency or a private voice path. ENT-01 scopes evidence for actual customer requirements. Reject no-external-inference claims until auxiliary calls, logs, tests, retrieval and publication respect the same policy.

@@ -5,7 +5,7 @@
 // Start sends the same intent again under its key, never a second conversation. Cancel puts the form away.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
-import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
+import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/conversations.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -31,6 +31,8 @@ interface Props {
   onRefused: (words: string | null) => void
   onStarted: (started: ConversationStarted, ask: ConversationAsk) => void
   onCancel: () => void
+  /** The saved-text notice, before the reader's first message in the project; null after it. */
+  notice: string | null
 }
 
 /** The start's write: the held intent again, or the form's words as a new one. */
@@ -84,6 +86,7 @@ export function NewConversation(props: Props) {
       }}
     >
       <h3>New conversation</h3>
+      {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <Fields
         question={question}
         shown={shown}

@@ -7,12 +7,12 @@
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { ConversationSummary } from '../../api/vision.ts'
+import type { ConversationSummary } from '../../api/conversations.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
+import { acceptedOf, coverageWords, pendingOf, questionWords, type Unnamed } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import {
   contextQuery,
@@ -23,24 +23,30 @@ import {
   type DecisionAsk,
 } from './decide.ts'
 import { useHeldDecision } from './held-decision.ts'
+import { useEraseHere, type Erase } from './EraseHere.tsx'
 
 interface Props {
   projectId: string
   identity: Identity
   cursor: string | undefined
   /** The conversation open beside it, whose summary comes first. */
-  conversation: ConversationSummary | undefined
+  conversation: (ConversationSummary & Unnamed) | undefined
   /** Opened as a panel (under 1180 px): its Close takes the focus. */
   opened: boolean
   onClose: () => void
+  /** The saved-text policy's notice (A16), reachable here after a first message: null where none applies. */
+  notice: string | null
+  /** Where the reader erases the open conversation (an admin: the list's `capability.moderate`); null for others. */
+  erase: Erase | null
 }
 
-export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose }: Props) {
+export function ProjectContext(props: Props) {
+  const { projectId, identity, cursor, conversation, opened, onClose, notice, erase } = props
   const read = useQuery(contextQuery(projectId, identity))
   useReadAgain(cursor, read.refetch)
   const ctx = read.data
   const frame = (body: ReactNode) => (
-    <Frame opened={opened} onClose={onClose} conversation={conversation}>
+    <Frame opened={opened} onClose={onClose} conversation={conversation} notice={notice} erase={erase}>
       {body}
     </Frame>
   )
@@ -89,7 +95,9 @@ export function ProjectContext({ projectId, identity, cursor, conversation, open
 function Frame(props: {
   opened: boolean
   onClose: () => void
-  conversation: ConversationSummary | undefined
+  conversation: (ConversationSummary & Unnamed) | undefined
+  notice: string | null
+  erase: Erase | null
   children: ReactNode
 }) {
   const close = useRef<HTMLButtonElement>(null)
@@ -111,33 +119,58 @@ function Frame(props: {
           </svg>
         </button>
       </div>
-      {props.conversation && <ThisConversation conversation={props.conversation} />}
+      {/* Keyed: a confirmation asked for one conversation never stays for the next one opened. */}
+      {props.conversation && (
+        <ThisConversation key={props.conversation.id} conversation={props.conversation} erase={props.erase} />
+      )}
       <h3 className="eyebrow">Project context</h3>
       {props.children}
       <details className="conv-help">
         <summary>How conversation context works</summary>
         <p>
-          A conversation keeps its own messages and summary. Sophia’s next answer here can also read the project’s
-          current mission, decisions and eligible sources. Other conversations are read only when asked, never merged.
-          This context is the same for every conversation here.
+          A conversation keeps its own messages and summary. Sophia’s answer here reads this conversation’s recent
+          messages and the project’s current mission and decisions, the same for every conversation here. She never
+          reads another conversation, anyone’s personal space or the room.
         </p>
+        {props.notice && <p>{props.notice}</p>}
       </details>
     </aside>
   )
 }
 
-/** The open conversation, first: Sophia's summary of it, and how many questions are open there. */
-function ThisConversation({ conversation: c }: { conversation: ConversationSummary }) {
+/**
+ * The open conversation, first: Sophia's summary of it, and how many questions are open there; at its foot, an admin's
+ * Erase this conversation. Known here by its title only (`partial`), neither is known, and it says so: never «No
+ * summary yet» or «No recorded questions yet» (PR #199 r4238709220).
+ */
+function ThisConversation(props: { conversation: ConversationSummary & Unnamed; erase: Erase | null }) {
+  const { conversation: c } = props
   const id = useId()
+  const away = useEraseHere(props.erase, c.id)
   return (
     <section className="conv-this" aria-labelledby={id}>
       <h4 id={id} className="eyebrow">
         This conversation
       </h4>
-      <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
-      <p className="conv-note">{openWords(c.openQuestions)}</p>
+      {c.partial ? (
+        <p className="conv-this-summary">Its summary and open questions aren’t known here yet.</p>
+      ) : (
+        <>
+          <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
+          <Covers words={coverageWords(c.summaryCoverage)} />
+          <p className="conv-note">{questionWords(c)}</p>
+          <Covers words={coverageWords(c.questionsCoverage)} />
+        </>
+      )}
+      {away.press}
+      {away.form}
     </section>
   )
+}
+
+/** What a summary or a question list covers, where one exists. */
+function Covers({ words }: { words: string | null }) {
+  return words ? <p className="conv-note conv-covers">{words}</p> : null
 }
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */

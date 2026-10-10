@@ -90,6 +90,8 @@ test('panes @phone · one screen at a time: the list, then the conversation alon
   await expect(list(page)).toBeHidden()
   await expect(dock(page)).toBeHidden()
   await expect(open(page).getByRole('heading', { level: 3 })).toHaveText('Short or long briefs?')
+  // The row pressed went with the list: the focus is on the conversation's title, not the page (A24).
+  await expect(open(page).getByRole('heading', { level: 3 })).toBeFocused()
   await open(page).getByRole('button', { name: 'All conversations' }).click()
   await expect(list(page)).toBeVisible()
   await expect(rows(page).nth(1)).toBeFocused()
