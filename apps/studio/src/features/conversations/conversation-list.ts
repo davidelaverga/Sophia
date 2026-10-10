@@ -324,15 +324,17 @@ const newestOf = (all: readonly ConversationMessage[]) =>
 /** Each member's first place still shown in these pages, where they hold every place before it from 1 (`Remains`). */
 export function firstsIn(thread: ThreadHeld): ReadonlyMap<string, number> {
   const all = (thread?.pages ?? []).flatMap((p) => p.messages)
-  const places = new Set(all.map((m) => m.seq))
-  const held = (seq: number) =>
-    Array.from({ length: Math.max(seq - 1, 0) }, (_, i) => i + 1).every((n) => places.has(n))
+  // How far the places held run from 1 without a gap: from the places held alone, never one per place (r4237627178).
+  const through = [...new Set(all.map((m) => m.seq))]
+    .toSorted((a, b) => a - b)
+    .reduce((run, seq) => (seq === run + 1 ? seq : run), 0)
   const firsts = new Map<string, number>()
-  for (const m of all.filter(shown)) {
-    const was = m.author === 'member' && m.actorId !== null ? firsts.get(m.actorId) : null
-    if (m.actorId !== null && was !== null && (was === undefined || m.seq < was)) firsts.set(m.actorId, m.seq)
+  for (const m of all) {
+    const who = shown(m) && m.author === 'member' && m.seq <= through ? m.actorId : null
+    const was = who === null ? undefined : firsts.get(who)
+    if (who !== null && (was === undefined || m.seq < was)) firsts.set(who, m.seq)
   }
-  return new Map([...firsts].filter(([, seq]) => held(seq)))
+  return firsts
 }
 
 /** What a withdrawal leaves in the pages read (`Remains`), for the reader `reader` (their actor id; null if unknown). */
@@ -395,57 +397,53 @@ export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, rema
 }
 
 /**
- * Those who wrote there after a withdrawal: its writer gone, unless words of theirs are still shown, then named by them
- * in their place. One the row doesn't name (read before they first wrote: PR #199 r4237494296) is named last where the
- * row has room. At the cap, as the API names them: the reader takes the last place kept, the rest then unnamed; anyone
- * else is among the others unnamed, and nobody named is taken out for them (the reader among them, CX-0038).
+ * Those who wrote there after a withdrawal: its writer gone, unless words of theirs are still shown, then named by them.
+ * One the row doesn't name (read before they first wrote: PR #199 r4237494296) is named where the row has room. Either
+ * way all of them are put in order again (`inOrder`). At the cap, as the API names them: the reader takes the last
+ * place kept, the rest then unnamed; anyone else is among the others unnamed, and nobody named is taken out for them
+ * (the reader among them, CX-0038).
  */
 function writersAfter(
   c: ConversationSummary & Unnamed,
   remains: Remains,
 ): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
   const { writer, writerName } = remains
-  const contributors: readonly Placed[] = c.contributors
-  if (writer === null || (remains.writerStays && writerName === null)) return { contributors: c.contributors }
-  if (!remains.writerStays || writerName === null)
+  const { contributors } = c
+  if (writer === null || (remains.writerStays && writerName === null)) return { contributors }
+  if (!remains.writerStays || writerName === null) {
     return { contributors: contributors.filter((p) => p.actorId !== writer) }
-  const was = contributors.find((p) => p.actorId === writer)
-  // The list read's own writer (or the reader in the last place kept, at the cap) keeps their place, named again.
-  if (was !== undefined && was.added === undefined) return { contributors: renamedIn(contributors, writer, writerName) }
+  }
   const them = { actorId: writer, name: writerName }
-  const added: Placed = { ...them, added: true }
-  // One this view added is placed again, all of them by their first messages still shown now (`inOrder`): a first
-  // withdrawn since never stays (CX-0040).
-  const others = contributors.filter((p) => p !== was)
-  if (was !== undefined || others.length < NAMED_AT_MOST)
-    return { contributors: inOrder([...others, added], remains.firsts) }
+  const named = contributors.some((p) => p.actorId === writer)
+  // Named there, or room to name them: all of them in order again, by their first messages as now proven (`inOrder`).
+  if (named || contributors.length < NAMED_AT_MOST) {
+    const all = named ? renamedIn(contributors, writer, writerName) : [...contributors, them]
+    return { contributors: inOrder(all, remains.firsts) }
+  }
   if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
   return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
 
-/**
- * A writer as this view holds them: `added` where this view named them since the list read (a receipt's sender, or a
- * writer restored by a withdrawal).
- */
-type Placed = ConversationSummary['contributors'][number] & { added?: true }
+/** A writer as a row names them. */
+type Placed = ConversationSummary['contributors'][number]
 
 /** These writers, `writer` named `name`, each in their place. */
 const renamedIn = (all: readonly Placed[], writer: string, name: string) =>
   all.map((p) => (p.actorId === writer && p.name !== name ? { ...p, name } : p))
 
 /**
- * The writers, those this view added since the list read put in order again (PR #199 r4237533992, r4237576952). The
- * list read's own writers all first wrote before it, so they stay first, in their places. The added ones follow, each
- * by their first message still shown, as the API orders writers, where the pages read prove it (`firsts`); those whose
- * first isn't proven follow them, as they were, no place invented. Derived again each time, from the pages as read
- * now: a first withdrawn since never keeps a writer ahead (CX-0040), and a receipt's sender is ordered like the rest.
+ * The writers in order again, as the API orders them, by their first message still shown (PR #199 r4237533992,
+ * r4237576952, r4237627174), where the pages read prove it (`firsts`): those come first, in that order. Whoever has no
+ * proven first has none in the places held from 1, so theirs comes after all of those; they follow, as they were, no
+ * place invented. The list read's own writers take part like any other: one whose first is withdrawn moves back once
+ * the pages prove another's comes first. Derived again each time, from the pages as read then, so a first withdrawn
+ * since never keeps a writer ahead (CX-0040), and a receipt's own place is never taken for its sender's first. Pages
+ * older than the list read can still say a first that the list read knew withdrawn, until the thread is read again.
  */
 function inOrder(contributors: readonly Placed[], firsts: ReadonlyMap<string, number>): Placed[] {
-  const own = contributors.filter((p) => p.added === undefined)
-  const added = contributors.filter((p) => p.added !== undefined)
   const first = (p: Placed) => firsts.get(p.actorId)
-  const known = added.filter((p) => first(p) !== undefined).toSorted((a, b) => (first(a) ?? 0) - (first(b) ?? 0))
-  return [...own, ...known, ...added.filter((p) => first(p) === undefined)]
+  const known = contributors.filter((p) => first(p) !== undefined).toSorted((a, b) => (first(a) ?? 0) - (first(b) ?? 0))
+  return [...known, ...contributors.filter((p) => first(p) === undefined)]
 }
 
 /**
@@ -579,10 +577,10 @@ function saysWithdrawn(
  * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
  * messages at all (A18 proposed), only where the row may take it (`takes`); its watermark moves up to the message's
  * place with it (so an older receipt after it never passes). With it, as the API would say them after this message:
- * - its writer is among those who wrote there (PR #199 r4237298623): among the writers this view added, by their first
- *   message as `thread` (the conversation's pages as read, with this message) proves it, never by this message's place
- *   alone (`inOrder`, r4237576952); or in the last place kept when the row names as many as it may (`NAMED_AT_MOST`),
- *   the rest then unnamed, as the API keeps a reader who wrote;
+ * - its writer is among those who wrote there (PR #199 r4237298623), in order by first messages as `thread` (the
+ *   conversation's pages as read, with this message) proves them, never by this message's place alone (`inOrder`,
+ *   r4237576952); or in the last place kept when the row names as many as it may (`NAMED_AT_MOST`), the rest then
+ *   unnamed, as the API keeps a reader who wrote;
  * - its writer's name, where they are already among them, as the receipt says it now (or «A member», where it says
  *   none), in the same place (PR #199 r4237385093: the API names each writer by their newest message);
  * - a summary or question projection with a range is behind, and `current` becomes `stale` (PR #199 r4237298622); one
@@ -639,7 +637,7 @@ function withWriter(
   if (c.contributors.some((p) => p.actorId === writer)) return { contributors: renamedIn(c.contributors, writer, name) }
   const them = { actorId: writer, name }
   if (c.contributors.length < NAMED_AT_MOST) {
-    return { contributors: inOrder([...c.contributors, { ...them, added: true }], firstsIn(thread)) }
+    return { contributors: inOrder([...c.contributors, them], firstsIn(thread)) }
   }
   return { contributors: [...c.contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }

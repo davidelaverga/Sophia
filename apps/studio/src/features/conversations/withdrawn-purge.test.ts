@@ -91,12 +91,13 @@ describe('keepWithdrawnPurged: the list reads as cached hold no words their thre
     const theirs = (seq: number) => message(seq, { actorId: reader, name: 'Ana' })
     const full = Array.from({ length: 200 }, (_, i) => ({ actorId: `p${String(i)}`, name: `P${String(i)}` }))
     const client = purging()
-    // The list read sets out before she first wrote; her place 1 stays, her place 2 is then withdrawn.
+    // The list read sets out before she first wrote (the 200 named wrote 1 to 200); her place 201 stays, her place 202
+    // is then withdrawn. Only her newest page is read, so no first is proven: she takes the last place kept.
     const read = listOf(listReadSetsOut(), row('a', null, { contributors: full }), row('b', null, { contributors: [] }))
     client.setQueryData(key, read)
-    for (const id of ['a', 'b']) client.setQueryData(messagesKey(id, account), pages(theirs(1), theirs(2)))
+    for (const id of ['a', 'b']) client.setQueryData(messagesKey(id, account), pages(theirs(201), theirs(202)))
     for (const id of ['a', 'b']) {
-      client.setQueryData(messagesKey(id, account), pages(theirs(1), gone(2, { actorId: reader })))
+      client.setQueryData(messagesKey(id, account), pages(theirs(201), gone(202, { actorId: reader })))
     }
     // At the cap, she reads here: the last place kept, the rest unnamed.
     const a = rowOf(client, 'a', key)
