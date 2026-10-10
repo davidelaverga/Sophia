@@ -5,6 +5,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { ConversationList, ConversationStarted } from '../../api/conversations.ts'
 import { listKey, messagesKey } from './conversation-list.ts'
+import { followedAt } from './followed-thread.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
 export function setListsData(
@@ -25,24 +26,32 @@ export function setListsData(
 /**
  * A start that landed: at the top of the list read and its first message read, at once (then read again). The receipt
  * proves the new row only, so only the list's data takes it: a list read failing stays failing, its error and «This may
- * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985). Its thread is stamped
- * where the receipt itself is current (its `cursor`, read in the start's own transaction), never where the page's feed
- * stands as it lands: a withdrawal after the start may already be there (PR #199 r4237924424; followed-thread.ts).
+ * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985).
+ *
+ * Its first message goes into the thread only where nothing was read there yet and the receipt is current where this
+ * page's feed stands (`pageAt`): a receipt landing after a withdrawal the page already knows of, or onto a read made
+ * meanwhile (the conversation opened from the list while the start was on its way), writes nothing there, and the
+ * thread's own read says what is so. What it writes is stamped where the receipt itself is current (its `cursor`, read in
+ * the start's own transaction), never where the page's feed is (PR #199 r4237924424; followed-thread.ts).
  */
 export function putStarted(
   queryClient: QueryClient,
   projectId: string,
   account: string,
   { conversation, message, cursor }: ConversationStarted,
+  pageAt: string | undefined,
 ): void {
   const key = listKey(projectId, account)
   setListsData(queryClient, key, (list) => ({
     ...list,
     conversations: [conversation, ...list.conversations.filter((c) => c.id !== conversation.id)],
   }))
-  queryClient.setQueryData(messagesKey(conversation.id, account), {
-    pages: [{ messages: [message], before: null, readAt: cursor }],
-    pageParams: [null],
-  })
+  const thread = messagesKey(conversation.id, account)
+  if (queryClient.getQueryData(thread) === undefined && followedAt(cursor, pageAt)) {
+    queryClient.setQueryData(thread, {
+      pages: [{ messages: [message], before: null, readAt: cursor }],
+      pageParams: [null],
+    })
+  }
   void queryClient.invalidateQueries({ queryKey: key })
 }

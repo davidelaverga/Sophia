@@ -141,7 +141,8 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   })
   const talk = useTalk(projectId, accountOf(identity))
   const erased = useErased(talk, panes, { all, seen: list.isSuccess, whole: reader.whole }, identity)
-  const start = useStart(projectId, identity, talk, (id) => {
+  const feedAt = useLatest(cursor)
+  const start = useStart(projectId, identity, feedAt, talk, (id) => {
     erased.clear()
     choose(id)
     panes.show()
@@ -658,11 +659,30 @@ function useFocusBack(starting: boolean) {
 }
 
 /**
+ * A value as it is now, for what lands later (set after each commit, not while rendering): where this page's feed stands
+ * as a start's receipt lands, which its first message must be current at to go into the thread (putStarted). The
+ * receipt is stamped with its own position, never this one (PR #199 r4237924424).
+ */
+function useLatest<T>(value: T) {
+  const latest = useRef(value)
+  useEffect(() => {
+    latest.current = value
+  }, [value])
+  return latest
+}
+
+/**
  * New conversation: its form in place of the open one, its words, intent and refusal kept with the rest (they wait
  * while it is away). Started, the conversation is put in the list and its messages at once (then read again); it opens
  * only if the person is still on the form: one who moved on meanwhile is never pulled into it.
  */
-function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof useTalk>, open: (id: string) => void) {
+function useStart(
+  projectId: string,
+  identity: Identity,
+  feedAt: { readonly current: string | undefined },
+  talk: ReturnType<typeof useTalk>,
+  open: (id: string) => void,
+) {
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
   // Whether the person is on the form now, for a start that lands later (set after each commit, not while rendering).
@@ -681,7 +701,7 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
   }
   const started = (receipt: ConversationStarted) => {
     const { conversation, reply } = receipt
-    putStarted(queryClient, projectId, accountOf(identity), receipt)
+    putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
     change((k) => ({
       ...k,
       start: { ...k.start, fields: NO_WORDS },

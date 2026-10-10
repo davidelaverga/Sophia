@@ -152,7 +152,7 @@ describe('putStarted: a start writes its row and its first message, and nothing 
     await client.fetchQuery({ queryKey: key, queryFn: () => Promise.reject(unavailable) }).catch(() => undefined)
     const query = client.getQueryCache().find({ queryKey: key, exact: true })
     const before = { ...query?.state }
-    putStarted(client, 'p', 'ana', started('b'))
+    putStarted(client, 'p', 'ana', started('b'), '1')
     assert.deepEqual(ids(client, key), ['b', 'a'])
     assert.equal(query?.state.status, 'error')
     assert.equal(query?.state.error, unavailable)
@@ -167,8 +167,8 @@ describe('putStarted: a start writes its row and its first message, and nothing 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const key = listKey('p', 'ana')
     await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(listOf('Before')) })
-    putStarted(client, 'p', 'ana', started('b'))
-    putStarted(client, 'p', 'ana', started('b'))
+    putStarted(client, 'p', 'ana', started('b'), '1')
+    putStarted(client, 'p', 'ana', started('b'), '1')
     assert.deepEqual(ids(client, key), ['b', 'a'])
     assert.equal(client.getQueryCache().find({ queryKey: key, exact: true })?.state.status, 'success')
     assert.deepEqual(client.getQueryData(messagesKey('b', 'ana')), {
@@ -181,7 +181,7 @@ describe('putStarted: a start writes its row and its first message, and nothing 
     const client = new QueryClient()
     client.setQueryData(listKey('p', 'bea'), listOf('Theirs'))
     client.setQueryData(listKey('q', 'ana'), listOf('Elsewhere'))
-    putStarted(client, 'p', 'ana', started('b'))
+    putStarted(client, 'p', 'ana', started('b'), '1')
     assert.deepEqual(ids(client, listKey('p', 'bea')), ['a'])
     assert.deepEqual(ids(client, listKey('q', 'ana')), ['a'])
     assert.equal(client.getQueryData(listKey('p', 'ana')), undefined)

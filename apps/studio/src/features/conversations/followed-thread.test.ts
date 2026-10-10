@@ -121,7 +121,7 @@ describe('a thread read no view followed as the feed moved is never shown as it 
   })
 })
 
-describe('a start’s thread is stamped where its receipt is current, never where the page’s feed is (PR #199 r4237924424)', () => {
+describe('a start’s receipt: stamped where it is current, written only where the page’s feed is not past it (PR #199 r4237924424)', () => {
   /** A receipt current at feed position 6, holding its first message as it was then. */
   const startedAt = (cursor: string) =>
     ({
@@ -131,30 +131,63 @@ describe('a start’s thread is stamped where its receipt is current, never wher
       cursor,
     }) as unknown as ConversationStarted
   const b = messagesKey('b', 'ana')
+  const wordsHeld = (client: QueryClient) =>
+    (client.getQueryData<ThreadHeld>(b)?.pages ?? []).flatMap((p) => p.messages).map((m) => m.text)
 
-  it('stamped with its own cursor', () => {
+  it('stamped with its own cursor, never the page’s', () => {
     const client = new QueryClient()
-    putStarted(client, 'p', 'ana', startedAt('6'))
+    putStarted(client, 'p', 'ana', startedAt('6'), '5')
     assert.equal(readAtOf(client.getQueryData<ThreadHeld>(b)), '6')
   })
 
-  it('the feed past the receipt (its first message withdrawn at 7, before the receipt landed): never shown', () => {
+  it('the page’s feed already past it (withdrawn at 7 before it landed): nothing is written, and opening reads', () => {
     const client = new QueryClient()
-    putStarted(client, 'p', 'ana', startedAt('6'))
+    putStarted(client, 'p', 'ana', startedAt('6'), '7')
+    assert.equal(client.getQueryData(b), undefined)
+    assert.deepEqual(opened(client, b, '7').words, [])
+  })
+
+  it('opened from the list while the start was on its way, its read failing; the receipt lands late: nothing goes in', () => {
+    const client = new QueryClient()
+    const stop = showing(client, b)
+    putStarted(client, 'p', 'ana', startedAt('6'), '7')
+    assert.equal(client.getQueryData(b), undefined)
+    stop()
+  })
+
+  it('a read made meanwhile is never overwritten by the receipt', () => {
+    const client = new QueryClient()
+    client.setQueryData(b, {
+      pages: [{ messages: [said(1, 'As read meanwhile.')], before: null, readAt: '9' }],
+      pageParams: [null],
+    })
+    putStarted(client, 'p', 'ana', startedAt('6'), '6')
+    assert.deepEqual(wordsHeld(client), ['As read meanwhile.'])
+  })
+
+  it('a page whose feed position isn’t known: nothing is written', () => {
+    const client = new QueryClient()
+    putStarted(client, 'p', 'ana', startedAt('6'), undefined)
+    assert.equal(client.getQueryData(b), undefined)
+  })
+
+  it('written at its own start, the feed past it by the time it opens (withdrawn after): never shown', () => {
+    const client = new QueryClient()
+    putStarted(client, 'p', 'ana', startedAt('6'), '6')
     const { dropped, words } = opened(client, b, '7')
     assert.equal(dropped, true)
     assert.deepEqual(words, [])
   })
 
-  it('the feed at the receipt, its own start the only move: the first message shows at once (r4237890625)', () => {
+  it('its own start the only move: the first message shows at once (r4237890625)', () => {
     const client = new QueryClient()
-    putStarted(client, 'p', 'ana', startedAt('6'))
+    putStarted(client, 'p', 'ana', startedAt('6'), '6')
     assert.deepEqual(opened(client, b, '6').words, ['Words withdrawn after the start.'])
   })
 
   it('a page whose feed hasn’t caught up with its own start yet: the first message shows at once', () => {
     const client = new QueryClient()
-    putStarted(client, 'p', 'ana', startedAt('6'))
+    putStarted(client, 'p', 'ana', startedAt('6'), '5')
     assert.deepEqual(opened(client, b, '5').words, ['Words withdrawn after the start.'])
   })
 })

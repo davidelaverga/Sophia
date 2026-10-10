@@ -5,8 +5,14 @@
 // r4237833438). Only that thread goes: no other conversation's, reader's or project's read, and nothing kept of drafts
 // or writes held (talk-store). No read sets out but the one its opening makes.
 import type { QueryClient } from '@tanstack/react-query'
-import { CURSOR_PATTERN } from '@sophia/contracts'
 import type { ThreadHeld } from './conversation-list.ts'
+
+/**
+ * A feed position: the contract's decimal cursor (`CURSOR_PATTERN` in @sophia/contracts, which the A16 validator applies
+ * to a receipt's `cursor`). Written here, not imported: that package's root reads files at load and is server-only, so a
+ * runtime import from it left the Studio blank at 7ff0eac9.
+ */
+const POSITION = /^(0|[1-9][0-9]*)$/
 
 /**
  * Where the feed stood when the thread read held set out, as its newest page notes it (`readAt`; each older page is
@@ -17,16 +23,16 @@ export function readAtOf(held: ThreadHeld): string | undefined {
   return newest && 'readAt' in newest && typeof newest.readAt === 'string' ? newest.readAt : undefined
 }
 
-/** A feed position as a number, where it is one (`CURSOR_PATTERN`). */
+/** A feed position as a number, where it is one. */
 const positionOf = (cursor: string | undefined) =>
-  cursor !== undefined && CURSOR_PATTERN.test(cursor) ? BigInt(cursor) : undefined
+  cursor !== undefined && POSITION.test(cursor) ? BigInt(cursor) : undefined
 
 /**
  * Whether a read current at `readAt` is current where the feed stands (`cursor`): read there or after, as a start's
  * receipt can be (its own position, ahead of a page whose feed hasn't caught up yet; PR #199 r4237924424). Positions
  * compare as numbers; where either isn't one, only both unknown counts.
  */
-function followedAt(readAt: string | undefined, cursor: string | undefined): boolean {
+export function followedAt(readAt: string | undefined, cursor: string | undefined): boolean {
   const read = positionOf(readAt)
   const now = positionOf(cursor)
   if (read === undefined || now === undefined) return readAt === undefined && cursor === undefined
