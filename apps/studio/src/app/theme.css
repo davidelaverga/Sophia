@@ -2805,14 +2805,16 @@ button.contribution-quote:hover {
   background: rgba(236, 235, 241, 0.06);
 }
 /* Tabs as a line under words, on the panel's own hairline. */
-.sheet-tabs {
+/* A tab strip (`Tabs` in @sophia/ui, docs/plans/tabs-scale.md): 36 px tabs on the field scale, the third ink at rest,
+   the first when on, with its line under the one on. A strip's own class adds only its place: the sheet's line below,
+   the report row's borders. */
+.tabs {
   display: flex;
   gap: 16px;
-  border-bottom: 1px solid var(--line);
 }
-.sheet-tabs button {
+.tabs > button {
   position: relative;
-  height: 34px;
+  height: 36px;
   padding: 0;
   border: 0;
   background: none;
@@ -2821,13 +2823,13 @@ button.contribution-quote:hover {
   font-weight: 500;
   transition: color var(--fast) var(--ease);
 }
-.sheet-tabs button:hover {
+.tabs > button:hover {
   color: var(--text-2);
 }
-.sheet-tabs button[aria-selected='true'] {
+.tabs > button[aria-selected='true'] {
   color: var(--text);
 }
-.sheet-tabs button[aria-selected='true']::after {
+.tabs > button[aria-selected='true']::after {
   content: '';
   position: absolute;
   left: 0;
@@ -2835,6 +2837,9 @@ button.contribution-quote:hover {
   bottom: -1px;
   height: 1.5px;
   background: var(--text);
+}
+.sheet-tabs {
+  border-bottom: 1px solid var(--line);
 }
 /* One column that never grows past the sheet: a wide field shrinks instead of pushing the rest off the edge. */
 .sheet-body {
@@ -3302,6 +3307,9 @@ div.empty {
   .pill,
   .round {
     min-height: 40px;
+  }
+  .tabs > button {
+    min-height: 44px;
   }
   .round.sz-sm,
   .round.sz-md {
@@ -3779,36 +3787,6 @@ div.empty {
   border-bottom: 1px solid var(--line);
 }
 /* Tabs as a line under words, like the Invite sheet's. */
-.side-tabs {
-  display: flex;
-  gap: 16px;
-}
-.side-tabs button {
-  position: relative;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-3);
-  font-size: 13px;
-  font-weight: 500;
-  transition: color var(--fast) var(--ease);
-}
-.side-tabs button:hover {
-  color: var(--text-2);
-}
-.side-tabs button[aria-selected='true'] {
-  color: var(--text);
-}
-.side-tabs button[aria-selected='true']::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1.5px;
-  background: var(--text);
-}
 .side-panel-head > .round {
   width: 28px;
   height: 28px;
@@ -3850,9 +3828,6 @@ div.empty {
 @media (pointer: coarse) {
   .side-panel-head {
     padding-right: calc(var(--panel-pad) - 12px);
-  }
-  .side-tabs button {
-    height: 44px;
   }
   .side-panel-head > .round {
     width: 40px;

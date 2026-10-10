@@ -265,23 +265,9 @@
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
+/* The strip is the kit's (36 px, its line under the tab on); the row keeps its borders and its padding. */
 .report-tablist {
-  display: flex;
   gap: 18px;
-}
-.report-tabs button {
-  height: 38px;
-  padding: 0;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--text-2);
-  font-size: 13px;
-  font-weight: 500;
-}
-.report-tabs button[aria-selected='true'] {
-  color: var(--text);
-  border-bottom-color: var(--halo);
 }
 .report-pane-body {
   overflow: auto;
@@ -1042,7 +1028,6 @@
   }
 }
 @media (pointer: coarse) {
-  .report-tabs button,
   .output-open,
   .knowledge-filters .segmented button,
   .report-pane-head .round {
@@ -1100,7 +1085,7 @@
 .report-format {
   display: inline-flex;
   align-self: center;
-  margin-block: 3px; /* 32 + 6: the tabs' 38, so the bar keeps its height beside them */
+  margin-block: 2px; /* 32 + 4: the tabs' 36, so the row keeps its height beside them */
   margin-left: auto;
 }
 /* On touch the switch's buttons take the tabs' 44 px (above): no margin beside them, so the bar is no taller than it was. */
