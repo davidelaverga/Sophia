@@ -163,19 +163,9 @@
   font-size: var(--type-title);
   font-weight: 600;
 }
+/* The title filter: the kit's search (36 px, its magnifier), as wide as the list. */
 .conv-filter {
   width: 100%;
-  min-height: 34px;
-  padding-left: 32px;
-  border: 0;
-  border-radius: var(--r-3);
-  background: var(--raise)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='rgba(236,235,241,0.46)' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='rgba(236,235,241,0.46)' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E")
-    no-repeat 11px center;
-  font-size: var(--type-body);
-}
-.conv-filter:focus {
-  background-color: var(--raise-2);
 }
 .conv-rows {
   display: grid;

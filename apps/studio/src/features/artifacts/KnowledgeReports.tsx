@@ -9,6 +9,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
+import { Search } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
@@ -123,9 +124,8 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
       <div className="knowledge-filters">
         <ProjectFilter projectId={projectId} project={f.project} counts={counts} onProject={f.setProject} />
         {formats && <FormatFilter format={f.format} onFormat={f.setFormat} />}
-        <input
+        <Search
           ref={f.search}
-          type="search"
           className="knowledge-search"
           placeholder="Search titles, descriptions and notes"
           aria-label="Search reports"
