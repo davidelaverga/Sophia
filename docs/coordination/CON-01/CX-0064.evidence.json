@@ -1,0 +1,79 @@
+{
+  "candidate": "dfeb3815e40f2a5a2bebc480960def54055bfab9",
+  "scope": "L0 production helpers and actual React Query cache with synthetic direct probe/records; no mounted UI or provider qualification",
+  "outcomes": [
+    {
+      "finding": 4238594445,
+      "probeState": "blocked",
+      "cacheStatus": "error",
+      "cachedState": "pending",
+      "observed": {
+        "ended": false,
+        "waiting": true
+      },
+      "expectedWaiting": false,
+      "pass": false
+    },
+    {
+      "finding": 4238594450,
+      "newer": {
+        "replyId": "r2",
+        "messageId": "m2",
+        "here": 1791654499393
+      },
+      "observed": {
+        "replyId": "r1",
+        "messageId": "m1",
+        "here": 1791654499293,
+        "onlyAsRead": true
+      },
+      "pass": false
+    }
+  ],
+  "controls": [
+    {
+      "case": "no cache deferred wait",
+      "pass": true
+    },
+    {
+      "case": "fresh ended read",
+      "pass": true
+    },
+    {
+      "case": "ordinary request no cached read still waits",
+      "pass": true
+    }
+  ],
+  "checkpoint": "CX-0064",
+  "tree": "ac969d5002f064f277a6e68a010f7c6521855530",
+  "automaticReview": 5480157192,
+  "sharedFilenameAcknowledgement": 6100363804,
+  "sharedRuntimeWindowAcknowledged": false,
+  "main": {
+    "commit": "a33805fedff9dfe547a725836272386ea29e5109",
+    "tree": "6c93bd896fd375cb3db375d945c640c018c41482",
+    "qualification": "inventory only"
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "hostedEffects": 0,
+    "newLocalStacks": 0,
+    "reviewerFeatureFix": false
+  },
+  "readiness": {
+    "source_ready": "author candidate only",
+    "locally_verified": "scoped passes and explicit failures",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  }
+}

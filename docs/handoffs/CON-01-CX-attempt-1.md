@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0063
+# Current checkpoint — CX-0064
+
+[Independent reply-state review](../coordination/CON-01/CX-0064.md). Exact dfeb/tree ac969d50: two independently reproduced L0 P2 failures (stale cached pending wait and old Start overwriting newer Ask), three controls PASS. CX63 actual capped-refetch wrong-destination failure remains open. All three sent directly to Claude and acknowledged; immutable correction pending. Main a33805fe/tree6c93bd89 inventoried, combined integration unqualified. PR190 filenames0051/0052/A17 now acknowledged by comment6100363804; exclusive runtime owner/window is expressly not granted.
+
+No new local stack or hosted/model/spending effects; all58 earlier stacks clean. All36 acceptance verdicts unchanged. G3 changes_requested; combined reviewed/authorized/deployed/app_verified/owner_accepted false. OP1r2/OP2r2 drafts, approval/expiry null. Synthetic second actual account authorized in principle; pending owner-controlled inbox remains missing. Subscription route, allowance, privacy limits, shared owner/window, combined artifacts and governed rollback remain unbound. Historical serving tuple unrefreshed. Davide retains product acceptance; other missions open; no monitor.
+
+Next bounded action: inspect the immutable three-P2 correction and independently rerun affected cap/read-freshness/newer-Ask/deferred-receipt cases before current-main/S1 G4.
+
+# Historical checkpoint — CX-0063
 
 [Exactdfeb correction recheck](../coordination/CON-01/CX-0063.md). Full5filedelta/83focused19suitesPASS0skip/typecheck0. Actual no-cache blocked wait correction PASS bounded; capped target still actual FAIL, with wrong CAP200 destination after refetch. Fresh exact-dfeb review5480157192 fully read: three P2 findings, r4238594453 matching actual cap failure, r4238594445 stale cached wait and r4238594450 old Start overwriting newer Ask source-valid but not mounted-app reproduced. All returned directly to Claude, acknowledged; immutable class correction pending. Main now a33805fe/tree6c93bd89; sign-in/client/report delta inventoried, current combined integration unqualified. CurrentG3changes_requested/combinedheld.
 

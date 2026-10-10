@@ -1,0 +1,47 @@
+{
+  "candidate": "dfeb3815e40f2a5a2bebc480960def54055bfab9",
+  "scope": "L0 production helpers and actual React Query cache with synthetic direct probe/records; no mounted UI or provider qualification",
+  "outcomes": [
+    {
+      "finding": 4238594445,
+      "probeState": "blocked",
+      "cacheStatus": "error",
+      "cachedState": "pending",
+      "observed": {
+        "ended": false,
+        "waiting": true
+      },
+      "expectedWaiting": false,
+      "pass": false
+    },
+    {
+      "finding": 4238594450,
+      "newer": {
+        "replyId": "r2",
+        "messageId": "m2",
+        "here": 1791654499393
+      },
+      "observed": {
+        "replyId": "r1",
+        "messageId": "m1",
+        "here": 1791654499293,
+        "onlyAsRead": true
+      },
+      "pass": false
+    }
+  ],
+  "controls": [
+    {
+      "case": "no cache deferred wait",
+      "pass": true
+    },
+    {
+      "case": "fresh ended read",
+      "pass": true
+    },
+    {
+      "case": "ordinary request no cached read still waits",
+      "pass": true
+    }
+  ]
+}
