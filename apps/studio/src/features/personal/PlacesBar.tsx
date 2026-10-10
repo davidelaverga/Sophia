@@ -3,7 +3,7 @@
 // Personal's padlock when it is shut; on the right, the room you're in (back to it, its switches, Leave), who can see
 // where you are (nothing at home, where the line with the lock says it), and your account.
 import { useLayoutEffect, useRef, type RefObject } from 'react'
-import { Icon, Tip, useSlidingThumb } from '@sophia/ui'
+import { Icon, Tip, Segmented } from '@sophia/ui'
 import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
@@ -55,27 +55,16 @@ function Switch({
   newInWork,
   go,
 }: Pick<Props, 'place' | 'locked' | 'newInWork'> & { go: Props['actions']['go'] }) {
-  const thumb = useSlidingThumb<HTMLDivElement>(place)
   return (
-    <div ref={thumb} className="segmented places-switch" role="group" aria-label="Places">
-      {SWITCH.map((s) => (
-        <button
-          key={s.place}
-          type="button"
-          className={`has-tip${s.place === 'personal' && locked ? ' locked' : ''}`}
-          data-thumb={s.place}
-          data-place={s.place}
-          data-new={s.place === 'work' && newInWork ? `${newInWork} new` : undefined}
-          aria-pressed={place === s.place}
-          aria-label={s.name}
-          onClick={() => go(s.place)}
-        >
-          {s.place === 'personal' && (
-            <span className="seg-lock" aria-hidden>
-              <Icon name="lock" size={12} />
-            </span>
-          )}
-          {s.place === 'home' ? (
+    <Segmented
+      role="group"
+      label="Places"
+      className="places-switch"
+      items={SWITCH.map((s) => ({
+        id: s.place,
+        name: s.name,
+        label:
+          s.place === 'home' ? (
             <>
               <span className="seg-t">Home</span>
               <span className="seg-i" aria-hidden>
@@ -83,12 +72,22 @@ function Switch({
               </span>
             </>
           ) : (
-            <span>{s.name}</span>
-          )}
-          <Tip label={s.name} keys={s.key} side="bottom" />
-        </button>
-      ))}
-    </div>
+            <>
+              {s.place === 'personal' && (
+                <span className="seg-lock" aria-hidden>
+                  <Icon name="lock" size={12} />
+                </span>
+              )}
+              <span>{s.name}</span>
+            </>
+          ),
+        tip: { label: s.name, keys: s.key, side: 'bottom' },
+        ...(s.place === 'personal' && locked && { className: 'locked' }),
+        data: { place: s.place, ...(s.place === 'work' && newInWork ? { new: `${newInWork} new` } : {}) },
+      }))}
+      value={place}
+      onChange={go}
+    />
   )
 }
 

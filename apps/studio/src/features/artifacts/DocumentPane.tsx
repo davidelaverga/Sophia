@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
-import { Icon, Tip } from '@sophia/ui'
+import { Icon, Segmented, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { nextInRow } from '../../app/roving.ts'
@@ -936,15 +936,15 @@ function FormatSwitch(props: {
 }) {
   const { formats, format, onFormat } = props
   return (
-    <span className="report-format" role="group" aria-label="Format">
-      {formats
-        .map((id) => [id, FORMAT_NAME[id]] as const)
-        .map(([id, label]) => (
-          <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
-            {label}
-          </button>
-        ))}
-    </span>
+    <Segmented
+      role="group"
+      label="Format"
+      size="sm"
+      className="report-format"
+      items={formats.map((id) => ({ id, label: FORMAT_NAME[id] }))}
+      value={format}
+      onChange={onFormat}
+    />
   )
 }
 
