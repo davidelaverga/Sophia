@@ -31,6 +31,7 @@ import {
   POST_ATTEMPT_MS,
   QUIESCE_RETRY_MS,
   PRESENCE_EVERY_MS,
+  TOOL_ATTEMPT_MS,
   TYPED_REPLY_MS,
   escapeMarkers,
   RoomSession,
@@ -350,6 +351,8 @@ let voiceEvidence: boolean | undefined
 let reserveTimeoutMs: number | undefined
 /** One attempt's bound for the quiesce acknowledgement, holder events and announcement records, when a test sets it. */
 let postAttemptMs: number | undefined
+/** One tool call attempt's transport ceiling, when a test sets it (item 7 B). */
+let toolAttemptMs: number | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -390,6 +393,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0], reserveRetryMs: [0, 0] }),
       ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
       ...(postAttemptMs === undefined ? {} : { postAttemptMs }),
+      ...(toolAttemptMs === undefined ? {} : { toolAttemptMs }),
     },
     handover,
   )
@@ -428,6 +432,7 @@ beforeEach(() => {
   voiceEvidence = undefined
   reserveTimeoutMs = undefined
   postAttemptMs = undefined
+  toolAttemptMs = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -6052,9 +6057,9 @@ interface Seen {
 /**
  * A LABELLED local peer for the media routes (item 7): `silent` accepts each connection half-open and never answers
  * (net, allowHalfOpen); `drip` answers 200 with its headers, then a byte every 100 ms, never ending the body; `answer`
- * answers 204. Each request is noted, with when its socket closed.
+ * answers 204, or 200 with `json` when given. Each request is noted, with when its socket closed.
  */
-async function peer(shape: 'silent' | 'drip' | 'answer') {
+async function peer(shape: 'silent' | 'drip' | 'answer', json?: string) {
   const seen: Seen[] = []
   const sockets = new Set<net.Socket>()
   /** The bridge closed the socket: its end (a half-open peer never closes its own side) or the socket's close. */
@@ -6083,7 +6088,9 @@ async function peer(shape: 'silent' | 'drip' | 'answer') {
       seen.push(entry)
       req.on('data', (chunk: Buffer) => (entry.body += chunk.toString()))
       req.on('end', () => {
-        if (shape === 'answer') {
+        if (shape === 'answer' && json !== undefined) {
+          res.writeHead(200, { 'content-type': 'application/json' }).end(json)
+        } else if (shape === 'answer') {
           res.writeHead(204).end()
         } else {
           res.writeHead(200, { 'content-type': 'application/json' })
@@ -6254,6 +6261,180 @@ describe('room session: the quiesce acknowledgement, holder events and announcem
       await until('cut at its bound', () => p.seen[0]?.closedAt !== null, 5000)
       const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
       assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+})
+
+describe('room session: a tool call attempt is bounded by its transport ceiling (item 7 B)', () => {
+  const BOUND = 200
+  const NOTE = { kind: 'observation', epistemic: 'reported', text: 'A note' }
+  /** Each attempt was cut at its bound: its socket closed within it, with slack for timers and the loop. */
+  const cutAtBound = (s: Seen) =>
+    s.closedAt !== null && s.closedAt - s.at >= BOUND - 20 && s.closedAt - s.at < BOUND + 1000
+  /** The `tool.failed` lines: each attempt, and why. */
+  const failed = () => logs.filter(([event]) => event === 'tool.failed').map(([, d]) => [d.attempt, d.error])
+
+  for (const shape of ['silent', 'drip'] as const) {
+    it(`a write (${shape} peer): each attempt cut at its ceiling, its socket closed, sent again twice as the same call, then unknown, never "nothing changed"`, async () => {
+      toolAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.toolCall = p.media.toolCall
+        const { session, room, live } = await ready()
+        room.events.audio(LUIS, pcm16k(), 16000, 1)
+        live.events.toolCalls([{ id: 'ceiling-w', name: 'record_mission_note', args: NOTE }])
+        await until('answered', () => live.responses.length === 1, 5000)
+        assert.equal(p.seen.length, 3, 'the first attempt and two more')
+        await until('every attempt’s socket closed', () => p.seen.every((x) => x.closedAt !== null))
+        assert.ok(p.seen.every(cutAtBound), JSON.stringify(p.seen))
+        const [first, ...again] = p.bodies()
+        assert.ok(
+          again.every((b) => b === first),
+          'the same call: id, connection, arguments, speaker, epoch',
+        )
+        assert.equal(JSON.parse(first ?? '{}').callId, 'ceiling-w')
+        assert.deepEqual(failed(), [
+          [0, `no answer within ${String(BOUND)} ms`],
+          [1, `no answer within ${String(BOUND)} ms`],
+          [2, `no answer within ${String(BOUND)} ms`],
+        ])
+        const output = live.responses[0]?.response?.output as { status: string; next: string }
+        assert.equal(output.status, 'unknown', 'it may have been applied')
+        assert.match(output.next, /Read project_status/)
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+  }
+
+  it('a read past its ceiling: tried three times, then an error (it changed nothing)', async () => {
+    toolAttemptMs = BOUND
+    const p = await peer('silent')
+    try {
+      service.toolCall = p.media.toolCall
+      const { session, room, live } = await ready()
+      room.events.audio(LUIS, pcm16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'ceiling-r', name: 'project_status', args: {} }])
+      await until('answered', () => live.responses.length === 1, 5000)
+      assert.equal(p.seen.length, 3)
+      assert.equal(statusOf(live.responses[0]), 'error')
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('an answer that comes past the ceiling is not waited for: the call goes again as the same call, and only the repeat’s receipt reaches the provider', async () => {
+    toolAttemptMs = BOUND
+    const signals: Array<AbortSignal | undefined> = []
+    const sent: MediaToolCall[] = []
+    let late: (() => void) | null = null
+    service.toolCall = (c: MediaToolCall, signal?: AbortSignal) => {
+      sent.push(c)
+      signals.push(signal)
+      if (sent.length === 1)
+        // The API applied it but its answer comes late, whatever the signal says.
+        return new Promise<MediaToolResult>((resolve) => {
+          late = () => resolve({ status: 'committed', output: { entryId: 'late', ledgerRevision: 1 } })
+        })
+      return Promise.resolve({ status: 'committed', output: { entryId: ENTRY, ledgerRevision: 3 } })
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'late-1', name: 'record_mission_note', args: NOTE }])
+    await until('answered', () => live.responses.length === 1, 5000)
+    ;(late as (() => void) | null)?.()
+    await flush()
+    assert.equal(sent.length, 2)
+    assert.deepEqual(sent[1], sent[0], 'the same call again')
+    assert.equal(signals[0]?.aborted, true, 'the first attempt was cancelled at its ceiling')
+    assert.equal(signals[1]?.aborted, false)
+    assert.equal(live.responses.length, 1, 'one answer')
+    assert.deepEqual(live.responses[0]?.response?.output, { status: 'committed', entryId: ENTRY, ledgerRevision: 3 })
+    await session.close()
+  })
+
+  it('a call answered in time is not cut afterwards: its timer is cleared (control)', async () => {
+    toolAttemptMs = BOUND
+    const p = await peer('answer', JSON.stringify({ status: 'ok', output: { stage: 'running' } }))
+    const signals: Array<AbortSignal | undefined> = []
+    try {
+      service.toolCall = (c: MediaToolCall, signal?: AbortSignal) => {
+        signals.push(signal)
+        return p.media.toolCall(c, signal)
+      }
+      const { session, room, live } = await ready()
+      room.events.audio(LUIS, pcm16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'in-time', name: 'project_status', args: {} }])
+      await until('answered', () => live.responses.length === 1, 5000)
+      await new Promise((resolve) => setTimeout(resolve, BOUND + 100))
+      assert.equal(p.seen.length, 1)
+      assert.notEqual(signals[0]?.aborted, true, 'never aborted once answered')
+      assert.equal(statusOf(live.responses[0]), 'ok')
+      assert.deepEqual(failed(), [])
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('a call the provider cancels while it is on its way is not cancelled on the API: its answer is dropped, never sent to the provider', async () => {
+    const signals: Array<AbortSignal | undefined> = []
+    let answer: (() => void) | null = null
+    service.toolCall = (c: MediaToolCall, signal?: AbortSignal) => {
+      service.calls.push(c)
+      signals.push(signal)
+      return new Promise<MediaToolResult>((resolve) => (answer = () => resolve({ status: 'ok', output: {} })))
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'cancelled-1', name: 'project_status', args: {} }])
+    await until('on its way', () => service.calls.length === 1)
+    live.events.toolCancellations(['cancelled-1'])
+    await flush()
+    assert.notEqual(signals[0]?.aborted, true, 'the API call goes on: it may already be applied')
+    ;(answer as (() => void) | null)?.()
+    await until('dropped', () => logs.some(([event]) => event === 'tool.dropped'))
+    assert.equal(live.responses.length, 0, 'a cancelled call is never answered')
+    assert.equal(service.calls.length, 1)
+    await session.close()
+  })
+
+  it('a call in flight at the close does not hold it, and is not sent again after it', async () => {
+    let fail: (() => void) | null = null
+    service.toolCall = (c: MediaToolCall) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((_resolve, reject) => (fail = () => reject(new Error('socket hang up'))))
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'closing-1', name: 'record_mission_note', args: NOTE }])
+    await until('on its way', () => service.calls.length === 1)
+    const started = Date.now()
+    await session.close()
+    assert.ok(Date.now() - started < 1000, 'the close did not wait for the call')
+    ;(fail as (() => void) | null)?.()
+    for (let i = 0; i < 5; i += 1) await flush()
+    assert.equal(service.calls.length, 1, 'not sent again once closed')
+    assert.equal(live.responses.length, 0)
+  })
+
+  it('the default ceiling is 20 s: a silent API is cut at it, not at undici’s 300 s', async () => {
+    assert.equal(TOOL_ATTEMPT_MS, 20_000)
+    const p = await peer('silent')
+    try {
+      service.toolCall = p.media.toolCall
+      const { session, room, live } = await ready()
+      room.events.audio(LUIS, pcm16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'default-1', name: 'project_status', args: {} }])
+      await until('sent', () => p.seen.length === 1)
+      await until('cut at its ceiling', () => p.seen[0]?.closedAt !== null, 25_000)
+      const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
+      assert.ok(ms >= TOOL_ATTEMPT_MS - 20 && ms < TOOL_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
       await session.close()
     } finally {
       await p.close()

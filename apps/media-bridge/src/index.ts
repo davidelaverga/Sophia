@@ -13,7 +13,14 @@ export {
   type MissionGuide,
 } from './guide.ts'
 export { connectGeminiLive, geminiLive, type ConnectLive, type LiveEvents, type LiveLink } from './live-session.ts'
-export { HOLDER_GRACE_MS, PRESENCE_EVERY_MS, RoomSession, type Observed, type SessionDeps } from './room-session.ts'
+export {
+  HOLDER_GRACE_MS,
+  PRESENCE_EVERY_MS,
+  RoomSession,
+  TOOL_ATTEMPT_MS,
+  type Observed,
+  type SessionDeps,
+} from './room-session.ts'
 export {
   joinLiveKitRoom,
   SOPHIA_IDENTITY,

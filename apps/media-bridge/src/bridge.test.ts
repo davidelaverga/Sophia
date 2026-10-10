@@ -1,10 +1,12 @@
 // The assignment loop against LABELLED FAKES (no LiveKit, no Google): one session per live exchange.
+import type { FunctionResponse } from '@google/genai'
 import type { MediaAssignment, MediaEvidenceWrite } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { MediaBridge } from './bridge.ts'
+import { MediaBridge, STOP_DEADLINE_MS } from './bridge.ts'
 import { loadMissionGuide } from './guide.ts'
-import type { LiveLink } from './live-session.ts'
+import type { LiveEvents, LiveLink } from './live-session.ts'
+import { SETTLE_DEPTH } from './qualification.ts'
 import type { RoomEvents, RoomLink } from './rtc.ts'
 import type { MediaService } from './service.ts'
 import { DECLARED_NAMES } from './tools.ts'
@@ -42,6 +44,8 @@ interface RoomFake {
   leaveHangs?: boolean
   /** The bridge's stop deadline, when a test bounds it. */
   stopDeadlineMs?: number
+  /** How the API answers a tool call, when a test calls one. */
+  toolCall?: MediaService['toolCall']
 }
 
 /**
@@ -51,6 +55,8 @@ interface RoomFake {
 function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
   const log: string[] = []
   const roomEvents: RoomEvents[] = []
+  const lives: LiveEvents[] = []
+  const toolResponses: FunctionResponse[] = []
   const ordinals = new Map<string, number>()
   const service: MediaService = {
     assignments: () => Promise.reject(new Error('unused')),
@@ -58,7 +64,7 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
     ackQuiesce: () => Promise.resolve(),
     holder: () => Promise.resolve(),
     announced: () => Promise.resolve(),
-    toolCall: () => Promise.reject(new Error('unused')),
+    toolCall: fake.toolCall ?? (() => Promise.reject(new Error('unused'))),
     toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
     recordEvidence: (write) => {
       if (!evidence) return Promise.reject(new Error('unused'))
@@ -97,13 +103,14 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
       }
       return room
     },
-    connectLive: async () => {
+    connectLive: async (_options, events) => {
       await Promise.resolve()
+      lives.push(events)
       const live: LiveLink = {
         sendAudio: () => undefined,
         sendAudioStreamEnd: () => undefined,
         sendFrame: () => undefined,
-        sendToolResponses: () => undefined,
+        sendToolResponses: (responses) => void toolResponses.push(...responses),
         sendNotice: () => undefined,
         close: () => undefined,
       }
@@ -119,7 +126,7 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
     ...(evidence ? { voiceEvidence: true } : {}),
     ...(fake.stopDeadlineMs === undefined ? {} : { stopDeadlineMs: fake.stopDeadlineMs }),
   })
-  return { bridge, log, roomEvents }
+  return { bridge, log, roomEvents, lives, toolResponses }
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve))
@@ -136,6 +143,41 @@ describe('media bridge assignment loop', () => {
       log.filter((l) => l === 'bridge.stop_deadline'),
       ['bridge.stop_deadline'],
     )
+  })
+
+  it('a stop with a tool call in flight is not held by it: well within its 35 s deadline; the call, failing after it, is not sent again, and nothing reaches the provider (item 7 B)', async () => {
+    assert.equal(STOP_DEADLINE_MS, 35_000, 'the stop bound is unchanged')
+    assert.equal(SETTLE_DEPTH, 3, 'and so is the chain a close settles')
+    const principal = '11111111-1111-4111-8111-111111111111'
+    const calls: string[] = []
+    let fail: (() => void) | null = null
+    const { bridge, log, roomEvents, lives, toolResponses } = harness({
+      people: [{ identity: principal, standing: 'editor' }],
+      toolCall: (call) => {
+        calls.push(call.callId)
+        return new Promise((_resolve, reject) => (fail = () => reject(new Error('socket hang up'))))
+      },
+    })
+    await bridge.apply([assignment(E1, { inputActorId: principal })])
+    await settle()
+    const [room] = roomEvents
+    const [live] = lives
+    assert.ok(room && live)
+    live.setupComplete()
+    room.audio(principal, new Int16Array(1600).fill(2000), 16000, 1)
+    live.toolCalls([{ id: 'in-flight-1', name: 'project_status', args: {} }])
+    for (let i = 0; i < 20 && calls.length === 0; i += 1) await settle()
+    assert.deepEqual(calls, ['in-flight-1'], 'the call is on its way to the API')
+    const started = Date.now()
+    await bridge.stop()
+    assert.ok(Date.now() - started < 1000, `stopped in ${String(Date.now() - started)} ms, not held by the call`)
+    assert.equal(log.includes('bridge.stop_deadline'), false)
+    // Its attempt fails once the bridge stopped (a lost reply): a running session would send it again.
+    ;(fail as (() => void) | null)?.()
+    // Past the first retry's wait (TOOL_RETRY_MS: 250 ms), with margin.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    assert.deepEqual(calls, ['in-flight-1'], 'not sent again once stopped')
+    assert.deepEqual(toolResponses, [], 'nothing reaches the provider')
   })
 
   it('a stop whose sessions close in time logs no deadline (control)', async () => {

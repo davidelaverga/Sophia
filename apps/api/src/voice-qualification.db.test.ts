@@ -1706,6 +1706,188 @@ describe('the exchange of a voice-created task, and the room as the bridge last 
     assert.deepEqual([urn.status, urn.json.code], [422, 'invalid_request'], 'only a lowercase canonical id')
     assert.equal((await presence(P, off)).status, 404, 'the API off serves no such route')
   })
+
+  /**
+   * Item 7 B through the real API: the real RoomSession (its HTTP client, its transport ceiling shortened to 1 s) under
+   * a grant, behind a relay that loses one tool call's answer or holds its request; LiveKit and Gemini Live are LABELLED
+   * FAKES. `mode` says what the relay does with the first POST /v1/media/tool-calls: 'answer-lost' forwards it (the API
+   * commits) and never answers; 'request-held' holds it until the bridge's repeat comes, then forwards both at once.
+   */
+  async function toolThroughRelay(mode: 'answer-lost' | 'request-held') {
+    const x = await twoSpeakers('on')
+    const api = await baseUrl()
+    const toolAnswers: unknown[] = []
+    const toolBodies: string[] = []
+    const held: http.ServerResponse[] = []
+    let heldRequest: (() => void) | null = null
+    const forward = async (req: http.IncomingMessage, body: string) =>
+      fetch(`${api}${req.url ?? ''}`, {
+        method: req.method ?? 'GET',
+        headers: { authorization: req.headers.authorization ?? '', 'content-type': 'application/json' },
+        ...(req.method === 'POST' ? { body } : {}),
+      })
+    const relay = http.createServer((req, res) => {
+      let body = ''
+      req.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')))
+      req.on('end', () => {
+        const tool = req.url === '/v1/media/tool-calls'
+        if (tool) toolBodies.push(body)
+        const first = tool && toolBodies.length === 1
+        const send = async () => {
+          const answered = await forward(req, body)
+          const text = await answered.text()
+          if (tool) toolAnswers.push(JSON.parse(text))
+          if (first) {
+            held.push(res)
+          } else {
+            res.writeHead(answered.status, { 'content-type': 'application/json' })
+            res.end(text)
+          }
+        }
+        if (first && mode === 'request-held') {
+          heldRequest = () => void send()
+          return
+        }
+        if (tool && mode === 'request-held' && heldRequest) {
+          const original = heldRequest
+          heldRequest = null
+          original()
+        }
+        void send()
+      })
+    })
+    await new Promise<void>((resolve) => relay.listen(0, '127.0.0.1', resolve))
+    const address = relay.address()
+    assert.ok(address !== null && typeof address === 'object')
+    const service = httpMediaService(`http://127.0.0.1:${String(address.port)}`, MEDIA_TOKEN)
+    const assignment = (await service.assignments(null, 0, new AbortController().signal)).assignments.find(
+      (a) => a.exchangeId === x.exchangeId,
+    )
+    assert.ok(assignment?.qualification, 'the exchange is under the grant')
+    let roomEvents: RoomEvents | undefined
+    let liveEvents: LiveEvents | undefined
+    let sent = 0
+    const responses: Array<Parameters<LiveLink['sendToolResponses']>[0][number]> = []
+    const logs: Array<[string, Record<string, unknown>]> = []
+    const session = new RoomSession(assignment, {
+      service,
+      joinRoom: async (_access, events) => {
+        await Promise.resolve()
+        roomEvents = events
+        const room: RoomLink = {
+          people: () => [{ identity: P, standing: 'editor' }],
+          play: () => Promise.resolve(),
+          clearPlayback: () => undefined,
+          watch: () => undefined,
+          setState: () => Promise.resolve(),
+          close: () => Promise.resolve(),
+        }
+        return room
+      },
+      connectLive: async (_options, events) => {
+        await Promise.resolve()
+        liveEvents = events
+        const live: LiveLink = {
+          sendAudio: () => void (sent += 1),
+          sendAudioStreamEnd: () => undefined,
+          sendFrame: () => undefined,
+          sendToolResponses: (r) => void responses.push(...r),
+          sendNotice: () => undefined,
+          close: () => undefined,
+        }
+        return live
+      },
+      apiKey: 'fake',
+      model: 'gemini-3.8-live',
+      guide: loadMissionGuide(DECLARED_NAMES),
+      bridgeInstanceId: 'bridge-tools',
+      now: Date.now,
+      log: (event, detail) => logs.push([event, detail ?? {}]),
+      every: () => () => undefined,
+      voiceEvidence: true,
+      evidenceRetryMs: [0, 0],
+      reserveRetryMs: [0, 0],
+      toolRetryMs: [0, 0],
+      toolAttemptMs: 1000,
+    })
+    try {
+      await session.start()
+      assert.ok(roomEvents && liveEvents)
+      liveEvents.setupComplete()
+      roomEvents.audio(P, new Int16Array(1600).fill(2000), 16000, 1)
+      await until('the input went on', () => sent === 1)
+      liveEvents.toolCalls([{ id: 'b7-hold', name: 'control_work', args: x.hold }])
+      await until('the call answered', () => responses.length === 1, 15_000)
+      await until('both attempts answered by the API', () => toolAnswers.length === 2, 15_000)
+    } finally {
+      await session.close()
+      for (const res of held) res.destroy()
+      relay.closeAllConnections()
+      await new Promise((resolve) => relay.close(resolve))
+    }
+    // The call's key, as the API makes it from the bridge's call: its exchange, its connection, its id.
+    const sentCall = JSON.parse(toolBodies[0] ?? '{}') as { connectionGeneration: number }
+    const key = `live:${x.exchangeId}:${String(sentCall.connectionGeneration)}:b7-hold`
+    const fence = await owner((c) =>
+      c.query<{ generation: string }>(`SELECT generation FROM sophia.live_call_fences WHERE idempotency_key=$1`, [key]),
+    )
+    const commands = await owner((c) =>
+      c.query<{ n: number }>(`SELECT count(*)::int AS n FROM sophia.commands WHERE idempotency_key=$1`, [key]),
+    )
+    return {
+      x,
+      key,
+      commands: commands.rows[0]?.n,
+      toolAnswers: toolAnswers as Array<{ status: string; output: { replayed?: boolean; commandId?: string } }>,
+      toolBodies,
+      responses,
+      logs,
+      fence: fence.rows.map((r) => Number(r.generation)),
+    }
+  }
+
+  it('item 7 B: a tool call whose answer is lost after the API committed is cut at its ceiling and sent again as the same call; the API answers it from its record (replayed), and it ran once', async () => {
+    const r = await toolThroughRelay('answer-lost')
+    assert.equal(r.toolBodies.length, 2)
+    assert.equal(r.toolBodies[1], r.toolBodies[0], 'the same call: id, connection, arguments, speaker, epoch, guide')
+    assert.deepEqual(
+      r.toolAnswers.map((a) => [a.status, a.output.replayed === true]),
+      [
+        ['ok', false],
+        ['ok', true],
+      ],
+      'the first ran and committed; the repeat is answered from its record',
+    )
+    assert.equal(r.toolAnswers[1]?.output.commandId, r.toolAnswers[0]?.output.commandId)
+    assert.equal(r.commands, 1, 'its handler ran once')
+    assert.deepEqual(
+      r.logs.filter(([event]) => event === 'tool.failed').map(([, d]) => [d.attempt, d.error]),
+      [[0, 'no answer within 1000 ms']],
+    )
+    const output = r.responses[0]?.response?.output as { status: string; commandId?: string }
+    assert.equal(output.status, 'ok', 'the receipt the repeat brought back settles it')
+    assert.deepEqual(r.fence, [2], 'each attempt took the key’s next fence generation in turn')
+  })
+
+  it('item 7 B: the original arrives with its own repeat (overlapping): the fence lets one run, the other is answered from its record; it ran once', async () => {
+    const r = await toolThroughRelay('request-held')
+    assert.equal(r.toolBodies.length, 2)
+    assert.equal(r.toolBodies[1], r.toolBodies[0])
+    assert.deepEqual(
+      r.toolAnswers.map((a) => a.status),
+      ['ok', 'ok'],
+    )
+    assert.deepEqual(
+      r.toolAnswers.map((a) => a.output.replayed === true).toSorted((a, b) => Number(a) - Number(b)),
+      [false, true],
+      'exactly one ran',
+    )
+    assert.equal(r.toolAnswers[1]?.output.commandId, r.toolAnswers[0]?.output.commandId)
+    assert.equal(r.commands, 1)
+    const output = r.responses[0]?.response?.output as { status: string }
+    assert.equal(output.status, 'ok')
+    assert.deepEqual(r.fence, [2])
+  })
 })
 
 describe('the media bridge records through the API (A15; fake LiveKit and Google)', () => {

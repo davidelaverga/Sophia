@@ -87,6 +87,8 @@ export interface SessionDeps {
   lost?: (exchangeId: string) => void
   /** Waits before a tool call whose reply was lost is sent again, with the same identity; tests shorten them. */
   toolRetryMs?: readonly number[]
+  /** One tool call attempt's transport ceiling (TOOL_ATTEMPT_MS); tests shorten it. */
+  toolAttemptMs?: number
   /**
    * One attempt's bound for the quiesce acknowledgement, a holder event and an announcement's record
    * (POST_ATTEMPT_MS); tests shorten it.
@@ -165,6 +167,17 @@ const CLOSE_FLUSH_MS = 3000
 /** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
 const RECEIPT_RETRY_MS = 5000
 const TOOL_RETRY_MS = [250, 1000]
+/**
+ * One tool call attempt's TRANSPORT CEILING (item 7 B of the PR #190 review: the call had no bound but undici's own
+ * 300 s). It is NOT a proven worst-case handler or provider conversational deadline: nothing here measures how long a
+ * handler may run or how long the provider waits for a tool response. Past it the request is cancelled, its socket
+ * closed, and the call goes as a lost reply does: sent again with the same identity after its TOOL_RETRY_MS wait, at
+ * most twice, and a write still unconfirmed is `unknown`, never "nothing changed" (answerTo, unanswered). The API keys
+ * each call by its identity: a repeat is answered from its record or waits for its fence (0046 live_tool_calls, 0047
+ * live_call_keys and live_call_fences), so it never runs twice. A call in flight never holds a close: close() does not
+ * wait for tool calls, so the bridge's stop bound (STOP_DEADLINE_MS, 35 s) is unchanged.
+ */
+export const TOOL_ATTEMPT_MS = 20_000
 const TOOL_FAILED: MediaToolResult = { status: 'error', output: { reason: 'The tool failed; nothing was changed.' } }
 /** A write whose reply never came: it may have been saved. The guide reconciles by reading, not by writing again. */
 const WRITE_UNCONFIRMED: MediaToolResult = {
@@ -2092,16 +2105,19 @@ export class RoomSession {
   }
 
   /**
-   * Send one call; a lost reply is sent again with the same identity, which the API answers with the receipt of a
-   * write it already applied (an API from before CX-0026 refused a repeated Hold, Resume or Stop instead). A write is
-   * `unknown`, never "nothing changed", while still unconfirmed after the retries, and once its reply was lost,
-   * whatever else its repeat is answered (answerTo, unanswered). A refusal (4xx) is not retried.
+   * Send one call, each attempt within its transport ceiling (TOOL_ATTEMPT_MS); a lost reply, or one past the ceiling,
+   * is sent again with the same identity, which the API answers with the receipt of a write it already applied (an API
+   * from before CX-0026 refused a repeated Hold, Resume or Stop instead). A write is `unknown`, never "nothing
+   * changed", while still unconfirmed after the retries, and once its reply was lost, whatever else its repeat is
+   * answered (answerTo, unanswered). A refusal (4xx) is not retried. Nothing is sent again once the session closed.
    */
   private async callService(request: MediaToolCall, write: boolean): Promise<MediaToolResult> {
     const waits = this.deps.toolRetryMs ?? TOOL_RETRY_MS
+    const ceiling = this.deps.toolAttemptMs ?? TOOL_ATTEMPT_MS
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return answerTo(write && attempt > 0, await this.deps.service.toolCall(request))
+        const result = await withinAttempt(ceiling, (signal) => this.deps.service.toolCall(request, signal))
+        return answerTo(write && attempt > 0, result)
       } catch (err: unknown) {
         this.deps.log('tool.failed', { name: request.name, attempt, error: message(err) })
         const refused = err instanceof ServiceError && err.status < 500
