@@ -1,0 +1,18 @@
+{
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "scope": "owned disposable PG17.6 actual persistence/API DB tests; synthetic actors, no browser/native/provider/live effects",
+  "at": "2026-10-10T20:36:27.497004+00:00",
+  "outerPid": 13640,
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=120000",
+    "packages/persistence/src/conversations.db.test.ts",
+    "apps/api/src/conversations.db.test.ts"
+  ],
+  "exit": 0,
+  "postgresStopped": true,
+  "clusterRemoved": true
+}

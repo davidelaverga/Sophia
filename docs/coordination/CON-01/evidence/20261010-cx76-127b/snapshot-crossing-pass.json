@@ -1,0 +1,5 @@
+{
+  "at": "2026-10-10T20:39:01.752Z",
+  "pass": true,
+  "limit": "Existing snapshot remains consistent across later revocation; only fresh transaction is refused. This is not instantaneous post-revocation publication fencing."
+}

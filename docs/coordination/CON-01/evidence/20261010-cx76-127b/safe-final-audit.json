@@ -1,0 +1,27 @@
+{
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "observedAt": "2026-10-10T20:42:54.469Z",
+  "projectId": "73b18c2d-2cb7-4adf-b77f-eb4f89ec0400",
+  "humanMessages": 207,
+  "nullBodies": 5,
+  "requests": 208,
+  "replies": 0,
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "readCeiling": {
+    "count": 53,
+    "limit": 200,
+    "armedAt": "2026-10-10T20:37:43.791Z",
+    "contained": false
+  }
+}

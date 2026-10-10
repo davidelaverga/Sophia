@@ -1,0 +1,12 @@
+[
+  {
+    "id": 4239161783,
+    "created_at": "2026-10-10T20:50:35Z",
+    "submitted_at": null,
+    "commit_id": "127b4334a0a9e762d09286507080db34a218b0dc",
+    "path": "apps/studio/src/features/conversations/OpenConversation.tsx",
+    "line": null,
+    "original_line": null,
+    "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Fence forbidden reads before retrying**\n\nWhen membership is revoked while a cached transcript is open, the first scoped GET returns 403, but the query still has `retry: 1` and this handler does not call `onDenied` until React Query exposes the terminal error after the retry. During that retry delay `deniedAt` remains unset, so both the cached messages and composer stay rendered despite the refusal; after the final failure, the passive effect also permits an additional paint before fencing. Make `forbidden` non-retryable and include the current forbidden result in the synchronous render gate so the first 403 hides the view immediately.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e."
+  }
+]

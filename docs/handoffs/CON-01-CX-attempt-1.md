@@ -1,4 +1,16 @@
-# Current checkpoint — CX-0075
+# Current checkpoint — CX-0076
+
+[Independent exact correction review](../coordination/CON-01/CX-0076.md), [structured evidence](../coordination/CON-01/CX-0076.evidence.json). Candidate127b4334a0a9e762d09286507080db34a218b0dc/tree7409fed4876c0084313e9d1000734ac879cc19a2/parent e4c8. Current main0ccc344d, PR1904801draft. Complete21filedelta read;218units/32actualPG_API/contracts/Studio typecheck PASS. Actual owned local episode68: human-only Send/list outage, two genuine scoped403 cache fences after fresh lists, bounded capped-out recovery/relist/exact draft, ordinary authorized erasure/list failure/return all scopedPASS. Preserved1280x720 three panes visually inspected; no mobile/native/hosted claim. Earlier CX73 residual exposure scoped resolved here, not whole privacy acceptance.
+
+Final actualSQL207human/5NULL/208requests/0replies; bootstrapgoal1/all operational+usage0.53reads/200ceiling never triggered. Two admin revoke/restores plus independent two-connection viewer snapshot revoke/restore; one ordinary erasure; no unknown effect. Stack21344terminal0/DBdropped/PGstopped/clusterremoved. IndependentPIDs13906/13915/13916 absent, ports64479/64480closed/tab91closed; all68ownedappstacks clean. Separate focusedPG cluster clean. No reviewer feature fix.
+
+All36 acceptance statuses retained; current header points127b. Source_ready author/checks pending; locally_verified named cases; scoped delta reviewed; whole combined reviewed/authorized/deployed/app_verified/owner_accepted false. Pending-own-erasure and late200 mounted crossings remain; author fail-before/mutation/full receipts and new automatic review pending. Exact127b CI38084257187/38084253016 live; e4c8 failed PR38080024705 remains unwaived/causeunproven/no artifacts. No CI rerun.
+
+OP1r2/OP2r2 draft_not_authorized/expiryNULL. Last live tuple remains LIVE_PREFLIGHT; six m03bindings running at20:15/read-only metadata only. Inbox/actual subjects/cohort/subscription reply route/credential/payer/finite allowance/expiry/privacy/shared owner-window/combined artifacts/governed rollback unbound. No hosted account/project/invite/email/schema/config/deploy/native/provider/spend effect, no rollback performed or newly qualified. D6/B1 retained, final product decision Davide/other missions open.
+
+Next bounded action: independent mounted pending-erasure/refusal and old-success ordering on127b; inspect terminal author/new automatic review, then qualify current-main/S1 combinedG4 when clear.
+
+# Historical checkpoint — CX-0075
 
 **20:28–30 author checkpoint:** exact Claude acknowledged CI feedback, reports36 removal tests passing followed by cache-hook refactor/lint/typecheck. Focused browser set/fail-before diagnostic overlay still active; immutable correction unpublished. Author claims do not close reviewer P1/G4; CI cause remains unproven. Next bounded action remains the immutable correction and affected independent PG/browser checks.
 

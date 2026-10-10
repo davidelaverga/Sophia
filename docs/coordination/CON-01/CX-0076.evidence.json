@@ -1,0 +1,92 @@
+{
+  "record": "CX-0076",
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "parent": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "episode": 68,
+  "environment": "actual owned local Studio/API/PostgreSQL17.6; synthetic dev identities; no fixture, native or provider",
+  "source": "Complete21filedelta +904/-280 independently read; no SQL/runtime change; A16/generated endpoint addition",
+  "checks": {
+    "units": {
+      "passed": 218,
+      "suites": 53,
+      "failed": 0,
+      "skipped": 0
+    },
+    "actualPG_API": {
+      "passed": 32,
+      "suites": 9,
+      "failed": 0,
+      "skipped": 0,
+      "cleanup": true
+    },
+    "contracts": "pass; OpenAPI/types/validators/runtime wire/specialists current",
+    "studioTypecheck": "exit0"
+  },
+  "mounted": {
+    "humanSendListOutage": "pass; team-only202 updates row",
+    "freshListThenRevokeScopedRead": "pass; real403 hides all rows/cached transcript/controls, both crossings",
+    "restoreCappedOut": "pass; bounded reads, no ceiling",
+    "restoreRelisted": "pass; same existing thread, five bodies/authors, exact unsent draft",
+    "ordinaryErasureListOutage": "pass; real422 removes old row/body/draft, return stays gone; no false own erasure statement",
+    "reactErrors": [],
+    "desktop": "1280x720 three-pane screenshot inspected; no mobile claim"
+  },
+  "audit": {
+    "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+    "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+    "observedAt": "2026-10-10T20:42:54.469Z",
+    "projectId": "73b18c2d-2cb7-4adf-b77f-eb4f89ec0400",
+    "humanMessages": 207,
+    "nullBodies": 5,
+    "requests": 208,
+    "replies": 0,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "readCeiling": {
+      "count": 53,
+      "limit": 200,
+      "armedAt": "2026-10-10T20:37:43.791Z",
+      "contained": false
+    }
+  },
+  "limits": [
+    "Both mounted crossings are sequential in one disposable project, not independent hosted episodes.",
+    "Second held target has observed timestamps20:40:45.361 and.393; possible repeated GET while marker armed. One membership revocation, no retry; do not assert exactly one held GET.",
+    "No pending/uncertain own erasure or late200 mounted case in this episode; automatic P1 full closure still needs affected evidence.",
+    "No G2/native/provider/subscription/hosted/two-real-account proof. No full combined current-main/S1 G4.",
+    "No operation approval or live effect. All36 acceptance statuses retained."
+  ],
+  "cleanup": "terminal0/DB dropped/PG stopped/cluster removed; independent PIDs13906/13915/13916 absent, ports64479/64480 closed, tab91 closed; all68 prior owned UI stacks clean",
+  "next": "Independent first403/retry-delay observation; pending-erasure/refusal and old-success ordering; combined current-main/S1 G4 after affected qualification",
+  "newAutomaticReview": {
+    "review": 5480761393,
+    "comment": 4239161783,
+    "severity": "P2",
+    "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+    "finding": "retry:1 delays onDenied until terminal403; cached transcript/composer may remain after first refusal",
+    "qualification": "source identified; first-refusal mounted observation pending"
+  },
+  "authorTerminal": {
+    "comment": 6102012973,
+    "exactCandidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+    "format_lint_typecheck_contracts": "pass",
+    "studioUnits": 1212,
+    "fixtureBrowser": 167,
+    "persistence": 22,
+    "api": 10,
+    "failBefore": "8fail28pass",
+    "renderGateMutation": "2affectedfail",
+    "secondProposedMutation": "not published"
+  }
+}

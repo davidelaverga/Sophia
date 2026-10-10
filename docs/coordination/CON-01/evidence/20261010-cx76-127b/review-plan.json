@@ -1,0 +1,41 @@
+{
+  "state": "immutable_reviewed_local_episode_starting",
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "environment": "owned disposable PG17.6/API/Studio loopback; synthetic dev actors, no fixtures/native/provider/hosted accounts",
+  "finite_limits": {
+    "stack_minutes": 8,
+    "outer_seconds": 600,
+    "parallel_probe_limit": "production3",
+    "read_ceiling": 200,
+    "model_calls": 0,
+    "spend": 0
+  },
+  "episode68_priorities": [
+    "read full exact delta and all terminal author receipts before starting; pin source/tree/main",
+    "actual human send/list503 remains truthful, then open original cached thread and retain exact unsent draft",
+    "201 newer conversations through production persistence setup, labeled setup only; preserve two original target IDs",
+    "isolated background scoped GET held before API; all other transcript reads503 and feed/snapshot/list unavailable; revoke original synthetic admin once then release inside15s, expect actual403 and no rows/cached transcript/controls",
+    "independent actualPG scoped reader: revoked forbidden, viewer success under nonowner/non-BYPASSRLS API role",
+    "restore original membership; fresh list200 then hold required target recheck; revoke same member before release; actual scoped403 must refence, reproducing CX73 without other denial source",
+    "restore original membership; capped-out existing target direct200 recovers without permanent marker or runaway reads; relist same existing target if time, manual reopen exact draft",
+    "ordinary external authorized erasure; actual scoped not_found with known project membership settles affected retained state and return does not resurrect; no false claim about an own pending write"
+  ],
+  "separate_followup_if_needed": [
+    "pending/unknown erasure plus genuine403 preserves key/draft; controlled lost reply same semantic request",
+    "old successful open read and background success after newer refusal; inspect state/cache/render ordering and independently replay production helper assertions; label L0 versus actual browser",
+    "current-main/S1 combined integration/full gate/artifact review only after affected correction evidence passes"
+  ],
+  "stop_and_cleanup": "stop at8min or material defect; record exact writes/requests/NULL bodies and zero operational/model work; drop only owned DB, settle owned processes and remove cluster, close owned tab; independently verify PIDs/ports",
+  "prohibited": "no feature fix, provider switch, shared runtime alteration, production membership fault or account/invite/deploy effect",
+  "acceptance": "all verdicts remain unchanged until executed evidence; local L1 does not prove hosted/native acceptance",
+  "additional_prepared_check": "snapshot-crossing.mjs syntax checked only: two independent PostgreSQL connections, effective nonowner non-BYPASSRLS API role, existing viewer snapshot remains consistent across committed local membership deletion; fresh transaction forbidden; original role/active/revision restored. Unexecuted until immutable correction.",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "prelaunch_evidence": {
+    "complete21fileDelta": "read independently",
+    "units": 218,
+    "actualPG_API_tests": 32,
+    "contracts": "pass",
+    "authorFocusedBrowser": 167,
+    "authorFullGateAndFailBefore": "pending; not prerequisite to independent local review, still required before G4"
+  }
+}

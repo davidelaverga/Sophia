@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-10T20:38:42.140Z",
+  "scope": "actual disposable PostgreSQL production withActor/readProjectConversationPage under effective nonowner non-BYPASSRLS API role; no UI/provider claim",
+  "pass": true,
+  "rows": [
+    {
+      "name": "revoked",
+      "allowed": false,
+      "code": "forbidden"
+    },
+    {
+      "name": "authorizedViewer",
+      "allowed": true,
+      "role": {
+        "current_user": "sophia_api_t_d3cb6c0b6475",
+        "rolsuper": false,
+        "rolbypassrls": false,
+        "schema_owner": false
+      },
+      "messages": 4
+    }
+  ]
+}

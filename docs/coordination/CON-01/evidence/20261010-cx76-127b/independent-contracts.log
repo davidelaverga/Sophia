@@ -1,0 +1,7 @@
+$ pnpm --filter @sophia/contracts run generate:check
+$ node scripts/apply-amendments.ts --check && node scripts/generate-types.ts --check && node scripts/generate-validators.ts --check && node scripts/generate-runtime-wire.ts --check && node scripts/generate-specialists.ts --check
+OpenAPI equals the pack plus its amendments
+Generated API types match OpenAPI
+Generated validators match OpenAPI
+Runtime wire module matches OpenAPI
+Specialist modules match config/specialists.json

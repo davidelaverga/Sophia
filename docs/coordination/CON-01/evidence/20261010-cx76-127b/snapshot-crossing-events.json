@@ -1,0 +1,30 @@
+{
+  "scope": "owned disposable PG; actual production scoped reader, two connections/effective nonowner API role; no UI/provider claim",
+  "events": [
+    {
+      "at": "2026-10-10T20:39:01.742Z",
+      "effect": "one local synthetic viewer membership deleted by second connection"
+    },
+    {
+      "at": "2026-10-10T20:39:01.747Z",
+      "sameSnapshot": "allowed",
+      "messages": 4,
+      "role": {
+        "current_user": "sophia_api_t_d3cb6c0b6475",
+        "rolsuper": false,
+        "rolbypassrls": false,
+        "schema_owner": false,
+        "isolation": "repeatable read",
+        "read_only": "on"
+      }
+    },
+    {
+      "at": "2026-10-10T20:39:01.750Z",
+      "freshSnapshot": "forbidden"
+    },
+    {
+      "at": "2026-10-10T20:39:01.750Z",
+      "effect": "original synthetic viewer role, active and revision restored"
+    }
+  ]
+}
