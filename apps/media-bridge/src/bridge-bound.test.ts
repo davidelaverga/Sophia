@@ -61,6 +61,8 @@ const assignment = (qualification: VoiceQualification, over: Partial<MediaAssign
 const settle = async () => {
   for (let i = 0; i < 20; i += 1) await new Promise((resolve) => setImmediate(resolve))
 }
+/** `ms` of real time. */
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 /** Until `check` holds, with the timers running: a close's settling and a handover take real time. */
 async function until(what: string, check: () => boolean, ms = 5000): Promise<void> {
   const deadline = Date.now() + ms
@@ -101,9 +103,21 @@ class FakeLedger {
   held: { kind: MediaQualificationReserve['kind']; until: Promise<void> } | null = null
   /** When set, a bridge's stop ends the exchange, as the real API does (0046): what comes after is refused (409). */
   endsOnStop = false
+  /**
+   * When set, each request waits for what it returns before it is answered: given the request and how many of its kind
+   * came before it (0 for the first), so a test holds one request in a chain and not another.
+   */
+  gate: ((r: MediaQualificationReserve, before: number) => Promise<void> | undefined) | null = null
 
   constructor(qualification: VoiceQualification) {
     this.grant = qualification
+  }
+
+  /** A request held (`held`) or gated (`gate`) waits for its release before it is answered. */
+  async #waitFor(r: MediaQualificationReserve, before: number): Promise<void> {
+    if (this.held?.kind === r.kind) await this.held.until
+    const gated = this.gate?.(r, before)
+    if (gated) await gated
   }
 
   /** What the exchange may have cost, as the API holds it now. */
@@ -113,8 +127,9 @@ class FakeLedger {
 
   reserve = async (r: MediaQualificationReserve): Promise<MediaQualificationReservation> => {
     await Promise.resolve()
+    const before = this.asked.filter((a) => a.kind === r.kind).length
     this.asked.push(r)
-    if (this.held?.kind === r.kind) await this.held.until
+    await this.#waitFor(r, before)
     const x = this.exchanges.get(r.exchangeId) ?? { connections: 0, turns: 0, charged: 0, ended: null }
     this.exchanges.set(r.exchangeId, x)
     if (r.kind === 'stop') {
@@ -981,5 +996,137 @@ describe('a chain of replacements waits on every charge the chain owes (Codex r4
     } finally {
       await h.bridge.stop()
     }
+  })
+})
+
+describe('a close waits for the whole chain of what it owes, within its bound (Codex r4235490757)', () => {
+  /** One request's bound in these tests: 3 attempts of 100 ms, no waits between them. The close's: 3 of them. */
+  const ONCE = 3 * 100
+  const BOUND = 3 * ONCE
+  /** How late past a bound a close may end: timer and event-loop latency. */
+  const MARGIN = 250
+  /** Each request in the chain answered just inside its own bound. */
+  const INSIDE = 250
+
+  /**
+   * Under a cap of 64: the principal's turn reserved, then their audio until its allowance runs out (952 chunks of 4.2
+   * tokens: 3,998.4, 1.6 left; the 953rd waits for a top-up of 3,999, in flight); then Sophia's 15,000 characters
+   * (5,000 tokens) cut the generation: 4,872 past its reserve, a debt that waits for the top-up (872 once it is
+   * credited), then the stop. `owe` instead says only 60 characters (within the cap) after 952 chunks: a debt's top-up
+   * and no stop. `cutWithin` cuts with 300 characters (100 tokens, within its reserve): the stop alone.
+   */
+  async function chain(gate: FakeLedger['gate'], shape: 'debt' | 'owe' | 'cutWithin' = 'debt') {
+    const ledger = new FakeLedger(grant({ maxOutputTokensPerTurn: 64, maxTurns: 1 }))
+    ledger.gate = gate
+    const h = harness(ledger, { reserveTimeoutMs: 100 })
+    await h.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    const chunks = shape === 'cutWithin' ? 1 : shape === 'owe' ? 952 : 953
+    // The first asks for its generation; the rest go once it is granted, each from the allowance.
+    h.roomEvents[0]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    for (let i = 1; i < chunks; i += 1) h.roomEvents[0]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    const chars = shape === 'debt' ? 15_000 : shape === 'owe' ? 60 : 300
+    h.lives[0]?.events.outputTranscript('x'.repeat(chars), false)
+    await settle()
+    const kinds = () => ledger.asked.map((r) => r.kind)
+    const unsettled = () => h.logs.filter(([event]) => event === 'qualification.charge_unsettled').map(([, d]) => d)
+    return { ledger, h, kinds, unsettled }
+  }
+
+  it('a top-up in flight, then the debt a cut left, then the stop, each answered inside its own bound: the shutdown waits for all three', async () => {
+    const x = await chain((r) => (r.kind === 'spend' || r.kind === 'stop' ? sleep(INSIDE) : undefined))
+    const started = Date.now()
+    await x.h.bridge.stop()
+    const ms = Date.now() - started
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'spend', 'stop'])
+    assert.ok(ms >= 2 * INSIDE, `it waited for the chain (${String(ms)} ms)`)
+    assert.ok(ms < BOUND + MARGIN, `within its bound (${String(ms)} ms)`)
+    assert.deepEqual(x.unsettled(), [], 'nothing left unsettled')
+    assert.ok(x.ledger.stopped.has(E1), 'the exchange stopped')
+    assert.equal(
+      x.ledger.committed(E1),
+      25_000 + 2 * 64 + 4000 + 3999 + 872,
+      'and paid: its generation, the top-up, and the 872 the cut left',
+    )
+  })
+
+  for (const held of [
+    {
+      phase: 'the top-up in flight',
+      at: (r: MediaQualificationReserve) => r.kind === 'spend',
+      phases: ['debt, after what is in flight'],
+      stop: 'unsent',
+      inherited: 2,
+    },
+    {
+      phase: 'the debt’s spend',
+      at: (r: MediaQualificationReserve, before: number) => r.kind === 'spend' && before === 1,
+      phases: ['debt'],
+      stop: 'unsent',
+      inherited: 2,
+    },
+    {
+      phase: 'the stop',
+      at: (r: MediaQualificationReserve) => r.kind === 'stop',
+      phases: [],
+      stop: 'unanswered',
+      inherited: 1,
+    },
+  ]) {
+    it(`${held.phase} held past the bound: the close ends at its bound, says which phase, and hands it over unanswered`, async () => {
+      let release: (() => void) | undefined
+      const never = new Promise<void>((resolve) => (release = resolve))
+      const x = await chain((r, before) => (held.at(r, before) ? never : undefined))
+      try {
+        const started = Date.now()
+        x.h.roomEvents[0]?.connection('disconnected', 'livekit: 1') // its room lost: the session closes
+        await settle()
+        await x.h.bridge.apply([assignment(x.ledger.grant)]) // the replacement, on the closed one's handover
+        await until('the replacement weighed what it inherited', () =>
+          x.h.logs.some(([event]) => event === 'qualification.inherited_unsettled'),
+        )
+        const ms = Date.now() - started
+        assert.ok(ms >= BOUND - 50 && ms < BOUND + MARGIN, `the close ended at its bound (${String(ms)} ms)`)
+        assert.deepEqual(
+          x.unsettled().map((d) => [d.phases, d.stop]),
+          [[held.phases, held.stop]],
+          'charge_unsettled names the phase',
+        )
+        assert.deepEqual(
+          x.h.logs.filter(([event]) => event === 'qualification.inherited_unsettled').map(([, d]) => d.charges),
+          [held.inherited],
+          'the replacement inherited it unanswered (with the stop, not sent yet, behind a charge)',
+        )
+        assert.equal(x.h.lives.length, 1, 'and opened nothing')
+      } finally {
+        release?.()
+        await x.h.bridge.stop()
+      }
+    })
+  }
+
+  it('no debt, the stop only (control): the shutdown waits for the stop', async () => {
+    const x = await chain((r) => (r.kind === 'stop' ? sleep(INSIDE) : undefined), 'cutWithin')
+    const started = Date.now()
+    await x.h.bridge.stop()
+    const ms = Date.now() - started
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'stop'])
+    assert.ok(ms >= INSIDE - 50 && ms < ONCE + MARGIN, `it waited for the stop (${String(ms)} ms)`)
+    assert.deepEqual(x.unsettled(), [])
+    assert.ok(x.ledger.stopped.has(E1))
+  })
+
+  it('no stop, charges only (control): the shutdown waits for the debt’s top-up, and sends no stop', async () => {
+    const x = await chain((r) => (r.kind === 'spend' ? sleep(INSIDE) : undefined), 'owe')
+    const started = Date.now()
+    await x.h.bridge.stop()
+    const ms = Date.now() - started
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend'])
+    assert.ok(ms >= INSIDE - 50 && ms < ONCE + MARGIN, `it waited for the top-up (${String(ms)} ms)`)
+    assert.deepEqual(x.unsettled(), [])
+    assert.equal(x.ledger.stopped.has(E1), false)
   })
 })

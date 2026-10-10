@@ -598,3 +598,40 @@ describe('output that cuts its generation is charged before the stop: what it bi
     assert.equal(q.ledger().lost, true)
   })
 })
+
+describe('the stop is owed in the ledger handed over until it is answered (Codex r4235490757)', () => {
+  /** A generation asked for, granted, and cut within its reserve: the stop alone is owed. */
+  async function cut() {
+    const b = bound({ maxOutputTokensPerTurn: 64 })
+    assert.equal(await b.q.connecting(1, false), null)
+    assert.equal(b.q.input(1, LUIS, new Int16Array(1600).fill(2000), 0, 1), 'hold')
+    await settle()
+    b.waiting[0]?.answer()
+    assert.equal(await b.q.granted(1), null)
+    assert.equal(b.q.output(1, { chars: 300 }), 'output')
+    void b.q.stopped()
+    await settle()
+    assert.deepEqual(
+      b.waiting.map((w) => w.kind),
+      ['generation', 'stop'],
+    )
+    return b
+  }
+
+  it('asked and unanswered: one unanswered; answered: none, and it landed', async () => {
+    const { q, waiting } = await cut()
+    assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [1, false])
+    const { landed } = q.ledger()
+    waiting[1]?.answer()
+    assert.equal(await landed, true)
+    assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [0, false])
+  })
+
+  it('never confirmed: lost, so a replacement stays closed', async () => {
+    const { q, waiting } = await cut()
+    const { landed } = q.ledger()
+    waiting[1]?.refuse('usage')
+    assert.equal(await landed, false)
+    assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [0, true])
+  })
+})
