@@ -28,7 +28,7 @@
   press 32 → 36); Tasks', Resources', Knowledge's and Conversations' searches (`Search`: 42 → 36 the first two, the
   magnifier on all four, one radius). The other groups (Invite, the find, the data sheet) keep `.field` and take 36
   by the rule, their press 28.
-- `e2e/field-scale.spec.ts`: on nine pages, every visible input or select, read as its group when in one, is 36 or
+- `e2e/field-scale.spec.ts`: on seven pages (the personal space and the room have no field outside their sheets), every visible input or select, read as its group when in one, is 36 or
   44; the sign-in's code step too; the Invite sheet's guests and members fields; and on Tasks and Resources the search
   and the segmented beside it share one height (36). `field-class.test.ts`: the classes and the scale.
 
