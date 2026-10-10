@@ -85,7 +85,8 @@
     "User approval of this concrete finalized batch recorded under WORKING_PROTOCOL section3 and mission pack08",
     "Invitation link configuration and real email delivery or supported private link handoff verified; not inferred from source alone",
     "Current Studio UI must expose the reviewed member-invitation and invited-sign-in flow; sourceSHA unknown",
-    "Mailbox belongs to owner, recipient and synthetic-only project role appear in final approval; invitation email is part of the approved setup effects"
+    "Mailbox belongs to owner, recipient and synthetic-only project role appear in final approval; invitation email is part of the approved setup effects",
+    "Auth account and invitation/OTP deliveries must fit verified existing included service usage at zero additional spend, or the batch must bind an explicit payer and finite additional-cost cap before approval; configured mailer/auth billing is not inferred from source."
   ],
   "recovery": {
     "partial_failure": "Stop further setup effects; retain private synthetic project/account and exact IDs, reconcile unknown write under original admission key; no destructive cleanup inferred",

@@ -818,7 +818,8 @@
     "automatic_review_request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096473793",
     "automatic_review_outcome": "Completed on c524: four new P2 findings4237298613/20/22/23. Three independently confirmed L0; proposal association store gap confirmed but mounted UI timing unqualified. All remain open pending exact correction review.",
     "setup_operation_request": "CON-01-OP-0002-r2.json; draft_not_authorized, designated mailbox pending, zero live effects",
-    "integration_state": "Published combined2e5fe53bfa5f2f1259da7f3b3105b8639c179535/treee4ec6c0327843a918134010182afbb7e8e20c16d. Mechanical merge-tree equality independently verified. Conversation/API/persistence source byte-identical to c524; binding wording refinement read. Author full gates running, not a G4 pass.",
-    "new_findings_evidence": "CX-0032.md and evidence/20261010-cx32-four-findings/"
+    "integration_state": "Published combined2e5fe53b/treee4ec6c03 mechanically verified. Author focused gate stopped/superseded137/160 with no completed-case failure claimed; not a gate pass. A separate failed background task terminal cause unread. Three confirmed P2 corrections plus store-level hardening are unpublished/unqualified.",
+    "new_findings_evidence": "CX-0032.md and evidence/20261010-cx32-four-findings/",
+    "shared_coordination": "SDD facts6096548099 read: provisional0051 migration collision correction; A15 evidence-write route/old410 proposed; explicitly no exclusive window/runtime-owner acknowledgment. Published main444/CON2e5/SDD8a39 have no0051. Final combined source and namespace/window confirmation still required."
   }
 }
