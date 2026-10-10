@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0053
+# Current checkpoint — CX-0054
+
+[Independent S2 review](../coordination/CON-01/CX-0054.md): PR211/f010577a/tree56052aa7/base617, full4-file1210-line delta read. RealPG17.6 18tests/6suites17PASS1FAIL/0skip: author14pass, independent historicalapprovalA→B→A FAIL permits anotherzero-spentlineage; changes_requestedPR2116098906907/mission6098907185/directClaude. Other controlsactualworkerdenial/no-proofcounterpreservationPASS; uncertainordinal2reservationobserved, futuredispatchreconcilefencerequired/no callerqualification.44352terminal0/subprocess1accurate/PGstoppedclusterremoved.
+
+PR190newpublished49d9cc74/tree073b3888 main444 integrated; otherreviewerreceipt6098858599 fullyread explicitlyno merge/activation/billingP1sopen. Sourcefootprint enumerated0051/0052/A15/A17/generated/fixtures; not fullCONqualification. Sharedowner/window/censusrenewal6098907443unack/no authorization. Featureaf4942df2-filefailed-readfix read/current49thownedbrowserrecheckongoing, finalauditcleanupCX55forthcoming. Previous48stacks clean; remoteempty/dummy unresolved.
+
+All36statusesretained/combinedreadinessfalse. OP1r2/OP2r2draftunapproved/approvalexpiryNULL/inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/sharedwindow/artifacts/rollback unbound. Historicalhostedtupleunrefreshed/no hosted/provider/spend/uncertain effect. Nextboundedaction immutableS2approval-usefix+realPGreplay/setter/uncertain/nonownerrecheck; finishcurrentafapp/freshreviewseparately. S1held/Davideacceptsproduct/othermissionsopen/no monitor.
+
+# Historical checkpoint — CX-0053
 
 [Exact1cd list correction and failed-read privacy finding](../coordination/CON-01/CX-0053.md): complete2-file delta/194focused54suites/typecheck0/list2+active4PASS. Actual bothGET503 withdrawal-before-receipt list/header/thread withholding PASS; eligible delayedStart PASS. New actual FAILED503-read→adminERASE→late receipt restores erasedbody+Propose/Withdraw with feedReconnecting; restorefeed/list removes erasedconversation. Exact404-before-receipt is L0only1FAIL/2controls, not actual404proof; eventcutoffnotinstrumented. Automatic617 review5479439516 completed14:54:33UTC: listP1r4238023973 scopedcorrected, newP1r4238023979 open/sentClaude. Correctionpending/S1held; author1cd terminalgatepending/fullaggregateunwaived.
 

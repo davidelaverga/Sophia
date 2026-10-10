@@ -294,9 +294,10 @@
       "gate": "G2/G5",
       "status": "not_run",
       "evidence_refs": [
-        "CX-0043.md"
+        "CX-0043.md",
+        "CX-0054.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX54:isolatedS2source realPG18tests17pass1fail finds historical approval cycling resets new lineage; correction required. No native dispatch/provider/host-copy or live allowance qualification; status unchanged.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -318,9 +319,10 @@
       "evidence_refs": [
         "CON-01-CX-0007.md",
         "CX-0008.md",
-        "CX-0010.md"
+        "CX-0010.md",
+        "CX-0054.md"
       ],
-      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified.",
+      "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. CX54:isolatedS2source realPG18tests17pass1fail finds historical approval cycling resets new lineage; correction required. No native dispatch/provider/host-copy or live allowance qualification; status unchanged.",
       "baseline_evidence": []
     },
     {
@@ -362,9 +364,10 @@
       "gate": "G2",
       "status": "not_run",
       "evidence_refs": [
-        "CX-0043.md"
+        "CX-0043.md",
+        "CX-0054.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX54:isolatedS2source realPG18tests17pass1fail finds historical approval cycling resets new lineage; correction required. No native dispatch/provider/host-copy or live allowance qualification; status unchanged.",
       "baseline_evidence": [],
       "current_checkpoint": "CX-0043.md",
       "latest_checkpoint": "S1 immutable32b0 source/transport preparation:7terminal+5heldSend probes/117focused/typecheckPASS; actual native correlation/dispatch/uncertain execution/budget/provider scope not_run."

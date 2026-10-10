@@ -1,0 +1,23 @@
+{
+  "candidate": "f010577ad04bf8bb82dc7d14d6962b6390bfda02",
+  "tree": "56052aa7613f4e8f9e81f89fa60130daa763a692",
+  "root": "<CON01_CANDIDATE_ROOT>",
+  "level": "L1 disposable real PostgreSQL; no provider, hosted writes or app acceptance",
+  "tests": [
+    "packages/persistence/src/conversation-ledger.db.test.ts",
+    "<PRIVATE_JOURNAL>/cx54/s2-independent.test.mjs"
+  ],
+  "postgres": "pg_ctl (PostgreSQL) 17.6",
+  "at": "2026-10-10T15:06:15.420813+00:00",
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=90000",
+    "packages/persistence/src/conversation-ledger.db.test.ts",
+    "<PRIVATE_JOURNAL>/cx54/s2-independent.test.mjs"
+  ],
+  "exit": 1,
+  "ownedServerStopped": true,
+  "ownedClusterRemoved": true
+}

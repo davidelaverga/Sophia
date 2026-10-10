@@ -1,0 +1,57 @@
+▶ Independent S2 allowance and closed-role boundaries
+  ✖ A→B→A cannot reuse an older approval to mint another zero-spent project lineage (40.221208ms)
+  ✔ Document current uncertain-call boundary: ordinal2 still reserves before ordinal1 reconciles; no dispatch is granted (27.754666ms)
+  ✔ Worker actual invocation denied at execute boundary; no reservations created (16.155583ms)
+  ✔ Uncertain proof stub refuses and leaves exact cumulative state unchanged (26.065ms)
+✖ Independent S2 allowance and closed-role boundaries (370.14875ms)
+▶ the S2 candidate as installed
+  ✔ inserts no row and is closed to every login: no table or function grant, row security on (17.946959ms)
+  ✔ holds no free text: its text columns are enumerations or pattern-checked references (15.989167ms)
+✔ the S2 candidate as installed (269.787666ms)
+▶ reservations: keys, replay and the fingerprint
+  ✔ an exact replay returns its receipt after expiry and after disable; a changed call under the key is refused (2577.666542ms)
+  ✔ the fingerprint, a lineage’s unit and the ledger’s rows never change or go, even for the owner (51.7605ms)
+✔ reservations: keys, replay and the fingerprint (2629.763875ms)
+▶ the setter, renewal, route change and a new lineage
+  ✔ a setter keeps lineage, unit and counters; another unit is refused; an outstanding call keeps its fingerprint (45.982ms)
+  ✔ a new lineage only with nothing outstanding and a new approval; a reply stays on its own lineage (58.158291ms)
+✔ the setter, renewal, route change and a new lineage (104.354417ms)
+▶ dimensions and the counters’ transitions
+  ✔ a usd lineage counts price only; an amount in the other unit’s dimension is refused (26.949083ms)
+  ✔ each transition moves exactly its amounts; an overrun is what it used; replays move nothing (51.46925ms)
+  ✔ release and reconcile refuse every call until their proofs are wired; an uncertain call stays counted (25.366542ms)
+✔ dimensions and the counters’ transitions (103.9955ms)
+▶ ordinals, the reply’s ceilings and the total
+  ✔ ordinals run 1, 2 in order, within the lineage’s maximum, and an ended one only replays (40.497917ms)
+  ✔ a reply’s own sum holds its cap, wherever its calls ran (31.492291ms)
+  ✔ two asks for the last allowance: one reserves, the other is refused (22.791875ms)
+  ✔ a reserve waiting on the grant’s lock as it expires is refused when it gets the lock (2776.989708ms)
+  ✔ an asker the lineage doesn’t lend to is refused, and so is a reply of another project (40.606958ms)
+✔ ordinals, the reply’s ceilings and the total (2912.615458ms)
+ℹ tests 18
+ℹ suites 6
+ℹ pass 17
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6766.963625
+
+✖ failing tests:
+
+test at ../../../../.codex/operator-journal/CON-01/attempt-1/cx54/s2-independent.test.mjs:12:2
+✖ A→B→A cannot reuse an older approval to mint another zero-spent project lineage (40.221208ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async TestContext.<anonymous> (file://<PRIVATE_JOURNAL>/cx54/s2-independent.test.mjs:12:361)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /approval_reused/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
