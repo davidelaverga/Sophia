@@ -1,0 +1,25 @@
+{
+  "candidate": "c4e0da277754067ea370bafd319881f131080ff7",
+  "level": "L0 actual QueryClient/cache subscription/purge and synthetic UUID reader scopes, no mounted app/authentication claim",
+  "passed": 3,
+  "failed": 3,
+  "passedCases": [
+    "Other reader B retained at cap when withdrawal writer is A",
+    "Repeated real cache purge stays bounded, ordered and duplicate-free",
+    "Another account thread cannot supply reader identity or correction to B list"
+  ],
+  "failedCases": [
+    {
+      "name": "Actual QueryCache purge includes absent reader A at cap200 and Mine stays true",
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(own.current.contributors.some(p=>p.actorId===A))\n"
+    },
+    {
+      "name": "Reader insertion uses surviving trusted name and never withdrawn name",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'Synthetic Surviving'\n"
+    },
+    {
+      "name": "Opaque account scope retained while actor comparison accepts API lowercased UUID",
+      "error": "The expression evaluated to a falsy value:\n\n  assert.ok(upper.current.contributors.some(p=>p.actorId===A))\n"
+    }
+  ]
+}

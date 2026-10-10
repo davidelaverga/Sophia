@@ -13,6 +13,15 @@
   "effects": "No new stacks/hosted writes/provider/native/spend/uncertain paid effects; all26owned stacks clean",
   "hashes": {
     "missing-writer-check.mjs": "dc85ae3548ad5ac65f764f8b77537247bad20984be475179cac4eabef9d1e517",
-    "c4e-missing-writer-result.json": "5e5b85b34d0146ab56244582448d00f766c232e80130bf4cc1d44a16ee0f559a"
+    "c4e-missing-writer-result.json": "5e5b85b34d0146ab56244582448d00f766c232e80130bf4cc1d44a16ee0f559a",
+    "reader-cache-check.mjs": "8ce09b3ab740546333255db519558cb5e7f5cd0709b4a8f42f510f871238eb9b",
+    "c4e-reader-cache-result.json": "b0183e3648141f2403db4303c448067e9c093f2957266b6560309ca1afa5b6e6"
+  },
+  "realQueryCache": {
+    "command": "CON01_CANDIDATE_ROOT=<owned exactc4e worktree> CON01_CANDIDATE_SHA=c4e0da277754067ea370bafd319881f131080ff7 node <private journal>/cx38/reader-cache-check.mjs",
+    "passed": 3,
+    "failed": 3,
+    "exit": 1,
+    "scope": "L0 actual QueryClient subscription/purge; synthetic valid UUID account scopes, no mounted app/authentication claim"
   }
 }

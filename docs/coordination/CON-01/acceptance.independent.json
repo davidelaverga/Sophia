@@ -905,7 +905,7 @@
     },
     "next": "Immutable missing-writer correction independently rechecked incl200cap/currentreader identity, then terminal gates/S1/sharedwindow.",
     "publication": {
-      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097097432",
+      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097157433",
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097097558",
       "reviewStatus": "completed11:41:51UTC exactc4e/newP2 independentlyreproduced",
       "twoThreadsResolved": "4237439145/4237439149 resolved within explicitP1boundedactualexternalwithdrawal+L0/P2L0scopes; no wholePR approval",
@@ -929,6 +929,12 @@
       "failed": 3,
       "exit": 1,
       "level": "L0"
+    },
+    "newRealQueryCacheProbe": {
+      "passed": 3,
+      "failed": 3,
+      "exit": 1,
+      "scope": "L0 actual QueryClient subscription/purge; synthetic valid UUID account keys"
     }
   }
 }
