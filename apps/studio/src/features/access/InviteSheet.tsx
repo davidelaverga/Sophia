@@ -131,7 +131,7 @@ function GuestsTab({ context }: { context: SheetContext }) {
   const emailed = invitations.filter((i) => i.kind === 'guest' && !!i.email)
   const now = useNow()
   return (
-    <section className="sheet-body" aria-label="Guests">
+    <section className="sheet-section" aria-label="Guests">
       <p className="sheet-lead">
         A link to the room. Guests say their name and wait in the lobby until someone here lets them in. They reach the
         call only, never the project.
@@ -374,7 +374,7 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
   const { query, refresh } = useInviteList(context)
   if (context.membership?.role !== 'admin') {
     return (
-      <section className="sheet-body">
+      <section className="sheet-section">
         <p className="sheet-lead">Only project admins can add members. You can still invite guests to the call.</p>
         <button type="button" className="pill" onClick={onGuests}>
           Go to Guests
@@ -384,7 +384,7 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
   }
   const members = (query.data?.invitations ?? []).filter((i) => i.kind === 'member')
   return (
-    <section className="sheet-body" aria-label="Members">
+    <section className="sheet-section" aria-label="Members">
       <p className="sheet-lead">
         A member works in the project with you. The invitation is bound to one email: only that person can accept it.
       </p>

@@ -1046,6 +1046,10 @@
   .report-pane-head .round {
     min-height: 44px;
   }
+  /* The viewer's head presses keep a finger's width too, as a sheet head's do: 28 wide is the desktop's. */
+  .report-pane-head .round {
+    min-width: 40px;
+  }
   /* A citation's number gets its target from an empty box around it, as an inline text button does, so no line moves.
      Not in a table: past the edge of its frame, the box would make the frame scroll. Each target is its own
      (M75-RF-0001): 6 px above and below keeps it 25.6 px tall, under the 27.2 px between lines, and it reaches 4 px

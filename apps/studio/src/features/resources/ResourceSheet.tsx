@@ -528,7 +528,8 @@ export function ResourceSheet(props: Props) {
       actions={
         <>
           {turn && <Steps onStep={turn} />}
-          <CopyLink />
+          {/* Keyed by the resource, as the body is: a copy half done, or just said, stays with its page. */}
+          <CopyLink key={resource.id} />
         </>
       }
       onClose={onClose}

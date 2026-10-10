@@ -43,6 +43,10 @@
   sheet rises from the bottom with its top radius; reduced motion stills the slide. The resource sheet's J and K and
   its arrival per section as before; the Invite's three panels stay mounted as before.
 - A screen reader hears the same: a dialog named by its title (or its name), modal; Close named.
+- After Codex on #224: the Invite's panels are sections of the body (`.sheet-section`: the column and the gap, not
+  the body's padding and arrival a second time); the resource sheet's Copy link is keyed by the resource, as its
+  body is, so a copy half done does not carry over a page turn; the viewer's head presses keep 40 px of width to
+  a finger (`pointer: coarse`), as a sheet head's do.
 
 ## Checks (written first)
 

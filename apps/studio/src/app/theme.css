@@ -2861,8 +2861,17 @@ button.contribution-quote:hover {
   font-size: 13px;
   line-height: 1.55;
 }
+/* A section of a sheet's body (the Invite's panels): the body's column and gap, without its padding or its arrival,
+   which the body around it already gives (Codex on #224: a body in the body padded and arrived twice). */
+.sheet-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+}
 .sheet-body > .pill,
-.sheet-body > .text-button {
+.sheet-body > .text-button,
+.sheet-section > .pill,
+.sheet-section > .text-button {
   justify-self: start;
 }
 .room-link {
