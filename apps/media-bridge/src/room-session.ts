@@ -2124,6 +2124,8 @@ export class RoomSession {
         const wait = waits[attempt]
         if (refused || wait === undefined || this.closed) return unanswered(write, attempt, refused)
         await new Promise((resolve) => setTimeout(resolve, wait))
+        // Closed during the wait: not sent again. A write already attempted stays unknown, never "nothing changed".
+        if (this.isClosed()) return unanswered(write, attempt, false)
       }
     }
   }

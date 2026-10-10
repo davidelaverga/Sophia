@@ -353,6 +353,8 @@ let reserveTimeoutMs: number | undefined
 let postAttemptMs: number | undefined
 /** One tool call attempt's transport ceiling, when a test sets it (item 7 B). */
 let toolAttemptMs: number | undefined
+/** The waits before a tool call is sent again, when a test sets them; otherwise none ([0, 0]). */
+let toolRetryWaits: number[] | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -385,7 +387,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       model: 'fake-model',
       guide,
       bridgeInstanceId: 'bridge-test',
-      toolRetryMs: [0, 0],
+      toolRetryMs: toolRetryWaits ?? [0, 0],
       now: () => clock,
       log: (event, fields) => logs.push([event, fields ?? {}]),
       every: () => () => undefined,
@@ -433,6 +435,7 @@ beforeEach(() => {
   reserveTimeoutMs = undefined
   postAttemptMs = undefined
   toolAttemptMs = undefined
+  toolRetryWaits = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -6402,6 +6405,25 @@ describe('room session: a tool call attempt is bounded by its transport ceiling 
     assert.equal(live.responses.length, 0, 'a cancelled call is never answered')
     assert.equal(service.calls.length, 1)
     await session.close()
+  })
+
+  it('a call whose attempt failed is not sent again when the close comes during its retry wait (P3 on 792f5489)', async () => {
+    toolRetryWaits = [200, 200]
+    const fake = service
+    fake.toolCall = async (c: MediaToolCall) => {
+      await Promise.resolve()
+      fake.calls.push(c)
+      throw new Error('socket hang up')
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'closing-wait', name: 'record_mission_note', args: NOTE }])
+    await until('the first attempt failed', () => logs.some(([event]) => event === 'tool.failed'))
+    await session.close()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    assert.equal(fake.calls.length, 1, 'one attempt: the close came during the wait')
+    assert.equal(live.responses.length, 0, 'the provider is gone: nothing is sent to it')
+    assert.ok(logs.some(([event, d]) => event === 'tool.dropped' && d.name === 'record_mission_note'))
   })
 
   it('a call in flight at the close does not hold it, and is not sent again after it', async () => {
