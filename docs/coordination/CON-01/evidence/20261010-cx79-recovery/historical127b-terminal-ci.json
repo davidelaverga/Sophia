@@ -1,0 +1,106 @@
+{
+  "at": "2026-10-10T21:31:37.806602+00:00",
+  "runs": [
+    {
+      "databaseId": 38084257187,
+      "headSha": "127b4334a0a9e762d09286507080db34a218b0dc",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "databaseId": 114307313494,
+          "name": "runtime-unit",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:42:43Z"
+        },
+        {
+          "databaseId": 114307313605,
+          "name": "Live auth on local Supabase",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:38:30Z"
+        },
+        {
+          "databaseId": 114307313626,
+          "name": "Media bridge against a real LiveKit server",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:38:55Z"
+        },
+        {
+          "databaseId": 114307313666,
+          "name": "Confined PDF renderer on a real Chromium",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:48:52Z"
+        },
+        {
+          "databaseId": 114307313695,
+          "name": "The room in Chromium, on its fixture page",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T21:18:51Z"
+        },
+        {
+          "databaseId": 114307313704,
+          "name": "SQL, persistence and API on PostgreSQL 16",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:41:41Z"
+        }
+      ]
+    },
+    {
+      "databaseId": 38084253016,
+      "headSha": "127b4334a0a9e762d09286507080db34a218b0dc",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "databaseId": 114307301673,
+          "name": "runtime-unit",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:41:16Z"
+        },
+        {
+          "databaseId": 114307301759,
+          "name": "Live auth on local Supabase",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:36:02Z"
+        },
+        {
+          "databaseId": 114307301782,
+          "name": "SQL, persistence and API on PostgreSQL 16",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:38:08Z"
+        },
+        {
+          "databaseId": 114307301837,
+          "name": "The room in Chromium, on its fixture page",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T21:18:45Z"
+        },
+        {
+          "databaseId": 114307301844,
+          "name": "Media bridge against a real LiveKit server",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:36:54Z"
+        },
+        {
+          "databaseId": 114307301869,
+          "name": "Confined PDF renderer on a real Chromium",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-10T20:47:58Z"
+        }
+      ]
+    }
+  ],
+  "qualification": "Historical127b only, affectedStudio checks superseded5209; no waiver of earlier e4c8 failure cause"
+}
