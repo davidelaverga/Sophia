@@ -29,7 +29,20 @@
   "level": "Bounded L1 actual local UI/API/PostgreSQL with synthetic development identities; no fixtures/provider/runtime/hosted acceptance",
   "audit": "Both stacks4human/1bodyNULL/5semanticrequests/bootstrapgoal1; allmodeloperational0",
   "cleanup": "Owned sessions12106 and89410 terminal0/APIStudio stopped/DBdropped/PGstoppedclustersremoved/ports60877-79 and61329-31 closed/ownedprocessesabsent/tabs52-53closed; all31successful stacks and earlier initdb-only failure clean",
-  "automaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097520537 pending",
+  "automaticReview": {
+    "request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097520537",
+    "completedAt": "2026-10-10T12:35:33.513200Z",
+    "newFindings": [
+      4237627174,
+      4237627178
+    ],
+    "independent": {
+      "failed": 2,
+      "passedControls": 3,
+      "exit": 1,
+      "scope": "L0 actual helpers/synthetic inputs only"
+    }
+  },
   "readiness": {
     "source_ready": "bounded",
     "locally_verified": "bounded",
@@ -41,6 +54,7 @@
   },
   "hashes": {
     "focused-check-1.log": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d",
+    "original-and-highseq-check.mjs": "b18ea005931917e6ad74c19ca7585351bc7b17d8485442813dac70fb9710b5ba",
     "reader-cache-check.json": "0d64e7bff495f1f9fcbe4f17fe1919854ad0325cd24a24a168b9aef055c6bdd3",
     "focused-check-0.log": "2f7f8267907d7f63c06783385b9124c4eed3309d154d7c7ff909884d41996025",
     "missing-writer-check.json": "a0d0ac524a6e26d3ad79670433e328d7c4109f9ac3e0ad7551c701095981edf0",
@@ -52,6 +66,7 @@
     "coverage-transition-check.json": "c0f323890f1dd13504e90bdcb482359adbb2c97c0c7ea792eedfc159e2cad105",
     "receipt-regression-check.json": "d4e973ccc1de25fc180eb85541368d129072270350c1da26e1ffaed136198a0c",
     "receipt-order-check.mjs": "7250d43c2576d710ede68606e9ab19f3f6cd3da0ce90944c36929a7eb8f486ae",
+    "original-and-highseq-result.json": "938ce407ea38b32540daa36cc41fca5a8f9a9e6fcf593a47c8e1f87c4dec3b37",
     "before/g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
     "before/relay-finish-receipts.json": "ee94302e73a71b0d9d2dd7d8a99875ab765e5729d936cb9cef1906358dc62542",
     "before/external-withdraw-later.mjs": "8c982e65a864de87ed15271f64913e62913de39a1fc691046ba005a506f98358",

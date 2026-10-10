@@ -1,0 +1,21 @@
+{
+  "candidate": "c5eaa9cfb4beb1ee3fa5538b780e4c07b184e9f5",
+  "scope": "L0 actual production helpers; synthetic complete-prefix writer transition and valid high-sequence one-message page; no mounted/native/live claim",
+  "passed": 3,
+  "failed": 2,
+  "passedCases": [
+    "Prefix evidence proves surviving B2 and A3, withdrawn1 body stays null",
+    "Initial canonical A1 then receiptB2 remains A,B before withdrawal",
+    "Ordinary missing prefix yields no invented order"
+  ],
+  "failedCases": [
+    {
+      "name": "Original writer A whose first surviving3 follows receipt B2 must reorder to B,A",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n+   'A',\n    'B',\n-   'A'\n  ]\n"
+    },
+    {
+      "name": "Valid large sequence with absent prefix yields no first, without RangeError",
+      "error": "Got unwanted exception.\nActual message: \"Invalid array length\""
+    }
+  ]
+}
