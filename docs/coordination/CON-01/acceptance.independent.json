@@ -807,10 +807,11 @@
       "contractsGenerateCheckExit": 0,
       "fullPnpmCheck": false
     },
-    "fullGate": "715 focused154pass authorreceipt;full1154running; earlier missing-exit/logoverwrite unqualified. f127 no browsergate",
+    "fullGate": "715 focused154pass authorreceipt; full623/1154 with3failures latestauthorreport, terminalopen. Prior missing-exit/logoverwrite unqualified. 715 Paperclip job114094421874 terminalsuccess only; export/uploadqualifiedimageskipped. f127 no browsergate",
     "operation": "draft_not_authorized; owner/setup/exact batch missing",
     "cleanup": "All eighteen owned stacks clean; tab30closed; no hosted/provider effects",
-    "automaticReview": "f127 request6092246172 pending; current P1 not overridden by715 bot",
-    "sharedPR190": "5dab733a6a4fdb3dcfcf17e24adcf98eda7eb2b4"
+    "automaticReview": "Exactf127 review5476907917 P1r4235862543 confirms CX27; open",
+    "sharedPR190": "5dab733a6a4fdb3dcfcf17e24adcf98eda7eb2b4",
+    "proposalReview": "CC23 proposal6092294103 reviewed before implementation; invariants/tests returned; no new immutable correction"
   }
 }
