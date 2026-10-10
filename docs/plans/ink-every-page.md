@@ -15,21 +15,26 @@
 
 ## What changes
 
-- A filter's count reads in the third ink (`--text-3`), the chosen one's a step up (`--text-2`), on Resources' tabs as
-  on the board's lenses (before, the board's chosen count stayed as faint as the rest).
+- A filter's count reads in the third ink (`--text-3`), the chosen one's a step up (`--text-2`), under its word, on
+  Resources' tabs as on the board's lenses. The count moves to `theme.css`, beside the segmented control it sits in.
+- The chosen lens's word reads as a chosen tab's does (`--text`): a lens is a radio (`aria-checked`), which the
+  segmented control's rule didn't know, so its word stayed in the third ink. Before, the board's chosen count stayed
+  as faint as the rest.
 - What a task hangs on reads in the third ink, as the line above it; the short rule leading in stays faint (a mark).
-- `ink` covers Goals, Tasks, Resources, the work space, sign-in and the door too, each waiting for what it shows once
-  drawn (`e2e/drawn.ts`). Conversations check their own contrast already (their specs), and on a phone open on the
-  list alone.
+- `ink` covers Goals, Tasks, Conversations, Resources, the work space, sign-in and the door too, each waiting for what
+  it shows once drawn (`e2e/drawn.ts`); on Tasks, the research card's foot, which comes with its last read.
+  Conversations on a wide screen only: on a phone they open on the list alone. Its check of unexpected requests reads
+  each fixture page's own list (`fixture`, `resourcesFixture`, `workFixture`).
 
 ## Checks (written first)
 
 - `ink.spec.ts` with the six pages: it failed on Tasks, Resources and the work space, desktop and phone (the counts at
   2.05:1, the hangs-on line at 2.13:1); with the change, every page passes.
-- New in `ink.spec.ts`: on Resources and the work space, the chosen filter's count stands a step above the others.
+- New in `ink.spec.ts`: on Resources and the work space, the chosen filter's count stands a step above the others,
+  under its word.
 - `resources`, `room-work`, `work`, `type-scale`, `drawn`: unchanged, pass.
 - Mutants, with a control that passes: a count back in the faintest ink, the hangs-on line back in it, the chosen
-  count's step dropped: each fails.
+  count's step dropped, the chosen lens's word left in the third ink: each fails.
 
 ## Left
 

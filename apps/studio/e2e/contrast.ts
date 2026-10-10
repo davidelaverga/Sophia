@@ -8,7 +8,7 @@ interface Colour {
 }
 
 /** A colour as the browser computes it (`rgb()`, `rgba()` or `color(srgb …)`). */
-function colourOf(css: string): Colour {
+export function colourOf(css: string): Colour {
   const srgb = /color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)(?: \/ ([\d.]+))?\)/.exec(css)
   if (srgb)
     return { r: +(srgb[1] ?? 0) * 255, g: +(srgb[2] ?? 0) * 255, b: +(srgb[3] ?? 0) * 255, a: srgb[4] ? +srgb[4] : 1 }

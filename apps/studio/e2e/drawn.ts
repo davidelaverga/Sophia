@@ -23,11 +23,13 @@ export const DRAWN = {
   ],
   room: [BAR, (page) => page.getByText('The room is ready')],
   goals: [BAR, (page) => page.getByText('Roll the new onboarding out to every region').first()],
-  // The board: its plan, and the tasks under it (the last read).
+  // The board: its plan and the tasks under it; and the research's card, whose foot comes with its last read (its
+  // detail, then its report's versions).
   tasks: [
     BAR,
     (page) => page.getByText('The translation passes its review'),
     (page) => page.getByText('Translate the checklist for the second region').first(),
+    (page) => page.locator('.work-card-foot').getByRole('button', { name: /^\d+ sources?$/ }),
   ],
   work: [
     BAR,

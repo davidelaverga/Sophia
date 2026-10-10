@@ -1228,8 +1228,19 @@ img.avatar {
 .segmented button:hover {
   color: var(--text-2);
 }
-.segmented button[aria-selected='true'] {
+/* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
+.segmented button:is([aria-selected='true'], [aria-checked='true']) {
   color: var(--text);
+}
+/* A filter's count reads (the third ink); the chosen one's a step up, under its word. */
+.segmented .filter-count {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: var(--type-small);
+  color: var(--text-3);
+}
+.segmented button:is([aria-selected='true'], [aria-checked='true']) > .filter-count {
+  color: var(--text-2);
 }
 
 .presences {
