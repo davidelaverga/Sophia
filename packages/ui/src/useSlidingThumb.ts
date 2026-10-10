@@ -1,7 +1,8 @@
 // A thumb that slides to the active option of a segmented control or a navigation. The container gets
-// --thumb-x and --thumb-w (the active child's offset and width) and data-thumb-ready once placed, so the
-// first placement is instant and later ones glide. The container must be `position: relative`. The thumb follows
-// the active option when it changes size too (the web font arriving), not only the container.
+// --thumb-x, --thumb-y, --thumb-w and --thumb-h (the active child's offsets and size: a box whose options wrap onto
+// a second row has a thumb on that row, under that option) and data-thumb-ready once placed, so the first placement
+// is instant and later ones glide. The container must be `position: relative`. The thumb follows the active option
+// when it changes size too (the web font arriving), not only the container.
 import { useLayoutEffect, useRef } from 'react'
 
 export function useSlidingThumb<T extends HTMLElement>(active: string) {
@@ -12,7 +13,9 @@ export function useSlidingThumb<T extends HTMLElement>(active: string) {
     const place = () => {
       const el = box.querySelector<HTMLElement>(`[data-thumb="${CSS.escape(active)}"]`)
       box.style.setProperty('--thumb-x', `${el?.offsetLeft ?? 0}px`)
+      box.style.setProperty('--thumb-y', `${el?.offsetTop ?? 0}px`)
       box.style.setProperty('--thumb-w', `${el?.offsetWidth ?? 0}px`)
+      box.style.setProperty('--thumb-h', `${el?.offsetHeight ?? 0}px`)
     }
     place()
     const ready = requestAnimationFrame(() => box.setAttribute('data-thumb-ready', ''))
