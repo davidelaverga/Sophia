@@ -5,8 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/kit-tabs` from `ui/kit-segmented` at
 `3a464106` (stacked on PR #222 → #221 → #220; the base retargets as each merges)
-Ending commit/tree and changed files: see the PR's commit; 11 files (5 new: `Tabs.tsx`, `tabs-class.ts`,
-`tabs-class.test.ts`, `e2e/tabs-scale.spec.ts`, `docs/plans/tabs-scale.md`).
+Ending commit/tree and changed files: `e5cb8015` (tree `6a2c1a41dbd8`): 12 files, 6 new (`Tabs.tsx`, `tabs-class.ts`,
+`tabs-class.test.ts`, `e2e/tabs-scale.spec.ts`, `docs/plans/tabs-scale.md`, this handoff). The commit after it merges
+`ui/kit-segmented` forward and corrects these numbers.
 
 ## Outcome
 
