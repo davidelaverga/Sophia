@@ -143,6 +143,28 @@ async function stateOf(exchangeId: string) {
   })
 }
 
+/**
+ * The exchange's receipts expired now and the expiry run (0046 voice_evidence_expire), as the owner: 'ok' with how many
+ * it deleted, or the database's refusal. An identity must go with its receipt (ON DELETE CASCADE) for this to be 'ok'.
+ */
+const expireNow = (exchangeId: string) =>
+  owner(async (c) => {
+    try {
+      await c.query('BEGIN')
+      await c.query(
+        `UPDATE sophia.voice_qualification_evidence SET expires_at=now()-interval '1 second' WHERE exchange_id=$1`,
+        [exchangeId],
+      )
+      const n = (await c.query<{ n: number }>(`SELECT sophia.voice_evidence_expire() AS n`)).rows[0]!.n
+      await c.query('COMMIT')
+      return { outcome: 'ok', deleted: n }
+    } catch (err) {
+      await c.query('ROLLBACK')
+      const { code, message } = err as { code?: string; message?: string }
+      return { outcome: `${String(code)}: ${String(message)}`, deleted: 0 }
+    }
+  })
+
 describe('the service numbers the bridge’s receipts (0051, Codex P1 r4232908444)', () => {
   it('a new write takes the exchange’s next number; the same write again its own, replayed, and is kept once', async () => {
     const { exchangeId, grantId } = await exchange()
@@ -284,14 +306,9 @@ describe('the service numbers the bridge’s receipts (0051, Codex P1 r423290844
     const { exchangeId, grantId } = await exchange()
     await write(exchangeId, grantId, randomUUID(), 1)
     await write(exchangeId, grantId, randomUUID(), 2)
-    const expired = await owner(async (c) => {
-      await c.query(
-        `UPDATE sophia.voice_qualification_evidence SET expires_at=now()-interval '1 second' WHERE exchange_id=$1`,
-        [exchangeId],
-      )
-      return (await c.query<{ n: number }>(`SELECT sophia.voice_evidence_expire() AS n`)).rows[0]!.n
-    })
-    assert.ok(expired >= 2)
+    const expired = await expireNow(exchangeId)
+    assert.equal(expired.outcome, 'ok', 'expiry deletes the receipts: each identity goes with its receipt')
+    assert.ok(expired.deleted >= 2)
     assert.deepEqual(await stateOf(exchangeId), { kept: [], writes: [], high: 2 }, 'the identities went with them')
     assert.deepEqual(await write(exchangeId, grantId, randomUUID(), 3), {
       seq: 3,
@@ -326,13 +343,7 @@ describe('the service numbers the bridge’s receipts (0051, Codex P1 r423290844
     assert.equal(await refusalOf(write(exchangeId, grantId, randomUUID(), 4)), horizon, 'a new write')
     assert.deepEqual(await stateOf(exchangeId), held, 'nothing changed')
     // Across expiry: every receipt and identity gone, the exchange still refuses; its numbers are never given again.
-    await owner(async (c) => {
-      await c.query(
-        `UPDATE sophia.voice_qualification_evidence SET expires_at=now()-interval '1 second' WHERE exchange_id=$1`,
-        [exchangeId],
-      )
-      await c.query(`SELECT sophia.voice_evidence_expire()`)
-    })
+    assert.equal((await expireNow(exchangeId)).outcome, 'ok', 'expiry deletes the receipts and their identities')
     assert.equal(await refusalOf(write(exchangeId, grantId, one, 1)), horizon, 'its repeat, once expired')
     assert.equal(await refusalOf(write(exchangeId, grantId, randomUUID(), 5)), horizon)
     assert.deepEqual(await stateOf(exchangeId), { kept: [], writes: [], high: 3 })

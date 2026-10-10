@@ -63,11 +63,14 @@ const settle = async () => {
 }
 /** `ms` of real time. */
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
-/** Until `check` holds, with the timers running: a close's settling and a handover take real time. */
+/**
+ * Until `check` holds, with the timers running: a close's settling and a handover take real time. Past `ms` the test
+ * fails on an assertion naming what it waited for.
+ */
 async function until(what: string, check: () => boolean, ms = 5000): Promise<void> {
   const deadline = Date.now() + ms
   while (!check()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`)
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
 }

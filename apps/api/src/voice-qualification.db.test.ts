@@ -128,11 +128,14 @@ const reserve = (body: Record<string, unknown>, api?: FastifyInstance) =>
 let listening: Promise<string> | null = null
 const baseUrl = () => (listening ??= app.listen({ host: '127.0.0.1', port: 0 }))
 
-/** Turns of the event loop until `check` holds: the session's receipts go out on their own. */
+/**
+ * Turns of the event loop until `check` holds: the session's receipts go out on their own. Past `ms` the test fails on an
+ * assertion naming what it waited for.
+ */
 async function until(what: string, check: () => boolean, ms = 8000): Promise<void> {
   const deadline = Date.now() + ms
   while (!check()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`)
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
 }
@@ -2146,7 +2149,7 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     for (;;) {
       const kept = await keptOf(exchangeId)
       if (check(kept)) return kept
-      if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}: kept ${JSON.stringify(kept)}`)
+      if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}: kept ${JSON.stringify(kept)}`)
       await new Promise((resolve) => setTimeout(resolve, 20))
     }
   }

@@ -309,11 +309,14 @@ const statusOf = (r: FunctionResponse | undefined): unknown => {
 const flush = () => new Promise((resolve) => setImmediate(resolve))
 /** A callback a test replaces once the thing it waits on exists. */
 const noop = (): void => undefined
-/** Turns of the event loop until `done` holds: retries wait on real timers, which a busy machine delays. */
+/**
+ * Turns of the event loop until `done` holds: retries wait on real timers, which a busy machine delays. Past `ms` the
+ * test fails on an assertion naming what it waited for: the behaviour did not happen in time.
+ */
 async function until(what: string, done: () => boolean, ms = 2000): Promise<void> {
   const deadline = Date.now() + ms
   while (!done()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`)
     await new Promise((resolve) => setTimeout(resolve, 1))
   }
 }
