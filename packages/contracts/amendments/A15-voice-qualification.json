@@ -660,7 +660,7 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "One bridge receipt for an exchange under a grant, by its per-exchange sequence number: the same receipt again is a no-op, another under the same number is refused (409 idempotency_conflict). Only numbers, booleans, enumerated words, ids, digests and times: no free text.",
+        "description": "One bridge receipt for an exchange under a grant, by the bridge's own identity for the write (writeId, a random UUID, the same on every resend of that write); the service numbers it (0051): the same write again is answered with its own number, the same identity with another receipt is refused (409 idempotency_conflict). Only numbers, booleans, enumerated words, ids, digests and times: no free text.",
         "properties": {
           "exchangeId": {
             "type": "string",
@@ -670,10 +670,9 @@
             "type": "string",
             "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
-          "seq": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 99999
+          "writeId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
           },
           "receipt": {
             "anyOf": [
@@ -695,7 +694,7 @@
             ]
           }
         },
-        "required": ["exchangeId", "grantId", "seq", "receipt"]
+        "required": ["exchangeId", "grantId", "writeId", "receipt"]
       }
     },
     {
@@ -704,8 +703,16 @@
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Whether the exchange has ended, and why (null when it has not): a guard reason, or bridge when the bridge's own bound or the deadline stopped its session (its session_closed receipt said guard).",
+        "description": "The number the service gave the write (seq: dense from 1 per exchange and grant, never given twice; the same again for a repeat of the write, then replayed is true), and whether the exchange has ended, and why (null when it has not): a guard reason, or bridge when the bridge's own bound or the deadline stopped its session (its session_closed receipt said guard).",
         "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 99999
+          },
+          "replayed": {
+            "type": "boolean"
+          },
           "ended": {
             "type": "boolean"
           },
@@ -721,7 +728,7 @@
             ]
           }
         },
-        "required": ["ended", "reason"]
+        "required": ["seq", "replayed", "ended", "reason"]
       }
     },
     {
@@ -1327,11 +1334,11 @@
     },
     {
       "op": "add",
-      "path": "/paths/~1v1~1media~1evidence",
+      "path": "/paths/~1v1~1media~1evidence-writes",
       "value": {
         "post": {
-          "operationId": "mediaEvidence",
-          "summary": "The bridge's receipt for an exchange under a voice qualification grant. Served only by an API with voice qualification on (SOPHIA_VOICE_QUALIFICATION=on); the bridge sends receipts only with SOPHIA_VOICE_EVIDENCE=on and an assignment that names the grant. The guard runs in the same transaction and may end the exchange.",
+          "operationId": "mediaEvidenceWrite",
+          "summary": "The bridge's receipt for an exchange under a voice qualification grant, numbered by the service (0051; Codex P1 r4232908444): dense from 1 per exchange and grant, the same number for a repeat of the same write, never given twice. Served only by an API with voice qualification on (SOPHIA_VOICE_QUALIFICATION=on); the bridge sends receipts only with SOPHIA_VOICE_EVIDENCE=on and an assignment that names the grant. The guard runs in the same transaction and may end the exchange.",
           "tags": ["media"],
           "security": [
             {
@@ -1351,7 +1358,7 @@
           },
           "responses": {
             "200": {
-              "description": "Recorded, or the same receipt again",
+              "description": "Recorded and numbered, or the same write again with its own number",
               "content": {
                 "application/json": {
                   "schema": {
@@ -1374,7 +1381,7 @@
               }
             },
             "409": {
-              "description": "Another receipt holds this sequence number (idempotency_conflict)",
+              "description": "This write identity holds another receipt (idempotency_conflict): nothing is numbered",
               "content": {
                 "application/json": {
                   "schema": {
@@ -1384,7 +1391,7 @@
               }
             },
             "422": {
-              "description": "Request fails the declared schema, or the receipt is not bound to this grant and run",
+              "description": "Request fails the declared schema, the receipt is not bound to this grant and run, the exchange's numbers are spent (past 99,999), or its evidence horizon (24 h less a minute after its first write) has passed: nothing is numbered",
               "content": {
                 "application/json": {
                   "schema": {
@@ -1399,6 +1406,41 @@
           },
           "x-sophia-implementation": "implemented",
           "x-sophia-release-goal": "SDD-01-G7"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1v1~1media~1evidence",
+      "value": {
+        "post": {
+          "operationId": "mediaEvidence",
+          "summary": "Retired (Codex P1 r4232908444): the bridge numbered its own receipts, and a restarted or overlapping process collided with numbers already kept. Answers 410 evidence_route_retired before any write; the bridge sends mediaEvidenceWrite. Served only by an API with voice qualification on.",
+          "tags": ["media"],
+          "security": [
+            {
+              "mediaBridgeCapability": []
+            }
+          ],
+          "parameters": [],
+          "responses": {
+            "401": {
+              "description": "No or unknown media-bridge capability"
+            },
+            "410": {
+              "description": "The bridge's own numbering is retired; nothing is kept",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "implemented",
+          "x-sophia-release-goal": "SDD-01-G7",
+          "deprecated": true
         }
       }
     },

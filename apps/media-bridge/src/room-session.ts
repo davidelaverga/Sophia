@@ -101,8 +101,6 @@ export interface SessionDeps {
   voiceEvidence?: boolean
   /** The deployed commit the provider receipts name (RENDER_GIT_COMMIT, 40 hex), or null. */
   bridgeCommit?: string | null
-  /** An exchange's receipt sequence, shared by the sessions that replace one another on it (MediaBridge). */
-  evidenceSequence?: (exchangeId: string) => () => number
   /** Waits before a receipt whose answer was lost is sent again; tests shorten them. */
   evidenceRetryMs?: readonly number[]
   /** Waits before a reservation whose answer was lost is asked again, and each attempt's limit; tests shorten them. */
@@ -695,7 +693,6 @@ export class RoomSession {
     const { deps } = this
     const grant = assignment.qualification
     if (!deps.voiceEvidence || !grant) return null
-    let seq = 0
     const qualification = new SessionQualification({
       exchangeId: this.exchangeId,
       grant,
@@ -703,7 +700,6 @@ export class RoomSession {
       instructionSha256: deps.guide.combined.sha256,
       bridgeCommit: deps.bridgeCommit ?? null,
       record: (write, signal) => deps.service.recordEvidence(write, signal),
-      nextSeq: deps.evidenceSequence?.(this.exchangeId) ?? (() => (seq += 1)),
       retryMs: deps.evidenceRetryMs ?? EVIDENCE_RETRY_MS,
       now: () => deps.now(),
       attribution: () => this.state.attribution(),

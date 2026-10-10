@@ -24,6 +24,40 @@ export interface QualificationEvidenceAck {
 }
 
 /**
+ * A bridge receipt the service numbers (0051; Codex P1 r4232908444): the bridge's own identity for the write, the same
+ * on every resend of it, instead of a number of its own.
+ */
+export interface QualificationEvidenceNumberedWrite {
+  exchangeId: string
+  grantId: string
+  writeId: string
+  kind: QualificationReceiptKind
+  /** Already checked against its schema by the caller (the API's contract). */
+  receipt: Record<string, unknown>
+}
+
+/** The number the service gave the write (the same again for a repeat of it), with the guard's answer. */
+export interface QualificationEvidenceNumberedAck extends QualificationEvidenceAck {
+  seq: number
+  replayed: boolean
+}
+
+/**
+ * A bridge receipt numbered by the service, under the exchange's locks, from its durable high-water counter (0051
+ * media_record_evidence_write). Call inside withService.
+ */
+export async function recordQualificationEvidenceWrite(
+  c: pg.PoolClient,
+  write: QualificationEvidenceNumberedWrite,
+): Promise<QualificationEvidenceNumberedAck> {
+  const { rows } = await c.query<{ ack: QualificationEvidenceNumberedAck }>(
+    `SELECT sophia.media_record_evidence_write($1,$2,$3,$4,$5) AS ack`,
+    [write.exchangeId, write.grantId, write.writeId, write.kind, JSON.stringify(write.receipt)],
+  )
+  return onlyRow(rows, 'media_record_evidence_write').ack
+}
+
+/**
  * End every exchange under a grant that is past its deadline, revoked, expired or over a limit. Call inside
  * withService, after the bridge's report or before reading its assignments. Returns how many it ended.
  */

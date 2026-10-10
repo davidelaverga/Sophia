@@ -250,7 +250,7 @@ function harness(ledger: FakeLedger, { now = Date.now, meter, lifetime = 1, rese
     toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
     recordEvidence: (write) => {
       evidence.push(write)
-      return Promise.resolve({ ended: false, reason: null })
+      return Promise.resolve({ seq: evidence.length, replayed: false, ended: false, reason: null })
     },
     reserveQualification: (reserve) => ledger.reserve(reserve),
   }
@@ -442,14 +442,14 @@ describe('what a process sends is paid for on the API before it is sent (charge 
 
   /** The real SessionQualification of one process, against the shared durable fake. */
   function bound(ledger: FakeLedger, stops: string[]): SessionQualification {
+    let numbered = 0
     return new SessionQualification({
       exchangeId: E1,
       grant: ledger.grant,
       model: 'fake-model',
       instructionSha256: 'ef'.repeat(32),
       bridgeCommit: null,
-      record: () => Promise.resolve({ ended: false, reason: null }),
-      nextSeq: () => 1,
+      record: () => Promise.resolve({ seq: (numbered += 1), replayed: false, ended: false, reason: null }),
       retryMs: [],
       now: Date.now,
       attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),

@@ -85,7 +85,6 @@ export interface QualificationDeps {
   instructionSha256: string
   bridgeCommit: string | null
   record: MediaService['recordEvidence']
-  nextSeq: () => number
   retryMs: readonly number[]
   now: () => number
   attribution: () => Attribution | null
@@ -181,7 +180,6 @@ export class SessionQualification {
       exchangeId: deps.exchangeId,
       grantId: grant.grantId,
       record: deps.record,
-      nextSeq: deps.nextSeq,
       retryMs: deps.retryMs,
       ended: deps.ended,
       log: deps.log,

@@ -1,4 +1,4 @@
-// Voice qualification evidence through the API (A15, migration 0046; docs/plans/voice-qualification-g7.md), level:
+// Voice qualification evidence through the API (A15, migrations 0046 and 0051; docs/plans/voice-qualification-g7.md), level:
 // sql-run. The bridge's receipts, the principal's read, the grant on the assignment and the room token, and the guard
 // on the presence and assignment paths. LiveKit is unreachable here: room tokens are signed locally. The last case
 // runs the media bridge's own session (RoomSession, its HTTP client) against this API, with LABELLED FAKES for LiveKit
@@ -244,10 +244,18 @@ const provider = (grantId: string, usageTokens: number | null, lastPromptTokens:
   lastPromptTokens,
 })
 
-const write = (exchangeId: string, grantId: string, seq: number, receipt: Record<string, unknown>) =>
-  call('POST', '/v1/media/evidence', {
+/** The connections whose `ready` an exchange keeps, from its kept receipts ([seq, kind or provider phase, connection]). */
+const readies = (kept: Array<Array<number | string | null>>) =>
+  kept.filter(([, kind]) => kind === 'provider:ready').map(([, , connection]) => connection)
+
+/** 1, 2, ..., n. */
+const dense = (n: number) => Array.from({ length: n }, (_, i) => i + 1)
+
+/** A bridge receipt under its write identity (0051: the service numbers it). */
+const write = (exchangeId: string, grantId: string, writeId: string, receipt: Record<string, unknown>) =>
+  call('POST', '/v1/media/evidence-writes', {
     media: true,
-    body: { exchangeId, grantId, seq, receipt } satisfies Record<keyof MediaEvidenceWrite, unknown>,
+    body: { exchangeId, grantId, writeId, receipt } satisfies Record<keyof MediaEvidenceWrite, unknown>,
   })
 
 describe('voice qualification through the API (A15, 0046)', () => {
@@ -290,36 +298,81 @@ describe('voice qualification through the API (A15, 0046)', () => {
     )
   })
 
-  it('keeps a bridge receipt once per sequence number, refuses free text, another run or another grant', async () => {
+  it('numbers a bridge receipt once per write identity, refuses free text, another run or another grant, and spends no number on a refusal (0051)', async () => {
     const { projectId } = await project()
     const grantId = await grant(projectId)
     const exchangeId = await open(projectId)
+    const [one, two, three] = [randomUUID(), randomUUID(), randomUUID()]
     assert.equal(
-      (await write(exchangeId, grantId, 1, inputWindow(grantId))).status,
+      (await write(exchangeId, grantId, one, inputWindow(grantId))).status,
       422,
       'connection 1 is not reserved',
     )
     assert.equal((await reserve({ exchangeId, grantId, kind: 'connection' })).json.ordinal, 1)
-    const first = await write(exchangeId, grantId, 1, inputWindow(grantId))
+    const first = await write(exchangeId, grantId, one, inputWindow(grantId))
     assert.equal(first.status, 200, JSON.stringify(first.json))
-    assert.deepEqual(first.json, { ended: false, reason: null })
-    assert.equal((await write(exchangeId, grantId, 1, inputWindow(grantId))).status, 200, 'the same again: a no-op')
-    const reused = await write(exchangeId, grantId, 1, inputWindow(grantId, { chunkCount: 101 }))
+    assert.deepEqual(first.json, { seq: 1, replayed: false, ended: false, reason: null }, 'the refusal spent nothing')
+    const again = await write(exchangeId, grantId, one, inputWindow(grantId))
+    assert.deepEqual([again.status, again.json], [200, { seq: 1, replayed: true, ended: false, reason: null }])
+    const reused = await write(exchangeId, grantId, one, inputWindow(grantId, { chunkCount: 101 }))
     assert.deepEqual([reused.status, reused.json.code], [409, 'idempotency_conflict'])
-    const text = await write(exchangeId, grantId, 2, inputWindow(grantId, { transcript: 'hello' }))
+    const text = await write(exchangeId, grantId, two, inputWindow(grantId, { transcript: 'hello' }))
     assert.equal(text.status, 422, 'no free text: the schema refuses any field it does not declare')
-    const words = await write(exchangeId, grantId, 2, inputWindow(grantId, { endReason: 'the user said hello' }))
+    const words = await write(exchangeId, grantId, two, inputWindow(grantId, { endReason: 'the user said hello' }))
     assert.equal(words.status, 422, 'an enumerated word only')
-    const otherRun = await write(exchangeId, grantId, 2, inputWindow(grantId, { runBindingSha256: 'ee'.repeat(32) }))
+    const otherRun = await write(exchangeId, grantId, two, inputWindow(grantId, { runBindingSha256: 'ee'.repeat(32) }))
     assert.deepEqual([otherRun.status, otherRun.json.code], [422, 'invalid_request'])
     const otherGrant = randomUUID()
-    const foreign = await write(exchangeId, otherGrant, 2, inputWindow(otherGrant))
+    const foreign = await write(exchangeId, otherGrant, two, inputWindow(otherGrant))
     assert.deepEqual([foreign.status, foreign.json.code], [403, 'forbidden'])
-    const member = await call('POST', '/v1/media/evidence', {
+    const nameless = await call('POST', '/v1/media/evidence-writes', {
+      media: true,
+      body: { exchangeId, grantId, writeId: 'not-a-uuid', receipt: inputWindow(grantId) },
+    })
+    assert.equal(nameless.status, 422, 'a write names its identity as a UUID')
+    const numbered = await call('POST', '/v1/media/evidence-writes', {
+      media: true,
+      body: { exchangeId, grantId, writeId: three, seq: 7, receipt: inputWindow(grantId) },
+    })
+    assert.equal(numbered.status, 422, 'and never a number of its own')
+    const member = await call('POST', '/v1/media/evidence-writes', {
       actor: P,
-      body: { exchangeId, grantId, seq: 3, receipt: inputWindow(grantId) },
+      body: { exchangeId, grantId, writeId: three, receipt: inputWindow(grantId) },
     })
     assert.equal(member.status, 401, 'the bridge capability only, never a member')
+    const next = await write(exchangeId, grantId, two, inputWindow(grantId, { windowSeq: 2 }))
+    assert.deepEqual(next.json, { seq: 2, replayed: false, ended: false, reason: null }, 'dense: no refusal spent one')
+    const kept = await owner((c) =>
+      c.query<{ seq: number }>(
+        `SELECT seq FROM sophia.voice_qualification_evidence WHERE exchange_id=$1 AND source='bridge' ORDER BY seq`,
+        [exchangeId],
+      ),
+    )
+    assert.deepEqual(
+      kept.rows.map((r) => r.seq),
+      [1, 2],
+    )
+  })
+
+  it('the bridge’s own numbering is retired: its route answers 410 and keeps nothing; a member is still refused there (0051)', async () => {
+    const { projectId } = await project()
+    const grantId = await grant(projectId)
+    const exchangeId = await open(projectId)
+    await reserve({ exchangeId, grantId, kind: 'connection' })
+    const retired = await call('POST', '/v1/media/evidence', {
+      media: true,
+      body: { exchangeId, grantId, seq: 1, receipt: inputWindow(grantId) },
+    })
+    assert.deepEqual([retired.status, retired.json.code], [410, 'evidence_route_retired'])
+    const member = await call('POST', '/v1/media/evidence', {
+      actor: P,
+      body: { exchangeId, grantId, seq: 1, receipt: inputWindow(grantId) },
+    })
+    assert.equal(member.status, 401, 'the bridge capability only, never a member')
+    const kept = await owner((c) =>
+      c.query(`SELECT 1 FROM sophia.voice_qualification_evidence WHERE exchange_id=$1`, [exchangeId]),
+    )
+    assert.equal(kept.rowCount, 0, 'nothing kept')
   })
 
   it('reads the evidence to the principal alone; the guard ends the exchange at its budget, on the write', async () => {
@@ -327,11 +380,19 @@ describe('voice qualification through the API (A15, 0046)', () => {
     const grantId = await grant(projectId, { budget: 10_000, outputPerTurn: 1000 })
     const exchangeId = await open(projectId)
     await reserve({ exchangeId, grantId, kind: 'connection' })
-    assert.equal((await write(exchangeId, grantId, 1, inputWindow(grantId))).status, 200)
-    const under = await write(exchangeId, grantId, 2, provider(grantId, 4000, 3000))
-    assert.deepEqual(under.json, { ended: false, reason: null }, '4000 + 3000 + 1000 is under 10000')
-    const over = await write(exchangeId, grantId, 3, provider(grantId, 6000, 3500))
-    assert.deepEqual(over.json, { ended: true, reason: 'usage' }, 'the next turn could pass the budget')
+    assert.equal((await write(exchangeId, grantId, randomUUID(), inputWindow(grantId))).status, 200)
+    const under = await write(exchangeId, grantId, randomUUID(), provider(grantId, 4000, 3000))
+    assert.deepEqual(
+      under.json,
+      { seq: 2, replayed: false, ended: false, reason: null },
+      '4000 + 3000 + 1000 is under 10000',
+    )
+    const over = await write(exchangeId, grantId, randomUUID(), provider(grantId, 6000, 3500))
+    assert.deepEqual(
+      over.json,
+      { seq: 3, replayed: false, ended: true, reason: 'usage' },
+      'the next turn could pass the budget',
+    )
     const read = await call('GET', `/api/v1/exchanges/${exchangeId}/qualification-evidence`, { actor: P })
     assert.equal(read.status, 200, JSON.stringify(read.json))
     assert.equal(read.json.state, 'ended')
@@ -418,13 +479,19 @@ describe('voice qualification through the API (A15, 0046)', () => {
     await owner((c) =>
       c.query(`UPDATE sophia.room_exchanges SET opened_at=now()-interval '20 minutes' WHERE id=$1`, [exchangeId]),
     )
-    const receipt = await call('POST', '/v1/media/evidence', {
+    const receipt = await call('POST', '/v1/media/evidence-writes', {
+      api: off,
+      media: true,
+      body: { exchangeId, grantId, writeId: randomUUID(), receipt: inputWindow(grantId) },
+    })
+    // No such route: the capability hook knows only routes that exist, so the bridge's token is refused as a member's.
+    assert.equal(receipt.status, 401, 'no receipt route')
+    const retired = await call('POST', '/v1/media/evidence', {
       api: off,
       media: true,
       body: { exchangeId, grantId, seq: 1, receipt: inputWindow(grantId) },
     })
-    // No such route: the capability hook knows only routes that exist, so the bridge's token is refused as a member's.
-    assert.equal(receipt.status, 401, 'no receipt route')
+    assert.equal(retired.status, 401, 'nor the retired one')
     assert.equal((await reserve({ exchangeId, grantId, kind: 'connection' }, off)).status, 401, 'no reservation route')
     const kept = await owner((c) =>
       c.query(`SELECT 1 FROM sophia.voice_qualification_evidence WHERE exchange_id=$1`, [exchangeId]),
@@ -1719,9 +1786,21 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     assert.deepEqual([endedTopUp.status, endedTopUp.json.code], [409, 'invalid_state'], 'nor a top-up')
   })
 
-  /** The real MediaBridge on the real API; LiveKit and Gemini Live are LABELLED FAKES. */
-  async function bridgeOn(exchangeId: string) {
-    const service = httpMediaService(await baseUrl(), MEDIA_TOKEN)
+  /**
+   * The real MediaBridge on the real API; LiveKit and Gemini Live are LABELLED FAKES. `taken` is each receipt the API
+   * took from this process, in the order it answered: [its write identity, the number the API gave it].
+   */
+  async function bridgeOn(exchangeId: string, url?: string) {
+    const client = httpMediaService(url ?? (await baseUrl()), MEDIA_TOKEN)
+    const taken: Array<[string, number]> = []
+    const service: typeof client = {
+      ...client,
+      recordEvidence: async (w, signal) => {
+        const ack = await client.recordEvidence(w, signal)
+        taken.push([w.writeId, ack.seq])
+        return ack
+      },
+    }
     const assigned = (await service.assignments(null, 0, new AbortController().signal)).assignments.find(
       (a) => a.exchangeId === exchangeId,
     )
@@ -1773,7 +1852,37 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
     /** The session stopped itself (a refusal), or the API's answer to a receipt said the exchange ended. */
     const done = () => stops().length > 0 || logs.some(([event]) => event === 'qualification.exchange_ended')
-    return { bridge, assigned, roomEvents, lives, sent, stops, done }
+    const dropped = () => logs.filter(([event]) => event === 'evidence.dropped').map(([, d]) => d)
+    const speak = () => roomEvents.at(-1)?.audio(P, new Int16Array(1600).fill(2000), 16000, 1)
+    return { bridge, assigned, roomEvents, lives, sent, stops, done, dropped, taken, speak }
+  }
+
+  /** The bridge's receipts the exchange keeps, in the API's numbering: [seq, kind or provider phase, connection]. */
+  const keptOf = async (exchangeId: string) =>
+    (
+      await owner((c) =>
+        c.query<{ seq: number; kind: string; phase: string | null; connection: string | null }>(
+          `SELECT seq, kind, receipt->>'phase' AS phase, receipt->>'connection' AS connection
+             FROM sophia.voice_qualification_evidence WHERE exchange_id=$1 AND source='bridge' ORDER BY seq`,
+          [exchangeId],
+        ),
+      )
+    ).rows.map((r) => [r.seq, r.phase === null ? r.kind : `provider:${r.phase}`, r.connection && Number(r.connection)])
+
+  /** Polls the kept receipts until `check` holds; past `ms`, fails with what is kept. */
+  async function untilKept(
+    exchangeId: string,
+    what: string,
+    check: (kept: Array<Array<number | string | null>>) => boolean,
+    ms = 8000,
+  ) {
+    const deadline = Date.now() + ms
+    for (;;) {
+      const kept = await keptOf(exchangeId)
+      if (check(kept)) return kept
+      if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}: kept ${JSON.stringify(kept)}`)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    }
   }
 
   const endedOf = async (exchangeId: string) =>
@@ -1854,10 +1963,192 @@ describe('the exchange’s durable bound through the API (A15, 0046)', () => {
     assert.equal((await endedOf(exchangeId))?.reason, 'turns')
     await h.bridge.stop()
   })
+
+  it('a bridge process started again on the same exchange numbers on from the API’s counter: connection 2’s ready is kept beside connection 1’s, and nothing before it changes (Codex P1 r4232908444, root’s sequence)', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 3 })
+    const exchangeId = await open(projectId)
+    const first = await bridgeOn(exchangeId)
+    await first.bridge.apply([first.assigned])
+    await until('the first connection', () => first.lives.length === 1)
+    first.lives[0]?.setupComplete()
+    await untilKept(exchangeId, 'connection 1 ready', (kept) => readies(kept).length === 1)
+    await first.bridge.stop()
+    const firstKept = await keptOf(exchangeId)
+    const restarted = await bridgeOn(exchangeId)
+    await restarted.bridge.apply([restarted.assigned])
+    await until('the restarted process’s connection', () => restarted.lives.length === 1)
+    restarted.lives[0]?.setupComplete()
+    const kept = await untilKept(exchangeId, 'connection 2 ready', (k) => readies(k).length === 2)
+    await restarted.bridge.stop()
+    const allKept = await keptOf(exchangeId)
+    assert.deepEqual(readies(kept), [1, 2], 'both connections’ ready')
+    assert.deepEqual(allKept.slice(0, firstKept.length), firstKept, 'the first process’s receipts as they were')
+    assert.deepEqual(
+      allKept.map(([seq]) => seq),
+      dense(allKept.length),
+      'one number each, from 1, none twice',
+    )
+    assert.deepEqual([first.dropped(), restarted.dropped()], [[], []], 'nothing dropped, before the restart or after')
+    assert.deepEqual(
+      restarted.taken.map(([, seq]) => seq),
+      dense(allKept.length).slice(firstKept.length),
+      'the restarted process took the numbers after the first’s',
+    )
+  })
+
+  it('a lost room replaced in the same process keeps connection 1’s ready and connection 2’s (control)', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 3 })
+    const exchangeId = await open(projectId)
+    const h = await bridgeOn(exchangeId)
+    await h.bridge.apply([h.assigned])
+    await until('the first connection', () => h.lives.length === 1)
+    h.lives[0]?.setupComplete()
+    await untilKept(exchangeId, 'connection 1 ready', (kept) => readies(kept).length === 1)
+    h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await until('the room lost', () => h.bridge.session(exchangeId)?.lost === true)
+    await h.bridge.apply([h.assigned])
+    await until('the replacement connected', () => h.lives.length === 2)
+    h.lives[1]?.setupComplete()
+    await untilKept(exchangeId, 'connection 2 ready', (kept) => readies(kept).length === 2)
+    await h.bridge.stop()
+    const kept = await keptOf(exchangeId)
+    assert.deepEqual(readies(kept), [1, 2])
+    assert.deepEqual(
+      kept.map(([seq]) => seq),
+      dense(kept.length),
+    )
+    assert.deepEqual(h.dropped(), [])
+  })
+
+  it('two processes on one exchange at once (a deploy’s overlap), their inputs reserving beside each other’s receipts: every receipt kept, one number each, in the order the API took them, no deadlock', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 3 })
+    const exchangeId = await open(projectId)
+    const [a, b] = [await bridgeOn(exchangeId), await bridgeOn(exchangeId)]
+    await Promise.all([a.bridge.apply([a.assigned]), b.bridge.apply([b.assigned])])
+    await until('both connected', () => a.lives.length === 1 && b.lives.length === 1)
+    a.lives[0]?.setupComplete()
+    b.lives[0]?.setupComplete()
+    for (let turn = 1; turn <= 3; turn += 1) {
+      a.speak()
+      b.speak()
+      await until(`turn ${String(turn)}’s inputs went on`, () => a.sent[0] === turn && b.sent[0] === turn)
+      a.lives[0]?.turnComplete()
+      b.lives[0]?.turnComplete()
+    }
+    await Promise.all([a.bridge.stop(), b.bridge.stop()])
+    const kept = await keptOf(exchangeId)
+    assert.deepEqual(
+      kept.map(([seq]) => seq),
+      dense(kept.length),
+      'one number each, from 1, none twice',
+    )
+    assert.deepEqual([a.dropped(), b.dropped()], [[], []], 'nothing refused or dropped')
+    assert.equal(a.taken.length + b.taken.length, kept.length, 'every receipt either process sent is kept')
+    assert.deepEqual(
+      [...a.taken, ...b.taken].map(([, seq]) => seq).toSorted((x, y) => x - y),
+      dense(kept.length),
+    )
+    for (const { taken } of [a, b])
+      assert.ok(
+        taken.every(([, seq], i) => i === 0 || seq > (taken[i - 1]?.[1] ?? 0)),
+        'each process’s own numbers increase',
+      )
+    assert.deepEqual(
+      readies(kept).toSorted((x, y) => Number(x) - Number(y)),
+      [1, 2],
+    )
+    assert.equal(kept.filter(([, kind]) => kind === 'input_window').length, 6, 'each process’s three inputs')
+  })
+
+  it('the real bridge, its first receipt’s answer lost on the way: sent again under the same identity, answered with its own number, kept once (Codex P1 r4232908444)', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 3 })
+    const exchangeId = await open(projectId)
+    const api = await baseUrl()
+    // A relay in front of the real API: every request goes through; the first receipt's answer is held back, as a lost
+    // answer is (it committed). Every write's identity and the API's answer to it are kept in the order they came.
+    const writes: Array<[string, string]> = []
+    let held: http.ServerResponse | null = null
+    const relay = http.createServer((req, res) => {
+      let body = ''
+      req.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')))
+      req.on('end', () => {
+        void fetch(`${api}${req.url ?? ''}`, {
+          method: req.method ?? 'GET',
+          headers: { authorization: req.headers.authorization ?? '', 'content-type': 'application/json' },
+          ...(req.method === 'POST' ? { body } : {}),
+        }).then(async (answered) => {
+          const text = await answered.text()
+          if (req.url === '/v1/media/evidence-writes') {
+            writes.push([(JSON.parse(body) as MediaEvidenceWrite).writeId, text])
+            if (writes.length === 1) {
+              held = res
+              return
+            }
+          }
+          res.writeHead(answered.status, { 'content-type': 'application/json' })
+          res.end(text)
+        })
+      })
+    })
+    await new Promise<void>((resolve) => relay.listen(0, '127.0.0.1', resolve))
+    const address = relay.address()
+    assert.ok(address !== null && typeof address === 'object')
+    const h = await bridgeOn(exchangeId, `http://127.0.0.1:${String(address.port)}`)
+    try {
+      await h.bridge.apply([h.assigned])
+      await until('the first connection', () => h.lives.length === 1)
+      h.lives[0]?.setupComplete()
+      await untilKept(exchangeId, 'connection 1 ready', (kept) => readies(kept).length === 1, 15_000)
+      await h.bridge.stop()
+      const kept = await keptOf(exchangeId)
+      const [first, again] = writes
+      assert.ok(first && again)
+      assert.equal(again[0], first[0], 'the same identity again, after its answer was lost')
+      assert.deepEqual(JSON.parse(first[1]), { seq: 1, replayed: false, ended: false, reason: null }, 'it committed')
+      assert.deepEqual(JSON.parse(again[1]), { seq: 1, replayed: true, ended: false, reason: null })
+      assert.equal(kept.filter(([, kind]) => kind === 'provider:setup').length, 1, 'kept once')
+      assert.deepEqual(
+        kept.map(([seq]) => seq),
+        dense(kept.length),
+      )
+      assert.deepEqual(h.taken[0], [first[0], 1])
+      assert.deepEqual(h.dropped(), [])
+    } finally {
+      ;(held as http.ServerResponse | null)?.destroy()
+      relay.closeAllConnections()
+      await new Promise((resolve) => relay.close(resolve))
+    }
+  })
+
+  it('a process whose first connection is refused: its session_closed is kept at the exchange’s next number', async () => {
+    const { projectId } = await project()
+    await grant(projectId, { connections: 1 })
+    const exchangeId = await open(projectId)
+    const first = await bridgeOn(exchangeId)
+    await first.bridge.apply([first.assigned])
+    await until('the first connection', () => first.lives.length === 1)
+    first.lives[0]?.setupComplete()
+    await untilKept(exchangeId, 'connection 1 ready', (kept) => readies(kept).length === 1)
+    await first.bridge.stop()
+    const firstKept = await keptOf(exchangeId)
+    const restarted = await bridgeOn(exchangeId)
+    await restarted.bridge.apply([restarted.assigned])
+    await until('the restarted process stopped', () => restarted.stops().length > 0)
+    await restarted.bridge.stop()
+    const allKept = await keptOf(exchangeId)
+    assert.equal(restarted.lives.length, 0, 'no connection')
+    assert.deepEqual(allKept.slice(0, firstKept.length), firstKept)
+    assert.deepEqual(allKept.slice(firstKept.length), [[firstKept.length + 1, 'session_closed', null]])
+    assert.deepEqual(restarted.dropped(), [])
+  })
 })
 
 describe('a receipt sent again after its answer was lost gets the same answer from the API (Codex r4235355799)', () => {
-  it('the first attempt commits, its answer is held back and the bridge gives it up; the same number and body again: the same ack, one receipt kept', async () => {
+  it('the first attempt commits, its answer is held back and the bridge gives it up; the same identity and body again: its own number, replayed, one receipt kept', async () => {
     const { projectId } = await project()
     const grantId = await grant(projectId)
     const exchangeId = await open(projectId)
@@ -1893,7 +2184,7 @@ describe('a receipt sent again after its answer was lost gets the same answer fr
     const evidence: MediaEvidenceWrite = {
       exchangeId,
       grantId,
-      seq: 1,
+      writeId: randomUUID(),
       receipt: {
         kind: 'session_closed',
         schema: 'sophia.bridge.voice_qualification.v1',
@@ -1925,8 +2216,14 @@ describe('a receipt sent again after its answer was lost gets the same answer fr
       assert.equal(first, 'given up', 'the bridge gave the first attempt up')
       assert.equal(acks.length, 1, 'the API answered it: it committed')
       const again = await service.recordEvidence(evidence)
-      assert.deepEqual(again, JSON.parse(acks[0] ?? 'null'), 'the same ack as the first')
-      assert.deepEqual(again, { ended: false, reason: null })
+      assert.deepEqual(
+        again,
+        { ...(JSON.parse(acks[0] ?? 'null') as object), replayed: true },
+        'the first’s ack, said to be a repeat',
+      )
+      assert.deepEqual(again, { seq: 1, replayed: true, ended: false, reason: null })
+      const next = await service.recordEvidence({ ...evidence, writeId: randomUUID() })
+      assert.equal(next.seq, 2, 'the next write the next number: the repeat spent none')
       const kept = await owner((c) =>
         c.query<{ receipt: unknown }>(
           `SELECT receipt FROM sophia.voice_qualification_evidence WHERE exchange_id=$1 AND source='bridge' AND seq=1`,
@@ -1935,6 +2232,17 @@ describe('a receipt sent again after its answer was lost gets the same answer fr
       )
       assert.equal(kept.rows.length, 1, 'kept once')
       assert.deepEqual(kept.rows[0]?.receipt, evidence.receipt, 'as it was sent')
+      const writes = await owner((c) =>
+        c.query<{ seq: number }>(`SELECT seq FROM sophia.voice_evidence_writes WHERE exchange_id=$1 AND write_id=$2`, [
+          exchangeId,
+          evidence.writeId,
+        ]),
+      )
+      assert.deepEqual(
+        writes.rows.map((r) => r.seq),
+        [1],
+        'its identity, once',
+      )
     } finally {
       ;(held as http.ServerResponse | null)?.destroy()
       relay.closeAllConnections()

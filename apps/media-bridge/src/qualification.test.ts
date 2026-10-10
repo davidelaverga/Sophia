@@ -45,9 +45,8 @@ function bound(over: Partial<VoiceQualification> = {}, now: () => number = Date.
     bridgeCommit: null,
     record: (write) => {
       records.push(write)
-      return Promise.resolve({ ended: false, reason: null })
+      return Promise.resolve({ seq: records.length, replayed: false, ended: false, reason: null })
     },
-    nextSeq: () => 1,
     retryMs: [],
     now,
     attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),
@@ -843,7 +842,6 @@ describe('words heard past the budget are recorded and charged before the stop (
 async function admitted(over: Partial<VoiceQualification> = {}, spend: 'taken' | 'refused' | 'unanswered' = 'taken') {
   const requests: Array<[MediaQualificationReserve['kind'], number | null]> = []
   const records: MediaEvidenceWrite[] = []
-  let seq = 0
   const q = new SessionQualification({
     exchangeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     grant: { ...GRANT, maxOutputTokensPerTurn: 64, ...over },
@@ -852,9 +850,8 @@ async function admitted(over: Partial<VoiceQualification> = {}, spend: 'taken' |
     bridgeCommit: null,
     record: (write) => {
       records.push(write)
-      return Promise.resolve({ ended: false, reason: null })
+      return Promise.resolve({ seq: records.length, replayed: false, ended: false, reason: null })
     },
-    nextSeq: () => (seq += 1),
     retryMs: [],
     now: Date.now,
     attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),

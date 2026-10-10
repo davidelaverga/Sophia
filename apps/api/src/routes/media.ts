@@ -16,12 +16,13 @@ import type {
   MediaRoomToken,
   MediaToolCall,
 } from '@sophia/contracts'
+import { DomainError } from '@sophia/domain'
 import {
   ackQuiesce,
   holderEvent,
   mediaAssignments,
   recordAnnounced,
-  recordQualificationEvidence,
+  recordQualificationEvidenceWrite,
   reserveQualification,
   reportPresence,
   voiceQualificationGuard,
@@ -42,6 +43,7 @@ export const MEDIA_ROUTES: ReadonlySet<string> = new Set([
   '/v1/media/tool-calls',
   '/v1/media/tool-surface',
   '/v1/media/evidence',
+  '/v1/media/evidence-writes',
   '/v1/media/qualification-reserve',
 ])
 
@@ -175,20 +177,34 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice, f
 }
 
 /**
- * A receipt for an exchange under a voice qualification grant (A15, 0046): the database binds it to the grant and its
- * run, keeps it once per sequence number and runs the guard in the same transaction.
+ * A receipt for an exchange under a voice qualification grant (A15, 0046), numbered by the database (0051; Codex P1
+ * r4232908444): under the exchange's locks, from its durable high-water counter, the same number for a repeat of the
+ * same write (its writeId), never a number given before. The database binds it to the grant and its run and runs the
+ * guard in the same transaction. The bridge's own numbering (`/v1/media/evidence`) is retired: 410, nothing kept.
  */
 function evidenceRoute(app: FastifyInstance, pool: pg.Pool): void {
   app.post<{ Body: MediaEvidenceWrite }>(
-    '/v1/media/evidence',
+    '/v1/media/evidence-writes',
     { schema: { body: { $ref: 'MediaEvidenceWrite#' }, response: { 200: { $ref: 'MediaEvidenceAck#' } } } },
     async (req) => {
-      const { exchangeId, grantId, seq, receipt } = req.body
+      const { exchangeId, grantId, writeId, receipt } = req.body
       return withService(pool, (c) =>
-        recordQualificationEvidence(c, { exchangeId, grantId, seq, kind: receipt.kind, receipt: { ...receipt } }),
+        recordQualificationEvidenceWrite(c, {
+          exchangeId,
+          grantId,
+          writeId,
+          kind: receipt.kind,
+          receipt: { ...receipt },
+        }),
       )
     },
   )
+  app.post('/v1/media/evidence', () => {
+    throw new DomainError(
+      'evidence_route_retired',
+      'The service numbers receipts now: send them to /v1/media/evidence-writes',
+    )
+  })
 }
 
 /**

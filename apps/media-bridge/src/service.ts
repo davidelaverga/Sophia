@@ -41,9 +41,9 @@ export interface MediaService {
    *  declared tools. */
   toolSurface: (guide: GuideVersion) => Promise<MediaToolSurface>
   /**
-   * A receipt for an exchange under a voice qualification grant (A15), sent only with SOPHIA_VOICE_EVIDENCE=on. The
-   * answer says whether the API's guard has ended the exchange. `signal` ends the attempt, its body's read included
-   * (Codex P2 r4235355799).
+   * A receipt for an exchange under a voice qualification grant (A15), sent only with SOPHIA_VOICE_EVIDENCE=on, by its
+   * write identity: the service numbers it (0051; Codex P1 r4232908444). The answer says its number and whether the
+   * API's guard has ended the exchange. `signal` ends the attempt, its body's read included (Codex P2 r4235355799).
    */
   recordEvidence: (write: MediaEvidenceWrite, signal?: AbortSignal) => Promise<MediaEvidenceAck>
   /**
@@ -102,7 +102,8 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     toolCall: async (call, signal) => parseMediaToolResult(await post('/v1/media/tool-calls', call, signal)),
     toolSurface: async (guide) =>
       parseMediaToolSurface(await send(`/v1/media/tool-surface?guide=${guide}`, { method: 'GET' })),
-    recordEvidence: async (write, signal) => parseMediaEvidenceAck(await post('/v1/media/evidence', write, signal)),
+    recordEvidence: async (write, signal) =>
+      parseMediaEvidenceAck(await post('/v1/media/evidence-writes', write, signal)),
     reserveQualification: async (reserve, signal) =>
       parseMediaQualificationReservation(await post('/v1/media/qualification-reserve', reserve, signal)),
   }

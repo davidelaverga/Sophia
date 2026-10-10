@@ -5,7 +5,8 @@
 // (writeOnce): not ready without it, and an API without a store requires nothing of 0044. An API with voice
 // qualification on (A15) requires 0046's functions; off, its default, it requires nothing of 0046. Every API requires
 // 0047's call-key claim (the tool-call path claims each call's key, voice qualification on or off); 0047 needs nothing
-// of 0046, so the staged database below has it from the start, and a database through 0046 alone is not ready.
+// of 0046, so the staged database below has it from the start, and a database through 0046 alone is not ready. With
+// voice qualification on, the API numbers the bridge's receipts (0051): not ready without it; off, it needs none of 0051.
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -26,6 +27,7 @@ const WRITE_ONCE = '0044_object_write_once.sql'
 const REQUEUE = '0045_render_requeue_output.sql'
 const VOICE = '0046_voice_qualification.sql'
 const KEYS = '0047_live_call_keys.sql'
+const NUMBERING = '0051_voice_evidence_numbering.sql'
 
 let dir: string
 let db: TestDatabase
@@ -99,13 +101,20 @@ describe('readiness across 0043', () => {
     assert.deepEqual(await ready(), [200, { ready: true }], 'no store, with 0044')
   })
 
-  it('with voice qualification on, is not ready until 0046; off, its default, needs none of 0046', async () => {
+  it('with voice qualification on, is not ready until 0046 and 0051; off, its default, needs none of them', async () => {
     for (const file of [DELIVERY, WRITE_ONCE, REQUEUE]) if (!applied.has(file)) await migrate(file)
     assert.deepEqual(await ready(voiced), [503, { ready: false, reason: 'schema' }], 'voice on, no 0046')
     assert.deepEqual(await ready(), [200, { ready: true }], 'voice off, no 0046')
     await migrate(VOICE)
-    assert.deepEqual(await ready(voiced), [200, { ready: true }], 'voice on, with 0046')
-    assert.deepEqual(await ready(), [200, { ready: true }], 'voice off, with 0046')
+    assert.deepEqual(
+      await ready(voiced),
+      [503, { ready: false, reason: 'schema' }],
+      'voice on, with 0046 but not 0051: the bridge’s receipts would not be numbered',
+    )
+    assert.deepEqual(await ready(), [200, { ready: true }], 'voice off, with 0046, no 0051')
+    await migrate(NUMBERING)
+    assert.deepEqual(await ready(voiced), [200, { ready: true }], 'voice on, with 0046 and 0051')
+    assert.deepEqual(await ready(), [200, { ready: true }], 'voice off, with 0046 and 0051')
   })
 })
 
@@ -134,7 +143,16 @@ describe('readiness across 0047', () => {
         await owner.end()
       }
       assert.deepEqual(await ready(off), [200, { ready: true }], 'voice off, with 0047')
-      assert.deepEqual(await ready(on), [200, { ready: true }], 'voice on, with 0047')
+      assert.deepEqual(await ready(on), [503, { ready: false, reason: 'schema' }], 'voice on, with 0047, no 0051')
+      const numbering = new pg.Client({ connectionString: before0047.ownerUrl })
+      await numbering.connect()
+      try {
+        await numbering.query(readFileSync(join(MIGRATIONS, NUMBERING), 'utf8'))
+      } finally {
+        await numbering.end()
+      }
+      assert.deepEqual(await ready(off), [200, { ready: true }], 'voice off, with 0047 and 0051')
+      assert.deepEqual(await ready(on), [200, { ready: true }], 'voice on, with 0047 and 0051')
     } finally {
       await off.close()
       await on.close()

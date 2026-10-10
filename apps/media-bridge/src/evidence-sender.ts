@@ -1,11 +1,13 @@
-// Sends the bridge's voice qualification receipts to the API (POST /v1/media/evidence, A15), off the audio path: send()
-// only queues, and one write is in flight at a time, in sequence order. A receipt takes the exchange's next sequence
-// number when it is queued. Each attempt has EVIDENCE_ATTEMPT_MS to be answered, its body read included; past it the
-// request is cancelled (Codex P2 r4235355799). A lost or late answer, or a 5xx, is sent again, with the same number and
-// the same body (the API keeps a receipt once per number and answers a repeat as the first: 0046
-// media_record_evidence), a bounded number of times; then the receipt is dropped and counted, and the next goes. A
-// refusal (4xx) is not sent again: the same body would be refused again. Each drop is logged with its number and kind,
-// never its body. An answer that says the API's guard ended the exchange is passed on once.
+// Sends the bridge's voice qualification receipts to the API (POST /v1/media/evidence-writes, A15), off the audio path:
+// send() only queues, and one write is in flight at a time, in the order queued. The service numbers each receipt
+// (0051; Codex P1 r4232908444): a write carries the bridge's own identity for it (writeId, a random UUID given when it is
+// queued), never a number, and the answer says the number it was given. Each attempt has EVIDENCE_ATTEMPT_MS to be
+// answered, its body read included; past it the request is cancelled (Codex P2 r4235355799). A lost or late answer, or a
+// 5xx, is sent again with the same identity and the same body (the service answers a repeat with its own number), a
+// bounded number of times; then the receipt is dropped and counted, and the next goes. A refusal (4xx) is not sent
+// again: the same body would be refused again. Each drop is logged with its identity and kind, never its body. An
+// answer that says the API's guard ended the exchange is passed on once.
+import { randomUUID } from 'node:crypto'
 import type { MediaEvidenceAck, MediaEvidenceWrite } from '@sophia/contracts'
 import type { Receipt } from './qualification-recorder.ts'
 import { type MediaService, ServiceError } from './service.ts'
@@ -19,8 +21,6 @@ export const EVIDENCE_RETRY_MS = [500, 2000, 5000]
  * the rest, so the bound never holds a close past it.
  */
 export const EVIDENCE_ATTEMPT_MS = 3000
-/** A15's sequence numbers run 1–99,999 per exchange; past them nothing more is sent. */
-export const MAX_SEQ = 99_999
 /** Receipts waiting to be sent, at most: an API that does not answer cannot grow the queue without bound. */
 const QUEUE_LIMIT = 1000
 
@@ -31,8 +31,6 @@ export interface SenderDeps {
   exchangeId: string
   grantId: string
   record: MediaService['recordEvidence']
-  /** The exchange's next sequence number (shared by every session of the exchange in this process). */
-  nextSeq: () => number
   retryMs: readonly number[]
   /** One attempt's bound (EVIDENCE_ATTEMPT_MS unless a test says otherwise). */
   attemptMs?: number
@@ -50,17 +48,18 @@ export class EvidenceSender {
   /** Receipts the API took, and receipts dropped (refused, unanswered, abandoned, or never queued). */
   sent = 0
   dropped = 0
+  /** The numbers the service gave the receipts it took, in the order answered. */
+  readonly numbers: number[] = []
 
   constructor(deps: SenderDeps) {
     this.#deps = deps
   }
 
-  /** Queue a receipt; never waits. */
+  /** Queue a receipt, with its identity; never waits. */
   send(receipt: Receipt): void {
-    const seq = this.#deps.nextSeq()
-    if (this.#abandoned || seq > MAX_SEQ || this.#queue.length >= QUEUE_LIMIT)
-      return this.#drop(seq, receipt.kind, 'not_queued')
-    this.#queue.push({ exchangeId: this.#deps.exchangeId, grantId: this.#deps.grantId, seq, receipt })
+    const writeId = randomUUID()
+    if (this.#abandoned || this.#queue.length >= QUEUE_LIMIT) return this.#drop(writeId, receipt.kind, 'not_queued')
+    this.#queue.push({ exchangeId: this.#deps.exchangeId, grantId: this.#deps.grantId, writeId, receipt })
     this.#pumping ??= this.#pump()
   }
 
@@ -81,7 +80,7 @@ export class EvidenceSender {
   abandon(): void {
     this.#abandoned = true
     for (let write = this.#queue.shift(); write; write = this.#queue.shift())
-      this.#drop(write.seq, write.receipt.kind, 'abandoned')
+      this.#drop(write.writeId, write.receipt.kind, 'abandoned')
   }
 
   /** One write at a time, oldest first. The pump stops in the same step that finds the queue empty. */
@@ -90,13 +89,14 @@ export class EvidenceSender {
     this.#pumping = null
   }
 
-  /** The same write (same number, same body) until it is answered, refused, or its attempts run out. */
+  /** The same write (same identity, same body) until it is answered, refused, or its attempts run out. */
   async #deliver(write: MediaEvidenceWrite): Promise<void> {
     for (let attempt = 0; ; attempt += 1) {
       const ack = await this.#attempt(write).catch((err: unknown) => this.#unanswered(write, attempt, err))
       if (ack === 'again') continue
       if (ack === null) return
       this.sent += 1
+      this.numbers.push(ack.seq)
       return this.#acked(ack)
     }
   }
@@ -134,7 +134,7 @@ export class EvidenceSender {
       if (!this.#isAbandoned()) return 'again'
     }
     const why = refused ? 'refused' : this.#isAbandoned() ? 'abandoned' : 'unanswered'
-    this.#drop(write.seq, write.receipt.kind, why, err)
+    this.#drop(write.writeId, write.receipt.kind, why, err)
     return null
   }
 
@@ -149,10 +149,11 @@ export class EvidenceSender {
     this.#deps.ended(ack.reason)
   }
 
-  #drop(seq: number, kind: Receipt['kind'], why: string, err?: unknown): void {
+  /** A receipt dropped, logged by its write identity: any number the service gave it never reached the bridge. */
+  #drop(writeId: string, kind: Receipt['kind'], why: string, err?: unknown): void {
     this.dropped += 1
     const error = err === undefined ? {} : { error: message(err) }
     const { exchangeId } = this.#deps
-    this.#deps.log('evidence.dropped', { exchangeId, seq, kind, why, dropped: this.dropped, ...error })
+    this.#deps.log('evidence.dropped', { exchangeId, writeId, kind, why, dropped: this.dropped, ...error })
   }
 }

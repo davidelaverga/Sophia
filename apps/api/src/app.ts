@@ -182,12 +182,16 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
 
 /**
  * What an API with voice qualification on (A15) calls of 0046: its guard, the bridge's receipts, the principal's read and
- * the room token's grant; and of 0047, a recorded call's answer, its fence's generation, and the seal and the mark that
- * write the answer under it (Codex P1 r4234782534). An API with it off, the default, and the previous API, require
- * nothing of 0046, and of 0047 only the claim (REQUIRED_SCHEMA).
+ * the room token's grant; of 0047, a recorded call's answer, its fence's generation, and the seal and the mark that
+ * write the answer under it (Codex P1 r4234782534); and of 0051, the service's numbering of the bridge's receipts
+ * (Codex P1 r4232908444). An API with it off, the default, and the previous API, require nothing of 0046 or 0051, and
+ * of 0047 only the claim (REQUIRED_SCHEMA).
  */
 export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
   AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regclass('sophia.voice_evidence_high_water') IS NOT NULL
+  AND to_regclass('sophia.voice_evidence_writes') IS NOT NULL
   AND to_regprocedure('sophia.media_voice_reserve(uuid,uuid,text,integer,bigint)') IS NOT NULL
   AND to_regprocedure('sophia.voice_qualification_evidence_read(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL

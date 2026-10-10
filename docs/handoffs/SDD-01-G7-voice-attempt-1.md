@@ -19,12 +19,13 @@ Every part is behind three switches, all off by default:
 - `SOPHIA_VOICE_QUALIFICATION=on` on the API;
 - `SOPHIA_VOICE_EVIDENCE=on` on the media bridge.
 
-With the switches off, the API serves no A15 route, needs nothing from 0046 to be ready, and adds no `exchangeId` or `withdrawnSourceIds`. The bridge and the Studio also behave exactly as before.
+With the switches off, the API serves no A15 route, needs nothing from 0046 or 0051 to be ready, and adds no `exchangeId` or `withdrawnSourceIds`. The bridge and the Studio also behave exactly as before.
 
 What exists in source, under a grant:
 - **Grant and guard (0046).** The guard ends a granted exchange at its deadline, at revocation or expiry, or at its connection, turn or budget limit. The evidence store keeps the bridge's receipts for 24 h, readable only by the principal. No free text and no speech are kept.
 - **A durable spend bound per exchange** (`media_voice_reserve`). It holds across a same-exchange replacement and across a process restart: connections and generations are reserved atomically under the exchange's lock, and the bridge fails closed.
-- **The media bridge's recorder**, sending receipts over `POST /v1/media/evidence`. It records only the principal's own turns.
+- **The media bridge's recorder**, sending receipts over `POST /v1/media/evidence-writes`, each under its own write identity, never a number. It records only the principal's own turns.
+- **The service numbers the receipts (0051, Codex P1 r4232908444).** Under the project's and the exchange's locks, from a durable high-water counter per exchange and grant, never lowered and never read from the receipts kept: a repeat of a write is answered with its own number (`replayed`), another receipt under its identity is refused (409) and spends none, and a refused write spends none, so the numbers run densely from 1. A process started again mid-exchange, or two at once, take the next numbers. Writes are taken until 24 h less one minute after the exchange's first (before any identity expires), then refused; past 99,999, refused. The bridge's own numbering (`POST /v1/media/evidence`) answers 410 and keeps nothing.
 - **The Studio's page receipts and build identity.**
   - Page receipts are window events fired only under a grant, only for Sophia's element, with listeners that end with her subscription and with the call.
   - The build identity is `<meta name="sophia-build">`.
@@ -67,7 +68,7 @@ Corrections to commit messages, which stay as they are:
 
 ## Decisions and changes
 
-- **Migrations.** 0046 and 0047 are added; 0001–0045 are blob-identical to the base. Neither is applied anywhere. 0046 is frozen. 0047 (`live_call_keys`, the call keys and their claims) was edited in place during the review to carry the call fences' generations (`live_call_fences`, Codex P1 r4234782534): no foreign key, no lock of its own beyond the rows it writes. Once applied, neither is edited; any later change is an additive migration after them (0048 on), and none is authorized yet.
+- **Migrations.** 0046, 0047 and 0051 are added (0051's number is provisional, number pending owner/root confirmation on #198: CON-01's #199 holds 0048, and #198 records its proposed 0048–0050); 0001–0045 are blob-identical to the base. None is applied anywhere. 0046 is frozen. 0047 (`live_call_keys`, the call keys and their claims) was edited in place during the review to carry the call fences' generations (`live_call_fences`, Codex P1 r4234782534): no foreign key, no lock of its own beyond the rows it writes. 0051 (`voice_evidence_numbering`, root's GO on r4232908444: a local candidate) is additive and touches nothing of 0046: two tables (the counter and the write identities, both behind RLS with no policy, nothing granted) and one function, `media_record_evidence_write`, granted to the API's role, which calls 0046's `media_record_evidence` with the number it gives. Once applied, none is edited; any later change is an additive migration after them.
 - **Contracts.** Amendment A15 adds the routes and fields, regenerated with `pnpm --filter @sophia/contracts generate`.
 - **Product status codes, which the Lab follows:**
   - 422 `not_found` for a missing or foreign object;
@@ -83,19 +84,20 @@ Corrections to commit messages, which stay as they are:
   - a model id outside A15's pattern, which would have every provider receipt refused.
 - **The owner's batch, none of it done:**
   - Deploy order, on, as docs/plans/voice-qualification-g7.md gives it (each step needs the one before it):
-    1. apply 0046 and 0047 with `pnpm db:migrate` (in order, neither skippable), every switch off, before any API built from this change goes out, with any migration after them that the deployed head carries, in order;
+    1. apply 0046, 0047, then 0051 [provisional: number pending owner/root confirmation on #198], before the API: with `pnpm db:migrate` (in order, none skippable), every switch off, before any API built from this change goes out, with any other migration the deployed head carries, in order of number (CON-01's 0048–0050 among them when they are there; the runner applies whatever its ledger lacks, so 0051 needs none of them);
     2. deploy the API, the media bridge and the Studio built from this change; the Studio with `build:release` (below);
     3. `SOPHIA_VOICE_QUALIFICATION=on` on the API;
     4. `SOPHIA_VOICE_EVIDENCE=on` on the bridge.
     Off: the reverse, flags first.
-  - Readiness, unchanged: the new API's `/ready` answers 503 `schema` without 0047's claim (`REQUIRED_SCHEMA`), whatever the flag says, and, with `SOPHIA_VOICE_QUALIFICATION=on`, without 0046's functions and 0047's fence functions (`VOICE_SCHEMA`).
+  - Readiness: the new API's `/ready` answers 503 `schema` without 0047's claim (`REQUIRED_SCHEMA`), whatever the flag says, and, with `SOPHIA_VOICE_QUALIFICATION=on`, without 0046's functions, 0047's fence functions and 0051's numbering (`VOICE_SCHEMA`).
   - Activation preconditions, for the operator, none of them set or sent by this change:
     - the bridge service's shutdown grace on Render (`maxShutdownDelaySeconds`) at least 40 s, checked, before step 4: a close may wait 35 s (`STOP_DEADLINE_MS`), and the default, 30 s, is not enough;
     - the database's connection limit allows, for each API process, its pool (`max`, 10 by default) plus the call fences' own sessions (`CALL_FENCE_SESSIONS`, 8): at most 18 sessions per API process with voice qualification on;
     - the Studio built with `pnpm --filter @sophia/studio build:release` at the deploy commit, so its page names that commit (`<meta name="sophia-build">`), and uploaded with `--meta commit=` that same commit.
   - Neither flag is set, and no Studio has been built with its commit yet.
   - No grant exists.
-- **Known and not fixed:** a bridge restarted mid-exchange begins receipt numbers at 1 again, and the API refuses the numbers already used (409, dropped and counted); Codex r4232908444's options are with root. The bridge's own stop no longer depends on a receipt (`6262d61b`).
+- **Fixed in the 0051 candidate (local, root's GO; the number provisional):** a bridge restarted mid-exchange began receipt numbers at 1 again, and the API refused the numbers already used (409, dropped and counted; Codex r4232908444). The service numbers them now (above). The bridge's own stop no longer depends on a receipt (`6262d61b`).
+- **Known, by design:** 0046's `media_record_evidence` stays granted to the API's role (0046 is frozen). No route calls it with a number of its own any more, and its own tests still do. A direct call on the API's login that kept a bridge receipt under a number the counter has not reached would stop that exchange's numbering there: the write the counter gives that number is refused (409) and rolls back, and so is every one after it, until the exchange ends. Nothing is ever kept twice. Revoking it from the API's role would be a further additive migration, and 0046's tests would then move to 0051's path.
 - **Wording, not changed:** after the withdrawal, Stop by voice is refused with "the report is still at version 1" while the page is at version 2. That is the report's version, not the page's.
 - **Lab side.** Voice Lab deltas 1–6 are in `voice-lab/studio-livekit-g7`. They are handed over separately, each with its own review and receipts.
 

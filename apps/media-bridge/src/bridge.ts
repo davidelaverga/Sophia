@@ -28,11 +28,6 @@ export class MediaBridge {
   private readonly deps: SessionDeps
   private readonly stopDeadlineMs: number
   private readonly sessions = new Map<string, RoomSession>()
-  /**
-   * Each live exchange's voice qualification receipt sequence (A15), shared by the sessions that replace one another on
-   * it, so a replacement never reuses a number the one it replaced sent. A process restart starts again at 1.
-   */
-  private readonly sequences = new Map<string, () => number>()
   private version: string | null = null
   private poll: AbortController | null = null
   private stopped = false
@@ -42,7 +37,6 @@ export class MediaBridge {
     this.deps = {
       ...deps,
       lost: (exchangeId) => this.onLost(exchangeId),
-      evidenceSequence: (exchangeId) => this.sequenceOf(exchangeId),
     }
   }
 
@@ -74,8 +68,6 @@ export class MediaBridge {
    */
   async apply(assignments: readonly MediaAssignment[]): Promise<void> {
     const live = new Set(assignments.map((a) => a.exchangeId))
-    // A closing session keeps its own reference: what it still sends stays in its exchange's sequence.
-    for (const exchangeId of this.sequences.keys()) if (!live.has(exchangeId)) this.sequences.delete(exchangeId)
     const leaving: Promise<void>[] = []
     const handovers = new Map<string, Promise<Handover>>()
     for (const [exchangeId, session] of this.sessions) {
@@ -100,15 +92,6 @@ export class MediaBridge {
       this.sessions.set(assignment.exchangeId, created)
       created.start().catch((err: unknown) => this.deps.log('session.start_failed', { error: message(err) }))
     }
-  }
-
-  private sequenceOf(exchangeId: string): () => number {
-    const known = this.sequences.get(exchangeId)
-    if (known) return known
-    let seq = 0
-    const next = () => (seq += 1)
-    this.sequences.set(exchangeId, next)
-    return next
   }
 
   /** A room was lost: re-read assignments now (fresh tokens) instead of waiting out the poll. */

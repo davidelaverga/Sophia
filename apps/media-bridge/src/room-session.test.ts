@@ -230,13 +230,22 @@ class FakeService implements MediaService {
     this.calls.push(c)
     return this.result
   }
-  /** Voice qualification receipts as the API received them (A15), every attempt; and the answer it gives. */
+  /** Voice qualification receipts as the API received them (A15), every attempt; and its guard's answer. */
   evidence: MediaEvidenceWrite[] = []
-  ack: MediaEvidenceAck = { ended: false, reason: null }
+  ack: Pick<MediaEvidenceAck, 'ended' | 'reason'> = { ended: false, reason: null }
+  /** The numbers the API gave, per exchange and write identity, as 0051 gives them: a repeat is given its own again. */
+  numbered = new Map<string, number>()
   recordEvidence = async (w: MediaEvidenceWrite) => {
     await Promise.resolve()
     this.evidence.push(w)
-    return this.ack
+    return this.number(w)
+  }
+  number(w: MediaEvidenceWrite): MediaEvidenceAck {
+    const key = `${w.exchangeId} ${w.writeId}`
+    const own = this.numbered.get(key)
+    const seq = own ?? [...this.numbered.keys()].filter((k) => k.startsWith(`${w.exchangeId} `)).length + 1
+    this.numbered.set(key, seq)
+    return { seq, replayed: own !== undefined, ...this.ack }
   }
   /**
    * The API's durable bound (A15), as a FAKE: every reservation is granted and connections are numbered, unless a test
@@ -3874,7 +3883,7 @@ describe('room session: voice qualification evidence (A15), off by default', () 
     const write = {
       exchangeId: EXCHANGE,
       grantId: GRANT_ID,
-      seq: 1,
+      writeId: '99999999-9999-4999-8999-999999999999',
       receipt: {
         kind: 'session_closed',
         schema: 'sophia.bridge.voice_qualification.v1',
@@ -3897,7 +3906,8 @@ describe('room session: voice qualification evidence (A15), off by default', () 
       { ...write, receipt: { ...write.receipt, text: 'Draft the brief' } },
       { ...write, receipt: { ...write.receipt, transcriptRetained: true } },
       { ...write, receipt: { ...write.receipt, reason: 'because' } },
-      { ...write, seq: 100_000 },
+      { ...write, writeId: 'not-a-uuid' },
+      { ...write, seq: 1 },
       { ...write, receipt: { ...write.receipt, windows: 0.5 } },
     ])
       assert.notDeepEqual(breaches(bad, writeSchema), [], JSON.stringify(bad).slice(0, 80))
@@ -3912,7 +3922,7 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
       await Promise.resolve()
       signals.push(signal)
       service.evidence.push(w)
-      return service.ack
+      return service.number(w)
     }
     const { session } = await ready({ qualification: grant() })
     await until('a receipt sent', () => signals.length > 0)
@@ -3962,9 +3972,11 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
       'provider:closed',
       'session_closed',
     ])
+    assert.equal(new Set(service.evidence.map((w) => w.writeId)).size, 11, 'each receipt its own write identity')
     assert.deepEqual(
-      service.evidence.map((w) => w.seq),
+      service.evidence.map((w) => service.numbered.get(`${w.exchangeId} ${w.writeId}`)),
       [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      'numbered by the API, in the order it took them',
     )
     for (const w of service.evidence) {
       assert.deepEqual(breaches(w, COMPONENTS.MediaEvidenceWrite as Schema), [], tag(w))
@@ -4054,12 +4066,12 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     assert.equal(all.includes('Draft the brief') || all.includes('Here is where'), false, 'no words, only counts')
   })
 
-  it('a receipt the API did not take never holds audio back: same number and body again, then dropped and counted', async () => {
+  it('a receipt the API did not take never holds audio back: same identity and body again, then dropped and counted', async () => {
     voiceEvidence = true
     service.recordEvidence = async (w: MediaEvidenceWrite) => {
       await Promise.resolve()
       service.evidence.push(structuredClone(w))
-      throw new ServiceError(503, 'POST /v1/media/evidence: 503')
+      throw new ServiceError(503, 'POST /v1/media/evidence-writes: 503')
     }
     const { room, live } = await ready({ qualification: grant() })
     room.events.audio(LUIS, voice16k(), 16000, 1)
@@ -4067,15 +4079,17 @@ describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE
     await flush() // its generation is reserved first: the chunk waits for the grant
     assert.equal(live.audio, 2, 'forwarded at once, whatever the receipts are waiting for')
     await until('setup and ready dropped', () => logs.filter(([event]) => event === 'evidence.dropped').length === 2)
-    const setup = service.evidence.filter((w) => w.seq === 1)
+    const setup = service.evidence.filter((w) => w.writeId === service.evidence[0]?.writeId)
     assert.equal(setup.length, 3, 'sent, then twice again')
     assert.deepEqual(setup[1], setup[0])
     assert.deepEqual(setup[2], setup[0])
+    const second = service.evidence[3]
+    assert.ok(second && second.writeId !== setup[0]?.writeId, 'the next receipt, its own identity')
     assert.deepEqual(
-      logs.filter(([event]) => event === 'evidence.dropped').map(([, d]) => [d.seq, d.kind, d.why, d.dropped]),
+      logs.filter(([event]) => event === 'evidence.dropped').map(([, d]) => [d.writeId, d.kind, d.why, d.dropped]),
       [
-        [1, 'provider', 'unanswered', 1],
-        [2, 'provider', 'unanswered', 2],
+        [setup[0]?.writeId, 'provider', 'unanswered', 1],
+        [second.writeId, 'provider', 'unanswered', 2],
       ],
     )
     // An API that never answers: the receipts wait, the holder is still heard.

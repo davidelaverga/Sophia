@@ -44,7 +44,10 @@ interface RoomFake {
   stopDeadlineMs?: number
 }
 
-/** With `evidence`, SOPHIA_VOICE_EVIDENCE is on and the receipts the API takes are kept there. */
+/**
+ * With `evidence`, SOPHIA_VOICE_EVIDENCE is on and the receipts the API takes are kept there, in the order it took them;
+ * it numbers them as 0051 does, per exchange, a repeated write identity its own number again.
+ */
 function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
   const log: string[] = []
   const roomEvents: RoomEvents[] = []
@@ -59,8 +62,11 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
     toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
     recordEvidence: (write) => {
       if (!evidence) return Promise.reject(new Error('unused'))
-      evidence.push(write)
-      return Promise.resolve({ ended: false, reason: null })
+      const own = evidence.findIndex((w) => w.writeId === write.writeId)
+      if (own < 0) evidence.push(write)
+      const numbered = evidence.filter((w) => w.exchangeId === write.exchangeId)
+      const seq = numbered.findIndex((w) => w.writeId === write.writeId) + 1
+      return Promise.resolve({ seq, replayed: own >= 0, ended: false, reason: null })
     },
     // The API's durable bound, as a FAKE that grants everything: bridge-bound.test.ts holds it to a grant.
     reserveQualification: (reserve) => {
@@ -223,7 +229,7 @@ describe('media bridge assignment loop', () => {
     await bridge.stop()
   })
 
-  it('numbers an exchange’s receipts once across the sessions that replace one another on it (A15)', async () => {
+  it('an exchange’s receipts, across the sessions that replace one another on it, each carry their own identity and no number: the service numbers them (A15, 0051)', async () => {
     const principal = '11111111-1111-4111-8111-111111111111'
     const qualification = {
       grantId: '77777777-7777-4777-8777-777777777777',
@@ -245,10 +251,14 @@ describe('media bridge assignment loop', () => {
     await bridge.apply(assigned)
     await settle()
     assert.equal(roomEvents.length, 3, 'E1 joined again')
-    const kinds = evidence
-      .filter((w) => w.exchangeId === E1)
-      .toSorted((a, b) => a.seq - b.seq)
-      .map((w) => [w.seq, w.receipt.kind === 'provider' ? w.receipt.phase : w.receipt.kind])
+    const e1 = evidence.filter((w) => w.exchangeId === E1)
+    assert.equal(new Set(e1.map((w) => w.writeId)).size, e1.length, 'each receipt its own identity')
+    assert.equal(
+      e1.some((w) => 'seq' in w),
+      false,
+      'the bridge numbers nothing',
+    )
+    const kinds = e1.map((w, i) => [i + 1, w.receipt.kind === 'provider' ? w.receipt.phase : w.receipt.kind])
     assert.deepEqual(kinds, [
       [1, 'setup'],
       [2, 'closed'],
