@@ -253,11 +253,16 @@ describe('keepWithdrawnPurged: who wrote there and Sophia’s part, from a list 
   })
 })
 
+/** A proposal or a withdrawal held under `key`. */
+const held = (key: string) => ({ key, ask: 'Words from the message.', sending: false })
+/** The messages with a part kept: proposals held, refused, recorded; withdrawals held; homes. */
+const messageParts = (k: Kept | undefined) =>
+  [k?.proposals, k?.proposalRefusals, k?.proposed, k?.withdrawals, k?.homes].map((r) => Object.keys(r ?? {}).sort())
+
 describe('a withdrawal a thread read holds, whoever made it, retires what this view keeps for it (PR #199 r4237767988)', () => {
   const HERE = 'p ana'
   const OTHER_READER = 'p bea'
   const OTHER_PROJECT = 'q ana'
-  const held = (key: string) => ({ key, ask: 'Words from the message.', sending: false })
   const mark = { id: 'd1', statement: 'Words from the message.' }
   /** A proposal held, refused and recorded, and a withdrawal held, for m1 and m2 of conversation c; and c's draft. */
   const keepFor = (place: string) =>
@@ -270,8 +275,6 @@ describe('a withdrawal a thread read holds, whoever made it, retires what this v
       withdrawals: { m1: held('w1'), m2: held('w2') },
       homes: { m1: 'c', m2: 'c' },
     }))
-  const messageParts = (k: Kept | undefined) =>
-    [k?.proposals, k?.proposalRefusals, k?.proposed, k?.withdrawals, k?.homes].map((r) => Object.keys(r ?? {}).sort())
   /** c's thread: m3 on the newest page, m1 (withdrawn elsewhere, where `withdrawn`) and m2 on the older one. */
   const twoPages = (withdrawn: boolean) => ({
     pages: [

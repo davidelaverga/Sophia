@@ -132,16 +132,17 @@ describe('setListsData: what this view writes into a list read, and nothing of i
   })
 })
 
-describe('putStarted: a start writes its row and its first message, and nothing of the list read’s state (PR #199 r4237767985)', () => {
-  const started = (id: string) =>
-    ({
-      conversation: { id, title: 'Started' },
-      message: { id: `${id}1`, seq: 1, text: 'First.' },
-      reply: null,
-    }) as unknown as ConversationStarted
-  const ids = (client: QueryClient, key: readonly unknown[]) =>
-    client.getQueryData<ConversationList>(key)?.conversations.map((c) => c.id)
+/** A start's receipt for conversation `id`, its first message `${id}1`. */
+const started = (id: string) =>
+  ({
+    conversation: { id, title: 'Started' },
+    message: { id: `${id}1`, seq: 1, text: 'First.' },
+    reply: null,
+  }) as unknown as ConversationStarted
+const ids = (client: QueryClient, key: readonly unknown[]) =>
+  client.getQueryData<ConversationList>(key)?.conversations.map((c) => c.id)
 
+describe('putStarted: a start writes its row and its first message, and nothing of the list read’s state (PR #199 r4237767985)', () => {
   it('a failing list read takes the new row and stays failing: its error, when and how often, as they were', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const key = listKey('p', 'ana')
