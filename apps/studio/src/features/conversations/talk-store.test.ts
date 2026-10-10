@@ -9,6 +9,7 @@ import {
   keepsFor,
   keptAt,
   withErasure,
+  withStanding,
   withHome,
   withListed,
   withoutConversation,
@@ -71,22 +72,48 @@ describe('withoutConversation', () => {
 })
 
 describe('withErasure', () => {
-  it('holds an erasure on its way or with no reply, and lets it go once answered', () => {
+  it('holds an erasure on its way or with no reply, and lets it go once answered, in doubt from then', () => {
     const kept = keptWith({})
-    const sending = withErasure(kept, 'c1', { key: 'e1', ask: 'c1', sending: true })
+    const sending = withErasure(kept, 'c1', { key: 'e1', ask: 'c1', sending: true }, 1)
     assert.deepEqual(sending.erasures, { c1: { key: 'e1', ask: 'c1', sending: true } })
-    const unknown = withErasure(sending, 'c1', { key: 'e1', ask: 'c1', sending: false })
+    const unknown = withErasure(sending, 'c1', { key: 'e1', ask: 'c1', sending: false }, 2)
     assert.deepEqual(unknown.erasures, { c1: { key: 'e1', ask: 'c1', sending: false } })
-    assert.deepEqual(withErasure(unknown, 'c1', null).erasures, {})
+    assert.deepEqual(unknown.doubted, {})
+    const answered = withErasure(unknown, 'c1', null, 3)
+    assert.deepEqual(answered.erasures, {})
+    assert.deepEqual(answered.doubted, { c1: 3 })
   })
 
   it('never brings back a settled erasure: its old request failing, or answering late, changes nothing', () => {
     const settled = withoutConversation(keptWith({ erasures: { c1: { key: 'e1', ask: 'c1', sending: true } } }), 'c1')
-    assert.equal(withErasure(settled, 'c1', { key: 'e1', ask: 'c1', sending: false }), settled)
-    assert.equal(withErasure(settled, 'c1', null), settled)
+    assert.equal(withErasure(settled, 'c1', { key: 'e1', ask: 'c1', sending: false }, 1), settled)
+    assert.equal(withErasure(settled, 'c1', null, 2), settled)
     // Another conversation's erasure is its own.
-    const other = withErasure(settled, 'c2', { key: 'e2', ask: 'c2', sending: true })
+    const other = withErasure(settled, 'c2', { key: 'e2', ask: 'c2', sending: true }, 3)
     assert.deepEqual(other.erasures, { c2: { key: 'e2', ask: 'c2', sending: true } })
+  })
+})
+
+describe('withStanding: a conversation in doubt ends it only on a read set out since (PR #199 r4238311491)', () => {
+  const inDoubt = withErasure(keptWith({}), 'c1', null, 5)
+
+  it('a read set out after the doubt arose, finding it: it stands', () => {
+    assert.deepEqual(withStanding(inDoubt, ['c1'], 6).doubted, {})
+  })
+
+  it('a read set out before, or when, it arose, or one that doesn’t find it: still in doubt, as it was', () => {
+    assert.equal(withStanding(inDoubt, ['c1'], 4), inDoubt)
+    assert.equal(withStanding(inDoubt, ['c1'], 5), inDoubt)
+    assert.equal(withStanding(inDoubt, ['c2'], 6), inDoubt)
+  })
+
+  it('an erasure of it held again: not ended while it goes', () => {
+    const again = withErasure(inDoubt, 'c1', { key: 'e2', ask: 'c1', sending: true }, 6)
+    assert.equal(withStanding(again, ['c1'], 7), again)
+  })
+
+  it('erased: its doubt goes with it', () => {
+    assert.deepEqual(withoutConversation(inDoubt, 'c1').doubted, {})
   })
 })
 

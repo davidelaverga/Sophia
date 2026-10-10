@@ -53,11 +53,13 @@ export interface Kept {
   erased: Readonly<Record<string, true>>
   /**
    * The conversations whose erasure here was let go without being known erased (refused, whatever the refusal: it
-   * answers its own try only, never an earlier one that had no reply; PR #199 r4238256883, CX-0059, CX-0060): whether
-   * they stand is in doubt until a list read made since lists them (list-data `standing`), or they are known erased.
-   * Kept whether or not a start's receipt for one has come yet: one that comes is held back meanwhile.
+   * answers its own try only, never an earlier one that had no reply; PR #199 r4238256883, CX-0059, CX-0060), each
+   * with this view's order then (withdrawn-purge `orderNow`): whether they stand is in doubt until a read set out since
+   * finds them (a list read listing one, or its direct read answering: `withStanding`; PR #199 r4238311491), or they
+   * are known erased. Kept whether or not a start's receipt for one has come yet: one that comes is held back
+   * meanwhile.
    */
-  doubted: Readonly<Record<string, true>>
+  doubted: Readonly<Record<string, number>>
   /** A message's withdrawal on its way, or sent with no reply (its key), by message: sent again under the same key. */
   withdrawals: Readonly<Record<string, Held<string> | null>>
   /** The conversation of each message that has something kept here (a withdrawal or a proposal), by message. */
@@ -300,10 +302,14 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
 /** The conversations in doubt (`doubted`) with no erasure of them held here now: a list read made since says. */
 export const awaiting = (k: Kept): string[] => Object.keys(k.doubted).filter((id) => (k.erasures[id] ?? null) === null)
 
-/** What is kept once a list read made since lists these conversations: they stand, no longer in doubt. */
-export function withStanding(k: Kept, ids: readonly string[]): Kept {
-  const out = Object.fromEntries(ids.map((id) => [id, true as const]))
-  return ids.some((id) => k.doubted[id]) ? { ...k, doubted: without(k.doubted, out) } : k
+/**
+ * What is kept once a read set out at `readFrom` (this view's order) found these conversations (a list read listing
+ * them, or a direct read answering): those in doubt since before it, with no erasure of them held now, stand.
+ */
+export function withStanding(k: Kept, ids: readonly string[], readFrom: number): Kept {
+  const stood = new Set(awaiting(k).filter((id) => ids.includes(id) && (k.doubted[id] ?? readFrom) < readFrom))
+  if (stood.size === 0) return k
+  return { ...k, doubted: Object.fromEntries(Object.entries(k.doubted).filter(([id]) => !stood.has(id))) }
 }
 
 /** An entry that holds something (not left empty, not cleared). */
@@ -315,7 +321,7 @@ const held = (v: unknown) => v !== null && v !== undefined
  * start's receipt held back for it; or a message of it with a proposal held, refused or recorded, or a withdrawal held.
  */
 export function keepsFor(k: Kept, id: string): boolean {
-  if ((k.drafts[id] ?? '').trim() !== '' || k.doubted[id] || heldBackFor(k).includes(id)) return true
+  if ((k.drafts[id] ?? '').trim() !== '' || id in k.doubted || heldBackFor(k).includes(id)) return true
   if ([k.holds[id], k.refusals[id], k.asked[id], k.erasures[id]].some(held)) return true
   const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
   return messages.some((m) => [k.proposals[m], k.proposalRefusals[m], k.proposed[m], k.withdrawals[m]].some(held))
@@ -342,11 +348,12 @@ export function withWithdrawal(k: Kept, messageId: string, conversationId: strin
 
 /**
  * One conversation's erasure intent, changed (on its way, with no reply, or answered): unless it was settled already,
- * when a late answer to it changes nothing. Answered (let go), it is in doubt (`doubted`) until known erased (its reply
- * settles it next) or listed by a read made since (PR #199 r4238256883, CX-0059, CX-0060).
+ * when a late answer to it changes nothing. Answered (let go), it is in doubt (`doubted`, at `at`: this view's order
+ * now) until known erased (its reply settles it next) or found by a read set out since (PR #199 r4238256883, CX-0059,
+ * CX-0060, r4238311491).
  */
-export function withErasure(k: Kept, id: string, next: Held<string> | null): Kept {
+export function withErasure(k: Kept, id: string, next: Held<string> | null, at: number): Kept {
   if (k.erased[id]) return k
   if (next) return { ...k, erasures: withEntry(k.erasures, id, next) }
-  return { ...k, erasures: withoutEntry(k.erasures, id), doubted: withEntry(k.doubted, id, true) }
+  return { ...k, erasures: withoutEntry(k.erasures, id), doubted: withEntry(k.doubted, id, at) }
 }

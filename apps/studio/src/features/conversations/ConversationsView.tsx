@@ -39,11 +39,12 @@ import {
   withEntry,
   withErasure,
   withListed,
+  withStanding,
   withoutConversation,
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, putStarted, standing, startHeld } from './list-data.ts'
+import { landed, putStarted, releasable, startHeld } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -150,7 +151,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     choose(id)
     panes.show()
   })
-  useStanding(projectId, identity, talk, reader, start.stand)
+  useStanding(projectId, identity, talk, reader, start.land)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
   return (
@@ -516,7 +517,8 @@ function eraseOf(
     arm: erased.arm,
     onErased: erased.on,
     held: (id) => talk.kept.erasures[id] ?? null,
-    onHeld: (id, next) => talk.change((k) => withErasure(k, id, next)),
+    // Let go, in doubt from now in this view's order (talk-store `doubted`): a read set out later says.
+    onHeld: (id, next) => talk.change((k) => withErasure(k, id, next, orderNow())),
   }
 }
 
@@ -570,7 +572,7 @@ function useErased(
     toList()
     setDue(true)
   }, [all, due, toList])
-  useSeen(talk, read, settle, useProbes(identity, settle, talk.latest))
+  useSeen(talk, read, settle, useProbes(identity, settle, talk))
   useEffect(() => {
     const at = landing.current
     if (!due || !at || screen !== 'list' || context) return
@@ -629,18 +631,30 @@ function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: st
  * The conversations left out of a list of the newest only that something is kept for here, read directly (probes.ts):
  * the API's not found settles one; nothing else does. Every read stops with the view.
  */
-function useProbes(identity: Identity, settle: (id: string) => void, latest: () => Kept): Probes {
+function useProbes(
+  identity: Identity,
+  settle: (id: string) => void,
+  talk: { latest: () => Kept; change: (f: (k: Kept) => Kept) => void },
+): Probes {
   const queryClient = useQueryClient()
   const account = accountOf(identity)
+  const { latest, change } = talk
   const probes = useMemo(
     () =>
       new Probes({
-        read: (id, signal) => getConversationMessages(identity.token, id, null, signal),
+        // Answering, it says where in this view's order it set out: a doubt from before it ends (withStanding).
+        read: (id, signal) => {
+          const from = orderNow()
+          return getConversationMessages(identity.token, id, null, signal).then(() => from)
+        },
         keeps: (id) => keepsFor(latest(), id) || queryClient.getQueryData(messagesKey(id, account)) !== undefined,
         settle,
+        found: (id, from) => {
+          if (typeof from === 'number') change((k) => withStanding(k, [id], from))
+        },
         notFound: (err) => err instanceof ApiError && err.code === 'not_found',
       }),
-    [identity.token, settle, latest, queryClient, account],
+    [identity.token, settle, latest, change, queryClient, account],
   )
   // Opened with the view, closed as it goes: a remount (StrictMode's setup, cleanup, setup) leaves it open.
   useEffect(() => {
@@ -687,7 +701,6 @@ function useStart(
   talk: ReturnType<typeof useTalk>,
   open: (id: string) => void,
 ) {
-  const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
   // Whether the person is on the form now, for a start that lands later (set after each commit, not while rendering).
   const onForm = useRef(false)
@@ -703,15 +716,14 @@ function useStart(
     onForm.current = shown
     setStarting(shown)
   }
-  // Landed (or held back while an erasure of it here is unanswered or in doubt, to land once a list read since lists
-  // it: `stand`, with the form's `words` as they stood then).
-  const started = (receipt: ConversationStarted, words?: ConversationAsk) => {
-    const put = () => putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
-    if (!landed(talk, receipt, put, words) || !onForm.current) return
-    open(receipt.conversation.id)
-    setArrived(receipt.conversation.id)
+  // A start that landed opens only for one still on the form: one who moved on meanwhile is never pulled into it.
+  const arrive = (id: string) => {
+    if (!onForm.current) return
+    open(id)
+    setArrived(id)
     setForm(false)
   }
+  const { started, land } = useLanding(projectId, identity, feedAt, talk, arrive)
   const cancel = () => {
     back.current = true
     setForm(false)
@@ -723,7 +735,7 @@ function useStart(
     onHeld: (held: Held<ConversationAsk> | null) => change((k) => ({ ...k, start: { ...k.start, held } })),
     refused: kept.start.heldBack ? HELD_BACK : (kept.refusals[START] ?? null),
     onRefused: (words: string | null) => change((k) => ({ ...k, refusals: withEntry(k.refusals, START, words) })),
-    onStarted: (receipt: ConversationStarted) => started(receipt),
+    onStarted: started,
     onCancel: cancel,
   }
   return {
@@ -734,31 +746,73 @@ function useStart(
     toggle: () => (starting ? cancel() : setForm(true)),
     close: () => setForm(false),
     form,
-    stand: (read: Parameters<typeof standing>[1], since: number | null) => standing(talk, read, since, started),
+    land,
   }
 }
 
 /**
- * The conversations in doubt here (an erasure let go without being known erased; list-data `standing`): a list read is
- * asked for now, and those that one set out since lists stand (a start's receipt held back for one lands); a whole one
- * without one lets it go (useSeen). Asked again as the doubt changes, and each time the view comes back while it lasts.
+ * A start's receipt landing: as it comes (`started`: listed, and its first message written where putStarted's gates
+ * let it, unless list-data `landed` holds it back), or once held back and now free (`land`, list-data `releasable`):
+ * writing nothing of itself, so the reads say what the conversation holds, and opened only where the list holds it.
+ * Either is opened (`arrive`) only for one still on the form.
+ */
+function useLanding(
+  projectId: string,
+  identity: Identity,
+  feedAt: { readonly current: string | undefined },
+  talk: ReturnType<typeof useTalk>,
+  arrive: (id: string) => void,
+) {
+  const queryClient = useQueryClient()
+  const account = accountOf(identity)
+  return {
+    started: (receipt: ConversationStarted) => {
+      const put = () => putStarted(queryClient, projectId, account, receipt, feedAt.current)
+      if (landed(talk, receipt, put)) arrive(receipt.conversation.id)
+    },
+    land: (receipt: ConversationStarted, words: ConversationAsk, listed: boolean) => {
+      const put = () => void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
+      if (landed(talk, receipt, put, words) && listed) arrive(receipt.conversation.id)
+    },
+  }
+}
+
+/**
+ * The conversations in doubt here (talk-store `doubted`: an erasure let go without being known erased): a list read is
+ * asked for, and each that a read set out since lists stands (`withStanding`; a direct read answering does the same:
+ * useProbes). A whole list without one lets it go (useSeen). A start's receipt held back for one lands once it is free
+ * (list-data `releasable`). Asked again as the doubt changes, and each time the view comes back while it lasts.
  */
 function useStanding(
   projectId: string,
   identity: Identity,
   talk: ReturnType<typeof useTalk>,
   read: { all: readonly ConversationSummary[]; readFrom: number },
-  stand: ReturnType<typeof useStart>['stand'],
+  land: ReturnType<typeof useStart>['land'],
 ) {
   const queryClient = useQueryClient()
-  const doubt = awaiting(talk.kept).join(' ')
-  const since = useRef<number | null>(null)
+  const { kept, change, latest } = talk
+  const doubt = awaiting(kept).join(' ')
   useEffect(() => {
-    since.current = doubt ? orderNow() : null
     if (doubt) void queryClient.invalidateQueries({ queryKey: listKey(projectId, accountOf(identity)) })
   }, [doubt, queryClient, projectId, identity])
   const { all, readFrom } = read
-  useEffect(() => stand({ listed: all.map((c) => c.id), readFrom }, since.current), [all, readFrom, stand])
+  useEffect(() => {
+    if (!doubt) return
+    const listed = all.map((c) => c.id)
+    change((k) => withStanding(k, listed, readFrom))
+  }, [doubt, all, readFrom, change])
+  // Read as it is now, not as this render saw it: it lands once, whatever runs the effect again (StrictMode included).
+  const free = releasable(kept) !== null
+  useEffect(() => {
+    const back = free ? releasable(latest()) : null
+    if (!back) return
+    land(
+      back.receipt,
+      back.fields,
+      all.some((c) => c.id === back.receipt.conversation.id),
+    )
+  }, [free, all, land, latest])
 }
 
 /** What the form says while its start's receipt is held back for an erasure of that conversation pressed here. */

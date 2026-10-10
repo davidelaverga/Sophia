@@ -7,7 +7,7 @@ import type { ConversationAsk, ConversationList, ConversationStarted } from '../
 import { listKey, messagesKey } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
-import { NO_WORDS, awaiting, withEntry, withStanding, type Kept } from './talk-store.ts'
+import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
 export function setListsData(
@@ -91,14 +91,15 @@ interface Talk {
  * Nor while an erasure of it pressed here is on its way, has had no reply, or was let go in doubt (talk-store
  * `doubted`, whenever that was): it may have erased already. The receipt is held back with the start (`heldBack`), with
  * none of that done, and the form starts nothing new meanwhile (startHeld): erased, it goes (talk-store `retired`);
- * listed by a read made since, it lands (`standing`; PR #199 r4238177970, r4238256883, CX-0060). Held back where this
- * view keeps things for this project and account: forgotten with the account, kept while the view is away.
+ * found by a read set out since, it lands (`releasable`; PR #199 r4238177970, r4238256883, CX-0060, r4238311491). Held
+ * back where this view keeps things for this project and account: forgotten with the account, kept while the view is
+ * away.
  */
 export function landed(talk: Talk, receipt: ConversationStarted, put: () => void, words?: ConversationAsk): boolean {
   const { conversation, reply } = receipt
   const k = talk.latest()
   if (k.erased[conversation.id]) return false
-  if ((k.erasures[conversation.id] ?? null) !== null || k.doubted[conversation.id]) {
+  if ((k.erasures[conversation.id] ?? null) !== null || conversation.id in k.doubted) {
     talk.change((was) => ({ ...was, start: { ...was.start, heldBack: { receipt, fields: was.start.fields } } }))
     return false
   }
@@ -127,26 +128,15 @@ export function startHeld(start: Kept['start']): Held<ConversationAsk> | null {
 }
 
 /**
- * The conversations in doubt here (talk-store `doubted`: an erasure let go without being known erased, whose refusal
- * proves nothing of an earlier try that had no reply; PR #199 r4238256883, CX-0059, CX-0060) that a list read set out
- * since (`read.readFrom` past `since`, this view's order when it asked: a read cached or under way before says
- * nothing) lists: they stand, no longer in doubt, and a start's receipt held back for one lands, once (`land`, as if it
- * had just come, with the form's words as they stood when it was held back; putStarted's gates as ever). Nothing is
- * sent. One not listed stays in doubt: a whole list without it lets it go (useSeen settles it, goneFrom naming it), and
- * one of the newest only has it read directly (probes, keepsFor): its not found lets it go, any other answer keeps the
- * doubt.
+ * A start's receipt held back (talk-store `heldBack`) that may land now: its conversation neither erased, nor with an
+ * erasure held here, nor in doubt (a read set out since found it standing: talk-store `withStanding`). It lands once,
+ * as if it had just come, with the form's words as they stood when it was held back, and writes nothing of the receipt
+ * itself (no row, no first message): what the conversation holds now is the reads' to say, so a row's existence never
+ * brings back words withdrawn since (CX-0059; PR #199 r4238311491). Nothing is sent.
  */
-export function standing(
-  talk: Talk,
-  read: { listed: readonly string[]; readFrom: number },
-  since: number | null,
-  land: (receipt: ConversationStarted, words: ConversationAsk) => void,
-): void {
-  if (since === null || read.readFrom <= since) return
-  const k = talk.latest()
-  const stood = awaiting(k).filter((id) => read.listed.includes(id))
-  if (stood.length === 0) return
-  talk.change((was) => withStanding(was, stood))
+export function releasable(k: Kept): Kept['start']['heldBack'] {
   const back = k.start.heldBack
-  if (back && stood.includes(back.receipt.conversation.id)) land(back.receipt, back.fields)
+  if (!back) return null
+  const id = back.receipt.conversation.id
+  return k.erased[id] || (k.erasures[id] ?? null) !== null || id in k.doubted ? null : back
 }

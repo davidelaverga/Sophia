@@ -20,6 +20,7 @@ interface Held {
 function workWith(answer: (id: string) => Promise<unknown>, keeps: (id: string) => boolean = () => true) {
   const reads: string[] = []
   const settled: string[] = []
+  const found: string[] = []
   const work: ProbeWork = {
     read: (id) => {
       reads.push(id)
@@ -27,9 +28,10 @@ function workWith(answer: (id: string) => Promise<unknown>, keeps: (id: string) 
     },
     keeps,
     settle: (id) => settled.push(id),
+    found: (id) => found.push(id),
     notFound: (err) => err === NOT_FOUND,
   }
-  return { work, reads, settled }
+  return { work, reads, settled, found }
 }
 
 describe('Probes: reading directly a conversation left out of the newest (PR #199 r4235629899, Codex)', () => {
@@ -140,6 +142,27 @@ describe('Probes: reading directly a conversation left out of the newest (PR #19
     mock.timers.tick(PROBE.longest * 2)
     await heard()
     assert.deepEqual(reads, ['c1', 'c2', 'c3'])
+    assert.deepEqual(probes.load, { flying: 0, watched: 0 })
+  })
+
+  it('a read that answers is reported (found); once nothing is kept for it, it is read no more (PR #199 r4238311491)', async () => {
+    let doubted = true
+    const { work, reads, found, settled } = workWith(
+      () => Promise.resolve({ messages: [] }),
+      () => doubted,
+    )
+    const probes = new Probes(work)
+    probes.start('b')
+    await heard()
+    assert.deepEqual(found, ['b'])
+    // The view ends its doubt with that answer: nothing kept for it now.
+    doubted = false
+    mock.timers.tick(PROBE.first)
+    await heard()
+    mock.timers.tick(PROBE.longest)
+    await heard()
+    assert.deepEqual(reads, ['b'])
+    assert.deepEqual(settled, [])
     assert.deepEqual(probes.load, { flying: 0, watched: 0 })
   })
 })

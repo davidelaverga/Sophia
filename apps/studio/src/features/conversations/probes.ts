@@ -1,8 +1,10 @@
 // Reading directly a conversation left out of a list of the newest only (PR #199 r4235397313, r4235629899; Codex's
 // countercases on d13029c): a project past the newest 200 may never be listed whole, so a conversation something is
 // kept for here, once out of the list, is read on its own. The API refuses an erased one as not found (422 `not_found`;
-// 0048 hides it), and that alone settles it. A read that answers, fails otherwise (unavailable, no connection) or runs
-// past its deadline proves nothing: what is kept stays (a draft, an erasure's key), and it is read again later.
+// 0048 hides it), and that alone settles it. A read that answers says it stands, which only a conversation in doubt
+// asks (`found`: an erasure let go without being known erased; PR #199 r4238311491). One that fails otherwise
+// (unavailable, no connection) or runs past its deadline proves nothing: what is kept stays (a draft, an erasure's
+// key), and it is read again later.
 
 /** What a conversation's direct read needs: the read itself, what it is for, and what a not found does. */
 export interface ProbeWork {
@@ -12,6 +14,8 @@ export interface ProbeWork {
   keeps: (id: string) => boolean
   /** Not found: erased (or gone from this reader): let go of what is kept for it. */
   settle: (id: string) => void
+  /** Answered: it stands as this read found it (its answer, as `read` resolved). */
+  found: (id: string, answer: unknown) => void
   /** Whether a read's failure is the API's not found. */
   notFound: (err: unknown) => boolean
 }
@@ -122,7 +126,12 @@ export class Probes {
     )
     this.on.set(id, { abort, end: () => end(() => undefined) })
     this.work.read(id, abort.signal).then(
-      () => end(() => current() && this.later(id, wait)),
+      (answer) =>
+        end(() => {
+          if (!current()) return
+          this.work.found(id, answer)
+          this.later(id, wait)
+        }),
       (err: unknown) =>
         end(() => {
           if (!current()) return
