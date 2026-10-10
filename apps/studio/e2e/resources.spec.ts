@@ -559,12 +559,12 @@ test('live · while the resources are read, placeholders hold their places', asy
   await page.goto(`${PAGE}?loading=1`)
   const busy = page.locator('.resource-placeholders')
   await expect(busy).toHaveAttribute('aria-busy', 'true')
-  await expect(busy.locator('.resource-placeholder')).toHaveCount(6)
+  await expect(busy.locator('.skeleton-shape')).toHaveCount(6)
   await expect(page.getByRole('status').filter({ hasText: 'Reading the resources…' })).toBeAttached()
   await expect(page.locator('.view-head .count')).toHaveText('–')
   await expect(page.getByRole('list', { name: 'Resources' })).toHaveCount(0)
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect(busy.locator('.resource-placeholder > span').first()).toHaveCSS('animation-name', 'none')
+  await expect(busy.locator('.skeleton-shape > span').first()).toHaveCSS('animation-name', 'none')
 })
 
 test('each session’s model shows as people say it, in its family’s colour; none is guessed', async ({ page }) => {

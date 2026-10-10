@@ -1711,39 +1711,6 @@
 }
 
 /* While the resources are read: tiles' shapes, with a light passing over them. */
-.resource-placeholder {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  min-height: 150px;
-  padding: 16px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-4);
-  background: var(--plane-2);
-}
-.resource-placeholder > span {
-  height: 10px;
-  border-radius: var(--r-1);
-  background: linear-gradient(90deg, var(--line) 30%, var(--line-2) 50%, var(--line) 70%) 0 0 / 300% 100%;
-  animation: placeholder-light 1.6s linear infinite;
-  animation-delay: calc(var(--i, 0) * 80ms);
-}
-.resource-placeholder > span:first-child {
-  width: 55%;
-  height: 14px;
-}
-.resource-placeholder > span:last-child {
-  width: 70%;
-  margin-top: 28px;
-}
-@keyframes placeholder-light {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0 0;
-  }
-}
 
 /* The last pass. The sheet's head takes a faint light in its tool's colour, as the app's pages take hers from above;
    its mark arrives with a small pop; a meter in the red glows softly; a tile's mark lifts under the pointer. */
@@ -1917,7 +1884,6 @@
   .attention-label,
   .resource-sheet > *,
   .resource-sheet .sheet-body > *,
-  .resource-placeholder > span,
   .effort[data-look][data-alive] .effort-fill,
   .effort[data-look][data-alive] .effort-fill::after,
   .effort[data-look][data-alive] .effort-track::after,
