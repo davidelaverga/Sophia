@@ -1,0 +1,12 @@
+{
+  "candidate": "af4942df7aa81c16fb5f09a1b8e091041f2b672a",
+  "scope": "L0 actual QueryClient/InfiniteQueryObserver and production putStarted; synthetic404, lagging page cursor; not actual API/UI proof",
+  "passed": 3,
+  "failed": 0,
+  "passedCases": [
+    "404 from already-completed mounted thread read is not overwritten by late Start despite lagging feed",
+    "No thread read yet and current receipt keeps eligible first body",
+    "Existing successful authoritative read is preserved"
+  ],
+  "failedCases": []
+}

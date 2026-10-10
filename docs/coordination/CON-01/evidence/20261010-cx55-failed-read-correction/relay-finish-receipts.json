@@ -1,0 +1,24 @@
+[
+  {
+    "at": "2026-10-10T15:11:26.186Z",
+    "kind": "start",
+    "path": "/api/v1/projects/6fae027a-eb86-4bda-b08f-b2b4c8af99fa/conversations",
+    "idempotencyKey": "f6000cc6-eaf7-488a-9435-b2082f89e70b",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T15:14:19.180Z",
+    "kind": "start",
+    "path": "/api/v1/projects/6fae027a-eb86-4bda-b08f-b2b4c8af99fa/conversations",
+    "idempotencyKey": "3f0922da-80e8-4ce6-be7c-9f8998c3287b",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]

@@ -1,0 +1,22 @@
+[
+  {
+    "at": "2026-10-10T15:10:26.183Z",
+    "kind": "start",
+    "path": "/api/v1/projects/6fae027a-eb86-4bda-b08f-b2b4c8af99fa/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T15:13:19.176Z",
+    "kind": "start",
+    "path": "/api/v1/projects/6fae027a-eb86-4bda-b08f-b2b4c8af99fa/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]

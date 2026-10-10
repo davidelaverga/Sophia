@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0054
+# Current checkpoint — CX-0055
+
+[Exactaf failed-read correction scoped-qualified](../coordination/CON-01/CX-0055.md): full2-filedelta/196focused54suites/typecheck0/independentfailedread3PASS. ActualStart202held60s/opennewrow/GET503; provenfeedcutbeforeadminERASE; actualnot_found422beforelate receipt→no erasedbody/controlsPASS, restorefeedremoveserasedconversation. Actual404notclaimed (domainmapsnot_found422); synthetic404L0PASS. Eligible delayedStartconfirmedwords+honeststale warningPASS/realretryrecovery. ThreepriorP1threadsscopedresolvedtooltrue/replies4238105019,4238105121,4238105184. Freshexactafrequest6098981344pending; authorafscopedterminal6098904529fullyread/all0/noaggregatewaiver.
+
+Audit5human/1NULL/6requests/supportgoal1/allmodeloperational0. All49 ownedbrowserstacks clean/14362terminal0/PGstoppedclusterremoved/DBdropped/APIStudio/ports60309–11closed/PIDsabsent/tab71closed. EarlierdedicatedPGbatchesclean/no hosted/provider/spend/uncertaineffect/remoteempty/dummy disclosed. S1held; S2originalfindingCX54/97eb1c6d, new0dc3be79/treefd2825b7 reviewcorrectionpublished/CC59fullyread/sourcePGrecheckpending.
+
+All36verdictspreserved/combined reviewed-authorized-deployed-app_verified-owner_acceptedfalse. OP1r2/OP2r2draftunapproved/approvalexpiryNULL/inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/sharedwindow/census/artifacts/rollbackunbound. Historicalhostedtupleunrefreshed/latestSDD19049d9cc74/main444inventoryCX54/windowrenewalunack. Nextboundedaction freshafreview+immutableS2correctionrealPG; Davideacceptsproduct/othermissionsopen/no monitor.
+
+# Historical checkpoint — CX-0054
 
 [Independent S2 review](../coordination/CON-01/CX-0054.md): PR211/f010577a/tree56052aa7/base617, full4-file1210-line delta read. RealPG17.6 18tests/6suites17PASS1FAIL/0skip: author14pass, independent historicalapprovalA→B→A FAIL permits anotherzero-spentlineage; changes_requestedPR2116098906907/mission6098907185/directClaude. Other controlsactualworkerdenial/no-proofcounterpreservationPASS; uncertainordinal2reservationobserved, futuredispatchreconcilefencerequired/no callerqualification.44352terminal0/subprocess1accurate/PGstoppedclusterremoved.
 
