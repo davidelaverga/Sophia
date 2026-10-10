@@ -5764,3 +5764,175 @@ describe('room session: provider output that stops the session is recorded as th
     await session.close()
   })
 })
+
+/** Two project_status calls whose names and arguments come to `chars` characters in all (14 + 10 + pad each). */
+const twoCalls = (chars: number) => {
+  const pad = 'x'.repeat((chars - 2 * 24) / 2)
+  return [
+    { id: 'call-r1', name: 'project_status', args: { pad } },
+    { id: 'call-r2', name: 'project_status', args: { pad } },
+  ]
+}
+
+describe('room session: root’s reproductions, in their shapes, on the real RoomSession path (comment 4235772067)', () => {
+  /**
+   * The principal's turn under a per-turn cap of 64, one 1,600-sample chunk of their input admitted (its generation
+   * reserved and granted), then `out` from the provider.
+   */
+  async function admittedThen(out: (live: FakeLive) => void) {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(s.live.audio, 1, 'the one chunk, admitted')
+    out(s.live)
+    await flush()
+    return s
+  }
+
+  /** Once the session's close is recorded: its stops, the input turn's receipt and the reply's. */
+  async function closed() {
+    await until('the close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    const of = (kind: string) => fields(service.evidence.find((w) => w.receipt.kind === kind))
+    return {
+      stops: logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      turn: pick(of('input_turn'), 'modelResponded', 'toolCallCount'),
+      reply: pick(of('output_reply'), 'samplesReceived', 'framesPlayed'),
+    }
+  }
+
+  const spent = () => service.reservations.filter((r) => r.kind === 'spend' || r.kind === 'stop').map((r) => r.kind)
+
+  it('(1) the first text chunk, 300 characters: recorded as a response, the stop, nothing more charged', async () => {
+    const { session, room } = await admittedThen((live) => live.events.outputTranscript('x'.repeat(300), false))
+    const r = await closed()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0 })
+    await until('the stop asked', () => spent().includes('stop'))
+    assert.deepEqual(spent(), ['stop'], 'within its reserve: no spend')
+    await session.close()
+  })
+
+  it('(2) the first audio chunk, 72,000 samples: recorded as received, never played; the stop, nothing more charged', async () => {
+    const { session, room } = await admittedThen((live) => live.events.audio(speech(150), OUT))
+    const r = await closed()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0, 'playback of it refused')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0 })
+    assert.deepEqual(r.reply, { samplesReceived: 72_000, framesPlayed: 0 })
+    await until('the stop asked', () => spent().includes('stop'))
+    assert.deepEqual(spent(), ['stop'])
+    await session.close()
+  })
+
+  it('(3) the first function payload, 2 calls of 300 characters: no handler runs, nothing is answered, and toolCallCount is 2', async () => {
+    const { session, live } = await admittedThen((l) => l.events.toolCalls(twoCalls(300)))
+    const r = await closed()
+    assert.deepEqual(r.stops, ['output'])
+    assert.deepEqual(service.calls, [], 'no handler ran')
+    assert.deepEqual(live.responses, [], 'nothing answered')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 2 })
+    await until('the stop asked', () => spent().includes('stop'))
+    assert.deepEqual(spent(), ['stop'])
+    await session.close()
+  })
+
+  it('(5) a first audio chunk within the cap, 24,000 samples (control): played, and recorded as before', async () => {
+    const { session, room, live } = await admittedThen((l) => l.events.audio(speech(50), OUT))
+    await until('played', () => room.played.length === 50)
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const r = await closed()
+    assert.deepEqual(r.stops, [])
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0 })
+    assert.deepEqual(r.reply, { samplesReceived: 24_000, framesPlayed: 50 })
+    assert.deepEqual(spent(), [])
+  })
+
+  it('(6) a first function payload within the cap, 2 calls of 150 characters (control): both handlers run and are answered, toolCallCount 2', async () => {
+    const { session, live } = await admittedThen((l) => l.events.toolCalls(twoCalls(150)))
+    await until('both answered', () => live.responses.length === 2)
+    assert.deepEqual(
+      service.calls.map((c) => c.callId),
+      ['call-r1', 'call-r2'],
+      'both handlers ran',
+    )
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const r = await closed()
+    assert.deepEqual(r.stops, [])
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 2 })
+  })
+})
+
+describe('room session: root’s reproduction of the words that stop the session, settled on the real RoomSession path (comment 4235772147)', () => {
+  /**
+   * A budget of 31,000 and a cap of 64: one 1,600-sample chunk of the principal's input admitted, then a final
+   * transcription of 18,000 characters (6,000 tokens): 1 from their credit, 3,995.8 from the allowance, 2,004 spent.
+   */
+  async function heardPast(hold = false) {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64, maxUsageTokens: 31_000 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(s.live.audio, 1)
+    service.holdReservations = hold // when held, what is asked from now on waits for the test
+    s.live.events.inputTranscript('x'.repeat(18_000), true)
+    await flush()
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      ['usage'],
+    )
+    return s
+  }
+  const asked = () => service.reservations.map((r) => [r.kind, r.charge ?? null])
+  const OWED = [
+    ['connection', null],
+    ['generation', 29_128],
+    ['spend', 2004],
+    ['stop', null],
+  ]
+
+  it('(7) taken: the receipt counts the 18,000 characters, the 2,004 is spent before the stop, and the ledger handed over holds nothing unsettled', async () => {
+    const { session } = await heardPast()
+    await until('the stop asked', () => asked().length === 4)
+    assert.deepEqual(asked(), OWED)
+    await session.close()
+    const turn = fields(service.evidence.find((w) => w.receipt.kind === 'input_turn'))
+    assert.deepEqual(pick(turn, 'transcriptChars', 'finished', 'inputTranscriptionObserved'), {
+      transcriptChars: 18_000,
+      finished: true,
+      inputTranscriptionObserved: true,
+    })
+    const ledger = session.handover().ledger
+    assert.deepEqual([ledger?.unanswered, ledger?.lost], [0, false])
+  })
+
+  it('(7) refused: the spend is asked, refused, and the ledger handed over says lost; the session stays stopped', async () => {
+    service.refuse = 'usage'
+    service.refuseKind = 'spend'
+    const { session, room, live } = await heardPast()
+    await until('the stop asked', () => asked().length === 4)
+    assert.deepEqual(asked(), OWED, 'asked, never dropped')
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(live.audio, 1, 'nothing more sent')
+    await session.close()
+    const ledger = session.handover().ledger
+    assert.deepEqual([ledger?.unanswered, ledger?.lost], [0, true])
+  })
+
+  it('(7) never answered within the close’s bound: the ledger handed over carries it, and the stop behind it, unanswered', async () => {
+    reserveTimeoutMs = 50
+    const { session } = await heardPast(true)
+    await until('the spend asked', () => service.waitingKinds().includes('spend'))
+    await session.close()
+    const ledger = session.handover().ledger
+    assert.deepEqual([ledger?.unanswered, ledger?.lost], [2, false], 'the spend, and the stop not sent behind it')
+    service.holdReservations = false
+    service.answerReservations()
+  })
+})

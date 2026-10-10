@@ -646,19 +646,26 @@ describe('the stop is owed in the ledger handed over until it is answered (Codex
   })
 })
 
-/** The input turn's receipt, once the session closed and its receipts went: what it says of the holder's words. */
-async function turnOf(b: ReturnType<typeof bound>) {
-  b.q.closed('guard')
-  await b.q.flush(1000)
-  const turn = b.records.find((w) => w.receipt.kind === 'input_turn')?.receipt
+/** The input turn's receipt, once the session closed (`why`) and its receipts went. */
+async function inputTurnOf(q: SessionQualification, records: MediaEvidenceWrite[], why: 'guard' | 'ended' = 'guard') {
+  q.closed(why)
+  await q.flush(1000)
+  const turn = records.find((w) => w.receipt.kind === 'input_turn')?.receipt
   assert.ok(turn?.kind === 'input_turn')
+  return turn
+}
+
+/** What the input turn's receipt says of the holder's words. */
+async function turnOf(b: ReturnType<typeof bound>) {
+  const turn = await inputTurnOf(b.q, b.records)
   return { observed: turn.inputTranscriptionObserved, chars: turn.transcriptChars, finished: turn.finished }
 }
 
+/** The principal holds the floor under the grant: what the session records is theirs. */
+const theirs = { inputActorId: LUIS, qualification: GRANT } as MediaAssignment
+
 describe('words heard past the budget are recorded and charged before the stop (Codex r4235620508)', () => {
   const chunk = new Int16Array(1600).fill(2000)
-  /** The principal holds the floor under the grant: what the session records is theirs. */
-  const theirs = { inputActorId: LUIS, qualification: GRANT } as MediaAssignment
 
   /**
    * Root's sequence: a per-turn cap of 64 and a budget of `maxUsageTokens`; the principal's input asks for its
@@ -822,5 +829,177 @@ describe('words heard past the budget are recorded and charged before the stop (
       ['generation', 'stop'],
     )
     assert.deepEqual(await turnOf(b), { observed: true, chars: 3000, finished: false })
+  })
+})
+
+/**
+ * Root's reproductions on PR #190 (comments 4235772067 and 4235772147), in their shapes: the real SessionQualification
+ * (its QualificationReserve, QualificationRecorder, QualificationLedger and EvidenceSender) against LABELLED in-memory API
+ * acknowledgements, which keep every request in order and answer it at once; a spend is taken, refused (usage), or never
+ * answered, as `spend` says. A per-turn cap of 64; the principal holds the floor, and one 1,600-sample chunk of their
+ * input is admitted: its generation reserved at 25,000 + 2 × 64 + 4,000 = 29,128 and granted, the chunk sent from the
+ * allowance (4.2: 3,995.8 left, 1 of it its transcription's credit).
+ */
+async function admitted(over: Partial<VoiceQualification> = {}, spend: 'taken' | 'refused' | 'unanswered' = 'taken') {
+  const requests: Array<[MediaQualificationReserve['kind'], number | null]> = []
+  const records: MediaEvidenceWrite[] = []
+  let seq = 0
+  const q = new SessionQualification({
+    exchangeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    grant: { ...GRANT, maxOutputTokensPerTurn: 64, ...over },
+    model: 'fake-model',
+    instructionSha256: 'ef'.repeat(32),
+    bridgeCommit: null,
+    record: (write) => {
+      records.push(write)
+      return Promise.resolve({ ended: false, reason: null })
+    },
+    nextSeq: () => (seq += 1),
+    retryMs: [],
+    now: Date.now,
+    attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),
+    ended: () => undefined,
+    stop: () => undefined,
+    reserve: async (r, signal) => {
+      requests.push([r.kind, r.charge ?? null])
+      await Promise.resolve()
+      if (r.kind === 'spend' && spend === 'refused') return { ok: false, ordinal: null, stop: 'usage', ended: true }
+      if (r.kind === 'spend' && spend === 'unanswered')
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(new Error('no answer within the attempt')))
+        })
+      return { ok: true, ordinal: r.kind === 'connection' ? 1 : (r.ordinal ?? null), stop: null, ended: false }
+    },
+    reserveRetryMs: [],
+    reserveTimeoutMs: 200,
+    log: () => undefined,
+  })
+  q.floor(theirs)
+  const chunk = new Int16Array(1600).fill(2000)
+  assert.equal(await q.connecting(1, false), null)
+  assert.equal(q.input(1, LUIS, chunk, 0, 1), 'hold', 'its generation is reserved first')
+  assert.equal(await q.granted(1), null)
+  assert.equal(q.input(1, LUIS, chunk, 0, 1), null, 'the one chunk, admitted')
+  return { q, requests, records }
+}
+
+describe('root’s reproductions, in their shapes: the output that stops the session is recorded (comment 4235772067)', () => {
+  const ASKED: Array<[string, number | null]> = [
+    ['connection', null],
+    ['generation', 29_128],
+  ]
+
+  for (const shape of [
+    {
+      name: '(1) the first text chunk, 300 characters (100 tokens)',
+      act: (q: SessionQualification) => Promise.resolve(q.output(1, { chars: 300 })),
+      calls: 0,
+    },
+    {
+      name: '(2) the first audio chunk, 72,000 samples (3 s, 96 tokens)',
+      act: (q: SessionQualification) => Promise.resolve(q.output(1, { samples: 72_000 })),
+      calls: 0,
+    },
+    {
+      name: '(3) the first function payload, 2 calls of 300 characters (100 tokens)',
+      act: (q: SessionQualification) => q.called(1, 2, 300),
+      calls: 2,
+    },
+  ]) {
+    it(`${shape.name}, past the cap of 64: the stop returned, and the model recorded as having responded`, async () => {
+      const { q, requests, records } = await admitted()
+      assert.equal(await shape.act(q), 'output', 'the stop, as before')
+      await q.stopped()
+      // Within its generation's reserve of 128 (2 × 64): nothing past it, so no debt; the generation is charged once,
+      // as it was asked (29,128).
+      assert.deepEqual(requests, [...ASKED, ['stop', null]], 'charged once, and stopped')
+      const turn = await inputTurnOf(q, records)
+      assert.deepEqual([turn.modelResponded, turn.toolCallCount], [true, shape.calls])
+    })
+  }
+
+  for (const shape of [
+    {
+      name: '(4) a first text chunk within the cap, 150 characters (50 tokens)',
+      act: (q: SessionQualification) => Promise.resolve(q.output(1, { chars: 150 })),
+      calls: 0,
+    },
+    {
+      name: '(5) a first audio chunk within the cap, 24,000 samples (1 s, 32 tokens)',
+      act: (q: SessionQualification) => Promise.resolve(q.output(1, { samples: 24_000 })),
+      calls: 0,
+    },
+    {
+      name: '(6) a first function payload within the cap, 2 calls of 150 characters (50 tokens)',
+      act: (q: SessionQualification) => q.called(1, 2, 150),
+      calls: 2,
+    },
+  ]) {
+    it(`${shape.name} (control): no stop, and recorded as before`, async () => {
+      const { q, requests, records } = await admitted()
+      assert.equal(await shape.act(q), null)
+      assert.deepEqual(requests, ASKED, 'nothing more asked: the allowance covers it')
+      const turn = await inputTurnOf(q, records, 'ended')
+      assert.deepEqual([turn.modelResponded, turn.toolCallCount], [true, shape.calls])
+    })
+  }
+})
+
+describe('root’s reproduction, in its shape: the words that stop the session are recorded and owed (comment 4235772147)', () => {
+  /**
+   * A budget of 31,000: the bound counts 25,128 + 3.2; 18,000 characters (6,000 tokens) put it at 31,131.2, past it. 1
+   * comes from their audio's credit and 3,995.8 from the allowance: 2,003.2 short, so 2,004 is spent on the API.
+   */
+  const OWED: Array<[string, number | null]> = [
+    ['connection', null],
+    ['generation', 29_128],
+    ['spend', 2004],
+    ['stop', null],
+  ]
+
+  it('(7) a final transcription of 18,000 characters: the usage stop, the receipt counts them, and the 2,004 they leave is asked and taken before the stop', async () => {
+    const { q, requests, records } = await admitted({ maxUsageTokens: 31_000 })
+    assert.equal(q.heard(1, 18_000, true), 'usage')
+    const { landed } = q.ledger()
+    await q.stopped()
+    assert.deepEqual(requests, OWED)
+    assert.ok(29_128 + 2004 >= 25_128 + 3.2 + 6000, 'the API holds what was billed: 31,132 ≥ 31,131.2')
+    assert.equal(await landed, true)
+    assert.equal(q.input(1, LUIS, new Int16Array(1600), 0, 1), 'usage', 'and it stays stopped')
+    const turn = await inputTurnOf(q, records)
+    assert.deepEqual([turn.transcriptChars, turn.finished, turn.inputTranscriptionObserved], [18_000, true, true])
+  })
+
+  it('(8) a transcription of 30 characters (control): no stop, nothing more asked, and 30 recorded, finished', async () => {
+    const { q, requests, records } = await admitted({ maxUsageTokens: 31_000 })
+    assert.equal(q.heard(1, 30, true), null)
+    await settle()
+    assert.deepEqual(requests, OWED.slice(0, 2))
+    const turn = await inputTurnOf(q, records, 'ended')
+    assert.deepEqual([turn.transcriptChars, turn.finished, turn.inputTranscriptionObserved], [30, true, true])
+  })
+
+  it('(7) settled against a refusal: the spend asked and refused is not on the API, the ledger handed over says so, and the session stays stopped', async () => {
+    const { q, requests, records } = await admitted({ maxUsageTokens: 31_000 }, 'refused')
+    assert.equal(q.heard(1, 18_000, true), 'usage')
+    const { landed } = q.ledger()
+    await q.stopped()
+    assert.deepEqual(requests, OWED, 'asked, never dropped; the stop after its answer')
+    assert.equal(await landed, false)
+    assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [0, true])
+    assert.equal(q.input(1, LUIS, new Int16Array(1600), 0, 1), 'usage')
+    assert.equal((await inputTurnOf(q, records)).transcriptChars, 18_000)
+  })
+
+  it('(7) settled against no answer: past its attempt the spend is not on the API, the ledger handed over says so, and the session stays stopped', async () => {
+    const { q, requests } = await admitted({ maxUsageTokens: 31_000 }, 'unanswered')
+    assert.equal(q.heard(1, 18_000, true), 'usage')
+    const { landed } = q.ledger()
+    assert.equal(q.ledger().unanswered, 1, 'owed while it is asked')
+    await q.stopped()
+    assert.deepEqual(requests, OWED)
+    assert.equal(await landed, false)
+    assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [0, true])
+    assert.equal(q.input(1, LUIS, new Int16Array(1600), 0, 1), 'usage')
   })
 })
