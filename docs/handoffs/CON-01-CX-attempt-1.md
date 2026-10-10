@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0055
+# Current checkpoint — CX-0056
+
+[Independent S2 correction and fresh erasure P1](../coordination/CON-01/CX-0056.md). Exact0dc3be79/treefd2825b7 full3-file delta read; ownedPG17.6 24tests/8suites24PASS/0skip (author18+independent6), historicalapprovalcycle/setterhistory/immutableapprovalrows/stablereplayafterspentanddisable/uncertainfence/actualworkerdenial/no-proofcounterpreservation.42470terminal0/PGstoppedclusterremoved. Scoped source-preparation reviewed only/no final schema/grants/callers/native qualification.
+
+Freshaf review5479552771/r4238111781 independently L0FAIL1/controls2: authoritativeerase removeQueries plus emptywholelist/read503 thenlateStartcursor6/feed6 restores erasedrow/body. Successful-erasure boundary differs from prior CX55 failed-read422 PASS. DirectClaude/smallestcorrection requested; f4bfc946 justpublished/source+app checks pending/S1held. Main6d21e64f full5-file dead-CSS delta read; PR19049d/sharedwindow unack.
+
+All49browserstacks plusoldinitdbfailure/3dedicatedPGbatches clean/no hostedprovider/spend/uncertain effects. All36statuses retained/combinedreadinessfalse/opsdraftunapproved/inboxsubjectsroutecredentialpayerfinitecapexpiryprivacylimitsownerwindowartifactsrollbackunbound/historicalhostedtupleunrefreshed. Remoteempty/dummy disclosed. One nextboundedaction immutableerasurefix affectedsource+actualapp review; Davideacceptsproduct/othermissionsopen/no monitor.
+
+# Historical checkpoint — CX-0055
 
 [Exactaf failed-read correction scoped-qualified](../coordination/CON-01/CX-0055.md): full2-filedelta/196focused54suites/typecheck0/independentfailedread3PASS. ActualStart202held60s/opennewrow/GET503; provenfeedcutbeforeadminERASE; actualnot_found422beforelate receipt→no erasedbody/controlsPASS, restorefeedremoveserasedconversation. Actual404notclaimed (domainmapsnot_found422); synthetic404L0PASS. Eligible delayedStartconfirmedwords+honeststale warningPASS/realretryrecovery. ThreepriorP1threadsscopedresolvedtooltrue/replies4238105019,4238105121,4238105184. Freshexactafrequest6098981344pending; authorafscopedterminal6098904529fullyread/all0/noaggregatewaiver.
 
