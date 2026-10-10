@@ -57,7 +57,7 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX40 correction0ba2 original+residualorderPASS L0+bounded actuallocalPG/API/browser;115focused/typecheck0/50externalcasespass. Native/provider/hosted/fullacceptanceopen.",
+      "latest_checkpoint": "CX40 0ba2 earlierordercasesPASS L0+actualapp/115focused/typecheck0/50external, but NEWr4237576952 receiptorder independentlyFAILS2cases/2controls; correctionpending/no fullacceptance.",
       "current_checkpoint": "CX-0040.md"
     },
     {
@@ -141,7 +141,7 @@
         "Focused Studio/auth baseline included in 74 passing tests; candidate/browser-account crossing remains open."
       ],
       "current_checkpoint": "CX-0040.md",
-      "latest_checkpoint": "CX40 correction0ba2 original+residualorderPASS L0+bounded actuallocalPG/API/browser;115focused/typecheck0/50externalcasespass. Native/provider/hosted/fullacceptanceopen."
+      "latest_checkpoint": "CX40 0ba2 earlierordercasesPASS L0+actualapp/115focused/typecheck0/50external, but NEWr4237576952 receiptorder independentlyFAILS2cases/2controls; correctionpending/no fullacceptance."
     },
     {
       "id": "CON01-A01",
@@ -440,7 +440,7 @@
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [],
-      "latest_checkpoint": "CX40 correction0ba2 original+residualorderPASS L0+bounded actuallocalPG/API/browser;115focused/typecheck0/50externalcasespass. Native/provider/hosted/fullacceptanceopen.",
+      "latest_checkpoint": "CX40 0ba2 earlierordercasesPASS L0+actualapp/115focused/typecheck0/50external, but NEWr4237576952 receiptorder independentlyFAILS2cases/2controls; correctionpending/no fullacceptance.",
       "current_checkpoint": "CX-0040.md"
     },
     {
@@ -859,7 +859,7 @@
     "actualAppCandidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
     "actualAppTree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "Original and subsequent view-added-first-message withdrawal corrected at0ba2, independently115focused/typecheck0/50externalcases and bounded actualPG/API/browserPASS. No native/provider/hosted/aggregateG4 acceptance.",
+    "statement": "Previous original+changed-first order cases pass independently at0ba2 L0+actualapp; freshP2r4237576952 receipt-added ordering independentlyfails2cases/2controlspass, new correctionpending.",
     "independentFocusedTests": {
       "passed": 115,
       "suites": 37,
@@ -876,7 +876,7 @@
     },
     "studioTypecheckExit": 0,
     "fullGate": "Author frozen e91 terminal fullStudio FAILED1192pass/2fail/1skip/exit1; all remaining focused/check/PGintegration/627DB/46migration5SQL steps exit0. e91 only; no be351 aggregate G4.",
-    "findings": "r4237533992 original+residual suitable scopedresolution L0+bounded actual externalwrite/APIread/browser; prior missingwriter scopedresolution retained; fresh exactreview pending/no wholePR approval.",
+    "findings": "r4237533992 resolved boundedL0+actualapp; NEWr4237576952 receipt-added ordering independentlyreproduced/unresolved. No wholePR approval.",
     "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
     "cleanup": "terminal42609exit0/DBdrop/PGstopclusterremove/ports60475\u201377closed/processesabsent/tab51closed; all29successfulstacks plusinitdbfailureclean",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
@@ -908,18 +908,18 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "next": "Exact0ba2 freshreview/currentterminalchecks then immutableearlyS1 source review/sharedG2ownerwindow.",
+    "next": "Immutable receipt-order correction read/rechecked incl priorgap/cap/identity/withdrawal controls then affected actualbrowser/currentreview/S1.",
     "publication": {
       "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097388792",
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097366174",
-      "reviewStatus": "Exact0ba2 Running since12:13:53.171078UTC, verified via summary6090025022",
+      "reviewStatus": "Exact0ba2 completed12:16:50.154927UTC/newP2r4237576952 independentlyreproduced/unresolved",
       "twoThreadsResolved": "4237439145/4237439149 resolved within explicitP1boundedactualexternalwithdrawal+L0/P2L0scopes; no wholePR approval",
       "sharedSourceWindow": "renewed exactfootprint request6096904900, no acknowledgment inferred",
       "orderAddendum": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097269237",
       "originalMissingWriterResolution": "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4237531319; PRRT_kwDOUqJnR86rDpa8 resolved=true",
       "orderResolution": "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4237576164; PRRT_kwDOUqJnR86rDvup resolved=true"
     },
-    "g2S1": "Held/unpublished; author willreapplyon0ba2 andrerunchecks. Sourcepublishafterfreshreview/no newfindings forindependentreview only; sharedG2/effects unapproved.",
+    "g2S1": "Held/unpublished while new receipt-order findingcorrected; source not independently qualified. SharedG2/effects unapproved.",
     "newExternalWithdrawalProbe": {
       "passed": 10,
       "failed": 0,
@@ -964,6 +964,12 @@
       "failed": 0,
       "exit": 0,
       "level": "L0"
+    },
+    "newReceiptOrderProbe": {
+      "passed": 2,
+      "failed": 2,
+      "exit": 1,
+      "level": "L0 production helpers/synthetic trustedreceipt+completecachedthread"
     }
   }
 }

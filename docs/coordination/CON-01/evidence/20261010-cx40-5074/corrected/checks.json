@@ -53,6 +53,20 @@
     "g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
     "original-order-pass-dom.txt": "0194438f34df7a7d59d6d205ba63be54c10a0c3fb76bd2a5ed6d365e329c567b",
     "owned-cleanup-verification.json": "4229ee7f36246f07516821a3c393050e6d6cd2520ad95c8ff367a974b3f20d4f",
-    "relay-finish-receipts.json": "52554beb784d0822b494d7d1ce5cfb762d3a09db91e6b45b4743049355d4da06"
+    "relay-finish-receipts.json": "52554beb784d0822b494d7d1ce5cfb762d3a09db91e6b45b4743049355d4da06",
+    "receipt-order-check.mjs": "7250d43c2576d710ede68606e9ab19f3f6cd3da0ce90944c36929a7eb8f486ae",
+    "0ba2-receipt-order-result.json": "5ff36969da226c283735606dabbcae63faf2c96c76c2d3d2b2c4a5d0b5af4a85"
+  },
+  "newFinding": {
+    "id": 4237576952,
+    "severity": "P2",
+    "status": "independently_reproduced_unresolved",
+    "automaticReviewCompletedAt": "2026-10-10T12:16:50.154927Z",
+    "candidate": "0ba2f3b43bf0b71258f760c47174afe53fa38067",
+    "passed": 2,
+    "failed": 2,
+    "exit": 1,
+    "command": "CON01_CANDIDATE_ROOT=<owned exact0ba2> CON01_CANDIDATE_SHA=0ba2f3b43bf0b71258f760c47174afe53fa38067 node <journal>/cx40/receipt-order-check.mjs",
+    "scope": "L0 actual production helpers with synthetic trusted receipt/full cached thread; no mounted/auth/provider claim"
   }
 }

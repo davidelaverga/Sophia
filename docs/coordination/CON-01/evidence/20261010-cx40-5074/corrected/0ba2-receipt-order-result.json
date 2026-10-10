@@ -1,0 +1,20 @@
+{
+  "candidate": "0ba2f3b43bf0b71258f760c47174afe53fa38067",
+  "scope": "L0 actual production helpers, synthetic late trusted receipt/full cached thread; no mounted/auth/providerclaim",
+  "passed": 2,
+  "failed": 2,
+  "passedCases": [
+    "Receipt itself retains known C and adds B once",
+    "Surviving A name and B reader retained,200bound and no duplicate"
+  ],
+  "failedCases": [
+    {
+      "name": "Direct restoration of A2 must precede receipt-added B3",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'B',\n    'A',\n-   'B'\n  ]\n"
+    },
+    {
+      "name": "Late rowsKnown restoration must precede receipt-added B3",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'B',\n    'A',\n-   'B'\n  ]\n"
+    }
+  ]
+}
