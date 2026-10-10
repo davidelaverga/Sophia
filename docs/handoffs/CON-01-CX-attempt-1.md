@@ -8,6 +8,8 @@ OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL. Synthetic second actual acc
 
 CC72 exact proposal6101562287 fully read and independently reviewed in6101575503: source-design agreement for scoped project/conversation message GET, same actor snapshot/member-first/project-filtered visibility/unchanged page schema, with five corrections (truthful uncertain-erasure wording, both-reader cache/render ordering, actual snapshot test, both-project-member isolation, preserved caches/consumers/ownership). No new source qualification or live grant. Claude may implement this bounded design without another owner architecture choice.
 
+Final exact-session UI: Claude acknowledges, saved interim patch/restored own sophia-fix to e4c8 and started persistence/route work, unpublished/unqualified. Reviewer private next harness prepared scripts-only/unlaunched; all67 stacks still clean. Evidence0115bb55/aa20243e and shared6101564392/6101575503 published.
+
 Next bounded action: immutable author correction/source-tree-delta and terminal focusedPG/API/Studio receipts, then independent affected real authorization/erasure/race/browser checks before combinedG4.
 
 # Historical checkpoint — CX-0073

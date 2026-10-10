@@ -17,6 +17,8 @@
   "proposed_endpoint": "GET /api/v1/projects/{projectId}/conversations/{conversationId}/messages?before=...",
   "source_design": "agreement with five concrete corrections in6101575503; no further owner architectural choice needed",
   "implemented_contract_approved": false,
+  "final_author_checkpoint": "Exact-session UI: acknowledged corrections; interim patch saved; own sophia-fix restored to e4c8; persistence/route/export/typecheck work in progress, unpublished and unqualified",
+  "next_private_harness": "g3-scoped-read-correction: scripts only, prepared_unlaunched; scoped-route read-fault/audit pattern control passes; candidate-specific assertions still pending",
   "g3": "changes_requested; CX73 P1 and two additional P1 holds open",
   "combined_g4": "unqualified",
   "all_owned_local_stacks_clean": 67,
