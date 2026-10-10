@@ -463,9 +463,10 @@
         "CX-0021.md",
         "CX-0022.md",
         "CX-0023.md",
-        "CX-0024.md"
+        "CX-0024.md",
+        "CX-0025.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Exact CX18 cap falsifier now passes actual L1: draft and unknown key survive omission; same-key actual erase once, late lost response preserves new draft. Required G2/native/provider/hosted arms remain open. CurrentCX20: Actual unknown withdrawal key lost after conversation switch, two durable same-intent requests, P2 changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Exact CX18 cap falsifier now passes actual L1: draft and unknown key survive omission; same-key actual erase once, late lost response preserves new draft. Required G2/native/provider/hosted arms remain open. CurrentCX20: Actual unknown withdrawal key lost after conversation switch, two durable same-intent requests, P2 changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending.",
       "baseline_evidence": [],
       "latest_checkpoint": {
         "record": "CX-0020.md",
@@ -473,9 +474,9 @@
         "verdict": "Actual unknown withdrawal key lost after conversation switch, two durable same-intent requests, P2 changes_requested."
       },
       "current_checkpoint": {
-        "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
-        "record": "CX-0024.md",
-        "verdict": "P1/P2 changes_requested; external permanently-capped erasure retention and equal-time stale preview independently confirmed L0/source; CX23 actual local passes remain bounded"
+        "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+        "record": "CX-0025.md",
+        "verdict": "P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending."
       }
     },
     {
@@ -554,9 +555,10 @@
         "CX-0021.md",
         "CX-0022.md",
         "CX-0023.md",
-        "CX-0024.md"
+        "CX-0024.md",
+        "CX-0025.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Actual cap false-erasure claim corrected; target words NULL after one same-key actual erase, other thread/draft/accepted A08 retained. Native/hosted privacy remains open. Required G2/native/provider/hosted arms remain open. CurrentCX20: L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Actual cap false-erasure claim corrected; target words NULL after one same-key actual erase, other thread/draft/accepted A08 retained. Native/hosted privacy remains open. Required G2/native/provider/hosted arms remain open. CurrentCX20: L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -569,9 +571,9 @@
         "verdict": "L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested."
       },
       "current_checkpoint": {
-        "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
-        "record": "CX-0024.md",
-        "verdict": "P1/P2 changes_requested; external permanently-capped erasure retention and equal-time stale preview independently confirmed L0/source; CX23 actual local passes remain bounded"
+        "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+        "record": "CX-0025.md",
+        "verdict": "P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending."
       }
     },
     {
@@ -599,9 +601,10 @@
         "CX-0021.md",
         "CX-0022.md",
         "CX-0023.md",
-        "CX-0024.md"
+        "CX-0024.md",
+        "CX-0025.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 proposal logic byte-identical/composed and actual A08 reread passes; overall collateral/full gate still open. Required G2/native/provider/hosted arms remain open. CurrentCX20: New privacy/retry arms open; author full82f gate invalidated/stopped after Vite source edits, no complete gate pass. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 proposal logic byte-identical/composed and actual A08 reread passes; overall collateral/full gate still open. Required G2/native/provider/hosted arms remain open. CurrentCX20: New privacy/retry arms open; author full82f gate invalidated/stopped after Vite source edits, no complete gate pass. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -616,9 +619,9 @@
         "verdict": "New privacy/retry arms open; author full82f gate invalidated/stopped after Vite source edits, no complete gate pass."
       },
       "current_checkpoint": {
-        "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
-        "record": "CX-0024.md",
-        "verdict": "P1/P2 changes_requested; external permanently-capped erasure retention and equal-time stale preview independently confirmed L0/source; CX23 actual local passes remain bounded"
+        "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+        "record": "CX-0025.md",
+        "verdict": "P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending."
       }
     },
     {
@@ -698,9 +701,10 @@
         "CX-0021.md",
         "CX-0022.md",
         "CX-0023.md",
-        "CX-0024.md"
+        "CX-0024.md",
+        "CX-0025.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound. Required G2/native/provider/hosted arms remain open. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound. Required G2/native/provider/hosted arms remain open. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending.",
       "baseline_evidence": [],
       "latest_checkpoint": {
         "record": "CX-0019.md",
@@ -708,9 +712,9 @@
         "verdict": "Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound."
       },
       "current_checkpoint": {
-        "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
-        "record": "CX-0024.md",
-        "verdict": "P1/P2 changes_requested; external permanently-capped erasure retention and equal-time stale preview independently confirmed L0/source; CX23 actual local passes remain bounded"
+        "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+        "record": "CX-0025.md",
+        "verdict": "P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending."
       }
     }
   ],
@@ -780,22 +784,22 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0024.md",
-    "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
-    "tree": "e2c0d069bdc2f2146b10f2d69a6f85f75180c5b3",
+    "record": "CX-0025.md",
+    "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+    "tree": "ae1e1c6265060fb218f330320fd0d72fcbed4b6b",
     "currentMain": "3e6d57b13ee8eabe62cb8e5e1d0ee2e7ebd76b3c",
-    "statement": "New P1 external erased state/cache remains under permanently capped revalidation and P2 equal-time newest preview suppressed, confirmed L0/source. Prior CX23 actual local late-Send privacy passes stay bounded; author correction unpublished/unqualified.",
+    "statement": "P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending.",
     "independentFocusedTests": {
-      "passed": 76,
+      "passed": 90,
       "failed": 0,
       "skipped": 0,
       "studioTypecheckExit": 0,
       "fullPnpmCheck": false
     },
-    "fullGate": "CC18 d130 author format/lint/typecheck0/1046 Studio units pass; new browser cases unrun. Frozen a342 Playwright10386 author last608/1150/four failures, no terminal outcome/newer full pass or waiver.",
+    "fullGate": "CC19 author653 format/lint/typecheck0/1054 Studio units; its browser cases unrun. Frozen a342 now author-reported terminal1150/four failures; isolated/baseline attribution reported, exact receipt pending, no waiver. Unpublished dev fixture run in progress.",
     "operation": "draft_not_authorized; owner/setup/exact batch missing",
-    "cleanup": "All fifteen owned stacks clean/tabs closed/no hosted/provider effects",
-    "automaticReview": "d1305476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source",
+    "cleanup": "All sixteen owned stacks clean/processes absent/ports closed/tab28 closed/no hosted/provider effects",
+    "automaticReview": "exact653 requested6091867410; terminal review pending",
     "sharedPR190": "d2e2ec712a91dd71a91f5399d4a84aba9f23803f"
   }
 }

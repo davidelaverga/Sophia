@@ -1,0 +1,13 @@
+{
+  "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+  "tree": "ae1e1c6265060fb218f330320fd0d72fcbed4b6b",
+  "observedAt": "2026-10-10T00:53:52.212Z",
+  "level": "L0 production helpers; synthetic duplicate-preview ambiguity; no mounted/browser equal-time claim",
+  "rowActuallyRepresentsSeq": 11,
+  "locallyLatestSeq": 10,
+  "matchingOlderSeq": 9,
+  "heldBeforeClaimsTrue": true,
+  "previewBefore": "SYNTHETIC repeated line",
+  "previewAfter": "SYNTHETIC intermediate line",
+  "olderReceiptReplacesNewerRow": true
+}

@@ -1,0 +1,61 @@
+{
+  "candidate": "653fe9a82253bd6114c8f24d6ef546ae1b7fd07f",
+  "tree": "ae1e1c6265060fb218f330320fd0d72fcbed4b6b",
+  "observedAt": "2026-10-10T00:55:55.263Z",
+  "level": "Actual local browser/API/PG read-request observation and non-owner persistence; no mounted client-cache observation",
+  "projectId": "87557bdc-da3f-4934-81f7-8c5d79559ad2",
+  "target": "d8373d93-49fd-4dc5-8fda-395152d89d22",
+  "listCount": 200,
+  "more": true,
+  "listFingerprintBefore": "b59903903c4ad48663d47d498997187f593b216431dab35684fb36104bb481aa",
+  "listFingerprintAfter": "b59903903c4ad48663d47d498997187f593b216431dab35684fb36104bb481aa",
+  "listIdentical": true,
+  "erasedAt": "2026-10-10T00:54:47.928Z",
+  "targetReads": [
+    {
+      "at": "2026-10-10T00:53:00.459Z",
+      "path": "/api/v1/conversations/d8373d93-49fd-4dc5-8fda-395152d89d22/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T00:53:00.462Z",
+      "path": "/api/v1/conversations/d8373d93-49fd-4dc5-8fda-395152d89d22/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T00:53:00.589Z",
+      "path": "/api/v1/conversations/d8373d93-49fd-4dc5-8fda-395152d89d22/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T00:53:10.964Z",
+      "path": "/api/v1/conversations/d8373d93-49fd-4dc5-8fda-395152d89d22/messages",
+      "status": 200
+    }
+  ],
+  "targetReadsAfterErase": [],
+  "secondsObservedAfterErase": 67.336,
+  "nonOwnerEditorRead": {
+    "code": "not_found",
+    "message": "Conversation not found"
+  },
+  "durable": [
+    {
+      "state": "erased",
+      "title": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T00:54:47.907Z"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}
