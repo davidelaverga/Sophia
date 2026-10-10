@@ -392,9 +392,10 @@ textarea {
     border-color var(--fast) var(--ease),
     background var(--fast) var(--ease);
 }
+/* A placeholder is words a person reads before typing: the third ink, as Home's and the personal space's are. */
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-4);
+  color: var(--text-3);
 }
 input:hover,
 textarea:hover {
