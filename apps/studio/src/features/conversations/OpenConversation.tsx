@@ -6,7 +6,7 @@
 // message has a face, a person's initial or Sophia's mark; messages by one author within minutes read as one run, its
 // byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   getConversationMessages,
@@ -31,6 +31,7 @@ import {
   replyOpen,
 } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
+import { dropUnfollowed } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
 import { useKept, withHome, type Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
@@ -284,11 +285,28 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
   )
 }
 
-/** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
+/**
+ * The conversation as read, a page at a time (the newest first), and read again as the feed moves. A read held from
+ * before that no view followed as the feed moved is let go as it opens, before it is shown (followed-thread.ts); each
+ * read notes where the feed stood as it set out, on its newest page.
+ */
 function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
+  const queryClient = useQueryClient()
+  const key = messagesKey(conversationId, accountOf(identity))
+  // Once, as it opens (a part per conversation), before the read below is first shown.
+  useState(() => dropUnfollowed(queryClient, key, cursor))
+  const at = useRef(cursor)
+  useEffect(() => {
+    at.current = cursor
+  }, [cursor])
   const read = useInfiniteQuery({
-    queryKey: messagesKey(conversationId, accountOf(identity)),
-    queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
+    queryKey: key,
+    queryFn: ({ pageParam, signal }) => {
+      const readAt = at.current
+      return getConversationMessages(identity.token, conversationId, pageParam, signal).then((page) =>
+        pageParam === null && readAt !== undefined ? { ...page, readAt } : page,
+      )
+    },
     initialPageParam: null as string | null,
     getNextPageParam: (page) => page.before,
     retry: 1,

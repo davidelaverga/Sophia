@@ -25,13 +25,15 @@ export function setListsData(
 /**
  * A start that landed: at the top of the list read and its first message read, at once (then read again). The receipt
  * proves the new row only, so only the list's data takes it: a list read failing stays failing, its error and «This may
- * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985).
+ * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985). Its thread is as read
+ * where the feed stood as the start landed (`readAt`, followed-thread.ts).
  */
 export function putStarted(
   queryClient: QueryClient,
   projectId: string,
   account: string,
   { conversation, message }: ConversationStarted,
+  readAt?: string,
 ): void {
   const key = listKey(projectId, account)
   setListsData(queryClient, key, (list) => ({
@@ -39,7 +41,7 @@ export function putStarted(
     conversations: [conversation, ...list.conversations.filter((c) => c.id !== conversation.id)],
   }))
   queryClient.setQueryData(messagesKey(conversation.id, account), {
-    pages: [{ messages: [message], before: null }],
+    pages: [{ messages: [message], before: null, ...(readAt === undefined ? {} : { readAt }) }],
     pageParams: [null],
   })
   void queryClient.invalidateQueries({ queryKey: key })

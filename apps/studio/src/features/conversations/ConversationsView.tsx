@@ -141,7 +141,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   })
   const talk = useTalk(projectId, accountOf(identity))
   const erased = useErased(talk, panes, { all, seen: list.isSuccess, whole: reader.whole }, identity)
-  const start = useStart(projectId, identity, talk, (id) => {
+  const start = useStart(projectId, identity, cursor, talk, (id) => {
     erased.clear()
     choose(id)
     panes.show()
@@ -662,7 +662,13 @@ function useFocusBack(starting: boolean) {
  * while it is away). Started, the conversation is put in the list and its messages at once (then read again); it opens
  * only if the person is still on the form: one who moved on meanwhile is never pulled into it.
  */
-function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof useTalk>, open: (id: string) => void) {
+function useStart(
+  projectId: string,
+  identity: Identity,
+  cursor: string | undefined,
+  talk: ReturnType<typeof useTalk>,
+  open: (id: string) => void,
+) {
   const queryClient = useQueryClient()
   const [starting, setStarting] = useState(false)
   // Whether the person is on the form now, for a start that lands later (set after each commit, not while rendering).
@@ -681,7 +687,7 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
   }
   const started = (receipt: ConversationStarted) => {
     const { conversation, reply } = receipt
-    putStarted(queryClient, projectId, accountOf(identity), receipt)
+    putStarted(queryClient, projectId, accountOf(identity), receipt, cursor)
     change((k) => ({
       ...k,
       start: { ...k.start, fields: NO_WORDS },
