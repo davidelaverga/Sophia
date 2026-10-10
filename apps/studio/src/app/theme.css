@@ -2861,17 +2861,18 @@ button.contribution-quote:hover {
   font-size: 13px;
   line-height: 1.55;
 }
-/* A section of a sheet's body (the Invite's panels): the body's column and gap, without its padding or its arrival,
-   which the body around it already gives (Codex on #224: a body in the body padded and arrived twice). */
-.sheet-section {
+/* A tab's body in a sheet (the Invite's panels): the body's column and gap, without its padding or its arrival, which
+   the body around it already gives (Codex on #224: a body in the body padded and arrived twice). Not `.sheet-section`,
+   which is a titled section inside a resource's or a task's sheet. */
+.sheet-tab-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 .sheet-body > .pill,
 .sheet-body > .text-button,
-.sheet-section > .pill,
-.sheet-section > .text-button {
+.sheet-tab-body > .pill,
+.sheet-tab-body > .text-button {
   justify-self: start;
 }
 .room-link {
