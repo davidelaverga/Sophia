@@ -584,40 +584,53 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
 - two actual Sophia subjects as members. Davide asked for a **second synthetic actual Sophia account**. Codex found the creation path (the Supabase dashboard's Add user / Create user), and its setup draft is prepared. The live Studio signs in by email OTP, so the owner-controlled test mailbox, the roles and the subjects all **remain unbound**. No credential has been entered and no account created. They are bound in Codex's real-auth setup batch, with no fabricated JWT and no cohort (D-7);
 - no grant until a route exists (§8.4).
 
-### 8.7 G2-S2 and G2-S3: the additive footprint (proposed; CX45 and its compiler correction; no number reserved; shared files held)
+### 8.7 G2-S2 and G2-S3: the additive footprint (proposed; CX45, its compiler correction and the CC-0049 review; no number reserved; shared files held)
 
 **Status.** This is a design for review, not authorization. Nothing here reserves a migration number: each new migration's number is set by the final census (inventory §7.1). Nothing here touches a shared file (§2; inventory §7), adds a caller, grants EXECUTE, binds a route, credential, unit or live allowance, or claims an S3 pass from SQL alone. Provider usefulness, the publication fences and host cleanup are proved later, in their own steps.
 
 #### 8.7.1 S2: the reply ledger (CX45 correction 1)
 
 **Tables** (one new migration, `db/migrations/<census>_conversation_reply_ledger.sql`; no rows inserted):
-- **`conversation_grants`**, one row per project, written only by `conversation_set_grant`. Its columns:
-  - `lineage_id`: set once, never changed by a setter, a renewal or a route change.
+- **`conversation_grants`**: one row per project and lineage (`project_id`, `lineage_id`), at most one of them `current` (a partial unique index). Written only by the operator functions below. Its columns:
+  - `lineage_id`: the allowance's identity. A setter, a renewal or a route change keeps it.
+  - `unit`: fixed for the lineage. A trigger refuses any change to it. The counters and caps are in that unit only, so a priced amount is never added to a call or token count. A different unit is a new lineage (below).
   - `grant_revision`: +1 at every set.
   - `state`: `enabled` or `disabled`.
   - The references, each an opaque, pattern-checked identifier and never a value: `route_id`, `credential_ref`, `owner_resource_ref` (the owner's own native resource the route uses) and `approval_ref`.
   - `expires_at`: `NOT NULL`, finite.
-  - `unit`.
   - The caps: `max_calls_per_reply` (1 to 2), `reply_token_cap`, `total_token_cap` and `total_call_cap`, or `reply_cap` and `total_cap` for a priced unit.
-  - The counters `reserved`, `spent` and `uncertain`, in the same units, each non-negative.
+  - The counters `reserved`, `spent` and `uncertain`, in the lineage's unit, each non-negative. A lineage that is no longer current keeps its counters as they are.
 - **`conversation_grant_subjects`** (`project_id`, `actor_id`, `lineage_id`, `added_revision`) lists the asking subjects the owner's resource is lent to.
   - A project grant alone lends nobody anything: a reservation for an asker not listed is refused (`asker_not_authorized`).
   - The asker is read from the reply row, never from the caller.
 - **`conversation_reservations`**:
-  - **Key:** the logical key (`project_id`, `reply_id`, `call_ordinal`), so a reply's calls are counted wherever its home is.
+  - **Key:** the logical key (`project_id`, `reply_id`, `call_ordinal`), so a reply's calls are counted wherever its home is. `call_ordinal` is `CHECK BETWEEN 1 AND 2`, and at most the lineage's `max_calls_per_reply` when reserved.
   - **Immutable fingerprint:** `route_id`, `credential_ref`, `owner_resource_ref`, `lineage_id`, `grant_revision`, `unit` and the amount. A `BEFORE UPDATE` trigger refuses any change to it.
   - Also `state` (`reserved`, `settled`, `released`, `uncertain`), the used amount, `created_at` and `ended_at`.
 
 **Functions.** All are `SECURITY DEFINER` with `search_path=pg_catalog,sophia`. All take locks in one order: project → reply → grant → reservation, each function a suffix of it.
-- **`conversation_set_grant(project, spec)`** is operator-only.
-  - It takes the grant row `FOR UPDATE`, writes only configuration and `grant_revision`, and keeps `lineage_id`.
+- **`conversation_set_grant(project, spec)`** is operator-only and changes the current lineage.
+  - It takes the grant row `FOR UPDATE`, writes only configuration and `grant_revision`, and keeps `lineage_id` and `unit`. A spec naming another unit is refused (`unit_is_fixed`).
   - It never writes `reserved`, `spent` or `uncertain`, and never touches a reservation. An outstanding reservation keeps the route, credential and revision it was made under, and settles against them.
   - Lowering a cap below what is already used is allowed. It only refuses new reservations.
+- **`conversation_new_lineage(project, spec)`** is operator-only, with a new `approval_ref`. It starts a lineage in a unit of its own, and only when the current lineage has no reservation `reserved` or `uncertain`, so nothing outstanding is reassociated. The old lineage stays with its counters, no longer current. Nothing converts one unit into another.
+- **The states:**
+
+  | From | To | By | What happens |
+  |---|---|---|---|
+  | `enabled` | `disabled` | setter | no new reservation |
+  | `disabled` | `enabled` | setter | only with `expires_at` still ahead |
+  | any | the same, renewed | setter (a later `expires_at`) | same lineage, `grant_revision` + 1 |
+  | any | the same, route changed | setter | outstanding reservations keep their fingerprint |
+  | current lineage | closed | `conversation_new_lineage` | only with nothing outstanding |
+
+  "Expired" is not a stored state: it is read at each reserve, after the lock. Settle, mark-uncertain, reconcile and replay work in every state.
 - **`conversation_reserve(project, reply, ordinal, call)`**:
   1. Lock the reply `FOR SHARE`, then the grant `FOR UPDATE`. Only then sample `clock_timestamp()`, so a waiter that crossed `expires_at` while blocked is refused (`grant_expired`).
-  2. **Replay:** an existing key with the same fingerprint, compared field by field, returns its stored receipt, even after expiry or disable. A different fingerprint is refused (`key_reused`) and changes nothing.
+  2. **Replay:** for an existing key, the call is compared field by field with the stored original fingerprint (`route_id`, `credential_ref`, `owner_resource_ref`, `lineage_id`, `unit`, amount). The stored `grant_revision` stays as it was; the grant's current revision is not compared, so a renewal or a route change since doesn't break a replay. An equal call returns the stored receipt in its current state (reserved, settled, released or uncertain), even after expiry or disable. A different one is refused (`key_reused`) and changes nothing.
+     - **No logical call is used twice.** A key that ended (settled, released or uncertain) only replays its receipt. A further call takes the next ordinal, and past the lineage's `max_calls_per_reply` it is refused (`calls_exhausted`). After an uncertain call, its ordinal is never reused.
   3. **A new key** needs:
-     - the grant `enabled` and unexpired;
+     - the current lineage `enabled` and unexpired;
      - the call's route and credential reference equal to the grant's;
      - the asker listed;
      - the reply in this project and `running`;
@@ -640,8 +653,18 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
   - an exact replay is idempotent after expiry and after disable;
   - the same key with a changed amount, route, credential or unit is refused, and every counter is unchanged.
 - **Setter, renewal and route change:**
-  - each keeps `lineage_id`, `reserved`, `spent` and `uncertain`;
-  - an outstanding reservation keeps its old fingerprint and settles against it.
+  - each keeps `lineage_id`, `unit`, `reserved`, `spent` and `uncertain`;
+  - a spec naming another unit is refused;
+  - an outstanding reservation keeps its old fingerprint and settles against it;
+  - an exact replay after a renewal returns the original receipt, with its original `grant_revision`.
+- **A new lineage:**
+  - it is refused while a reservation is `reserved` or `uncertain`;
+  - started after everything settled, it keeps the old lineage's counters as they were;
+  - no amount crosses units.
+- **Ordinals:**
+  - 0 and 3 are refused by the check;
+  - past `max_calls_per_reply`, `calls_exhausted`;
+  - a released or uncertain key replays and is never reserved again.
 - **Per-reply ceilings:** they hold across a fresh home and a restart (ordinal 2 is refused past the reply's token cap, and ordinal 3 always).
 - **A waiter crossing expiry:** a holder keeps the grant locked, and `pg_stat_activity` shows the reserve waiting on the lock. `expires_at` passes; the holder commits; the waiter is refused `grant_expired`.
 - **The last allowance:** of two asks competing for it, one reserves and the other is refused `limit_reached`.
@@ -666,7 +689,9 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
 - **`missing`:** stated as is. An empty mission or no constraints is said, never filled in.
 - **Not rendered:** `decided`, `entries`, `history`, `work`, `notePolicy` and `capabilities`. They are recorded as excluded. The quick asks need only the accepted mission and constraints and the pending proposals (pack 04, «Quick asks»); `decided` holds no current accepted decision those two don't.
 
-**Budgets: deterministic source ceilings, never a live allowance.** Budgets are in UTF-8 bytes of the rendered text. Items are whole, never cut. Order is the compiler's (ties by id), so the same snapshot gives the same bytes.
+**Budgets: deterministic source ceilings, never a live allowance.** Budgets are in UTF-8 bytes of the rendered text. Items are whole, never cut.
+
+**Order.** `readDecisions` selects the newest 50 by `created_at DESC, id DESC`, then returns them ascending (`created_at, id`). CON reverses each compiled list to newest first (`created_at DESC, id DESC`, so ties are broken by id) before taking the newest 20 or 10. So the same snapshot gives the same bytes.
 
 | Section | Ceiling | Bound by | When over |
 |---|---|---|---|
@@ -682,41 +707,77 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
 The context record keeps each section's coverage (included, omitted, and "may be more"). No token count or allowance is inferred from bytes; tokens are S2's.
 
 **Assembly and record: one transaction, under the locks the writers take.**
-1. **`conversation_assembly_begin(reply)`** (`SECURITY DEFINER`) takes the project row `FOR SHARE`, then the reply row `FOR UPDATE`. It fails closed (nothing recorded; the reply is cancelled with the reason) unless:
-   - the reply is `pending` and in that project;
-   - the asker is still an active writer (`asker_removed`);
-   - the conversation is open with its `erasure_revision` unchanged (`conversation_erased`);
-   - the asking message is not withdrawn (`source_withdrawn`).
 
-   It returns the reply's binding: project, conversation, asker, `cutoff_seq` and `erasure_revision`.
+**Role and transaction.**
+- **The role:** assembly runs as `sophia_conversation_assembler`, a `NOLOGIN` role created by S3's migration.
+  - It is a member of `sophia_api`, for its `SELECT` grants and its RLS policies. It is not `BYPASSRLS` and owns no table, so RLS applies to every read the compiler makes.
+  - It is the only grantee of `EXECUTE` on `conversation_assembly_begin` and `conversation_record_context`. In S3, no login role is a member of it, so there is no caller.
+  - **Its cost, open for your review:** membership in `sophia_api` also lends it that role's `EXECUTE` grants, writes included. The alternative, RLS policies of its own on the compiled tables, edits other owners' policies, a shared edit, so it is not proposed here.
+- **The transaction:** `BEGIN ISOLATION LEVEL REPEATABLE READ`, read-write, then `SET LOCAL ROLE sophia_conversation_assembler`. It is one snapshot, as the compiler assumes ("one connection, one REPEATABLE READ snapshot").
+  - `conversation-context.ts` opens it itself. `tx.ts`'s `withActor` can't: its read mode is read-only, and it sets the actor before the first statement. `tx.ts` is unchanged.
+  - Its first snapshot-taking statement is `conversation_assembly_begin`.
+  - The actor is then set transaction-locally to the asker the begin returned.
+  - A writer that committed between the snapshot and the lock makes the lock fail with `40001`. The assembly is retried, at most 3 times in all, then the reply fails visibly (`context_unstable`).
+- **Tests check the role itself:**
+  - `rolbypassrls` is false;
+  - it owns none of the compiled tables;
+  - a non-member actor reads a `null` context through it;
+  - a login role that isn't its member is refused `EXECUTE`.
+
+1. **`conversation_assembly_begin(reply)`** (`SECURITY DEFINER`) takes the project row `FOR SHARE`, then the reply row `FOR UPDATE`.
+   - **Post-lock rereads:** after both locks are held, it reads again everything it decides on: the reply's state and project, the asker's active membership, the conversation's state and `erasure_revision`, and the asking message. It never decides on a value read before the locks.
+   - **A record whose commit outcome wasn't known:** if the reply already has an undispatched record whose revisions still equal the project's, it returns that record and doesn't assemble again. If the revisions don't match, the record is marked `superseded` and its body scrubbed, and a new assembly follows. That counts toward the 3.
+   - It fails closed (nothing recorded; the reply is cancelled with the reason) unless:
+     - the reply is `pending` and in that project;
+     - the asker is still an active writer (`asker_removed`);
+     - the conversation is open with its `erasure_revision` unchanged (`conversation_erased`);
+     - the asking message is not withdrawn (`source_withdrawn`).
+   - It returns the reply's binding: project, conversation, asker, `cutoff_seq`, `erasure_revision` and the assembly number.
 2. **Read, in the same transaction**, with the actor set transaction-locally to that asker. The asker comes from the reply row, never from the model or an HTTP body.
    - Read `readMissionContext(c, project, { actorId: asker, channel: 'studio' })` and this conversation's messages up to `cutoff_seq`. RLS holds both to the asker.
    - A `null` context means the asker isn't a member: `asker_removed`.
-3. **Render** (pure). It returns the exact bytes and the items each fragment came from: the mission decision, constraint and pending decision ids, and message ids.
-4. **`conversation_record_context(reply, bytes, items, identities)`** (`SECURITY DEFINER`, same transaction):
-   - **Sources are derived, never supplied.** It derives every source from the item ids itself: the frame's `sourceId` and `sha256` from the locked project's current frame, each decision's `body_source_id`, each message's source. The caller supplies no source id, hash or revision.
+3. **Render** (pure). It returns the bytes and their ordered fragments. Each fragment is either a pinned template (by id) or one item: the mission decision, a constraint or pending decision, or a message, with the item's text as rendered.
+4. **`conversation_record_context(reply, assembly, bytes, fragments, identities)`** (`SECURITY DEFINER`, same transaction):
+   - **Exact fragment verification, not substring presence.**
+     - **The bytes:** they must equal the fragments concatenated, every byte accounted for.
+     - **A template fragment:** its text must equal the pinned string for that renderer version. The strings are stored in the migration, so any template change is a new renderer version.
+     - **An item fragment:** its text must equal a pinned prefix for its kind, then the item's exact values read from the database under the locks, then a pinned suffix. The values are a decision's statement (with purpose, destination and origin for the mission), a message's body and author's name, and decided or sent times, written as `to_char(… AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`, which is JavaScript's `toISOString()`.
+     - Any other byte, any unpinned template, or an item rendered with any other text is refused (`context_forged`).
+     - Formatting is not selection: what is selected stays the compiler's (above).
+   - **Project sources are derived, never supplied.** From the item ids, it reads under the locks the frame's `sourceId` and `sha256` from the locked project's current frame, and each decision's `body_source_id`. The caller supplies no source id, hash or revision.
+   - **Messages have their own provenance.** 0048's `conversation_messages` has no source object, so each recorded message is a row of `conversation_reply_messages`: reply, assembly, `message_id`, `seq` and the sha256 of its body as read. Each also carries the range read (`from_seq`..`cutoff_seq`) and `erasure_revision`.
    - **Each item must be what it claims:**
      - a decision of this project, in the state and kind claimed;
      - the mission decision equal to the current frame's `decisionId`;
      - a message of this conversation, at or before `cutoff_seq`, not withdrawn;
      - every derived source within the full predicate (§8.3: project, `scope='project'`, `eligible`, `ready`).
-   - **Each derived source's text must occur in the bytes.** So nothing is recorded that the prompt doesn't hold.
    - **The compiled revisions must equal the locked project's:** mission, ledger, eligibility and audience.
-   - **It computes `context_hash` itself:** sha256 over the bytes, the derived sources with their `sha256` and `eligibility_revision`, the compiler and renderer identities, the source predicate's identity (`conversation-source-v1`) and those revisions.
+   - **It computes `context_hash` itself:** sha256 over the bytes, the derived sources with their `sha256` and `eligibility_revision`, the recorded messages with their body hashes, the compiler and renderer identities, the source predicate's identity (`conversation-source-v1`) and those revisions.
+   - **Replay:** a repeated call for the same reply and assembly with the same `context_hash` returns the existing record. A different hash for that assembly is refused.
    - **It writes the record:**
-     - the exact bytes, once, as the attempt's context source (`put_text_source`, as 0012, 0016 and 0025 store a native context; an operational copy in §8.5's inventory, scrubbed with the conversation, the asking message or any source it holds);
-     - `source_dependencies` rows, the existing table;
-     - `conversation_reply_sources`;
-     - `conversation_reply_contexts`: the compiler `sophia.mission-context.v1` and the compiled `digest`, the renderer and its budget version, the source predicate's identity, the four revisions, `erasure_revision`, the message range, each section's coverage and omissions, the byte length and `context_hash`.
+     - `conversation_reply_contexts` (reply, assembly): the exact bytes in its own `body` column; the compiler `sophia.mission-context.v1` and the compiled `digest`; the renderer and its budget version; the source predicate's identity; the four revisions; `erasure_revision`; the message range; each section's coverage and omissions; the byte length; `context_hash`; and `scrubbed_at` and `scrubbed_by`, both null until a scrub;
+     - `conversation_reply_sources` and `conversation_reply_messages`.
+
+**The context copy and its erasure.** The bytes are a persisted copy of message and mission text, so their erasure is bound and tested in S3.
+- **Why not a source object:** they are not stored through `put_text_source`, because `source_dependencies` alone scrubs nothing derived. 0041's `mission_erase_source` deletes only the source it names, then calls the research and design revokers.
+- **The scrub:** S3's migration adds two `AFTER` triggers. Each scrubs the body of every context that recorded the item: `body` becomes `NULL`, with `scrubbed_at` and `scrubbed_by`. The hash, ids and revisions stay, holding no text.
+  - On `conversation_messages`, when `body` becomes `NULL`. This covers `withdraw_conversation_message` (`scrubbed_by = 'message_withdrawn'`) and `erase_conversation`, which nulls every body (0048:388; `'conversation_erased'`). That table is CON's own.
+  - On `source_objects`, after an update that takes a row out of the full predicate, or a delete (`'source_withdrawn'`). It is additive; no mission, research or design function is replaced (§8.3).
+- **A superseded record** is scrubbed at once (`'superseded'`).
+- **What else is pending:** the dispatched create payload and the runtime's copies stay §8.5's inventory, scrubbed there.
 
 **Why this is atomic, and what still guards it.**
-- The project row is held `FOR SHARE` from before the compiler reads until the record commits. The writers of what the record depends on lock that row first, as read at the base, so none can commit in between:
+- The project row is held `FOR SHARE` from before the compiler reads until the record commits. What serializes is each **public entry point** taking that lock. The helpers it calls (`mission_erase_source`, `put_text_source`, 0048's `conversation_append`) don't lock themselves; they rely on their callers. As read at the base, these public entry points lock the project row before their first write:
   - the ledger writers in 0018–0020: `record_mission_entry`, `propose_mission_change`, `decide_mission_change`, `mission_commit` and `mission_accept`;
   - `withdraw_mission_entry`, which locks the project (0018:447) before `mission_erase_source`. That function is the only SQL that takes a source out of the predicate: 0018's version, replaced by 0028 and then 0041, each its own `UPDATE … SET eligible=false, state='deleted'`;
-  - membership: the only SQL writer, `accept_room_invitation` (0010:328–330), updates the project row. No SQL function removes a member today. An asker made inactive by any other means is refused by the begin and record checks, and again at dispatch;
+  - membership: the only SQL writer, `accept_room_invitation` (0010:328–330), updates the project row. No SQL function removes a member today.
+    - **The membership revocation protocol:** a future member removal must lock the project row `FOR UPDATE` and bump `audience_revision` before it changes `project_members`. The census below fails for any granted function that writes `project_members` without that.
+    - An asker made inactive by any other means is refused by the begin and record checks, and again at dispatch;
   - the conversation writes in 0048, through `conversation_locked`.
-- A test holds each of them against an assembly, in both orders. It also enumerates the functions that write `source_objects`, `decisions`, `mission_entries`, `project_revisions`, `project_members` or `conversation_messages`, so a later writer that doesn't take the project row fails it.
-- **The renderer emits text only through fragments that carry their item.** A unit test strips every fragment's text from the bytes and finds only the fixed template.
+- **The caller-chain census (a test).**
+  - **Its scope:** every function with `EXECUTE` granted to `sophia_api` or `sophia_worker` that writes `source_objects`, `source_texts`, `decisions`, `mission_entries`, `project_revisions`, `projects`, `project_members`, `conversations` or `conversation_messages`, directly or through a helper.
+  - **Its list:** each must appear on a reviewed list with the line where it takes the project lock. A function granted later that isn't on the list fails the census until it is reviewed.
+  - **Concurrency:** a test holds each listed entry point against an assembly, in both orders.
 - **Dispatch and publication revalidation remain required** (§8.3). A decision accepted after the record and before dispatch makes the dispatch window's fence assemble again, at most 3 times, then fail visibly (`context_unstable`). So an ask dispatched after a decision is accepted sees that decision. One accepted after dispatch gives `contextChanged` at publication; a privacy withdrawal cancels and suppresses. Those fences are shared code, in the dispatch window, and not S3's.
 
 **S3 tests.**
@@ -726,8 +787,23 @@ The context record keeps each section's coverage (included, omitted, and "may be
   - a withdrawn frame;
   - a legacy frame;
   - an empty frame;
-  - 51 constraints and 51 pending (the compiler's 50, "may be older ones" said);
+  - 51 constraints and 51 pending, some sharing a `created_at`: the compiler's 50 reversed to newest first, ties by id descending, then the newest 20 or 10, and "may be older ones" said;
   - a stale pending proposal.
+- **The record refuses a forgery** (`context_forged`, nothing recorded):
+  - bytes with an extra byte or line no fragment holds;
+  - a fragment whose text differs from its item's database values by one character;
+  - a template not pinned for the renderer version;
+  - an item of another conversation or project;
+  - a duplicated item;
+  - a message after `cutoff_seq`;
+  - an item claimed as another kind.
+- **The copy's erasure, in S3:**
+  - withdraw a recorded message, by its author and by an admin;
+  - erase the conversation;
+  - withdraw, through `withdraw_mission_entry`, a mission entry whose source a recorded decision cites.
+
+  After each: the body is `NULL`, `scrubbed_by` is set, the hash and ids stay, and a byte search of the record tables finds none of the text.
+- **Unknown commit:** a record committed whose answer was lost; begin then returns it, and assembles nothing new while the revisions hold.
 - **Fail closed, nothing recorded:**
   - the asker removed;
   - a wrong project;
@@ -744,6 +820,7 @@ The context record keeps each section's coverage (included, omitted, and "may be
   - one changed byte, source revision or identity changes the hash;
   - the record's hash is recomputed from its stored bytes.
 - **The canary:** the bytes hold no text of another conversation, of Personal or of the room.
+- **The role:** RLS applies through `sophia_conversation_assembler` (the checks under «Role and transaction»).
 - **An inherited summary source withdrawn (CX45 correction 3):** **not runnable in S3**, since no summary exists before a reply can be published. It is required, with the in-flight and published second-generation cases of §8.3, in the step that first stores a summary. S3 claims nothing for it.
 
 #### 8.7.3 Files
@@ -751,7 +828,7 @@ The context record keeps each section's coverage (included, omitted, and "may be
 | File | Step | Kind |
 |---|---|---|
 | `db/migrations/<census>_conversation_reply_ledger.sql` | S2 | new |
-| `db/migrations/<census>_conversation_reply_context.sql` | S3 | new |
+| `db/migrations/<census>_conversation_reply_context.sql` (the role, the record tables, begin and record, the two scrub triggers) | S3 | new |
 | `packages/persistence/src/conversation-ledger.db.test.ts` | S2 | new |
 | `packages/persistence/src/conversation-context.ts` (renderer and the assembly transaction; imports `readMissionContext`) | S3 | new |
 | `packages/persistence/src/conversation-context.test.ts` (renderer units) and `conversation-context.db.test.ts` | S3 | new |
@@ -881,6 +958,7 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
 | 2026-10-10 | §8.7, G2-S2 and G2-S3 footprint, normalized: the reply ledger's lineage, immutable fingerprint, expiry after the lock and lent subjects; S3 reuses `readMissionContext` (pinned `sophia.mission-context.v1`), with deterministic byte ceilings and one locked assembly-and-record that derives every source itself | CX45 (#198 6097962061) and its compiler correction; no number reserved, no shared file |
+| 2026-10-10 | §8.7 revised for the CC-0049 review: message provenance of its own and the context copy in the record, scrubbed in S3 by two additive triggers; compiled lists reversed to newest first, ties by id; the unit fixed per lineage, replay against the original fingerprint, ordinals never reused; a NOLOGIN assembler role in one REPEATABLE READ transaction, exact fragment verification; the public lock-taking writers' census, the membership revocation protocol, post-lock rereads and an unknown commit's replay | Codex's review of CC-0049 (five gaps); still no number, shared file, caller or grant |
 | 2026-10-10 | Revision 8, CX-0031 wording: the four inherited descriptors are the launcher's boundary just before `exec`; the running child's later descriptors are opened under the ruleset and accounted for by provenance | CX-0031 |
 | 2026-10-10 | Revision 8, third part, CX-0029/CX-0030. Cleanup waits on the full acknowledgment barrier (every journal key, capture's result, the usage of every call, each reservation ended or uncertain, the terminal receipt, the request terminal), not on observation keys alone. The restart sweep signals through a `pidfd` after checking the five fields, and signals nothing where `pidfd` is unavailable. Landlock is qualified on the host (ABI 3 or later, every right handled, inherited descriptors closed, self-test) and fails closed. The stale "G2's source is built" sentence is corrected. D-7's setup draft is prepared; the mailbox, roles and subjects remain unbound | CX-0029, CX-0030 |
 | 2026-10-10 | Revision 8, second part, Codex's subscription review. §8.4's OpenAI row: Sign in with ChatGPT plan usage is documented for a user-operated open-source app locally or on a self-hosted remote VM, under OpenAI's conditions; a paid or remote service is directed to the partner process; app-server authentication is a separate limit; remote location alone proves nothing; today's hosted route is unverified and unbound; no token copied, no transfer authorized. §8.6: the owner-native resource connection recorded as a dependency on `11_OMNIGENT_BINDINGS.md` and its SCM owners, not built by CON-01, and not CON-01's reply route; the display rules aligned with its `:181`; D-7's mailbox reference pending | Codex's subscription review |
