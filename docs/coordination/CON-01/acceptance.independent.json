@@ -793,26 +793,26 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0030.md",
-    "candidate": "d92328dab38f513c7f5cf7bfe802fea8d194f2e9",
-    "tree": "2e5c13dd4ce3fe68fe04f287334c4e7f071d932b",
-    "actualAppCandidate": "b9815b1163efe5c53e4a0aec56581733d02dcb98",
-    "actualAppTree": "8cacf81dca80113ead2bb081e7d7bbb9978fcdd8",
+    "record": "CX-0031.md",
+    "candidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
+    "tree": "37df9d109fd64f6f663b65c4c43de9abe75d835b",
+    "actualAppCandidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
+    "actualAppTree": "37df9d109fd64f6f663b65c4c43de9abe75d835b",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "CX29 local browser crossings remain bounded. Rev8 addresses rev7 design gaps; suitable for owner-coordinated implementation, with full acknowledgment barrier/identity-bound signal/actual containment qualification carried forward. Not a G2 source/native/provider pass. New question projection P2 independently reproduced L0 on b981/4252; author correction pending immutable recheck.",
+    "statement": "P2 question projection corrected/independently qualified L0 with9externalprobes.83focused/typecheck pass. Current local actual app lostSend/samekey/return/withdrawal/stale-warning/deniedactor pass bounded, no provider/native/hosted acceptance.",
     "independentFocusedTests": {
       "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts",
-      "exit": 0,
-      "passed": 81,
+      "passed": 83,
       "failed": 0,
       "skipped": 0,
+      "exit": 0,
       "studioTypecheckExit": 0,
       "fullPnpmCheck": false
     },
     "fullGate": "Author4252 pnpmcheck/PG pass; local full browser FAILED2/1160. GitHub all checks success atb981; separate environments.",
     "operation": "OP-0001-r2 draft_not_authorized; D6/B1 source-design accepted. New project and synthetic actual account requested, not created. Supported subscription route/credential/finite allowance/expiry/shared window/exact effect approval unbound.",
-    "cleanup": "All21ownedstacks cleaned; twentieth interrupted before completed app proof; current21st audited and cleaned. No provider/native/hosted effects/spend/uncertainpaidoutcome.",
-    "automaticReview": "r4237222580 independently reproduced L0; author correction still running unpublished at last exact Claude checkpoint. Other bounded CX29 supersessions retained.",
+    "cleanup": "All22owned local stacks cleaned; tabs40/41closed, processesabsent, portsclosed, PG/DBremoved; no provider/native/hosted/spend/uncertain paid effect.",
+    "automaticReview": "P2r4237222580 qualifiedforresolution bounded L0; latest sourcec524 fresh CIqueued. New automatic review request to be recorded.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
     "liveRefresh": "Render/Vercel dashboard tuple independently unchanged between10:01:57.540Z and10:03:23.913Z. No deployed CON candidate; installed composition/StudioSHA unknown; DB not freshly probed. All temporary setup/dashboard tabs closed, no account/project created."
   }

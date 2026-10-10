@@ -1,0 +1,35 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
+import {resolve} from 'node:path';
+const root=process.env.CON01_CANDIDATE_ROOT;
+const req=createRequire(resolve(root,'apps/studio/package.json'));
+const {QueryClient}=req('@tanstack/react-query');
+const list=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/conversation-list.ts')));
+const purge=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/withdrawn-purge.ts')));
+const not={state:'not_assessed',complete:false,fromSeq:null,throughSeq:null,newer:0,generatedAt:null,replyId:null,eligibilityRevision:null,ledgerRevision:null};
+const at='2026-10-10T09:00:00Z',after='2026-10-10T09:01:00Z';
+const assessed={...not,state:'current',complete:true,fromSeq:1,throughSeq:2,generatedAt:at,eligibilityRevision:1,ledgerRevision:1};
+const row=(id='a')=>({id,title:'Synthetic',revision:1,summary:null,summaryCoverage:not,lastMessage:null,lastAt:at,messageSeq:2,contributors:[{actorId:'ana',name:'Synthetic Ana'}],sophia:false,openQuestions:2,questionsCoverage:assessed,output:null});
+const message=(seq,gone=false)=>({id:'m'+seq,seq,author:'member',actorId:'ana',name:gone?null:'Synthetic Ana',text:gone?null:'Synthetic eligible',at,withdrawn:gone?{at:after}:null,ask:null,replyTo:null});
+const thread=()=>({pages:[{messages:[message(1),message(2,true)],before:null}],pageParams:[null]});
+const checks=[];const ok=(name)=>checks.push({name,verdict:'pass'});
+const first=row(), other=row('b');
+const gone=list.listWithdrawn({projectId:'p',conversations:[first,other]},'a',{writer:'ana',writerStays:true,sophiaStays:false});
+assert.equal(gone.conversations[0].openQuestions,0);assert.equal(gone.conversations[0].questionsCoverage.state,'not_assessed');assert.equal(gone.conversations[1],other);ok('Local withdrawal invalidates only selected conversation projection');
+const known=list.rowsKnown([first,other],id=>id==='a'?thread():undefined,()=>true);
+assert.notEqual(known[0],first);assert.equal(known[0].openQuestions,0);assert.equal(known[0].questionsCoverage.state,'not_assessed');assert.equal(known[1],other);ok('Question-only change survives sameRow optimization');
+assert.equal(list.questionWords(known[0]),'No recorded questions yet');assert.equal(list.coverageWords(known[0].questionsCoverage),null);assert.deepEqual(list.narrowed(known,{typed:'',open:true,mine:false},'ana').map(x=>x.id),['b']);ok('Question labels and Open filter no longer claim withdrawn assessment');
+assert.equal(list.rowsKnown([first],()=>thread(),()=>false)[0],first);ok('Fresh authoritative list remains useful when read began after known withdrawal');
+const clients=[];const client=()=>{const c=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});clients.push(c);purge.keepWithdrawnPurged(c.getQueryCache());return c};
+const key=list.listKey('p','ana'),ben=list.listKey('p','ben'),otherProject=list.listKey('p2','ana');
+const data=(stamp=0)=>({projectId:'p',conversations:[row(),row('b')],readFrom:stamp});
+try{
+ const c=client();c.setQueryData(ben,data());c.setQueryData(otherProject,{projectId:'p2',conversations:[row('p2-a'),row('p2-b')],readFrom:0});c.setQueryData(key,data());c.setQueryData(list.messagesKey('a','ana'),thread());
+ const current=c.getQueryData(key);assert.equal(current.conversations[0].openQuestions,0);assert.equal(current.conversations[0].questionsCoverage.state,'not_assessed');assert.equal(c.getQueryData(ben).conversations[0].openQuestions,2);assert.equal(c.getQueryData(otherProject).conversations[0].openQuestions,2);ok('Actual QueryClient purges question-only projection; other actor/project caches untouched');
+ const c2=client();c2.setQueryData(key,data());const failure=new Error('Synthetic independent outage');await c2.fetchQuery({queryKey:key,queryFn:()=>Promise.reject(failure)}).catch(()=>{});const q=c2.getQueryCache().find({queryKey:key,exact:true});const before={...q.state};c2.setQueryData(list.messagesKey('a','ana'),thread());assert.equal(q.state.status,'error');assert.equal(q.state.error,failure);assert.equal(q.state.dataUpdatedAt,before.dataUpdatedAt);assert.equal(q.state.errorUpdateCount,before.errorUpdateCount);assert.equal(c2.getQueryData(key).conversations[0].openQuestions,0);ok('Question purge preserves failed list status, error and update counters');
+ const c3=client();c3.setQueryData(list.messagesKey('a','ana'),thread());c3.setQueryData(key,data(0));assert.equal(c3.getQueryData(key).conversations[0].openQuestions,0);assert.equal(c3.getQueryData(key).conversations[0].questionsCoverage.state,'not_assessed');ok('Late old list cannot restore assessed question count');
+ c3.setQueryData(key,data(purge.listReadSetsOut()));assert.equal(c3.getQueryData(key).conversations[0].openQuestions,2);ok('New list read can restore currently authoritative question projection');
+ const c4=client();c4.setQueryData(key,data());void c4.prefetchQuery({queryKey:key,queryFn:()=>new Promise(()=>{})});c4.setQueryData(list.messagesKey('a','ana'),thread());await c4.cancelQueries({queryKey:key});assert.equal(c4.getQueryData(key).conversations[0].openQuestions,0);ok('Cancelled old read cannot restore assessed question projection');
+ console.log(JSON.stringify({level:'L0 production helpers and actual QueryClient, synthetic assessed projections; no browser/API/provider',checks,passed:checks.length,failed:0},null,2));
+}finally{for(const c of clients)c.clear()}

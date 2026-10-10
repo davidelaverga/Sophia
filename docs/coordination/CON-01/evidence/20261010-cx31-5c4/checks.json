@@ -1,0 +1,80 @@
+{
+  "candidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
+  "tree": "37df9d109fd64f6f663b65c4c43de9abe75d835b",
+  "source": "5c4f1c0c364158192cdaada9e4c8b59cfd903b16",
+  "sourceTree": "7538608d142be778e5c94840407b1ab49cd1a074",
+  "install": {
+    "command": "pnpm install --frozen-lockfile",
+    "exit": 0
+  },
+  "focused": {
+    "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts",
+    "passed": 83,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "typecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "exit": 0
+  },
+  "externalProbe": {
+    "command": "CON01_CANDIDATE_ROOT=<frozen-candidate> node question-probe.mjs",
+    "level": "L0 production helpers and actual QueryClient, synthetic assessed projections; no browser/API/provider",
+    "passed": 9,
+    "failed": 0,
+    "exit": 0,
+    "initialHarnessCorrection": "Initial cross-project control incorrectly reused the same globally unique conversation ID in two project lists and failed. Corrected synthetic setup to distinct conversation IDs; no feature defect or source edit inferred."
+  },
+  "hashes": {
+    "question-probe.mjs": "501b02d3ee0faf4eacb370b20708cabe84a8e457c2bf3fcb393fe7c34203848a",
+    "g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
+    "g3-browser-stack.mjs": "2b05a1921a58f1cedec39dd761f09d1727fb57d94d91142fd25595fee672ea44",
+    "g3-browser-db-audit.mjs": "e78f5c90c4fcc64429120e43e1ad84030c9a868c0ad5ed2b8196969a16a6874f"
+  },
+  "browserObservations": {
+    "origin": "Independent CUA AX observations manually transcribed; screenshot visually inspected/emitted, no saved screenshot artifact claimed",
+    "lostSend": "Upstream202 fully buffered10:11:19.728Z, substituted incomplete JSON; UI says not confirmed. Retry10:11:24.471Z same56fd36ed-c430-4686-bdc9-5461f4264bbe key, one message shown, field cleared.",
+    "return": "Knowledge then Conversations: same two human messages, no duplicate; Ask off.",
+    "withdrawal": "seq2bodyNULL committed10:11:52.081Z; list/messages/feed refused, words removed and tombstone immediately shown.",
+    "threadOnlyRetry": "10:12:30.562Z: thread tombstone/no recorded questions; independent list This may be out of date/Try again remains.",
+    "recovery": "After markers removed, reads recover automatically before attempted list retry; earlier eligible seq1 preview and tombstone retained. Retry click found stale target, no write; fresh AX verified recovered state.",
+    "denied": "Separate tab41 actual synthetic outsider: No access to this project, no content/write controls.",
+    "layout": "Current desktop three panes visually preserved; no fresh mobile/native-generated assessment claim."
+  },
+  "cleanup": {
+    "session": 68632,
+    "exit": 0,
+    "allOwnedStacksClean": 22,
+    "tabsClosed": [
+      40,
+      41
+    ],
+    "processesAbsent": [
+      37471,
+      37496,
+      37504,
+      37505
+    ],
+    "portsClosed": [
+      55463,
+      55464
+    ],
+    "databaseDropped": true,
+    "postgresStopped": true,
+    "clusterRemoved": true
+  },
+  "limits": [
+    "Actual local Studio/API/PostgreSQL17.6; synthetic JWT actors, no fixture API/provider/native/worker",
+    "Question projection arm L0 only; API before G2 emits unassessed projections",
+    "No hosted account creation/deployment/provider/real native answer or A30",
+    "No full gate on future combined main"
+  ],
+  "effects": {
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "hostedEffects": 0,
+    "newSpend": 0,
+    "uncertainPaidOutcome": 0
+  }
+}

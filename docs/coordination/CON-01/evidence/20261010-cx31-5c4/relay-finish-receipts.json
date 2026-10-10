@@ -1,0 +1,35 @@
+[
+  {
+    "at": "2026-10-10T10:11:19.729Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/1f4a9741-95b1-4b38-8a69-88eb73cbf4a0/messages",
+    "idempotencyKey": "56fd36ed-c430-4686-bdc9-5461f4264bbe",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": true,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T10:11:24.471Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/1f4a9741-95b1-4b38-8a69-88eb73cbf4a0/messages",
+    "idempotencyKey": "56fd36ed-c430-4686-bdc9-5461f4264bbe",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T10:11:52.095Z",
+    "kind": "withdrawal",
+    "path": "/api/v1/conversations/1f4a9741-95b1-4b38-8a69-88eb73cbf4a0/messages/fc648bff-14c9-409b-8a6f-d01fd36cc627/withdrawal",
+    "idempotencyKey": "ddd4af34-3937-4b72-b426-514d6d512c97",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]

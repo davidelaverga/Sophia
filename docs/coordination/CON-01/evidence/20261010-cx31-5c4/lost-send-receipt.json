@@ -1,0 +1,1 @@
+{"at":"2026-10-10T10:11:19.728Z","path":"/api/v1/conversations/1f4a9741-95b1-4b38-8a69-88eb73cbf4a0/messages","idempotencyKey":"56fd36ed-c430-4686-bdc9-5461f4264bbe","actualApiStatus":202,"delayMs":0,"effect":"API response fully received; success body withheld and replaced with incomplete JSON for this one local send"}
