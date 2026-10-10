@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0081
+# Current checkpoint — CX-0082
+
+[Actual list-first403 P1 failure](../coordination/CON-01/CX-0082.md), [structured evidence](../coordination/CON-01/CX-0082.evidence.json). Samecombined3b1a/tree2718/main0ccc. Freshbot5480950760/P1r4239350130 fullyread/sourceconfirmed. Episode74realApp/API/PG: transientlist503stalecontrol; exactsyntheticmembershiprevoke cursor4->4; already-mountedlistRetry actual40322:02:04.544/.05.578; cachedrows/excerpts/authors/C1body/draft/Send/Newconversation/Propose/Withdraw/Erase stillshown22:02:16.968. No transcriptGETafterrevoke; clearindependentP1FAIL, notremountconfound. Backenddenies; no writeattempted. Originalmembershiprestored/sameRetry200/draftkept.
+
+Final4human0NULL/4requests/0replies/bootstrapgoal1/allmodelop0/12reads200.60376terminal0/quiescedaudit0/DBdropped/PGstoppedclusterremoved/PIDs25520,25545,25555,25556absent/ports55197-98closed/tab97closed; all74ownedstacks clean/no unknownlocalwrite. ExactClaude received smallestcorrectionrequest, freeze releasedaftercleanup/no reviewerfeaturefix. G3changes_requested/combinedG4held. Currentauthorgateoutcome retained/unqualified; docs0a91localunpublished, notindependentlyreviewed. All36statuses retained/A25currentfailureexplicit. CX81scopedpasses stand withoutwholeprivacyclaim; priora1ddmessage403/order/recovery retainedatCX80.
+
+OP1r2/OP2r2draft_not_authorized/approvalexpiryNULL; latestlive tuple inLIVE_PREFLIGHTnotrefreshed. Inbox/cohort/subscriptionroute/credential/payer/finiteallowanceexpiry/privacy/sharedownerwindow/governedrollback unbound. No hostedaccount/project/email/schema/config/cohort/deploy/provider/native/spend effects. Whole reviewed/authorized/deployed/app_verified/owneracceptedfalse; Davidefinalproductdecision/othermissionsopen.
+
+Next boundedaction: immutableauthorlist403fencecorrection and independentaffectedactualfirst403/transient503/recovery/draft-intent/oldsuccess-order/cleanup beforecombinedG4; finalizedliveinputsapprovalstillrequired.
+
+# Historical checkpoint — CX-0081
 
 [Combined exact source/app review](../coordination/CON-01/CX-0081.md), [structured receipts](../coordination/CON-01/CX-0081.evidence.json). Exact3b1a7ea6/tree2718e6dd/main0ccc, draftPR226reviewonly; PR199a1ddunchanged. IndependentStudioTSC0/206units54suitesPASS0skip/contracts0/artifactsreproduce. Actual local episode73 realApp/API/PG: human-only actual202lostreceipt->originaldcfe27b6keyretry202/exactlyoneSQLmessage; explicitA08proposal+accept/currentcontextinotherthread; desktopthreepanes/mobile390x844context/back/exactdraft; viewerno adminstate/writecontrols; outsideractual403/no cache; own syntheticwithdrawal+ownedAPIrestart/reload durable PASS. No native/hosted acceptance.
 

@@ -1,0 +1,96 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0082",
+  "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+  "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "episode": 74,
+  "level": "L1 actual ownedlocalStudio/API/PostgreSQL17.6, synthetic devJWT, nofixtures/native/provider/hosted",
+  "automatedReview": 5480950760,
+  "finding": 4239350130,
+  "severity": "P1",
+  "verdict": "failed_L1",
+  "expected": "Actual forbidden list read immediately hides cached conversation content and stale writecapability even when project snapshot/feed remain stale and no transcript/probe observes revocation",
+  "observed": "Two real list403 responses; cachedrows/excerpts/authors/openmessage/draft/Send/Newconversation/Propose/Withdraw/Erase stillshown12secondsafter first403",
+  "observedAt": "2026-10-10T22:02:16.968Z",
+  "reproducer": [
+    "Cache real list/C1, fill exactdraft",
+    "Ownedproxy503 feed/snapshot/membership/list, Tasks->Conversations settle list503 and pre-revocation transcript200",
+    "Remove only original synthetic adminmembership; cursor4->4",
+    "Release listtransport; already-mounted listTryagain; actual40322:02:04.544 and22:02:05.578",
+    "DOM/screenshot22:02:16.968 confirmsdisclosure; no transcriptGETafterrevocation",
+    "Restore exact originalmembership22:02:29.374; sameRetryactual20022:02:35.517/draftretained"
+  ],
+  "limitations": [
+    "No frame-zero claim; clear terminal disclosure",
+    "Snapshot/membership503 andfeedblocked are controlledownedlocalstimuli, not forged403",
+    "No live account/provider/native acceptance",
+    "Earlier exactcombinedCX81scopedpasses retained; privacy/wholeG4 held"
+  ],
+  "audit": {
+    "observedAt": "2026-10-10T22:02:35.988Z",
+    "humanMessages": 4,
+    "nullBodies": 0,
+    "conversationRequests": 4,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "writes": "No UI/persistence message or decision write;4seededhumanrequests only",
+    "membership": "Exact original synthetic membership removed/restored; cursor4 unchanged"
+  },
+  "cleanup": {
+    "tool_session": 60376,
+    "exit": 0,
+    "all_owned_stacks_clean": 74,
+    "tab97": "closed",
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "finalAuditExit": 0,
+    "pidsPorts": {
+      "wrapper": {
+        "pid": 25520,
+        "present": false
+      },
+      "node": {
+        "pid": 25545,
+        "present": false
+      },
+      "api": {
+        "pid": 25555,
+        "present": false
+      },
+      "studio": {
+        "pid": 25556,
+        "present": false
+      },
+      "apiPort": {
+        "port": 55197,
+        "open": false
+      },
+      "studioPort": {
+        "port": 55198,
+        "open": false
+      }
+    }
+  },
+  "readiness": {
+    "source_ready": "frozencombinedauthorcandidate;correctionunpublished",
+    "locally_verified": "namedscopedpassesandcurrentactualP1failure",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r2 draft_not_authorized, approval/expiryNULL; nohosted/provider/native/deployeffects",
+  "next": "Immutable author list403fence correction; independent first403/transient503/restoration/draft-intent/old-success-order and cleanup beforecombinedG4"
+}

@@ -1,0 +1,26 @@
+{
+  "wrapper": {
+    "pid": 25520,
+    "present": false
+  },
+  "node": {
+    "pid": 25545,
+    "present": false
+  },
+  "api": {
+    "pid": 25555,
+    "present": false
+  },
+  "studio": {
+    "pid": 25556,
+    "present": false
+  },
+  "apiPort": {
+    "port": 55197,
+    "open": false
+  },
+  "studioPort": {
+    "port": 55198,
+    "open": false
+  }
+}

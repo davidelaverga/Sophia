@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-10T22:02:35.988Z",
+  "humanMessages": 4,
+  "nullBodies": 0,
+  "conversationRequests": 4,
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "writes": "No UI/persistence message or decision write;4seededhumanrequests only",
+  "membership": "Exact original synthetic membership removed/restored; cursor4 unchanged"
+}
