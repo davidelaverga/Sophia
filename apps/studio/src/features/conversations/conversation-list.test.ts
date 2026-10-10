@@ -47,6 +47,7 @@ const remainsOf = (over: Partial<Remains>): Remains => ({
   writerStays: false,
   writerName: null,
   writerIsReader: false,
+  writerPlaces: [],
   firsts: new Map<string, number>(),
   sophiaStays: true,
   seq: 3,
@@ -1060,6 +1061,7 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
       writerStays: false,
       writerName: null,
       writerIsReader: false,
+      writerPlaces: [],
       firsts: new Map<string, number>(),
       sophiaStays: false,
       seq: 3,
@@ -1400,6 +1402,68 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     assert.deepEqual(
       kept?.contributors.map((p) => p.actorId),
       ['bea', 'ana'],
+    )
+  })
+
+  it('a sender the newer row leaves out isn’t placed by a former message of theirs the pages still show (r4237660062)', () => {
+    // The list read, after C's 2 was withdrawn, says B, A (messageSeq 3). The pages held are older: B1, C2, A3 shown.
+    const current = assessed({
+      messageSeq: 3,
+      contributors: [
+        { actorId: 'bea', name: 'Bea' },
+        { actorId: 'ana', name: 'Ana' },
+      ],
+    })
+    const b1 = msg(1, { actorId: 'bea', name: 'Bea' })
+    const c2 = msg(2, { name: 'Me', text: 'Two.' })
+    const a3 = msg(3, { actorId: 'ana', name: 'Ana' })
+    const c4 = msg(4, { name: 'Me', text: 'Four.' })
+    const mine = { author: 'member' as const, actorId: ME, name: 'Me', text: 'Four.', at, seq: 4 }
+    const order = ['bea', 'ana', ME]
+    // My first the row can still hold is past its place: 4, after B and A.
+    for (const pages of [
+      [b1, c2, a3, c4],
+      [b1, { ...c2, name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } }, a3, c4],
+      [c2, a3, c4],
+    ]) {
+      const [sent] = withLastMessage([current], 'a', mine, page(pages))
+      assert.deepEqual(
+        sent?.contributors.map((p) => p.actorId),
+        order,
+      )
+    }
+    // A writer restored by a withdrawal, the same: lucía's 2 the row left out, her 6 still shown, her 7 withdrawn.
+    const lucia2 = msg(2, { actorId: 'lucia', name: 'Lucía' })
+    const lucia6 = msg(6, { actorId: 'lucia', name: 'Lucía' })
+    const lucia7 = msg(7, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:01:00.000Z' } })
+    const held = [
+      b1,
+      lucia2,
+      a3,
+      msg(4, { actorId: 'ana', name: 'Ana' }),
+      msg(5, { actorId: 'bea', name: 'Bea' }),
+      lucia6,
+      lucia7,
+    ]
+    const [restored] = rowsKnown([current], heldForA(page(held)), () => true)
+    assert.deepEqual(
+      restored?.contributors.map((p) => p.actorId),
+      ['bea', 'ana', 'lucia'],
+    )
+    // A row read before: its place is the list read's, not a receipt's (the receipt order of r4237576952 holds).
+    const stale = assessed({ messageSeq: 1, contributors: [{ actorId: 'carla', name: 'Carla' }] })
+    const carla1 = msg(1, { actorId: 'carla', name: 'Carla' })
+    const three = { author: 'member' as const, actorId: ME, name: 'Me', text: 'Three.', at, seq: 3 }
+    const [sent3] = withLastMessage([stale], 'a', three, page([carla1, lucia2, msg(3, { name: 'Me', text: 'Three.' })]))
+    const four = msg(4, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:02:00.000Z' } })
+    const [a] = rowsKnown(
+      sent3 ? [sent3] : [],
+      heldForA(page([carla1, lucia2, msg(3, { name: 'Me' }), four])),
+      () => true,
+    )
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      ['carla', 'lucia', ME],
     )
   })
 

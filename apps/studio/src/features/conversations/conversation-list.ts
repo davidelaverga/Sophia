@@ -31,6 +31,11 @@ export const NAMED_AT_MOST = 200
  */
 export interface Unnamed {
   othersUnnamed?: true
+  /**
+   * The place the list read said (its `messageSeq`), kept where a confirmed message has moved `messageSeq` on since: up
+   * to it, the list read named everyone with a message still shown (below the cap, nobody unnamed; `firstsFor`).
+   */
+  listSeq?: number
 }
 
 /**
@@ -306,6 +311,8 @@ export interface Remains {
    * from 1, a withdrawn message keeping its own), so it is known to be their first; a member whose first isn't known
    * has none here, never a guess (`firstsIn`).
    */
+  /** The writer's places still shown within the places held from 1 without a gap, in order (`firstsFor`). */
+  writerPlaces: readonly number[]
   firsts: ReadonlyMap<string, number>
   sophiaStays: boolean
   /** The withdrawn message's place. */
@@ -323,18 +330,42 @@ const newestOf = (all: readonly ConversationMessage[]) =>
 
 /** Each member's first place still shown in these pages, where they hold every place before it from 1 (`Remains`). */
 export function firstsIn(thread: ThreadHeld): ReadonlyMap<string, number> {
+  return new Map([...shownIn(thread)].map(([who, places]) => [who, places[0] ?? 0]))
+}
+
+/** Each member's places still shown in these pages, in order, within the places they hold from 1 without a gap. */
+function shownIn(thread: ThreadHeld): ReadonlyMap<string, readonly number[]> {
   const all = (thread?.pages ?? []).flatMap((p) => p.messages)
   // How far the places held run from 1 without a gap: from the places held alone, never one per place (r4237627178).
   const through = [...new Set(all.map((m) => m.seq))]
     .toSorted((a, b) => a - b)
     .reduce((run, seq) => (seq === run + 1 ? seq : run), 0)
-  const firsts = new Map<string, number>()
-  for (const m of all) {
+  const places = new Map<string, number[]>()
+  for (const m of all.toSorted((a, b) => a.seq - b.seq)) {
     const who = shown(m) && m.author === 'member' && m.seq <= through ? m.actorId : null
-    const was = who === null ? undefined : firsts.get(who)
-    if (who !== null && (was === undefined || m.seq < was)) firsts.set(who, m.seq)
+    if (who !== null) places.set(who, [...(places.get(who) ?? []), m.seq])
   }
-  return firsts
+  return places
+}
+
+/**
+ * The firsts as `writer`, whom the row doesn't name yet, may take one: only past the place the list read said
+ * (`listSeq`), where it named everyone with a message still shown up to it (below the cap, nobody unnamed). One it left
+ * out had none there, whatever older pages held here still show, so such a place is never their first (PR #199
+ * r4237660062); their first is the next one shown, if proven, else none.
+ */
+function firstsFor(
+  c: ConversationSummary & Unnamed,
+  writer: string,
+  places: readonly number[],
+  firsts: ReadonlyMap<string, number>,
+): ReadonlyMap<string, number> {
+  const bound = c.othersUnnamed || c.contributors.length >= NAMED_AT_MOST ? 0 : (c.listSeq ?? c.messageSeq ?? 0)
+  const theirs = places.find((place) => place > bound)
+  const out = new Map(firsts)
+  if (theirs === undefined) out.delete(writer)
+  else out.set(writer, theirs)
+  return out
 }
 
 /** What a withdrawal leaves in the pages read (`Remains`), for the reader `reader` (their actor id; null if unknown). */
@@ -348,6 +379,7 @@ export function remainsAfter(after: ThreadHeld, gone: ConversationMessage, reade
     writerStays: theirs !== null,
     writerName: theirs === null ? null : (theirs.name ?? 'A member'),
     writerIsReader: writer !== null && writer === reader,
+    writerPlaces: writer === null ? [] : (shownIn(after).get(writer) ?? []),
     firsts: firstsIn(after),
     sophiaStays: now.some((m) => m.author === 'sophia'),
     seq: gone.seq,
@@ -427,7 +459,9 @@ function writersAfter(
       ),
     }
   }
-  if (contributors.length < NAMED_AT_MOST) return { contributors: placedAmong(contributors, them, remains.firsts) }
+  if (contributors.length < NAMED_AT_MOST) {
+    return { contributors: placedAmong(contributors, them, firstsFor(c, writer, remains.writerPlaces, remains.firsts)) }
+  }
   if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
   return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
@@ -612,7 +646,8 @@ export function withLastMessage<T extends ConversationSummary & Unnamed>(
   return list.map((c) => {
     if (c.id !== conversationId || !takes(c, m)) return c
     const placed = m.seq === undefined ? {} : { seq: m.seq }
-    const watermark = c.messageSeq !== undefined && m.seq !== undefined ? { messageSeq: m.seq } : {}
+    const watermark =
+      c.messageSeq !== undefined && m.seq !== undefined ? { messageSeq: m.seq, listSeq: c.listSeq ?? c.messageSeq } : {}
     const adjacent = c.messageSeq !== undefined && m.seq === c.messageSeq + 1
     return {
       ...c,
@@ -648,7 +683,8 @@ function withWriter(
   if (c.contributors.some((p) => p.actorId === writer)) return { contributors: renamedIn(c.contributors, writer, name) }
   const them = { actorId: writer, name }
   if (c.contributors.length < NAMED_AT_MOST) {
-    return { contributors: placedAmong(c.contributors, them, firstsIn(thread)) }
+    const theirs = shownIn(thread).get(writer) ?? []
+    return { contributors: placedAmong(c.contributors, them, firstsFor(c, writer, theirs, firstsIn(thread))) }
   }
   return { contributors: [...c.contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
