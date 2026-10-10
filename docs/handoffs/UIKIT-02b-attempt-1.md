@@ -5,8 +5,10 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/kit-segmented` from `ui/kit-input` at
 `da2eb1b7` (stacked on PR #221, itself on #220; the base retargets as each merges)
-Ending commit/tree and changed files: see the PR's commit; 18 files (6 new: `Segmented.tsx`, `segmented-class.ts`,
-`segmented-class.test.ts`, `roving.ts` in the kit, `e2e/segmented-scale.spec.ts`, `docs/plans/segmented-scale.md`).
+Ending commit/tree and changed files: `3a464106` (tree `abac5ed1711b`): 19 files, 7 new (`Segmented.tsx`,
+`segmented-class.ts`, `segmented-class.test.ts`, the kit's `roving.ts`, `e2e/segmented-scale.spec.ts`,
+`docs/plans/segmented-scale.md`, this handoff). The commit after it merges `ui/kit-input` forward and corrects these
+numbers.
 
 ## Outcome
 
