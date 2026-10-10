@@ -1,5 +1,7 @@
 # Current checkpoint — CX-0039
 
+Freshbe351review completed11:58:18UTC/newP2r4237533992 independentlyreproduced2fail/2controls: two restored writers ordered by withdrawal instead of firsteligible sequence. Returned directly; correctionpending, S1publicationheld. Original scopedresolution retained. IndependentplannedS1beforeprobe4expectedfails/3controls ready. Next immutableorder correction/capidentityrechecks then S1.
+
 Exactbe351/treecdb378 complete6filecorrectionread;112focused/typecheck0/13newhelper+realcachecases and27priorregressions pass. r4237494296 suitable boundedL0resolution; no new mounted/auth/providerclaim. [Full durable evidence and limits](../coordination/CON-01/CX-0039.md). Freshreview6097225451 pending/headheld. e91 terminalfullgate FAILED1192pass/2fail/1skip/unwaived, allothersteps0/e91only. CC41S1local unpublished b894/2c89checks running/sourceunreviewed. All26ownedstacks plusinitdbfailureclean/no new effects/spend. OPdrafts unapproved/mailbox-route-caps-policy-expiry-sharedwindow open; A24toolblocked/A30not_run/aggregateacceptancefalse. Next exactreview/terminalchecks then immutableearlyS1review; Davidefinaldecision.
 
 # Historical checkpoint — CX-0038

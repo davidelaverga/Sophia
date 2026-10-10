@@ -56,7 +56,7 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX39 exactbe351 missing-writer/reader-cap correction independently passes13newL0cases and27priorregressions;112focused/typecheck0. No current mounted/native/provider/hosted/full acceptance claim.",
+      "latest_checkpoint": "CX39 be351 originalmissingwriter/capcasespass13new+27regressions/112focused/typecheck0; freshP2order independentlyreproduced2fail/2controls, unresolved. No currentmounted/native/provider/hosted/fullacceptance claim.",
       "current_checkpoint": "CX-0039.md"
     },
     {
@@ -139,7 +139,7 @@
         "Focused Studio/auth baseline included in 74 passing tests; candidate/browser-account crossing remains open."
       ],
       "current_checkpoint": "CX-0039.md",
-      "latest_checkpoint": "CX39 exactbe351 missing-writer/reader-cap correction independently passes13newL0cases and27priorregressions;112focused/typecheck0. No current mounted/native/provider/hosted/full acceptance claim."
+      "latest_checkpoint": "CX39 be351 originalmissingwriter/capcasespass13new+27regressions/112focused/typecheck0; freshP2order independentlyreproduced2fail/2controls, unresolved. No currentmounted/native/provider/hosted/fullacceptance claim."
     },
     {
       "id": "CON01-A01",
@@ -437,7 +437,7 @@
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [],
-      "latest_checkpoint": "CX39 exactbe351 missing-writer/reader-cap correction independently passes13newL0cases and27priorregressions;112focused/typecheck0. No current mounted/native/provider/hosted/full acceptance claim.",
+      "latest_checkpoint": "CX39 be351 originalmissingwriter/capcasespass13new+27regressions/112focused/typecheck0; freshP2order independentlyreproduced2fail/2controls, unresolved. No currentmounted/native/provider/hosted/fullacceptance claim.",
       "current_checkpoint": "CX-0039.md"
     },
     {
@@ -856,7 +856,7 @@
     "actualAppCandidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
     "actualAppTree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "Complete six-file correction independently read; missing-writer and current-reader cap/cache reproductions pass at bounded L0. No new be351 mounted or aggregate acceptance claim.",
+    "statement": "Original missing-writer/reader-cap correction passes boundedL0, but freshbe351 review raises newP2r4237533992 contributor order, independently reproduced2fail/2controls; correctionpending.",
     "independentFocusedTests": {
       "command": "node --test apps/studio/src/features/conversations/{conversation-list,withdrawn-purge,talk-store,revalidation,list-data}.test.ts",
       "passed": 112,
@@ -874,7 +874,7 @@
     },
     "studioTypecheckExit": 0,
     "fullGate": "Author frozen e91 terminal fullStudio FAILED1192pass/2fail/1skip/exit1; all remaining focused/check/PGintegration/627DB/46migration5SQL steps exit0. e91 only; no be351 aggregate G4.",
-    "findings": "r4237494296 corrected/qualified bounded L0 actual helpers/QueryClient; prior CX37 scoped resolutions retained. No wholePR approval.",
+    "findings": "r4237494296 resolved boundedL0; newr4237533992 order independentlyreproduced/unresolved. No wholePR approval.",
     "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
     "cleanup": "All26successfulownedstacks clean+oneinitdb-onlyfailureclean; tabs46-48closed; DBdrop/PGstopclusterremove/portsclosed/processesabsent. No hosted/provider/native/spend/uncertain paid effects.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
@@ -906,11 +906,11 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "next": "Fresh exactbe351 review/terminal current checks then immutable S1 early source review/shared owner window.",
+    "next": "Immutable contributor-order correction rechecked with cap/identity controls, then S1 source/currentgates/sharedownerwindow.",
     "publication": {
-      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097157433",
+      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6097241367",
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097225451",
-      "reviewStatus": "Fresh exactbe351 requested; pending at record creation",
+      "reviewStatus": "Exactbe351 completed11:58:18UTC/newP2order independentlyreproduced",
       "twoThreadsResolved": "4237439145/4237439149 resolved within explicitP1boundedactualexternalwithdrawal+L0/P2L0scopes; no wholePR approval",
       "sharedSourceWindow": "renewed exactfootprint request6096904900, no acknowledgment inferred"
     },
@@ -938,6 +938,12 @@
       "failed": 0,
       "exit": 0,
       "scope": "L0 actual QueryClient subscription/purge; synthetic UUID accounts"
+    },
+    "newOrderProbe": {
+      "passed": 2,
+      "failed": 2,
+      "exit": 1,
+      "level": "L0 production helpers/synthetic complete eligible order"
     }
   }
 }

@@ -1,0 +1,29 @@
+{
+  "candidate": "be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd",
+  "scope": "L0 production helpers with synthetic request/message states; no native dispatch/budget/backend/mounted-app claim",
+  "passed": 3,
+  "failed": 4,
+  "passedCases": [
+    "Withdrawal still cancels pending/running, each terminal state stays terminal",
+    "Request correlation stays scoped to asking message, never a later reply/request",
+    "Blocked/failed/cancelled still have end words; open/answered have none"
+  ],
+  "failedCases": [
+    {
+      "name": "Durable outcome_unknown is terminal, never indefinite wait",
+      "error": "Expected values to be strictly equal:\n\ntrue !== false\n"
+    },
+    {
+      "name": "Uncertain ended Ask gives visible no-answer/new-Ask words",
+      "error": "Expected values to be strictly equal:\n\n'object' !== 'string'\n"
+    },
+    {
+      "name": "Only pending and running are open; every terminal is ended",
+      "error": "Expected values to be strictly equal:\n\ntrue !== false\n"
+    },
+    {
+      "name": "Withdrawal cannot rewrite terminal outcome_unknown into cancelled or restore copies",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'cancelled'\n- 'outcome_unknown'\n"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "candidate": "be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd",
+  "scope": "L0 production helpers/synthetic stale row; no mounted/auth/provider claim",
+  "passed": 2,
+  "failed": 2,
+  "passedCases": [
+    "Forward withdrawal control preserves C,A,B",
+    "Both surviving writers retained, no duplicates or withdrawn content"
+  ],
+  "failedCases": [
+    {
+      "name": "Direct reverse withdrawal preserves API first surviving sequence order C,A,B",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'B',\n    'A',\n-   'B'\n  ]\n"
+    },
+    {
+      "name": "Late row with reverse tombstone page order preserves API contributor order",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'B',\n    'A',\n-   'B'\n  ]\n"
+    }
+  ]
+}

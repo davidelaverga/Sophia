@@ -44,6 +44,28 @@
     "missing-writer-check.mjs": "dc85ae3548ad5ac65f764f8b77537247bad20984be475179cac4eabef9d1e517",
     "reader-cache-check.mjs": "8ce09b3ab740546333255db519558cb5e7f5cd0709b4a8f42f510f871238eb9b",
     "receipt-regression-check.mjs": "9c3672f4b71646d7988d4fc33527ef538783b0bfd00fb0ac3f162c955bf96860",
-    "withdrawal-check.mjs": "b2471f518b835cad0731f5fa460e2ddb375668001806f5cef4221d12a9b558b1"
+    "withdrawal-check.mjs": "b2471f518b835cad0731f5fa460e2ddb375668001806f5cef4221d12a9b558b1",
+    "writer-order-check.mjs": "2871209e4075cfee17d2d4e8c48747101a037d386117eb984955d1307feaec1a",
+    "be351-writer-order-result.json": "b21daaec09d38a31b92dd1153474a7db9a1da5571036b5cc54bc99d5dc93d937",
+    "s1-terminal-check.mjs": "be8a818bf4923512f37e71d90180ad71608cfada36bf3fb239dc98a93ecbb7e8",
+    "be351-s1-before.json": "07cb78b331bf93bfddf53adcb8bac47982b9bf8650750b11d72ecfe6eea783bf"
+  },
+  "newFinding": {
+    "id": 4237533992,
+    "severity": "P2",
+    "status": "independently_reproduced_unresolved",
+    "automaticReviewCompletedAt": "2026-10-10T11:58:18.367508Z",
+    "candidate": "be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd",
+    "command": "CON01_CANDIDATE_ROOT=<owned exactbe351> CON01_CANDIDATE_SHA=be351e25c6e8b1b5ab469e536c8320d5ce6e5fdd node <journal>/cx39/writer-order-check.mjs",
+    "passed": 2,
+    "failed": 2,
+    "exit": 1,
+    "scope": "L0; expected order independently checked against persistence conversations.ts111 first_seq=min eligible seq"
+  },
+  "s1IndependentBefore": {
+    "passed": 3,
+    "failed": 4,
+    "exit": 1,
+    "scope": "Planned G2/S1 behavior not yet implemented atbe351; L0 synthetic states, no new regression or actual dispatch claim"
   }
 }
