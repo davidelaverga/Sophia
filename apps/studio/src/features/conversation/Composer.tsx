@@ -8,7 +8,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Snapshot, SophiaPresence } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { startChat } from './chat-start.ts'
-import { chatEntry, chatLine, footError, waitsOnRoom, type ChatEntry, type ChatMoment } from './chat-view.ts'
+import {
+  chatEntry,
+  chatLine,
+  DELIVERY_NOT_CONFIRMED,
+  footError,
+  waitsOnRoom,
+  type ChatEntry,
+  type ChatMoment,
+} from './chat-view.ts'
 import { ContinuityChoice } from './ContinuityChoice.tsx'
 import { HELD_WORDS, TARGET_WORDS, type Target } from './discussion-view.ts'
 import { ReplyingTo, useReplyBar, type Replying } from './ReplyingTo.tsx'
@@ -118,7 +126,7 @@ function useChatSend({ snapshot, room, draft, onDraft }: Props) {
       })
       onDraft('')
     } catch (e: unknown) {
-      const text = e instanceof Error ? e.message : 'Delivery is unconfirmed; nothing is resent automatically.'
+      const text = e instanceof Error ? e.message : DELIVERY_NOT_CONFIRMED
       setError({ text, call: room.call })
     } finally {
       setSending(false)
@@ -287,7 +295,7 @@ function sendingTo(
 }
 
 interface FootLineProps {
-  /** The room's message, when it didn't simply go: not sent (with Try again, that same message), or refused. */
+  /** The room's message, when it didn't simply go: not confirmed (with Try again, that same message), or refused. */
   words: string | null
   unknown: boolean
   onRetry: () => void

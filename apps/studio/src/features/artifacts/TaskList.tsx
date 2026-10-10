@@ -132,7 +132,7 @@ function hrefOf(task: ProjectTask, artifactId: string): string | null {
 
 /** What a Done says: nothing while it waits; with no reply, so; a refusal, the API's words. */
 function rowWords(state: ReturnType<typeof useAdmission<void, ProjectTask>>['state']): string | null {
-  if (state.status === 'unknown') return 'Not sent. Try again.'
+  if (state.status === 'unknown') return 'Not confirmed. Try again.'
   if (state.status === 'rejected') return state.error instanceof ApiError ? state.error.message : 'Not sent.'
   return null
 }
