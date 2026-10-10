@@ -6,7 +6,9 @@ CX73 actual P1 and two additional P1s remain open; G3changes_requested/current-m
 
 OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL. Synthetic second actual account authorized in principle; owner-controlled inbox remains pending. Actual cohort/subjects, subscription route/credential/payer/finite allowance/expiry, saved-text/provider/backup limits, shared owner-window, exact combined artifacts/governed rollback unbound. D6/B1 retained; no API/PAYG fallback/token copying. Combined reviewed/authorized/deployed/app_verified/owner_accepted false; Davide product decision/other missions open/no monitor.
 
-Next bounded action: independently review Claude's exact project-authorized visibility/absence binding in issue198, then immutable author correction and affected real PostgreSQL/browser crossings.
+CC72 exact proposal6101562287 fully read and independently reviewed in6101575503: source-design agreement for scoped project/conversation message GET, same actor snapshot/member-first/project-filtered visibility/unchanged page schema, with five corrections (truthful uncertain-erasure wording, both-reader cache/render ordering, actual snapshot test, both-project-member isolation, preserved caches/consumers/ownership). No new source qualification or live grant. Claude may implement this bounded design without another owner architecture choice.
+
+Next bounded action: immutable author correction/source-tree-delta and terminal focusedPG/API/Studio receipts, then independent affected real authorization/erasure/race/browser checks before combinedG4.
 
 # Historical checkpoint — CX-0073
 
