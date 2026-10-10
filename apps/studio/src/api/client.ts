@@ -14,7 +14,6 @@ import type {
 } from '@sophia/contracts'
 import {
   asErrorBody,
-  ContractViolation,
   parseExchangeReceipt,
   parseProjectCreated,
   parseReceipt,
@@ -22,14 +21,15 @@ import {
   parseSnapshot,
 } from '@sophia/contracts/validate'
 import { apiUrl } from './base.ts'
+import { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly retry: ApiErrorBody['retry']
 
-  constructor(status: number, code: string, message: string, retry: ApiErrorBody['retry']) {
-    super(message)
+  constructor(status: number, code: string, message: string, retry: ApiErrorBody['retry'], options?: ErrorOptions) {
+    super(message, options)
     this.status = status
     this.code = code
     this.retry = retry
@@ -38,10 +38,11 @@ export class ApiError extends Error {
 
 /**
  * A refusal with no words of its own, the same over any protocol (HTTP/2 carries no status text, and an empty refusal
- * shows as nothing): what happened, and «Try again» only where trying again can help.
+ * shows as nothing): what happened, and «Try again» only where trying again can help. The status is the code's
+ * (`http_502`), never the person's to read (docs/plans/copy-no-raw-codes.md).
  */
 const unreadRefusal = (status: number) =>
-  `That didn’t go through (HTTP ${String(status)}).${status >= 500 || status === 429 ? ' Try again.' : ''}`
+  `That didn’t go through.${status >= 500 || status === 429 ? ' Try again.' : ''}`
 
 /** The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. */
 export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'never'): Promise<ApiError> {
@@ -61,19 +62,14 @@ async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: A
     if (res.status === 204) return parse(null)
     return parse(await res.json())
   } catch (err: unknown) {
-    const message = err instanceof ContractViolation ? err.message : 'Unreadable reply from Sophia'
-    throw new ApiError(res.status, 'contract_violation', message, retry)
+    // The person reads that the reply couldn't be read; the contract's own words stay with the error, for us.
+    throw new ApiError(res.status, 'contract_violation', 'Sophia’s reply couldn’t be read.', retry, { cause: err })
   }
 }
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` })
 
-/**
- * How long a call waits for its whole reply. A read is short: whoever needs it asks again. A write is long: it may
- * be the call that wakes an idle server, and one slow answer is better than a failure to retry by hand.
- */
-export const READ_TIMEOUT_MS = 30_000
-export const WRITE_TIMEOUT_MS = 90_000
+export { READ_TIMEOUT_MS, WRITE_TIMEOUT_MS } from './timeouts.ts'
 
 /**
  * No wait is endless. `run` gets a signal that aborts when `ms` pass before it settles (the reply's headers and

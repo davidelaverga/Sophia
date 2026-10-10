@@ -109,7 +109,10 @@ export function usePassageTask(props: {
   return { offered: VISION && canInvite(me) && !write.held && !asked, start, node }
 }
 
-/** What the last Create did, in the pane's foot: added, with See tasks; or, the form closed, not sent, with Try again. */
+/**
+ * What the last Create did, in the pane's foot: added, with See tasks; or, the form closed, not confirmed, with Try
+ * again.
+ */
 function TaskLine(props: {
   lineRef: RefObject<HTMLParagraphElement | null>
   said: string | null
@@ -152,7 +155,7 @@ const ownerOf = (choice: string, me: string): string | null =>
 
 /** The form's line: a Create with no reply says so; a refusal says the API's words. */
 function formWords(state: ReturnType<typeof useAdmission<TaskAsk, ProjectTask>>['state']): string | null {
-  if (state.status === 'unknown') return 'Not sent. Try again.'
+  if (state.status === 'unknown') return 'Not confirmed. Try again.'
   if (state.status === 'rejected') return state.error instanceof ApiError ? state.error.message : 'Not sent.'
   return null
 }
@@ -177,7 +180,7 @@ function useCreate(
   return {
     // A Try again on its way keeps the words it answers, and its button (aria-disabled), so the focus stays on it; a
     // first Create on its way says so too, so the foot is never silent while no other Task is offered.
-    words: sending ? (lost.current ? 'Not sent. Try again.' : 'Creating the task…') : formWords(write.state),
+    words: sending ? (lost.current ? 'Not confirmed. Try again.' : 'Creating the task…') : formWords(write.state),
     sending,
     slow,
     lost: lost.current,

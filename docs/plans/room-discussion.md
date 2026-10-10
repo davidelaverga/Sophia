@@ -17,7 +17,7 @@ The room's Chat reads the project's discussion (`snapshot.discussion`), but nobo
 **A message to the room:**
 - one Idempotency-Key per message (useAdmission), and one send at a time: while it goes Send is off, and Enter sends only what Send would;
 - once recorded, the bar clears only if it still holds what was sent; words written meanwhile stay;
-- **no reply:** «Not sent to the room: “…”» names the message, and Try again (or Enter) resends it with the same key;
+- **no reply:** «Not confirmed: “…”» names the message, and Try again (or Enter) resends it with the same key;
 - **refused:** the API's words.
 - It is never sent to Sophia, and never starts work.
 
@@ -33,6 +33,6 @@ The room's Chat reads the project's discussion (`snapshot.discussion`), but nobo
 - **Browser** (`e2e/room-discussion.spec.ts`):
   - out of Sophia's conversation, the bar writes to the room: the request (intent, text, key), the message in Chat with its author, the draft cleared;
   - holding the floor in her conversation, the switch picks Sophia or the room, and each message goes only where it says;
-  - no reply: «Not sent: try again» resends with the same key, and the message is recorded once;
+  - no reply: «Not confirmed», and Try again resends with the same key, and the message is recorded once;
   - Enter sends; Shift+Enter starts a new line.
 - **Units** (`discussion-view.test.ts`): which target the bar offers and starts on, and its words.

@@ -68,7 +68,7 @@ export function useRoomMessage(
     if (latest.current.draft.trim() === message.text) onDraft('')
   }
   const words = unknown
-    ? `Not sent to the room: “${firstWords(unknown.text)}”`
+    ? `Not confirmed: “${firstWords(unknown.text)}”`
     : write.state.status === 'rejected'
       ? write.state.error.message
       : null
