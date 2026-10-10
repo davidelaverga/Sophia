@@ -53,9 +53,12 @@ Ending commit/tree and changed files:
   - `a3422f4`'s full run failed: 4 of 1150, none in conversation specs; three reproduce on unchanged `main` here ([receipt](../coordination/CON-01/receipts/a3422f4-browser-gate.md)).
   - `715d2b1`'s full run failed: 3 of 1154, none in conversation specs. They are the same three that reproduce on unchanged `main` ([receipt](../coordination/CON-01/receipts/715d2b1-browser-gate.md)). Its focused gate passed (154).
   - `74a697b`'s full run failed: 2 of 1160, none in conversation specs ([receipt](../coordination/CON-01/receipts/74a697b-browser-gate.md)). Its focused gate passed (160).
-  - `4252cd7`'s gates were running when this was written, from `/home/user/sophia-g3-erase` by `cand4252-checks.sh`.
+  - `4252cd7`'s full run failed: 2 of 1160, none in conversation specs. `personal:382` also fails 1 of 3 alone on unchanged `main` `31dd587`; the other failure is C9 ([receipt](../coordination/CON-01/receipts/4252cd7-browser-gate.md)). Its focused gate passed (160).
   - GitHub Actions' `ci` workflow (every Studio spec included) succeeded on `715d2b1`, `f12786a`, `7969d40` and `74a697b`. That is another environment, and it is no local gate.
-- `pnpm check` was run in full only at `a7cc081` (G1). It has not been run on any later head.
+- **`pnpm check` passed at `4252cd7`**: exit 0, with its own skips (LiveKit, log-compat, and three crossings without a database).
+  - With the disposable PostgreSQL set, `pnpm test:integration` passed (99 of 101, 2 skipped: log-compat).
+  - So did every `*.db.test.ts` (627/627) and `pnpm test:sql` (46 migrations, 5 SQL test files).
+  - Before that, `pnpm check` had last run in full at `a7cc081` (G1).
 - PR #199 threads r4235629903, r4235862543, r4235976251, r4235976256, r4235976261 and r4236040713 are open until Codex reruns the affected evidence.
   - Their corrections are at `74a697b` and `4252cd7` ([fail-before](../coordination/CON-01/receipts/4252cd7-fail-before.md)).
   - A residual is stated in BINDING_MAP §11.1: on its first read of a thread, a list read in flight may lose a writer whose words are only on pages not read here, until the list is read again.
@@ -93,7 +96,7 @@ Ending commit/tree and changed files:
 
 ## Remaining obligations
 
-- **The browser gates on `4252cd7`**, started from `/home/user/sophia-g3-erase` by `cand4252-checks.sh`. Their exits go on #198. If this session ends first, they are lost with the container: rerun them, do not infer them. No development browser run may share their fixture server.
+- **No head has a passing full Studio browser gate in this container.** Each full run since `a3422f4` failed on specs that also fail, or fail alone, on unchanged `main` here. Whether CON-01's full gate can pass needs another environment, or those `main` failures fixed. GitHub Actions' `ci` passes the same suite on every head since `715d2b1`.
 - **`pnpm check`** on the latest head, PostgreSQL included, is not yet run.
 - **Local resources to clean up:** the PostgreSQL 16 cluster `/var/lib/postgresql/con01` (port 55432), and the worktrees `/home/user/sophia-g1-check`, `/home/user/sophia-g3-erase` and `/home/user/sophia-dev`. None holds anything hosted.
 - **Open PR threads:** every PR #199 thread stays unresolved until Codex reruns the affected evidence. r4235629903 is open as a defect.
@@ -102,7 +105,6 @@ Ending commit/tree and changed files:
 
 ## Next bounded action
 
-1. Report `4252cd7`'s gate exits, then run `pnpm check` on that head.
-2. Codex reruns CX-0028's crossings on the actual app at `4252cd7`: the late list answer (opening, writer, Sophia's part), the failing list's notice, and the fallback order.
-3. Integrating `main` `31dd587` (#204) must keep its fixture changes, `fixture-api.ts` and `room.tsx` (`coversHeld`, `hold=covers`, `releaseCovers`, staggered version reads), beside CON-01's.
-4. G2 waits for Davide's D-6 and B-1 and for the shared-window acknowledgments. Nothing in this attempt grants them.
+1. Codex reruns CX-0028's crossings on the actual app at `4252cd7`: the late list answer (opening, writer, Sophia's part), the failing list's notice, and the fallback order.
+2. Integrating `main` `31dd587` (#204) must keep its fixture changes, `fixture-api.ts` and `room.tsx` (`coversHeld`, `hold=covers`, `releaseCovers`, staggered version reads), beside CON-01's.
+3. G2 waits for Davide's D-6 and B-1 and for the shared-window acknowledgments. Nothing in this attempt grants them.
