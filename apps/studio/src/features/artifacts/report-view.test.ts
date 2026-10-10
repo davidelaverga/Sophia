@@ -66,6 +66,17 @@ describe('a research card in words', () => {
       pdfReason: 'The PDF was not rendered',
     })
     assert.equal(why.note, 'The Markdown report is ready. The PDF was not rendered.', 'the reason the service recorded')
+    // The service's own line names its code in brackets: the code goes, a reason in words stays.
+    const said = (pdfReason: string) =>
+      researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], { pdfReason }).note
+    assert.equal(
+      said('The PDF could not be produced again (failed: render_error)'),
+      'The Markdown report is ready. The PDF could not be produced again.',
+    )
+    assert.equal(
+      said('The PDF could not be produced again (cancelled: a newer version of the report was published)'),
+      'The Markdown report is ready. The PDF could not be produced again: a newer version of the report was published.',
+    )
     const again = researchState(done, [{ format: 'markdown' }], ['markdown', 'pdf'], {
       pdfReason: 'The PDF was not rendered',
       pdfRendering: true,
@@ -121,12 +132,12 @@ describe('a research card in words', () => {
       {},
       {
         status: 'failed',
-        message: 'That didn’t go through (HTTP 500). Try again.',
+        message: 'That didn’t go through. Try again.',
       },
     )
     assert.deepEqual(
       [lost.state, lost.note],
-      ['researching', 'Its progress could not be read here: That didn’t go through (HTTP 500). Try again.'],
+      ['researching', 'Its progress could not be read here: That didn’t go through. Try again.'],
     )
     // A record that ended keeps its own words, whatever the read.
     const failed = { status: 'failed', message: 'x' } as const
@@ -164,6 +175,11 @@ describe('a research card in words', () => {
     assert.equal(
       renditionWords({ state: 'failed', reason: 'failed: render_error' }),
       'The PDF could not be produced again.',
+    )
+    // A reason given in words keeps them.
+    assert.equal(
+      renditionWords({ state: 'cancelled', reason: 'cancelled: a newer version of the report was published' }),
+      'The PDF could not be produced again: a newer version of the report was published.',
     )
     assert.equal(
       refusal('native_capability_unavailable', 503),

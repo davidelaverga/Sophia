@@ -68,10 +68,26 @@ export function htmlNote(html: ResearchProgress['html']): string | null {
 
 const htmlFailed = (html: ResearchProgress['html']) => html?.state === 'failed' || html?.state === 'not_started'
 
+/** A reason in words after its kind («cancelled: a newer version of the report was published»): the words alone. */
+const reasonWords = (reason: string | null | undefined) =>
+  /^(?:stopped|cancelled|blocked):\s*(.+)$/s.exec(reason ?? '')?.[1]?.replace(/\.$/, '') ?? null
+
+/** A line, closed with its reason in words when there is one, never with a code. */
+const withReason = (line: string, reason: string | null | undefined) => {
+  const words = reasonWords(reason)
+  return words ? `${line}: ${words}.` : `${line}.`
+}
+
+/** The service's own line about the PDF, its code taken out: «… again (failed: render_error)» says «… again.». */
+function pdfNewsSaid(reason: string): string {
+  const coded = /^(.*?)\s*\(([^)]*)\)\.?$/s.exec(reason)
+  return coded?.[1] ? withReason(coded[1], coded[2]) : reason.replace(/\.?$/, '.')
+}
+
 function partialNote({ pdfReason, pdfRendering }: PdfNews): string {
   if (pdfRendering) return 'The Markdown report is ready. The PDF is being rendered again.'
   return pdfReason
-    ? `The Markdown report is ready. ${pdfReason.replace(/\.?$/, '.')}`
+    ? `The Markdown report is ready. ${pdfNewsSaid(pdfReason)}`
     : 'The Markdown report is ready; the PDF was not produced.'
 }
 
@@ -185,7 +201,8 @@ export function renditionWords(r: ResearchRendition): string {
     return `This report can’t be printed as a PDF: ${failed.join('; ') || 'it failed its checks'}.`
   }
   if (r.state === 'succeeded') return 'The PDF is ready.'
-  if (r.state === 'failed' || r.state === 'cancelled') return 'The PDF could not be produced again.'
+  if (r.state === 'failed' || r.state === 'cancelled')
+    return withReason('The PDF could not be produced again', r.reason)
   return 'Rendering the PDF again. It appears here when it’s ready.'
 }
 
