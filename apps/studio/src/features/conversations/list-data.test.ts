@@ -40,6 +40,10 @@ const assessedAt = (seq: number, newer: number) =>
     },
   }) as unknown as ConversationSummary
 
+/** A list read answering with that row. */
+const answer = (row: ConversationSummary) =>
+  ({ projectId: 'p', conversations: [row], more: false }) as unknown as ConversationList
+
 const summaryWords = (client: QueryClient, key: readonly unknown[]) => {
   const c = client.getQueryData<ConversationList>(key)?.conversations[0]
   return c ? coverageWords(c.summaryCoverage) : 'no row'
@@ -87,8 +91,6 @@ describe('setListsData: what this view writes into a list read, and nothing of i
   it('a count left unknown by a receipt is the list read’s again once it is read (r4237385090)', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const key = listKey('p', 'ana')
-    const answer = (row: ConversationSummary) =>
-      ({ projectId: 'p', conversations: [row], more: false }) as ConversationList
     await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(1, 0))) })
     const mine = {
       author: 'member' as const,

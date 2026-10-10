@@ -452,8 +452,8 @@ function saysWithdrawn(
  * place with it (so an older receipt after it never passes). With it, as the API would say them after this message:
  * - its writer is among those who wrote there (PR #199 r4237298623): added in the last place kept when the row names as
  *   many as it may (`NAMED_AT_MOST`), the rest then unnamed, as the API keeps a reader who wrote;
- * - its writer's name, where they are already among them, as the receipt says it now, in the same place (PR #199
- *   r4237385093: the API names each writer by their newest message);
+ * - its writer's name, where they are already among them, as the receipt says it now (or «A member», where it says
+ *   none), in the same place (PR #199 r4237385093: the API names each writer by their newest message);
  * - a summary or question projection with a range is behind, and `current` becomes `stale` (PR #199 r4237298622); one
  *   not assessed stays so. `newer` is one more only where the row's place and the message's are adjacent, so nothing
  *   can lie between; across a gap (another's message, eligible or withdrawn since) or with no places to tell, the count
@@ -493,7 +493,8 @@ export function withLastMessage<T extends ConversationSummary & Unnamed>(
 
 /**
  * The row's writers with a member's confirmed message: they are among them, the last kept place theirs when full; one
- * already there keeps their place, named as the receipt names them (matched by who they are, never by a name).
+ * already there keeps their place. Either is named as the API names a writer, by their newest message, «A member» where
+ * it carries no name (an authenticated subject may have none); matched by who they are, never by a name.
  */
 function withWriter(
   c: ConversationSummary & Unnamed,
@@ -501,12 +502,11 @@ function withWriter(
 ): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
   const writer = m.author === 'member' ? m.actorId : null
   if (writer === null) return { contributors: c.contributors }
+  const name = m.name ?? 'A member'
   if (c.contributors.some((p) => p.actorId === writer)) {
-    const name = m.name
-    if (name === null) return { contributors: c.contributors }
     return { contributors: c.contributors.map((p) => (p.actorId === writer && p.name !== name ? { ...p, name } : p)) }
   }
-  const them = { actorId: writer, name: m.name ?? 'A member' }
+  const them = { actorId: writer, name }
   if (c.contributors.length < NAMED_AT_MOST) return { contributors: [...c.contributors, them] }
   return { contributors: [...c.contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }

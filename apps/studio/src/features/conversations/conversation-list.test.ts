@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { MissionDecision } from '@sophia/contracts'
-import type {
-  ConversationMessage,
-  ConversationReply,
-  ConversationSummary,
-  ProjectionCoverage,
-} from '../../api/conversations.ts'
+import type { MissionDecision, ProjectionCoverage } from '@sophia/contracts'
+import type { ConversationMessage, ConversationReply, ConversationSummary } from '../../api/conversations.ts'
 import {
   NAMED_AT_MOST,
   acceptedOf,
@@ -821,16 +816,16 @@ describe('a confirmed message, as the API would say its row after it (r423729862
       'Covers messages 1–1; newer messages since.',
       'Covers messages 1–1, the newest then; newer messages since.',
     ]
-    const said = (c: (ConversationSummary & Unnamed) | undefined) => [
+    const bothSay = (c: (ConversationSummary & Unnamed) | undefined) => [
       words(c?.summaryCoverage),
       words(c?.questionsCoverage),
     ]
     assert.equal(a?.summaryCoverage.state, 'stale')
     assert.equal(a?.questionsCoverage.state, 'stale')
-    assert.deepEqual(said(a), uncounted)
+    assert.deepEqual(bothSay(a), uncounted)
     // An adjacent receipt after it restores no count; the same receipt again, or an older one, leaves it as it is.
     const [b] = withLastMessage(a ? [a] : [], 'a', { ...mine, seq: 4 })
-    assert.deepEqual(said(b), uncounted)
+    assert.deepEqual(bothSay(b), uncounted)
     for (const again of [4, 3, 2]) {
       const [c] = withLastMessage(b ? [b] : [], 'a', { ...mine, seq: again })
       assert.equal(c, b)
@@ -892,6 +887,22 @@ describe('a confirmed message, as the API would say its row after it (r423729862
       { actorId: 'lucia', name: 'Synthetic Former Name' },
       { actorId: ME, name: 'Synthetic Current Name' },
     ])
+  })
+
+  it('a writer already there whose receipt carries no name: «A member», as the API names them, never the former name', () => {
+    const before = [
+      { actorId: 'lucia', name: 'Lucía' },
+      { actorId: ME, name: 'Synthetic Former Name' },
+    ]
+    const [a] = withLastMessage([row({ contributors: before })], 'a', { ...mine, name: null })
+    assert.deepEqual(a?.contributors, [
+      { actorId: 'lucia', name: 'Lucía' },
+      { actorId: ME, name: 'A member' },
+    ])
+    assert.equal(a?.lastMessage?.name, null)
+    // A writer new here, the same.
+    const [b] = withLastMessage([row()], 'a', { ...mine, name: null })
+    assert.deepEqual(b?.contributors.at(-1), { actorId: ME, name: 'A member' })
   })
 
   it('renamed in a row naming as many as it may: the same place, the same count, the rest still unnamed', () => {
