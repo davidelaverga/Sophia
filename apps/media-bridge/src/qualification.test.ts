@@ -2,7 +2,13 @@
 // the order of their answers is the test's.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import type { MediaQualificationReservation, MediaQualificationReserve, VoiceQualification } from '@sophia/contracts'
+import type {
+  MediaAssignment,
+  MediaEvidenceWrite,
+  MediaQualificationReservation,
+  MediaQualificationReserve,
+  VoiceQualification,
+} from '@sophia/contracts'
 import { SessionQualification } from './qualification.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
@@ -21,9 +27,10 @@ type Refusal = NonNullable<MediaQualificationReservation['stop']>
 
 /**
  * A session's bound whose generation reservations wait until the test answers them (granted, or refused); the grant's
- * limits as GRANT's, with `over`.
+ * limits as GRANT's, with `over`; its clock `now`. The receipts it records are kept (`records`).
  */
-function bound(over: Partial<VoiceQualification> = {}) {
+function bound(over: Partial<VoiceQualification> = {}, now: () => number = Date.now) {
+  const records: MediaEvidenceWrite[] = []
   const waiting: Array<{
     kind: MediaQualificationReserve['kind']
     charge: number | undefined
@@ -36,10 +43,13 @@ function bound(over: Partial<VoiceQualification> = {}) {
     model: 'fake-model',
     instructionSha256: 'ef'.repeat(32),
     bridgeCommit: null,
-    record: () => Promise.resolve({ ended: false, reason: null }),
+    record: (write) => {
+      records.push(write)
+      return Promise.resolve({ ended: false, reason: null })
+    },
     nextSeq: () => 1,
     retryMs: [],
-    now: Date.now,
+    now,
     attribution: () => ({ actorId: LUIS, inputEpoch: 1 }),
     ended: () => undefined,
     stop: () => undefined,
@@ -57,7 +67,7 @@ function bound(over: Partial<VoiceQualification> = {}) {
     reserveTimeoutMs: 1000,
     log: () => undefined,
   })
-  return { q, waiting }
+  return { q, waiting, records }
 }
 
 const settle = async () => {
@@ -633,5 +643,184 @@ describe('the stop is owed in the ledger handed over until it is answered (Codex
     waiting[1]?.refuse('usage')
     assert.equal(await landed, false)
     assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [0, true])
+  })
+})
+
+/** The input turn's receipt, once the session closed and its receipts went: what it says of the holder's words. */
+async function turnOf(b: ReturnType<typeof bound>) {
+  b.q.closed('guard')
+  await b.q.flush(1000)
+  const turn = b.records.find((w) => w.receipt.kind === 'input_turn')?.receipt
+  assert.ok(turn?.kind === 'input_turn')
+  return { observed: turn.inputTranscriptionObserved, chars: turn.transcriptChars, finished: turn.finished }
+}
+
+describe('words heard past the budget are recorded and charged before the stop (Codex r4235620508)', () => {
+  const chunk = new Int16Array(1600).fill(2000)
+  /** The principal holds the floor under the grant: what the session records is theirs. */
+  const theirs = { inputActorId: LUIS, qualification: GRANT } as MediaAssignment
+
+  /**
+   * Root's sequence: a per-turn cap of 64 and a budget of `maxUsageTokens`; the principal's input asks for its
+   * generation, prepaid at 25,000 + 2 × 64 + 4,000 = 29,128 and granted; one 100 ms chunk sent from the allowance (4.2:
+   * 3.2 of audio and 1 prepaid for its transcription; 3,995.8 left). What the bound counts: 25,128 + 3.2.
+   */
+  async function spoke(maxUsageTokens: number, now: () => number = Date.now) {
+    const b = bound({ maxOutputTokensPerTurn: 64, maxUsageTokens }, now)
+    b.q.floor(theirs)
+    assert.equal(await b.q.connecting(1, false), null)
+    assert.equal(b.q.input(1, LUIS, chunk, 0, 1), 'hold')
+    await settle()
+    b.waiting[0]?.answer()
+    assert.equal(await b.q.granted(1), null)
+    assert.equal(b.q.input(1, LUIS, chunk, 0, 1), null, 'one 100 ms chunk, from the allowance')
+    return b
+  }
+
+  it('root’s sequence: 15,000 characters past a budget of 30,000 are recorded; 1 from their credit, 3,995.8 from the allowance, and the 1,004 left charged alone before the stop', async () => {
+    const b = await spoke(30_000)
+    const { q, waiting } = b
+    assert.equal(q.heard(1, 15_000, true), 'usage', '25,131.2 + 5,000 is past 30,000: the same stop as before')
+    const stopping = q.stopped()
+    await settle()
+    assert.deepEqual(
+      charges(waiting),
+      [
+        ['generation', 29_128],
+        ['spend', 1004],
+      ],
+      'the debt alone, before the stop',
+    )
+    assert.ok(29_128 + 1004 >= 25_128 + 3.2 + 5000, 'the API holds at least what was billed: 30,132 ≥ 30,131.2')
+    assert.deepEqual(
+      [q.ledger().unanswered, q.ledger().lost],
+      [2, false],
+      'owed in the ledger handed over: the debt, and the stop behind it',
+    )
+    waiting[1]?.answer()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'spend', 'stop'],
+      'the stop once the debt is answered',
+    )
+    const { landed } = q.ledger()
+    waiting[2]?.answer()
+    await stopping
+    assert.equal(await landed, true, 'all of it on the API')
+    assert.deepEqual([q.ledger().unanswered, q.ledger().lost], [0, false])
+    assert.deepEqual(await turnOf(b), { observed: true, chars: 15_000, finished: true }, 'the receipt counts them')
+  })
+
+  it('a top-up in flight when the words pass the budget: only the debt it leaves, charged once it is credited', async () => {
+    const b = bound({ maxOutputTokensPerTurn: 64, maxUsageTokens: 30_000 })
+    const { q, waiting } = b
+    b.q.floor(theirs)
+    assert.equal(await q.connecting(1, false), null)
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), 'hold')
+    await settle()
+    waiting[0]?.answer()
+    assert.equal(await q.granted(1), null)
+    // 952 chunks of 4.2 (3,998.4: 1.6 left, 952 prepaid for their words); what the bound counts: 25,128 + 3,046.4.
+    for (let i = 0; i < 952; i += 1) assert.equal(q.input(1, LUIS, chunk, 0, 1), null)
+    assert.equal(q.heard(1, 3000, false), null, '1,000 tokens: 952 from the credit, 48 past the 1.6 left: 46.4 owed')
+    assert.equal(q.heard(1, 15_000, true), 'usage', '29,174.4 + 5,000: past 30,000')
+    const stopping = q.stopped()
+    await settle()
+    assert.deepEqual(
+      charges(waiting),
+      [
+        ['generation', 29_128],
+        ['spend', 4047],
+      ],
+      'the 46.4’s top-up in flight (to 4,000); the debt waits for it',
+    )
+    waiting[1]?.answer()
+    await settle()
+    assert.deepEqual(
+      charges(waiting),
+      [
+        ['generation', 29_128],
+        ['spend', 4047],
+        ['spend', 1000],
+      ],
+      'credited, 999.4 short: 1,000, once',
+    )
+    assert.ok(29_128 + 4047 + 1000 >= 25_128 + 3046.4 + 6000, 'the API holds what was billed: 34,175 ≥ 34,174.4')
+    waiting[2]?.answer()
+    await settle()
+    assert.equal(waiting[3]?.kind, 'stop')
+    waiting[3]?.answer()
+    await stopping
+    assert.equal(waiting.length, 4, 'nothing more')
+    assert.deepEqual(await turnOf(b), { observed: true, chars: 18_000, finished: true })
+  })
+
+  it('refused: not on the API, and the ledger handed over says so', async () => {
+    const { q, waiting } = await spoke(30_000)
+    assert.equal(q.heard(1, 15_000, true), 'usage')
+    await settle()
+    const { landed } = q.ledger()
+    waiting[1]?.refuse('usage')
+    assert.equal(await landed, false)
+    assert.equal(q.ledger().lost, true)
+  })
+
+  it('under the budget, the same words go on as before: recorded, the debt topped up at once, no stop (control)', async () => {
+    const b = await spoke(40_000)
+    const { q, waiting } = b
+    assert.equal(q.heard(1, 15_000, true), null)
+    await settle()
+    assert.deepEqual(charges(waiting), [
+      ['generation', 29_128],
+      ['spend', 5004],
+    ])
+    assert.equal(q.input(1, LUIS, chunk, 0, 1), 'hold', 'input waits for it')
+    assert.deepEqual(await turnOf(b), { observed: true, chars: 15_000, finished: true })
+  })
+
+  it('past the budget, covered by their credit and the allowance: the stop at once, nothing more charged (control)', async () => {
+    const b = await spoke(26_000)
+    const { q, waiting } = b
+    assert.equal(q.heard(1, 3000, true), 'usage', '25,131.2 + 1,000: past 26,000; 1 + 999 of the 3,995.8 left')
+    void q.stopped()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'stop'],
+      'no spend',
+    )
+    assert.deepEqual(await turnOf(b), { observed: true, chars: 3000, finished: true })
+  })
+
+  it('words that come as the deadline passes: recorded, the deadline’s stop as before, and nothing charged for them', async () => {
+    let clock = Date.now()
+    const b = await spoke(30_000, () => clock)
+    const { q, waiting } = b
+    clock += 900_000
+    assert.equal(q.heard(1, 15_000, true), 'deadline')
+    void q.stopped()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'stop'],
+      'the stop alone: a spend past the deadline is refused',
+    )
+    assert.deepEqual(await turnOf(b), { observed: true, chars: 15_000, finished: true })
+  })
+
+  it('words that come once the session stopped are returned its stop, and neither recorded nor charged', async () => {
+    const b = await spoke(30_000)
+    const { q, waiting } = b
+    assert.equal(q.heard(1, 3000, false), null)
+    assert.equal(q.output(1, { chars: 300 }), 'output', 'a cut within the allowance: the stop, nothing owed')
+    assert.equal(q.heard(1, 15_000, true), 'output')
+    void q.stopped()
+    await settle()
+    assert.deepEqual(
+      waiting.map((w) => w.kind),
+      ['generation', 'stop'],
+    )
+    assert.deepEqual(await turnOf(b), { observed: true, chars: 3000, finished: false })
   })
 })

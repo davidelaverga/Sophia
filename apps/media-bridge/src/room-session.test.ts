@@ -5617,3 +5617,150 @@ describe('room session: a typed message reserved on one connection is sent on it
     await session.close()
   })
 })
+
+describe('room session: provider output that stops the session is recorded as the model’s response, never played or run (Codex r4235651864)', () => {
+  /**
+   * The principal's turn under a per-turn cap of 64: its generation reserved (25,000 + 2 × 64 + its 4,000 allowance) and
+   * granted, one 100 ms chunk sent from the allowance (4.2: 3,995.8 left).
+   */
+  async function asked() {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(s.live.audio, 1)
+    return s
+  }
+
+  /** Once the session's close is recorded: its stop (if any), the turn's, the reply's and the close's receipts. */
+  async function receipts() {
+    await until('the close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    const of = (kind: string) => fields(service.evidence.find((w) => w.receipt.kind === kind))
+    return {
+      stops: logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      turn: pick(of('input_turn'), 'modelResponded', 'toolCallCount', 'outcome'),
+      reply: of('output_reply'),
+      closed: pick(of('session_closed'), 'turns', 'replies', 'toolCalls', 'reason'),
+    }
+  }
+
+  /** The charges asked after the turn's generation: each spend, and the stop. */
+  const after = () =>
+    service.reservations.filter((r) => r.kind === 'spend' || r.kind === 'stop').map((r) => [r.kind, r.charge ?? null])
+
+  it('the first audio of a turn past the cap: the model responded, its reply received and never played, and the 37 it leaves charged once', async () => {
+    const { session, room, live } = await asked()
+    // 130 s of Sophia's audio in one chunk: 4,160 tokens, 4,032 past its generation's reserve, 36.2 past the allowance.
+    live.events.audio(speech(6500), OUT)
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0, 'nothing of it played')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0, outcome: 'connection_lost' })
+    assert.deepEqual(pick(r.reply, 'terminal', 'samplesReceived', 'framesPlayed', 'firstPlayedAtMs'), {
+      terminal: 'closed',
+      samplesReceived: OUTPUT_FRAME * 6500,
+      framesPlayed: 0,
+      firstPlayedAtMs: null,
+    })
+    assert.deepEqual(r.closed, { turns: 1, replies: 1, toolCalls: 0, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [
+      ['spend', 37],
+      ['stop', null],
+    ])
+    await session.close()
+  })
+
+  it('the first words of a turn past the cap: the model responded, nothing played, and the 877 they leave charged once', async () => {
+    const { session, room, live } = await asked()
+    // 15,000 characters: 5,000 tokens, 4,872 past the reserve, 876.2 past the allowance.
+    live.events.outputTranscript('x'.repeat(15_000), false)
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0, outcome: 'connection_lost' })
+    assert.equal(r.reply, undefined, 'words are no reply audio')
+    assert.deepEqual(r.closed, { turns: 1, replies: 0, toolCalls: 0, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [
+      ['spend', 877],
+      ['stop', null],
+    ])
+    await session.close()
+  })
+
+  it('the first function call of a turn past the cap: the model responded with one call, none runs, and the 885 its payload leaves charged once', async () => {
+    const { session, live } = await asked()
+    // project_status and {"pad":"x…"}: 15,024 characters, 5,008 tokens, 4,880 past the reserve, 884.2 past the allowance.
+    live.events.toolCalls([{ id: 'call-cut', name: 'project_status', args: { pad: 'x'.repeat(15_000) } }])
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.deepEqual(service.calls, [], 'no handler ran')
+    assert.deepEqual(live.responses, [], 'and nothing was answered to the provider')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 1, outcome: 'connection_lost' })
+    assert.deepEqual(r.closed, { turns: 1, replies: 0, toolCalls: 1, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [
+      ['spend', 885],
+      ['stop', null],
+    ])
+    await session.close()
+  })
+
+  it('a typed turn’s audio past the cap: the model responded, and no reply is recorded, as a typed reply never has one', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    const typed = { kind: 'input' as const, id: REQUEST, exchangeId: EXCHANGE, inputEpoch: 1, text: 'Synthetic typed' }
+    room.events.typed?.(LUIS, typed)
+    await flush()
+    assert.equal(live.notices.length, 1, 'sent once its generation was granted')
+    live.events.audio(speech(6500), OUT)
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0)
+    assert.equal(r.reply, undefined, 'no reply receipt: its audio would never have played')
+    assert.deepEqual(r.closed, { turns: 1, replies: 0, toolCalls: 0, reason: 'guard' })
+    await session.close()
+  })
+
+  it('a response within the cap goes on as before: played, its call run, recorded, and nothing more charged (control)', async () => {
+    const { session, room, live } = await asked()
+    live.events.audio(speech(2), OUT)
+    live.events.toolCalls([{ id: 'call-ok', name: 'project_status', args: {} }])
+    await flush()
+    await until('played', () => room.played.length === 2)
+    assert.equal(service.calls.length, 1, 'its handler ran')
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const r = await receipts()
+    assert.deepEqual(r.stops, [])
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 1, outcome: 'answered' })
+    assert.deepEqual(pick(r.reply, 'samplesReceived', 'framesPlayed'), {
+      samplesReceived: OUTPUT_FRAME * 2,
+      framesPlayed: 2,
+    })
+    assert.deepEqual(r.closed, { turns: 1, replies: 1, toolCalls: 1, reason: 'ended' })
+    assert.deepEqual(after(), [])
+  })
+
+  it('a stop with no output from the provider (the deadline) records nothing responded (control)', async () => {
+    const { session, room } = await asked()
+    clock += 900_000
+    session.tick()
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['deadline'])
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(r.turn, { modelResponded: false, toolCallCount: 0, outcome: 'connection_lost' })
+    assert.equal(r.reply, undefined)
+    assert.deepEqual(r.closed, { turns: 0, replies: 0, toolCalls: 0, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [['stop', null]])
+    await session.close()
+  })
+})

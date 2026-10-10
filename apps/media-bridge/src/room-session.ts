@@ -1860,8 +1860,7 @@ export class RoomSession {
 
   private audioOut(data: string, mimeType: string | undefined): void {
     // Under a grant, every chunk the provider sends is counted, the ones dropped below too: it was generated.
-    const q = this.qualification
-    if (q && !this.within(q.output(this.connection, { samples: pcmSamples(data) }))) return
+    if (this.audioStopped(data, mimeType)) return
     if (this.typedOutputUntilTurnEnd) return // Typed replies are visible text; no voice recording or playback is added.
     const generation = this.state.currentGeneration()
     if (this.fence) {
@@ -1888,6 +1887,31 @@ export class RoomSession {
     this.reply.received(samples.length, this.framer.queued, droppedBefore, this.deps.now())
     this.qualification?.replyReceived(samples.length)
     void this.pump()
+  }
+
+  /**
+   * Under a grant, whether this chunk of audio stopped the session (Codex r4235651864): a chunk the reply under way would
+   * have played is recorded as received, its samples and never a frame played; then the provider closes for good
+   * (guardStop), and nothing of it reaches the room.
+   */
+  private audioStopped(data: string, mimeType: string | undefined): boolean {
+    const q = this.qualification
+    const stop = q?.output(this.connection, { samples: pcmSamples(data) }) ?? null
+    if (!q || !stop) return false
+    if (this.wouldPlay(mimeType)) q.replyReceived(pcmSamples(data))
+    this.guardStop(stop)
+    return true
+  }
+
+  /** Whether audio arriving now would go to the room, as audioOut admits it: read only, nothing of it changed. */
+  private wouldPlay(mimeType: string | undefined): boolean {
+    if (this.typedOutputUntilTurnEnd || this.fenced(this.deps.now())) return false
+    if (!this.state.mayPlay(this.state.currentGeneration())) return false
+    try {
+      return pcmRate(mimeType) === OUTPUT_RATE
+    } catch {
+      return false
+    }
   }
 
   /** Feed the AudioSource with backpressure; anything of an older generation is never played. */

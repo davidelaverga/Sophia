@@ -1130,3 +1130,189 @@ describe('a close waits for the whole chain of what it owes, within its bound (C
     assert.equal(x.ledger.stopped.has(E1), false)
   })
 })
+
+describe('the holder’s words past the budget are recorded and charged before the stop, across the handover (Codex r4235620508)', () => {
+  /** One request's bound in these tests: 3 attempts of 100 ms. The close's: 3 of them. */
+  const ONCE = 3 * 100
+  const BOUND = 3 * ONCE
+  const MARGIN = 250
+  const INSIDE = 250
+
+  /**
+   * Root's sequence on the real MediaBridge: a per-turn cap of 64 and a budget of 31,000; the principal's turn reserved
+   * (25,000 + 2 × 64 + its 4,000 allowance: 29,128 on the API) and one chunk sent from the allowance (4.2; 3,995.8
+   * left); the provider reports 2,000 used on the connection (under the 29,128 charged there, so the API's count stays
+   * 29,128, as 0046's greatest(reported, charged) has it; `report` false: none); then 15,000 characters of the holder's
+   * words. The bridge counts 2,000 + 25,128 + 3.2 + 5,000 = 32,131.2, past 31,000: 1 from their credit, 3,995.8 from the
+   * allowance, 1,003.2 short: 1,004 is charged, and the API takes it (30,132 and the next turn's 64 stay under 31,000).
+   * With no report, under a budget of 30,000 (the bridge's 30,131.2 is past it), the API's count is the bridge's: the
+   * same 1,004 reaches its budget, and it refuses.
+   */
+  async function heardPast(opts: { report?: boolean; gate?: FakeLedger['gate']; reserveTimeoutMs?: number } = {}) {
+    const maxUsageTokens = opts.report === false ? 30_000 : 31_000
+    const ledger = new FakeLedger(grant({ maxOutputTokensPerTurn: 64, maxUsageTokens }))
+    ledger.endsOnStop = true
+    ledger.gate = opts.gate ?? null
+    const h = harness(ledger, opts.reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs: opts.reserveTimeoutMs })
+    await h.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    h.roomEvents[0]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    assert.equal(h.lives[0]?.audio, 1, 'the chunk went once its generation was granted')
+    if (opts.report !== false) h.lives[0]?.events.usage({ totalTokenCount: 2000 })
+    h.lives[0]?.events.inputTranscript('x'.repeat(15_000), true)
+    await settle()
+    assert.deepEqual(h.stops(), ['usage'], 'the same stop as before')
+    const kinds = () => ledger.asked.map((r) => r.kind)
+    const spends = () => ledger.asked.filter((r) => r.kind === 'spend').map((r) => r.charge)
+    const inputTurn = () => h.evidence.map((w) => w.receipt).find((r) => r.kind === 'input_turn')
+    const logged = (event: string) => h.logs.filter(([e]) => e === event).map(([, d]) => d)
+    return { ledger, h, kinds, spends, inputTurn, logged }
+  }
+
+  it('root’s sequence: the receipt counts the 15,000 characters, the 1,004 they leave is charged before the stop, and the API holds it: a restart gets nothing more', async () => {
+    const x = await heardPast()
+    await until('the stop answered', () => x.ledger.stopped.has(E1))
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'stop'], 'the debt before the stop')
+    assert.deepEqual(x.spends(), [1004], 'once, the debt alone')
+    assert.equal(x.ledger.committed(E1), 29_128 + 1004, 'the API holds it')
+    assert.equal(x.ledger.exchanges.get(E1)?.ended, 'bridge')
+    await until('the turn recorded', () => x.inputTurn() !== undefined)
+    const recorded = x.inputTurn()
+    assert.ok(recorded?.kind === 'input_turn')
+    assert.deepEqual(
+      [recorded.inputTranscriptionObserved, recorded.transcriptChars, recorded.finished],
+      [true, 15_000, true],
+      'the receipt counts them',
+    )
+    assert.equal(x.h.lives[0]?.audio, 1, 'nothing more sent')
+    await x.h.bridge.stop()
+    const restarted = harness(x.ledger, { lifetime: 2 })
+    await restarted.bridge.apply([assignment(x.ledger.grant)])
+    await settle()
+    assert.equal(restarted.lives.length, 0, 'a restarted process opens nothing on the ended exchange')
+    await restarted.bridge.stop()
+  })
+
+  it('with no usage report the debt reaches the API’s budget: refused, the exchange ends (usage), and the ledger handed over says lost, so a replacement stays closed', async () => {
+    const x = await heardPast({ report: false })
+    await until('the stop answered', () => x.ledger.stopped.has(E1))
+    assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'stop'])
+    assert.deepEqual(x.spends(), [1004], 'asked, before the stop')
+    assert.equal(x.ledger.exchanges.get(E1)?.ended, 'usage', 'refused: the API ended the exchange at its budget')
+    assert.equal(x.ledger.committed(E1), 29_128, 'and does not hold it')
+    try {
+      x.h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+      await settle()
+      await x.h.bridge.apply([assignment(x.ledger.grant)])
+      await until(
+        'the replacement weighed what it inherited',
+        () => x.logged('qualification.inherited_unsettled').length > 0,
+      )
+      assert.deepEqual(
+        x.logged('qualification.inherited_unsettled').map((d) => [d.charges, d.lost]),
+        [[0, true]],
+        'nothing unanswered, and lost: closed for good',
+      )
+      assert.equal(x.h.lives.length, 1, 'and opened nothing')
+      assert.deepEqual(x.kinds(), ['connection', 'generation', 'spend', 'stop'], 'nor asked anything')
+    } finally {
+      await x.h.bridge.stop()
+    }
+  })
+
+  it('a top-up in flight, then the words’ debt, then the stop, each answered inside its own bound: the shutdown waits for all three', async () => {
+    // A budget of 34,000, the principal's 952 chunks (3,998.4; 1.6 left, 952 prepaid for their words); the 953rd waits for
+    // a top-up of 3,999, in flight; a report of 2,000; then the 15,000 characters: 952 from their credit, 4,046.4 owed,
+    // 47.4 short once the top-up is credited: 48. The bridge counts 2,000 + 25,128 + 3,046.4 + 5,000 = 35,174.4, past
+    // 34,000; the API holds 33,175 (and the next turn's 64): under it.
+    const ledger = new FakeLedger(grant({ maxOutputTokensPerTurn: 64, maxUsageTokens: 34_000 }))
+    ledger.endsOnStop = true
+    ledger.gate = (r) => (r.kind === 'spend' || r.kind === 'stop' ? sleep(INSIDE) : undefined)
+    const h = harness(ledger, { reserveTimeoutMs: 100 })
+    await h.bridge.apply([assignment(ledger.grant)])
+    await settle()
+    h.lives[0]?.events.setupComplete()
+    h.roomEvents[0]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    for (let i = 1; i < 953; i += 1) h.roomEvents[0]?.audio(LUIS, chunk(), 16000, 1)
+    await settle()
+    assert.equal(h.lives[0]?.audio, 952)
+    h.lives[0]?.events.usage({ totalTokenCount: 2000 })
+    h.lives[0]?.events.inputTranscript('x'.repeat(15_000), true)
+    await settle()
+    assert.deepEqual(h.stops(), ['usage'])
+    const started = Date.now()
+    await h.bridge.stop()
+    const ms = Date.now() - started
+    assert.deepEqual(
+      ledger.asked.map((r) => [r.kind, r.charge ?? null]),
+      [
+        ['connection', null],
+        ['generation', 29_128],
+        ['spend', 3999],
+        ['spend', 48],
+        ['stop', null],
+      ],
+    )
+    assert.ok(ms >= 2 * INSIDE, `it waited for the chain (${String(ms)} ms)`)
+    assert.ok(ms < BOUND + MARGIN, `within its bound (${String(ms)} ms)`)
+    assert.deepEqual(
+      h.logs.filter(([event]) => event === 'qualification.charge_unsettled'),
+      [],
+    )
+    assert.equal(ledger.committed(E1), 29_128 + 3999 + 48)
+  })
+
+  for (const held of [
+    {
+      phase: 'the debt’s spend',
+      at: (r: MediaQualificationReserve) => r.kind === 'spend',
+      phases: ['debt'],
+      stop: 'unsent',
+      inherited: 2,
+      committed: 29_128,
+    },
+    {
+      phase: 'the stop',
+      at: (r: MediaQualificationReserve) => r.kind === 'stop',
+      phases: [],
+      stop: 'unanswered',
+      inherited: 1,
+      committed: 29_128 + 1004,
+    },
+  ]) {
+    it(`${held.phase} held past the bound: the replacement inherits it unanswered${held.inherited === 1 ? ', the debt having landed' : ''}, and opens nothing`, async () => {
+      let release: (() => void) | undefined
+      const never = new Promise<void>((resolve) => (release = resolve))
+      const x = await heardPast({ gate: (r) => (held.at(r) ? never : undefined), reserveTimeoutMs: 100 })
+      try {
+        const started = Date.now()
+        x.h.roomEvents[0]?.connection('disconnected', 'livekit: 1')
+        await settle()
+        await x.h.bridge.apply([assignment(x.ledger.grant)])
+        await until(
+          'the replacement weighed what it inherited',
+          () => x.logged('qualification.inherited_unsettled').length > 0,
+        )
+        const ms = Date.now() - started
+        assert.ok(ms >= BOUND - 50 && ms < BOUND + MARGIN, `the close ended at its bound (${String(ms)} ms)`)
+        assert.deepEqual(
+          x.logged('qualification.charge_unsettled').map((d) => [d.phases, d.stop]),
+          [[held.phases, held.stop]],
+        )
+        assert.deepEqual(
+          x.logged('qualification.inherited_unsettled').map((d) => d.charges),
+          [held.inherited],
+        )
+        assert.equal(x.ledger.committed(E1), held.committed)
+        assert.deepEqual(x.spends(), [1004])
+        assert.equal(x.h.lives.length, 1, 'the replacement opened nothing')
+      } finally {
+        release?.()
+        await x.h.bridge.stop()
+      }
+    })
+  }
+})

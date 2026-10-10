@@ -38,10 +38,11 @@ const MAX_CHARGE = 5_000_000
 /**
  * The longest chain of ledger requests a session's close can wait for, one after another (Codex r4235490757):
  * 1. a top-up, or the reservation input asked for, already in flight on a connection;
- * 2. the debt a cut left on that connection, spent once that is credited (#chargeDebt);
+ * 2. the debt a cut, or the holder's words past the budget (Codex r4235620508), left on that connection, spent once
+ *    that is credited (#chargeDebt): only the call that made the bound's stop leaves one, so there is one;
  * 3. the bridge's stop, sent once every charge is answered (stopped()).
  * Nothing else waits on another: an unasked generation's charge is one request, alongside; a debt's top-up may ask
- * one more top-up when its credit leaves a debt (two, with no stop: a cut's debt is #chargeDebt's, and a credit asks
+ * one more top-up when its credit leaves a debt (two, with no stop: a stop's debt is #chargeDebt's, and a credit asks
  * nothing once the session stopped); and nothing new is owed once the session closed (no output arrives then). So a
  * close waits at most three times one request's bound (RESERVE_TIMEOUT_MS attempts and RESERVE_RETRY_MS waits).
  */
@@ -321,6 +322,7 @@ export class SessionQualification {
   output(connection: number, out: { samples?: number; chars?: number }): GuardStop | null {
     const ordinal = this.#local(connection)
     const text = out.chars === undefined ? 0 : Math.ceil(out.chars / ASSUMED_RATES.charsPerToken)
+    const going = this.#stopped === null
     const unasked = this.#startsUnasked(connection)
     // Counted whatever stops the session: the provider billed it.
     const received = this.#reserve.received(ordinal, out.samples ?? 0, text)
@@ -329,8 +331,10 @@ export class SessionQualification {
       this.#check(() => received) ??
       (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
     if (unasked) this.#unasked(connection)
+    // And recorded, when it came while the session was going: output that stops it was the model's response all the
+    // same (Codex r4235651864). The caller plays none of it.
+    if (going) this.#recorder.responded(0)
     if (stop) return this.#stopsUnpaid(connection, unpaid, stop)
-    this.#recorder.responded(0)
     return out.chars === undefined ? null : this.#owe(connection, out.chars / ASSUMED_RATES.charsPerToken, 0)
   }
 
@@ -344,13 +348,16 @@ export class SessionQualification {
    */
   called(connection: number, calls: number, chars: number): Promise<GuardStop | null> {
     const tokens = chars / ASSUMED_RATES.charsPerToken
+    const going = this.#stopped === null
     const unasked = this.#startsUnasked(connection)
     const received = this.#reserve.received(this.#local(connection), 0, Math.ceil(tokens))
     const unpaid = this.#reserve.unpaid
     const stop = this.#check(() => received)
     if (unasked) this.#unasked(connection)
+    // Recorded, with how many, when they came while the session was going: calls that stop it were the model's
+    // response all the same (Codex r4235651864). None of them runs.
+    if (going) this.#recorder.responded(calls)
     if (stop) return Promise.resolve(this.#stopsUnpaid(connection, unpaid, stop))
-    this.#recorder.responded(calls)
     const owed = this.#owe(connection, tokens, 0)
     if (owed) return Promise.resolve(owed)
     const counted = [...(this.#unaskedCharges.get(connection) ?? [])]
@@ -373,14 +380,23 @@ export class SessionQualification {
 
   /**
    * The holder's words were transcribed on this connection: billed as text, from what their audio prepaid for it
-   * first; the receipt keeps only how many characters.
+   * first, then the allowance; the receipt keeps only how many characters. Words that take the exchange past its
+   * budget were billed all the same (Codex r4235620508): they are recorded and paid the same way, and a debt they
+   * leave is charged before the stop and the end, as a cut's is (#stopsOwing); the stop is returned as it was. Words
+   * that come once the session stopped are returned its stop, as before.
    */
   heard(connection: number, chars: number, finished: boolean): GuardStop | null {
+    const going = this.#stopped === null
     const stop = this.#check(() => this.#reserve.transcribed(chars))
-    if (stop) return stop
+    if (!going) return stop
+    // Words that came while the session was going are recorded, whatever stop they meet: they were transcribed.
     this.#recorder.heard(chars, finished)
     const tokens = chars / ASSUMED_RATES.charsPerToken
-    return this.#owe(connection, tokens, Math.min(tokens, this.#links.get(connection)?.credit ?? 0))
+    const fromCredit = Math.min(tokens, this.#links.get(connection)?.credit ?? 0)
+    if (!stop) return this.#owe(connection, tokens, fromCredit)
+    // The bound's own stop, made by these words (the reserve was going, as the session was), is paid for; it stays made,
+    // so this is once. The deadline's, found as they came, is returned as it was.
+    return this.#reserve.stopped === null ? stop : this.#stopsOwing(connection, tokens, fromCredit, stop)
   }
 
   /**
@@ -560,9 +576,31 @@ export class SessionQualification {
     const link = this.#links.get(connection)
     if (!link || unpaid <= 0) return stop
     link.paid -= unpaid
+    this.#owesDebt(connection, link)
+    return stop
+  }
+
+  /**
+   * Words heard that stopped the session (Codex r4235620508): `fromCredit` of them comes out of what their audio
+   * prepaid, the rest out of the allowance, as any words heard; a debt that leaves is charged on the API alone, owed
+   * before the stop and the end, as a cut's is (#stopsUnpaid). No debt, nothing more is asked. The same stop is returned.
+   */
+  #stopsOwing(connection: number, tokens: number, fromCredit: number, stop: GuardStop): GuardStop {
+    const link = this.#links.get(connection)
+    if (!link) return stop
+    link.credit -= fromCredit
+    link.paid -= tokens - fromCredit
+    if (link.paid < 0) this.#owesDebt(connection, link)
+    return stop
+  }
+
+  /**
+   * A stopped connection's debt is owed (one more link of the chain a close waits for, SETTLE_DEPTH's second): charged
+   * once what is in flight on it is credited.
+   */
+  #owesDebt(connection: number, link: Link): void {
     const phase = { name: 'debt, after what is in flight' }
     this.#oblige(this.#chargeDebt(connection, link, phase), phase)
-    return stop
   }
 
   /** A stopped connection's debt, charged once a top-up in flight is credited: whether it is on the API. */
