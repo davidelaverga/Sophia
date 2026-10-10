@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, type Connect, type Plugin } from 'vite'
 
 // The vision flag (src/app/vision.ts): the fixture pages answer the APIs proposed in issue #105, so they show them.
 // Vite hands VITE_ variables of its own process to import.meta.env.
@@ -22,24 +22,54 @@ const noLiveKit: Plugin = {
     source === './livekit-room.ts' && importer?.endsWith('/src/features/voice/useProjectRoom.ts') ? fakeLiveKit : null,
 }
 
-/**
- * A page that is the Studio's own index.html, as it ships, with the app's part played by `entry` (a fixture) instead of
- * src/main.tsx.
- */
+/** The Studio's own index.html, as it ships, with the app's part played by `entry` (a fixture) instead of src/main.tsx. */
+export function studioPageWith(entry: string): string {
+  const page = readFileSync(studioPage, 'utf8')
+  if (!page.includes('/src/main.tsx')) throw new Error('index.html no longer loads /src/main.tsx')
+  return page.replace('/src/main.tsx', entry)
+}
+
+/** A page that is the Studio's own index.html, as it ships, with `entry` as its app (studioPageWith). */
 export const studioPageAs = (path: string, entry: string): Plugin => ({
   name: `sophia-fixture-studio-page${path}`,
   configureServer: (server) => {
     server.middlewares.use((req, res, next) => {
       if (!req.url?.startsWith(path)) return next()
-      const page = readFileSync(studioPage, 'utf8')
-      if (!page.includes('/src/main.tsx')) throw new Error('index.html no longer loads /src/main.tsx')
-      void server.transformIndexHtml(req.url, page.replace('/src/main.tsx', entry)).then((html) => {
+      void server.transformIndexHtml(req.url, studioPageWith(entry)).then((html) => {
         res.setHeader('content-type', 'text/html')
         res.end(html)
       }, next)
     })
   },
 })
+
+/**
+ * As the deployment's rewrite (public/vercel.json): an address of the app's own (no file's), opened or reloaded, is its
+ * page. The app moves to its own addresses (/ for home) as it starts.
+ */
+const toAppPage = (req: Connect.IncomingMessage) => {
+  const path = new URL(req.url ?? '/', 'http://fixture').pathname
+  if (req.method === 'GET' && req.headers['sec-fetch-dest'] === 'document' && !/\.[a-z0-9]+$/iu.test(path)) {
+    req.url = '/app.html'
+  }
+}
+
+/** The app's address rewrite (toAppPage) on its servers, served (vite.app.config.ts) or built (vite.app-build.config.ts). */
+export const appAddresses: Plugin = {
+  name: 'sophia-fixture-app-addresses',
+  configureServer: (server) => {
+    server.middlewares.use((req, _res, next) => {
+      toAppPage(req)
+      next()
+    })
+  },
+  configurePreviewServer: (server) => {
+    server.middlewares.use((req, _res, next) => {
+      toAppPage(req)
+      next()
+    })
+  },
+}
 
 /** The opening's page (fixtures/opening.tsx). */
 const openingPage = studioPageAs('/opening.html', '/opening.tsx')
