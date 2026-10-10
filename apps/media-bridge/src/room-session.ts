@@ -1872,15 +1872,8 @@ export class RoomSession {
       this.fence = null
     }
     if (!this.state.mayPlay(generation)) return
-    let samples: Int16Array
-    try {
-      const rate = pcmRate(mimeType)
-      if (rate !== OUTPUT_RATE) throw new FormatError(`output at ${rate} Hz; the room track is ${OUTPUT_RATE} Hz`)
-      samples = base64ToPcm(data)
-    } catch (err: unknown) {
-      if (err instanceof FormatError) return this.deps.log('audio.output_refused', { error: err.message })
-      throw err
-    }
+    const samples = this.decodedOutput(data, mimeType)
+    if (!samples) return
     this.responding = true
     const droppedBefore = this.framer.dropped
     this.framer.push(samples, generation)
@@ -1890,28 +1883,42 @@ export class RoomSession {
   }
 
   /**
-   * Under a grant, whether this chunk of audio stopped the session (Codex r4235651864): a chunk the reply under way would
-   * have played is recorded as received, its samples and never a frame played; then the provider closes for good
-   * (guardStop), and nothing of it reaches the room.
+   * Sophia's audio as the room's track takes it: 24 kHz PCM of whole 16-bit samples, decoded; or null when it is not,
+   * logged as a refused output (audio.output_refused). Nothing of the session changes.
+   */
+  private decodedOutput(data: string, mimeType: string | undefined): Int16Array | null {
+    try {
+      const rate = pcmRate(mimeType)
+      if (rate !== OUTPUT_RATE) throw new FormatError(`output at ${rate} Hz; the room track is ${OUTPUT_RATE} Hz`)
+      return base64ToPcm(data)
+    } catch (err: unknown) {
+      if (!(err instanceof FormatError)) throw err
+      this.deps.log('audio.output_refused', { error: err.message })
+      return null
+    }
+  }
+
+  /**
+   * Under a grant, whether this chunk of audio stopped the session (Codex r4235651864): it is counted and charged as it
+   * came (q.output). A chunk the reply under way would have played, and that decodes as audioOut decodes it, is recorded
+   * as received, its decoded samples and never a frame played; one the room's track would refuse (another rate, a
+   * broken sample) is refused and logged as audioOut refuses it, and records no reply (Codex P2 r4235822091). Then the
+   * provider closes for good (guardStop), and nothing of it reaches the room.
    */
   private audioStopped(data: string, mimeType: string | undefined): boolean {
     const q = this.qualification
     const stop = q?.output(this.connection, { samples: pcmSamples(data) }) ?? null
     if (!q || !stop) return false
-    if (this.wouldPlay(mimeType)) q.replyReceived(pcmSamples(data))
+    const samples = this.wouldPlay() ? this.decodedOutput(data, mimeType) : null
+    if (samples) q.replyReceived(samples.length)
     this.guardStop(stop)
     return true
   }
 
-  /** Whether audio arriving now would go to the room, as audioOut admits it: read only, nothing of it changed. */
-  private wouldPlay(mimeType: string | undefined): boolean {
+  /** Whether audio arriving now would go to the room's reply, as audioOut routes it: read only, nothing changed. */
+  private wouldPlay(): boolean {
     if (this.typedOutputUntilTurnEnd || this.fenced(this.deps.now())) return false
-    if (!this.state.mayPlay(this.state.currentGeneration())) return false
-    try {
-      return pcmRate(mimeType) === OUTPUT_RATE
-    } catch {
-      return false
-    }
+    return this.state.mayPlay(this.state.currentGeneration())
   }
 
   /** Feed the AudioSource with backpressure; anything of an older generation is never played. */

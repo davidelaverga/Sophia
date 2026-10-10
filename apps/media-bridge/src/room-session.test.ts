@@ -5936,3 +5936,86 @@ describe('room session: root’s reproduction of the words that stop the session
     service.answerReservations()
   })
 })
+
+describe('room session: audio that stops the session is recorded as received only as audioOut would take it (Codex P2 r4235822091)', () => {
+  /** The principal's turn under a cap of 64, one 1,600-sample chunk admitted, then one chunk of Sophia's audio. */
+  async function cutBy(data: string, mimeType = OUT) {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(s.live.audio, 1)
+    s.live.events.audio(data, mimeType)
+    await flush()
+    return s
+  }
+  const refused = () => logs.filter(([event]) => event === 'audio.output_refused').map(([, d]) => d.error)
+  const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
+  const charged = () =>
+    service.reservations.filter((r) => r.kind === 'spend' || r.kind === 'stop').map((r) => [r.kind, r.charge ?? null])
+  /** Once the guard's close is recorded: the reply's receipt (if any) and the close's counts. */
+  async function receipts() {
+    await until('the close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    const of = (kind: string) => fields(service.evidence.find((w) => w.receipt.kind === kind))
+    return {
+      reply: of('output_reply'),
+      turn: pick(of('input_turn'), 'modelResponded'),
+      closed: pick(of('session_closed'), 'turns', 'replies'),
+    }
+  }
+
+  it('a 24 kHz chunk of 144,001 bytes (an odd length) past the cap: counted and charged as before, refused as audioOut refuses it, and no reply recorded', async () => {
+    // pcmSamples counts 72,000 (3 s, 96 tokens): past the cap of 64, so it stops the session as before.
+    const { session, room } = await cutBy(Buffer.alloc(144_001, 1).toString('base64'))
+    assert.deepEqual(stops(), ['output'], 'counted: the same stop')
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.equal(r.reply, undefined, 'no output_reply: it was never audio the room could take')
+    assert.deepEqual(refused(), ['PCM data has an odd byte length'], 'logged as audioOut logs it')
+    assert.deepEqual(r.turn, { modelResponded: true }, 'the provider produced it')
+    assert.deepEqual(r.closed, { turns: 1, replies: 0 })
+    await until('the stop asked', () => charged().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(charged(), [['stop', null]], 'charged as before: within its reserve')
+    await session.close()
+  })
+
+  it('a valid chunk past the cap carried as line-wrapped base64: the decoded 72,000 samples are recorded, not the apparent count', async () => {
+    const wrapped = speech(150).replace(/.{76}/g, '$&\n')
+    assert.ok(Math.floor(Buffer.byteLength(wrapped, 'base64') / 2) > 72_000, 'the apparent count is larger')
+    const { session, room } = await cutBy(wrapped)
+    assert.deepEqual(stops(), ['output'])
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(pick(r.reply, 'samplesReceived', 'framesPlayed'), { samplesReceived: 72_000, framesPlayed: 0 })
+    await session.close()
+  })
+
+  it('a valid 72,000-sample chunk past the cap (control): received 72,000, nothing played', async () => {
+    const { session, room } = await cutBy(speech(150))
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(pick(r.reply, 'samplesReceived', 'framesPlayed'), { samplesReceived: 72_000, framesPlayed: 0 })
+    assert.deepEqual(refused(), [])
+    await session.close()
+  })
+
+  it('a 16 kHz chunk past the cap (control): no reply recorded, as before', async () => {
+    const { session, room } = await cutBy(speech(150), 'audio/pcm;rate=16000')
+    assert.deepEqual(stops(), ['output'])
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.equal(r.reply, undefined)
+    await session.close()
+  })
+
+  it('a chunk of an odd length within the cap (control): refused and logged by audioOut as before, nothing played, no stop', async () => {
+    const { session, room } = await cutBy(Buffer.alloc(2401, 1).toString('base64'))
+    assert.deepEqual(stops(), [])
+    assert.deepEqual(refused(), ['PCM data has an odd byte length'])
+    await flush()
+    assert.equal(room.played.length, 0)
+    await session.close()
+    const r = await receipts()
+    assert.equal(r.reply, undefined)
+  })
+})
