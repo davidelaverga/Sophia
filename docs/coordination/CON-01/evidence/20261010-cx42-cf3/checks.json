@@ -1,0 +1,95 @@
+{
+  "candidate": "cf3d83171ade2d2f3064ea83beb6e2a720785c64",
+  "tree": "b092197b4a08cefe932b2d3c120f9c43c19c40ed",
+  "sourceReview": "Complete3filec5e-to-cf3delta independently read; no featurefix authored by reviewer",
+  "focused": {
+    "pass": 114,
+    "suites": 32,
+    "fail": 0,
+    "skip": 0,
+    "exit": 0,
+    "files": [
+      "conversation-list.test.ts",
+      "list-data.test.ts",
+      "held-write.test.ts",
+      "withdrawn-purge.test.ts",
+      "probes.test.ts"
+    ]
+  },
+  "studioTypecheck": 0,
+  "external": {
+    "newOriginalAndHighseq": 5,
+    "unchangedPrior": 54,
+    "additionalRealistic201writersCache": 6,
+    "allExit": 0,
+    "failed": 0
+  },
+  "actualLocalBrowser": {
+    "before": "c5eA,B vs canonicalB,A FAIL",
+    "after": "cf3You(B),A matchescanonicalB,A PASS",
+    "scope": "actual localUI/API/PostgreSQL/syntheticdevJWT/no conversationfixture/provider/native/hostedacceptance",
+    "auditEach": "3human/1bodyNULL/4semanticrequests/bootstrapgoal1/allmodeloperational0"
+  },
+  "cleanup": "Bothsessions44349/45094exit0/PGstoppedclustersremoved/APIStudioDBclean/portsclosed/ownedPIDsabsent/tabs54/55closed; all33successfulstacksandearlierinitdbfailureclean",
+  "scopedResolutions": [
+    "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4237652690",
+    "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4237652768"
+  ],
+  "freshReview": {
+    "request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6097636385",
+    "status": "pending"
+  },
+  "readiness": {
+    "source_ready": "bounded",
+    "locally_verified": "bounded",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "hashes": {
+    "realistic-reader-cache-check.mjs": "b87852df6315080f2898d3d7bcfc343572cf6707e97f85ca9c77415c87a89ecc",
+    "original-and-highseq-check.mjs": "b18ea005931917e6ad74c19ca7585351bc7b17d8485442813dac70fb9710b5ba",
+    "reader-cache-check.json": "71d2970a8bb123fad9c7d22998df932d4ec684fb3710a2052429484357bde0e1",
+    "missing-writer-check.json": "4d8b38c7f7375f0e37c499bdbdb17de572199a2610c676645578f0d12f901b78",
+    "writer-order-check.json": "6100a3cf37f870918dee6a81ae5026ff2ec3eca8d220c159f2d5248e331cc9ed",
+    "receipt-order-check.json": "6f0c3bb77d830271f7e7ad3a8b7b1517c2b7b53215a5712fc1c295a7430444b5",
+    "withdrawal-check.json": "b45261dceeb9df0bf49817ccdfa1b9a352954cb5e82dcb763a4f32a363960cac",
+    "order-transition-c5e-check.json": "98c607d70689d1568ae225e102acc8d640ca9ebc443e0522f127200c73106c9c",
+    "original-and-highseq-check.json": "42472cd3350c1162fd930f4eeaa2077f31ac02ed024bfa2232372f9edd229052",
+    "coverage-transition-check.json": "6bdad98599be17c54ef2514537b856cad4590967e4d0ce0397e548dc19439d5f",
+    "receipt-regression-check.json": "759542d4d0b000099bb9cedd72095ea75b6fbf49f80edd8f14bfc61f3c9b12ab",
+    "realistic-reader-cache-check.json": "91aa33c47b6f19cac74302a8f339c1c865e1ce7699e50d00b25a6c4d7e8d928e",
+    "focused-1.log": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d",
+    "focused-0.log": "bc588179a04864adcc95b39c89abc1dabaa4bd9015a041073805622f0701a327",
+    "before/g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
+    "before/relay-finish-receipts.json": "ad449e910964defe1db756fa4845ab8a3bfa1c717b4ace402bc6070588df751c",
+    "before/browser-db-audit.json": "208138c03294ec2a9a78fcb32f163f2ac7492f0a55cd61cdea71b5c3b9d79f75",
+    "before/external-withdraw-original.mjs": "941901dacd0c6ac4099a03712cdade820deefec2dab7c9cbfa986f3fa87b6493",
+    "before/original-order-fail-dom.txt": "6fdba58e4d5b9299fb8c76686501900d54804edad3b63737ebc76699ac92f6de",
+    "before/original-order-fail.jpg": "4182c0f4b087eefc810c4c7a5bf11ef3457e6e3b016cdc1a64067220654be4be",
+    "before/external-withdraw-original-result.json": "571549b8d3833bb493628ffb2d3b18fe5aba0cac4e8b3ce04d393182d2c15291",
+    "before/owned-cleanup-verification.json": "74526621835c17d7baf98f77702e9373350eeb32cd8fe79b959ff99f4be4bce9",
+    "before/browser-stack-cleanup.json": "18f0ffe6079939b59c69837e5c4ba3be1e1e9ef866fa59e9e4deb84d1f41fd2e",
+    "before/write-receipts.json": "fc7ac7bead0fa04743cbe2baf0e5d11d6a8a2727f81a8ca3759f062b6ebb75e1",
+    "before/browser-stack-receipt.json": "32ae9046cb4d6f0d7fd018d0fabbafd511c63cb4538e120d62b2f487fa8b5f87",
+    "before/conversation-read-receipts.json": "186dd971a2d82fa6380616f2d11ea64e22d4c8a345400644aaef962afcbaebcc",
+    "before/g3-browser-stack.mjs": "45607b25228ddca7b7bf996ce408cc4252c48cb23514d3dfb6fc2a6ea45dd990",
+    "before/g3-browser-db-audit.mjs": "e78f5c90c4fcc64429120e43e1ad84030c9a868c0ad5ed2b8196969a16a6874f",
+    "corrected/g3-browser-stack.py": "be88a0978ad75ca5a9a652c15baa08b34a229ad454966b9a4811e2e10080ec89",
+    "corrected/relay-finish-receipts.json": "127827cf900789044d640606eaff4221967f9d8c892bfb6f986b7774f94d2e4d",
+    "corrected/browser-db-audit.json": "03449e93234789e911ab535eae9c9b985dcd404ea5abd360f2963657a1ee0b65",
+    "corrected/external-withdraw-original.mjs": "941901dacd0c6ac4099a03712cdade820deefec2dab7c9cbfa986f3fa87b6493",
+    "corrected/original-order-pass.jpg": "2787a6b299e64af6a6d5ade940aaa06fc3530b8265d719ab08e14fde69e5b9ec",
+    "corrected/external-withdraw-original-result.json": "fbb078083b79b7f06c41562d7513faf582929ab6232b21b3e960973b47d9c36c",
+    "corrected/owned-cleanup-verification.json": "2609dfa94e1740a2ba614b537b7731f7d71a5d262185e6889647d8a6729d1aeb",
+    "corrected/browser-stack-cleanup.json": "e87e86a090da857364c9ee584cdd3f6196eff0e359ea6db31415bafc9f4815d7",
+    "corrected/write-receipts.json": "8f1055ca4369b89fce6182c8c533948c7cb0a7f8731688743584facb32916749",
+    "corrected/browser-stack-receipt.json": "78025735af16a753f92820ff32ce8d0dee3b1eadb39b54b027f67e11cc736ac8",
+    "corrected/conversation-read-receipts.json": "6810a165940da4035fb4767247e44cbdafad6c34f775ed64c73679429c6286aa",
+    "corrected/g3-browser-stack.mjs": "45607b25228ddca7b7bf996ce408cc4252c48cb23514d3dfb6fc2a6ea45dd990",
+    "corrected/g3-browser-db-audit.mjs": "e78f5c90c4fcc64429120e43e1ad84030c9a868c0ad5ed2b8196969a16a6874f",
+    "corrected/original-order-pass-dom.txt": "2d770859a76bf3c3cfd15e8e9ba4b070e6f8975cb37256aec1a6141c13519585"
+  }
+}

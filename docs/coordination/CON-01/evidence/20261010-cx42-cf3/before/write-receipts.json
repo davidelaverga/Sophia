@@ -1,0 +1,10 @@
+[
+  {
+    "at": "2026-10-10T12:40:51.847Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/96f3ef57-4443-4ca7-a4c1-e6dbe0ba102f/messages",
+    "idempotencyKey": "d04bcecb-eb24-4192-825b-f8ecf1b24a5e",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  }
+]

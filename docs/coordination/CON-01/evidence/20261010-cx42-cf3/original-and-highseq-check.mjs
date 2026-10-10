@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';
+const h=await import(pathToFileURL(resolve(process.env.CON01_CANDIDATE_ROOT,'apps/studio/src/features/conversations/conversation-list.ts')));const at='2026-10-10T12:36:00Z';
+const m=(seq,a,withdrawn=false)=>({id:'m'+seq,seq,author:'member',actorId:a,name:withdrawn?null:'Synthetic '+a,text:withdrawn?null:'Synthetic '+seq,at,withdrawn:withdrawn?{at}:null,ask:null,replyTo:null});
+const cov={state:'not_assessed',complete:false,fromSeq:null,throughSeq:null,newer:0,generatedAt:null,replyId:null,eligibilityRevision:null,ledgerRevision:null};
+const row={id:'c',title:'Synthetic',revision:1,summary:null,summaryCoverage:cov,lastAt:at,messageSeq:1,contributors:[{actorId:'A',name:'Synthetic A'}],sophia:false,openQuestions:0,questionsCoverage:cov,output:null,lastMessage:null};
+const page=messages=>({pages:[{messages,before:null}],pageParams:[null]});const a1=m(1,'A'),b2=m(2,'B'),a3=m(3,'A'),gone=m(1,'A',true),held=page([a1,b2,a3]);
+const initial=h.withLastMessage([row],'c',b2,page([a1,b2]));const after=h.withWithdrawn(held,gone);const remains=h.remainsAfter(after,gone,'B');const changed=h.listWithdrawn({conversations:initial},'c',remains).conversations[0];
+const passed=[],failed=[];const check=(name,f)=>{try{f();passed.push(name)}catch(e){failed.push({name,error:e.message})}};
+check('Original writer A whose first surviving3 follows receipt B2 must reorder to B,A',()=>assert.deepEqual(changed.contributors.map(x=>x.actorId),['B','A']));
+check('Prefix evidence proves surviving B2 and A3, withdrawn1 body stays null',()=>{assert.equal(remains.firsts.get('B'),2);assert.equal(remains.firsts.get('A'),3);assert.equal(after.pages[0].messages[0].text,null)});
+check('Initial canonical A1 then receiptB2 remains A,B before withdrawal',()=>assert.deepEqual(initial[0].contributors.map(x=>x.actorId),['A','B']));
+check('Valid large sequence with absent prefix yields no first, without RangeError',()=>{let result;assert.doesNotThrow(()=>{result=h.firstsIn(page([m(4294967297,'A')]))});assert.equal(result.size,0)});
+check('Ordinary missing prefix yields no invented order',()=>assert.equal(h.firstsIn(page([m(3,'A')])).size,0));
+console.log(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,scope:'L0 actual production helpers; synthetic complete-prefix writer transition and valid high-sequence one-message page; no mounted/native/live claim',passed:passed.length,failed:failed.length,passedCases:passed,failedCases:failed},null,2));process.exitCode=failed.length?1:0;

@@ -1,0 +1,18 @@
+{
+  "candidate": "cf3d83171ade2d2f3064ea83beb6e2a720785c64",
+  "level": "L0 actual production helpers and QueryClient; synthetic assessed fields/trusted receipts",
+  "passed": 9,
+  "failures": 0,
+  "passedCases": [
+    "Gap keeps useful range/partial label without exact newer count for both projections",
+    "Unknown remains unknown on later adjacent own receipt",
+    "Older API without sequence cannot assert exact unseen message count",
+    "Trusted rename updates same actor in position and preserves unrelated identity",
+    "Rename in full row preserves200 bound/order/unnamed marker",
+    "Null trusted name replaces former name with authoritative A member fallback",
+    "Not-taken old receipt cannot regress trusted current name or count",
+    "Withdrawal clears range/unknown and words, unrelated writer stays",
+    "Successful actual QueryClient reread restores exact authoritative count"
+  ],
+  "failedCases": []
+}

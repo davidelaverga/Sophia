@@ -49,7 +49,8 @@
         "CX-0038.md",
         "CX-0039.md",
         "CX-0040.md",
-        "CX-0041.md"
+        "CX-0041.md",
+        "CX-0042.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. Current7660 bounded recheck in CX16 supersedes the affected CX15 failures: human contributor metadata,201-writer contract and original mobile focus pass; late erase navigation fails. New4575 source is not yet qualified. Native/provider/hosted acceptance remains open. Exact0f affected erasure navigation/retry/feed cases pass locally (CX17); current-main/A08 correction is newer unqualified source. G2/native/provider/hosted acceptance remains open. CX18 independently reproduces P1 false erasure/draft loss under capped-list churn on0f; source unchanged5c, automatic review confirms. Overall erasure/privacy release qualification is withheld pending correction.",
       "live_blockers": [
@@ -58,8 +59,8 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX41 exactc5e receiptorderPASS54external/111focused/typecheck0/actualapp, but fresh review newP2originalAPIwriterorder and highseqallocation independentlyFAIL2/controls3; correctionsunpublished/S1held/no aggregateacceptance.",
-      "current_checkpoint": "CX-0041.md"
+      "latest_checkpoint": "CX42cf3qualifiesoriginalwriter/highseq5new+54prior+6realisticcache/114focused/typecheck0; actualbeforec5eFAILaftercf3PASSB,A; scopedfindingsresolved/freshexactreviewpending/noaggregateacceptance.",
+      "current_checkpoint": "CX-0042.md"
     },
     {
       "id": "CON-01-T03",
