@@ -138,6 +138,9 @@ describe('a research card in words', () => {
       researchState(blocked, [], ['markdown'], {}, { status: 'reading' }).note,
       'Not produced: Every source is behind a login.',
     )
+    // A reason the Studio doesn't know is no code to read: the plain words instead.
+    const unknown = { phase: 'failed', state: 'failed', reason: 'worker_lost_lease' } as const
+    assert.equal(researchState(unknown, [], ['markdown'], {}, { status: 'reading' }).note, 'No report was produced.')
     assert.equal(
       researchState({ ...running, phase: 'queued', state: 'pending' }, [], ['markdown'], {}, failed).state,
       'starting',
@@ -160,7 +163,7 @@ describe('a research card in words', () => {
     )
     assert.equal(
       renditionWords({ state: 'failed', reason: 'failed: render_error' }),
-      'The PDF could not be produced again (failed: render_error).',
+      'The PDF could not be produced again.',
     )
     assert.equal(
       refusal('native_capability_unavailable', 503),
@@ -537,22 +540,33 @@ describe('what a changed conclusion fact covers (CX-0019)', () => {
   })
 })
 
+/** What a page read in full answered, said for its status. */
+const answered = (status: number) => sourceWords({ kind: 'web_read', coverage: 'complete', originHttpStatus: status })
+
 describe('how a cited source was retrieved', () => {
   it('tells a snippet from a page read in full or in part, and never invents an origin status', () => {
     assert.deepEqual(sourceWords({ kind: 'search_results', coverage: 'complete', originHttpStatus: null }), {
       coverage: 'Snippet only',
       tone: 'amber',
-      route: 'Search results (Tavily)',
+      route: 'A search snippet',
       origin: null,
     })
     const page = sourceWords({ kind: 'web_read', coverage: 'partial', originHttpStatus: null })
     assert.deepEqual(
       [page.coverage, page.route, page.origin],
-      ['Read in part', 'Page extraction (Jina)', 'Origin status unknown'],
+      ['Read in part', 'Read from the page', 'The page’s answer isn’t known'],
     )
-    assert.equal(
-      sourceWords({ kind: 'web_read', coverage: 'complete', originHttpStatus: 200 }).origin,
-      'Origin answered 200',
+    // The page's own answer in words, never its status code.
+    assert.deepEqual(
+      [200, 301, 404, 410, 403, 503].map((s) => answered(s).origin),
+      [
+        'The page answered',
+        'The page answered',
+        'The page wasn’t found',
+        'The page wasn’t found',
+        'The page refused',
+        'The page’s site had an error',
+      ],
     )
     assert.equal(sourceWords({ kind: 'input', coverage: null, originHttpStatus: null }).coverage, 'From the project')
   })

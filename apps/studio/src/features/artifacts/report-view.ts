@@ -48,7 +48,8 @@ function notProducedNote(reason: string | null): string {
   const blocked = /^blocked:\s*(.+)$/s.exec(reason)
   if (blocked?.[1]) return `Not produced: ${blocked[1]}`
   if (reason.startsWith('no_result_submitted')) return 'Not produced: the research ended without submitting a report.'
-  return `Not produced (${reason}).`
+  // A reason the Studio doesn't know is a code, not words: the plain line instead.
+  return 'No report was produced.'
 }
 
 const ENDED_BADLY: ReadonlySet<string> = new Set(['failed', 'outcome_unknown', 'denied'])
@@ -184,8 +185,7 @@ export function renditionWords(r: ResearchRendition): string {
     return `This report can’t be printed as a PDF: ${failed.join('; ') || 'it failed its checks'}.`
   }
   if (r.state === 'succeeded') return 'The PDF is ready.'
-  if (r.state === 'failed' || r.state === 'cancelled')
-    return `The PDF could not be produced again (${r.reason ?? r.state}).`
+  if (r.state === 'failed' || r.state === 'cancelled') return 'The PDF could not be produced again.'
   return 'Rendering the PDF again. It appears here when it’s ready.'
 }
 
@@ -547,23 +547,31 @@ export interface SourceWords {
   tone: Tone
   /** The retrieval route, or null for the project's own input. */
   route: string | null
-  /** The origin's HTTP status in words; "unknown" when the extractor did not report it. */
+  /** What the page answered, in words; said unknown when the reading didn't report it. */
   origin: string | null
+}
+
+/** What a source's page answered, in words: never its status code, nor the services that read it. */
+function originSaid(status: number | null): string {
+  if (status === null) return 'The page’s answer isn’t known'
+  if (status < 400) return 'The page answered'
+  if (status === 404 || status === 410) return 'The page wasn’t found'
+  return status < 500 ? 'The page refused' : 'The page’s site had an error'
 }
 
 /** The provenance of one cited source in words (plan §2.6): what was read, by which route, what is known. */
 export function sourceWords(source: Pick<ReportSource, 'kind' | 'coverage' | 'originHttpStatus'>): SourceWords {
   if (source.kind === 'input') return { coverage: 'From the project', tone: 'muted', route: null, origin: null }
   if (source.kind === 'search_results') {
-    return { coverage: 'Snippet only', tone: 'amber', route: 'Search results (Tavily)', origin: null }
+    return { coverage: 'Snippet only', tone: 'amber', route: 'A search snippet', origin: null }
   }
   const coverage =
     source.coverage === 'complete' ? 'Read in full' : source.coverage === 'partial' ? 'Read in part' : 'Not read'
   return {
     coverage,
     tone: source.coverage === 'complete' ? 'teal' : source.coverage === 'partial' ? 'lav' : 'rose',
-    route: 'Page extraction (Jina)',
-    origin: source.originHttpStatus === null ? 'Origin status unknown' : `Origin answered ${source.originHttpStatus}`,
+    route: 'Read from the page',
+    origin: originSaid(source.originHttpStatus),
   }
 }
 

@@ -67,6 +67,7 @@ describe('a task’s results', () => {
       'version_id',
       'work_id',
     ])
-    assert.equal(versionSaid(c), 'v2 · text/markdown · 2aaaaaaa')
+    // Its name and its kind in words: never its media type or a piece of its hash.
+    assert.equal(versionSaid(c), 'v2 · Markdown')
   })
 })
