@@ -653,9 +653,9 @@ const message = (id: string, over: Partial<ConversationMessage> = {}): Conversat
 })
 
 describe('the request a message asked, never the clock (CON01-A09)', () => {
-  it('is open while pending, running or uncertain, and ended otherwise', () => {
-    for (const state of ['pending', 'running', 'outcome_unknown'] as const) assert.equal(replyOpen({ state }), true)
-    for (const state of ['answered', 'failed', 'cancelled', 'blocked'] as const)
+  it('is open while pending or running only; an uncertain one (outcome_unknown) has ended, as 0049 binds it', () => {
+    for (const state of ['pending', 'running'] as const) assert.equal(replyOpen({ state }), true)
+    for (const state of ['answered', 'failed', 'cancelled', 'blocked', 'outcome_unknown'] as const)
       assert.equal(replyOpen({ state }), false)
   })
 
@@ -681,6 +681,16 @@ describe('the request a message asked, never the clock (CON01-A09)', () => {
     assert.match(replyEndWords(reply({ state: 'cancelled', reason: 'source_withdrawn' })) ?? '', /withdrawn/)
     assert.equal(replyEndWords(reply({ state: 'answered', answerId: 'a1' })), null)
     assert.equal(replyEndWords(reply()), null)
+  })
+
+  it('an Ask whose outcome isn’t known: the wait is over, what it ran and used isn’t settled, and still counts', () => {
+    const ended = replyEndWords(reply({ state: 'outcome_unknown' })) ?? ''
+    assert.match(ended, /No answer came, and none will\./)
+    assert.match(ended, /isn’t known yet/)
+    assert.match(ended, /still counts/)
+    assert.match(ended, /Asking again asks anew\./)
+    // Not the Send's own unconfirmed receipt (client.ts), nor a promise that anything goes again by itself.
+    assert.doesNotMatch(ended, /No reply from Sophia|confirm|again by itself|tries once more/)
   })
 })
 
@@ -841,6 +851,14 @@ describe('withWithdrawn: what a withdrawal takes off the screen at once (PR #199
     assert.equal(after?.[0]?.ask?.state, 'pending')
     assert.equal(after?.[1]?.ask?.state, 'cancelled')
     assert.equal(after?.[1]?.ask?.reason, 'source_withdrawn')
+  })
+
+  it('leaves a request already ended uncertain where it ended, and still withdraws the answers that read the message', () => {
+    const uncertain = { ...ask('outcome_unknown'), reason: 'runtime_failed', settledAt: '2026-10-06T09:59:00.000Z' }
+    const read = { pages: [{ messages: [msg(4, { ask: uncertain }), answer(5, 3)], before: null }], pageParams: [null] }
+    const after = withWithdrawn(read, gone)?.pages[0]?.messages
+    assert.deepEqual(after?.[0]?.ask, uncertain)
+    assert.deepEqual(shown(withWithdrawn(read, gone)), ['m4:words 4', 'm5:withdrawn'])
   })
 
   it('leaves a conversation not read yet as it is', () => {
