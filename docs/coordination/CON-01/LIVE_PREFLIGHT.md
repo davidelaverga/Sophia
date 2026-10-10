@@ -1,5 +1,9 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Read-only dashboard refresh — 2026-10-10, approximately 10:02–10:04 UTC
+
+Authenticated CUA temporary tab39 independently reads all four Render services and Vercel Studio Production Deployment. **The deployment IDs/source SHAs below remain unchanged.** Studio remains Ready/Production `dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1`, unique `fs4nbv0je` alias, source `vercel deploy`, Git unconnected; no source SHA established. [Safe receipt](evidence/20261010-live-dashboard-1002.json). No deployment/config/environment/logs/account/grant mutation. Database ledger/live-binding status and installed native composition were not refreshed; their 01:54 metadata remains historical. This is actual dashboard discovery, not A30 or app acceptance. No CON candidate is shown live. New project and synthetic actual account remain uncreated and setup batch draft/unapproved; mailbox pending.
+
 ## Read-only refresh — 2026-10-10, 01:51–01:55 UTC
 
 Authenticated Render and Vercel dashboards were read through CUA in temporary tab31; their four live deployment IDs/source SHAs and Studio production ID below are **unchanged and freshly observed**. Vercel detail still says Ready/Production, Oct5 at14:13:31GMT+2, source `vercel deploy`; no Git SHA established. No deploy/config/environment-value/secret/account/grant controls used. Tab31 closed; user's hosted tab1 retained.
