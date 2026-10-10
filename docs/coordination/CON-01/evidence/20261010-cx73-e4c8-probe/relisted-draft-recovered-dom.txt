@@ -1,0 +1,896 @@
+Browser tab: 90, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/conversations
+	3 container root
+		4 container
+			5 button Home
+			6 button Work
+			7 heading CON01 independent synthetic browser project, Value: 1
+				8 text CON01 independent synthetic browser project
+			9 container Project views
+				10 link Description: Studio, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/studio
+				11 link Description: Conversations, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/conversations
+				12 link Description: Goals, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/goals
+				13 link Description: Tasks, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/work
+				14 link Description: Knowledge, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/knowledge
+				15 link Description: Updates, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/updates
+				16 link Description: Resources, Value: 127.0.0.1:60640/p/2de5e236-bc41-462b-9e49-c89a856ed8ce/resources
+			17 container Reconnecting
+				18 text RECONNECTING
+			19 button Invite
+			20 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		82 container Conversations
+			83 container All conversations
+				84 heading Conversations, Value: 2, ID: conversations-title
+					85 text Conversations
+				86 checkbox Description: New conversation, Value: 0
+				87 text Only the newest 200 conversations are listed here: older ones can’t be opened from this list yet.
+				88 search text field (settable) Filter conversations
+				89 container Show only
+					90 checkbox Open, Value: 0
+					91 checkbox Mine, Value: 0
+				92 content list
+					93 checkbox SYNTHETIC stale sender regression, Value: 1
+						94 text SYNTHETIC stale sender regression
+						95 container
+							96 text Synthetic C Old: SYNTHETIC authorized other member bumps existing conversation after restore You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 21:34.
+					97 checkbox SYNTHETIC CAP 200, Value: 0
+						98 text SYNTHETIC CAP 200
+						99 container
+							100 text You: SYNTHETIC LOCAL CAP SETUP 200 You. No recorded questions yet. Last moved 21:32.
+					101 checkbox SYNTHETIC CAP 199, Value: 0
+						102 text SYNTHETIC CAP 199
+						103 container
+							104 text You: SYNTHETIC LOCAL CAP SETUP 199 You. No recorded questions yet. Last moved 21:32.
+					105 checkbox SYNTHETIC CAP 198, Value: 0
+						106 text SYNTHETIC CAP 198
+						107 container
+							108 text You: SYNTHETIC LOCAL CAP SETUP 198 You. No recorded questions yet. Last moved 21:32.
+					109 checkbox SYNTHETIC CAP 197, Value: 0
+						110 text SYNTHETIC CAP 197
+						111 container
+							112 text You: SYNTHETIC LOCAL CAP SETUP 197 You. No recorded questions yet. Last moved 21:32.
+					113 checkbox SYNTHETIC CAP 196, Value: 0
+						114 text SYNTHETIC CAP 196
+						115 container
+							116 text You: SYNTHETIC LOCAL CAP SETUP 196 You. No recorded questions yet. Last moved 21:32.
+					117 checkbox SYNTHETIC CAP 195, Value: 0
+						118 text SYNTHETIC CAP 195
+						119 container
+							120 text You: SYNTHETIC LOCAL CAP SETUP 195 You. No recorded questions yet. Last moved 21:32.
+					121 checkbox SYNTHETIC CAP 194, Value: 0
+						122 text SYNTHETIC CAP 194
+						123 container
+							124 text You: SYNTHETIC LOCAL CAP SETUP 194 You. No recorded questions yet. Last moved 21:32.
+					125 checkbox SYNTHETIC CAP 193, Value: 0
+						126 text SYNTHETIC CAP 193
+						127 container
+							128 text You: SYNTHETIC LOCAL CAP SETUP 193 You. No recorded questions yet. Last moved 21:32.
+					129 checkbox SYNTHETIC CAP 192, Value: 0
+						130 text SYNTHETIC CAP 192
+						131 container
+							132 text You: SYNTHETIC LOCAL CAP SETUP 192 You. No recorded questions yet. Last moved 21:32.
+					133 checkbox SYNTHETIC CAP 191, Value: 0
+						134 text SYNTHETIC CAP 191
+						135 container
+							136 text You: SYNTHETIC LOCAL CAP SETUP 191 You. No recorded questions yet. Last moved 21:32.
+					137 checkbox SYNTHETIC CAP 190, Value: 0
+						138 text SYNTHETIC CAP 190
+						139 container
+							140 text You: SYNTHETIC LOCAL CAP SETUP 190 You. No recorded questions yet. Last moved 21:32.
+					141 checkbox SYNTHETIC CAP 189, Value: 0
+						142 text SYNTHETIC CAP 189
+						143 container
+							144 text You: SYNTHETIC LOCAL CAP SETUP 189 You. No recorded questions yet. Last moved 21:32.
+					145 checkbox SYNTHETIC CAP 188, Value: 0
+						146 text SYNTHETIC CAP 188
+						147 container
+							148 text You: SYNTHETIC LOCAL CAP SETUP 188 You. No recorded questions yet. Last moved 21:32.
+					149 checkbox SYNTHETIC CAP 187, Value: 0
+						150 text SYNTHETIC CAP 187
+						151 container
+							152 text You: SYNTHETIC LOCAL CAP SETUP 187 You. No recorded questions yet. Last moved 21:32.
+					153 checkbox SYNTHETIC CAP 186, Value: 0
+						154 text SYNTHETIC CAP 186
+						155 container
+							156 text You: SYNTHETIC LOCAL CAP SETUP 186 You. No recorded questions yet. Last moved 21:32.
+					157 checkbox SYNTHETIC CAP 185, Value: 0
+						158 text SYNTHETIC CAP 185
+						159 container
+							160 text You: SYNTHETIC LOCAL CAP SETUP 185 You. No recorded questions yet. Last moved 21:32.
+					161 checkbox SYNTHETIC CAP 184, Value: 0
+						162 text SYNTHETIC CAP 184
+						163 container
+							164 text You: SYNTHETIC LOCAL CAP SETUP 184 You. No recorded questions yet. Last moved 21:32.
+					165 checkbox SYNTHETIC CAP 183, Value: 0
+						166 text SYNTHETIC CAP 183
+						167 container
+							168 text You: SYNTHETIC LOCAL CAP SETUP 183 You. No recorded questions yet. Last moved 21:32.
+					169 checkbox SYNTHETIC CAP 182, Value: 0
+						170 text SYNTHETIC CAP 182
+						171 container
+							172 text You: SYNTHETIC LOCAL CAP SETUP 182 You. No recorded questions yet. Last moved 21:32.
+					173 checkbox SYNTHETIC CAP 181, Value: 0
+						174 text SYNTHETIC CAP 181
+						175 container
+							176 text You: SYNTHETIC LOCAL CAP SETUP 181 You. No recorded questions yet. Last moved 21:32.
+					177 checkbox SYNTHETIC CAP 180, Value: 0
+						178 text SYNTHETIC CAP 180
+						179 container
+							180 text You: SYNTHETIC LOCAL CAP SETUP 180 You. No recorded questions yet. Last moved 21:32.
+					181 checkbox SYNTHETIC CAP 179, Value: 0
+						182 text SYNTHETIC CAP 179
+						183 container
+							184 text You: SYNTHETIC LOCAL CAP SETUP 179 You. No recorded questions yet. Last moved 21:32.
+					185 checkbox SYNTHETIC CAP 178, Value: 0
+						186 text SYNTHETIC CAP 178
+						187 container
+							188 text You: SYNTHETIC LOCAL CAP SETUP 178 You. No recorded questions yet. Last moved 21:32.
+					189 checkbox SYNTHETIC CAP 177, Value: 0
+						190 text SYNTHETIC CAP 177
+						191 container
+							192 text You: SYNTHETIC LOCAL CAP SETUP 177 You. No recorded questions yet. Last moved 21:32.
+					193 checkbox SYNTHETIC CAP 176, Value: 0
+						194 text SYNTHETIC CAP 176
+						195 container
+							196 text You: SYNTHETIC LOCAL CAP SETUP 176 You. No recorded questions yet. Last moved 21:32.
+					197 checkbox SYNTHETIC CAP 175, Value: 0
+						198 text SYNTHETIC CAP 175
+						199 container
+							200 text You: SYNTHETIC LOCAL CAP SETUP 175 You. No recorded questions yet. Last moved 21:32.
+					201 checkbox SYNTHETIC CAP 174, Value: 0
+						202 text SYNTHETIC CAP 174
+						203 container
+							204 text You: SYNTHETIC LOCAL CAP SETUP 174 You. No recorded questions yet. Last moved 21:32.
+					205 checkbox SYNTHETIC CAP 173, Value: 0
+						206 text SYNTHETIC CAP 173
+						207 container
+							208 text You: SYNTHETIC LOCAL CAP SETUP 173 You. No recorded questions yet. Last moved 21:32.
+					209 checkbox SYNTHETIC CAP 172, Value: 0
+						210 text SYNTHETIC CAP 172
+						211 container
+							212 text You: SYNTHETIC LOCAL CAP SETUP 172 You. No recorded questions yet. Last moved 21:32.
+					213 checkbox SYNTHETIC CAP 171, Value: 0
+						214 text SYNTHETIC CAP 171
+						215 container
+							216 text You: SYNTHETIC LOCAL CAP SETUP 171 You. No recorded questions yet. Last moved 21:32.
+					217 checkbox SYNTHETIC CAP 170, Value: 0
+						218 text SYNTHETIC CAP 170
+						219 container
+							220 text You: SYNTHETIC LOCAL CAP SETUP 170 You. No recorded questions yet. Last moved 21:32.
+					221 checkbox SYNTHETIC CAP 169, Value: 0
+						222 text SYNTHETIC CAP 169
+						223 container
+							224 text You: SYNTHETIC LOCAL CAP SETUP 169 You. No recorded questions yet. Last moved 21:32.
+					225 checkbox SYNTHETIC CAP 168, Value: 0
+						226 text SYNTHETIC CAP 168
+						227 container
+							228 text You: SYNTHETIC LOCAL CAP SETUP 168 You. No recorded questions yet. Last moved 21:32.
+					229 checkbox SYNTHETIC CAP 167, Value: 0
+						230 text SYNTHETIC CAP 167
+						231 container
+							232 text You: SYNTHETIC LOCAL CAP SETUP 167 You. No recorded questions yet. Last moved 21:32.
+					233 checkbox SYNTHETIC CAP 166, Value: 0
+						234 text SYNTHETIC CAP 166
+						235 container
+							236 text You: SYNTHETIC LOCAL CAP SETUP 166 You. No recorded questions yet. Last moved 21:32.
+					237 checkbox SYNTHETIC CAP 165, Value: 0
+						238 text SYNTHETIC CAP 165
+						239 container
+							240 text You: SYNTHETIC LOCAL CAP SETUP 165 You. No recorded questions yet. Last moved 21:32.
+					241 checkbox SYNTHETIC CAP 164, Value: 0
+						242 text SYNTHETIC CAP 164
+						243 container
+							244 text You: SYNTHETIC LOCAL CAP SETUP 164 You. No recorded questions yet. Last moved 21:32.
+					245 checkbox SYNTHETIC CAP 163, Value: 0
+						246 text SYNTHETIC CAP 163
+						247 container
+							248 text You: SYNTHETIC LOCAL CAP SETUP 163 You. No recorded questions yet. Last moved 21:32.
+					249 checkbox SYNTHETIC CAP 162, Value: 0
+						250 text SYNTHETIC CAP 162
+						251 container
+							252 text You: SYNTHETIC LOCAL CAP SETUP 162 You. No recorded questions yet. Last moved 21:32.
+					253 checkbox SYNTHETIC CAP 161, Value: 0
+						254 text SYNTHETIC CAP 161
+						255 container
+							256 text You: SYNTHETIC LOCAL CAP SETUP 161 You. No recorded questions yet. Last moved 21:32.
+					257 checkbox SYNTHETIC CAP 160, Value: 0
+						258 text SYNTHETIC CAP 160
+						259 container
+							260 text You: SYNTHETIC LOCAL CAP SETUP 160 You. No recorded questions yet. Last moved 21:32.
+					261 checkbox SYNTHETIC CAP 159, Value: 0
+						262 text SYNTHETIC CAP 159
+						263 container
+							264 text You: SYNTHETIC LOCAL CAP SETUP 159 You. No recorded questions yet. Last moved 21:32.
+					265 checkbox SYNTHETIC CAP 158, Value: 0
+						266 text SYNTHETIC CAP 158
+						267 container
+							268 text You: SYNTHETIC LOCAL CAP SETUP 158 You. No recorded questions yet. Last moved 21:32.
+					269 checkbox SYNTHETIC CAP 157, Value: 0
+						270 text SYNTHETIC CAP 157
+						271 container
+							272 text You: SYNTHETIC LOCAL CAP SETUP 157 You. No recorded questions yet. Last moved 21:32.
+					273 checkbox SYNTHETIC CAP 156, Value: 0
+						274 text SYNTHETIC CAP 156
+						275 container
+							276 text You: SYNTHETIC LOCAL CAP SETUP 156 You. No recorded questions yet. Last moved 21:32.
+					277 checkbox SYNTHETIC CAP 155, Value: 0
+						278 text SYNTHETIC CAP 155
+						279 container
+							280 text You: SYNTHETIC LOCAL CAP SETUP 155 You. No recorded questions yet. Last moved 21:32.
+					281 checkbox SYNTHETIC CAP 154, Value: 0
+						282 text SYNTHETIC CAP 154
+						283 container
+							284 text You: SYNTHETIC LOCAL CAP SETUP 154 You. No recorded questions yet. Last moved 21:32.
+					285 checkbox SYNTHETIC CAP 153, Value: 0
+						286 text SYNTHETIC CAP 153
+						287 container
+							288 text You: SYNTHETIC LOCAL CAP SETUP 153 You. No recorded questions yet. Last moved 21:32.
+					289 checkbox SYNTHETIC CAP 152, Value: 0
+						290 text SYNTHETIC CAP 152
+						291 container
+							292 text You: SYNTHETIC LOCAL CAP SETUP 152 You. No recorded questions yet. Last moved 21:32.
+					293 checkbox SYNTHETIC CAP 151, Value: 0
+						294 text SYNTHETIC CAP 151
+						295 container
+							296 text You: SYNTHETIC LOCAL CAP SETUP 151 You. No recorded questions yet. Last moved 21:32.
+					297 checkbox SYNTHETIC CAP 150, Value: 0
+						298 text SYNTHETIC CAP 150
+						299 container
+							300 text You: SYNTHETIC LOCAL CAP SETUP 150 You. No recorded questions yet. Last moved 21:32.
+					301 checkbox SYNTHETIC CAP 149, Value: 0
+						302 text SYNTHETIC CAP 149
+						303 container
+							304 text You: SYNTHETIC LOCAL CAP SETUP 149 You. No recorded questions yet. Last moved 21:32.
+					305 checkbox SYNTHETIC CAP 148, Value: 0
+						306 text SYNTHETIC CAP 148
+						307 container
+							308 text You: SYNTHETIC LOCAL CAP SETUP 148 You. No recorded questions yet. Last moved 21:32.
+					309 checkbox SYNTHETIC CAP 147, Value: 0
+						310 text SYNTHETIC CAP 147
+						311 container
+							312 text You: SYNTHETIC LOCAL CAP SETUP 147 You. No recorded questions yet. Last moved 21:32.
+					313 checkbox SYNTHETIC CAP 146, Value: 0
+						314 text SYNTHETIC CAP 146
+						315 container
+							316 text You: SYNTHETIC LOCAL CAP SETUP 146 You. No recorded questions yet. Last moved 21:32.
+					317 checkbox SYNTHETIC CAP 145, Value: 0
+						318 text SYNTHETIC CAP 145
+						319 container
+							320 text You: SYNTHETIC LOCAL CAP SETUP 145 You. No recorded questions yet. Last moved 21:32.
+					321 checkbox SYNTHETIC CAP 144, Value: 0
+						322 text SYNTHETIC CAP 144
+						323 container
+							324 text You: SYNTHETIC LOCAL CAP SETUP 144 You. No recorded questions yet. Last moved 21:32.
+					325 checkbox SYNTHETIC CAP 143, Value: 0
+						326 text SYNTHETIC CAP 143
+						327 container
+							328 text You: SYNTHETIC LOCAL CAP SETUP 143 You. No recorded questions yet. Last moved 21:32.
+					329 checkbox SYNTHETIC CAP 142, Value: 0
+						330 text SYNTHETIC CAP 142
+						331 container
+							332 text You: SYNTHETIC LOCAL CAP SETUP 142 You. No recorded questions yet. Last moved 21:32.
+					333 checkbox SYNTHETIC CAP 141, Value: 0
+						334 text SYNTHETIC CAP 141
+						335 container
+							336 text You: SYNTHETIC LOCAL CAP SETUP 141 You. No recorded questions yet. Last moved 21:32.
+					337 checkbox SYNTHETIC CAP 140, Value: 0
+						338 text SYNTHETIC CAP 140
+						339 container
+							340 text You: SYNTHETIC LOCAL CAP SETUP 140 You. No recorded questions yet. Last moved 21:32.
+					341 checkbox SYNTHETIC CAP 139, Value: 0
+						342 text SYNTHETIC CAP 139
+						343 container
+							344 text You: SYNTHETIC LOCAL CAP SETUP 139 You. No recorded questions yet. Last moved 21:32.
+					345 checkbox SYNTHETIC CAP 138, Value: 0
+						346 text SYNTHETIC CAP 138
+						347 container
+							348 text You: SYNTHETIC LOCAL CAP SETUP 138 You. No recorded questions yet. Last moved 21:32.
+					349 checkbox SYNTHETIC CAP 137, Value: 0
+						350 text SYNTHETIC CAP 137
+						351 container
+							352 text You: SYNTHETIC LOCAL CAP SETUP 137 You. No recorded questions yet. Last moved 21:32.
+					353 checkbox SYNTHETIC CAP 136, Value: 0
+						354 text SYNTHETIC CAP 136
+						355 container
+							356 text You: SYNTHETIC LOCAL CAP SETUP 136 You. No recorded questions yet. Last moved 21:32.
+					357 checkbox SYNTHETIC CAP 135, Value: 0
+						358 text SYNTHETIC CAP 135
+						359 container
+							360 text You: SYNTHETIC LOCAL CAP SETUP 135 You. No recorded questions yet. Last moved 21:32.
+					361 checkbox SYNTHETIC CAP 134, Value: 0
+						362 text SYNTHETIC CAP 134
+						363 container
+							364 text You: SYNTHETIC LOCAL CAP SETUP 134 You. No recorded questions yet. Last moved 21:32.
+					365 checkbox SYNTHETIC CAP 133, Value: 0
+						366 text SYNTHETIC CAP 133
+						367 container
+							368 text You: SYNTHETIC LOCAL CAP SETUP 133 You. No recorded questions yet. Last moved 21:32.
+					369 checkbox SYNTHETIC CAP 132, Value: 0
+						370 text SYNTHETIC CAP 132
+						371 container
+							372 text You: SYNTHETIC LOCAL CAP SETUP 132 You. No recorded questions yet. Last moved 21:32.
+					373 checkbox SYNTHETIC CAP 131, Value: 0
+						374 text SYNTHETIC CAP 131
+						375 container
+							376 text You: SYNTHETIC LOCAL CAP SETUP 131 You. No recorded questions yet. Last moved 21:32.
+					377 checkbox SYNTHETIC CAP 130, Value: 0
+						378 text SYNTHETIC CAP 130
+						379 container
+							380 text You: SYNTHETIC LOCAL CAP SETUP 130 You. No recorded questions yet. Last moved 21:32.
+					381 checkbox SYNTHETIC CAP 129, Value: 0
+						382 text SYNTHETIC CAP 129
+						383 container
+							384 text You: SYNTHETIC LOCAL CAP SETUP 129 You. No recorded questions yet. Last moved 21:32.
+					385 checkbox SYNTHETIC CAP 128, Value: 0
+						386 text SYNTHETIC CAP 128
+						387 container
+							388 text You: SYNTHETIC LOCAL CAP SETUP 128 You. No recorded questions yet. Last moved 21:32.
+					389 checkbox SYNTHETIC CAP 127, Value: 0
+						390 text SYNTHETIC CAP 127
+						391 container
+							392 text You: SYNTHETIC LOCAL CAP SETUP 127 You. No recorded questions yet. Last moved 21:32.
+					393 checkbox SYNTHETIC CAP 126, Value: 0
+						394 text SYNTHETIC CAP 126
+						395 container
+							396 text You: SYNTHETIC LOCAL CAP SETUP 126 You. No recorded questions yet. Last moved 21:32.
+					397 checkbox SYNTHETIC CAP 125, Value: 0
+						398 text SYNTHETIC CAP 125
+						399 container
+							400 text You: SYNTHETIC LOCAL CAP SETUP 125 You. No recorded questions yet. Last moved 21:32.
+					401 checkbox SYNTHETIC CAP 124, Value: 0
+						402 text SYNTHETIC CAP 124
+						403 container
+							404 text You: SYNTHETIC LOCAL CAP SETUP 124 You. No recorded questions yet. Last moved 21:32.
+					405 checkbox SYNTHETIC CAP 123, Value: 0
+						406 text SYNTHETIC CAP 123
+						407 container
+							408 text You: SYNTHETIC LOCAL CAP SETUP 123 You. No recorded questions yet. Last moved 21:32.
+					409 checkbox SYNTHETIC CAP 122, Value: 0
+						410 text SYNTHETIC CAP 122
+						411 container
+							412 text You: SYNTHETIC LOCAL CAP SETUP 122 You. No recorded questions yet. Last moved 21:32.
+					413 checkbox SYNTHETIC CAP 121, Value: 0
+						414 text SYNTHETIC CAP 121
+						415 container
+							416 text You: SYNTHETIC LOCAL CAP SETUP 121 You. No recorded questions yet. Last moved 21:32.
+					417 checkbox SYNTHETIC CAP 120, Value: 0
+						418 text SYNTHETIC CAP 120
+						419 container
+							420 text You: SYNTHETIC LOCAL CAP SETUP 120 You. No recorded questions yet. Last moved 21:32.
+					421 checkbox SYNTHETIC CAP 119, Value: 0
+						422 text SYNTHETIC CAP 119
+						423 container
+							424 text You: SYNTHETIC LOCAL CAP SETUP 119 You. No recorded questions yet. Last moved 21:32.
+					425 checkbox SYNTHETIC CAP 118, Value: 0
+						426 text SYNTHETIC CAP 118
+						427 container
+							428 text You: SYNTHETIC LOCAL CAP SETUP 118 You. No recorded questions yet. Last moved 21:32.
+					429 checkbox SYNTHETIC CAP 117, Value: 0
+						430 text SYNTHETIC CAP 117
+						431 container
+							432 text You: SYNTHETIC LOCAL CAP SETUP 117 You. No recorded questions yet. Last moved 21:32.
+					433 checkbox SYNTHETIC CAP 116, Value: 0
+						434 text SYNTHETIC CAP 116
+						435 container
+							436 text You: SYNTHETIC LOCAL CAP SETUP 116 You. No recorded questions yet. Last moved 21:32.
+					437 checkbox SYNTHETIC CAP 115, Value: 0
+						438 text SYNTHETIC CAP 115
+						439 container
+							440 text You: SYNTHETIC LOCAL CAP SETUP 115 You. No recorded questions yet. Last moved 21:32.
+					441 checkbox SYNTHETIC CAP 114, Value: 0
+						442 text SYNTHETIC CAP 114
+						443 container
+							444 text You: SYNTHETIC LOCAL CAP SETUP 114 You. No recorded questions yet. Last moved 21:32.
+					445 checkbox SYNTHETIC CAP 113, Value: 0
+						446 text SYNTHETIC CAP 113
+						447 container
+							448 text You: SYNTHETIC LOCAL CAP SETUP 113 You. No recorded questions yet. Last moved 21:32.
+					449 checkbox SYNTHETIC CAP 112, Value: 0
+						450 text SYNTHETIC CAP 112
+						451 container
+							452 text You: SYNTHETIC LOCAL CAP SETUP 112 You. No recorded questions yet. Last moved 21:32.
+					453 checkbox SYNTHETIC CAP 111, Value: 0
+						454 text SYNTHETIC CAP 111
+						455 container
+							456 text You: SYNTHETIC LOCAL CAP SETUP 111 You. No recorded questions yet. Last moved 21:32.
+					457 checkbox SYNTHETIC CAP 110, Value: 0
+						458 text SYNTHETIC CAP 110
+						459 container
+							460 text You: SYNTHETIC LOCAL CAP SETUP 110 You. No recorded questions yet. Last moved 21:32.
+					461 checkbox SYNTHETIC CAP 109, Value: 0
+						462 text SYNTHETIC CAP 109
+						463 container
+							464 text You: SYNTHETIC LOCAL CAP SETUP 109 You. No recorded questions yet. Last moved 21:32.
+					465 checkbox SYNTHETIC CAP 108, Value: 0
+						466 text SYNTHETIC CAP 108
+						467 container
+							468 text You: SYNTHETIC LOCAL CAP SETUP 108 You. No recorded questions yet. Last moved 21:32.
+					469 checkbox SYNTHETIC CAP 107, Value: 0
+						470 text SYNTHETIC CAP 107
+						471 container
+							472 text You: SYNTHETIC LOCAL CAP SETUP 107 You. No recorded questions yet. Last moved 21:32.
+					473 checkbox SYNTHETIC CAP 106, Value: 0
+						474 text SYNTHETIC CAP 106
+						475 container
+							476 text You: SYNTHETIC LOCAL CAP SETUP 106 You. No recorded questions yet. Last moved 21:32.
+					477 checkbox SYNTHETIC CAP 105, Value: 0
+						478 text SYNTHETIC CAP 105
+						479 container
+							480 text You: SYNTHETIC LOCAL CAP SETUP 105 You. No recorded questions yet. Last moved 21:32.
+					481 checkbox SYNTHETIC CAP 104, Value: 0
+						482 text SYNTHETIC CAP 104
+						483 container
+							484 text You: SYNTHETIC LOCAL CAP SETUP 104 You. No recorded questions yet. Last moved 21:32.
+					485 checkbox SYNTHETIC CAP 103, Value: 0
+						486 text SYNTHETIC CAP 103
+						487 container
+							488 text You: SYNTHETIC LOCAL CAP SETUP 103 You. No recorded questions yet. Last moved 21:32.
+					489 checkbox SYNTHETIC CAP 102, Value: 0
+						490 text SYNTHETIC CAP 102
+						491 container
+							492 text You: SYNTHETIC LOCAL CAP SETUP 102 You. No recorded questions yet. Last moved 21:32.
+					493 checkbox SYNTHETIC CAP 101, Value: 0
+						494 text SYNTHETIC CAP 101
+						495 container
+							496 text You: SYNTHETIC LOCAL CAP SETUP 101 You. No recorded questions yet. Last moved 21:32.
+					497 checkbox SYNTHETIC CAP 100, Value: 0
+						498 text SYNTHETIC CAP 100
+						499 container
+							500 text You: SYNTHETIC LOCAL CAP SETUP 100 You. No recorded questions yet. Last moved 21:32.
+					501 checkbox SYNTHETIC CAP 99, Value: 0
+						502 text SYNTHETIC CAP 99
+						503 container
+							504 text You: SYNTHETIC LOCAL CAP SETUP 99 You. No recorded questions yet. Last moved 21:32.
+					505 checkbox SYNTHETIC CAP 98, Value: 0
+						506 text SYNTHETIC CAP 98
+						507 container
+							508 text You: SYNTHETIC LOCAL CAP SETUP 98 You. No recorded questions yet. Last moved 21:32.
+					509 checkbox SYNTHETIC CAP 97, Value: 0
+						510 text SYNTHETIC CAP 97
+						511 container
+							512 text You: SYNTHETIC LOCAL CAP SETUP 97 You. No recorded questions yet. Last moved 21:32.
+					513 checkbox SYNTHETIC CAP 96, Value: 0
+						514 text SYNTHETIC CAP 96
+						515 container
+							516 text You: SYNTHETIC LOCAL CAP SETUP 96 You. No recorded questions yet. Last moved 21:32.
+					517 checkbox SYNTHETIC CAP 95, Value: 0
+						518 text SYNTHETIC CAP 95
+						519 container
+							520 text You: SYNTHETIC LOCAL CAP SETUP 95 You. No recorded questions yet. Last moved 21:32.
+					521 checkbox SYNTHETIC CAP 94, Value: 0
+						522 text SYNTHETIC CAP 94
+						523 container
+							524 text You: SYNTHETIC LOCAL CAP SETUP 94 You. No recorded questions yet. Last moved 21:32.
+					525 checkbox SYNTHETIC CAP 93, Value: 0
+						526 text SYNTHETIC CAP 93
+						527 container
+							528 text You: SYNTHETIC LOCAL CAP SETUP 93 You. No recorded questions yet. Last moved 21:32.
+					529 checkbox SYNTHETIC CAP 92, Value: 0
+						530 text SYNTHETIC CAP 92
+						531 container
+							532 text You: SYNTHETIC LOCAL CAP SETUP 92 You. No recorded questions yet. Last moved 21:32.
+					533 checkbox SYNTHETIC CAP 91, Value: 0
+						534 text SYNTHETIC CAP 91
+						535 container
+							536 text You: SYNTHETIC LOCAL CAP SETUP 91 You. No recorded questions yet. Last moved 21:32.
+					537 checkbox SYNTHETIC CAP 90, Value: 0
+						538 text SYNTHETIC CAP 90
+						539 container
+							540 text You: SYNTHETIC LOCAL CAP SETUP 90 You. No recorded questions yet. Last moved 21:32.
+					541 checkbox SYNTHETIC CAP 89, Value: 0
+						542 text SYNTHETIC CAP 89
+						543 container
+							544 text You: SYNTHETIC LOCAL CAP SETUP 89 You. No recorded questions yet. Last moved 21:32.
+					545 checkbox SYNTHETIC CAP 88, Value: 0
+						546 text SYNTHETIC CAP 88
+						547 container
+							548 text You: SYNTHETIC LOCAL CAP SETUP 88 You. No recorded questions yet. Last moved 21:32.
+					549 checkbox SYNTHETIC CAP 87, Value: 0
+						550 text SYNTHETIC CAP 87
+						551 container
+							552 text You: SYNTHETIC LOCAL CAP SETUP 87 You. No recorded questions yet. Last moved 21:32.
+					553 checkbox SYNTHETIC CAP 86, Value: 0
+						554 text SYNTHETIC CAP 86
+						555 container
+							556 text You: SYNTHETIC LOCAL CAP SETUP 86 You. No recorded questions yet. Last moved 21:32.
+					557 checkbox SYNTHETIC CAP 85, Value: 0
+						558 text SYNTHETIC CAP 85
+						559 container
+							560 text You: SYNTHETIC LOCAL CAP SETUP 85 You. No recorded questions yet. Last moved 21:32.
+					561 checkbox SYNTHETIC CAP 84, Value: 0
+						562 text SYNTHETIC CAP 84
+						563 container
+							564 text You: SYNTHETIC LOCAL CAP SETUP 84 You. No recorded questions yet. Last moved 21:32.
+					565 checkbox SYNTHETIC CAP 83, Value: 0
+						566 text SYNTHETIC CAP 83
+						567 container
+							568 text You: SYNTHETIC LOCAL CAP SETUP 83 You. No recorded questions yet. Last moved 21:32.
+					569 checkbox SYNTHETIC CAP 82, Value: 0
+						570 text SYNTHETIC CAP 82
+						571 container
+							572 text You: SYNTHETIC LOCAL CAP SETUP 82 You. No recorded questions yet. Last moved 21:32.
+					573 checkbox SYNTHETIC CAP 81, Value: 0
+						574 text SYNTHETIC CAP 81
+						575 container
+							576 text You: SYNTHETIC LOCAL CAP SETUP 81 You. No recorded questions yet. Last moved 21:32.
+					577 checkbox SYNTHETIC CAP 80, Value: 0
+						578 text SYNTHETIC CAP 80
+						579 container
+							580 text You: SYNTHETIC LOCAL CAP SETUP 80 You. No recorded questions yet. Last moved 21:32.
+					581 checkbox SYNTHETIC CAP 79, Value: 0
+						582 text SYNTHETIC CAP 79
+						583 container
+							584 text You: SYNTHETIC LOCAL CAP SETUP 79 You. No recorded questions yet. Last moved 21:32.
+					585 checkbox SYNTHETIC CAP 78, Value: 0
+						586 text SYNTHETIC CAP 78
+						587 container
+							588 text You: SYNTHETIC LOCAL CAP SETUP 78 You. No recorded questions yet. Last moved 21:32.
+					589 checkbox SYNTHETIC CAP 77, Value: 0
+						590 text SYNTHETIC CAP 77
+						591 container
+							592 text You: SYNTHETIC LOCAL CAP SETUP 77 You. No recorded questions yet. Last moved 21:32.
+					593 checkbox SYNTHETIC CAP 76, Value: 0
+						594 text SYNTHETIC CAP 76
+						595 container
+							596 text You: SYNTHETIC LOCAL CAP SETUP 76 You. No recorded questions yet. Last moved 21:32.
+					597 checkbox SYNTHETIC CAP 75, Value: 0
+						598 text SYNTHETIC CAP 75
+						599 container
+							600 text You: SYNTHETIC LOCAL CAP SETUP 75 You. No recorded questions yet. Last moved 21:32.
+					601 checkbox SYNTHETIC CAP 74, Value: 0
+						602 text SYNTHETIC CAP 74
+						603 container
+							604 text You: SYNTHETIC LOCAL CAP SETUP 74 You. No recorded questions yet. Last moved 21:32.
+					605 checkbox SYNTHETIC CAP 73, Value: 0
+						606 text SYNTHETIC CAP 73
+						607 container
+							608 text You: SYNTHETIC LOCAL CAP SETUP 73 You. No recorded questions yet. Last moved 21:32.
+					609 checkbox SYNTHETIC CAP 72, Value: 0
+						610 text SYNTHETIC CAP 72
+						611 container
+							612 text You: SYNTHETIC LOCAL CAP SETUP 72 You. No recorded questions yet. Last moved 21:32.
+					613 checkbox SYNTHETIC CAP 71, Value: 0
+						614 text SYNTHETIC CAP 71
+						615 container
+							616 text You: SYNTHETIC LOCAL CAP SETUP 71 You. No recorded questions yet. Last moved 21:32.
+					617 checkbox SYNTHETIC CAP 70, Value: 0
+						618 text SYNTHETIC CAP 70
+						619 container
+							620 text You: SYNTHETIC LOCAL CAP SETUP 70 You. No recorded questions yet. Last moved 21:32.
+					621 checkbox SYNTHETIC CAP 69, Value: 0
+						622 text SYNTHETIC CAP 69
+						623 container
+							624 text You: SYNTHETIC LOCAL CAP SETUP 69 You. No recorded questions yet. Last moved 21:32.
+					625 checkbox SYNTHETIC CAP 68, Value: 0
+						626 text SYNTHETIC CAP 68
+						627 container
+							628 text You: SYNTHETIC LOCAL CAP SETUP 68 You. No recorded questions yet. Last moved 21:32.
+					629 checkbox SYNTHETIC CAP 67, Value: 0
+						630 text SYNTHETIC CAP 67
+						631 container
+							632 text You: SYNTHETIC LOCAL CAP SETUP 67 You. No recorded questions yet. Last moved 21:32.
+					633 checkbox SYNTHETIC CAP 66, Value: 0
+						634 text SYNTHETIC CAP 66
+						635 container
+							636 text You: SYNTHETIC LOCAL CAP SETUP 66 You. No recorded questions yet. Last moved 21:32.
+					637 checkbox SYNTHETIC CAP 65, Value: 0
+						638 text SYNTHETIC CAP 65
+						639 container
+							640 text You: SYNTHETIC LOCAL CAP SETUP 65 You. No recorded questions yet. Last moved 21:32.
+					641 checkbox SYNTHETIC CAP 64, Value: 0
+						642 text SYNTHETIC CAP 64
+						643 container
+							644 text You: SYNTHETIC LOCAL CAP SETUP 64 You. No recorded questions yet. Last moved 21:32.
+					645 checkbox SYNTHETIC CAP 63, Value: 0
+						646 text SYNTHETIC CAP 63
+						647 container
+							648 text You: SYNTHETIC LOCAL CAP SETUP 63 You. No recorded questions yet. Last moved 21:32.
+					649 checkbox SYNTHETIC CAP 62, Value: 0
+						650 text SYNTHETIC CAP 62
+						651 container
+							652 text You: SYNTHETIC LOCAL CAP SETUP 62 You. No recorded questions yet. Last moved 21:32.
+					653 checkbox SYNTHETIC CAP 61, Value: 0
+						654 text SYNTHETIC CAP 61
+						655 container
+							656 text You: SYNTHETIC LOCAL CAP SETUP 61 You. No recorded questions yet. Last moved 21:32.
+					657 checkbox SYNTHETIC CAP 60, Value: 0
+						658 text SYNTHETIC CAP 60
+						659 container
+							660 text You: SYNTHETIC LOCAL CAP SETUP 60 You. No recorded questions yet. Last moved 21:32.
+					661 checkbox SYNTHETIC CAP 59, Value: 0
+						662 text SYNTHETIC CAP 59
+						663 container
+							664 text You: SYNTHETIC LOCAL CAP SETUP 59 You. No recorded questions yet. Last moved 21:32.
+					665 checkbox SYNTHETIC CAP 58, Value: 0
+						666 text SYNTHETIC CAP 58
+						667 container
+							668 text You: SYNTHETIC LOCAL CAP SETUP 58 You. No recorded questions yet. Last moved 21:32.
+					669 checkbox SYNTHETIC CAP 57, Value: 0
+						670 text SYNTHETIC CAP 57
+						671 container
+							672 text You: SYNTHETIC LOCAL CAP SETUP 57 You. No recorded questions yet. Last moved 21:32.
+					673 checkbox SYNTHETIC CAP 56, Value: 0
+						674 text SYNTHETIC CAP 56
+						675 container
+							676 text You: SYNTHETIC LOCAL CAP SETUP 56 You. No recorded questions yet. Last moved 21:32.
+					677 checkbox SYNTHETIC CAP 55, Value: 0
+						678 text SYNTHETIC CAP 55
+						679 container
+							680 text You: SYNTHETIC LOCAL CAP SETUP 55 You. No recorded questions yet. Last moved 21:32.
+					681 checkbox SYNTHETIC CAP 54, Value: 0
+						682 text SYNTHETIC CAP 54
+						683 container
+							684 text You: SYNTHETIC LOCAL CAP SETUP 54 You. No recorded questions yet. Last moved 21:32.
+					685 checkbox SYNTHETIC CAP 53, Value: 0
+						686 text SYNTHETIC CAP 53
+						687 container
+							688 text You: SYNTHETIC LOCAL CAP SETUP 53 You. No recorded questions yet. Last moved 21:32.
+					689 checkbox SYNTHETIC CAP 52, Value: 0
+						690 text SYNTHETIC CAP 52
+						691 container
+							692 text You: SYNTHETIC LOCAL CAP SETUP 52 You. No recorded questions yet. Last moved 21:32.
+					693 checkbox SYNTHETIC CAP 51, Value: 0
+						694 text SYNTHETIC CAP 51
+						695 container
+							696 text You: SYNTHETIC LOCAL CAP SETUP 51 You. No recorded questions yet. Last moved 21:32.
+					697 checkbox SYNTHETIC CAP 50, Value: 0
+						698 text SYNTHETIC CAP 50
+						699 container
+							700 text You: SYNTHETIC LOCAL CAP SETUP 50 You. No recorded questions yet. Last moved 21:32.
+					701 checkbox SYNTHETIC CAP 49, Value: 0
+						702 text SYNTHETIC CAP 49
+						703 container
+							704 text You: SYNTHETIC LOCAL CAP SETUP 49 You. No recorded questions yet. Last moved 21:32.
+					705 checkbox SYNTHETIC CAP 48, Value: 0
+						706 text SYNTHETIC CAP 48
+						707 container
+							708 text You: SYNTHETIC LOCAL CAP SETUP 48 You. No recorded questions yet. Last moved 21:32.
+					709 checkbox SYNTHETIC CAP 47, Value: 0
+						710 text SYNTHETIC CAP 47
+						711 container
+							712 text You: SYNTHETIC LOCAL CAP SETUP 47 You. No recorded questions yet. Last moved 21:32.
+					713 checkbox SYNTHETIC CAP 46, Value: 0
+						714 text SYNTHETIC CAP 46
+						715 container
+							716 text You: SYNTHETIC LOCAL CAP SETUP 46 You. No recorded questions yet. Last moved 21:32.
+					717 checkbox SYNTHETIC CAP 45, Value: 0
+						718 text SYNTHETIC CAP 45
+						719 container
+							720 text You: SYNTHETIC LOCAL CAP SETUP 45 You. No recorded questions yet. Last moved 21:32.
+					721 checkbox SYNTHETIC CAP 44, Value: 0
+						722 text SYNTHETIC CAP 44
+						723 container
+							724 text You: SYNTHETIC LOCAL CAP SETUP 44 You. No recorded questions yet. Last moved 21:32.
+					725 checkbox SYNTHETIC CAP 43, Value: 0
+						726 text SYNTHETIC CAP 43
+						727 container
+							728 text You: SYNTHETIC LOCAL CAP SETUP 43 You. No recorded questions yet. Last moved 21:32.
+					729 checkbox SYNTHETIC CAP 42, Value: 0
+						730 text SYNTHETIC CAP 42
+						731 container
+							732 text You: SYNTHETIC LOCAL CAP SETUP 42 You. No recorded questions yet. Last moved 21:32.
+					733 checkbox SYNTHETIC CAP 41, Value: 0
+						734 text SYNTHETIC CAP 41
+						735 container
+							736 text You: SYNTHETIC LOCAL CAP SETUP 41 You. No recorded questions yet. Last moved 21:32.
+					737 checkbox SYNTHETIC CAP 40, Value: 0
+						738 text SYNTHETIC CAP 40
+						739 container
+							740 text You: SYNTHETIC LOCAL CAP SETUP 40 You. No recorded questions yet. Last moved 21:32.
+					741 checkbox SYNTHETIC CAP 39, Value: 0
+						742 text SYNTHETIC CAP 39
+						743 container
+							744 text You: SYNTHETIC LOCAL CAP SETUP 39 You. No recorded questions yet. Last moved 21:32.
+					745 checkbox SYNTHETIC CAP 38, Value: 0
+						746 text SYNTHETIC CAP 38
+						747 container
+							748 text You: SYNTHETIC LOCAL CAP SETUP 38 You. No recorded questions yet. Last moved 21:32.
+					749 checkbox SYNTHETIC CAP 37, Value: 0
+						750 text SYNTHETIC CAP 37
+						751 container
+							752 text You: SYNTHETIC LOCAL CAP SETUP 37 You. No recorded questions yet. Last moved 21:32.
+					753 checkbox SYNTHETIC CAP 36, Value: 0
+						754 text SYNTHETIC CAP 36
+						755 container
+							756 text You: SYNTHETIC LOCAL CAP SETUP 36 You. No recorded questions yet. Last moved 21:32.
+					757 checkbox SYNTHETIC CAP 35, Value: 0
+						758 text SYNTHETIC CAP 35
+						759 container
+							760 text You: SYNTHETIC LOCAL CAP SETUP 35 You. No recorded questions yet. Last moved 21:32.
+					761 checkbox SYNTHETIC CAP 34, Value: 0
+						762 text SYNTHETIC CAP 34
+						763 container
+							764 text You: SYNTHETIC LOCAL CAP SETUP 34 You. No recorded questions yet. Last moved 21:32.
+					765 checkbox SYNTHETIC CAP 33, Value: 0
+						766 text SYNTHETIC CAP 33
+						767 container
+							768 text You: SYNTHETIC LOCAL CAP SETUP 33 You. No recorded questions yet. Last moved 21:32.
+					769 checkbox SYNTHETIC CAP 32, Value: 0
+						770 text SYNTHETIC CAP 32
+						771 container
+							772 text You: SYNTHETIC LOCAL CAP SETUP 32 You. No recorded questions yet. Last moved 21:32.
+					773 checkbox SYNTHETIC CAP 31, Value: 0
+						774 text SYNTHETIC CAP 31
+						775 container
+							776 text You: SYNTHETIC LOCAL CAP SETUP 31 You. No recorded questions yet. Last moved 21:32.
+					777 checkbox SYNTHETIC CAP 30, Value: 0
+						778 text SYNTHETIC CAP 30
+						779 container
+							780 text You: SYNTHETIC LOCAL CAP SETUP 30 You. No recorded questions yet. Last moved 21:32.
+					781 checkbox SYNTHETIC CAP 29, Value: 0
+						782 text SYNTHETIC CAP 29
+						783 container
+							784 text You: SYNTHETIC LOCAL CAP SETUP 29 You. No recorded questions yet. Last moved 21:32.
+					785 checkbox SYNTHETIC CAP 28, Value: 0
+						786 text SYNTHETIC CAP 28
+						787 container
+							788 text You: SYNTHETIC LOCAL CAP SETUP 28 You. No recorded questions yet. Last moved 21:32.
+					789 checkbox SYNTHETIC CAP 27, Value: 0
+						790 text SYNTHETIC CAP 27
+						791 container
+							792 text You: SYNTHETIC LOCAL CAP SETUP 27 You. No recorded questions yet. Last moved 21:32.
+					793 checkbox SYNTHETIC CAP 26, Value: 0
+						794 text SYNTHETIC CAP 26
+						795 container
+							796 text You: SYNTHETIC LOCAL CAP SETUP 26 You. No recorded questions yet. Last moved 21:32.
+					797 checkbox SYNTHETIC CAP 25, Value: 0
+						798 text SYNTHETIC CAP 25
+						799 container
+							800 text You: SYNTHETIC LOCAL CAP SETUP 25 You. No recorded questions yet. Last moved 21:32.
+					801 checkbox SYNTHETIC CAP 24, Value: 0
+						802 text SYNTHETIC CAP 24
+						803 container
+							804 text You: SYNTHETIC LOCAL CAP SETUP 24 You. No recorded questions yet. Last moved 21:32.
+					805 checkbox SYNTHETIC CAP 23, Value: 0
+						806 text SYNTHETIC CAP 23
+						807 container
+							808 text You: SYNTHETIC LOCAL CAP SETUP 23 You. No recorded questions yet. Last moved 21:32.
+					809 checkbox SYNTHETIC CAP 22, Value: 0
+						810 text SYNTHETIC CAP 22
+						811 container
+							812 text You: SYNTHETIC LOCAL CAP SETUP 22 You. No recorded questions yet. Last moved 21:32.
+					813 checkbox SYNTHETIC CAP 21, Value: 0
+						814 text SYNTHETIC CAP 21
+						815 container
+							816 text You: SYNTHETIC LOCAL CAP SETUP 21 You. No recorded questions yet. Last moved 21:32.
+					817 checkbox SYNTHETIC CAP 20, Value: 0
+						818 text SYNTHETIC CAP 20
+						819 container
+							820 text You: SYNTHETIC LOCAL CAP SETUP 20 You. No recorded questions yet. Last moved 21:32.
+					821 checkbox SYNTHETIC CAP 19, Value: 0
+						822 text SYNTHETIC CAP 19
+						823 container
+							824 text You: SYNTHETIC LOCAL CAP SETUP 19 You. No recorded questions yet. Last moved 21:32.
+					825 checkbox SYNTHETIC CAP 18, Value: 0
+						826 text SYNTHETIC CAP 18
+						827 container
+							828 text You: SYNTHETIC LOCAL CAP SETUP 18 You. No recorded questions yet. Last moved 21:32.
+					829 checkbox SYNTHETIC CAP 17, Value: 0
+						830 text SYNTHETIC CAP 17
+						831 container
+							832 text You: SYNTHETIC LOCAL CAP SETUP 17 You. No recorded questions yet. Last moved 21:32.
+					833 checkbox SYNTHETIC CAP 16, Value: 0
+						834 text SYNTHETIC CAP 16
+						835 container
+							836 text You: SYNTHETIC LOCAL CAP SETUP 16 You. No recorded questions yet. Last moved 21:32.
+					837 checkbox SYNTHETIC CAP 15, Value: 0
+						838 text SYNTHETIC CAP 15
+						839 container
+							840 text You: SYNTHETIC LOCAL CAP SETUP 15 You. No recorded questions yet. Last moved 21:32.
+					841 checkbox SYNTHETIC CAP 14, Value: 0
+						842 text SYNTHETIC CAP 14
+						843 container
+							844 text You: SYNTHETIC LOCAL CAP SETUP 14 You. No recorded questions yet. Last moved 21:32.
+					845 checkbox SYNTHETIC CAP 13, Value: 0
+						846 text SYNTHETIC CAP 13
+						847 container
+							848 text You: SYNTHETIC LOCAL CAP SETUP 13 You. No recorded questions yet. Last moved 21:32.
+					849 checkbox SYNTHETIC CAP 12, Value: 0
+						850 text SYNTHETIC CAP 12
+						851 container
+							852 text You: SYNTHETIC LOCAL CAP SETUP 12 You. No recorded questions yet. Last moved 21:32.
+					853 checkbox SYNTHETIC CAP 11, Value: 0
+						854 text SYNTHETIC CAP 11
+						855 container
+							856 text You: SYNTHETIC LOCAL CAP SETUP 11 You. No recorded questions yet. Last moved 21:32.
+					857 checkbox SYNTHETIC CAP 10, Value: 0
+						858 text SYNTHETIC CAP 10
+						859 container
+							860 text You: SYNTHETIC LOCAL CAP SETUP 10 You. No recorded questions yet. Last moved 21:32.
+					861 checkbox SYNTHETIC CAP 9, Value: 0
+						862 text SYNTHETIC CAP 9
+						863 container
+							864 text You: SYNTHETIC LOCAL CAP SETUP 9 You. No recorded questions yet. Last moved 21:32.
+					865 checkbox SYNTHETIC CAP 8, Value: 0
+						866 text SYNTHETIC CAP 8
+						867 container
+							868 text You: SYNTHETIC LOCAL CAP SETUP 8 You. No recorded questions yet. Last moved 21:32.
+					869 checkbox SYNTHETIC CAP 7, Value: 0
+						870 text SYNTHETIC CAP 7
+						871 container
+							872 text You: SYNTHETIC LOCAL CAP SETUP 7 You. No recorded questions yet. Last moved 21:32.
+					873 checkbox SYNTHETIC CAP 6, Value: 0
+						874 text SYNTHETIC CAP 6
+						875 container
+							876 text You: SYNTHETIC LOCAL CAP SETUP 6 You. No recorded questions yet. Last moved 21:32.
+					877 checkbox SYNTHETIC CAP 5, Value: 0
+						878 text SYNTHETIC CAP 5
+						879 container
+							880 text You: SYNTHETIC LOCAL CAP SETUP 5 You. No recorded questions yet. Last moved 21:32.
+					881 checkbox SYNTHETIC CAP 4, Value: 0
+						882 text SYNTHETIC CAP 4
+						883 container
+							884 text You: SYNTHETIC LOCAL CAP SETUP 4 You. No recorded questions yet. Last moved 21:32.
+					885 checkbox SYNTHETIC CAP 3, Value: 0
+						886 text SYNTHETIC CAP 3
+						887 container
+							888 text You: SYNTHETIC LOCAL CAP SETUP 3 You. No recorded questions yet. Last moved 21:32.
+					889 checkbox SYNTHETIC CAP 2, Value: 0
+						890 text SYNTHETIC CAP 2
+						891 container
+							892 text You: SYNTHETIC LOCAL CAP SETUP 2 You. No recorded questions yet. Last moved 21:32.
+			934 container Open conversation
+				935 container
+					936 heading SYNTHETIC stale sender regression, Value: 3
+						937 text SYNTHETIC stale sender regression
+					938 text Contributors: You, Synthetic C Old, Synthetic A Surviving
+				939 container Messages
+					940 content list
+						941 container
+							942 text You
+							943 text · 
+							944 text Oct 10, 21:31
+							945 text SYNTHETIC B first message
+							946 button Propose as decision
+							947 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
+						948 container
+							949 text Synthetic C Old ·  Oct 10, 21:31
+							950 text SYNTHETIC C old second message
+							951 button Propose as decision
+							952 button (collapsed) Description: Remove message, Secondary Actions: Expand
+						953 container
+							954 text Synthetic A Surviving ·  Oct 10, 21:31
+							955 text SYNTHETIC A surviving third
+							956 button Propose as decision
+							957 button (collapsed) Description: Remove message, Secondary Actions: Expand
+						958 container
+							959 text You ·  Oct 10, 21:32
+							960 text SYNTHETIC e4c8 confirmed human send moves the older row
+							961 button Propose as decision
+							962 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
+						963 container
+							964 text Synthetic C Old ·  Oct 10, 21:34
+							965 text SYNTHETIC authorized other member bumps existing conversation after restore
+							966 button Propose as decision
+							967 button (collapsed) Description: Remove message, Secondary Actions: Expand
+				968 container Continue this conversation
+					969 text entry area (settable) Description: Continue this question with the team, Value: SYNTHETIC draft survives ambiguous probe and both restoration paths
+					970 container
+						971 checkbox (settable, integer) Description: Ask Sophia, Value: 0
+						972 text Ask Sophia
+					973 button Send
+					974 text To the team only Enter sends · Shift+Enter, a new line
+			914 container Description: Project context, ID: conv-context
+				975 container This conversation
+					976 heading This conversation, Value: 4
+						977 text This conversation
+					978 text No summary yet.
+					979 text No recorded questions yet
+					980 button (collapsed) Erase this conversation, Secondary Actions: Expand
+				921 heading Project context, Value: 3
+					922 text Project context
+				923 text No mission accepted yet.
+				924 container Accepted decisions
+					925 heading Accepted decisions, Value: 4
+						926 text Accepted decisions
+					927 text None accepted yet.
+				928 container Still open
+					929 heading Still open, Value: 4
+						930 text Still open
+					931 text Nothing waits for a decision.
+				932 button (collapsed) How conversation context works, Secondary Actions: Expand
+					933 text How conversation context works
+		80 container Project room
+			81 button Join the room
+
+The focused UI element is 93 checkbox SYNTHETIC stale sender regression, Value: 1

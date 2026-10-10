@@ -1,0 +1,194 @@
+{
+  "authorization-crossing.json": {
+    "sha256": "7aaced78e03af203a15091a9f787b8b90d02616149c43111efbd49c9039cd626",
+    "bytes": 522
+  },
+  "browser-db-audit-safe.json": {
+    "sha256": "330b8e7c5172e6492bc2267f8b2fbffea1677538328c61c71e03094014827573",
+    "bytes": 516
+  },
+  "browser-errors.json": {
+    "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "bytes": 2
+  },
+  "browser-stack-cleanup.json": {
+    "sha256": "ce2ee17d00ae6e5f26a95a10f297fbd128d1e3d15bc10783e523599b5e84a086",
+    "bytes": 114
+  },
+  "browser-stack-receipt.json": {
+    "sha256": "b9f225e05f2ed6b3ec5e2ccb1508166c831ef2a9b6b95208695bb0465e6bf027",
+    "bytes": 338
+  },
+  "bump-existing-receipt.json": {
+    "sha256": "af7bb0b7ab28508984e2decfff13772c29957c1f06ff8803e0ac450bee0bf2ff",
+    "bytes": 214
+  },
+  "cap-setup.json": {
+    "sha256": "3007eadc5ea5196c8ffd97c4a0575dc5a971de2591ad2d9477565d3488898915",
+    "bytes": 139
+  },
+  "confirmed-send-dom.txt": {
+    "sha256": "6ab8f46aa20523ae402aefabe0c8d084471eaf3396185fa7645771db030948c1",
+    "bytes": 4998
+  },
+  "confirmed-send.jpg": {
+    "sha256": "63043b2eefd3153d7e7b3eaca159bac33eea3f885a9407d934f1eff9008f23f6",
+    "bytes": 59024
+  },
+  "conversation-read-receipts.json": {
+    "sha256": "c2323a100c97eff11f18d7b424334df2d7ffa0677700552830c8d75529f0e579",
+    "bytes": 9911
+  },
+  "e4c8-conversation-tests.log": {
+    "sha256": "6244782f1a0fe7ac530708324c94c4acadd50924e9138740c6dec0129a242b56",
+    "bytes": 35825
+  },
+  "e4c8-stale-probe.log": {
+    "sha256": "4870fe061701399f6a529b939553e937b7243ddc370f6d329c08f5c0fa5397af",
+    "bytes": 798
+  },
+  "e4c8-stale-probe.mjs": {
+    "sha256": "cb3766d00652fae2779cad30ef01f09cdde31c6153097be92a4d22a4e3b818f7",
+    "bytes": 1544
+  },
+  "e4c8-studio-typecheck.log": {
+    "sha256": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d",
+    "bytes": 20
+  },
+  "external-erasure.json": {
+    "sha256": "cc90e4e619b19a392f57f54f0f6776e0e64099c4cf19194d4314a939a3fa957d",
+    "bytes": 189
+  },
+  "failure-dom-summary.json": {
+    "sha256": "7d206af8248caf78aeb0fb0839f15c681d7430e1caadd110f22e213c435797eb",
+    "bytes": 195
+  },
+  "first-revocation/authorization-crossing.json": {
+    "sha256": "11760bcdcce5535241564501f5786a769e3f72a29df678a3270ad1fd2aa91649",
+    "bytes": 522
+  },
+  "first-revocation/held-probe-receipt.json": {
+    "sha256": "6099f3e9aa1a6a3547a37d021bab3857daa794fccf97b0b62333e4f322996ded",
+    "bytes": 179
+  },
+  "first-revocation/held-probe-stimulus.json": {
+    "sha256": "0e1d7d0df8d06b6f27bffd81c65365e01820bcb3a16c3dfcad4cf74720dfb02a",
+    "bytes": 268
+  },
+  "first-revocation/released-probe-receipt.json": {
+    "sha256": "7019ca3749eaa92073ea6bc8174bd47b7e7aed9a2a5f47be67167d683c202472",
+    "bytes": 205
+  },
+  "first-revocation/restore-receipt.json": {
+    "sha256": "287c1b16b47a74a31a17d1d5d82654dc19496f16df37142e2feee7a0668f9168",
+    "bytes": 202
+  },
+  "first-revocation/revocation-receipt.json": {
+    "sha256": "336c290fb218196cf8db52dc92f8bd77d57ed82384159f0e6355315bbd9c8b0c",
+    "bytes": 270
+  },
+  "held-probe-receipt.json": {
+    "sha256": "3d30ca3103ea325a97a4f8e486f9f535e658bc509e8c97cb94ff084a023bc548",
+    "bytes": 179
+  },
+  "held-probe-stimulus.json": {
+    "sha256": "17d000a49a2336d2c49286026dc2a90db19c5430ca795dbedae29c1577655eb9",
+    "bytes": 268
+  },
+  "isolated-probe-fenced-dom.txt": {
+    "sha256": "b7f1947fe125db98bfb2cc2b0c3673bd93a458b05f9a5ebdf9413fefe915c4e6",
+    "bytes": 2620
+  },
+  "isolated-revocation/held-probe-receipt.json": {
+    "sha256": "20f97d49abd319ae367527c46b86f77c3141532a3e641c192bbd43aa437d2af8",
+    "bytes": 179
+  },
+  "isolated-revocation/held-probe-stimulus.json": {
+    "sha256": "a8cbd0894c3ee21acf336ccf8b06d24e1ace119dc20582d07f71d07b461b5168",
+    "bytes": 268
+  },
+  "isolated-revocation/released-probe-receipt.json": {
+    "sha256": "b530f06522afa0f78f328819721fe403569f4ff7db909e69044611effc8eec3f",
+    "bytes": 205
+  },
+  "isolated-revocation/restore-receipt.json": {
+    "sha256": "4fc797a02bdc79720acf174b6f5ce215f93e5fb76951454837709f340ccad759",
+    "bytes": 202
+  },
+  "isolated-revocation/revocation-receipt.json": {
+    "sha256": "ca40c929b2d198f907f741e319d7443ab02a39784b560a3b427b0acdbbd22edc",
+    "bytes": 270
+  },
+  "ordinary-erasure-fenced-dom.txt": {
+    "sha256": "5d755a396b8edbae2c6d75170564834ff176daca7ffd294cbd03ebb9bcff5c88",
+    "bytes": 2633
+  },
+  "ordinary-erasure-return-dom.txt": {
+    "sha256": "f64753a679016817a439760b947d937bd4cc54ee222ee57aa3af05c6878a5b17",
+    "bytes": 43445
+  },
+  "owned-cleanup-verification.json": {
+    "sha256": "6abffcbd7d42f5e4055ef9c709f895fe3a3fc3f870bb7882fd2f73e97966218c",
+    "bytes": 439
+  },
+  "probe-revoked-fenced-dom.txt": {
+    "sha256": "b7f1947fe125db98bfb2cc2b0c3673bd93a458b05f9a5ebdf9413fefe915c4e6",
+    "bytes": 2620
+  },
+  "probe-revoked-fenced.jpg": {
+    "sha256": "59a3d1e70a95073721fd92b021b06553120421b1d444ef350d8a765a1a532ee9",
+    "bytes": 30727
+  },
+  "read-ceiling.json": {
+    "sha256": "ee144999fab206f4bd7c8481a13970ea3bf9a274ec8694973376410e4cb73248",
+    "bytes": 96
+  },
+  "relay-finish-receipts.json": {
+    "sha256": "2350c22ffbc185ed7628686fec584649aa5a5991f3858eefb4c1a2f44aae0343",
+    "bytes": 399
+  },
+  "released-probe-receipt.json": {
+    "sha256": "114a58d8497d1c34bb374c903d50fc900afae5f32027ee12a73a0b155c14ff3c",
+    "bytes": 205
+  },
+  "relisted-draft-recovered-dom.txt": {
+    "sha256": "2dbdc5639df5f230a52eb59573e0118951e7a126a4f921bdd9dbde9d7d458201",
+    "bytes": 44680
+  },
+  "relisted-draft-recovered.jpg": {
+    "sha256": "6525f6750a5f23277270f409d30f2157c1a5b151d66d31fb09ea9f6d0acbb7c1",
+    "bytes": 83546
+  },
+  "restore-receipt.json": {
+    "sha256": "74529840d4cbc8b4013da367937f2fbcdfb2a3dc5c4a16d37aaf2d0b23226424",
+    "bytes": 202
+  },
+  "restored-still-capped-dom.txt": {
+    "sha256": "b65a63af7ea4cf0dff96edaffc38c6ac8c75afcf7012ad85f7ef6ec3c4ff97cc",
+    "bytes": 43476
+  },
+  "restored-still-capped.jpg": {
+    "sha256": "4fa16960739889f7bf0e4db2b2e0a80d0ae2f9d2626535edf1c9bdf678962c06",
+    "bytes": 65718
+  },
+  "revocation-receipt.json": {
+    "sha256": "57fb8358562ae4b8403a614a9735a0e10d65b416a6dbc62cf8d39ad27167e9bd",
+    "bytes": 270
+  },
+  "revoked-between-list-and-recheck-dom.txt": {
+    "sha256": "e254d864d84d27f77ace3c0b1ee841608aee554403bfd197fb446b36d4c5b72b",
+    "bytes": 44851
+  },
+  "revoked-between-list-and-recheck.jpg": {
+    "sha256": "f617c304862bde8996d03b652f954968d8039175606b457ca96f69c08796de32",
+    "bytes": 84763
+  },
+  "target-record-counts.json": {
+    "sha256": "f6d194bccd33ef88ea409e40495e9c87e000fc128c6694ea95239b406329c452",
+    "bytes": 252
+  },
+  "write-receipts.json": {
+    "sha256": "8be12ede2df6fbda3dd3b67f4fe49a964be9b69b101c695a7e9e4ad0f78825bc",
+    "bytes": 268
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "candidate": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+  "tree": "53c4a423a7ea1007b9072c54ab7204c7acceefd2",
+  "parent": "2f87eb36a38ec0ac018ea5c07d6e1df334c05134",
+  "actualEpisode": 67,
+  "level": "L1 real local Studio/API/PostgreSQL17.6; synthetic development identities, no fixture/native/provider",
+  "sourceDelta": "complete seven-file delta independently read",
+  "focusedTests": {
+    "tests": 252,
+    "suites": 63,
+    "pass": 252,
+    "fail": 0,
+    "skip": 0
+  },
+  "studioTypecheck": "PASS",
+  "automatedReview": 5480526458,
+  "automatedP1": [
+    4238933255,
+    4238933260
+  ],
+  "initialProbeFence": "PASS actual isolated background refusal with all other transcript reads503",
+  "ordinaryRestore": "PASS bounded capped-out recheck200; relisted original draft/no update-depth crash",
+  "confirmedSend": "PASS actual humanSend202/list503/row moves first and time21:31\u219221:32",
+  "ordinaryErasure": "PASS bounded actual five bodies NULL; current422 fences; currentlist and return no resurrection",
+  "residualP1": "FAIL actual access revoked after fresh capped list200 but before direct recheck422; cached other transcript and controls remain visible",
+  "staleSuccessP1": "FAIL independently replayed L0 helper semantics; not mounted",
+  "pendingErasureP1": "source-valid automated finding; not independently mounted",
+  "allOwnedStacksClean": 67,
+  "hostedEffects": 0,
+  "providerCalls": 0,
+  "paidSpend": 0,
+  "uncertainWrite": false,
+  "liveBatchAuthorized": false,
+  "combinedG4": "unqualified; superseded ebe8 gate stopped midcheck",
+  "acceptanceStatusesChanged": false
+}

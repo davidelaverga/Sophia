@@ -1,0 +1,7 @@
+{
+  "startedAt": "2026-10-10T19:33:08.290Z",
+  "heldAt": "2026-10-10T19:33:20.114Z",
+  "releasedAt": "2026-10-10T19:33:20.185Z",
+  "effect": "one owned synthetic membership revocation, then release of one real API GET; no retry",
+  "productionProbeDeadlineMs": 15000
+}

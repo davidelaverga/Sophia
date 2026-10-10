@@ -1,0 +1,21 @@
+{
+  "candidate": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+  "tree": "53c4a423a7ea1007b9072c54ab7204c7acceefd2",
+  "observedAt": "2026-10-10T19:38:48.639Z",
+  "projectId": "2de5e236-bc41-462b-9e49-c89a856ed8ce",
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "messages": 207,
+  "nullBodies": 5,
+  "semanticRequests": 208,
+  "replies": 0
+}

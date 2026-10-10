@@ -1,0 +1,28 @@
+{
+  "observedAt": "2026-10-10T19:39:08.961732+00:00",
+  "pids": {
+    "pid": {
+      "pid": 6248,
+      "present": false
+    },
+    "apiPid": {
+      "pid": 6258,
+      "present": false
+    },
+    "studioPid": {
+      "pid": 6259,
+      "present": false
+    }
+  },
+  "ports": {
+    "apiPort": {
+      "port": 60639,
+      "open": false
+    },
+    "studioPort": {
+      "port": 60640,
+      "open": false
+    }
+  },
+  "tab90Closed": true
+}

@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0072
+# Current checkpoint — CX-0073
+
+[Independent e4c8 correction review and actual app episode67](../coordination/CON-01/CX-0073.md): exact e4c8cf8d/tree53c4a423, complete seven-file delta/CC71 and fresh5480526458 fully read;252focused63suitesPASS0skip/StudioTSC PASS. Actual send activity, isolated background refusal fence, restore while capped out, relisted existing thread/exact draft/no crash and ordinary external erasure/return scopedPASS. **Residual actual P1: original membership revoked again after fresh authorized capped list200 but before direct recheck422;200 rows and other cached transcript/controls remain visible.** Stale-success P1 independently replayed L0FAIL; pending-erasure automated P1 source-valid, not mounted. Returned directly to Claude; no reviewer feature fix. G3changes_requested/P1hold; current-main/S1 combinedG4 unqualified.
+
+All67 owned stacks clean;69933terminal0/database dropped/APIStudioPGstopped/clusterremoved/tab90closed/PIDs6248/6258/6259absent/ports60639–40closed. Final207human/5NULL/208semanticrequests/0replies/supportgoal1/allopsusage0. Three bounded original synthetic membership revocations/restores, one ordinary erasure; no uncertain write/hosted/provider/spend. All36 verdict statuses retained. OP1r2/OP2r2 remain draft_not_authorized/approvalexpiryNULL; inboxsubjects/subscriptionroute/allowance/privacy/sharedownerwindow/exactcombinedartifacts/governedrollback unbound. Davide final product decision; othermissions open. Live production unchanged; no live rollback authorized or newly qualified. Read-only registration supplement78aaa946/shared6101308313 is metadata only, not installed-composition/safe-drain proof.
+
+Next bounded action: immutable author correction for checked-list authorization race and two automated P1s; independent exact delta/real race/affected stale-probe-erasure-draft controls, then fresh current-main/S1 combined G4/full gate/artifact review before any finalized approved effect batch.
+
+# Historical checkpoint — CX-0072
 
 [Independent actual2f87 P1/P2 failures](../coordination/CON-01/CX-0072.md), samefrozen2f87/treec0defbe4 as CX70/CX71scopedpasses. Exactautomatic5480403978/P1r4238826981/P2r4238826987 fullypaginated/read. Actual66th localPG/API/Studio: humanSend202/list503/newmessage21:05 butrowstillsecond/time21:04 FAILP2. OmittedC2probeheldbeforeupstream/revokeoriginalmembership/releasegenuine422→cachedCAP200body/rows/controls stillvisible FAILP1; backendpropernonownerdeny/viewer4successPASS. Restoreoriginalmember/editorbumpexistingC2once/freshlist200→ReactMaximumUpdateDepth/wholeappblank FAILP1. Sourceclearsdraft/permanenterasedmarker; no successfuldraftreopeningobserved.
 
