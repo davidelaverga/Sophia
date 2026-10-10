@@ -579,6 +579,32 @@ test('removal · the list refused while a new conversation is being written: the
   await expect(rows(page)).not.toHaveCount(0)
 })
 
+for (const where of ['the form for a new conversation', 'the composer'] as const) {
+  test(`removal · the list refused as the feed moves while writing in ${where}: the focus goes to the fence's note, not to the page`, async ({
+    page,
+  }) => {
+    // PR #199 r4239535715: what held the focus goes with the fence; the focus goes to the note that says why, so a
+    // keyboard is not left at the start of the page.
+    await page.goto(PAGE)
+    await expect(messages(page)).toHaveCount(6)
+    if (where === 'the composer') {
+      await field(page).fill('SYNTHETIC-DRAFT-FOCUS')
+      await expect(field(page)).toBeFocused()
+    } else {
+      await list(page).getByRole('button', { name: 'New conversation' }).click()
+      const question = page.getByRole('form', { name: 'New conversation' }).getByLabel('Question')
+      await question.fill('SYNTHETIC-QUESTION-FOCUS')
+      await expect(question).toBeFocused()
+    }
+    await page.evaluate(() => window.fixture?.refuseConversations(true))
+    await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+    await page.evaluate(() => window.fixture?.listMore(true))
+    const note = list(page).getByText('This project refused a read of its conversations.')
+    await expect(note).toBeVisible()
+    await expect(note).toBeFocused()
+  })
+}
+
 test('removal · an erasure with no reply, then the list refused: fenced, its intent kept; given the project back it is sent again under its key', async ({
   page,
 }) => {

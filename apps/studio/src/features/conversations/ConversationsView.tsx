@@ -302,9 +302,38 @@ interface ListProps {
 }
 
 /** The left pane: the list's name and New conversation (for members), the list's state, and its rows. */
+/**
+ * Fenced while the focus was in what the fence takes away (the form for a new conversation, a thread or its composer, a
+ * row): it goes to the fence's note, never to the page (PR #199 r4239535715). Where it stays in sight (the list's head),
+ * it stays. Whether the focus was last here is told by where it last came in: what is taken away, even a composer hidden
+ * a commit before the fence by its own read's refusal, leaves it nowhere, and no event says so.
+ */
+function useFenceFocus(fenced: boolean) {
+  const pane = useRef<HTMLElement>(null)
+  const note = useRef<HTMLParagraphElement>(null)
+  const was = useRef(fenced)
+  const inside = useRef(false)
+  useEffect(() => {
+    const came = (e: FocusEvent) => {
+      const view = pane.current?.parentElement
+      inside.current = e.target instanceof Node && view?.contains(e.target) === true
+    }
+    document.addEventListener('focusin', came)
+    return () => document.removeEventListener('focusin', came)
+  }, [])
+  useLayoutEffect(() => {
+    const view = pane.current?.parentElement
+    const here = document.activeElement !== null && view?.contains(document.activeElement) === true
+    if (fenced && !was.current && inside.current && !here) note.current?.focus()
+    was.current = fenced
+  })
+  return { pane, note }
+}
+
 function ListPane(props: ListProps) {
+  const { pane, note } = useFenceFocus(props.fenced)
   return (
-    <section className="conv-list" aria-label="All conversations">
+    <section ref={pane} className="conv-list" aria-label="All conversations">
       <div className="conv-list-head">
         <h2 id="conversations-title">Conversations</h2>
         <div className="conv-list-acts">
@@ -314,7 +343,7 @@ function ListPane(props: ListProps) {
       </div>
       <ListState read={props.read} count={props.fenced ? null : props.all.length} capability={props.capability} />
       {props.fenced ? (
-        <p className="conv-note" role="status">
+        <p ref={note} className="conv-note" role="status" tabIndex={-1}>
           This project refused a read of its conversations. None is shown until they can be read again.
         </p>
       ) : (
