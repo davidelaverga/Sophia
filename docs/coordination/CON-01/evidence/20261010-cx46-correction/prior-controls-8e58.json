@@ -1,0 +1,248 @@
+[
+  {
+    "probe": "cx43/purged-writer-provenance-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 production helpers; valid canonical row, partial fail-closed cache then complete pages; no mounted claim",
+      "passed": 4,
+      "failed": 0,
+      "passedCases": [
+        "Partial cache fails closed and removes writers whose surviving messages were not held",
+        "Complete pages restore previously named surviving writers in canonical order after fail-closed purge",
+        "Fresh canonical row control retains canonical order",
+        "Actual QueryClient restores previously purged writers in API order after oldest page arrives"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx43/writer-order-valid-api-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 production helpers/synthetic canonical old API row at seq1; no mounted/auth/provider claim",
+      "passed": 4,
+      "failed": 0,
+      "passedCases": [
+        "Direct reverse withdrawal preserves API first surviving sequence order C,A,B",
+        "Late row with reverse tombstone page order preserves API contributor order",
+        "Forward withdrawal control preserves C,A,B",
+        "Both surviving writers retained, no duplicates or withdrawn content"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx43/stale-sender-first-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 actual production helper/synthetic currentAPIrow and independent stale thread; no mounted/provider/live claim",
+      "passed": 4,
+      "failed": 0,
+      "passedCases": [
+        "Newer canonical B,A cannot be reordered from stale withdrawn senderC2 by C4 receipt",
+        "Fresh tombstone pages and same receipt preserve B,A,C",
+        "Incomplete prefix cannot reorder newer row B,A while adding C once",
+        "Older receipt never changes newer canonical row"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx42/stale-thread-order-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 actual production helper/synthetic currentAPIrow and independent stale thread; no mounted/provider/live claim",
+      "passed": 4,
+      "failed": 0,
+      "passedCases": [
+        "Newer canonical B,A cannot be reordered from stale A1 by sender C4 receipt",
+        "Fresh tombstone pages and same receipt preserve B,A,C",
+        "Incomplete prefix cannot reorder newer row B,A while adding C once",
+        "Older receipt never changes newer canonical row"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx41/original-and-highseq-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 actual production helpers; synthetic complete-prefix writer transition and valid high-sequence one-message page; no mounted/native/live claim",
+      "passed": 5,
+      "failed": 0,
+      "passedCases": [
+        "Original writer A whose first surviving3 follows receipt B2 must reorder to B,A",
+        "Prefix evidence proves surviving B2 and A3, withdrawn1 body stays null",
+        "Initial canonical A1 then receiptB2 remains A,B before withdrawal",
+        "Valid large sequence with absent prefix yields no first, without RangeError",
+        "Ordinary missing prefix yields no invented order"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx40/receipt-order-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 actual production helpers, synthetic late trusted receipt/full cached thread; no mounted/auth/providerclaim",
+      "passed": 4,
+      "failed": 0,
+      "passedCases": [
+        "Direct restoration of A2 must precede receipt-added B3",
+        "Late rowsKnown restoration must precede receipt-added B3",
+        "Receipt itself retains known C and adds B once",
+        "Surviving A name and B reader retained,200bound and no duplicate"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx40/order-transition-c5e-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "scope": "L0 production helpers, synthetic complete cached eligible sequence; no mounted subsequent-withdrawal claim",
+      "passed": 6,
+      "failed": 0,
+      "passedCases": [
+        "Initial view-added order C,A,B is correct",
+        "With all prior places held, next eligible first for A is6",
+        "Withdrawing A2 moves surviving A6 after B3 in direct reconciliation",
+        "Repeated reconciliation retains correct current first-message order",
+        "Gap before earliest shown message does not invent first sequence",
+        "Surviving writers/count/name and withdrawn body stay governed"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx38/missing-writer-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "level": "L0 actual helpers, synthetic late pre-first-contribution row and eligible cached thread; no mounted race claim",
+      "passed": 7,
+      "failed": 0,
+      "passedCases": [
+        "Direct withdrawal adds known surviving writer absent from stale row",
+        "Late row reconciliation adds known surviving writer absent from stale row",
+        "Mine includes current reader A whose surviving message is in the cached thread",
+        "Unrelated existing writer B preserved",
+        "No withdrawn name restored",
+        "Repeated reconciliation does not duplicate contributors",
+        "Full contributor list stays bounded200 and retains existing reader B"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx38/reader-cache-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "level": "L0 actual QueryClient/cache subscription/purge and synthetic UUID reader scopes, no mounted app/authentication claim",
+      "passed": 6,
+      "failed": 0,
+      "passedCases": [
+        "Actual QueryCache purge includes absent reader A at cap200 and Mine stays true",
+        "Reader insertion uses surviving trusted name and never withdrawn name",
+        "Other reader B retained at cap when withdrawal writer is A",
+        "Opaque account scope retained while actor comparison accepts API lowercased UUID",
+        "Repeated real cache purge stays bounded, ordered and duplicate-free",
+        "Another account thread cannot supply reader identity or correction to B list"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx36/withdrawal-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "level": "L0 actual production helpers; synthetic eligible thread and assessed projections; no app/native/provider claim",
+      "passed": 10,
+      "failed": 0,
+      "passedCases": [
+        "Direct withdrawal cannot retain name sourced solely from withdrawn latest message",
+        "Header row correction cannot retain withdrawn latest name",
+        "Same-actor older null name uses surviving fallback, not withdrawn latest name",
+        "Valid summary through5 survives withdrawal6",
+        "Valid question assessment through5 survives withdrawal6",
+        "Late prewithdrawal row cannot revive withdrawn contributor name even if no other fields change",
+        "Sole writer removed; unrelated writer preserved",
+        "Summary overlapping withdrawn6 cleared",
+        "Question projection overlapping withdrawn6 cleared",
+        "Unrelated conversation unchanged"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx36/coverage-transition-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "level": "L0 production helpers/actual QueryClient with synthetic assessed inputs",
+      "passed": 8,
+      "failed": 0,
+      "passedCases": [
+        "Sole newer withdrawal retains partial summary and count with neutral uncertain-since wording",
+        "Uncertain since remains honest after a later adjacent accepted send",
+        "Gap in cached eligible pages cannot turn unknown since into a numeric count",
+        "Known surviving newer message uses uncounted newer wording and preserves projection",
+        "Each range independent: overlap removed while prior summary remains",
+        "Known decision-only stale state not promoted or mislabeled newer",
+        "Repeated withdrawal is idempotent for retained projection and count",
+        "Successful real QueryClient authoritative reread removes view-local uncertainty"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx36/receipt-regression-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "level": "L0 actual production helpers and QueryClient; synthetic assessed fields/trusted receipts",
+      "passed": 9,
+      "failures": 0,
+      "passedCases": [
+        "Gap keeps useful range/partial label without exact newer count for both projections",
+        "Unknown remains unknown on later adjacent own receipt",
+        "Older API without sequence cannot assert exact unseen message count",
+        "Trusted rename updates same actor in position and preserves unrelated identity",
+        "Rename in full row preserves200 bound/order/unnamed marker",
+        "Null trusted name replaces former name with authoritative A member fallback",
+        "Not-taken old receipt cannot regress trusted current name or count",
+        "Withdrawal clears range/unknown and words, unrelated writer stays",
+        "Successful actual QueryClient reread restores exact authoritative count"
+      ],
+      "failedCases": []
+    }
+  },
+  {
+    "probe": "cx42/realistic-reader-cache-check.mjs",
+    "exit": 0,
+    "result": {
+      "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+      "level": "L0 actual QueryClient/cache subscription/purge and synthetic UUID reader scopes, realistic201writers/202positions split50 perpage; no mounted app/authentication claim",
+      "passed": 6,
+      "failed": 0,
+      "passedCases": [
+        "Actual QueryCache purge includes absent reader A at cap200 and Mine stays true",
+        "Reader insertion uses surviving trusted name and never withdrawn name",
+        "Other reader B retained at cap when withdrawal writer is A",
+        "Opaque account scope retained while actor comparison accepts API lowercased UUID",
+        "Repeated real cache purge stays bounded, ordered and duplicate-free",
+        "Another account thread cannot supply reader identity or correction to B list"
+      ],
+      "failedCases": []
+    }
+  }
+]

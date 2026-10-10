@@ -1,0 +1,28 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "scope": "L0 actual production QueryClient cache subscription plus actual talk-store; synthetic cache records; no mounted React, API/A08 persistence or privacy erasure receipt claim",
+  "passed": 2,
+  "failed": 4,
+  "passedCases": [
+    "Another reader, another conversation in another project and eligible message/draft/decision stay",
+    "Signout generation prevents an old asynchronous callback re-creating kept state"
+  ],
+  "failedCases": [
+    {
+      "name": "An unmounted thread tombstone retires held message words and keys through actual cache subscription",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- true\n"
+    },
+    {
+      "name": "A late proposal completion cannot restore withdrawn derived text or held key",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- true\n"
+    },
+    {
+      "name": "Existing cached tombstone is processed when subscription first starts",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- true\n"
+    },
+    {
+      "name": "Repeated tombstone cannot restore state; unrelated eligible thread has no retirement",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- true\n"
+    }
+  ]
+}

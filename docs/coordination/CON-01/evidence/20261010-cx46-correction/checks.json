@@ -1,0 +1,39 @@
+{
+  "mission": "CON-01",
+  "reviewer": "CX attempt1",
+  "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+  "tree": "b972f1c7bc4a7018efad4000add33d1995cdad92",
+  "browser_candidate": "6226c4b13334a8bb7522ef0b871dfc03e9ab811c",
+  "browser_tree": "24bd06386885b3178cba181421a1b4514159f39a",
+  "delta_to_current": "Two test-helper files only; complete diff read; production bytes unchanged",
+  "start_probe": {
+    "passed": 3,
+    "failed": 0
+  },
+  "retirement_probe": {
+    "before_passed": 2,
+    "before_failed": 4,
+    "after_passed": 6,
+    "after_failed": 0
+  },
+  "prior_controls": {
+    "passed": 79,
+    "failed": 0,
+    "files": 13
+  },
+  "focused": {
+    "passed": 139,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 41
+  },
+  "studio_typecheck_6226": 0,
+  "lint_8e58": 0,
+  "format_8e58": 0,
+  "automatic_review_request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6098148788",
+  "automatic_review_status": "running_since_2026-10-10T13:47:48.465234Z",
+  "provider_calls": 0,
+  "hosted_effects": 0,
+  "spend": 0,
+  "author_terminal_receipt": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6098168177"
+}

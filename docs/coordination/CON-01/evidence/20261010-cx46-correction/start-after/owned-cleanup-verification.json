@@ -1,0 +1,39 @@
+{
+  "at": "2026-10-10T13:46:11.494542+00:00",
+  "pids": [
+    {
+      "pid": 63083,
+      "absent": true
+    },
+    {
+      "pid": 63115,
+      "absent": true
+    },
+    {
+      "pid": 63126,
+      "absent": true
+    },
+    {
+      "pid": 63127,
+      "absent": true
+    }
+  ],
+  "ports": [
+    {
+      "port": 54357,
+      "closed": true
+    },
+    {
+      "port": 54358,
+      "closed": true
+    },
+    {
+      "port": 54359,
+      "closed": true
+    }
+  ],
+  "postgresStopped": true,
+  "clusterRemoved": true,
+  "stackExit": 0,
+  "note": "Initial cleanup verifier failed on string port arithmetic before checking any process; corrected with actual backend port read from log."
+}

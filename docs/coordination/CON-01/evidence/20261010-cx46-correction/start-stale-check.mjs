@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {readFileSync} from 'node:fs';import {resolve} from 'node:path';import {pathToFileURL} from 'node:url';import {stripTypeScriptTypes} from 'node:module';
+const root=process.env.CON01_CANDIDATE_ROOT;
+const h=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/conversation-list.ts')));
+const {setListsData}=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/list-data.ts')));
+const {QueryClient}=await import(pathToFileURL(resolve(root,'apps/studio/node_modules/@tanstack/react-query/build/modern/index.js')));
+const {putStarted}=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/list-data.ts')));
+const cases=[],fails=[];const check=(name,f)=>{try{f();cases.push(name)}catch(e){fails.push({name,error:e.message})}};
+const seed=()=>{const c=new QueryClient(),key=h.listKey('p','account');c.setQueryData(key,{conversations:[{id:'old'}],capability:{write:true}});const q=c.getQueryCache().find({queryKey:key,exact:true});const err=Error('Synthetic latest GET503');q.setState({status:'error',error:err,errorUpdatedAt:123,fetchFailureCount:2,fetchFailureReason:err});return{c,key,q,err}};
+check('Start receipt preserves independent list read failure and error',()=>{const {c,key,q,err}=seed();putStarted(c,'p','account',{conversation:{id:'new'},message:{id:'m'}});assert.equal(q.state.status,'error');assert.equal(q.state.error,err);c.clear()});
+check('Start still inserts one new row and its message',()=>{const {c,key}=seed();putStarted(c,'p','account',{conversation:{id:'new'},message:{id:'m'}});assert.deepEqual(c.getQueryData(key).conversations.map(x=>x.id),['new','old']);assert.equal(c.getQueryData(h.messagesKey('new','account')).pages[0].messages[0].id,'m');c.clear()});
+check('Data-only helper control preserves exact independent failure',()=>{const {c,key,q,err}=seed();setListsData(c,key,l=>({...l,conversations:[{id:'new'},...l.conversations]}));assert.equal(q.state.status,'error');assert.equal(q.state.error,err);assert.equal(q.state.errorUpdatedAt,123);c.clear()});
+console.log(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,scope:'L0 exact exported production helper imported from its new list-data.ts location; identical assertions to CX45, actual QueryClient, synthetic receipt/no mounted claim',passed:cases.length,failed:fails.length,passedCases:cases,failedCases:fails},null,2));process.exitCode=fails.length?1:0;

@@ -1,0 +1,116 @@
+{
+  "candidate": "6226c4b13334a8bb7522ef0b871dfc03e9ab811c",
+  "tree": "24bd06386885b3178cba181421a1b4514159f39a",
+  "observedAt": "2026-10-10T13:45:31.352Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "af9c10e5-b1df-41d7-a0d1-d03c5bc40c13",
+  "messages": [
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "da56ce6f-8bc2-4db0-98fe-4ce73b0cc3b7",
+      "conversation_id": "85c44f36-d15a-41cc-8573-808261d9b6c2",
+      "actor_id": "729d3f32-70fc-4ff9-a40d-84bf305fa5a5",
+      "seq": "1",
+      "body": "SYNTHETIC B first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "b51d87dd-523f-4ee6-85e6-a6d3c763e835",
+      "conversation_id": "85c44f36-d15a-41cc-8573-808261d9b6c2",
+      "actor_id": "64b1c510-413c-41f0-b44f-0518c534c2b4",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T13:44:45.101Z"
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "4a9c76bb-f3a3-471f-bab0-f66698d60cdf",
+      "conversation_id": "85c44f36-d15a-41cc-8573-808261d9b6c2",
+      "actor_id": "cacf11ae-4313-451a-b59b-7778c0ee5608",
+      "seq": "3",
+      "body": "SYNTHETIC A surviving third",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC Start preserves stale list",
+      "id": "2970978f-737e-41b1-8ac8-eabf3e54e133",
+      "conversation_id": "ff15a918-c066-4ba6-b151-db52038a3bd7",
+      "actor_id": "64b1c510-413c-41f0-b44f-0518c534c2b4",
+      "seq": "1",
+      "body": "SYNTHETIC human-only start with failed list",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "729d3f32-70fc-4ff9-a40d-84bf305fa5a5",
+      "idempotency_key": "9830caec-29c6-4141-b290-1381bc02d43a",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5330ccde42281581f28f37610b9174ef048359dbf751d4b51bb3ed3a950c3b25",
+        "titleSha256": "18737aa98ca1e588aa6a15aedbde45e440c8396987f4904bc602f317eb4624f9"
+      },
+      "message_id": "da56ce6f-8bc2-4db0-98fe-4ce73b0cc3b7"
+    },
+    {
+      "actor_id": "64b1c510-413c-41f0-b44f-0518c534c2b4",
+      "idempotency_key": "f3f0cd09-35f9-4e51-8abe-4d64d2648ae3",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "b51d87dd-523f-4ee6-85e6-a6d3c763e835"
+    },
+    {
+      "actor_id": "cacf11ae-4313-451a-b59b-7778c0ee5608",
+      "idempotency_key": "1b8c22d0-45b1-4866-9e71-da6a688011eb",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "de4331acb084b25f6752b3f63bb3d7250c17a3c8f84b2c96125762bc134fe329",
+        "conversationId": "85c44f36-d15a-41cc-8573-808261d9b6c2"
+      },
+      "message_id": "4a9c76bb-f3a3-471f-bab0-f66698d60cdf"
+    },
+    {
+      "actor_id": "729d3f32-70fc-4ff9-a40d-84bf305fa5a5",
+      "idempotency_key": "510fbcf1-f916-4cf6-8b2f-657203cdd311",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "b51d87dd-523f-4ee6-85e6-a6d3c763e835",
+        "operation": "withdraw",
+        "conversationId": "85c44f36-d15a-41cc-8573-808261d9b6c2"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "64b1c510-413c-41f0-b44f-0518c534c2b4",
+      "idempotency_key": "7b8ae02a-ad76-459a-b0d1-8313ef57b4b2",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5b0ec23da59b163dbba57aa59ed648aece048157ae23b65c35f8128365f9f901",
+        "titleSha256": "f5897a38c8e3a0b1d2f130738037a7901ea425ed6b1390f995597d6b667c64b2"
+      },
+      "message_id": "2970978f-737e-41b1-8ac8-eabf3e54e133"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

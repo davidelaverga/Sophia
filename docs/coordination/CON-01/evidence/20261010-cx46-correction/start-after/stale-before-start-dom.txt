@@ -1,0 +1,115 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/studio
+    - link "Conversations" [active]:
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/conversations
+    - link "Goals":
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/goals
+    - link "Tasks":
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/work
+    - link "Knowledge":
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/knowledge
+    - link "Updates":
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/updates
+    - link "Resources":
+      - /url: /p/af9c10e5-b1df-41d7-a0d1-d03c5bc40c13/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC stale sender regression" [pressed]:
+          - generic: SYNTHETIC stale sender regression
+          - generic: 15:44
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: Synthetic B, Synthetic A Surviving. No recorded questions yet. Last moved 15:44.
+    - region "Open conversation":
+      - heading "SYNTHETIC stale sender regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: "Contributors:"
+        - text: Synthetic B, Synthetic A Surviving
+      - region "Messages":
+        - list:
+          - generic: Oct 10
+          - text: Synthetic B
+          - text: ·
+          - time: Oct 10, 15:44
+          - paragraph: SYNTHETIC B first message
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - generic: 15:44
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:44
+          - paragraph: This message was withdrawn.
+          - generic: 15:44
+          - text: Synthetic A Surviving
+          - text: ·
+          - time: Oct 10, 15:44
+          - paragraph: SYNTHETIC A surviving third
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - generic: 15:44
+      - form "Continue this conversation":
+        - paragraph: Messages here are saved for this project and can be read by its members. Live room audio is not saved here.
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - paragraph:
+          - generic: Sophia doesn’t answer here yet
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

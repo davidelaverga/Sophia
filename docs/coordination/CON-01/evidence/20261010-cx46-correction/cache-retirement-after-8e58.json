@@ -1,0 +1,15 @@
+{
+  "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+  "scope": "L0 actual production QueryClient cache subscription plus actual talk-store; synthetic cache records; no mounted React, API/A08 persistence or privacy erasure receipt claim",
+  "passed": 6,
+  "failed": 0,
+  "passedCases": [
+    "An unmounted thread tombstone retires held message words and keys through actual cache subscription",
+    "A late proposal completion cannot restore withdrawn derived text or held key",
+    "Another reader, another conversation in another project and eligible message/draft/decision stay",
+    "Existing cached tombstone is processed when subscription first starts",
+    "Repeated tombstone cannot restore state; unrelated eligible thread has no retirement",
+    "Signout generation prevents an old asynchronous callback re-creating kept state"
+  ],
+  "failedCases": []
+}

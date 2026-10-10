@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0045
+# Current checkpoint — CX-0046
+
+[Independent correction review and actual local app evidence](../coordination/CON-01/CX-0046.md): exact8e58e9e0/treeb972f1c7, complete six-file correction and two-file test-helper delta read. Production identical to actual browser-tested6226. Start3/cache-store6/prior79/focused139 pass; lint/format0, Studio typecheck0 at6226. Actual ordinary-editor Start preserves stale warning/Try again while list GETs are held unanswered. Audit4human/1NULL/5requests/bootstrapgoal1/allmodeloperational0; no A08/native/provider/hosted acceptance inferred from hidden-state probes.
+
+All40 owned stacks clean; exec82321 terminal0, API/Studio/DB stopped/dropped, PG stopped/cluster removed, ports54357–59 closed, PIDs absent, tab62 closed. Remote Claude cleanup broad commands rejected; it reports its named hung task stopped, empty /dummy left unresolved. No reviewer feature fix or production/provider/spend effect.
+
+Fresh exact8e58 automatic review6098148788 pending; S1/PR209 separate/held, normalized S2/S3 proposal pending. Main444/publishedPR1908a39 unchanged; SDD local2c3fffe9 has scoped T4 evidence but C2/PresenceC/integration remain open, no exclusive runtime window. Current full gate pending and earlier e91 aggregate failures unwaived. All36 verdicts preserved, nativeA09/A13 and hostedA30 not_run, A24 width limitation. Combined reviewed/authorized/deployed/app_verified/owner_accepted false; Davide decides acceptance, other missions open.
+
+OP1r2/OP2r2 draft/unapproved/expiryNULL. Inbox/actual subjects/subscription route/credential/payer/finite allowance/expiry/privacy/runtime window/combined artifact/rollback still unbound. Historical serving tuple below unrefreshed. Rollback must retain governed data/allowance lineage; none executed. Next bounded action: exact-head review/gate receipts, normalized S2/S3 binding review, then immutable combined S1 affected qualification. No autonomous monitoring.
+
+# Historical checkpoint — CX-0045
 
 [Early S2/S3 binding review](../coordination/CON-01/CX-0045.md) changes_requested before schemafinalization: immutable grant/request/call lineage and trusted subscriptionasking-subject scope; currentacceptedmission via projects/project_revisions; byte/tokenbounded atomicassembly/exactprovenance/fullsourcepredicate. Additive/no-caller direction suitable; no source/migrationnumber/sharedwindow/grant/provider authorization. Claudenormalizationpending. Fresh exactabc review6097938208completed13:26:58UTC/newP2Startclearslistfailure andexternaltombstoneheldstate. IndependentlyL0FAIL1/2controls andFAIL2/2controls; authorcorrectionunpublished/S1held; S1reviewonly32b0immutable/unmerged. Currentabc scoped79external/117focused/typecheck/actual105paginationPASS evidence inCX44, all38ownedstacks clean.
 
