@@ -207,6 +207,40 @@ describe('A16 over HTTP', () => {
     assert.equal(changed.json.code, 'idempotency_conflict')
   })
 
+  it('a start receipt names the feed position it is current at, read under its own lock (PR #199 r4237924424)', async () => {
+    const key = randomUUID()
+    const body = { title: 'Where it is current', text: 'First words', askSophia: false }
+    const receipt = parseConversationStarted((await start(body, key)).json)
+    const position = async () =>
+      (
+        await owner<{ seq: string }>(`SELECT event_sequence::text AS seq FROM sophia.projects WHERE id=$1`, [projectId])
+      )[0]?.seq
+    const [own] = await owner<{ sequence: string; entity_id: string }>(
+      `SELECT sequence::text, entity_id::text FROM sophia.project_events WHERE project_id=$1 ORDER BY sequence DESC LIMIT 1`,
+      [projectId],
+    )
+    // Its own start is the last event: the receipt is current exactly there.
+    assert.deepEqual(own, { sequence: receipt.cursor, entity_id: receipt.conversation.id })
+    assert.equal(await position(), receipt.cursor)
+    // An event past it: the replay under the same key reads again, and says where it is current now.
+    const other = parseConversationStarted((await start({ title: 'Elsewhere', text: 'Moves', askSophia: false })).json)
+    const replay = parseConversationStarted((await start(body, key)).json)
+    assert.equal(replay.conversation.id, receipt.conversation.id)
+    assert.equal(replay.message.id, receipt.message.id)
+    assert.equal(replay.cursor, other.cursor)
+    assert.ok(BigInt(replay.cursor) > BigInt(receipt.cursor))
+    // Its first message withdrawn after the start: no replay of the start holds its words.
+    const w = await call(`/api/v1/conversations/${receipt.conversation.id}/messages/${receipt.message.id}/withdrawal`, {
+      as: E,
+      key: randomUUID(),
+      post: true,
+    })
+    assert.equal(w.status, 202)
+    const erased = await start(body, key)
+    assert.equal(erased.status, 409)
+    assert.equal(erased.json.code, 'request_erased')
+  })
+
   it('who may: viewer writes refused, outsiders read nothing, and the codes say so (CON01-A05)', async () => {
     const s = parseConversationStarted((await start({ title: 'Members only', text: 'Hello', askSophia: false })).json)
     assert.equal((await start({ title: 'V', text: 'v', askSophia: false }, randomUUID(), V)).status, 403)

@@ -358,6 +358,7 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
     admin: membershipOf(project).role === 'admin',
     record: (what: string) => served.push(what),
     moved: () => publish(project),
+    cursor: () => String(project.revision),
   }
   const talk = project.conversations
   const taken = conversationWithdrawn(talk, path, init, ctx)

@@ -138,6 +138,7 @@ const started = (id: string) =>
     conversation: { id, title: 'Started' },
     message: { id: `${id}1`, seq: 1, text: 'First.' },
     reply: null,
+    cursor: '1',
   }) as unknown as ConversationStarted
 const ids = (client: QueryClient, key: readonly unknown[]) =>
   client.getQueryData<ConversationList>(key)?.conversations.map((c) => c.id)
@@ -171,7 +172,7 @@ describe('putStarted: a start writes its row and its first message, and nothing 
     assert.deepEqual(ids(client, key), ['b', 'a'])
     assert.equal(client.getQueryCache().find({ queryKey: key, exact: true })?.state.status, 'success')
     assert.deepEqual(client.getQueryData(messagesKey('b', 'ana')), {
-      pages: [{ messages: [started('b').message], before: null }],
+      pages: [{ messages: [started('b').message], before: null, readAt: '1' }],
       pageParams: [null],
     })
   })

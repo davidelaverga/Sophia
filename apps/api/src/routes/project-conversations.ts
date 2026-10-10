@@ -20,6 +20,7 @@ import {
   readConversationPage,
   readConversationReply,
   readConversationSummary,
+  readFeedPosition,
   sendConversationMessage,
   startConversation,
   withActor,
@@ -117,7 +118,9 @@ function writeRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
           req.actorName,
         )
         const conversation = await readConversationSummary(c, r.conversationId)
-        return { conversation, ...(await written(c, r)) }
+        const receipt = await written(c, r)
+        // Where this receipt is current: read last, under the project lock the start holds until commit.
+        return { conversation, ...receipt, cursor: await readFeedPosition(c, req.params.projectId) }
       })
       return reply.status(202).send(started)
     },

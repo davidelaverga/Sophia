@@ -61,6 +61,8 @@ interface Context {
   record: (what: string) => void
   /** The project's feed moves (Sophia's answer landed). */
   moved: () => void
+  /** Where the project's feed stands now, as the snapshot's cursor says it: a start's receipt is current there. */
+  cursor: () => string
 }
 
 const MESSAGES_TO = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
@@ -154,6 +156,7 @@ function started(talk: TalkWrites, key: string, body: Record<string, unknown>, c
     message: wireMessage(message, 0),
     sophia: message.ask ? 'asked' : 'not_asked',
     reply: message.ask ?? null,
+    cursor: ctx.cursor(),
   }
   talk.receipts.set(key, { body: JSON.stringify(body), receipt })
   ctx.record(`conversation-start:${body.title}:${body.askSophia ? 'yes' : 'no'}`)

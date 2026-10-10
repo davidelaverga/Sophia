@@ -266,6 +266,7 @@ export {
   readConversationPage,
   readConversationReply,
   readConversationSummary,
+  readFeedPosition,
   sendConversationMessage,
   startConversation,
   withdrawConversationMessage,

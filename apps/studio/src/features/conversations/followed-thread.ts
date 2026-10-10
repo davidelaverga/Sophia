@@ -5,6 +5,7 @@
 // r4237833438). Only that thread goes: no other conversation's, reader's or project's read, and nothing kept of drafts
 // or writes held (talk-store). No read sets out but the one its opening makes.
 import type { QueryClient } from '@tanstack/react-query'
+import { CURSOR_PATTERN } from '@sophia/contracts'
 import type { ThreadHeld } from './conversation-list.ts'
 
 /**
@@ -16,14 +17,30 @@ export function readAtOf(held: ThreadHeld): string | undefined {
   return newest && 'readAt' in newest && typeof newest.readAt === 'string' ? newest.readAt : undefined
 }
 
+/** A feed position as a number, where it is one (`CURSOR_PATTERN`). */
+const positionOf = (cursor: string | undefined) =>
+  cursor !== undefined && CURSOR_PATTERN.test(cursor) ? BigInt(cursor) : undefined
+
 /**
- * The thread read under `key` let go where nothing shows it now and it wasn't read where the feed stands (`cursor`):
+ * Whether a read current at `readAt` is current where the feed stands (`cursor`): read there or after, as a start's
+ * receipt can be (its own position, ahead of a page whose feed hasn't caught up yet; PR #199 r4237924424). Positions
+ * compare as numbers; where either isn't one, only both unknown counts.
+ */
+function followedAt(readAt: string | undefined, cursor: string | undefined): boolean {
+  const read = positionOf(readAt)
+  const now = positionOf(cursor)
+  if (read === undefined || now === undefined) return readAt === undefined && cursor === undefined
+  return read >= now
+}
+
+/**
+ * The thread read under `key` let go where nothing shows it now and it isn't current where the feed stands (`cursor`):
  * its opening reads it again, never showing it as it was. Whether it was let go.
  */
 export function dropUnfollowed(queryClient: QueryClient, key: readonly unknown[], cursor: string | undefined): boolean {
   const query = queryClient.getQueryCache().find<ThreadHeld>({ queryKey: key, exact: true })
   const held = query?.state.data
-  if (!query || held === undefined || query.getObserversCount() > 0 || readAtOf(held) === cursor) return false
+  if (!query || held === undefined || query.getObserversCount() > 0 || followedAt(readAtOf(held), cursor)) return false
   queryClient.removeQueries({ queryKey: key, exact: true })
   return true
 }

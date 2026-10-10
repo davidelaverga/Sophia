@@ -29577,13 +29577,19 @@
                 "type": "null"
               }
             ]
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "The project's feed position this receipt is current at: read in the start's own transaction, after its write and its read-back, under the project lock it holds. Every later event has a higher position."
           }
         },
         "required": [
           "conversation",
           "message",
           "sophia",
-          "reply"
+          "reply",
+          "cursor"
         ]
       },
       "ConversationMessageSent": {

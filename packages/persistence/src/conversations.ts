@@ -205,6 +205,21 @@ export async function readConversationList(c: pg.PoolClient, projectId: string):
   }
 }
 
+/**
+ * The project's feed position now (its `event_sequence`, as the snapshot's cursor). Read in a writer's own transaction,
+ * after its write and its read-back, under the project lock that writer holds until commit, it is the position the
+ * receipt is current at: every later event has a higher one (PR #199 r4237924424).
+ */
+export async function readFeedPosition(c: pg.PoolClient, projectId: string): Promise<string> {
+  const { rows } = await c.query<{ event_sequence: string }>(
+    `SELECT event_sequence FROM sophia.projects WHERE id = $1`,
+    [projectId],
+  )
+  const row = rows[0]
+  if (!row) throw new DomainError('not_found', 'Project not found')
+  return row.event_sequence
+}
+
 /** One conversation as listed, or not_found when the caller cannot see it. */
 export async function readConversationSummary(c: pg.PoolClient, conversationId: string): Promise<ConversationSummary> {
   const { rows } = await c.query<SummaryRow>(`${SUMMARIES} WHERE c.id = $1`, [conversationId])
