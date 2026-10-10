@@ -253,27 +253,9 @@
 .resource-sort-button[aria-expanded='true'] .icon {
   transform: rotate(180deg);
 }
-/* Its menu: the account menu's plane, under the button's end; the order in use marked with the app's lavender dot. */
+/* Its menu: the kit's, as wide as its field; the order in use wears the menu's mark. */
 .resource-sort-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 30;
-  display: grid;
-  gap: 2px;
   min-width: 100%;
-  padding: 6px;
-  border-radius: var(--r-3);
-  border: 1px solid var(--line-2);
-  background: var(--plane-2);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-  animation: arrive var(--base) var(--ease) both;
-}
-.resource-sort-mark {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--halo-text);
 }
 .resource-sort-label {
   font-family: var(--mono);

@@ -1,9 +1,8 @@
-// The tiles' order, at the toolbar's end: a menu in the app's own look (as the account's), not the system's list. It
-// opens on the order in use, the arrows move through the others, Enter or a press chooses, and Escape gives the focus
-// back to its button (usePopover).
+// The tiles' order, at the toolbar's end: a menu in the app's own look (the kit's, as the account's), not the system's
+// list. It opens on the order in use, the arrows move through the others, Enter or a press chooses, and Escape gives
+// the focus back to its button (usePopover).
 import { useEffect, useState } from 'react'
-import { Button, Icon } from '@sophia/ui'
-import { usePopover } from '../../app/usePopover.ts'
+import { Button, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { ORDER_LABEL, ORDERS, type Order } from './order.ts'
 
 interface Props {
@@ -38,27 +37,13 @@ export function SortMenu({ order, onChange }: Props) {
         <Icon name="chevron" size={12} />
       </Button>
       {open && (
-        <div
-          ref={menu.panel}
-          className="resource-sort-menu menu-list"
-          role="menu"
-          aria-label="Sort"
-          onKeyDown={menu.onKeyDown}
-        >
+        <Menu popover={menu} label="Sort" className="resource-sort-menu">
           {ORDERS.map((o) => (
-            <button
-              key={o}
-              type="button"
-              role="menuitemradio"
-              tabIndex={-1}
-              aria-checked={o === order}
-              onClick={() => choose(o)}
-            >
+            <MenuItem key={o} checked={o === order} onClick={() => choose(o)}>
               {ORDER_LABEL[o]}
-              {o === order && <span className="resource-sort-mark" aria-hidden />}
-            </button>
+            </MenuItem>
           ))}
-        </div>
+        </Menu>
       )}
     </div>
   )

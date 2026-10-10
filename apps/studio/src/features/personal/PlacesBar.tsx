@@ -3,11 +3,10 @@
 // Personal's padlock when it is shut; on the right, the room you're in (back to it, its switches, Leave), who can see
 // where you are (nothing at home, where the line with the lock says it), and your account.
 import { useLayoutEffect, useRef, type RefObject } from 'react'
-import { Icon, Tip, Segmented } from '@sophia/ui'
+import { Icon, Tip, Segmented, usePopover } from '@sophia/ui'
 import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
-import { usePopover } from '../../app/usePopover.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { LOCK_TIP, WHO_SEES } from './places-view.ts'
