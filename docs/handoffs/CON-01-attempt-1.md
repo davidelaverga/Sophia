@@ -19,7 +19,9 @@ Ending commit/tree and changed files:
 - After it:
   - this handoff's first draft (`7d87dbdd`);
   - `f12786aa`, the interim `ConversationOpening.seq` alone, reverted at `69b0f586` because it did not block CX-0027;
-  - the CON-01-CC-0023 correction, `messageSeq` with `lastMessage.seq`, committed with this revision of the handoff. Its exact commit and tree are named on #198 (CON-01-CC-0024). It is `source_ready`: no browser gate has run on it.
+  - `7969d40a`: the CON-01-CC-0023 correction, `messageSeq` with `lastMessage.seq` (CON-01-CC-0024);
+  - `74a697b717ca48aa41511f3c3fd3276676e6bc17` (tree `f82d631e9b67d78484e2b8ddbd4f0a44b9ee8dbf`), CON-01-CC-0025. It closes three findings: Codex's CX-0028 P1 (a late list answer restored withdrawn words), its stale-notice P2, and the fallback-ordering P2. This is the source under its gate;
+  - this revision of the handoff and the receipts, documentation only.
 - 93 files differ from `main`: `db/migrations/0048_project_conversations.sql`, A16, the persistence and API conversation routes, the Studio's `features/conversations/`, its fixtures and specs, and the coordination records under [docs/coordination/CON-01](../coordination/CON-01/README.md).
 - Draft PR [#199](https://github.com/davidelaverga/Sophia/pull/199); coordination issue [#198](https://github.com/davidelaverga/Sophia/issues/198).
 
@@ -36,7 +38,8 @@ Ending commit/tree and changed files:
   - CX-0019, CX-0021 and CX-0023 passed, each bounded to what it ran.
   - **CX-0025 failed** at `653fe9a`: StrictMode's second mount left the direct reads closed, so a capped list's erasure was never proved. It was corrected at `1f49c4f`.
   - CX-0026 passed, bounded: the capped crossing at `715d2b1`.
-  - **CX-0027 is a P1 failure reproduced at `715d2b1`:** a list read after a withdrawal had its row overwritten by a delayed Send success while the thread's reads failed. CON-01-CC-0023 is its correction, and Codex has not rechecked it.
+  - **CX-0027 is a P1 failure reproduced at `715d2b1`:** a list read after a withdrawal had its row overwritten by a delayed Send success while the thread's reads failed. CON-01-CC-0023 corrected it, and **Codex's CX-0028 passed** that crossing, bounded, at `7969d40`.
+  - **CX-0028 found a new P1 failure at `7969d40`** on the actual app: a list GET that set out before a withdrawal answered after the thread's tombstone and said the words again. It also found two P2s: a thread's Try again cleared the failing list's notice, and the fallback ordering went back on receipts 3 then 2. CON-01-CC-0025 is the correction, and Codex has not rechecked it.
 
 **Not built**
 - G2, the read-only native reply. The binding (revision 6) was reviewed at specification and direction level (CX-0014). It still needs Davide's D-6 and B-1, the shared-window acknowledgments from #190's owner and the runtime owner, and a review of the exact combined G2 source.
@@ -47,12 +50,13 @@ Ending commit/tree and changed files:
   - `447e7ae`'s scoped gate failed: 2 of 1131.
   - `82f812d`'s full run is invalid: its source was edited under it.
   - `a3422f4`'s full run failed: 4 of 1150, none in conversation specs; three reproduce on unchanged `main` here ([receipt](../coordination/CON-01/receipts/a3422f4-browser-gate.md)).
-  - `715d2b1`: the focused conversation gate passed (exit 0, 154 passed). Its full run was still running when this was written; see «Remaining obligations».
-  - The CC-0023 correction has had no browser run of any kind.
+  - `715d2b1`'s full run failed: 3 of 1154, none in conversation specs. They are the same three that reproduce on unchanged `main` ([receipt](../coordination/CON-01/receipts/715d2b1-browser-gate.md)). Its focused gate passed (154).
+  - `74a697b`'s gates were running when this was written, from `/home/user/sophia-g3-erase` by `cand74a6-checks.sh`.
 - `pnpm check` was run in full only at `a7cc081` (G1). It has not been run on any later head.
-- PR #199 r4235629903 (a row lagging on equal times) and r4235862543 (CX-0027) are open.
-  - Their correction, `messageSeq` (CON-01-CC-0023), is implemented with unit, contract and PostgreSQL tests.
-  - Its browser cases are written and have not run. That includes the fail-before run on `715d2b1`'s source.
+- PR #199 threads r4235629903, r4235862543, r4235976251, r4235976256 and r4235976261 are open until Codex reruns the affected evidence.
+  - Their corrections are at `74a697b`.
+  - The fail-before runs, on desktop, are in the [receipt](../coordination/CON-01/receipts/74a697b-fail-before.md).
+- The cache purge rests on preconditions, not on proof of erasure everywhere. A thread read stays cached for 5 minutes against a list read's 30 s, and teardown on erasure or on an identity change takes both together. Only this Studio's query cache is covered ([BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md)).
 - Whether any older CON-01 reader is enabled anywhere is UNVERIFIED. Such a reader rejects the new fields, so the Studio ships with or before the API ([BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md)).
 - A30 (two hosted accounts, a native or provider answer) was not run.
 
@@ -62,6 +66,8 @@ Ending commit/tree and changed files:
   - [447e7ae](../coordination/CON-01/receipts/447e7ae-scoped-gate.md)
   - [a3422f4](../coordination/CON-01/receipts/a3422f4-browser-gate.md)
   - [fail-before runs](../coordination/CON-01/receipts/fail-before-89eb-d130-653f.md)
+  - [715d2b1](../coordination/CON-01/receipts/715d2b1-browser-gate.md)
+  - [fail-before for CC-0024 and CC-0025](../coordination/CON-01/receipts/74a697b-fail-before.md)
 - The full ordinary gate at `a7cc081` (G1), in [docs/progress/CON-01.md](../progress/CON-01.md).
 - Every correction since G3 was published as its own source candidate on #198 (CC-0003 … CC-0020), with each check's exit from the shell. Codex's independent records are its CX messages there.
 - Raw logs and traces stayed in the implementer's container. They are named in each receipt and were not copied.
@@ -76,15 +82,14 @@ Ending commit/tree and changed files:
   - A receipt goes on the row only below its watermark. The tombstone cleanup is exact, and limited to the conversation's own row in this account's list for this project.
   - `lastAt` is the fallback for an API that says no order. There, equal times keep the row.
   - The five invariants are in [BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md).
+- **Withdrawn words leave the cached list reads, not only the screen** (CON-01-CC-0025, `withdrawn-purge.ts`):
+  - A listener lives as long as the cache and runs on every list or thread update, reverting cancels included.
+  - It replaces only the list read's data, so a failing list read still says so.
 - **No new authority was used.** No hosted read or write, migration applied anywhere but local disposable PostgreSQL, deployment, provider call or spend.
 
 ## Remaining obligations
 
-- **The full browser gate on `715d2b1`**, started from `/home/user/sophia-g3-erase` by `cand715-checks.sh`. Its exit goes on #198. If this session ends first, it is lost with the container: rerun it, do not infer it.
-- **The CC-0023 correction's browser cases:**
-  - fail-before on `715d2b1`'s and `f12786a`'s source;
-  - then its own gate.
-  - None may run while `715d2b1`'s gate holds the fixture server.
+- **The browser gates on `74a697b`**, started from `/home/user/sophia-g3-erase` by `cand74a6-checks.sh`. Their exits go on #198. If this session ends first, they are lost with the container: rerun them, do not infer them. No development browser run may share their fixture server.
 - **`pnpm check`** on the latest head, PostgreSQL included, is not yet run.
 - **Local resources to clean up:** the PostgreSQL 16 cluster `/var/lib/postgresql/con01` (port 55432), and the worktrees `/home/user/sophia-g1-check`, `/home/user/sophia-g3-erase` and `/home/user/sophia-dev`. None holds anything hosted.
 - **Open PR threads:** every PR #199 thread stays unresolved until Codex reruns the affected evidence. r4235629903 is open as a defect.
@@ -93,7 +98,7 @@ Ending commit/tree and changed files:
 
 ## Next bounded action
 
-1. Report `715d2b1`'s full gate exit. Then run the CC-0023 correction's browser cases (fail-before, then its gate), and then `pnpm check` on that head.
-2. Codex rechecks CX-0027 and the same-millisecond row on the actual app at the corrected head.
+1. Report `74a697b`'s gate exits, then run `pnpm check` on that head.
+2. Codex reruns CX-0028's crossings (the late list answer, the failing list's notice, the fallback order) on the actual app at `74a697b`.
 3. Integrating `main` `31dd587` (#204) must keep its fixture changes, `fixture-api.ts` and `room.tsx` (`coversHeld`, `hold=covers`, `releaseCovers`, staggered version reads), beside CON-01's.
 4. G2 waits for Davide's D-6 and B-1 and for the shared-window acknowledgments. Nothing in this attempt grants them.
