@@ -177,48 +177,22 @@ describe('withLastMessage', () => {
   })
 })
 
-describe('equal times on the list’s row: its place decides, else it stays (PR #199 r4235629903; CC-0021)', () => {
+describe('equal times on the list’s row: it stays (PR #199 r4235629903; Codex on 653fe9a)', () => {
   const at = '2026-10-07T10:00:00.000Z'
-  const rowSays = (text: string, place?: number, when = at) => [
-    conversation({
-      id: 'a',
-      lastMessage: {
-        author: 'member',
-        actorId: ME,
-        name: 'You',
-        text,
-        at: when,
-        ...(place === undefined ? {} : { seq: place }),
-      },
-    }),
+  const rowSays = (text: string, when = at) => [
+    conversation({ id: 'a', lastMessage: { author: 'member', actorId: ME, name: 'You', text, at: when } }),
   ]
-  /** The row once the receipt of m10 «B» lands (the thread's newest with words), at the same time as the row's. */
-  const after = (list: ReturnType<typeof rowSays>, receiptPlace: number | null = 10) =>
-    withLastMessage(list, 'a', {
-      author: 'member',
-      actorId: ME,
-      name: 'You',
-      text: 'B, said tenth.',
-      at,
-      ...(receiptPlace === null ? {} : { seq: receiptPlace }),
-    })[0]?.lastMessage
+  const receipt = { author: 'member' as const, actorId: ME, name: 'You', text: 'B, said tenth.', at }
+  const after = (list: ReturnType<typeof rowSays>) => withLastMessage(list, 'a', receipt)[0]?.lastMessage?.text
 
-  it('both placed: an earlier place gives way, equal times and all (the row lagged behind m10)', () => {
-    const now = after(rowSays('A, said ninth.', 9))
-    assert.equal(now?.text, 'B, said tenth.')
-    assert.equal(now?.seq, 10)
+  it('a tied row may be a later message the thread hasn’t read (its words like an earlier one’s): it stays', () => {
+    // The thread holds m9 «A» and m10 «B»; the row says «A» — m9's words, or an unread m11's. Nothing tells which.
+    assert.equal(after(rowSays('A, said ninth or eleventh.')), 'A, said ninth or eleventh.')
   })
 
-  it('both placed: a later place stays, its words like an earlier one’s or not (m11 «A», unread here)', () => {
-    assert.equal(after(rowSays('A, said ninth or eleventh.', 11))?.text, 'A, said ninth or eleventh.')
-    assert.equal(after(rowSays('B, said tenth.', 10))?.seq, 10)
-  })
-
-  it('either unplaced (an API from before `seq`): by time, and on equal times the row stays', () => {
-    assert.equal(after(rowSays('A, said ninth or eleventh.'))?.text, 'A, said ninth or eleventh.')
-    assert.equal(after(rowSays('A, said ninth.', 9), null)?.text, 'A, said ninth.')
-    assert.equal(after(rowSays('Said before.', undefined, '2026-10-07T09:55:00.000Z'))?.text, 'B, said tenth.')
-    assert.equal(after(rowSays('Said since.', undefined, '2026-10-07T10:05:00.000Z'))?.text, 'Said since.')
+  it('a later row stays; an earlier one gives way', () => {
+    assert.equal(after(rowSays('Said since.', '2026-10-07T10:05:00.000Z')), 'Said since.')
+    assert.equal(after(rowSays('Said before.', '2026-10-07T09:55:00.000Z')), 'B, said tenth.')
   })
 })
 

@@ -61,14 +61,7 @@ export function wireSummary(
     questionsCoverage: c.summary === null && c.openQuestions === 0 ? NOT_ASSESSED : assessed(messages, c.lastAt),
     lastMessage:
       lastShown && last?.text
-        ? {
-            author: last.author,
-            actorId: last.actorId,
-            name: last.name,
-            text: last.text.slice(0, 140),
-            at: last.at,
-            seq: messages.indexOf(last) + 1,
-          }
+        ? { author: last.author, actorId: last.actorId, name: last.name, text: last.text.slice(0, 140), at: last.at }
         : null,
   }
 }

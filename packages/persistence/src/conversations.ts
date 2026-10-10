@@ -95,7 +95,6 @@ interface SummaryRow {
   last_name: string | null
   last_text: string | null
   last_at_message: Date | null
-  last_seq: string | null
 }
 
 /** How many contributors a summary names: A16's `ConversationSummary.contributors` `maxItems`. */
@@ -117,9 +116,9 @@ const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at,
     EXISTS (SELECT 1 FROM sophia.conversation_messages s
              WHERE s.conversation_id = c.id AND s.author = 'sophia' AND s.withdrawn_at IS NULL) AS sophia,
     l.author AS last_author, l.actor_id AS last_actor, l.author_name AS last_name,
-    left(l.body, ${CONVERSATION_OPENING}) AS last_text, l.created_at AS last_at_message, l.seq AS last_seq
+    left(l.body, ${CONVERSATION_OPENING}) AS last_text, l.created_at AS last_at_message
   FROM sophia.conversations c
-  LEFT JOIN LATERAL (SELECT author, actor_id, author_name, body, created_at, seq FROM sophia.conversation_messages
+  LEFT JOIN LATERAL (SELECT author, actor_id, author_name, body, created_at FROM sophia.conversation_messages
                       WHERE conversation_id = c.id AND withdrawn_at IS NULL ORDER BY seq DESC LIMIT 1) l ON true`
 
 function summaryOf(r: SummaryRow): ConversationSummary {
@@ -137,15 +136,13 @@ function summaryOf(r: SummaryRow): ConversationSummary {
     // No CON-01 path associates an output with a conversation (binding map §10).
     output: null,
     lastMessage:
-      r.last_author && r.last_text !== null && r.last_at_message && r.last_seq !== null
+      r.last_author && r.last_text !== null && r.last_at_message
         ? {
             author: r.last_author,
             actorId: r.last_actor,
             name: r.last_author === 'sophia' ? 'Sophia' : r.last_name,
             text: r.last_text,
             at: r.last_at_message.toISOString(),
-            // Its place in the conversation: a reader orders equal-time rows by it (CON-01-CC-0021).
-            seq: safeInt(r.last_seq, 'conversation.lastMessage.seq'),
           }
         : null,
   }
