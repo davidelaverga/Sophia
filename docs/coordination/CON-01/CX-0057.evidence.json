@@ -1,0 +1,117 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0057",
+  "scope": "actual local app, synthetic identities, no fixture/provider/runtime/hosted acceptance",
+  "browserTabsClosed": [
+    72,
+    73
+  ],
+  "audits": [
+    {
+      "stack": "g3-start-tombstone-f4",
+      "candidate": "f4bfc94635a8ac23a614ed6c3715a5231fdaa883",
+      "tree": "7c661a06d430321721fa7b24adc3cac50b45b0de",
+      "observedAt": "2026-10-10T15:30:25.444Z",
+      "humanMessages": 4,
+      "nullBodies": 1,
+      "semanticRequests": 5,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      },
+      "cleanup": {
+        "candidate": "f4bfc94635a8ac23a614ed6c3715a5231fdaa883",
+        "tree": "7c661a06d430321721fa7b24adc3cac50b45b0de",
+        "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+        "apiPort": 61802,
+        "studioPort": 61803,
+        "pid": 75315,
+        "exit": 0,
+        "postgresStopped": true,
+        "clusterRemoved": true
+      },
+      "processVerification": {
+        "at": "2026-10-10T15:31:01.355056+00:00",
+        "pids": {
+          "75342": "absent",
+          "75351": "absent",
+          "75352": "absent"
+        },
+        "ports": {
+          "61802": "closed",
+          "61803": "closed"
+        }
+      }
+    },
+    {
+      "stack": "g3-start-tombstone-3e",
+      "candidate": "3e16080d2af5f6efe5e289b25d2af64d429b51dd",
+      "tree": "fe1b271fa94f156bab407210892d2da20ec7f3ae",
+      "observedAt": "2026-10-10T15:36:03.674Z",
+      "humanMessages": 5,
+      "nullBodies": 1,
+      "semanticRequests": 6,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      },
+      "cleanup": {
+        "candidate": "3e16080d2af5f6efe5e289b25d2af64d429b51dd",
+        "tree": "fe1b271fa94f156bab407210892d2da20ec7f3ae",
+        "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+        "apiPort": 62243,
+        "studioPort": 62244,
+        "pid": 75810,
+        "exit": 0,
+        "postgresStopped": true,
+        "clusterRemoved": true
+      },
+      "processVerification": {
+        "at": "2026-10-10T15:36:55.895057+00:00",
+        "pids": {
+          "75833": "absent",
+          "75842": "absent",
+          "75843": "absent"
+        },
+        "ports": {
+          "62243": "closed",
+          "62244": "closed",
+          "62245": "closed"
+        }
+      }
+    }
+  ],
+  "modelCalls": 0,
+  "spend": 0,
+  "uncertainSpend": 0,
+  "automaticReviewRequest": 6099154710,
+  "scopedResolution": {
+    "comment": 4238111781,
+    "reply": 4238166060,
+    "thread": "PRRT_kwDOUqJnR86rFJ7X",
+    "toolResolved": true
+  },
+  "readiness": {
+    "source_ready": "bounded G3 correction only; G2 implementation incomplete",
+    "locally_verified": "bounded G1/G3 and S2 source preparation",
+    "reviewed": "bounded corrections only; combined unreviewed",
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  }
+}
