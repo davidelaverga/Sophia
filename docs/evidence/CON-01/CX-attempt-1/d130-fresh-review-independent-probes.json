@@ -1,0 +1,38 @@
+{
+  "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
+  "tree": "e2c0d069bdc2f2146b10f2d69a6f85f75180c5b3",
+  "observedAt": "2026-10-10T00:34:39.824Z",
+  "level": "L0 actual production helpers/store/QueryClient plus exact useSeen branch; source integration review; no mounted browser-memory or live claim",
+  "cappedExternalErasure": {
+    "successfulRevalidations": 3,
+    "availableListSize": 200,
+    "more": true,
+    "settled": [],
+    "draftRetained": true,
+    "heldSendRetained": true,
+    "proposalRetained": true,
+    "cachedMessageRetained": true,
+    "erasedKnown": false
+  },
+  "completeControl": {
+    "settled": [
+      "synthetic-external-erased"
+    ],
+    "draftRemoved": true,
+    "heldSendRemoved": true,
+    "proposalRemoved": true,
+    "cacheRemoved": true,
+    "erasedKnown": true
+  },
+  "tiedPreview": {
+    "currentThreadNewestId": "m10",
+    "currentThreadNewestSeq": 10,
+    "currentThreadNewestText": "SYNTHETIC LATEST MESSAGE",
+    "previewText": "SYNTHETIC OLDER PREVIEW",
+    "previewRemainsOlder": true,
+    "serializedTimestampsEqual": true
+  },
+  "distinctTimeControl": {
+    "newestPreviewInstalled": true
+  }
+}

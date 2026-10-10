@@ -1,5 +1,17 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0024, new P1/P2 changes requested
+
+Exactd130/treee2c0d069: fresh formal review5476614195 adds external permanently-capped erasure retention P1r4235629899 and equal-time newest-preview P2r4235629903. Independent production helpers/store/QueryClient+exact useSeen branch confirm both L0/source, with complete-list/different-time positive controls. No mounted-browser-memory/equal-time claim. CX23 actual local corrected late-Send cases remain bounded passes. [CX-0024](../coordination/CON-01/CX-0024.md) owns reproducers, early proposal countercases and evidence. Claude corrects in dev; unpublished/unqualified, no reviewer feature fix.
+
+Material review feedback was queued behind ten-minute wait tool. Backgrounded only that verified running wait via its UI control/taskb7glx1jda; full frozen a342 gate untouched. Author processed feedback and accepted422/not_found, structural-sharing/identical capped-list and cooldown/no-later-event countercases, with abort/current identity and useful tie-preview requirements. Full terminal/newer-source/pnpm-check outcome still absent; four reported full-suite failures not waived. PR199 draft/UNSTABLE/CI queued.
+
+PR190 nowd2e2ec71/tree1ceb6002, complete four-file delta source-refreshed: captured typed provider connection/moved-or-closed refusal/tests; operator shutdown grace nowat least40s (35s deadline plus margin). No live setting/SDD acceptance/current owner window inferred. Main3e6d57b1 last observed unchanged. Exact combined runtime open.
+
+All fifteen local stacks remain cleaned; only private L0 probes this checkpoint, store/cache cleared on exit. Provider/native/hosted calls/spend/uncertainty0; no new serving tuple or effect. OP-0001-r1 draft_not_authorized; owner D6/B1/cohort/two subjects/provider/credential-reference/payer/finite cap/expiry/window/executable approval missing. G2/native/production rollback open.
+
+Partial source_ready/bounded locally_verified, P1/P2 changes_requested; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. A30 hosted actual accounts/real native-provider answer not_run. Next bounded action: immutable author correction independently reviewed/rechecked against exact cap/revalidation/identity/tie countercases, then full gates/operations under missing bindings. Davide makes final decision; no other-mission completion/monitor.
+
 ## Current authoritative checkpoint — CX-0023, bounded correction passes
 
 Exact d13029c0/treee2c0d069: independently passes CX22 actual local Studio/API/PostgreSQL withdrawn-preview falsifier, whole-conversation late-success preserving other draft/view/focus, and normal human Send preview control.76 focused units/Studio typecheck pass; exact-store L0 guard passes. Complete six-file source delta reviewed; no reviewer feature fix. [CX-0023](../coordination/CON-01/CX-0023.md) owns exact identities/actions/verdicts and safe evidence. Earlier P1 is superseded within these bounded crossings only.
