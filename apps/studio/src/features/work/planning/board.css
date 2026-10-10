@@ -270,7 +270,8 @@
   min-height: 56px;
   border: 1px dashed var(--line);
   border-radius: var(--r-4);
-  color: var(--text-4);
+  /* An empty lane says so in words: they read, as any line on the board does. */
+  color: var(--text-3);
   font-size: var(--type-small);
 }
 .task-grid {
@@ -308,7 +309,9 @@
     box-shadow var(--base) var(--ease),
     transform var(--base) var(--ease);
 }
-.task-tile:focus-visible {
+/* Where the keyboard is wins over a tile's own dashed edge (free, unknown), whatever their order. */
+.task-tile:focus-visible,
+.task-tile[data-mark]:focus-visible {
   outline: 2px solid var(--halo);
   outline-offset: 2px;
 }
@@ -481,9 +484,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+/* What a task hangs on is read, not a mark: the third ink, as the line above it; only the rule leading in stays faint. */
 .task-tile-hangs {
   overflow: hidden;
-  color: var(--text-4);
+  color: var(--text-3);
   font-size: var(--type-small);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -1191,11 +1195,11 @@
 .review-seen-text {
   color: var(--text);
 }
-/* What the evidence is, quietly after the line: the check run, the log read. */
+/* What the evidence is, quietly after the line, yet read: the check run, the log read. */
 .review-evidence-ref {
   font-family: var(--mono);
   font-size: var(--type-label);
-  color: var(--text-4);
+  color: var(--text-3);
 }
 .review-task,
 .review-part-body .text-button {

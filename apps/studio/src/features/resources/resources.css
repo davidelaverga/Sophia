@@ -65,15 +65,6 @@
   min-width: 0;
   font-size: var(--type-body);
 }
-.filter-count {
-  margin-left: 6px;
-  font-family: var(--mono);
-  font-size: var(--type-small);
-  color: var(--text-4);
-}
-.resource-filters button[aria-selected='true'] .filter-count {
-  color: var(--text-3);
-}
 
 /* The tiles: one object repeated, same edges and lines from one to the next; the capacity line sits at the foot. */
 .resource-grid {
@@ -1058,7 +1049,8 @@
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-4);
+  /* What the route can't do still reads; the supported, a step up, and the glyph say which. */
+  color: var(--text-3);
 }
 .control.supported {
   color: var(--text-2);
@@ -1587,10 +1579,11 @@
   padding: 0;
   list-style: none;
 }
+/* A step not reached yet still reads (the third ink); a reached one is teal, its bar filled. */
 .act-steps li {
   position: relative;
   padding-top: 10px;
-  color: var(--text-4);
+  color: var(--text-3);
   font-family: var(--mono);
   font-size: var(--type-label);
   letter-spacing: 0.04em;
