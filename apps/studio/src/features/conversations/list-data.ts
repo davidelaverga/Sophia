@@ -6,6 +6,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { ConversationList, ConversationStarted } from '../../api/conversations.ts'
 import { listKey, messagesKey } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
+import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
 export function setListsData(
@@ -46,6 +47,8 @@ function startedIn(list: ConversationList, row: ConversationStarted['conversatio
  * meanwhile (the conversation opened from the list while the start was on its way), writes nothing there, and the
  * thread's own read says what is so. What it writes is stamped where the receipt itself is current (its `cursor`, read in
  * the start's own transaction), never where the page's feed is (PR #199 r4237924424; followed-thread.ts).
+
+ * Never called for a conversation this view knows erased since (`landed`, PR #199 r4238111781).
  */
 export function putStarted(
   queryClient: QueryClient,
@@ -67,4 +70,30 @@ export function putStarted(
     })
   }
   void queryClient.invalidateQueries({ queryKey: key })
+}
+
+/** What a start's landing needs of what this view keeps: whether a conversation is known erased, and a change. */
+interface Talk {
+  of: (id: string) => { gone: () => boolean }
+  change: (f: (k: Kept) => Kept) => void
+}
+
+/**
+ * A start's receipt landed: the form's words go and Sophia's wait is noted, and it is put in the list and its thread
+ * (`put`, putStarted), unless this view knows the conversation erased since (talk-store `erased`: its erasure here, or a
+ * whole list read without it). Those take its read and its row away, so no read left there proves nothing, and the
+ * receipt would bring the erased words and row back (PR #199 r4238111781). Whether it may be opened.
+ */
+export function landed(talk: Talk, receipt: ConversationStarted, put: () => void): boolean {
+  const { conversation, reply } = receipt
+  const gone = talk.of(conversation.id).gone()
+  if (!gone) put()
+  talk.change((k) => ({
+    ...k,
+    start: { ...k.start, fields: NO_WORDS },
+    asked: reply
+      ? withEntry(k.asked, conversation.id, { replyId: reply.id, messageId: reply.messageId, here: Date.now() })
+      : k.asked,
+  }))
+  return !gone
 }

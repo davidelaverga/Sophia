@@ -33,7 +33,6 @@ import type { Erase } from './EraseHere.tsx'
 import {
   goneFrom,
   keepsFor,
-  NO_WORDS,
   START,
   useKept,
   withEntry,
@@ -43,7 +42,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { putStarted } from './list-data.ts'
+import { landed, putStarted } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -700,18 +699,10 @@ function useStart(
     setStarting(shown)
   }
   const started = (receipt: ConversationStarted) => {
-    const { conversation, reply } = receipt
-    putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
-    change((k) => ({
-      ...k,
-      start: { ...k.start, fields: NO_WORDS },
-      asked: reply
-        ? withEntry(k.asked, conversation.id, { replyId: reply.id, messageId: reply.messageId, here: Date.now() })
-        : k.asked,
-    }))
-    if (!onForm.current) return
-    open(conversation.id)
-    setArrived(conversation.id)
+    const put = () => putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
+    if (!landed(talk, receipt, put) || !onForm.current) return
+    open(receipt.conversation.id)
+    setArrived(receipt.conversation.id)
     setForm(false)
   }
   const cancel = () => {

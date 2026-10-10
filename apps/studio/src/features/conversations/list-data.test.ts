@@ -3,7 +3,8 @@ import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
 import type { ConversationList, ConversationStarted, ConversationSummary } from '../../api/conversations.ts'
 import { LISTS, coverageWords, listKey, listWithdrawn, messagesKey, withLastMessage } from './conversation-list.ts'
-import { putStarted, setListsData } from './list-data.ts'
+import { landed, putStarted, setListsData } from './list-data.ts'
+import { NO_WORDS, changeKept, forgetKept, keptAt, withoutConversation } from './talk-store.ts'
 
 const listOf = (title: string) =>
   ({ projectId: 'p', conversations: [{ id: 'a', title }], more: false }) as unknown as ConversationList
@@ -261,5 +262,38 @@ describe('a start’s receipt and the list read: a newer row kept, a stale recei
     putStarted(client, 'p', 'ana', receipt(), '6')
     assert.deepEqual(rowB(client)?.lastMessage, opening)
     assert.deepEqual(rowB(client)?.contributors, [{ actorId: 'ana', name: 'You' }])
+  })
+})
+
+/** What a view keeps for Ana in project p, as `landed` reads and changes it. */
+const PLACE = 'p ana'
+const talkHere = {
+  of: (id: string) => ({ gone: () => keptAt(PLACE)?.erased[id] === true }),
+  change: (f: Parameters<typeof changeKept>[1]) => changeKept(PLACE, f),
+}
+
+describe('a start’s receipt for a conversation erased here meanwhile brings nothing back (PR #199 r4238111781)', () => {
+  it('erased here, its row and read taken away: the late receipt writes neither, and it is not opened', () => {
+    forgetKept()
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'ana'), listOf('Older'))
+    changeKept(PLACE, (k) => withoutConversation(k, 'b'))
+    const late = receipt('6')
+    const open = landed(talkHere, late, () => putStarted(client, 'p', 'ana', late, '6'))
+    assert.equal(open, false)
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['a'])
+    assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
+    assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
+  })
+
+  it('not erased: listed, its thread written, and it may be opened (control)', () => {
+    forgetKept()
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'ana'), listOf('Older'))
+    const fresh = receipt('6')
+    const open = landed(talkHere, fresh, () => putStarted(client, 'p', 'ana', fresh, '6'))
+    assert.equal(open, true)
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
+    assert.notEqual(client.getQueryData(messagesKey('b', 'ana')), undefined)
   })
 })
