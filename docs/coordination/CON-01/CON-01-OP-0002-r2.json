@@ -16,7 +16,7 @@
     "studio": "https://studio.sophia-ei.com/work",
     "auth": "Supabase sophia-next/main PRODUCTION/ikigawvpaxnvdjzzzhws",
     "api": "Render srv-daqrn08473hc73flhi8g",
-    "identity_observation_ref": "LIVE_PREFLIGHT.md and evidence/20261010-live-dashboard-1002.json; Render/Vercel unchanged10:01\u201303, serving StudioSHA and owner subject still unknown"
+    "identity_observation_ref": "LIVE_PREFLIGHT.md; evidence/20261010-live-dashboard-1836.json fresh read-only dashboard identity; serving StudioSHA and owner subject still unknown"
   },
   "credential_references": {
     "project_creation": "Existing signed-in Davide Studio session; server derives actor, no vendor token custody",
@@ -105,7 +105,7 @@
     "api_deployment": "dep-db0h6jad0e5s73bkine0",
     "studio_deployment": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
     "studio_source_sha": null,
-    "observation_ref": "evidence/20261010-live-dashboard-1002.json"
+    "observation_ref": "evidence/20261010-live-dashboard-1836.json"
   },
   "source_review": {
     "reviewed_candidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",

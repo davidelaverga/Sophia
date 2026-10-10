@@ -1,0 +1,52 @@
+{
+  "method": "Authenticated CUA dashboard AX observations, read-only; direct deployed identities, no config/log/secret/deploy controls",
+  "observedAt": "2026-10-10T18:36:57.126885+00:00",
+  "effects": {
+    "deployments": 0,
+    "configurationChanges": 0,
+    "accountProjectCreations": 0,
+    "providerCalls": 0,
+    "newSpend": 0
+  },
+  "cleanup": "Temporary dashboard tab85 closed; user-owned hosted tab1 untouched",
+  "api": {
+    "service": "srv-daqrn08473hc73flhi8g",
+    "deployment": "dep-db0h6jad0e5s73bkine0",
+    "sha": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6",
+    "status": "Live"
+  },
+  "runtime": {
+    "service": "srv-darvmse0tbcc73d8kh3g",
+    "deployment": "dep-db02hcou01pc738k4atg",
+    "sha": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630",
+    "status": "Live"
+  },
+  "worker": {
+    "service": "srv-darv7snpn0mc73e6c240",
+    "deployment": "dep-dasrio7pn0mc739nnetg",
+    "sha": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+    "status": "Live"
+  },
+  "bridge": {
+    "service": "srv-darvcigu01pc73e24o4g",
+    "deployment": "dep-db0h7rc9v7es73bed57g",
+    "sha": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6",
+    "status": "Live"
+  },
+  "studio": {
+    "project": "sophia-30911edf/sophia-studio",
+    "deployment": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+    "uniqueAlias": "sophia-studio-fs4nbv0je-sophia-30911edf.vercel.app",
+    "status": "Ready Production",
+    "source": "vercel deploy",
+    "sha": null
+  },
+  "limits": [
+    "Dashboard identity only; no installed native config/profile/artifact composition verified",
+    "Studio source SHA remains unknown",
+    "No CON candidate deployed or acceptance inferred",
+    "Separate database metadata receipt; running status is not safe drain proof"
+  ],
+  "observationStartedAt": "2026-10-10T18:35:16.094338+00:00",
+  "observationCompletedAt": "2026-10-10T18:35:53.532265+00:00"
+}
