@@ -104,7 +104,10 @@ describe('keepWithdrawnPurged: the list reads as cached hold no words their thre
     assert.deepEqual(a?.contributors.at(-1), { actorId: reader, name: 'Ana' })
     assert.ok(a && 'othersUnnamed' in a && a.othersUnnamed === true)
     // With room: named.
-    assert.deepEqual(rowOf(client, 'b', key)?.contributors, [{ actorId: reader, name: 'Ana' }])
+    assert.deepEqual(
+      rowOf(client, 'b', key)?.contributors.map(({ actorId, name }) => ({ actorId, name })),
+      [{ actorId: reader, name: 'Ana' }],
+    )
   })
 
   it('an account kept under a name, not a subject, is no actor: nobody named is taken out for a writer at the cap', () => {

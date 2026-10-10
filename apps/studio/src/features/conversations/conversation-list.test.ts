@@ -46,6 +46,7 @@ const remainsOf = (over: Partial<Remains>): Remains => ({
   writerStays: false,
   writerName: null,
   writerIsReader: false,
+  writerFirst: null,
   sophiaStays: true,
   seq: 3,
   newestShown: null,
@@ -1058,6 +1059,7 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
       writerStays: false,
       writerName: null,
       writerIsReader: false,
+      writerFirst: null,
       sophiaStays: false,
       seq: 3,
       newestShown: 2,
@@ -1083,6 +1085,10 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
     assert.equal(remainsAfter(undefined, gone).sophiaStays, false)
   })
 })
+
+/** Who a row names, by who and by name only (a writer added here also carries where they first wrote). */
+const namesOf = (all: readonly { actorId: string; name: string }[] | undefined) =>
+  all?.map(({ actorId, name }) => ({ actorId, name }))
 
 /** A list holding only that row. */
 const oneRow = (row: ConversationSummary) =>
@@ -1190,18 +1196,68 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     const gone6 = { ...gone, actorId: 'lucia' }
     const thread = page([...theirs, gone6])
     const [a] = rowsKnown([stale], heldForA(thread), () => true)
-    assert.deepEqual(a?.contributors, [
+    assert.deepEqual(namesOf(a?.contributors), [
       { actorId: ME, name: 'Me' },
       { actorId: 'lucia', name: 'Lucía' },
     ])
     assert.equal(narrowed(a ? [a] : [], { typed: '', open: false, mine: true }, 'lucia').length, 1)
     // The same where the withdrawal is made here.
     const b = listWithdrawn(oneRow(stale), 'a', remainsAfter(thread, gone6))?.conversations[0]
-    assert.deepEqual(b?.contributors.at(-1), { actorId: 'lucia', name: 'Lucía' })
+    assert.deepEqual(namesOf(b?.contributors)?.at(-1), { actorId: 'lucia', name: 'Lucía' })
     // A row that leaves others unnamed takes them too, and still says so.
     const [c] = rowsKnown([{ ...stale, othersUnnamed: true as const }], heldForA(thread), () => true)
     assert.equal(c?.contributors.length, 2)
     assert.equal(c?.othersUnnamed, true)
+  })
+
+  it('writers named since the list read, in the order of their first message still shown, as the API orders them (r4237533992)', () => {
+    // The row predates lucía's and tomás's first messages (2 and 3); tomás's later 5 is withdrawn before lucía's later 6.
+    const stale = assessed({ messageSeq: 1, contributors: [{ actorId: ME, name: 'Me' }] })
+    const written = [msg(1), msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3, { actorId: 'tomas', name: 'Tomás' })]
+    const five = msg(5, { actorId: 'tomas', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+    const six = msg(6, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:01:00.000Z' } })
+    const order = [ME, 'lucia', 'tomas']
+    const [a] = rowsKnown([stale], heldForA(page([...written, five, six])), () => true)
+    assert.deepEqual(
+      a?.contributors.map((p) => p.actorId),
+      order,
+    )
+    // The tombstones held in the other order (Codex's reproducer): the same.
+    const [reversed] = rowsKnown([stale], heldForA(page([six, five, ...written])), () => true)
+    assert.deepEqual(
+      reversed?.contributors.map((p) => p.actorId),
+      order,
+    )
+    // Withdrawn here, one after the other, in that order: the same.
+    const afterFive = listWithdrawn(oneRow(stale), 'a', remainsAfter(page([...written, five]), five))
+    const afterSix = listWithdrawn(afterFive, 'a', remainsAfter(page([...written, five, six]), six))
+    assert.deepEqual(
+      afterSix?.conversations[0]?.contributors.map((p) => p.actorId),
+      order,
+    )
+    // A message confirmed here after them: last, as a receipt always goes (its sender's first place isn't read here).
+    const late = { author: 'member' as const, actorId: 'ana', name: 'Ana', text: 'Late.', at, seq: 7 }
+    const [b] = withLastMessage(a ? [a] : [], 'a', late)
+    assert.deepEqual(
+      b?.contributors.map((p) => p.actorId),
+      [ME, 'lucia', 'tomas', 'ana'],
+    )
+  })
+
+  it('a first place the pages read don’t hold from the start is never invented: such a writer goes last', () => {
+    // Place 1 isn't read here, so neither writer's first message still shown is known to be their first.
+    const stale = assessed({ messageSeq: 1, contributors: [{ actorId: ME, name: 'Me' }] })
+    const written = [msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3, { actorId: 'tomas', name: 'Tomás' })]
+    const five = msg(5, { actorId: 'tomas', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+    const six = msg(6, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:01:00.000Z' } })
+    assert.equal(remainsAfter(page([...written, five]), five).writerFirst, null)
+    const afterFive = listWithdrawn(oneRow(stale), 'a', remainsAfter(page([...written, five]), five))
+    const afterSix = listWithdrawn(afterFive, 'a', remainsAfter(page([...written, five, six]), six))
+    // As they came, each once.
+    assert.deepEqual(
+      afterSix?.conversations[0]?.contributors.map((p) => p.actorId),
+      [ME, 'tomas', 'lucia'],
+    )
   })
 
   it('at the cap, a writer the row doesn’t name is among the others: nobody named is taken out for them', () => {

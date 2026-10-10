@@ -301,6 +301,11 @@ export interface Remains {
   writerName: string | null
   /** Whether the writer is the one who reads here (whom the API always names, in the last place kept at the cap). */
   writerIsReader: boolean
+  /**
+   * The place of the writer's first message still shown, where the pages read hold every place before it (places run
+   * from 1, a withdrawn message keeping its own), so it is known to be their first; else null, never guessed.
+   */
+  writerFirst: number | null
   sophiaStays: boolean
   /** The withdrawn message's place. */
   seq: number
@@ -315,16 +320,30 @@ const shown = (m: ConversationMessage) => !m.withdrawn && m.text !== null
 const newestOf = (all: readonly ConversationMessage[]) =>
   all.reduce<ConversationMessage | null>((n, m) => (n === null || m.seq > n.seq ? m : n), null)
 
+/** The oldest of these by place; null for none. */
+const oldestOf = (all: readonly ConversationMessage[]) =>
+  all.reduce<ConversationMessage | null>((n, m) => (n === null || m.seq < n.seq ? m : n), null)
+
+/** Whether these pages hold every place before `seq`, from 1. */
+const heldBefore = (all: readonly ConversationMessage[], seq: number) => {
+  const places = new Set(all.map((m) => m.seq))
+  return Array.from({ length: Math.max(seq - 1, 0) }, (_, i) => i + 1).every((place) => places.has(place))
+}
+
 /** What a withdrawal leaves in the pages read (`Remains`), for the reader `reader` (their actor id; null if unknown). */
 export function remainsAfter(after: ThreadHeld, gone: ConversationMessage, reader: string | null = null): Remains {
-  const now = (after?.pages ?? []).flatMap((p) => p.messages).filter(shown)
+  const all = (after?.pages ?? []).flatMap((p) => p.messages)
+  const now = all.filter(shown)
   const writer = gone.author === 'member' ? gone.actorId : null
-  const theirs = newestOf(now.filter((m) => m.author === 'member' && m.actorId === writer))
+  const said = now.filter((m) => m.author === 'member' && m.actorId === writer)
+  const theirs = newestOf(said)
+  const first = oldestOf(said)
   return {
     writer,
     writerStays: theirs !== null,
     writerName: theirs === null ? null : (theirs.name ?? 'A member'),
     writerIsReader: writer !== null && writer === reader,
+    writerFirst: first !== null && heldBefore(all, first.seq) ? first.seq : null,
     sophiaStays: now.some((m) => m.author === 'sophia'),
     seq: gone.seq,
     newestShown: newestOf(now)?.seq ?? null,
@@ -395,9 +414,25 @@ function writersAfter(
     }
   }
   const them = { actorId: writer, name: writerName }
-  if (contributors.length < NAMED_AT_MOST) return { contributors: [...contributors, them] }
+  const placed = remains.writerFirst === null ? them : { ...them, firstSeq: remains.writerFirst }
+  if (contributors.length < NAMED_AT_MOST) return { contributors: withAdded(contributors, placed) }
   if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
   return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
+}
+
+/** A writer as this view names them before a list read does: where their first message still shown is, if known. */
+type Placed = ConversationSummary['contributors'][number] & { firstSeq?: number }
+
+/**
+ * Those who wrote there with `them` among the writers this view added since the list read. The list read's own writers
+ * all first wrote before it, so they stay first, in their places. The added ones go in the order of their first message
+ * still shown, as the API orders writers (PR #199 r4237533992), where that is known (`Remains.writerFirst`); one whose
+ * first isn't known goes last, its place not invented.
+ */
+function withAdded(contributors: readonly Placed[], them: Placed): Placed[] {
+  const first = them.firstSeq
+  const at = first === undefined ? -1 : contributors.findIndex((p) => p.firstSeq !== undefined && p.firstSeq > first)
+  return at < 0 ? [...contributors, them] : [...contributors.slice(0, at), them, ...contributors.slice(at)]
 }
 
 /**
