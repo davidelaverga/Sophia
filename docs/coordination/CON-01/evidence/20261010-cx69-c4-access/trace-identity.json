@@ -1,0 +1,6 @@
+{
+  "privateTrace": "operator-journal/CON-01/attempt-1/g3-access-correction/conversation-read-receipts.json",
+  "sha256": "a39fe4d7862652f43a8c873faeba341b1a57a7d0476bcfcd399a4e10e2f5e60f",
+  "bytes": 1280126,
+  "note": "complete private owned trace preserved; bounded receipts and loop snapshot copied here"
+}

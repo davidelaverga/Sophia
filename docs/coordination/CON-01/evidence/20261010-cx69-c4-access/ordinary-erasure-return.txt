@@ -1,0 +1,44 @@
+Browser tab: 86, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations
+	3 container root
+		5 container
+			6 button Home
+			7 button Work
+			8 heading CON01 independent synthetic browser project, Value: 1
+				9 text CON01 independent synthetic browser project
+			10 container Project views
+				11 link Description: Studio, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/studio
+				12 link Description: Conversations, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations
+				13 link Description: Goals, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/goals
+				14 link Description: Tasks, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/work
+				15 link Description: Knowledge, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/knowledge
+				16 link Description: Updates, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/updates
+				17 link Description: Resources, Value: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/resources
+			18 container Reconnecting
+				19 text RECONNECTING
+			20 button Invite
+			21 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		83 container Conversations
+			84 container All conversations
+				85 heading Conversations, Value: 2, ID: conversations-title
+					86 text Conversations
+				87 checkbox Description: New conversation, Value: 0
+				88 text No conversations in this project yet.
+			89 container Description: Project context, ID: conv-context
+				90 heading Project context, Value: 3
+					91 text Project context
+				92 text No mission accepted yet.
+				93 container Accepted decisions
+					94 heading Accepted decisions, Value: 4
+						95 text Accepted decisions
+					96 text None accepted yet.
+				97 container Still open
+					98 heading Still open, Value: 4
+						99 text Still open
+					100 text Nothing waits for a decision.
+				101 button (collapsed) How conversation context works, Secondary Actions: Expand
+					102 text How conversation context works
+		81 container Project room
+			82 button Join the room
+
+The focused UI element is 12 link Description: Conversations, URL: 127.0.0.1:63520/p/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations

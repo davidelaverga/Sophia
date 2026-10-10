@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0068
+# Current checkpoint — CX-0069
+
+[Independent actual c4 recovery failure and bounded passes](../coordination/CON-01/CX-0069.md). Exactc4fecc35/tree363d1e72 full12filedelta/CC68read/243focused61suitesPASS0skip/typecheck0. Actual63rd local app: original revoked-cache P1 fence PASS through real422/list503/navigation/real403; backend nonowner/nonBYPASSRLS negative+viewer3success PASS. Restore original membership/fresh list200 with existingC1→blank rows/thread and8608upstream200responses/30.337s FAIL P2. Contained ownedlist503; sentClaude. Real erasureC1/freshlist→survivingC2 PASS; ordinary openC2externalerase/list503/real422 fence andfreshlistempty/returnnoresurrection PASS bounded. Partial consumers/capwording source+unit only, mounted recheckpending.
+
+All63stacks clean;35203terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports63519–20closed/tab86closed. Final4human4NULL6requests/0replies/supportgoal1/allops0. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36verdictsretained; G3changes_requested/P2hold; combinedG4/readinessfalse. OP1r2/OP2r2draftunapproved/approvalexpiryNULL; inboxsubjects/subscriptionroute/allowance/privacy/sharedownerwindow/artifacts/rollbackunbound. Read-only live refresh69d1117f confirms unchanged servingtuple/StudioSHAunknown/PG0036/sixm03runningmetadata notsafedrain. Davidefinaldecision/othermissionsopen/no monitor.
+
+Next bounded action: immutable cached-error recovery correction + real revoke→restore-existing-thread bounded-read recheck, privacy/ordinary-erasure/partial consumers; then current-main/S1 combinedG4.
+
+# Historical checkpoint — CX-0068
 
 [Actual revoked-cache privacy failure](../coordination/CON-01/CX-0068.md). Exacte27/treee5f07c2e, fresh5480275926 fully paginated: P1r4238709217 independently actual reproduced. Local SQL synthetic membership revocation cursor4→4; current transcript genuine422; fallback second transcript proxy503; actual18:23:16.389986 still shows three cached bodies/authors/controls. Backend nonowner/nonBYPASSRLS production read denies revoked actor and allows viewer3messages. Restoretransport automatically shows No access. P2r4238709220 unknown partial projection independently source/L0FAIL; P3 wording open. Claude implementing combined immutable correction; no new candidate yet qualified. CX67 scoped passes retained. G3 changes_requested/P1hold; combinedG4 held.
 

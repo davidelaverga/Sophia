@@ -908,14 +908,14 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0068.md",
-    "candidate": "e27fa3778349f163220e5f30e496cf73a80f0482",
-    "tree": "e5f07c2e040c480cae2c09f4061a82f323da1e8c",
+    "record": "CX-0069.md",
+    "candidate": "c4fecc351d9d4c615b1bc6583fbc43440b878ee1",
+    "tree": "363d1e72b20251f1a45d9da3c40b1eae3c01f39d",
     "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
-    "statement": "CX68 actual revoked-cache P1 FAIL and partial projection L0 P2 FAIL; CX67 scoped passes retained; G3 changes_requested/combinedG4 held; native/hosted unqualified.",
+    "statement": "Original revoked-cache privacy fence and ordinary-erasure bounded PASS; access-restored existing-thread recovery read storm FAIL P2; affected partial consumers mounted recheck pending; all verdict statuses retained.",
     "readiness": {
       "source_ready": "author candidate only",
-      "locally_verified": "CX67 bounded passes; CX68 revoked cached transcript P1 FAIL and partial projection P2 L0 FAIL",
+      "locally_verified": "original revoked-cache fence and ordinary-erasure bounded PASS; access-restored recovery request storm FAIL P2",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
@@ -923,7 +923,7 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r2 draft_not_authorized;approvalexpiryNULL",
-    "cleanup": "all62ownedstacks clean;1906terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports62108\u201309closed/tab84closed",
-    "next": "Claude publishes smallest immutable P1/P2/P3 correction; reviewer independently rechecks revoked-cache adverse, ordinary erasure success and partial consumers, then current-main/S1 combined G4"
+    "cleanup": "all63ownedstacks clean;35203terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports63519\u201320closed/tab86closed",
+    "next": "Claude publishes smallest immutable cached-not_found recovery correction; reviewer reruns real revoke\u2192restore-existing-thread crossing with request-count bound, original privacy fence, ordinary erasure and affected partial consumers before current-main/S1 combinedG4"
   }
 }

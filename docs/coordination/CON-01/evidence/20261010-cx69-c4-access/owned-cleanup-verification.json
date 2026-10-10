@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-10T18:46:41.927239+00:00",
+  "pids": {
+    "pid": {
+      "pid": 99489,
+      "alive": false
+    },
+    "apiPid": {
+      "pid": 99498,
+      "alive": false
+    },
+    "studioPid": {
+      "pid": 99499,
+      "alive": false
+    }
+  },
+  "ports": {
+    "apiPort": {
+      "port": 63519,
+      "open": false
+    },
+    "studioPort": {
+      "port": 63520,
+      "open": false
+    }
+  },
+  "tab86Closed": true,
+  "revoked-fenced.jpgAt": "2026-10-10T18:43:00.829845+00:00",
+  "recovery-loop-stopped.jpgAt": "2026-10-10T18:44:51.754021+00:00",
+  "ordinary-erasure-fenced.jpgAt": "2026-10-10T18:45:49.608834+00:00",
+  "ordinary-erasure-return.jpgAt": "2026-10-10T18:46:04.904780+00:00"
+}

@@ -1,0 +1,53 @@
+{
+  "at": "2026-10-10T18:44:28.884464+00:00",
+  "phase": "after owned membership restored and actual Try again",
+  "count": 8608,
+  "first": [
+    {
+      "at": "2026-10-10T18:43:58.537Z",
+      "path": "/api/v1/projects/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:43:58.572Z",
+      "path": "/api/v1/conversations/2f9e873d-bb28-47ae-a6a5-0ebea2445bca/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:43:58.573Z",
+      "path": "/api/v1/conversations/2f9e873d-bb28-47ae-a6a5-0ebea2445bca/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:43:58.575Z",
+      "path": "/api/v1/projects/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations",
+      "status": 200
+    }
+  ],
+  "last": [
+    {
+      "at": "2026-10-10T18:44:28.866Z",
+      "path": "/api/v1/conversations/2f9e873d-bb28-47ae-a6a5-0ebea2445bca/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:44:28.868Z",
+      "path": "/api/v1/projects/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:44:28.871Z",
+      "path": "/api/v1/conversations/2f9e873d-bb28-47ae-a6a5-0ebea2445bca/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:44:28.874Z",
+      "path": "/api/v1/projects/a49d10ad-4fd1-453b-8fcd-602c589784be/conversations",
+      "status": 200
+    }
+  ],
+  "statuses": {
+    "200": 8608
+  },
+  "mitigation": "owned block-list-reads rearmed to stop repeated successful list/refence loop"
+}
