@@ -488,6 +488,41 @@ test('removal · its own read refused (403), the list’s reads failing: nothing
   expect((await kept(page))?.erased[C1]).toBeUndefined()
 })
 
+test('removal · refused (403), given the project back, its own reads failing (503): it says it can’t be read now, with Try again, and shows nothing it held', async ({
+  page,
+}) => {
+  // PR #199 CX-0079: the list read since lifts the fence and the conversation opens again, but its own read since
+  // fails. Waiting for ever is not what is so: once that read has failed it says it can't be read now, and Try again
+  // reads it again. What it held before the refusal, and its composer, never show meanwhile; its draft stays.
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-UNREAD')
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  await trip(page)
+  await expect.poll(async () => (await served(page)).includes('messages-refused:c1')).toBe(true)
+  await expect(rows(page)).toHaveCount(0)
+  // Given the project back; the list answers, the conversation's own reads fail.
+  await page.evaluate((c) => window.fixture?.failMessageReads(c), C1)
+  await page.evaluate(() => window.fixture?.refuseMessageReads(null))
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await readListAgain(page)
+  await expect(open(page).getByRole('heading', { name: FIRST })).toHaveCount(1)
+  const unread = open(page).getByRole('alert').filter({ hasText: 'This conversation can’t be read now.' })
+  await expect(unread).toBeVisible({ timeout: 10_000 })
+  await expect(open(page)).not.toContainText('Reading this conversation again…')
+  await expect(messages(page)).toHaveCount(0)
+  await expect(field(page)).toHaveCount(0)
+  expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-UNREAD')
+  expect(typeof (await kept(page))?.denied[C1]).toBe('number')
+  // Its reads answer again: Try again reads it, and it shows, its draft as it was.
+  await page.evaluate(() => window.fixture?.failMessageReads(null))
+  await unread.getByRole('button', { name: 'Try again' }).click()
+  await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toHaveValue('SYNTHETIC-DRAFT-UNREAD')
+  await expect.poll(async () => (await kept(page))?.denied[C1]).toBeUndefined()
+})
+
 test('removal · its read refused (403) as the feed moves, while open: asked once, and no frame shows its messages or composer after', async ({
   page,
 }) => {

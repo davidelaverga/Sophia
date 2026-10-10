@@ -377,11 +377,22 @@ const visible = (read: ReturnType<typeof useTranscript>, deniedAt: number | unde
   shows(read.data, deniedAt) && !refusedNow(read)
 
 /**
- * The messages, or, where what is held may not show yet (`shows`), that it is being read again; in a scrolled region
- * the keyboard reaches (arrows scroll it), where from the keyboard every time shows.
+ * The messages, or, where what is held may not show yet (`shows`), that it is being read again, or that it can't be
+ * read now once that read failed (Try again reads it again; what it held stays hidden: PR #199 CX-0079); in a
+ * scrolled region the keyboard reaches (arrows scroll it), where from the keyboard every time shows.
  */
 function Thread(props: Parameters<typeof Messages>[0] & { shown: boolean }) {
-  return props.shown ? <Messages {...props} /> : <Waiting words="Reading this conversation again…" waiting />
+  const { read } = props
+  if (props.shown) return <Messages {...props} />
+  if (!read.isError || read.isFetching) return <Waiting words="Reading this conversation again…" waiting />
+  return (
+    <p className="conv-note" role="alert">
+      This conversation can’t be read now.{' '}
+      <button type="button" className="text-button" onClick={() => void read.refetch()}>
+        Try again
+      </button>
+    </p>
+  )
 }
 
 /** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */
