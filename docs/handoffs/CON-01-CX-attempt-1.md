@@ -12,6 +12,8 @@ All fifteen local stacks remain cleaned; only private L0 probes this checkpoint,
 
 Partial source_ready/bounded locally_verified, P1/P2 changes_requested; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. A30 hosted actual accounts/real native-provider answer not_run. Next bounded action: immutable author correction independently reviewed/rechecked against exact cap/revalidation/identity/tie countercases, then full gates/operations under missing bindings. Davide makes final decision; no other-mission completion/monitor.
 
+Pre-publication follow-up: actual partial draft probes.ts source revealed an abort-only15s deadline that could retain all3 slots forever. Claude confirmed and is correcting independent attempt settlement/late-result suppression;6 module tests author-reported only, guarded chain running, correction unpublished. CX24 records scope and countercase. No independent new source/browser pass or hosted effect.
+
 ## Current authoritative checkpoint — CX-0023, bounded correction passes
 
 Exact d13029c0/treee2c0d069: independently passes CX22 actual local Studio/API/PostgreSQL withdrawn-preview falsifier, whole-conversation late-success preserving other draft/view/focus, and normal human Send preview control.76 focused units/Studio typecheck pass; exact-store L0 guard passes. Complete six-file source delta reviewed; no reviewer feature fix. [CX-0023](../coordination/CON-01/CX-0023.md) owns exact identities/actions/verdicts and safe evidence. Earlier P1 is superseded within these bounded crossings only.
