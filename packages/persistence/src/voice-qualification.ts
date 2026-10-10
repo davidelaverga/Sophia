@@ -8,15 +8,6 @@ import { onlyRow } from './rows.ts'
 
 export type QualificationReceiptKind = 'input_window' | 'input_turn' | 'provider' | 'output_reply' | 'session_closed'
 
-export interface QualificationEvidenceWrite {
-  exchangeId: string
-  grantId: string
-  seq: number
-  kind: QualificationReceiptKind
-  /** Already checked against its schema by the caller (the API's contract). */
-  receipt: Record<string, unknown>
-}
-
 /** Whether the guard ended the exchange, and why (deadline, expired, revoked, connections, turns, usage). */
 export interface QualificationEvidenceAck {
   ended: boolean
@@ -122,18 +113,6 @@ export async function reserveQualification(
     [reserve.exchangeId, reserve.grantId, reserve.kind, reserve.ordinal ?? null, reserve.charge ?? null],
   )
   return onlyRow(rows, 'media_voice_reserve').r
-}
-
-/** A bridge receipt for an exchange under a grant. Call inside withService. */
-export async function recordQualificationEvidence(
-  c: pg.PoolClient,
-  write: QualificationEvidenceWrite,
-): Promise<QualificationEvidenceAck> {
-  const { rows } = await c.query<{ ack: QualificationEvidenceAck }>(
-    `SELECT sophia.media_record_evidence($1,$2,$3,$4,$5) AS ack`,
-    [write.exchangeId, write.grantId, write.seq, write.kind, JSON.stringify(write.receipt)],
-  )
-  return onlyRow(rows, 'media_record_evidence').ack
 }
 
 /** What the grant's principal may read of an exchange their grant covered. Call inside withActor(..., 'read'). */

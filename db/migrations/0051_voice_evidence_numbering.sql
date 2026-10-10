@@ -18,9 +18,26 @@
 -- then no identity has expired yet. After it, every write is refused (22023), never numbered again.
 -- 0046 is frozen and untouched: its media_record_evidence still keeps each receipt (it is called here with the number
 -- given); the 'service' source (the guard's receipt, seq 0) is not counted.
+-- The bridge-numbered path is closed (root's C2 option (c)): EXECUTE on 0046's media_record_evidence is revoked from
+-- sophia_api and PUBLIC (below), so no login numbers a receipt itself; media_record_evidence_write, SECURITY DEFINER,
+-- calls it as its owner. And this migration starts from the pre-activation state: if any bridge receipt is already
+-- kept (numbered by the bridge through 0046, with no counter here), it refuses to apply (55000) rather than number
+-- beside it sparsely or collide with it; such receipts expire in 24 h (voice_evidence_expire), or are migrated by an
+-- explicit, reviewed step.
 -- It also replaces 0046's voice_room_qualification (below): a room token names a grant only while the room's open
 -- exchange, if any, is under it (Codex P1 r4232975804).
 BEGIN;
+
+-- The pre-activation state: no bridge receipt kept yet (C2). Checked first, so a refusal changes nothing.
+DO $$
+DECLARE n bigint;
+BEGIN
+ SELECT count(*) INTO n FROM sophia.voice_qualification_evidence WHERE source='bridge';
+ IF n>0 THEN
+  RAISE EXCEPTION '0051 refused: % bridge receipt(s) numbered by the bridge (0046) are kept, with no service counter; apply it once they have expired (24 h, voice_evidence_expire) or after an explicit migration of them, never beside them', n
+   USING ERRCODE='55000';
+ END IF;
+END $$;
 
 CREATE TABLE sophia.voice_evidence_high_water (
  exchange_id uuid NOT NULL REFERENCES sophia.room_exchanges(id) ON DELETE CASCADE,
@@ -85,6 +102,8 @@ END $$;
 
 REVOKE ALL ON FUNCTION sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb) TO sophia_api;
+-- No login numbers a receipt itself any more (C2): only the wrapper above, as the owner, calls 0046's function.
+REVOKE EXECUTE ON FUNCTION sophia.media_record_evidence(uuid,uuid,integer,text,jsonb) FROM sophia_api, PUBLIC;
 
 -- What a room token names of the grant (Codex P1 r4232975804; root's decision (b)). 0046 named the principal's active
 -- grant whatever the room was doing, so a token minted while the room's open exchange was under no grant, or under an

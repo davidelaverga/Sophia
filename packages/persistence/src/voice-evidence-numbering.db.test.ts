@@ -426,3 +426,140 @@ describe('the service numbers the bridge’s receipts (0051, Codex P1 r423290844
     }
   })
 })
+
+describe('the bridge-numbered path is closed: no login calls 0046’s media_record_evidence (0051, root’s C2)', () => {
+  const FN = 'sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)'
+  const WRAP = 'sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)'
+
+  /** A statement on the API's login, as the service (no actor): 'ok', or its SQLSTATE and message. */
+  async function onApiLogin(sql: string, params: unknown[]): Promise<string> {
+    const c = new pg.Client({ connectionString: db.apiUrl })
+    await c.connect()
+    try {
+      await c.query(sql, params)
+      return 'ok'
+    } catch (err) {
+      const { code, message } = err as { code?: string; message?: string }
+      return `${String(code)}: ${String(message)}`
+    } finally {
+      await c.end()
+    }
+  }
+
+  /** What the exchange's project holds of it: its receipts (every source), counter, identities and events. */
+  const effectsOf = async (projectId: string, exchangeId: string) =>
+    owner(async (c) => {
+      const n = async (sql: string, p: unknown[]) => (await c.query<{ n: number }>(sql, p)).rows[0]?.n
+      return {
+        receipts: await n(`SELECT count(*)::int AS n FROM sophia.voice_qualification_evidence WHERE exchange_id=$1`, [
+          exchangeId,
+        ]),
+        counter: await n(`SELECT count(*)::int AS n FROM sophia.voice_evidence_high_water WHERE exchange_id=$1`, [
+          exchangeId,
+        ]),
+        identities: await n(`SELECT count(*)::int AS n FROM sophia.voice_evidence_writes WHERE exchange_id=$1`, [
+          exchangeId,
+        ]),
+        events: await n(`SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id=$1`, [projectId]),
+        exchangeRevision: await n(`SELECT revision::int AS n FROM sophia.room_exchanges WHERE id=$1`, [exchangeId]),
+      }
+    })
+
+  it('the API’s login calling it directly is denied (42501): no receipt, counter, identity, event or exchange change', async () => {
+    const { projectId, exchangeId, grantId } = await exchange()
+    await reserve(exchangeId, grantId, 'connection')
+    const untouched = await effectsOf(projectId, exchangeId)
+    const body = JSON.stringify(receipt(grantId, 'input_turn', { connection: 1 }))
+    for (const seq of [1, 99_999])
+      assert.equal(
+        await onApiLogin(`SELECT sophia.media_record_evidence($1,$2,$3,'input_turn',$4)`, [
+          exchangeId,
+          grantId,
+          seq,
+          body,
+        ]),
+        '42501: permission denied for function media_record_evidence',
+        `seq ${String(seq)}`,
+      )
+    assert.deepEqual(await effectsOf(projectId, exchangeId), untouched, 'nothing changed')
+    // The service's numbering is the one path, and it still works: dense from 1, a repeat its own number.
+    const one = randomUUID()
+    assert.equal((await write(exchangeId, grantId, one, 1)).seq, 1)
+    assert.equal((await write(exchangeId, grantId, randomUUID(), 2)).seq, 2)
+    assert.deepEqual(await write(exchangeId, grantId, one, 1), { seq: 1, replayed: true, ended: false, reason: null })
+  })
+
+  it('its ACL: no grant to sophia_api or PUBLIC; every role that may execute it is its owner (or a member of it); the wrapper stays the definer’s, executable by the API', async () => {
+    const acl = await owner(async (c) => {
+      const fn = await c.query<{ acl: string | null; owner: string; definer: boolean }>(
+        `SELECT proacl::text AS acl, pg_get_userbyid(proowner) AS owner, prosecdef AS definer FROM pg_proc WHERE oid=$1::regprocedure`,
+        [FN],
+      )
+      const wrap = await c.query<{ definer: boolean }>(
+        `SELECT prosecdef AS definer FROM pg_proc WHERE oid=$1::regprocedure`,
+        [WRAP],
+      )
+      const roles = await c.query<{ role: string; direct: boolean; wrapper: boolean }>(
+        `SELECT r AS role, has_function_privilege(r, $1::regprocedure, 'EXECUTE') AS direct,
+                has_function_privilege(r, $2::regprocedure, 'EXECUTE') AS wrapper
+           FROM unnest(ARRAY['sophia_api','sophia_worker','public',$3,$4]::text[]) r`,
+        [FN, WRAP, db.apiRole, db.apiRole.replace('sophia_api_t_', 'sophia_worker_t_')],
+      )
+      // Every non-superuser role in the cluster, inherited memberships (pg_auth_members) included.
+      const others = await c.query<{ rolname: string }>(
+        `SELECT r.rolname FROM pg_roles r, pg_proc p WHERE p.oid=$1::regprocedure AND NOT r.rolsuper
+           AND has_function_privilege(r.oid, p.oid, 'EXECUTE') AND NOT pg_has_role(r.oid, p.proowner, 'MEMBER')`,
+        [FN],
+      )
+      const loginGroups = await c.query<{ granted: string }>(
+        `SELECT m.roleid::regrole::text AS granted FROM pg_auth_members m WHERE m.member::regrole::text=$1`,
+        [db.apiRole],
+      )
+      return {
+        fn: fn.rows[0],
+        wrap: wrap.rows[0],
+        roles: roles.rows,
+        others: others.rows,
+        loginGroups: loginGroups.rows,
+      }
+    })
+    assert.ok(acl.fn)
+    assert.doesNotMatch(
+      String(acl.fn.acl),
+      /sophia_api=|(^|[{,])=X/,
+      `no sophia_api or PUBLIC entry: ${String(acl.fn.acl)}`,
+    )
+    assert.deepEqual(acl.others, [], 'no non-superuser outside its owner may execute it, inherited or direct')
+    assert.deepEqual(acl.loginGroups, [{ granted: 'sophia_api' }], 'the API login is in sophia_api alone')
+    assert.deepEqual(
+      acl.roles.map((r) => [
+        r.role === db.apiRole ? 'api login' : r.role.startsWith('sophia_worker_t_') ? 'worker login' : r.role,
+        r.direct,
+        r.wrapper,
+      ]),
+      [
+        ['sophia_api', false, true],
+        ['sophia_worker', false, false],
+        ['public', false, false],
+        ['api login', false, true],
+        ['worker login', false, false],
+      ],
+    )
+    assert.equal(acl.wrap?.definer, true, 'the wrapper runs as its owner')
+    assert.equal(acl.fn.definer, true)
+  })
+
+  it('the guard’s own receipt (service, seq 0) is still kept as the owner’s, beside the service’s numbers (control)', async () => {
+    const { projectId, exchangeId, grantId } = await exchange()
+    await owner((c) => c.query(`SELECT sophia.voice_qualification_revoke($1,$2,'operator_kill')`, [projectId, grantId]))
+    await withService(pool, (c) => voiceQualificationGuard(c))
+    assert.equal((await write(exchangeId, grantId, randomUUID(), 1)).seq, 1)
+    assert.deepEqual(
+      (await stateOf(exchangeId)).kept.map(([source, seq]) => [source, seq]),
+      [
+        ['bridge', 1],
+        ['service', 0],
+      ],
+    )
+  })
+})

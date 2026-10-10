@@ -1,5 +1,8 @@
-// Voice qualification evidence (migration 0046; docs/plans/voice-qualification-g7.md), level: sql-run. The grant is
-// the migration owner's; the bridge's calls run on the sophia_api login with no actor; a member's with theirs.
+// Voice qualification evidence (migrations 0046 and 0051; docs/plans/voice-qualification-g7.md), level: sql-run. The
+// grant is the migration owner's; the bridge's calls run on the sophia_api login with no actor; a member's with theirs.
+// The bridge's receipts go through 0051's numbering (media_record_evidence_write): since 0051 the API's login may not
+// call 0046's media_record_evidence itself. 0046's own per-number coverage is kept, on a database migrated through
+// 0047 only, in voice-qualification-legacy.db.test.ts.
 import { randomUUID } from 'node:crypto'
 import pg from 'pg'
 import assert from 'node:assert/strict'
@@ -16,8 +19,8 @@ import {
   mediaAssignments,
   readQualificationEvidence,
   readSnapshot,
-  recordQualificationEvidence,
   recordLiveCall,
+  recordQualificationEvidenceWrite,
   reserveQualification,
   roomQualification,
   sealLiveCall,
@@ -144,10 +147,23 @@ const receipt = (grantId: string, kind: QualificationReceiptKind, extra: Record<
   ...extra,
 })
 
-const record = (exchangeId: string, grantId: string, seq: number, kind: QualificationReceiptKind, extra = {}) =>
+/** The write identity a test's receipt `n` goes under: the same n is the same write (0051), resent. */
+const writeOf = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+
+/**
+ * A bridge receipt through 0051's numbering, as the API sends it: `n` names the write (writeOf), never its number,
+ * which the service gives. The guard's answer, as 0046 gave it.
+ */
+const record = (exchangeId: string, grantId: string, n: number, kind: QualificationReceiptKind, extra = {}) =>
   withService(pool, (c) =>
-    recordQualificationEvidence(c, { exchangeId, grantId, seq, kind, receipt: receipt(grantId, kind, extra) }),
-  )
+    recordQualificationEvidenceWrite(c, {
+      exchangeId,
+      grantId,
+      writeId: writeOf(n),
+      kind,
+      receipt: receipt(grantId, kind, extra),
+    }),
+  ).then(({ ended, reason }) => ({ ended, reason }))
 
 /** A provider receipt's usage on connection 1. */
 const provider = (usageTokens: number, lastPromptTokens: number) => ({ connection: 1, usageTokens, lastPromptTokens })
@@ -779,23 +795,23 @@ describe('a recorded voice call’s key (0046, media_record_live_call; Codex P1 
   })
 })
 
-describe('bridge receipts (0046)', () => {
-  it('are bound to the exchange’s grant and run, once per sequence number', async () => {
+describe('bridge receipts (0046, numbered by 0051)', () => {
+  it('are bound to the exchange’s grant and run, once per write identity', async () => {
     const { projectId } = await project()
     const g = await grant(projectId)
     const x = await open(projectId)
+    const direct = (over: Record<string, unknown>, kind: QualificationReceiptKind = 'input_turn') =>
+      withService(pool, (c) =>
+        recordQualificationEvidenceWrite(c, {
+          exchangeId: x,
+          grantId: g,
+          writeId: randomUUID(),
+          kind,
+          receipt: { ...receipt(g, 'input_turn'), ...over },
+        }),
+      )
     assert.equal(
-      await codeOf(
-        withService(pool, (c) =>
-          recordQualificationEvidence(c, {
-            exchangeId: x,
-            grantId: g,
-            seq: 0,
-            kind: 'input_turn',
-            receipt: { ...receipt(g, 'input_turn'), runBindingSha256: 'cd'.repeat(32) },
-          }),
-        ),
-      ),
+      await codeOf(direct({ runBindingSha256: 'cd'.repeat(32) })),
       'invalid_request',
       'another run’s binding',
     )
@@ -804,48 +820,21 @@ describe('bridge receipts (0046)', () => {
       'forbidden',
       'a grant that does not cover the exchange',
     )
-    assert.equal(
-      await codeOf(
-        withService(pool, (c) =>
-          recordQualificationEvidence(c, {
-            exchangeId: x,
-            grantId: g,
-            seq: 0,
-            kind: 'input_turn',
-            receipt: receipt(g, 'provider'),
-          }),
-        ),
-      ),
-      'invalid_request',
-      'a kind its body does not say',
-    )
-    assert.equal(
-      await codeOf(
-        withService(pool, (c) =>
-          c.query(`SELECT sophia.media_record_evidence($1,$2,0,'guard',$3)`, [
-            x,
-            g,
-            JSON.stringify(receipt(g, 'input_turn')),
-          ]),
-        ),
-      ),
-      'invalid_request',
-      'the guard’s own receipt is the service’s',
-    )
+    assert.equal(await codeOf(direct({ kind: 'provider' })), 'invalid_request', 'a kind its body does not say')
     assert.equal((await record(x, g, 0, 'input_turn', { turnOrdinal: 1 })).ended, false)
     assert.equal((await record(x, g, 0, 'input_turn', { turnOrdinal: 1 })).ended, false, 'the same again: a no-op')
     assert.equal(
       await codeOf(record(x, g, 0, 'input_turn', { turnOrdinal: 2 })),
       'idempotency_conflict',
-      'another receipt under the same number',
+      'another receipt under the same write identity',
     )
     assert.equal(
       await codeOf(
         withActor(pool, P, 'write', (c) =>
-          recordQualificationEvidence(c, {
+          recordQualificationEvidenceWrite(c, {
             exchangeId: x,
             grantId: g,
-            seq: 9,
+            writeId: randomUUID(),
             kind: 'input_turn',
             receipt: receipt(g, 'input_turn'),
           }),
@@ -854,9 +843,17 @@ describe('bridge receipts (0046)', () => {
       'forbidden',
       'a member is never the bridge',
     )
+    const kept = await owner((c) =>
+      c.query<{ seq: number }>(`SELECT seq FROM sophia.voice_qualification_evidence WHERE exchange_id=$1`, [x]),
+    )
+    assert.deepEqual(
+      kept.rows.map((r) => r.seq),
+      [1],
+      'one receipt, the service’s number 1: no refusal spent one',
+    )
   })
 
-  it('are read by the grant’s principal alone, in order, until they expire', async () => {
+  it('are read by the grant’s principal alone, in the service’s order, until they expire', async () => {
     const { projectId } = await project()
     const g = await grant(projectId)
     const x = await open(projectId)
@@ -868,15 +865,16 @@ describe('bridge receipts (0046)', () => {
     assert.deepEqual(
       evidence.receipts.map((r) => [r.seq, r.kind]),
       [
-        [0, 'input_window'],
         [1, 'input_turn'],
+        [2, 'input_window'],
       ],
+      'numbered in the order the service took them',
     )
     for (const other of [A, E, V, randomUUID()]) assert.equal(await codeOf(read(other)), 'not_found', other)
     assert.equal(await codeOf(withService(pool, (c) => readQualificationEvidence(c, x))), 'forbidden')
     await owner((c) =>
       c.query(
-        `UPDATE sophia.voice_qualification_evidence SET expires_at=now()-interval '1 second' WHERE seq=0 AND exchange_id=$1`,
+        `UPDATE sophia.voice_qualification_evidence SET expires_at=now()-interval '1 second' WHERE seq=2 AND exchange_id=$1`,
         [x],
       ),
     )

@@ -103,11 +103,12 @@ const receipt = (grantId: string) =>
     runBindingSha256: RUN,
     atMs: 1,
   })
-const write = (x: { exchangeId: string; grantId: string }, seq = 1) =>
-  run(`SELECT sophia.media_record_evidence($1,$2,$3,'input_turn',$4)`, [
+/** A bridge receipt through 0051's numbering (its own write identity each time), under the same locks as 0046's. */
+const write = (x: { exchangeId: string; grantId: string }) =>
+  run(`SELECT sophia.media_record_evidence_write($1,$2,$3,'input_turn',$4)`, [
     x.exchangeId,
     x.grantId,
-    seq,
+    randomUUID(),
     receipt(x.grantId),
   ])
 const reserve = (x: { exchangeId: string; grantId: string }) =>
@@ -306,7 +307,7 @@ describe('voice qualification under concurrency: no deadlock, and every due exch
         guard(),
         stopSpeaking(d),
         spend(d),
-        write(d, 2),
+        write(d),
       ])
       // Stop Speaking on an exchange the race already ended is refused as such (40001): that is not a deadlock.
       outcomes.push(...results.filter((r) => r !== '40001'))

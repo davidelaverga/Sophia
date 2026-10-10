@@ -17,7 +17,7 @@ import {
   controlExchange,
   createPool,
   readSnapshot,
-  recordQualificationEvidence,
+  recordQualificationEvidenceWrite,
   startExchange,
   withActor,
   withService,
@@ -86,7 +86,7 @@ async function sqlstate(pool: pg.Pool, sql: string, actor: string | null = null)
   }
 }
 
-/** An exchange under a grant with two bridge receipts (seq 1 and 2), written through the bridge's own route. */
+/** An exchange under a grant with two bridge receipts (numbered 1 and 2 by the service, 0051), as the API writes them. */
 async function withReceipts(): Promise<string> {
   const seeded = await seedProject(db.ownerUrl, { admin: A, editors: [P] })
   const grantId = await owner(async (c) => {
@@ -109,12 +109,12 @@ async function withReceipts(): Promise<string> {
       runBindingSha256: RUN,
     }
     await withService(api, (c) =>
-      recordQualificationEvidence(c, {
+      recordQualificationEvidenceWrite(c, {
         exchangeId,
         grantId,
-        seq,
+        writeId: randomUUID(),
         kind: 'input_turn',
-        receipt: { ...receipt, atMs: 1 },
+        receipt: { ...receipt, atMs: seq },
       }),
     )
   }
