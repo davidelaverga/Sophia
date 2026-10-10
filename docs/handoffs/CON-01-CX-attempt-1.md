@@ -8,6 +8,8 @@ Claude399received exactfeedback/keepPR226frozen. a1ddbot6102482343no-majorissues
 
 Next boundedaction: exactcombinedterminal/freshreview, independentlyreproduceconcretefailures beforeG4/merge qualification; live batchinputs andapprovalstillrequired.
 
+Combined review request6102587459 pending/shared6102585335. Small docs gap: reviewed PR218 rev8header correction omitted from recipe; BINDING_MAP8.6 dashboard-account wording stale vs actualOP2r2invite/emailOTP. Claude asked for separate docs integration after frozen gate, no feature/native/shared edit; gate remains active.
+
 # Historical checkpoint — CX-0080
 
 [Independent corrected recovery/order proof](../coordination/CON-01/CX-0080.md), [structured receipts](../coordination/CON-01/CX-0080.evidence.json). Exacta1dd3209/treedf075eaf/main0ccc344d. Complete2filedelta read/independentStudioTSC0. Proper mounted oldC1actual200buffered→newC2actual403fence→old200relayclientopen/finish→laterfullfenceholds scopedPASS. Exactmembershiprestore/freshlist/ownterminal503 truthfulerror+oneRetry/nobodycomposer PASS; onepress2GETsbounded; samebutton actual200 restores4bodies/authors/exactdraft/no remount. Originalunknowneraseintent/key retained; same06e0c1a5key202/exactlyoneSQLerase PASS. CX79P2 scopedresolved; no reviewerfeaturefix. Author exactterminal/newautomaticreview pending.

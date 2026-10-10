@@ -97,5 +97,16 @@
   "screenshots": "private g4-current-main-app/{desktop-accepted,mobile-context,mobile-return}.png; desktop and mobile-context visually inspected",
   "cleanup": "all73ownedappstacks clean; wrapperexit0/quiescedaudit0/DBdrop/PGstop+clusterremoved/PIDsabsent/ports54037-38closed/tab96closed/viewportreset",
   "operations": "OP1r2/OP2r2 draft_not_authorized, approval/expiryNULL; no hosted/provider/native/deploy/schema/config/cohort effect",
-  "next": "Read exact combined terminal gate and fresh automatic review; independently reproduce concrete failures before G4/merge qualification; keep live operation inputs unresolved"
+  "next": "Read exact combined terminal gate and fresh automatic review; independently reproduce concrete failures before G4/merge qualification; keep live operation inputs unresolved",
+  "sharedComment": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6102585335",
+  "combinedReviewRequest": "https://github.com/davidelaverga/Sophia/pull/226#issuecomment-6102587459",
+  "documentationFinding": {
+    "severity": "P3",
+    "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+    "path": "docs/coordination/CON-01/BINDING_MAP.md",
+    "expected": "Accepted rev8D6/B1 status and current OP2r2 supported invite/emailOTP account reference",
+    "observed": "Historical rev6 header/D6+B1pending; section8.6 names dashboard account creation",
+    "correction": "Author smallest separate docs integration after frozen gate; no reviewer fix",
+    "priorHeaderFinding": "Already reviewed on separate PR21824410d8a, omitted from combined recipe"
+  }
 }
