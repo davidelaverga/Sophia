@@ -1,0 +1,88 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/studio
+    - link "Conversations":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/conversations
+    - link "Goals":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/goals
+    - link "Tasks":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/work
+    - link "Knowledge":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/knowledge
+    - link "Updates":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/updates
+    - link "Resources":
+      - /url: /p/9675f889-6a9c-4d7d-ba02-315057488c0a/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC current access check":
+          - generic: SYNTHETIC current access check
+          - generic: 23:08
+          - generic: "You: SYNTHETIC current conversation before revocation"
+          - generic: You. No recorded questions yet. Last moved 23:08.
+        - button "SYNTHETIC stale sender regression" [active] [pressed]:
+          - generic: SYNTHETIC stale sender regression
+          - generic: 23:08
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 23:08.
+    - region "Open conversation":
+      - heading "SYNTHETIC stale sender regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: S
+        - generic: "Contributors:"
+        - text: You, Synthetic C Old, Synthetic A Surviving
+      - region "Messages":
+        - status: Reading this conversation again… Taking longer than usual. After a quiet spell, the first answer can take up to a minute.
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+        - button "Erase this conversation"
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

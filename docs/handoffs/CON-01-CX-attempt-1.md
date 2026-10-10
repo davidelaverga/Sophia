@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0077
+# Current checkpoint — CX-0078
+
+[Independent current evidence](../coordination/CON-01/CX-0078.md), [structured receipt](../coordination/CON-01/CX-0078.evidence.json). Exact52090daa/treecb8be295, main0ccc344d. Complete2filedelta independently read; Studio typecheck0. Proper mounted terminal503→membershiprevoke→MessagesTryagain→actual403→fullfence238mslater scopedPASS. No frame-zero claim. CX77 remount causal failure qualification withdrawn as inconclusive: canceledGET/replacement not excluded; observed facts retained, bot+authorframefailbefore separatevalid. Exact Claude message383 received refinement.
+
+Episode70 deadline expired before restored-draft/same-key erasure retry/finalSQL; those remain incomplete at5209. One preforward503 no upstreamerase; originalmembership restored; finalSQL ECONNREFUSED. No aggregateaccounting claim. Wrapper93649exit0/PGstoppedclusterremoved, independentPIDsabsent/ports50597-99closed/tab93closed; all70ownedappstacks clean. No live/native/provider/spend invoked. Author terminal1212units/168fixture/22PG/10API attributed separately; bot6102266107no majorissues; CIqueued, no duplicate review request.
+
+All36 statuses retained; P1/G4/e4c8 failures/obsoletecombined/S1/PR190holds remain. OP1r2/OP2r2draft_not_authorized/approvalexpiryNULL; lastlive tuple inLIVE_PREFLIGHT unchanged. Inbox/cohort/subscription route/credential/payer/finite allowance/expiry/privacy/sharedownerwindow/combinedartifacts/rollback unbound. No hosted effect or deployed/app_verified/owneraccepted claim. Davide decides product acceptance; other missions open.
+
+Next bounded action: actualold200-after-new403 plus restoreddraft/samekeyerase and finalSQL before deadline on frozen5209, then current-main/S1/PR190combinedG4 if clear.
+
+# Historical checkpoint — CX-0077
 
 Latest exact-session checkpoint: correction remains unpublished; author first403 frame-test after passes, but full focused set failed authorized-absence read count4 versus max3. Targeted correction/base diagnostic running, no waiver or new independent pass. PR head still127b; next70 scripts-only/unlaunched.
 

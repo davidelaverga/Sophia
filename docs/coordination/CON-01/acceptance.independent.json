@@ -942,23 +942,24 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0077.md",
-    "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
-    "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+    "record": "CX-0078.md",
+    "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+    "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
     "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
-    "statement": "Actual first403 cache/composer exposure FAIL P2; terminal fence and unknown own-erasure draft/same-key restoration scopedPASS. All36 statuses retained; no native/hosted/combinedG4 qualification.",
+    "statement": "Proper mounted first403 actual scopedPASS; CX77 remount causal failure withdrawn as inconclusive. Restored-draft/same-key retry/finalSQL incomplete at deadline. All36 statuses retained.",
     "readiness": {
-      "source_ready": "author exact127b terminal checks pass; separate correction unpublished",
-      "locally_verified": "named L1 passes and confirmed first403 failure",
+      "source_ready": "author exact5209 terminal receipts read",
+      "locally_verified": "named scoped actualfirst403 and independenttypecheck pass",
       "reviewed": false,
+      "scoped_delta_reviewed": true,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r2 draft_not_authorized;expiryNULL",
-    "cleanup": "all69ownedappstacks cleaned;70608terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports49485\u201386closed/tab92closed",
-    "next": "Separate immutable Claude first403 correction, affected source review and independent first-refusal/order/draft-key recheck, then current-main/shared integration"
+    "cleanup": "all70ownedstacks clean;93649exit0/PGstoppedclusterremoved/PIDsabsent/ports50597-99closed/tab93closed",
+    "next": "Bounded actual old200-after-new403 and restored draft/same-key erasure recheck on frozen5209, final SQL audit before deadline, then current-main/shared combinedG4"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1005,6 +1006,25 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized;approvalexpiryNULL",
       "cleanup": "terminal0/DB dropped/PG stopped/cluster removed; independent PIDs13906/13915/13916 absent, ports64479/64480 closed, tab91 closed; all68 prior owned UI stacks clean",
       "next": "Independent mounted pending-erasure/refusal and old-success ordering crossing on same immutable candidate; review author terminal receipts/new automatic review; current-main/S1 G4 only after affected qualification"
+    },
+    {
+      "record": "CX-0077.md",
+      "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+      "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+      "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+      "statement": "Actual first403 cache/composer exposure FAIL P2; terminal fence and unknown own-erasure draft/same-key restoration scopedPASS. All36 statuses retained; no native/hosted/combinedG4 qualification.",
+      "readiness": {
+        "source_ready": "author exact127b terminal checks pass; separate correction unpublished",
+        "locally_verified": "named L1 passes and confirmed first403 failure",
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized;expiryNULL",
+      "cleanup": "all69ownedappstacks cleaned;70608terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports49485\u201386closed/tab92closed",
+      "next": "Separate immutable Claude first403 correction, affected source review and independent first-refusal/order/draft-key recheck, then current-main/shared integration"
     }
   ]
 }

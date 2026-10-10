@@ -1,0 +1,1 @@
+{"at":"2026-10-10T21:13:24.352Z","path":"/api/v1/projects/9675f889-6a9c-4d7d-ba02-315057488c0a/conversations/c2d850a9-6dab-47bb-9c35-ee54bfae0fa4/messages","status":403,"upstream":true,"evidence":"real API scoped403 received, body forwarded normally"}

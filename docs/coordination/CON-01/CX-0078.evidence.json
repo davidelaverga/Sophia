@@ -1,0 +1,79 @@
+{
+  "record": "CX-0078",
+  "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+  "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "episode": 70,
+  "source": "Complete two-file +56/-6 delta independently read; backend/contracts/runtime unchanged",
+  "independent": {
+    "studioTypecheck": "exit0",
+    "mountedFirst403": {
+      "observedAt": "2026-10-10T21:13:24.591Z",
+      "wait": "visible within2s",
+      "first403": {
+        "at": "2026-10-10T21:13:24.353Z",
+        "path": "/api/v1/projects/9675f889-6a9c-4d7d-ba02-315057488c0a/conversations/c2d850a9-6dab-47bb-9c35-ee54bfae0fa4/messages",
+        "status": 403,
+        "evidence": "bytes handed to transport; browser consumption requires UI observation"
+      },
+      "fenced": true,
+      "cachedBodiesVisible": false,
+      "composerVisible": false,
+      "stimulus": "mounted current thread terminal503 Try again, no remount after revoke",
+      "limits": "DOM after first403, no per-frame measurement"
+    },
+    "restoreDraftAndSameKeyErase": "NOT_COMPLETED: finite deadline expired before recheck",
+    "finalDatabaseAudit": "NOT_COMPLETED: ECONNREFUSED after owned PG stopped",
+    "readCeiling": {
+      "count": 47,
+      "limit": 200,
+      "armedAt": "2026-10-10T21:09:39.336Z",
+      "contained": false
+    }
+  },
+  "correctionToCX77": {
+    "first403CausalVerdict": "INCONCLUSIVE, withdrawn independent failure qualification",
+    "reason": "Remount/StrictMode can cancel first GET and start a replacement; subsequent-GET hold cannot distinguish replacement from retry. Transport finish does not establish mounted-query consumption. Original observed transport/DOM facts retained. Bot source finding and author fixture fail-before remain separate valid evidence."
+  },
+  "cleanup": {
+    "session": 93649,
+    "exit": 0,
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "pidsAbsent": [
+      18228,
+      18255,
+      18269,
+      18270
+    ],
+    "portsClosed": [
+      50597,
+      50598,
+      50599
+    ],
+    "tab93Closed": true,
+    "all70OwnedStacksClean": true
+  },
+  "authorTerminal": {
+    "comment": 6102252494,
+    "static": "format/lint/typecheck/contracts exit0",
+    "studioUnits": "1212/1212",
+    "focusedFixtureBrowser": "168/168",
+    "persistence": "22/22",
+    "api": "10/10",
+    "attribution": "author, not independent rerun"
+  },
+  "automaticReview": {
+    "comment": 6102266107,
+    "sha": "52090daa86",
+    "result": "no major issues; not independent app/product acceptance"
+  },
+  "limits": [
+    "Actual local Studio/API/PG17.6 synthetic development identities, no fixtures/native/provider/hosted account",
+    "No per-frame independent claim; 238ms DOM observation after real403 transport finish",
+    "47 reads/200 ceiling, no new paid/model/runtime work invoked; no final SQL accounting aggregate",
+    "Original erasure503 before forwarding, no API erasure effect; same-key retry not completed this episode",
+    "No combinedG4/authorization/deployment/app_verified/owner acceptance"
+  ],
+  "next": "Bounded actual old200-after-new403 and restored draft/same-key erasure recheck on frozen5209, final SQL audit before deadline, then current-main/shared combinedG4"
+}

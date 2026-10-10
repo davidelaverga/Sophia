@@ -79,5 +79,10 @@
     "Old200-after-new403 mounted test still open; pending erasure with real upstream lost202 is distinct from this preforward503",
     "No wholeG3/G4/authorization/deployment/app_verified/owner acceptance"
   ],
-  "next": "Separate immutable Claude first403 correction, affected source review and independent first-refusal/order/draft-key recheck, then current-main/shared integration"
+  "next": "Separate immutable Claude first403 correction, affected source review and independent first-refusal/order/draft-key recheck, then current-main/shared integration",
+  "qualification_correction": {
+    "ref": "CX-0078.md",
+    "firstScoped403": "INCONCLUSIVE: independent causal failure qualification withdrawn; canceled remount GET not excluded",
+    "historicalObservationRetained": true
+  }
 }
