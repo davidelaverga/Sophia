@@ -2,7 +2,7 @@
 // token); otherwise the dev-only identities written by scripts/dev-stack.ts.
 import { createClient, type AuthError, type Session, type SupabaseClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
-import { READ_TIMEOUT_MS } from '../api/client.ts'
+import { READ_TIMEOUT_MS } from '../api/timeouts.ts'
 import {
   LINK_FAILED,
   LINK_UNCHECKED,

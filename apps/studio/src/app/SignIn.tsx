@@ -1,7 +1,7 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
 // with Sophia's light at rest above the words.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { WRITE_TIMEOUT_MS } from '../api/client.ts'
+import { WRITE_TIMEOUT_MS } from '../api/timeouts.ts'
 import type { LightMode } from '../features/light/engine.ts'
 import type { Point } from '../features/light/motion.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'

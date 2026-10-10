@@ -14,7 +14,8 @@ import { createRoot } from 'react-dom/client'
 import type { Identity } from '../src/app/dev-identity.ts'
 import { begin } from '../src/app/entry.ts'
 import { Mark } from '../src/app/Mark.tsx'
-import { OpeningPrepares, useOpening } from '../src/app/useOpening.ts'
+import { OpeningPrepares } from '../src/app/opening-prepares.ts'
+import { useOpening } from '../src/app/useOpening.ts'
 import '../src/app/theme.css'
 
 declare global {
