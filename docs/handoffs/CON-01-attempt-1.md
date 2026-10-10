@@ -21,7 +21,8 @@ Ending commit/tree and changed files:
   - `f12786aa`, the interim `ConversationOpening.seq` alone, reverted at `69b0f586` because it did not block CX-0027;
   - `7969d40a`: the CON-01-CC-0023 correction, `messageSeq` with `lastMessage.seq` (CON-01-CC-0024);
   - `74a697b717ca48aa41511f3c3fd3276676e6bc17` (tree `f82d631e9b67d78484e2b8ddbd4f0a44b9ee8dbf`), CON-01-CC-0025. It closes three findings: Codex's CX-0028 P1 (a late list answer restored withdrawn words), its stale-notice P2, and the fallback-ordering P2. This is the source under its gate;
-  - this revision of the handoff and the receipts, documentation only.
+  - `4252cd74bca0ed18bc190d8832e98c75a920c7bf` (tree `9afcad10deb23f3f714bdeea09ad4df596f85d09`), CON-01-CC-0026. A late list snapshot no longer names a withdrawn writer or Sophia's part (bot P1 r4236040713). This is the source under its gate;
+  - the receipts and this revision of the handoff, documentation only.
 - 93 files differ from `main`: `db/migrations/0048_project_conversations.sql`, A16, the persistence and API conversation routes, the Studio's `features/conversations/`, its fixtures and specs, and the coordination records under [docs/coordination/CON-01](../coordination/CON-01/README.md).
 - Draft PR [#199](https://github.com/davidelaverga/Sophia/pull/199); coordination issue [#198](https://github.com/davidelaverga/Sophia/issues/198).
 
@@ -51,10 +52,13 @@ Ending commit/tree and changed files:
   - `82f812d`'s full run is invalid: its source was edited under it.
   - `a3422f4`'s full run failed: 4 of 1150, none in conversation specs; three reproduce on unchanged `main` here ([receipt](../coordination/CON-01/receipts/a3422f4-browser-gate.md)).
   - `715d2b1`'s full run failed: 3 of 1154, none in conversation specs. They are the same three that reproduce on unchanged `main` ([receipt](../coordination/CON-01/receipts/715d2b1-browser-gate.md)). Its focused gate passed (154).
-  - `74a697b`'s gates were running when this was written, from `/home/user/sophia-g3-erase` by `cand74a6-checks.sh`.
+  - `74a697b`'s full run failed: 2 of 1160, none in conversation specs ([receipt](../coordination/CON-01/receipts/74a697b-browser-gate.md)). Its focused gate passed (160).
+  - `4252cd7`'s gates were running when this was written, from `/home/user/sophia-g3-erase` by `cand4252-checks.sh`.
+  - GitHub Actions' `ci` workflow (every Studio spec included) succeeded on `715d2b1`, `f12786a`, `7969d40` and `74a697b`. That is another environment, and it is no local gate.
 - `pnpm check` was run in full only at `a7cc081` (G1). It has not been run on any later head.
-- PR #199 threads r4235629903, r4235862543, r4235976251, r4235976256 and r4235976261 are open until Codex reruns the affected evidence.
-  - Their corrections are at `74a697b`.
+- PR #199 threads r4235629903, r4235862543, r4235976251, r4235976256, r4235976261 and r4236040713 are open until Codex reruns the affected evidence.
+  - Their corrections are at `74a697b` and `4252cd7` ([fail-before](../coordination/CON-01/receipts/4252cd7-fail-before.md)).
+  - A residual is stated in BINDING_MAP §11.1: on its first read of a thread, a list read in flight may lose a writer whose words are only on pages not read here, until the list is read again.
   - The fail-before runs, on desktop, are in the [receipt](../coordination/CON-01/receipts/74a697b-fail-before.md).
 - The cache purge rests on preconditions, not on proof of erasure everywhere. A thread read stays cached for 5 minutes against a list read's 30 s, and teardown on erasure or on an identity change takes both together. Only this Studio's query cache is covered ([BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md)).
 - Whether any older CON-01 reader is enabled anywhere is UNVERIFIED. Such a reader rejects the new fields, so the Studio ships with or before the API ([BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md)).
@@ -89,7 +93,7 @@ Ending commit/tree and changed files:
 
 ## Remaining obligations
 
-- **The browser gates on `74a697b`**, started from `/home/user/sophia-g3-erase` by `cand74a6-checks.sh`. Their exits go on #198. If this session ends first, they are lost with the container: rerun them, do not infer them. No development browser run may share their fixture server.
+- **The browser gates on `4252cd7`**, started from `/home/user/sophia-g3-erase` by `cand4252-checks.sh`. Their exits go on #198. If this session ends first, they are lost with the container: rerun them, do not infer them. No development browser run may share their fixture server.
 - **`pnpm check`** on the latest head, PostgreSQL included, is not yet run.
 - **Local resources to clean up:** the PostgreSQL 16 cluster `/var/lib/postgresql/con01` (port 55432), and the worktrees `/home/user/sophia-g1-check`, `/home/user/sophia-g3-erase` and `/home/user/sophia-dev`. None holds anything hosted.
 - **Open PR threads:** every PR #199 thread stays unresolved until Codex reruns the affected evidence. r4235629903 is open as a defect.
@@ -98,7 +102,7 @@ Ending commit/tree and changed files:
 
 ## Next bounded action
 
-1. Report `74a697b`'s gate exits, then run `pnpm check` on that head.
-2. Codex reruns CX-0028's crossings (the late list answer, the failing list's notice, the fallback order) on the actual app at `74a697b`.
+1. Report `4252cd7`'s gate exits, then run `pnpm check` on that head.
+2. Codex reruns CX-0028's crossings on the actual app at `4252cd7`: the late list answer (opening, writer, Sophia's part), the failing list's notice, and the fallback order.
 3. Integrating `main` `31dd587` (#204) must keep its fixture changes, `fixture-api.ts` and `room.tsx` (`coversHeld`, `hold=covers`, `releaseCovers`, staggered version reads), beside CON-01's.
 4. G2 waits for Davide's D-6 and B-1 and for the shared-window acknowledgments. Nothing in this attempt grants them.
