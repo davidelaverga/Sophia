@@ -372,11 +372,41 @@ select option {
   border: 0;
   background: none;
   padding: 2px 0;
+  line-height: 20px;
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
   text-decoration-color: rgba(185, 168, 255, 0.35);
   text-underline-offset: 3px;
+}
+/* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
+   class alone (a pill 32, a ghost 28, a square 36, an inline action 24); a modifier takes it one step down or up
+   (`Button` in @sophia/ui), so no feature sets a height of its own. */
+.pill.sz-sm {
+  height: 28px;
+  padding: 0 10px;
+}
+.pill.sz-lg {
+  height: 36px;
+  padding: 0 14px;
+}
+.ghost.sz-sm {
+  height: 24px;
+  padding: 0 6px;
+  font-size: var(--type-small);
+}
+.ghost.sz-lg {
+  height: 32px;
+  padding: 0 10px;
+}
+.round.sz-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-2);
+}
+.round.sz-md {
+  width: 32px;
+  height: 32px;
 }
 input,
 textarea {
@@ -515,8 +545,9 @@ select {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 4px 6px;
-  margin: -4px -6px;
+  height: 28px;
+  padding: 0 6px;
+  margin: 0 -6px;
   border: 0;
   border-radius: var(--r-2);
   background: none;
@@ -574,8 +605,9 @@ button.mark:hover {
 }
 /* Work, between the mark and the project: where the project lives, and the way back to the other projects. */
 .crumb {
-  padding: 4px 6px;
-  margin: -4px -6px;
+  height: 28px;
+  padding: 0 6px;
+  margin: 0 -6px;
   border: 0;
   border-radius: var(--r-2);
   background: none;
@@ -2627,8 +2659,8 @@ button.contribution-quote:hover {
   gap: 2px;
 }
 .lobby-actions .pill {
-  height: 30px;
-  padding: 0 12px;
+  height: 28px;
+  padding: 0 10px;
 }
 /* The answer most give, filled: warm, as the one at the door is. */
 .lobby-actions .pill.warm {
@@ -3054,8 +3086,8 @@ button.contribution-quote:hover {
   gap: 6px;
 }
 .controls .pill {
-  height: 30px;
-  padding: 0 11px;
+  height: 28px;
+  padding: 0 10px;
 }
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
@@ -3226,6 +3258,10 @@ div.empty {
   .pill,
   .round {
     min-height: 40px;
+  }
+  .round.sz-sm,
+  .round.sz-md {
+    min-width: 40px;
   }
   .ghost,
   .segmented button {

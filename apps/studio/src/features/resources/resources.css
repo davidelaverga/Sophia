@@ -239,17 +239,10 @@
   align-items: center;
   padding: 0;
 }
+/* A ghost one step up (32 px), in the first ink: the order in use reads as a value, not a hint. */
 .resource-sort-button {
-  display: inline-flex;
-  align-items: center;
   gap: 8px;
-  height: 38px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--r-3);
-  background: none;
   color: var(--text);
-  font-size: var(--type-body);
 }
 .resource-sort-button:hover,
 .resource-sort-button[aria-expanded='true'] {

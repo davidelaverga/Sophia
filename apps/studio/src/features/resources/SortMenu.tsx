@@ -2,7 +2,7 @@
 // opens on the order in use, the arrows move through the others, Enter or a press chooses, and Escape gives the focus
 // back to its button (usePopover).
 import { useEffect, useState } from 'react'
-import { Icon } from '@sophia/ui'
+import { Button, Icon } from '@sophia/ui'
 import { usePopover } from '../../app/usePopover.ts'
 import { ORDER_LABEL, ORDERS, type Order } from './order.ts'
 
@@ -24,9 +24,10 @@ export function SortMenu({ order, onChange }: Props) {
   }
   return (
     <div ref={menu.wrap} className="field quiet resource-sort">
-      <button
+      <Button
         ref={menu.opener}
-        type="button"
+        kind="ghost"
+        size="lg"
         className="resource-sort-button"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -35,7 +36,7 @@ export function SortMenu({ order, onChange }: Props) {
         <span className="resource-sort-label">Sort</span>
         {ORDER_LABEL[order]}
         <Icon name="chevron" size={12} />
-      </button>
+      </Button>
       {open && (
         <div
           ref={menu.panel}

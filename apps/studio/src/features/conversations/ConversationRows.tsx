@@ -2,6 +2,7 @@
 // project while the page lives; how many show when narrowed; nothing left says so, with Clear. Each row opens its
 // conversation.
 import { useId, useRef, useState } from 'react'
+import { Button } from '@sophia/ui'
 import type { ConversationSummary } from '../../api/vision.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
@@ -80,12 +81,12 @@ function ShowOnly(props: {
   const { by, onSet } = props
   return (
     <div className="conv-show" role="group" aria-label="Show only">
-      <button type="button" aria-pressed={by.open} onClick={() => onSet({ open: !by.open })}>
+      <Button kind="ghost" aria-pressed={by.open} onClick={() => onSet({ open: !by.open })}>
         Open
-      </button>
-      <button type="button" aria-pressed={by.mine} onClick={() => onSet({ mine: !by.mine })}>
+      </Button>
+      <Button kind="ghost" aria-pressed={by.mine} onClick={() => onSet({ mine: !by.mine })}>
         Mine
-      </button>
+      </Button>
       <span className={props.counted ? 'conv-count' : 'sr-only'} role="status">
         {props.said}
       </span>

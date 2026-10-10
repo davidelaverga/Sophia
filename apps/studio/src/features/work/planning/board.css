@@ -1359,9 +1359,6 @@
 }
 .goal.compact .goal-criteria-button {
   margin-left: 0;
-  height: 22px;
-  padding: 0 6px;
-  font-size: var(--type-small);
 }
 .goal.compact .controls .pill {
   height: 28px;
