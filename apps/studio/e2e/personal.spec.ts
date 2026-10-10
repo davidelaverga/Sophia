@@ -425,7 +425,9 @@ const shortControls = (page: Page) =>
         .filter((c) => c.h < 23.5),
     )
 
-test('detail · one type scale: Personal’s text comes in five sizes, in every state it shows', async ({ page }) => {
+test('detail · one type scale: Personal’s text comes in four sizes, the app’s, in every state it shows', async ({
+  page,
+}) => {
   const sizes = new Set<string>()
   const read = async () => {
     for (const part of ['.c3-space.you .c3-head', '.c3-space.you .c3-body']) {
@@ -455,7 +457,8 @@ test('detail · one type scale: Personal’s text comes in five sizes, in every 
   await page.locator('#c-notes').getByRole('button', { name: 'Review what to carry' }).click()
   await page.locator('#c-notes').getByRole('checkbox').first().check()
   await read()
-  expect([...sizes].toSorted()).toEqual(['10.5px', '11px', '13px', '15px', '17px'])
+  // On the app's scale (docs/plans/type-places.md): label, body, heading, and her reading voice a size above.
+  expect([...sizes].toSorted()).toEqual(['10.5px', '13px', '15px', '16px'])
 })
 
 test('detail · with less motion asked for, nothing in Personal moves: no breathing wash, no flicker', async ({
@@ -605,12 +608,12 @@ test('@phone · presence · a long conversation still scrolls back to its first 
   expect(from).toBeGreaterThanOrEqual(0)
 })
 
-test('presence · her voice reads first: her turns at 17 px, yours at 15', async ({ page }) => {
+test('presence · her voice reads first: her turns at 16 px, yours at 15', async ({ page }) => {
   await page.goto(PAGE)
-  expect(await css(page, '.msg.sophia:not(.typing) .body', 'font-size')).toBe('17px')
+  expect(await css(page, '.msg.sophia:not(.typing) .body', 'font-size')).toBe('16px')
   expect(await css(page, '.msg.me .body', 'font-size')).toBe('15px')
   await page.goto(`${PAGE}?talk=new`)
-  expect(await css(page, '.msg.sophia .body', 'font-size')).toBe('17px')
+  expect(await css(page, '.msg.sophia .body', 'font-size')).toBe('16px')
 })
 
 test('presence · an exchange reads as one: her answer sits closer to you than your next turn to her', async ({
