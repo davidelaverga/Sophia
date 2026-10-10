@@ -1,0 +1,35 @@
+{
+  "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+  "tree": "4c5e15956917c50b12042a763b6c0b240607a028",
+  "level": "L0 actual production helpers; synthetic assessed fields and trusted receipt; no actual native assessment/account rename/browser claim",
+  "defects": [
+    {
+      "finding": 4237385090,
+      "observed": {
+        "messageSeq": 3,
+        "summaryNewer": 1,
+        "questionNewer": 1,
+        "words": "Covers messages 1–1; 1 newer since."
+      },
+      "expected": "Exact count must not be asserted from a skipped sequence. Two eligible unseen messages require2; a withdrawn gap requires1. Cached row+receipt alone do not distinguish them."
+    },
+    {
+      "finding": 4237385093,
+      "observed": {
+        "contributorName": "Synthetic Former Name",
+        "trustedReceiptName": "Synthetic Current Name",
+        "openingName": "Synthetic Current Name"
+      },
+      "expected": "Refresh trusted same-actor contributor name without reordering or matching by email/name."
+    }
+  ],
+  "controls": [
+    "Adjacent receipt has exactly one newer",
+    "Same cached inputs also permit withdrawn sequence gap; raw difference is not safe count",
+    "Existing actor order preserved",
+    "New actor trusted name installed",
+    "Duplicate receipt remains no-op",
+    "Unrelated conversation unchanged"
+  ],
+  "failures": 0
+}

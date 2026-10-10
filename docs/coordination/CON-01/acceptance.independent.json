@@ -41,7 +41,8 @@
         "CX-0016.md",
         "CX-0017.md",
         "CX-0018.md",
-        "CX-0029.md"
+        "CX-0029.md",
+        "CX-0034.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. Current7660 bounded recheck in CX16 supersedes the affected CX15 failures: human contributor metadata,201-writer contract and original mobile focus pass; late erase navigation fails. New4575 source is not yet qualified. Native/provider/hosted acceptance remains open. Exact0f affected erasure navigation/retry/feed cases pass locally (CX17); current-main/A08 correction is newer unqualified source. G2/native/provider/hosted acceptance remains open. CX18 independently reproduces P1 false erasure/draft loss under capped-list churn on0f; source unchanged5c, automatic review confirms. Overall erasure/privacy release qualification is withheld pending correction.",
       "live_blockers": [
@@ -50,7 +51,8 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX29 supersedes affected historical G3 failures with bounded local passes atb981/source4252; full native/provider/hosted requirements remain open. See current_checkpoint and CX29 for exact scope."
+      "latest_checkpoint": "CX34 exacte91: new skipped-sequence projection count/renamed same-actor contributor defects reproduced L0; corrections pending. Prior bounded CX33 cases retained, no native assessment or actual rename/browser pass.",
+      "current_checkpoint": "CX-0034.md"
     },
     {
       "id": "CON-01-T03",
@@ -392,22 +394,15 @@
       "gate": "G3",
       "status": "not_run",
       "evidence_refs": [
-        "CX-0033.md"
+        "CX-0033.md",
+        "CX-0034.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [
         "F2: openWords(0) implies completeness without coverage; G0 coverage is still being bound."
       ],
-      "latest_checkpoint": {
-        "record": "CX-0033.md",
-        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
-      },
-      "current_checkpoint": {
-        "record": "CX-0033.md",
-        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
-      }
+      "latest_checkpoint": "CX34 exacte91: new skipped-sequence projection count/renamed same-actor contributor defects reproduced L0; corrections pending. Prior bounded CX33 cases retained, no native assessment or actual rename/browser pass.",
+      "current_checkpoint": "CX-0034.md"
     },
     {
       "id": "CON01-A18",
@@ -417,20 +412,13 @@
       "gate": "G2/G3",
       "status": "not_run",
       "evidence_refs": [
-        "CX-0033.md"
+        "CX-0033.md",
+        "CX-0034.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [],
-      "latest_checkpoint": {
-        "record": "CX-0033.md",
-        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
-      },
-      "current_checkpoint": {
-        "record": "CX-0033.md",
-        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
-      }
+      "latest_checkpoint": "CX34 exacte91: new skipped-sequence projection count/renamed same-actor contributor defects reproduced L0; corrections pending. Prior bounded CX33 cases retained, no native assessment or actual rename/browser pass.",
+      "current_checkpoint": "CX-0034.md"
     },
     {
       "id": "CON01-A19",
@@ -855,13 +843,13 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0033.md",
+    "record": "CX-0034.md",
     "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
     "tree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "actualAppCandidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
     "actualAppTree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "90focused/typecheck+11externalcorrection+9privacyprobes pass. Actual2e5 fail-before/e91 success for list warning and first sender; current lostSend/samekey/withdrawal/external erase/new start/reload pass bounded. Current mobile override ineffective, no mobile pass. No G2/provider/native/hosted acceptance.",
+    "statement": "CX33 bounded local app passes retained; fresh exacte91 automatic review5478696692 terminal with2newP2s. Independent actual production helper probe reproduces skipped-sequence exact-count defect and stale trusted contributor name;6controls pass. No correction qualified yet.",
     "independentFocusedTests": {
       "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts apps/studio/src/features/conversations/list-data.test.ts",
       "passed": 90,
@@ -873,11 +861,12 @@
       "currentCorrectionProbe": 11,
       "previousQuestionPrivacyProbe": 9,
       "failures": 0,
-      "level": "L0 helpers/store/actual QueryClient, assessed fields synthetic"
+      "level": "L0 helpers/store/actual QueryClient, assessed fields synthetic",
+      "newDefectProbe": "2defects reproduced with6controls at L0; no actual native assessment/account rename claim"
     },
     "studioTypecheckExit": 0,
     "fullGate": "Author exact e91 focused gate exit0; full at505/1195 with2 failures so far, attributed to main but no waiver/independent baseline proof. Terminal full/check/SQL absent. CI38045346176/38045351519 exacte91 in_progress.",
-    "findings": "Four new P2s qualified within CX33 L0/L1/hardening scopes; original mounted proposal race unproven. Not whole PR approval.",
+    "findings": "r4237385090/r4237385093 open, independently reproduced L0. Prior4CX33 scoped resolutions retained; no wholePR approval.",
     "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
     "cleanup": "All24owned stacks clean; tabs42\u201345closed; override reset; DB/PGclustersremoved/processesabsent/portsclosed. No hosted/provider/native/spend/uncertain paid effect.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
@@ -909,11 +898,12 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "next": "Fresh immutable automatic review/terminal gates; owner-coordinated G2 source qualification. Actual-account setup separately needs mailbox and concrete batch approval.",
+    "next": "Immutable author2case correction and independent affected probes/app recheck; terminal full/check/SQL receipt; coordinated G2 source.",
     "publication": {
       "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6096748870",
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096749011",
-      "fourThreadsResolved": "within explicit L0/L1/hardening scopes; no mounted proposal race or wholePR acceptance"
+      "fourThreadsResolved": "within explicit L0/L1/hardening scopes; no mounted proposal race or wholePR acceptance",
+      "freshAutomaticReviewResult": "5478696692 completed with2findings10:56:37UTC"
     }
   }
 }

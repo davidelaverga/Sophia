@@ -1,0 +1,11 @@
+{
+  "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+  "tree": "4c5e15956917c50b12042a763b6c0b240607a028",
+  "command": "CON01_CANDIDATE_ROOT=/Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-candidate node e91-gap-name-probe.mjs",
+  "exit": 0,
+  "level": "L0 synthetic assessed projection/trusted receipt, actual production helper",
+  "hashes": {
+    "e91-gap-name-probe.mjs": "8c1723a76ad5cf04fb742cad9359e6d2a3c24fb94e79792780807d7ffdc2bda4",
+    "e91-gap-name-result.json": "f17f5c5025c75cca82dee37f072a9cc962216ddf167c5c71eea6ba6af0cf5dff"
+  }
+}
