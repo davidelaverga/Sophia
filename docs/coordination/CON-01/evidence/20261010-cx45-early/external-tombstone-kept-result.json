@@ -1,0 +1,20 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "scope": "L0 exact production hook functions extracted unchanged/TypeScript stripped; actual talk-store; simulated hook dependencies/effect scheduling; NOT mounted browser or actual A08 request",
+  "passed": 2,
+  "failed": 2,
+  "passedCases": [
+    "Own-withdrawal retirement control clears scoped state and fences late callback",
+    "Withdrawn hook hides words and disables proposal/withdraw UI control"
+  ],
+  "failedCases": [
+    {
+      "name": "External tombstone observed by production message hook retires held message state",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- true\n"
+    },
+    {
+      "name": "A late proposal closure after external tombstone cannot restore derived text",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ {\n+   id: 'late',\n+   statement: 'SYNTHETIC late withdrawn text'\n+ }\n- undefined\n"
+    }
+  ]
+}

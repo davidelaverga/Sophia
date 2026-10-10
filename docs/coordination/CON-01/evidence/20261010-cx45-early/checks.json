@@ -1,0 +1,41 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "tree": "551d666c8579f78ae647df1d4595f7a02ebbcded",
+  "review": {
+    "request": 6097938208,
+    "completedAt": "2026-10-10T13:26:58.576561Z",
+    "findings": [
+      4237767985,
+      4237767988
+    ]
+  },
+  "independent": {
+    "start": {
+      "failed": 1,
+      "controlsPassed": 2,
+      "actualLocalBrowser": "FAIL warning removed before heldGETanswers"
+    },
+    "externalTombstone": {
+      "failed": 2,
+      "controlsPassed": 2,
+      "scope": "L0 extractedproductionhooks/actualtalkstore/simulatedhookscheduling, NOTmounted"
+    }
+  },
+  "cleanup": "All39ownedsuccessfulstacksplusinitdb-onlyfailureclean;20223terminal0/portsclosed/PIDsabsent/PGstoppedclusterremoved/tab61closed",
+  "hashes": {
+    "external-tombstone-kept-check.mjs": "165ca3ac7c5f47cb0542580287d52f0c3906b0e4bdc7c5950f51fac5946b3584",
+    "external-tombstone-kept-result.json": "87a87216b799b2e4c325b6d1c86857af9603e886c345db19a2ecfe1049433f91",
+    "start-before/browser-db-audit.json": "771e31fdcd0432107093f792e86071de0ea9dfce6fb78d5698cca00335612a2f",
+    "start-before/browser-stack-cleanup.json": "f2d9fc84afe70c5df1cef4cb72cfa5d8ad82d1d7b315f67b75fbd87191cd09eb",
+    "start-before/browser-stack-receipt.json": "76090d0ca72fa8eb2ae56a7d22760bcbf83ef152fdf37ee5f65d6cb58efb9e04",
+    "start-before/conversation-read-receipts.json": "7636aaf62ddf13d2e5f722b14343404167e9e1efa7bb38cb49a98e5577f7d97d",
+    "start-before/external-withdraw-sender-result.json": "f8f44cf436b93e6727856210db049462428b9510b12a0553466ccf4c7c277a28",
+    "start-before/held-list-receipts.json": "3a731554b30073a2d1424c5e52417d06261792b711b5c854c80780ae3387a54d",
+    "start-before/owned-cleanup-verification.json": "807760539da35ea75f18cb924490c307ef0bfcd58f518b6dbc6b801fe67fbc25",
+    "start-before/stale-before-start-dom.txt": "844507de7eb6afa6909bcfc8a43425fb71766f00c9b6e4ba47f09d0d7467704a",
+    "start-before/start-stale-fail-dom.txt": "e7bf55bfd015158d8435edca45eb08c6ba854e907530ab8686455ce2e0a4321b",
+    "start-before/start-stale-fail.jpg": "699b60f06e780fc71830fa923388a580794b17640d0db07a84361e6f30172d82",
+    "start-stale-check.mjs": "d6169bb20410fc5eaa9b8fea7438e7897e6153112d65f8ae7e4d4b54b165d05a",
+    "start-stale-result.json": "05240edb7d79a85fa50d8391d9f91a333d3354d23e9a02d305eaace7be194f35"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "candidate": "abcfe255f7020c7a0d906c5897ae8e8f7b6aa05f",
+  "scope": "L0 exact unexported production function extracted unchanged and TypeScript stripped; actual QueryClient; synthetic receipt/no mounted claim",
+  "passed": 2,
+  "failed": 1,
+  "passedCases": [
+    "Start still inserts one new row and its message",
+    "Data-only helper control preserves exact independent failure"
+  ],
+  "failedCases": [
+    {
+      "name": "Start receipt preserves independent list read failure and error",
+      "error": "Expected values to be strictly equal:\n\n'success' !== 'error'\n"
+    }
+  ]
+}

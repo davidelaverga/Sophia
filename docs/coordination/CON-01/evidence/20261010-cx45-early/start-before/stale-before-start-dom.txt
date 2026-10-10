@@ -1,0 +1,83 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/studio
+    - link "Conversations":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/conversations
+    - link "Goals":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/goals
+    - link "Tasks":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/work
+    - link "Knowledge":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/knowledge
+    - link "Updates":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/updates
+    - link "Resources":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation" [pressed]:
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC stale sender regression":
+          - generic: SYNTHETIC stale sender regression
+          - generic: 15:31
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: Synthetic B, Synthetic A Surviving. No recorded questions yet. Last moved 15:31.
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - paragraph: Messages here are saved for this project and can be read by its members. Live room audio is not saved here.
+      - generic: Question
+      - textbox "Question" [active]:
+        - /placeholder: What do you want to figure out?
+      - generic: Context, if it helps
+      - textbox "Context, if it helps"
+      - checkbox "Ask Sophia" [checked]
+      - text: Ask Sophia
+      - button "Start" [disabled]
+      - button "Cancel"
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

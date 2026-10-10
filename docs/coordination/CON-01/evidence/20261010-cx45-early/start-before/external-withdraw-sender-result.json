@@ -1,0 +1,105 @@
+{
+  "at": "2026-10-10T13:31:48.223Z",
+  "scope": "External supported withdrawC2 and canonicalviewerread; initialB1C2A3 setup/UI C4 separately",
+  "keys": {
+    "send": "07171a3e-2487-46b2-9671-686f0ec70d98",
+    "withdraw": "56b5e277-31c5-4932-af69-44986676a07e"
+  },
+  "withdrawal": {
+    "messageId": "332a5a68-6e3c-4455-9d0b-e654455ec390",
+    "conversationId": "6831c3b3-a0b5-4613-b0f7-99234dc72587"
+  },
+  "canonical": {
+    "projectId": "2f95cbdc-ed44-4586-b577-28386521ffa3",
+    "conversations": [
+      {
+        "id": "6831c3b3-a0b5-4613-b0f7-99234dc72587",
+        "title": "SYNTHETIC stale sender regression",
+        "revision": 8,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T13:31:17.168Z",
+        "messageSeq": 3,
+        "contributors": [
+          {
+            "actorId": "fa5ad3ca-2575-41a8-98e2-b1f0cf173f43",
+            "name": "Synthetic B"
+          },
+          {
+            "actorId": "ebede5ef-5d96-4501-8b87-7d33c0afed2a",
+            "name": "Synthetic A Surviving"
+          }
+        ],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": {
+          "author": "member",
+          "actorId": "ebede5ef-5d96-4501-8b87-7d33c0afed2a",
+          "name": "Synthetic A Surviving",
+          "text": "SYNTHETIC A surviving third",
+          "at": "2026-10-10T13:31:17.168Z",
+          "seq": 3
+        }
+      }
+    ],
+    "more": false,
+    "policy": {
+      "id": "conversation-text-v1",
+      "notice": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "retention": "until_withdrawn_or_erased",
+      "audience": "project_members"
+    },
+    "capability": {
+      "state": "enabled",
+      "write": false,
+      "moderate": false,
+      "ask": "unavailable",
+      "askReason": "replies_not_enabled"
+    }
+  },
+  "rows": [
+    {
+      "seq": "1",
+      "actor_id": "fa5ad3ca-2575-41a8-98e2-b1f0cf173f43",
+      "author_name": "Synthetic B",
+      "body": "SYNTHETIC B first message",
+      "withdrawn_at": null
+    },
+    {
+      "seq": "2",
+      "actor_id": "6961ba3e-b447-4756-844f-5dbb211f8794",
+      "author_name": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T13:31:48.217Z"
+    },
+    {
+      "seq": "3",
+      "actor_id": "ebede5ef-5d96-4501-8b87-7d33c0afed2a",
+      "author_name": "Synthetic A Surviving",
+      "body": "SYNTHETIC A surviving third",
+      "withdrawn_at": null
+    }
+  ]
+}

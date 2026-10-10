@@ -1,0 +1,105 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/studio
+    - link "Conversations":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/conversations
+    - link "Goals":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/goals
+    - link "Tasks":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/work
+    - link "Knowledge":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/knowledge
+    - link "Updates":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/updates
+    - link "Resources":
+      - /url: /p/2f95cbdc-ed44-4586-b577-28386521ffa3/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC Start preserves stale list" [pressed]:
+          - generic: SYNTHETIC Start preserves stale list
+          - generic: 15:32
+          - generic: "You: SYNTHETIC human-only start with failed list"
+          - generic: You. No recorded questions yet. Last moved 15:32.
+        - button "SYNTHETIC stale sender regression":
+          - generic: SYNTHETIC stale sender regression
+          - generic: 15:31
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: Synthetic B, Synthetic A Surviving. No recorded questions yet. Last moved 15:31.
+    - region "Open conversation":
+      - heading "SYNTHETIC Start preserves stale list" [active] [level=3]
+      - paragraph:
+        - generic: "6"
+        - generic: "Contributors:"
+        - text: You
+      - region "Messages":
+        - list:
+          - generic: Oct 10
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:32
+          - paragraph: SYNTHETIC human-only start with failed list
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:32
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - paragraph:
+          - generic: Sophia doesn’t answer here yet
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status
