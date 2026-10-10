@@ -384,11 +384,11 @@ What the vendors document about the subscription paths:
 
 | Path | Documented position | Fit with D-6 and B-1 |
 |---|---|---|
-| Claude subscription credentials used by the pinned dsh runtime (or any Sophia code) | Anthropic, [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance), «Authentication and credential use»: OAuth "is designed to support ordinary use of Claude Code and other native Anthropic applications"; developers "should use API key authentication"; "Anthropic does not permit third-party developers to … route requests through Free, Pro, or Max plan credentials on behalf of their users"; "developers may not collect, store, or intermediate Claude.ai credentials or session tokens" | **Incompatible.** dsh is not a native Anthropic application, and Sophia would store and route the token |
-| The unmodified Claude Code binary hosted by Sophia, each user signed in with their own subscription | The same page, «Can customers offer Claude Code in their products?»: it requires the Commercial Terms and an unmodified binary; "Customers may not pay for, resell, or intermediate Claude usage on their end users' behalf"; each end user authenticates with their own credentials. «Acceptable use»: Pro and Max limits "assume ordinary, individual usage" | **Incompatible as decided.** It is a second harness, not B-1's existing pinned runtime. Davide's subscription could answer only Davide's own asks. A home deleted after every reply would need either an Anthropic sign-in per reply, which can't be done headless, or Sophia copying the token into each home, which is intermediation |
-| ChatGPT sign-in tokens (the pinned pi-ai adapter ships an OAuth-only `openai-codex` provider that Sophia doesn't configure, and hand-declared routes can't express: `dsh-llm-pi-ai lib/index.js:794-795, 846-856`) | **Codex's reading, not verified here:** this container's network policy blocks `developers.openai.com`. OpenAI documents Sign in with ChatGPT plan usage for open-source and local hosts (`developers.openai.com/siwc/token-sharing-open-source`); paid or remotely hosted apps need OpenAI's partner process; Codex app-server authentication is not permitted for commercial or hosted services | **Incompatible for hosted Sophia** (S1-05A deploys it remotely) without the partner process. Whether a local, self-hosted Sophia meets the open-source/local condition is a reading of OpenAI's exact terms that this file does not make |
+| Claude subscription credentials used by the pinned dsh runtime (or any Sophia code) | Anthropic, [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance), «Authentication and credential use»: OAuth "is designed to support ordinary use of Claude Code and other native Anthropic applications"; developers "should use API key authentication"; "Anthropic does not permit third-party developers to … route requests through Free, Pro, or Max plan credentials on behalf of their users"; "developers may not collect, store, or intermediate Claude.ai credentials or session tokens" | **Incompatible with the pinned dsh route, in any topology.** dsh is not a native Anthropic application, and Sophia would store and route the token |
+| The unmodified Claude Code binary hosted by Sophia, each user signed in with their own subscription | The same page, «Can customers offer Claude Code in their products?»: it requires the Commercial Terms and an unmodified binary; "Customers may not pay for, resell, or intermediate Claude usage on their end users' behalf"; each end user authenticates with their own credentials. «Acceptable use»: Pro and Max limits "assume ordinary, individual usage" | **A documented use, but not B-1's route.** A user signing in to the unmodified binary with their own subscription is documented, locally or hosted under the Commercial Terms. It is a second harness, not B-1's existing pinned runtime. Davide's subscription could answer only Davide's own asks. A home deleted after every reply would need either an Anthropic sign-in per reply, which can't be done headless, or Sophia copying the token into each home, which is intermediation |
+| ChatGPT sign-in tokens (the pinned pi-ai adapter ships an OAuth-only `openai-codex` provider that Sophia doesn't configure, and hand-declared routes can't express: `dsh-llm-pi-ai lib/index.js:794-795, 846-856`) | Official OpenAI pages, as Codex read them: `developers.openai.com/siwc/token-sharing-open-source` and `developers.openai.com/codex-app-server`, and `learn.chatgpt.com/docs/app-server`. They document Sign in with ChatGPT plan usage for local and open-source hosts; they direct paid or remotely hosted apps to OpenAI's partner process; and they say existing app-server authentication is never permitted for commercial or hosted services. **Not read here**: this container's network policy blocks `developers.openai.com`. Codex is publishing the exact cited review | **Not available for hosted Sophia** (S1-05A deploys it remotely) without the partner process. **Documented for a local or open-source topology**, under OpenAI's conditions there. Whether a given Sophia topology meets them is to be read against those pages, and this file binds none. Today's pinned route is unbound either way |
 
-**Consequence.** No reply route is bound, and asks stay `blocked` (`no_grant`). G2's source is built and proven against the stub provider only (`tests/support/mock-llm.mjs`, labelled L1). Activation needs one documented, supported route, named with its documentation. This file asks Davide to approve none of the incompatible designs above.
+**Consequence.** For the current hosted, pinned runtime, no reply route is bound, and asks stay `blocked` (`no_grant`). There is no fallback. G2's source is built and proven against the stub provider only (`tests/support/mock-llm.mjs`, labelled L1). Activation needs one documented, supported route for the topology it runs in, named with its documentation. This file asks Davide to approve none of the designs a vendor prohibits, and calls no subscription integration impossible for every topology.
 
 **Grant (`conversation_grants`, one row per project, set by an operator function no login may call).** It is provider-neutral, so that the route can be bound later without a schema change:
 - `state` (`enabled` / `disabled`), `route_id`, `credential_ref` (a reference, never a value; for a subscription route, an account the vendor's own flow signed in), `approval_ref`, and **`expires_at`** (required, finite).
@@ -426,20 +426,33 @@ So a per-reply home cannot be had inside that process without switching a proces
 
 **The reply child (bound design).** Goal attempts keep today's path unchanged. For a reply `create`, the project's bridge does not create an agent in its own process. It asks the supervisor for a **reply child**:
 - **The same pinned runtime.** The same dsh launcher and bundle (`unit.runtimeDir`, `unit.launcherEntry`), the same profile digest, and a reply profile that loads only what `sophia-conversation-v1` needs. There is no new harness.
-- **Its own environment, set once at spawn and never changed.** `HOME`, `TMPDIR`, `DSH_HOME` and `SOPHIA_WORKSPACE` all point under **`<root>/replies/<attemptId>/`**: `home/`, `home/tmp/`, `dsh-home/`, and `work/`, an empty directory. That directory is created fresh with mode 0700. If it already exists, the create is answered `outcome_unknown`; a home is never reused. The parent's and the supervisor's own environments never change.
+- **Its own environment, set once at spawn and never changed.** `HOME`, `TMPDIR`, `DSH_HOME` and `SOPHIA_WORKSPACE` all point under **`<root>/replies/<attemptId>/`**: `home/`, `home/tmp/`, `dsh-home/`, and `work/`, an empty directory. That directory is created fresh with mode 0700, only after the execution claim answered `first` (below). A directory already present then is a leftover: no child is started, the request is reconciled `outcome_unknown`, and the leftover is cleaned by steps 3–5. A home is never reused. The parent's and the supervisor's own environments never change.
 - **No other credentials.** It receives only the reply route's credential reference, by name; none exists until a route is bound (§8.4). dsh's local credential store (`config/dsh/base-rows.reviewed.json:100-101`) is disabled in the reply profile.
-- **Read-only shared files.** The runtime directory, bundle and assets are installed read-only, and their digests are checked before and after (the recorded artifacts).
-- **Unrelated homes untouched.** The child is given no path to them. The parent writes **nothing** for a reply under the project's own `home/`, `dsh-home/`, `work/` or `workspace/`: a reply's commands are not journaled by the parent at all, since a reply is never resumed (§8.2.1). The child's own journal, inside its home, is the reply's only journal.
-- **The prompt** goes to the child on a pipe, never in `argv`, the environment or a parent file. The child's observations come back on a separate pipe (fd 3), not stdout or stderr, which the supervisor buffers as diagnostics (`runtime-supervisor.ts:76, 209-210`). The parent forwards them through the existing observation route with the reply's binding and epoch, and keeps them in memory only until the API acknowledges them.
-- **At most 2 reply children per project.** A third `create` is answered `rejected` (`runtime_busy`), so the request ends `failed`, visibly; asking again is a new ask.
-- **Each child has a lease file** in its home (pid, attempt, start time), and exits when its control pipe closes. A child whose parent dies therefore stops.
+- **Writes are contained by the operating system, not by convention.** Passing the child no other path is not isolation: it runs as the same user. The reply launcher applies a filesystem rule before it executes dsh:
+  - read and write only in its own home;
+  - read only on the runtime directory, the pinned Node executable and the system libraries;
+  - nothing else, including other projects' roots and the project's own `home`, `dsh-home`, `work` and `workspace`.
+  The mechanism is Landlock, which needs no privilege (Linux 5.13 and later), or the equivalent the runtime owner names for the deploy host. Where the host can't enforce it, no reply child is started: the create is answered `rejected` (`containment_unavailable`), and asks stay inactive. This is a new launcher in the runtime image, so it is part of the shared-file request.
+- **Read-only shared files.** The runtime directory, bundle and assets are read-only to the child under that rule, and their digests are checked before and after (the recorded artifacts).
+- **The parent keeps no content.** The prompt goes to the child on a pipe, never in `argv`, the environment or a parent file. The parent journals no content for a reply. Its only durable record is the API's **execution claim** (below), which is content-free.
+- **The child journals before it emits.** Each observation is appended to the child's journal in its home, and fsynced, before it is written to fd 3, a separate pipe from stdout and stderr, which the supervisor buffers as diagnostics (`runtime-supervisor.ts:76, 209-210`). The journal is therefore a superset of anything the parent forwarded, and it is the contained recovery record (crash recovery, below). The parent forwards through the existing observation route with the reply's binding and epoch, holding only memory.
+- **Proposed implementation ceilings, not an allowance or a grant:** at most 2 reply children per project, and a 120 s deadline per reply. A third `create` is answered `rejected` (`runtime_busy`), so the request ends `failed`, visibly; asking again is a new ask.
+- **An identity-bound lease.** The supervisor holds each child's process handle, and stops it through that handle. For the restart sweep only, a content-free lease file in the child's home records:
+  - its pid;
+  - its process start time (`/proc/<pid>/stat`, field 22);
+  - the boot id (`/proc/sys/kernel/random/boot_id`);
+  - its executable (`/proc/<pid>/exe`);
+  - a random spawn nonce, also given to the child in its environment.
+  A process is killed only when **all five** match the live process. Any mismatch kills nothing, and the home is left unresolved and reported. No unrelated process is ever signalled. The child also exits when its control pipe closes.
 
 **Every copy, and what governs it.** "Contained" means inside `<root>/replies/<attemptId>/`, deleted whole at cleanup.
 
 | Copy | Where | How it is governed |
 |---|---|---|
 | dsh session log (history, user and assistant messages) | child `dsh-home/sessions/…` | Contained |
-| The reply's command journal (the prompt) | child `dsh-home/sophia-bridge/<session>.jsonl` | Contained; the parent journals nothing for a reply |
+| The reply's journal (the prompt, and every observation before it is emitted) | child `dsh-home/sophia-bridge/<session>.jsonl` | Contained. It is the crash-recovery record, deleted only after reconciliation |
+| The lease file | child home | Content-free (ids, times, nonce); contained |
+| The execution claim | `conversation_executions` (0049, CON-01's own table) | Content-free: the attempt, the command, the claiming lease, the time and the outcome. Retained after the home is deleted and across restarts. It is the replay fence |
 | dsh storages, attachments (none: no image input), startup logs | child `dsh-home/{storages,attachments,logs}` | Contained |
 | Spill and temporary files, adapter caches | child `home/tmp`, child `home` | Contained |
 | Credentials | the child's environment only; dsh's local store disabled | Never written to disk by Sophia |
@@ -453,57 +466,71 @@ So a per-reply home cannot be had inside that process without switching a proces
 | API, worker, bridge and supervisor logs | process logs | Body-free (`companionFailure`, `diagnostics/sanitize.ts`); a test asserts no conversation text reaches any log line |
 | The provider's own retention | the vendor | Disclosed (§5); not Sophia's to delete, and never called deleted |
 
-**Lifecycle: settle, persist, then clean.**
-1. **The reply ends.** It ends by `turn/end`, a `stop` (withdrawal, erasure, a source out of the predicate, the grant switched off, the asker removed), the reply deadline (proposed 120 s: a `stop`, and the request ends `failed`/`timeout`), or the child dying.
-2. **Stop and reap.** The parent sends `stop`, then `SIGTERM` after a 2 s grace and `SIGKILL` after 5 s, and **waits for the exit**. Nothing is cleaned while the child lives.
-3. **Persist first.** Every observation the child produced must be delivered to the API and acknowledged:
-   - capture's publication or refusal committed;
-   - usage recorded;
-   - each reservation settled by `/settle`, or left to the terminal receipt that makes it `uncertain`;
-   - the request's terminal state committed.
-   Until all of that is acknowledged, the home stays.
-4. **Clean.** The settlement writes `retire` (a new runtime command kind: a reviewed change to `runtime_commands.kind` and the wire). The parent then:
-   - checks that the path is `<root>/replies/<attemptId>` and not a link;
-   - deletes it whole without following links;
-   - verifies it is gone;
-   - only then answers `retire` `checked`.
-5. **A cleanup that fails stays unresolved.** If deletion or verification fails, `retire` is answered `failed`, never `checked`. The purge stays pending, is said to be pending (§6's withdrawal answer: the runtime copy goes when the runtime next runs), and is retried at the next hello. No receipt ever says a copy is gone that isn't.
+**The execution claim: the replay fence (Codex, CX on `3c1158d`, P1).** The home can't fence a duplicate once it is deleted, and the parent journals no content. So the fence is a durable, content-free record in the database, consulted atomically **before any spawn**:
+- **The claim.** On a reply `create`, the bridge calls `/v1/runtime/conversation/claim` with the command id, attempt, epoch and its lease. `conversation_execution_claim` inserts `conversation_executions(attempt_id PRIMARY KEY, command_id, lease_id, claimed_at)`, under the request's row lock, only while the request is `pending`, the epoch is current and the binding is active, with `ON CONFLICT DO NOTHING`. It answers `first` only if this call inserted the row. Otherwise it answers `refused` (`already_claimed`, `not_pending`, `stale_epoch`).
+- **Only `first` spawns.** Any other answer, a lost answer, or the API being unreachable spawns nothing. The rules that follow:
+  - A claim retried after a lost answer finds `already_claimed`, so nothing spawns, and the request is reconciled `outcome_unknown`: fail closed, never a second execution.
+  - A duplicate `create` (buffered, re-delivered, or replayed after a restart), at any point (during execution, after success, failure or `outcome_unknown`, after `retire`, with or without its acknowledgment) is refused by the claim. It spawns no process and makes no model call, and it touches no reservation, since reservations are made per model call by the claimed execution only.
+- **Retention.** The row is retained after the home is deleted and across restarts. It is never deleted by the runtime, and it holds no text.
+- **What isn't the fence.** The outbox's one row per request is not this fence. It only keeps the database from dispatching twice.
+
+**Lifecycle: settle, persist or keep, then clean.**
+1. **The reply ends.** It ends by `turn/end`, a `stop` (withdrawal, erasure, a source out of the predicate, the grant switched off, the asker removed), the reply deadline (a `stop`; the request ends `failed`/`timeout`), or the child dying.
+2. **Stop and reap.** The parent sends `stop`, then `SIGTERM` after a 2 s grace and `SIGKILL` after 5 s, through the supervisor's handle, and **waits for the exit**. Nothing is cleaned while the child lives.
+3. **Reconcile against the contained journal.** The API's existing idempotent records are the content-free acknowledgments:
+   - each observation by `upstream_key` (`native_observations`);
+   - its usage by `provider_call_id` (`usage_records`);
+   - each reservation's end by its call (`conversation_reservations`);
+   - the terminal receipt, recorded once (`runtime_receipts`);
+   - the request's terminal state.
+   The parent reads the child's journal in the home and asks the API (`/v1/runtime/conversation/acknowledged`: keys and states only, no text) which of its observation keys are recorded. It sends those that are not. **A recovered observation never publishes:** it is stored scrubbed, with its usage kept, unless the request is still `running` and the turn ended in this same, uninterrupted run (§8.2.2, CX-0012). An open reservation becomes `uncertain`, and an operator reconciles it from the recovered usage. Nothing is re-run.
+4. **Clean, only when the acknowledgments cover the journal.** Every key in the journal is acknowledged, and the request is terminal. The settlement's `retire` (a new runtime command kind: a reviewed change to `runtime_commands.kind` and the wire) then has the parent:
+   - check the identity-bound lease (no live child);
+   - check that the path is `<root>/replies/<attemptId>` and not a link;
+   - delete it whole without following links;
+   - verify it is gone;
+   - only then answer `retire` `checked`.
+5. **Otherwise the home stays, unresolved.** That covers a journal unreadable or torn beyond its last whole entry, an acknowledgment that can't be obtained, a lease that doesn't match, or a deletion or verification that fails. `retire` is answered `failed`, never `checked`. The purge stays pending, is said to be pending (§6's withdrawal answer: the runtime copy goes when the runtime next runs), and is retried at the next hello. No receipt ever says a copy is gone that isn't.
 
 | Outcome | Path |
 |---|---|
 | Answered | `turn/end` → capture publishes → steps 2–5 |
-| Failed (`turn_error`, `max_tokens`, `runtime_busy`, `timeout`) | Terminal receipt or capture refusal → steps 2–5 |
+| Failed (`turn_error`, `max_tokens`, `runtime_busy`, `timeout`, `containment_unavailable`) | Terminal receipt or capture refusal → steps 2–5 (no home, for a create rejected before the claim) |
 | Cancelled | `conversation_cancel` raises the reply's epoch to 2 and writes `stop` → steps 2–5 |
-| Bridge or supervisor restart | Every reply child dies with its pipe. Before reporting ready, the supervisor sweeps `<root>/replies/*`: it kills any live process named in a lease, matched by `/proc/<pid>/cmdline` carrying the attempt id. Hello lists the reply binding `stopped`; a request that was `running` ends `outcome_unknown` (§8.2.1); then steps 3–5 |
-| Orphan (a child alive after its parent was killed) | It exits when its pipe closes. If it doesn't, the restart sweep kills it before its home is touched |
+| Bridge or supervisor restart | Every reply child's control pipe closes, and it exits. Before reporting ready, the supervisor sweeps `<root>/replies/*`. A live process matching all five lease fields is stopped; any mismatch kills nothing and leaves the home unresolved. Hello lists the reply binding `stopped`, and a request that was `running` ends `outcome_unknown` (§8.2.1). Then steps 3–5, recovering from the home's journal |
+| Orphan (a child alive after its parent was killed) | It exits when its pipe closes. If it doesn't, the restart sweep stops it, identity-matched, before its home is touched |
+| Crash after the child emitted a result or usage, before the API acknowledged it | The journal holds it (journal-before-emit). The restart path's step 3 delivers it scrubbed with its usage. If it can't, step 5 leaves the home unresolved |
 
 **Withdrawal.**
-- **Generation is fenced.** The epoch rises, `stop` is written, and the child is stopped (step 2).
+- **Generation is fenced.** The epoch rises, `stop` is written, and the child is stopped (step 2). A later `create` for that attempt is refused by the claim (`not_pending`).
 - **Publication is fenced.** Capture refuses a request that is not `running` (§8.3).
-- **Execution settles** (steps 2–3), and the host copies go (steps 4–5).
-- **Late output restores nothing.** Anything the child emitted after the stop is stored scrubbed, with its usage kept (§8.2.2). It never reaches a page, and the home it came from is deleted.
+- **Execution settles** (steps 2–3), and the host copies go (steps 4–5), or stay reported as pending.
+- **Late output restores nothing.** Anything the child emitted after the stop, live or recovered from its journal, is stored scrubbed with its usage kept (§8.2.2). It never reaches a page, and the home it came from is deleted.
 
 **Fresh home and retry.**
-- A home belongs to one attempt, and a request has one attempt (§8.3, exactly once).
-- The only re-dispatch is `reconcile_runtime_outbox` re-sending an outbox row for which no runtime command was ever written. That creates the home for the **same request**, against the **same cumulative allowance**: reservations and publication are keyed by the request, so there is no second reservation set and no second answer.
-- An execution that may have started (a written command whose outcome is unknown, or a home already present at `create`) is **uncertain**. It is reconciled first: the request ends `outcome_unknown`, its open reservation becomes `uncertain`, and it is never re-run.
-- Asking again is a new message and a new request.
+- A home belongs to one claimed execution. An attempt has at most one claim, and a request has one attempt (§8.3, exactly once).
+- The only re-dispatch is `reconcile_runtime_outbox` re-sending an outbox row for which no runtime command was ever written. Its `create` is the first to reach the claim. It runs for the **same request**, against the **same cumulative allowance**: reservations and publication are keyed by the request, and capture inserts at most one answer per request.
+- An execution that may have started (a claim taken whose outcome is unknown, or a lost claim answer) is **uncertain**. It is reconciled (step 3) before anything else: the request ends `outcome_unknown`, its open reservation becomes `uncertain`, and it is never re-run.
+- Asking again is a new message, a new request and a new claim.
 
-**Codex's qualifications, each to its binding and test** (all L1: real PostgreSQL, the stub provider, the real supervisor and bridge):
+**Codex's qualifications, each to its binding and test** (all L1: real PostgreSQL, the stub provider, the real supervisor, bridge and launcher). The canary scans are evidence, not exhaustive proof; containment rests on the operating system's rule and the traced writes.
 
 | Qualification | Bound by | Test |
 |---|---|---|
 | An actual writable home per attempt | The reply child, `<root>/replies/<attemptId>/` | Two concurrent replies: each child's `/proc/<pid>/environ` has `HOME`, `TMPDIR` and `DSH_HOME` inside its own home, and its dsh session log and journal are found there |
 | No process-global home switching under concurrency | The environment is set at spawn, per child; the parent's never changes | The parent's and the supervisor's `environ` are identical before, during and after two concurrent replies |
-| Shared binaries and assets read-only | A read-only install, checked by digest | A write by the child into `runtimeDir` fails; the digests are unchanged after the replies |
-| Unrelated mission homes untouched | No path given; nothing journaled by the parent | Snapshot (path, size, digest) of the project's `home`, `dsh-home`, `work` and `workspace`, and another project's root: unchanged by a reply |
-| Every session file, journal, temp file, cache, log and copy accounted for | The copy table above | A canary in the prompt and in the answer. After cleanup, a scan of every file under `<root>`, `/tmp`, the supervisor buffer, the API, worker and bridge logs, and every database table finds the canaries only in `conversation_messages`, and only for an answered, unwithdrawn reply |
+| Shared binaries and assets read-only | The launcher's filesystem rule; digests | A write by the child into `runtimeDir` fails (`EACCES`); the digests are unchanged after the replies |
+| Unrelated mission homes untouched; every writable path contained or suppressed | The launcher's filesystem rule; no content in the parent | The child's every file-writing call, traced (`strace -f`, the `open*`, `creat`, `rename*`, `unlink*`, `mkdir*`, `link*` families), lies inside its home. A write by the child into the project's `dsh-home` and into another project's root fails. A snapshot of those trees is unchanged, except the parent's content-free claim calls, which touch the database only. Where the rule can't be enforced: `rejected` `containment_unavailable`, and no child |
+| Every session file, journal, temp file, cache, log and copy accounted for | The copy table above | A canary in the prompt and in the answer. After cleanup, a scan of every file under `<root>`, `/tmp`, the supervisor buffer, the API, worker and bridge logs, and every database table finds them only in `conversation_messages`, and only for an answered, unwithdrawn reply. Evidence, not proof |
 | Stop and settle the process before cleanup | Step 2 | Cleanup's start is ordered after the child's exit (a test hook records both) |
-| Persist the result, delivery and accounting first | Step 3 | The home exists until capture's commit, the usage rows and the `/settle` are acknowledged; then it is gone |
-| Success, failure, cancel, timeout, restart and orphans | The outcome table | One test per row, each ending with no home and no canary; the orphan by `SIGKILL` on the parent |
+| Persist the result, delivery and accounting first | Steps 3–4 | The home exists until every journal key is acknowledged and the request is terminal, then it is gone |
+| A crash after a result or usage, before its acknowledgment | Journal-before-emit; step 3 | Kill the parent, then the child, between the child's emit and the API's acknowledgment: after the restart, the observation is recorded scrubbed with its usage, nothing is published, and the home goes after. With the journal made unreadable: the home stays, `retire` `failed`, said pending |
+| A durable replay fence, retained after cleanup and restart | The execution claim | The same `create` delivered again during execution, after success, after failure, after `outcome_unknown`, after `retire`, and after `retire` with its acknowledgment lost, and replayed by a restarted bridge. A claim answer lost, then retried. In every case: one spawn at most (the launcher's counter), the stub provider's call log unchanged by the duplicate, the grant's counters unchanged, one answer at most |
+| Success, failure, cancel, timeout, restart and orphans | The outcome table | One test per row, each ending with no home and no canary, or with the home reported unresolved where the row says so. The orphan by `SIGKILL` on the parent |
+| No unrelated process signalled | The five-field lease | A lease rewritten to name another live process (same command line, different start time or nonce): the sweep kills nothing and reports the home unresolved |
 | A cleanup failure is unresolved, never a deletion success | Step 5 | A deletion forced to fail: `retire` `failed`, purge pending and said so, retried at hello, never `checked` |
-| Withdrawal fences generation and publication, settles execution, cleans copies; a late result cannot restore content | The withdrawal paragraph | Withdrawal mid-run, and output arriving after the stop: nothing published, stored scrubbed, home deleted, no canary left |
-| A fresh home or retry keeps the same Ask and cumulative allowance, reconciles an uncertain execution first, and cannot publish twice | The retry paragraph | A re-dispatched outbox row (no command written): same request, same reservations, one answer at most. A home present at `create`: `outcome_unknown`, no second execution |
+| Withdrawal fences generation and publication, settles execution, cleans copies; a late result cannot restore content | The withdrawal paragraph | Withdrawal mid-run, output arriving after the stop, and the same output recovered from the journal after a restart: nothing published, stored scrubbed, home deleted, no canary left |
+| A fresh home or retry keeps the same Ask and cumulative allowance, reconciles an uncertain execution first, and cannot publish twice | The claim; the retry paragraph | A re-dispatched outbox row (no command written): the same request, the same reservations, one answer at most. A lost claim answer: `outcome_unknown`, no execution |
 
 B-1's earlier options (file removal at the pinned layout, or a disclosed retention) are withdrawn. dsh `0.2.0-rc.2` still has no supported deletion of a persisted session: its store's `delete` is in memory only (`dsh-session lib/index.js:1771`). The home is deleted whole instead, so no undocumented layout is relied on. Backups and provider retention are disclosed separately (§5). Operational storage is never treated as a backup exception.
 
@@ -524,7 +551,7 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
 **The new test project.** The owner asked for a new project, not a seeded one. These are operations, each in OP-0001-r2, which stays `draft_not_authorized`:
 - created through `POST /api/v1/projects` (`projects.ts:73-84`);
 - its conversations enabled with `set_conversation_settings` (`0048:406-416`);
-- two actual Sophia subjects as members, **unbound** (who, and their roles);
+- two actual Sophia subjects as members. Davide has asked for a **second synthetic actual Sophia account**, and Codex is preparing its real-auth setup batch, with no fabricated JWT and no cohort. The subjects and their roles are bound in that batch, not here (D-7);
 - no grant until a route exists (§8.4).
 
 ## 9. Studio binding (G3)
@@ -633,7 +660,7 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 | D-5 | The Conversations tab's gate (§9), with Luis | A dedicated build flag; `VISION` unchanged |
 | D-6 | Execution container (§8.2) | **Accepted, 2026-10-10** (source design, not live authorization): option C, each attempt owned by its reply request |
 | B-1 | Runtime host copies (§8.5) | **Accepted, 2026-10-10** (source design): a throwaway harness home per reply, on the existing pinned runtime, with Codex's qualifications, each bound in §8.5 |
-| D-7 | The new test project's two actual Sophia subjects and their roles (§8.6) | **Unbound.** Davide's to name |
+| D-7 | The new test project's two actual Sophia subjects and their roles (§8.6) | Davide asked for a second synthetic actual account. **Bound in Codex's real-auth setup batch**, not here |
 | Q-1 | Moderation by editors (pack 03 §3 says editors/admins) | Admins only: every writer is an editor here, so editor moderation would let any writer erase anyone |
 
 ## 14. Changes to this file
@@ -641,6 +668,7 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-10 | Revision 8, Codex's checkpoint on `3c1158d`. (1) The replay fence: a durable, content-free execution claim (`conversation_executions`) consulted atomically before any spawn and retained after cleanup and restart; only `first` spawns, and a lost answer fails closed. (2) Crash recovery: the child journals before it emits; the API's idempotent records are the content-free acknowledgments; cleanup only when they cover the journal, else the home stays unresolved; recovered output never publishes. (3) A lease bound by pid, start time, boot id, executable and nonce, killing nothing on a mismatch; writes contained by the launcher's operating-system rule (Landlock or equivalent), failing closed where it can't be enforced. 2 children and 120 s labelled as implementation ceilings; the vendor rows corrected (Claude's binary is a documented use, not B-1's route; OpenAI's local and open-source usage is documented); D-7 bound in Codex's setup batch | Codex's checkpoint |
 | 2026-10-10 | Revision 7: D-6 and B-1 accepted by Davide as source design (OP-0001-r2 stays `draft_not_authorized`), with the subscription direction. §8.2 records option C as decided. §8.4 leaves the route unbound with no API or pay-as-you-go fallback, states the vendors' documented positions and their exact incompatibility with D-6 and B-1, and makes the grant provider-neutral (allowance in the route's units, keyed by the request). §8.5 binds the reply child in `<root>/replies/<attemptId>/`, every copy and its governance, settle then persist then clean, an unresolved cleanup failure, the restart and orphan sweeps, and each of Codex's qualifications with its test. §8.6 sets the rules for subscription figures and the new test project, its subjects unbound (D-7) | Davide's decisions; Codex's qualifications and checkpoint; Anthropic's legal page, read 2026-10-10 |
 | 2026-10-09 | Revision 6, normalized (Codex's note on `a247b78`): dispatch accepts only `pending`; `runtime_hello` lists every reply binding not yet retired; one rule ends a reservation (the bridge's `/settle` or an operator; a receipt or observation never settles; a terminal receipt makes an open one `uncertain`, `released` only after a rejected create), and the duplicated Spending line is gone; `outcome_unknown` is terminal with `settled_at`, 0049 changing 0048's CHECK, open index and `conversation_withdrawn_from`; tests for each | Codex, on `a247b78` |
 | 2026-10-09 | Revision 6, CX-0012: an uncertain or failed create is terminal and fails closed. The late-publication promise is withdrawn; no receipt revives a reply; hello lists every reply binding not yet retired, `stopped` unless the request is `pending` or `running`; retire is written at once; uncertain spend stays counted until an operator reconciles it from recorded usage; restart-and-replay tests for an eligible and a withdrawn variant (§8.2.1, §8.3) | CX-0012 |
