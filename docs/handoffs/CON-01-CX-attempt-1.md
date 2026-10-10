@@ -4,6 +4,8 @@
 
 All63stacks clean;35203terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports63519–20closed/tab86closed. Final4human4NULL6requests/0replies/supportgoal1/allops0. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36verdictsretained; G3changes_requested/P2hold; combinedG4/readinessfalse. OP1r2/OP2r2draftunapproved/approvalexpiryNULL; inboxsubjects/subscriptionroute/allowance/privacy/sharedownerwindow/artifacts/rollbackunbound. Read-only live refresh69d1117f confirms unchanged servingtuple/StudioSHAunknown/PG0036/sixm03runningmetadata notsafedrain. Davidefinaldecision/othermissionsopen/no monitor.
 
+Binding-state correction: CX68 relied on a stale header. Accepted revision7/8 source design was already published and received earlier scoped reviews. PR218 `24410d8a`/tree872e9024 complete two-doc diff independently read; header/history correction reviewed only, no new binding/merge/live authorization or overall G2 acceptance. [Correction receipt](../coordination/CON-01/CX-0069.md#binding-state-correction--pr218-scoped-documentation-review).
+
 Next bounded action: immutable cached-error recovery correction + real revoke→restore-existing-thread bounded-read recheck, privacy/ordinary-erasure/partial consumers; then current-main/S1 combinedG4.
 
 # Historical checkpoint — CX-0068
