@@ -3,8 +3,13 @@
 // so «This may be out of date» stays while its reads fail, whatever is written here (PR #199 r4235976256,
 // r4237298620, r4237767985). `setQueryData` would mark the read answered; `Query.setState({ data })` does not.
 import type { QueryClient } from '@tanstack/react-query'
-import type { ConversationAsk, ConversationList, ConversationStarted } from '../../api/conversations.ts'
-import { listKey, messagesKey } from './conversation-list.ts'
+import type {
+  ConversationAsk,
+  ConversationList,
+  ConversationMessage,
+  ConversationStarted,
+} from '../../api/conversations.ts'
+import { listKey, messagesKey, replyOf, replyOpen } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
 import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
@@ -74,6 +79,24 @@ export function putStarted(
   void queryClient.invalidateQueries({ queryKey: key })
 }
 
+/**
+ * A start's receipt held back, landing now (list-data `releasable`): its row is listed as one not current where the
+ * feed stands, where the list read holds none at its revision or later. That is its title only, current while the
+ * conversation stands (A16 changes a title only by erasing it), with no opening and no writer, whatever was withdrawn
+ * since. So it can be opened, and its header read, even when a list of the newest only leaves it out. Its thread isn't
+ * written (opening reads it), and the list is read again (PR #199 r4238533084; CX-0059).
+ */
+export function putHeldBack(
+  queryClient: QueryClient,
+  projectId: string,
+  account: string,
+  receipt: ConversationStarted,
+) {
+  const key = listKey(projectId, account)
+  setListsData(queryClient, key, (list) => startedIn(list, receipt.conversation, false))
+  void queryClient.invalidateQueries({ queryKey: key })
+}
+
 /** What a start's landing needs of what this view keeps for this project and account: what is kept now, a change. */
 interface Talk {
   latest: () => Kept
@@ -81,10 +104,13 @@ interface Talk {
 }
 
 /**
- * A start's receipt landed: it is put in the list and its thread (`put`, putStarted), the form's words go (a receipt
- * held back: only if the form still holds the `words` it held then, never a draft written since) and Sophia's wait is
- * noted, and it may be opened. Unless this view knows the conversation erased since (talk-store `erased`: its
- * erasure here, or a whole list read without it): those take its read and its row away, so no read left there proves
+ * A start's receipt landed: it is put in the list and its thread (`put`, putStarted), the form's words go, Sophia's
+ * wait is noted, and it may be opened. A receipt held back and landing now (`words`: the form's words then) clears only
+ * those words, never a draft written since, and notes its wait only as a read shows it (`onlyAsRead`): its request may
+ * have ended meanwhile, and no read of it here says so (PR #199 r4238533090).
+ *
+ * Not where this view knows the conversation erased since (talk-store `erased`: its erasure here, or a whole list read
+ * without it): those take its read and its row away, so no read left there proves
  * nothing, and the receipt would bring the erased words and row back (PR #199 r4238111781). Such a receipt is refused
  * before any of it: nothing listed or written, the form's words kept, no wait noted, nothing opened.
  *
@@ -112,7 +138,12 @@ export function landed(talk: Talk, receipt: ConversationStarted, put: () => void
       heldBack: null,
     },
     asked: reply
-      ? withEntry(was.asked, conversation.id, { replyId: reply.id, messageId: reply.messageId, here: Date.now() })
+      ? withEntry(was.asked, conversation.id, {
+          replyId: reply.id,
+          messageId: reply.messageId,
+          here: Date.now(),
+          ...(words === undefined ? {} : { onlyAsRead: true as const }),
+        })
       : was.asked,
   }))
   return true
@@ -130,13 +161,32 @@ export function startHeld(start: Kept['start']): Held<ConversationAsk> | null {
 /**
  * A start's receipt held back (talk-store `heldBack`) that may land now: its conversation neither erased, nor with an
  * erasure held here, nor in doubt (a read set out since found it standing: talk-store `withStanding`). It lands once,
- * as if it had just come, with the form's words as they stood when it was held back, and writes nothing of the receipt
- * itself (no row, no first message): what the conversation holds now is the reads' to say, so a row's existence never
- * brings back words withdrawn since (CX-0059; PR #199 r4238311491). Nothing is sent.
+ * with the form's words as they stood when it was held back, listed by its title only (`putHeldBack`), its thread
+ * unwritten and no wait noted (`landed`): what the conversation holds now is the reads' to say, so a row's existence
+ * never brings back words withdrawn since (CX-0059; PR #199 r4238311491, r4238533084, r4238533090). Nothing is sent.
  */
 export function releasable(k: Kept): Kept['start']['heldBack'] {
   const back = k.start.heldBack
   if (!back) return null
   const id = back.receipt.conversation.id
   return k.erased[id] || (k.erasures[id] ?? null) !== null || id in k.doubted ? null : back
+}
+
+/**
+ * Where the request asked here stands, as the messages read show it (`awaiting`: the one asked, kept by the view). Only
+ * the request itself ends the wait: answered (her answer names it), or said why not; a message of hers to another
+ * request, or written later by the clock, settles nothing (A16; CON01-A09). Seen ended (`ended`), the wait is over for
+ * good: newer messages may later push the asking message out of the page. One noted from a start's receipt held back
+ * (`onlyAsRead`) is waited on only while this read shows it still open: no read of it (one failing included), no wait
+ * claimed (PR #199 r4238533090).
+ */
+export function replyWait(
+  messages: readonly ConversationMessage[],
+  awaiting: { replyId: string | null; messageId: string | null; onlyAsRead: boolean },
+): { ended: boolean; waiting: boolean } {
+  const { replyId, messageId } = awaiting
+  const reply = messageId === null ? undefined : replyOf(messages, messageId)
+  const read = replyId !== null && reply?.id === replyId
+  const ended = read && !replyOpen(reply)
+  return { ended, waiting: replyId !== null && !ended && (read || !awaiting.onlyAsRead) }
 }

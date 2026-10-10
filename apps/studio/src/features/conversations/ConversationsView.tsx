@@ -44,7 +44,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, putStarted, releasable, startHeld } from './list-data.ts'
+import { landed, putHeldBack, putStarted, releasable, startHeld } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -753,7 +753,7 @@ function useStart(
 /**
  * A start's receipt landing: as it comes (`started`: listed, and its first message written where putStarted's gates
  * let it, unless list-data `landed` holds it back), or once held back and now free (`land`, list-data `releasable`):
- * writing nothing of itself, so the reads say what the conversation holds, and opened only where the list holds it.
+ * listed by its title only, its wait claimed only as a read shows it (putHeldBack, `landed`): the reads say the rest.
  * Either is opened (`arrive`) only for one still on the form.
  */
 function useLanding(
@@ -770,9 +770,9 @@ function useLanding(
       const put = () => putStarted(queryClient, projectId, account, receipt, feedAt.current)
       if (landed(talk, receipt, put)) arrive(receipt.conversation.id)
     },
-    land: (receipt: ConversationStarted, words: ConversationAsk, listed: boolean) => {
-      const put = () => void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
-      if (landed(talk, receipt, put, words) && listed) arrive(receipt.conversation.id)
+    land: (receipt: ConversationStarted, words: ConversationAsk) => {
+      const put = () => putHeldBack(queryClient, projectId, account, receipt)
+      if (landed(talk, receipt, put, words)) arrive(receipt.conversation.id)
     },
   }
 }
@@ -806,13 +806,8 @@ function useStanding(
   const free = releasable(kept) !== null
   useEffect(() => {
     const back = free ? releasable(latest()) : null
-    if (!back) return
-    land(
-      back.receipt,
-      back.fields,
-      all.some((c) => c.id === back.receipt.conversation.id),
-    )
-  }, [free, all, land, latest])
+    if (back) land(back.receipt, back.fields)
+  }, [free, land, latest])
 }
 
 /** What the form says while its start's receipt is held back for an erasure of that conversation pressed here. */

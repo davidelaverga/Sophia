@@ -84,6 +84,12 @@ export interface Asked {
   replyId: string
   messageId: string
   here: number
+  /**
+   * Noted from a start's receipt held back (list-data `landed`): its request may have ended meanwhile, and nothing here
+   * read it since, so it is awaited only while a read of its thread shows it still open; no such read, no wait (PR #199
+   * r4238533090).
+   */
+  onlyAsRead?: true
 }
 
 /** The form's own place among the refusals. */

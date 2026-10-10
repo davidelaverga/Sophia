@@ -27,12 +27,11 @@ import {
   messageBy,
   messagesKey,
   replyEndWords,
-  replyOf,
-  replyOpen,
 } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
 import { dropUnfollowed } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
+import { replyWait } from './list-data.ts'
 import { useKept, withHome, type Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { blocksOf } from './sophia-text.ts'
@@ -98,7 +97,12 @@ function useAwaiting(asked: Asked | null) {
     const timer = setTimeout(() => setLate(true), Math.max(0, ANSWER_WAIT_MS - (Date.now() - here)))
     return () => clearTimeout(timer)
   }, [here])
-  return { replyId: asked?.replyId ?? null, messageId: asked?.messageId ?? null, late }
+  return {
+    replyId: asked?.replyId ?? null,
+    messageId: asked?.messageId ?? null,
+    onlyAsRead: asked?.onlyAsRead === true,
+    late,
+  }
 }
 
 export function OpenConversation(props: Props) {
@@ -319,7 +323,7 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
 function Messages(props: {
   read: ReturnType<typeof useTranscript>
   me: string
-  awaiting: { replyId: string | null; messageId: string | null; late: boolean }
+  awaiting: { replyId: string | null; messageId: string | null; onlyAsRead: boolean; late: boolean }
   onAnswered: (replyId: string) => void
   /** The thread grew (a message, or «Sophia is answering…»): its scroll may follow. */
   onGrown: () => void
@@ -374,22 +378,20 @@ function Messages(props: {
 }
 
 /**
- * Whether the request asked here is still under way. Only the request itself ends the wait: answered (her answer names
- * it), or said why not. A message of hers to another request, or written later by the clock, settles nothing (A16;
- * CON01-A09). Seen once, the wait is over for good: newer messages may later push the asking message out of the page.
+ * Whether the request asked here is still under way, as the messages read show it (list-data `replyWait`); once they
+ * show it ended, the wait goes for good.
  */
 function useReplyWait(
   messages: readonly ConversationMessage[],
-  awaiting: { replyId: string | null; messageId: string | null },
+  awaiting: { replyId: string | null; messageId: string | null; onlyAsRead: boolean },
   onAnswered: (replyId: string) => void,
 ): boolean {
-  const { replyId, messageId } = awaiting
-  const reply = messageId === null ? undefined : replyOf(messages, messageId)
-  const ended = replyId !== null && reply?.id === replyId && !replyOpen(reply)
+  const { replyId } = awaiting
+  const { ended, waiting } = replyWait(messages, awaiting)
   useEffect(() => {
-    if (ended) onAnswered(replyId)
+    if (ended && replyId !== null) onAnswered(replyId)
   }, [ended, replyId, onAnswered])
-  return replyId !== null && !ended
+  return waiting
 }
 
 /** Earlier messages: reads the page before, once at a time; says so when it can't. */
