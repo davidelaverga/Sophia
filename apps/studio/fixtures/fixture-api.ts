@@ -127,6 +127,8 @@ interface Project {
   taskRevision?: 1 | 2
   /** Reads of the research task wait until the page lets them through (`hold=task`), as a slow API's do. */
   taskHeld?: boolean
+  /** Reads of the demo library's covers wait until the page lets them through (`hold=covers`), then 400 ms apart. */
+  coversHeld?: boolean
   /** The research task runs (`research=running`): how many sources it has read. */
   researching?: { reads: number } | null
   /** Reads of the research task fail (`window.fixture.failTask`), as an API that lost its database answers. */
@@ -787,18 +789,29 @@ function versionsOf(project: Project, path: string): Response | Promise<Response
   if (citesNothing && path.endsWith('/sources')) {
     return json({ sources: [] })
   }
-  const shelved = DEMO ? shelvedRead(path) : null
+  const shelved = DEMO ? shelvedRead(project, path) : null
   if (shelved) return shelved
   if (path.startsWith(`/api/v1/artifacts/${REPORT}/versions/`) && path.endsWith('/sources')) return sourcesRead(project)
   return null
 }
 
+/** Reads of the library's covers the page holds, each waiting to be let through (`window.fixture.releaseCovers`). */
+const heldCovers: (() => void)[] = []
+
 /** The demo library's reports (demo-library.ts): their one version, and their sources, none. */
-function shelvedRead(path: string): Response | null {
+function shelvedRead(project: Project, path: string): Response | Promise<Response> | null {
   const listed = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions(\/[0-9a-f-]{36}\/sources)?$/.exec(path)
   const shelf = listed ? libraryVersions(listed[1] ?? '') : null
   if (!listed || !shelf) return null
-  return json(listed[2] ? { sources: [] } : shelf)
+  if (listed[2]) return json({ sources: [] })
+  if (!project.coversHeld) return json(shelf)
+  return new Promise<Response>((resolve) => heldCovers.push(() => resolve(json(shelf))))
+}
+
+/** Lets the held covers through one after another, 400 ms apart, as a slow API answers them; and every later one. */
+export function releaseCovers(project: Project): void {
+  project.coversHeld = false
+  heldCovers.splice(0).forEach((release, i) => setTimeout(release, (i + 1) * 400))
 }
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */

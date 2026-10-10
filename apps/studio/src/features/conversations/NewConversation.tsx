@@ -5,16 +5,14 @@
 // Start sends the same intent again under its key, never a second conversation. Cancel puts the form away.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
-import { getMission } from '../../api/mission.ts'
 import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
-import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
+import { contextQuery } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
-import { missionKey } from '../mission/mission-view.ts'
 import { askOf, startable, startersOf } from './new-conversation.ts'
 
 /** How long a conversation's question may be. */
@@ -63,11 +61,7 @@ function useStartWrite(props: Props) {
 /** The proposals waiting to start from: the brief's pending, the same read as the context beside the conversations. */
 function useStarters(props: Props): string[] {
   const { projectId, identity } = props
-  const brief = useQuery({
-    queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
-    queryFn: () => getMission(identity.token, projectId),
-    retry: 1,
-  })
+  const brief = useQuery(contextQuery(projectId, identity))
   return startersOf(brief.data?.pending, props.fields.title, QUESTION_MAX)
 }
 

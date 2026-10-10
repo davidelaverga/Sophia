@@ -2,13 +2,13 @@
 // accepted or turned down in the context, a message proposed as a decision. After each, the brief is read again, here
 // and wherever it shows (the room's brief, Updates).
 import { useQueryClient } from '@tanstack/react-query'
-import type { MissionDecision, MissionReceipt } from '@sophia/contracts'
+import type { MissionContext, MissionDecision, MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { decideMissionChange, getMission, proposeMissionChange } from '../../api/mission.ts'
-import { useAdmission } from '../../api/useAdmission.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
+import type { Held } from './held-write.ts'
 import { plainOf } from './sophia-text.ts'
 
 /** The longest statement a message gives a proposal to start from: a sentence or two. */
@@ -36,6 +36,28 @@ export function refusalWords(error: ApiError, write: 'decide' | 'propose'): stri
 }
 
 /**
+ * A refused decision's words (docs/plans/decide-on-its-way.md). Every 409 is a stale revision; the brief read again
+ * tells them apart: a proposal still waiting wasn't decided by anyone, what it would replace changed. A brief that
+ * couldn't be read again can't tell: its words are true either way.
+ */
+export function decideRefusal(error: ApiError, read: { fresh: boolean; stillWaiting: boolean }): string {
+  if (error.status !== 409) return refusalWords(error, 'decide')
+  if (!read.fresh) return 'It wasn’t decided here: the brief changed since.'
+  return read.stillWaiting
+    ? 'It can’t be decided as it is: the brief changed since. This is the brief as it is now.'
+    : refusalWords(error, 'decide')
+}
+
+/**
+ * Whether Accept and Decline wait: while a decision goes or its outcome is unknown, and once answered until the brief
+ * read again no longer lists it (a read that is slow or fails would otherwise wake them on a decided proposal).
+ */
+export function pressesWait(state: DecideState, pending: readonly Pick<MissionDecision, 'id'>[]): boolean {
+  if (state.status === 'sending' || state.status === 'unknown') return true
+  return state.status === 'done' && pending.some((d) => d.id === state.args.decisionId)
+}
+
+/**
  * Whether a proposal is decided here: a constraint or a lesson, still current. A new direction (the mission itself) is
  * decided in the brief, where it shows what it replaces; a stale one can't be accepted as it is (A08).
  */
@@ -47,28 +69,102 @@ export interface DecideArgs {
   decision: 'accept' | 'reject'
 }
 
-/** A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. */
-export function useDecide(projectId: string, identity: Identity) {
+/** A decision asked from Still open: what it decides, and the words of the proposal it decides. */
+export interface DecisionAsk {
+  args: DecideArgs
+  statement: string
+}
+
+/** Where Still open's decision stands: on its way, with no reply, answered, or refused in these words. */
+export type DecideState =
+  | { status: 'idle' }
+  | { status: 'sending' | 'unknown' | 'done'; args: DecideArgs }
+  | { status: 'rejected'; words: string }
+
+/**
+ * Still open's decision from what is held (held-decision.md): held, it is on its way or has no reply; else refused in
+ * the words kept; else answered, as the pane that saw it says; else nothing.
+ */
+export function stateOf(held: Held<DecisionAsk> | null, refused: string | null, done: DecisionAsk | null): DecideState {
+  if (held) return { status: held.sending ? 'sending' : 'unknown', args: held.ask.args }
+  if (refused !== null) return { status: 'rejected', words: refused }
+  return done ? { status: 'done', args: done.args } : { status: 'idle' }
+}
+
+/** The brief as the conversations read it, per account: the context pane's read, and every check made from it. */
+export const contextKey = (projectId: string, identity: Pick<Identity, 'name' | 'token'>) =>
+  [...missionKey(projectId), accountOf(identity), 'conversations'] as const
+
+/**
+ * The brief's read for the conversations: one set of options for every reader of it (the context, the start, a
+ * message's proposal, the check before proposing), so none rewrites another's (a query takes its newest observer's).
+ */
+export const contextQuery = (projectId: string, identity: Identity) => ({
+  queryKey: contextKey(projectId, identity),
+  queryFn: () => getMission(identity.token, projectId),
+  retry: 1,
+})
+
+/**
+ * A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. Answered or
+ * refused as stale, it settles once that read is back, so what it says agrees with what shows (a refusal's words are
+ * chosen from it); with no reply it doesn't wait for it, a write's 90 s being long enough.
+ */
+export function useDecideSend(projectId: string, identity: Identity) {
   const client = useQueryClient()
-  return useAdmission<DecideArgs, MissionReceipt>(async (key, a) => {
+  const readAgain = () => client.invalidateQueries({ queryKey: missionKey(projectId) })
+  return async (key: string, a: DecideArgs): Promise<MissionReceipt> => {
     try {
-      return await decideMissionChange(identity.token, projectId, a.decisionId, key, {
+      const receipt = await decideMissionChange(identity.token, projectId, a.decisionId, key, {
         decision: a.decision,
         expectedRevision: a.revision,
       })
-    } finally {
-      void client.invalidateQueries({ queryKey: missionKey(projectId) })
+      await readAgain()
+      return receipt
+    } catch (err: unknown) {
+      // Refused as stale, its words are chosen from the brief read again: that read even with no pane showing it (the
+      // person may have gone to another view meanwhile, where only an active read would be read again); the others
+      // as ever.
+      if (err instanceof ApiError && err.status === 409) {
+        void readAgain()
+        await client.refetchQueries({ queryKey: contextKey(projectId, identity), type: 'all', exact: true })
+      } else void readAgain()
+      throw err
     }
-  })
+  }
 }
 
 /** The same words, whatever the spaces or the case. */
 const sameWords = (a: string, b: string) =>
   a.trim().replace(/\s+/gu, ' ').toLowerCase() === b.trim().replace(/\s+/gu, ' ').toLowerCase()
 
-/** Whether these words already wait for a decision as a constraint: proposing them again would add nothing. */
-export const alreadyOpen = (pending: readonly Pick<MissionDecision, 'kind' | 'statement'>[], statement: string) =>
-  pending.some((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
+/** The constraint already waiting with these words, if one does: proposing them again would add nothing. */
+export const openAs = <D extends Pick<MissionDecision, 'kind' | 'statement'>>(
+  pending: readonly D[],
+  statement: string,
+) => pending.find((d) => d.kind === 'constraint' && sameWords(d.statement, statement))
+
+/** Which proposal a message made (proposed-truth.md): its decision's id when the receipt names it, and its words. */
+export interface ProposedMark {
+  id: string | null
+  statement: string
+}
+
+/**
+ * Where a message's proposal stands in the brief as last read: waiting, no longer waiting (decided, withdrawn, or past
+ * the newest the brief lists: «gone» says only what is so), or not read again.
+ */
+export type ProposedWhere = 'waiting' | 'gone' | 'unread'
+
+export function proposedWhere(
+  read: { isError: boolean; data: Pick<MissionContext, 'pending'> | undefined },
+  mark: ProposedMark,
+): ProposedWhere {
+  if (read.isError || !read.data) return 'unread'
+  const { pending } = read.data
+  const waits = mark.id === null ? openAs(pending, mark.statement) !== undefined : pending.some((d) => d.id === mark.id)
+  return waits ? 'waiting' : 'gone'
+}
 
 /** A fresh proposal not sent because the brief couldn't be read first: a refusal, so the next press reads again. */
 const BRIEF_UNREAD = 'brief_unread'
@@ -80,19 +176,16 @@ const BRIEF_UNREAD = 'brief_unread'
  */
 export function useAlreadyOpen(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
-  return async (statement: string): Promise<boolean> => {
-    if (!identity) return false
+  return async (statement: string): Promise<ProposedMark | null> => {
+    if (!identity) return null
     const brief = await client
-      .fetchQuery({
-        queryKey: [...missionKey(projectId), accountOf(identity), 'conversations'],
-        queryFn: () => getMission(identity.token, projectId),
-        staleTime: 0,
-      })
+      .fetchQuery({ ...contextQuery(projectId, identity), staleTime: 0 })
       // Access lost is said as such; any other failure is the brief unread.
       .catch((err: unknown) => (err instanceof ApiError && err.status === 403 ? err : null))
     if (brief instanceof ApiError) throw brief
     if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
-    return alreadyOpen(brief.pending, statement)
+    const found = openAs(brief.pending, statement)
+    return found ? { id: found.id, statement } : null
   }
 }
 
@@ -105,7 +198,10 @@ export function useProposeSend(projectId: string, identity: Identity | null) {
   return async (key: string, statement: string): Promise<MissionReceipt> => {
     if (!identity) throw new Error('Nobody to propose as')
     const receipt = await proposeMissionChange(identity.token, projectId, key, { kind: 'constraint', statement })
-    await client.invalidateQueries({ queryKey: missionKey(projectId) })
+    // The conversations' read even with no pane showing it (the person may have gone to another view meanwhile, where
+    // only an active read would be read again): what the message then says is the brief as it is now. The rest as ever.
+    void client.invalidateQueries({ queryKey: missionKey(projectId) })
+    await client.refetchQueries({ queryKey: contextKey(projectId, identity), type: 'all', exact: true })
     return receipt
   }
 }

@@ -59,13 +59,120 @@ test('decide · «Decline» takes it out of Still open, and nothing is accepted'
 
 test('decide · someone decided first: the context says so and shows the brief as it is now', async ({ page }) => {
   await enter(page, `${PAGE}&decide=stale`)
+  // Its words wait for the brief read again: never «the brief changed» from the brief as it was.
+  await page.evaluate(() => window.fixture?.holdMission(true))
   await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  // The 409 is answered at once; half a second on, its words still wait for the read again.
+  await expect.poll(() => writes(page, '/decision')).toHaveLength(1)
+  await page.waitForTimeout(500)
+  expect(await context(page).getByRole('status').textContent()).toBe('Accepting…')
+  await page.evaluate(() => window.fixture?.holdMission(false))
   await expect(context(page).getByRole('status')).toHaveText(
     'Someone decided it first. This is the brief as it is now.',
   )
   // Read again: no longer waiting, among the accepted decisions, as whoever decided it left it.
   await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
   await expect(context(page).locator('.conv-decisions:not(.open) li').first()).toHaveText('Map first, list second')
+  // The press it was on is gone: the focus is on what was said.
+  await expect(context(page).getByRole('status')).toBeFocused()
+})
+
+test('decide · refused while it still waits: it says the brief changed, not that someone decided', async ({ page }) => {
+  await enter(page, `${PAGE}&decide=replaced`)
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  await accept.click()
+  await expect(context(page).getByRole('status')).toHaveText(
+    'It can’t be decided as it is: the brief changed since. This is the brief as it is now.',
+  )
+  await expect(context(page).getByRole('status')).toBeFocused()
+  // Still waiting, undecided, as the API leaves it: it can still be declined.
+  await expect(stillOpen(page)).toContainText('Map first, list second')
+  await expect(accept).not.toHaveAttribute('aria-disabled')
+})
+
+test('decide · while a decision goes it says «Accepting…», and both presses wait, drawn so', async ({ page }) => {
+  await enter(page, `${PAGE}&decide=slow`)
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  const decline = stillOpen(page).getByRole('button', { name: 'Decline' })
+  await accept.click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepting…')
+  for (const press of [accept, decline]) {
+    await expect(press).toHaveAttribute('aria-disabled', 'true')
+    expect(await press.evaluate((b) => getComputedStyle(b).opacity)).toBe('0.45')
+  }
+  await decline.click({ force: true }) // waiting: nothing more is sent
+  // Gone to write meanwhile: the answer takes no focus from there.
+  const composer = open(page).getByRole('textbox', { name: 'Continue this question with the team' })
+  await composer.focus()
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  await expect(composer).toBeFocused()
+  expect(await writes(page, '/decision')).toEqual([{ decision: 'accept', expectedRevision: 1 }])
+})
+
+test('decide · answered, it is said once the brief is read again; meanwhile its presses wait', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  await accept.click()
+  await expect.poll(() => writes(page, '/decision')).toHaveLength(1)
+  await expect(context(page).getByRole('status')).toHaveText('Accepting…')
+  await expect(accept).toHaveAttribute('aria-disabled', 'true')
+  await accept.click({ force: true }) // a press sends nothing
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
+  expect(await writes(page, '/decision')).toHaveLength(1)
+})
+
+test('decide · answered but the brief can’t be read again: its presses wait until a read no longer lists it', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failMission(true))
+  const accept = stillOpen(page).getByRole('button', { name: 'Accept' })
+  await accept.click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Map first, list second')
+  // Still listed as the last read had it, said as possibly out of date; its presses wait, and send nothing.
+  await expect(context(page).getByText('This may be out of date.')).toBeVisible()
+  await expect(accept).toHaveAttribute('aria-disabled', 'true')
+  await accept.click({ force: true })
+  expect(await writes(page, '/decision')).toHaveLength(1)
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(context(page).getByText('Nothing waits for a decision.')).toBeVisible()
+})
+
+test('decide · with no reply, a trip to Goals and back: the decision is still held, sent again under its key', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&decide=lost`)
+  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  const status = context(page).getByRole('status')
+  await expect(status).toHaveText('Not confirmed: Accepted: Map first, list second. Try again')
+  // To another view and back: the pane is mounted anew, and the decision with no reply is still the one held.
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await expect(status).toHaveText('Not confirmed: Accepted: Map first, list second. Try again')
+  // Sent again under its key: the first one's receipt answers it (a new key would find nothing left to decide).
+  await status.getByRole('button', { name: 'Try again' }).click()
+  await expect(status).toHaveText('Accepted: Map first, list second')
+  expect(await writes(page, '/decision')).toHaveLength(2)
+})
+
+test('decide · refused while the person is away: back, it says what the brief read again says', async ({ page }) => {
+  await enter(page, `${PAGE}&decide=stale-late`)
+  await stillOpen(page).getByRole('button', { name: 'Accept' }).click()
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  // The refusal comes back (3 s) while no pane shows the brief: the brief is read again all the same.
+  await page.waitForTimeout(3500)
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await expect(context(page).getByRole('status')).toHaveText(
+    'Someone decided it first. This is the brief as it is now.',
+  )
 })
 
 test('decide · a message proposed as a decision: its words in, sent as a constraint, then in Still open', async ({
@@ -91,6 +198,68 @@ test('decide · a message proposed as a decision: its words in, sent as a constr
   await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
   // Back on its press, the focus where the form was opened from.
   await expect(marco.getByRole('button', { name: 'Propose as decision' })).toBeFocused()
+})
+
+/** Marco's message in «Short or long briefs?», proposed as «Briefs stay on one page». */
+async function proposeMarco(page: Page) {
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('button', { name: /Short or long briefs/ })
+    .click()
+  const marco = open(page).locator('.conv-messages > li').filter({ hasText: 'Anything longer, nobody reads.' })
+  await marco.hover()
+  await marco.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  return marco
+}
+
+test('decide · a proposal decided since is no longer said to be in Still open', async ({ page }) => {
+  await enter(page)
+  const marco = await proposeMarco(page)
+  await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await stillOpen(page)
+    .getByRole('listitem')
+    .filter({ hasText: 'Briefs stay on one page' })
+    .getByRole('button', { name: 'Accept' })
+    .click()
+  await expect(context(page).getByRole('status')).toHaveText('Accepted: Briefs stay on one page')
+  await expect(marco.getByRole('status')).toHaveText('Proposed · no longer in Still open')
+})
+
+test('decide · proposed while the brief can’t be read again: it says so, and Still open once it is read', async ({
+  page,
+}) => {
+  await enter(page, `${PAGE}&propose=slow`)
+  const marco = await proposeMarco(page)
+  // Recorded, its answer on its way (3 s): the brief's read again fails meanwhile.
+  await expect.poll(() => writes(page, '/mission/proposals')).toHaveLength(1)
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await expect(marco.getByRole('status')).toHaveText('Proposed · Still open couldn’t be read again')
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+})
+
+test('decide · proposed, then away while it lands: back, it says it waits in Still open', async ({ page }) => {
+  await enter(page, `${PAGE}&propose=slow`)
+  await proposeMarco(page)
+  await expect.poll(() => writes(page, '/mission/proposals')).toHaveLength(1)
+  // Away while its answer comes back (3 s): no pane shows the brief, which is read again all the same.
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  await page.waitForTimeout(3500)
+  // Back with the brief's reads held: what shows is what was read while away, nothing read on coming back.
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await page
+    .getByRole('region', { name: 'All conversations' })
+    .getByRole('button', { name: /Short or long briefs/ })
+    .click()
+  const marco = open(page).locator('.conv-messages > li').filter({ hasText: 'Anything longer, nobody reads.' })
+  await expect(marco.getByRole('status')).toHaveText('Proposed · it’s in Still open')
+  await page.evaluate(() => window.fixture?.holdMission(false))
 })
 
 test('decide · with no reply, Cancel keeps the proposal’s words and key: reopened, Propose sends the same one, never a second', async ({

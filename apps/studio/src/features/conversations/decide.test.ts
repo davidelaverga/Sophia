@@ -2,7 +2,16 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
 import type { MissionDecision } from '@sophia/contracts'
-import { alreadyOpen, decidableHere, refusalWords, statementFrom } from './decide.ts'
+import {
+  decidableHere,
+  decideRefusal,
+  openAs,
+  pressesWait,
+  proposedWhere,
+  refusalWords,
+  stateOf,
+  statementFrom,
+} from './decide.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
@@ -68,16 +77,16 @@ describe('a proposal already waiting (reconciled before a fresh one goes)', () =
   ]
 
   it('is found by its words, whatever the spaces or the case', () => {
-    assert.equal(alreadyOpen(waiting, '  briefs stay on ONE page '), true)
+    assert.equal(!!openAs(waiting, '  briefs stay on ONE page '), true)
   })
 
   it('other words are a new proposal', () => {
-    assert.equal(alreadyOpen(waiting, 'Briefs stay on two pages'), false)
-    assert.equal(alreadyOpen([], 'Map first, list second'), false)
+    assert.equal(!!openAs(waiting, 'Briefs stay on two pages'), false)
+    assert.equal(!!openAs([], 'Map first, list second'), false)
   })
 
   it('the same words waiting as another kind (a new direction) are not this constraint', () => {
-    assert.equal(alreadyOpen(waiting, 'Reports for every team'), false)
+    assert.equal(!!openAs(waiting, 'Reports for every team'), false)
   })
 })
 
@@ -85,5 +94,98 @@ describe('a proposal not sent because the brief could not be read first', () => 
   it('says nothing was sent, and to try again', () => {
     const unread = new ApiError(503, 'brief_unread', 'The brief could not be read', 'never')
     assert.equal(refusalWords(unread, 'propose'), 'Couldn’t check the brief first, so nothing was sent. Try again.')
+  })
+})
+
+describe('a decision on its way (Still open)', () => {
+  const asked = { decisionId: 'a', revision: 1, decision: 'accept' as const }
+  const waiting = [{ id: 'a' }, { id: 'b' }]
+
+  it('the presses wait while it goes and while its outcome is unknown', () => {
+    assert.equal(pressesWait({ status: 'sending', args: asked }, waiting), true)
+    assert.equal(pressesWait({ status: 'unknown', args: asked }, waiting), true)
+  })
+
+  it('answered, they wait until the brief read again no longer lists it', () => {
+    assert.equal(pressesWait({ status: 'done', args: asked }, waiting), true)
+    assert.equal(pressesWait({ status: 'done', args: asked }, [{ id: 'b' }]), false)
+  })
+
+  it('idle or refused, they don’t wait', () => {
+    assert.equal(pressesWait({ status: 'idle' }, waiting), false)
+    assert.equal(pressesWait({ status: 'rejected', words: 'Someone decided it first.' }, waiting), false)
+  })
+
+  it('refused while it still waits: the brief changed, not decided by someone', () => {
+    const stale = new ApiError(409, 'stale_revision', 'stale', 'never')
+    assert.equal(
+      decideRefusal(stale, { fresh: true, stillWaiting: true }),
+      'It can’t be decided as it is: the brief changed since. This is the brief as it is now.',
+    )
+    assert.equal(
+      decideRefusal(stale, { fresh: true, stillWaiting: false }),
+      'Someone decided it first. This is the brief as it is now.',
+    )
+    const forbidden = new ApiError(403, 'forbidden', 'x', 'never')
+    assert.equal(decideRefusal(forbidden, { fresh: true, stillWaiting: true }), 'You can’t decide this here.')
+  })
+
+  it('refused with the brief not read again: words true either way, none saying it shows the brief as it is', () => {
+    const stale = new ApiError(409, 'stale_revision', 'stale', 'never')
+    for (const stillWaiting of [true, false]) {
+      assert.equal(
+        decideRefusal(stale, { fresh: false, stillWaiting }),
+        'It wasn’t decided here: the brief changed since.',
+      )
+    }
+  })
+})
+
+describe('Still open’s decision, from what the view holds (held-decision.md)', () => {
+  const ask = { args: { decisionId: 'a', revision: 1, decision: 'accept' as const }, statement: 'Map first' }
+
+  it('held, it is on its way, or has no reply', () => {
+    assert.deepEqual(stateOf({ key: 'k', ask, sending: true }, null, null), { status: 'sending', args: ask.args })
+    assert.deepEqual(stateOf({ key: 'k', ask, sending: false }, null, null), { status: 'unknown', args: ask.args })
+  })
+
+  it('held wins over a refusal or an answer left from before', () => {
+    assert.deepEqual(stateOf({ key: 'k', ask, sending: false }, 'Refused.', ask), { status: 'unknown', args: ask.args })
+  })
+
+  it('let go: refused in its words, else answered, else nothing', () => {
+    assert.deepEqual(stateOf(null, 'Refused.', ask), { status: 'rejected', words: 'Refused.' })
+    assert.deepEqual(stateOf(null, null, ask), { status: 'done', args: ask.args })
+    assert.deepEqual(stateOf(null, null, null), { status: 'idle' })
+  })
+})
+
+describe('where a message’s proposal stands, in the brief as last read (proposed-truth.md)', () => {
+  const pending = [
+    { id: 'p1', kind: 'constraint', statement: 'Briefs stay on one page' },
+  ] as unknown as MissionDecision[]
+  const read = { isError: false, data: { pending } }
+
+  it('waiting while the brief lists it, by its id, or by its words when the receipt named none', () => {
+    assert.equal(proposedWhere(read, { id: 'p1', statement: 'anything' }), 'waiting')
+    assert.equal(proposedWhere(read, { id: null, statement: '  briefs stay ON one page ' }), 'waiting')
+  })
+
+  it('gone once the brief, read, no longer lists it', () => {
+    assert.equal(proposedWhere(read, { id: 'p2', statement: 'Briefs stay on one page' }), 'gone')
+    assert.equal(proposedWhere({ isError: false, data: { pending: [] } }, { id: null, statement: 'x' }), 'gone')
+  })
+
+  it('by its words only among the constraints waiting: a mission or lesson with them is not it', () => {
+    const lesson = [{ id: 'l1', kind: 'lesson', statement: 'Briefs stay on one page' }] as unknown as MissionDecision[]
+    assert.equal(
+      proposedWhere({ isError: false, data: { pending: lesson } }, { id: null, statement: 'Briefs stay on one page' }),
+      'gone',
+    )
+  })
+
+  it('not read again when the last read failed, or there is none yet', () => {
+    assert.equal(proposedWhere({ isError: true, data: { pending } }, { id: 'p1', statement: 'x' }), 'unread')
+    assert.equal(proposedWhere({ isError: false, data: undefined }, { id: 'p1', statement: 'x' }), 'unread')
   })
 })

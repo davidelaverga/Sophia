@@ -1,7 +1,12 @@
 // The brief's writes from a conversation (docs/plans/conversations-decide.md, C7), as A08 answers them: a proposal made
 // (202, waiting, of the kind asked), and one decided at the revision read (accepted to the top of the decisions, or
 // declined and gone). The same Idempotency-Key replays its receipt. `decide=stale`: someone else accepted the first one
-// decided, just before (409): it has left what waits. Every word is synthetic.
+// decided, just before (409): it has left what waits. `decide=replaced`: the first one decided is refused (409) as
+// another replacing the same decision was accepted first: it still waits, unchanged, as the API leaves it (only a new
+// direction moves the mission's revision, which is what marks a proposal stale). `decide=slow`: the first decision's
+// answer takes 3 s on its way back. `decide=lost`: the first decision lands, but its reply is lost on the way.
+// `decide=stale-late`: someone decided first, as `stale`, and the refusal takes 3 s on its way back. Every word is
+// synthetic.
 import type { MissionDecision } from '@sophia/contracts'
 import { membership, PROJECT } from './data.ts'
 
@@ -17,7 +22,11 @@ let made = 0
 const receipts = new Map<string, Response>()
 /** Every write that reached the brief, as `path` and its body: the checks read them (the page's fetch is faked, so no request leaves it). */
 export const missionWrites: { path: string; body: unknown }[] = []
-let staleOnce = new URLSearchParams(window.location.search).get('decide') === 'stale'
+const decideCase = new URLSearchParams(window.location.search).get('decide')
+let staleOnce = decideCase === 'stale' || decideCase === 'stale-late'
+let replacedOnce = new URLSearchParams(window.location.search).get('decide') === 'replaced'
+let slowDecideOnce = decideCase === 'slow' || decideCase === 'stale-late'
+let loseDecideOnce = new URLSearchParams(window.location.search).get('decide') === 'lost'
 /** `propose=lost`: the first proposal lands, but its reply is lost on the way (the page can't tell it landed). */
 let loseOnce = new URLSearchParams(window.location.search).get('propose') === 'lost'
 /** `propose=slow`: the first proposal's answer takes 3 s on its way back (a slow API). */
@@ -76,6 +85,11 @@ function decided(brief: Brief, id: string, init: RequestInit | undefined): Respo
   const at = brief.pending.findIndex((d) => d.id === id)
   const d = brief.pending[at]
   if (!d || (body.decision !== 'accept' && body.decision !== 'reject')) return null
+  if (replacedOnce) {
+    replacedOnce = false
+    // What it would replace was replaced first: it still waits, undecided and unchanged.
+    return json({ code: 'stale_revision', message: 'Replaced first', requestId: 'fixture', retry: 'never' }, 409)
+  }
   if (staleOnce || body.expectedRevision !== d.revision) {
     staleOnce = false
     // Someone else decided it first: it leaves what waits, accepted by them.
@@ -116,7 +130,18 @@ export function missionWritten(brief: Brief, method: string, path: string, init:
   if (replay) return replay.clone()
   const answer = id ? decided(brief, id, init) : proposed(brief, init)
   if (answer && key) receipts.set(key, answer.clone())
-  return id ? answer : delivered(answer)
+  return id ? decisionDelivered(answer) : delivered(answer)
+}
+
+/** A decision's answer on its way back: 3 s late the first time under `decide=slow`; lost under `decide=lost`. */
+function decisionDelivered(answer: Response | null): Response | Promise<Response> | null {
+  if (answer && loseDecideOnce) {
+    loseDecideOnce = false
+    return Promise.reject(new TypeError('Failed to fetch'))
+  }
+  if (!answer || !slowDecideOnce) return answer
+  slowDecideOnce = false
+  return new Promise((done) => setTimeout(() => done(answer), 3000))
 }
 
 /**

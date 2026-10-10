@@ -26,6 +26,9 @@ test('goals · in the demo, Goals opens from its tab with the project’s three 
   await expect(views(page).getByRole('link', { name: 'Goals' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
   await expect(goals(page)).toHaveCount(3)
+  // Every criterion here is required: the rule goes unsaid (docs/plans/goal-optional.md).
+  await expect(page.locator('.criteria li').first()).toBeVisible()
+  await expect(page.locator('.criteria').getByText(/required/i)).toHaveCount(0)
   for (const title of [ROLLOUT, 'Keep teams through an admin change', 'Run the pilot with fourteen teams']) {
     await expect(goal(page, title)).toHaveCount(1)
   }
@@ -48,6 +51,30 @@ test('goals · in the demo, Tasks has the goals, and Hold on the running one hol
   await expect(rollout).toHaveAttribute('data-status', 'running')
   await rollout.getByRole('button', { name: /^Hold/ }).click()
   await expect(rollout).toHaveAttribute('data-status', 'held')
+})
+
+test('goals · in the demo, Tasks draw the rollout’s plan as a board, in the pilot’s own words', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  const rollout = goal(page, ROLLOUT)
+  // Its plan's next checkpoint is said under its title; its board, lane by lane (docs/plans/demo-board.md).
+  await expect(rollout).toContainText('The translation passes its review')
+  const board = page.locator('.board').first()
+  await expect(board.getByRole('region', { name: 'Active', exact: true })).toContainText(
+    'Translate the checklist for the second region',
+  )
+  await expect(board.getByRole('region', { name: 'Unassigned', exact: true })).toContainText(
+    'Measure days to a first shared report',
+  )
+  // None of the board fixture's own project shows through, nor its fixed clock: its sessions reported moments ago.
+  await expect(page.locator('main')).not.toContainText(/PDF|render|ReportPane|Davide/)
+  await expect(board).not.toContainText(/days ago/)
+  // The room's demo has no lead to take a session's commands: a running task offers none, never a press that fails.
+  await board.getByText('Review the first-week report').click()
+  const sheet = page.getByRole('dialog', { name: 'Review the first-week report' })
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByRole('textbox', { name: 'Guidance for its session' })).toHaveCount(0)
+  for (const press of ['Hold', 'Stop'])
+    await expect(sheet.getByRole('button', { name: press, exact: true })).toHaveCount(0)
 })
 
 test('goals · without the demo, Goals opens and says there are none yet', async ({ page }) => {

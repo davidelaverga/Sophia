@@ -71,36 +71,15 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-/* A trace of film grain: the room is lit, not flat. */
+/* A trace of film grain: the room is lit, not flat. It stays still: motion in the Studio is for events. */
 body::after {
   content: '';
   position: fixed;
-  inset: -50%;
+  inset: 0;
   z-index: 100;
   pointer-events: none;
   opacity: 0.03;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  animation: grain 0.9s steps(6) infinite;
-}
-@keyframes grain {
-  0% {
-    transform: translate(0, 0);
-  }
-  20% {
-    transform: translate(-3%, 2%);
-  }
-  40% {
-    transform: translate(2%, -3%);
-  }
-  60% {
-    transform: translate(-2%, -1%);
-  }
-  80% {
-    transform: translate(3%, 3%);
-  }
-  100% {
-    transform: translate(0, 0);
-  }
 }
 ::selection {
   background: rgba(156, 130, 245, 0.35);
@@ -413,9 +392,10 @@ textarea {
     border-color var(--fast) var(--ease),
     background var(--fast) var(--ease);
 }
+/* A placeholder is words read before typing: the third ink, as Home's (the personal composer's is brighter). */
 input::placeholder,
 textarea::placeholder {
-  color: var(--text-4);
+  color: var(--text-3);
 }
 input:hover,
 textarea:hover {
@@ -1249,8 +1229,19 @@ img.avatar {
 .segmented button:hover {
   color: var(--text-2);
 }
-.segmented button[aria-selected='true'] {
+/* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
+.segmented button:is([aria-selected='true'], [aria-checked='true']) {
   color: var(--text);
+}
+/* A filter's count reads (the third ink); the chosen one's a step up, under its word. */
+.segmented .filter-count {
+  margin-left: 6px;
+  font-family: var(--mono);
+  font-size: var(--type-small);
+  color: var(--text-3);
+}
+.segmented button:is([aria-selected='true'], [aria-checked='true']) > .filter-count {
+  color: var(--text-2);
 }
 
 .presences {
@@ -3067,7 +3058,7 @@ button.contribution-quote:hover {
   height: 1px;
   background: var(--text-4);
 }
-.required {
+.criterion-optional {
   color: var(--text-3);
   font-family: var(--mono);
   font-size: 10.5px;
@@ -3549,7 +3540,6 @@ div.empty {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body::after,
   .arrive,
   .presence,
   .tile,
@@ -4380,8 +4370,9 @@ div.empty {
 .updates-part > .recap-section h4 {
   color: var(--halo-text);
 }
+/* The words take the room they need, no more: what was made opens from beside them, not from the column's far edge. */
 .updates-part > .recap-section li {
-  grid-template-columns: 14px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, max-content) auto;
 }
 .updates-part > .recap-section li::before {
   content: '';
@@ -4398,6 +4389,8 @@ div.empty {
 }
 .updates-part > .recap-section li > .text-button {
   grid-column: 3;
+  /* Its own width, by its words: the track's room left over would otherwise stretch it, its word centred far off. */
+  justify-self: start;
 }
 .updates-part > [data-kind='decided'] li::before {
   width: 8px;
