@@ -25,7 +25,8 @@
 -- beside it sparsely or collide with it; such receipts expire in 24 h (voice_evidence_expire), or are migrated by an
 -- explicit, reviewed step.
 -- It also replaces 0046's voice_room_qualification (below): a room token names a grant only while the room's open
--- exchange, if any, is under it (Codex P1 r4232975804).
+-- exchange, if any, is under it (Codex P1 r4232975804). And it stamps coverage times after the project's lock (T4,
+-- below): 0015's start_exchange and 0046's voice_qualification_grant and voice_qualification_revoke are replaced.
 BEGIN;
 
 -- The pre-activation state: no bridge receipt kept yet (C2). Checked first, so a refusal changes nothing.
@@ -111,8 +112,8 @@ REVOKE EXECUTE ON FUNCTION sophia.media_record_evidence(uuid,uuid,integer,text,j
 -- recording. Now the grant is named only while the room has no exchange that is not ended, or while that exchange is
 -- under this very grant (voice_grant_of(project, opened_at), as the bridge's assignment names it). The same signature,
 -- language, volatility, definer and search path as 0046's: CREATE OR REPLACE keeps its owner and its grants (EXECUTE
--- to sophia_api alone). One statement, so one snapshot: the token path's own read transaction. It does not close the
--- timestamp inversion of an exchange whose opened_at is its transaction's start (T4): that is a proposal of its own.
+-- to sophia_api alone). One statement, so one snapshot: the token path's own read transaction. The inversion of an
+-- exchange whose opened_at was its transaction's start (T4) is closed below, where the stamps are taken.
 CREATE OR REPLACE FUNCTION sophia.voice_room_qualification(p_room uuid) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
  SELECT jsonb_build_object('grantId',g.id,'runBindingSha256',g.run_binding_sha256)
@@ -121,5 +122,95 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
   AND sophia.is_member(r.project_id)
   AND NOT EXISTS(SELECT 1 FROM sophia.room_exchanges e WHERE e.room_id=r.id AND e.state<>'ended'
    AND (sophia.voice_grant_of(e.project_id,e.opened_at)).id IS DISTINCT FROM g.id) $$;
+
+-- T4 (root's GO): an exchange's opened_at, a grant's created_at and expires_at, and a superseded or revoked grant's
+-- revoked_at were their transaction's start (now()), so two writers that waited on each other could stamp in the reverse
+-- of the order they ran: an exchange opened after a grant could fall outside it, a grant could cover an exchange opened
+-- before it, and a revocation could end an exchange opened after it or spare one opened before. Each writer now takes
+-- ONE clock reading, clock_timestamp(), immediately after it holds the project's lock, and stamps from it explicitly;
+-- voice_qualification_revoke now takes that lock too (it took none). Every one of them holds the lock to its commit, so
+-- the stamps follow the lock order. ASSUMPTION, not a claim of a monotonic clock: the database's wall clock does not
+-- step backward between two holders of a project's lock; nothing here detects or corrects such a step. The bodies are
+-- 0015's start_exchange and 0046's grant and revoke functions, changed only as marked; CREATE OR REPLACE keeps their
+-- owners and grants. Non-voice readers of opened_at (results announced since the exchange opened) now use the moment
+-- the opening was serialized, not the transaction's start.
+-- start_exchange (0015_guest_joining.sql lines 61-95), the same body; v_now after the project lock; opened_at explicit.
+CREATE OR REPLACE FUNCTION sophia.start_exchange(p_room uuid, p_expected_revision bigint, p_allow_vision boolean, p_key text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE a uuid:=sophia.actor_id(); p uuid; r sophia.room_state; e sophia.room_exchanges; pres sophia.room_ai_presence; receipt_value jsonb;
+ v_now timestamptz;
+BEGIN
+ IF p_key IS NULL OR length(p_key) NOT BETWEEN 1 AND 160 THEN RAISE EXCEPTION 'Invalid idempotency key' USING ERRCODE='22023'; END IF;
+ SELECT project_id INTO p FROM sophia.room_state WHERE id=p_room;
+ IF p IS NULL OR a IS NULL OR NOT sophia.is_member(p) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
+ v_now:=clock_timestamp();
+ IF NOT sophia.is_member(p) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;
+ SELECT * INTO e FROM sophia.room_exchanges WHERE opened_by=a AND open_key=p_key;
+ IF FOUND THEN
+  IF e.room_id<>p_room OR e.allow_vision<>p_allow_vision THEN RAISE EXCEPTION 'Idempotency key reused with different request' USING ERRCODE='23505'; END IF;
+  RETURN e.receipt;
+ END IF;
+ SELECT * INTO r FROM sophia.room_state WHERE id=p_room FOR UPDATE;
+ IF p_expected_revision IS NULL OR r.revision<>p_expected_revision THEN RAISE EXCEPTION 'Stale room revision' USING ERRCODE='40001'; END IF;
+ IF EXISTS(SELECT 1 FROM sophia.room_exchanges WHERE room_id=p_room AND state<>'ended') THEN
+  RAISE EXCEPTION 'Sophia is already in this conversation' USING ERRCODE='40001'; END IF;
+ SELECT * INTO pres FROM sophia.room_ai_presence WHERE room_id=p_room;
+ IF FOUND AND pres.guests_present AND pres.reported_at>now()-interval '2 minutes' THEN
+  RAISE EXCEPTION 'A guest is in the room: Sophia joins when the room is member-only' USING ERRCODE='40001'; END IF;
+ IF sophia.guest_joining(p_room) THEN
+  RAISE EXCEPTION 'A guest may still be joining: Sophia joins when the room is member-only' USING ERRCODE='40001'; END IF;
+ IF r.input_actor_id IS NULL THEN
+  UPDATE sophia.room_state SET input_actor_id=a, revision=revision+1 WHERE id=p_room RETURNING * INTO r;
+  PERFORM sophia.emit_project_event(p,'room.input_floor_changed','room',p_room,r.revision,'room.input_floor');
+ END IF;
+ receipt_value:=jsonb_build_object('exchangeId',gen_random_uuid(),'roomId',p_room,'revision',r.revision,'inputActorId',r.input_actor_id);
+ INSERT INTO sophia.room_exchanges(project_id,id,room_id,opened_by,open_key,receipt,allow_vision,opened_at)
+ VALUES(p,(receipt_value->>'exchangeId')::uuid,p_room,a,p_key,receipt_value,p_allow_vision,v_now) RETURNING * INTO e;
+ INSERT INTO sophia.exchange_inputs(project_id,exchange_id,input_epoch,actor_id) VALUES(p,e.id,1,r.input_actor_id);
+ PERFORM sophia.emit_project_event(p,'room.exchange_opened','room_exchange',e.id,e.revision,'room.exchange_opened');
+ RETURN receipt_value;
+END $$;
+
+-- voice_qualification_grant (0046 lines 155-178): v_now after the project lock; the superseded grant's revoked_at, the new
+-- grant's created_at and expires_at all from it.
+CREATE OR REPLACE FUNCTION sophia.voice_qualification_grant(p_project uuid, p_principal uuid, p_run_binding_sha256 text,
+  p_approval_ref text, p_max_exchange_seconds integer, p_max_provider_connections integer, p_max_turns integer,
+  p_max_output_tokens_per_turn integer, p_max_usage_tokens bigint, p_ttl_seconds integer)
+RETURNS sophia.voice_qualification_grants
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE g sophia.voice_qualification_grants; v_now timestamptz;
+BEGIN
+ IF sophia.actor_id() IS NOT NULL THEN RAISE EXCEPTION 'A grant is the operator''s, never a member''s' USING ERRCODE='42501'; END IF;
+ IF p_ttl_seconds IS NULL OR p_ttl_seconds NOT BETWEEN 60 AND 7200 THEN
+  RAISE EXCEPTION 'A grant lasts 1 minute to 2 hours' USING ERRCODE='22023'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
+ v_now:=clock_timestamp();
+ IF NOT EXISTS(SELECT 1 FROM sophia.project_members WHERE project_id=p_project AND actor_id=p_principal AND active
+   AND role IN ('admin','editor')) THEN
+  RAISE EXCEPTION 'The principal must be an active editor or admin of the project' USING ERRCODE='22023'; END IF;
+ UPDATE sophia.voice_qualification_grants SET revoked_at=v_now, revoke_reason='superseded'
+  WHERE project_id=p_project AND revoked_at IS NULL;
+ INSERT INTO sophia.voice_qualification_grants(project_id,principal_actor_id,run_binding_sha256,approval_ref,
+  max_exchange_seconds,max_provider_connections,max_turns,max_output_tokens_per_turn,max_usage_tokens,created_at,expires_at)
+ VALUES(p_project,p_principal,p_run_binding_sha256,p_approval_ref,p_max_exchange_seconds,p_max_provider_connections,
+  p_max_turns,p_max_output_tokens_per_turn,p_max_usage_tokens,v_now,v_now+make_interval(secs=>p_ttl_seconds))
+ RETURNING * INTO g;
+ RETURN g;
+END $$;
+
+-- voice_qualification_revoke (0046 lines 180-190): now takes the project's lock first (it took none), and stamps after it.
+CREATE OR REPLACE FUNCTION sophia.voice_qualification_revoke(p_project uuid, p_grant uuid, p_reason text)
+RETURNS sophia.voice_qualification_grants LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE g sophia.voice_qualification_grants; v_now timestamptz;
+BEGIN
+ IF sophia.actor_id() IS NOT NULL THEN RAISE EXCEPTION 'A grant is the operator''s, never a member''s' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
+ v_now:=clock_timestamp();
+ UPDATE sophia.voice_qualification_grants SET revoked_at=v_now, revoke_reason=p_reason
+  WHERE project_id=p_project AND id=p_grant AND revoked_at IS NULL RETURNING * INTO g;
+ IF g.id IS NULL THEN RAISE EXCEPTION 'No open grant' USING ERRCODE='P0002'; END IF;
+ RETURN g;
+END $$;
 
 COMMIT;

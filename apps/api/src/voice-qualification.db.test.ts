@@ -9,7 +9,7 @@ import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import pg from 'pg'
 import assert from 'node:assert/strict'
-import { after, before, describe, it } from 'node:test'
+import { after, afterEach, before, describe, it } from 'node:test'
 import type { MediaEvidenceWrite, MediaToolCall } from '@sophia/contracts'
 import {
   DECLARED_NAMES,
@@ -566,6 +566,184 @@ const coveredBy = async (exchangeId: string) =>
 
 const endExchange = (exchangeId: string) =>
   owner((c) => c.query(`UPDATE sophia.room_exchanges SET state='ended', ended_at=now() WHERE id=$1`, [exchangeId]))
+
+describe('T4 through the API’s real routes: the token, the assignment, a reservation and the guard agree with the lock order (0051)', () => {
+  const GRANT_SQL = `SELECT (sophia.voice_qualification_grant($1,$2,$3,'synthetic-approval',900,3,20,1000,200000,3600)).id AS id`
+  /** Whether backend `pid` waits on a lock (pg_stat_activity), within 5 s. */
+  async function waitsOnLock(pid: number): Promise<boolean> {
+    const deadline = Date.now() + 5000
+    while (Date.now() < deadline) {
+      const w = await owner(
+        async (c) =>
+          (await c.query<{ w: string | null }>(`SELECT wait_event_type AS w FROM pg_stat_activity WHERE pid=$1`, [pid]))
+            .rows[0]?.w,
+      )
+      if (w === 'Lock') return true
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    return false
+  }
+  /** Transactions a test has not finished: rolled back after it, newest first, whatever its outcome. */
+  const unfinished: Array<() => Promise<void>> = []
+  afterEach(async () => {
+    for (let end = unfinished.pop(); end; end = unfinished.pop()) await end()
+  })
+  async function begun(c: pg.ClientBase, release: () => Promise<void> | void, actor: string | null) {
+    await c.query('BEGIN')
+    if (actor) await c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [actor])
+    const pid = (await c.query<{ p: number }>('SELECT pg_backend_pid() AS p')).rows[0]!.p
+    let done = false
+    const finish = async (how: 'COMMIT' | 'ROLLBACK') => {
+      if (done) return
+      done = true
+      try {
+        await c.query(how)
+      } finally {
+        await release()
+      }
+    }
+    unfinished.push(() => finish('ROLLBACK').catch(() => undefined))
+    return { c, pid, commit: () => finish('COMMIT') }
+  }
+  /** P's transaction on the API's login, begun now (its now() fixed), the actor set as the API sets it. */
+  async function memberTx() {
+    const c = await pool.connect()
+    return begun(c, () => c.release(), P)
+  }
+  /** The operator's transaction, begun now. */
+  async function ownerTx() {
+    const c = new pg.Client({ connectionString: db.ownerUrl })
+    await c.connect()
+    return begun(c, () => c.end(), null)
+  }
+  async function openIn(c: pg.ClientBase, projectId: string): Promise<string> {
+    const snap = await withActor(pool, P, 'read', (r) => readSnapshot(r, projectId))
+    assert.ok(snap)
+    const r = await c.query<{ receipt: { exchangeId: string } }>(
+      `SELECT sophia.start_exchange($1,$2,false,$3) AS receipt`,
+      [snap.room.id, snap.room.revision, randomUUID()],
+    )
+    return r.rows[0]!.receipt.exchangeId
+  }
+  /**
+   * What the API's routes say of exchange `x` and grant `g`, in the bridge's order: the room token, the assignment poll
+   * (which runs the guard first), a presence report (which runs it again), and a connection reservation.
+   */
+  async function routes(projectId: string, x: string, g: string) {
+    const named = await tokenGrant(projectId)
+    const roomId = await owner(
+      async (c) =>
+        (await c.query<{ r: string }>(`SELECT room_id AS r FROM sophia.room_exchanges WHERE id=$1`, [x])).rows[0]?.r,
+    )
+    const batch = await call('GET', '/v1/media/assignments?waitMs=0', { media: true })
+    const mine = (
+      batch.json.assignments as Array<{ exchangeId: string; roomId: string; qualification?: { grantId: string } }>
+    ).find((a) => a.exchangeId === x)
+    const report = await call('POST', '/v1/media/presence', {
+      media: true,
+      body: {
+        roomId,
+        exchangeId: x,
+        bridgeInstanceId: 'bridge-t4',
+        voice: 'ready',
+        reason: null,
+        participants: [{ identity: P, standing: 'editor' }],
+      },
+    })
+    assert.equal(report.status, 204)
+    const state = await owner(async (c) => {
+      const r = (
+        await c.query<{ state: string; reason: string | null }>(
+          `SELECT e.state, q.ended_reason AS reason FROM sophia.room_exchanges e
+            LEFT JOIN sophia.voice_qualification_exchanges q ON q.exchange_id=e.id WHERE e.id=$1`,
+          [x],
+        )
+      ).rows[0]
+      return `${String(r?.state)}${r?.reason ? `:${r.reason}` : ''}`
+    })
+    const reserved = await reserve({ exchangeId: x, grantId: g, kind: 'connection' })
+    return {
+      token: named,
+      assignment: mine ? (mine.qualification?.grantId ?? null) : 'not assigned',
+      guard: state,
+      reservation:
+        reserved.status === 200
+          ? reserved.json.ok
+            ? 'granted'
+            : `refused:${String(reserved.json.stop)}`
+          : reserved.json.code,
+    }
+  }
+
+  it('I1: the grant took the lock while the exchange’s transaction waited: the exchange is under it, on every route', async () => {
+    const { projectId } = await project()
+    const e = await memberTx()
+    const g = await ownerTx()
+    const grantId = String((await g.c.query<{ id: string }>(GRANT_SQL, [projectId, P, RUN])).rows[0]?.id)
+    const opening = openIn(e.c, projectId)
+    assert.equal(await waitsOnLock(e.pid), true)
+    await g.commit()
+    const x = await opening
+    await e.commit()
+    assert.equal(await coveredBy(x), grantId)
+    assert.deepEqual(await routes(projectId, x, grantId), {
+      token: grantId,
+      assignment: grantId,
+      guard: 'open',
+      reservation: 'granted',
+    })
+  })
+
+  it('I2: the exchange took the lock while the new grant’s transaction waited: under the old grant g0, which the supersession revokes; the new one is named nowhere', async () => {
+    const { projectId } = await project()
+    const g0 = await grant(projectId)
+    const g = await ownerTx()
+    const e = await memberTx()
+    const x = await openIn(e.c, projectId)
+    const granting = g.c.query<{ id: string }>(GRANT_SQL, [projectId, P, RUN])
+    assert.equal(await waitsOnLock(g.pid), true)
+    await e.commit()
+    const grantId = String((await granting).rows[0]?.id)
+    await g.commit()
+    assert.equal(await coveredBy(x), g0)
+    assert.deepEqual(await routes(projectId, x, grantId), {
+      token: null,
+      assignment: 'not assigned',
+      guard: 'ended:revoked',
+      reservation: 'forbidden',
+    })
+  })
+
+  it('I4: the revocation committed while the exchange’s transaction had begun: under no grant; an ordinary exchange, left open', async () => {
+    const { projectId } = await project()
+    const grantId = await grant(projectId)
+    const e = await memberTx()
+    await owner((c) => c.query(`SELECT sophia.voice_qualification_revoke($1,$2,'probe')`, [projectId, grantId]))
+    const x = await openIn(e.c, projectId)
+    await e.commit()
+    assert.equal(await coveredBy(x), null)
+    assert.deepEqual(await routes(projectId, x, grantId), {
+      token: null,
+      assignment: null,
+      guard: 'open',
+      reservation: 'forbidden',
+    })
+  })
+
+  it('C (control, the Lab’s order): the grant committed, then the exchange opened: under the grant, on every route', async () => {
+    const { projectId } = await project()
+    const grantId = await grant(projectId)
+    const e = await memberTx()
+    const x = await openIn(e.c, projectId)
+    await e.commit()
+    assert.deepEqual(await routes(projectId, x, grantId), {
+      token: grantId,
+      assignment: grantId,
+      guard: 'open',
+      reservation: 'granted',
+    })
+  })
+})
 
 describe('a room token names a grant only while the room’s open exchange, if any, is under it (Codex P1 r4232975804, 0051)', () => {
   it('R1, root’s sequence: an exchange opened under no grant, then a grant for its principal: none while that exchange is open; the grant once it ends, and for a fresh exchange under it', async () => {
