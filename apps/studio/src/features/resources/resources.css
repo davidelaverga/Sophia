@@ -65,14 +65,15 @@
   min-width: 0;
   font-size: var(--type-body);
 }
+/* A filter's count reads (the third ink), and the chosen one's a step up, as its word: here and on the board's lenses. */
 .filter-count {
   margin-left: 6px;
   font-family: var(--mono);
   font-size: var(--type-small);
-  color: var(--text-4);
-}
-.resource-filters button[aria-selected='true'] .filter-count {
   color: var(--text-3);
+}
+:is([aria-selected='true'], [aria-checked='true']) > .filter-count {
+  color: var(--text-2);
 }
 
 /* The tiles: one object repeated, same edges and lines from one to the next; the capacity line sits at the foot. */
