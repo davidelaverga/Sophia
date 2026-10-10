@@ -1,0 +1,101 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0083",
+  "candidate": "a704469050a38002cad7d595b9f9af58295b48e9",
+  "tree": "523bb5864e49ae88b469243b4d77b54d49a6b385",
+  "parent": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+  "branch": "claude/con01-list-refusal-review",
+  "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "combinedCandidateStill": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "episode": 75,
+  "level": "L1 actual owned Studio/API/PostgreSQL17.6, synthetic devJWT, no fixtures/native/provider/hosted",
+  "sourceReview": "Complete4file+167/-15delta; productionchange50lines only ConversationsView; no feature fix by reviewer",
+  "checks": {
+    "frozenOfflineInstall": 0,
+    "studioTypecheck": 0,
+    "authorFullTerminal": "pending",
+    "authorFailBeforeAfter": "pending"
+  },
+  "results": {
+    "listFirst403": "scopedPASS; same episode74 stimulus now hides rows/excerpts/authors/body/composer/New/Propose/Withdraw/Erase",
+    "noAutomatic403Retry": "single mounted list403 before explicit remount; remount development StrictMode adds2GETs, not retries",
+    "generic503": "PASS truthful stale warning with cachedcontent/draft retained",
+    "remount": "PASS fence retained, no transcriptGETafter first revocation",
+    "authorizedRecovery": "PASS exact originaldraft restored by fresh list200 after exactmembershiprestore",
+    "newForm": "PASS question/context/form hidden on actual403; freshauthorized200restores exactquestion/context, noStartwrite",
+    "unknownErasure": "PASS original3323700a-507e-433b-be4e-43738ad5af64 retained; local503beforeupstream then real403; restorefreshlist retainsNotconfirmed/draft; samekey202/exactlyoneSQLerase",
+    "lateSuccessOrdering": "INCONCLUSIVE: actual200buffered22:15:12.641, newlist403/fence22:15:22.506, release22:15:24.642clientAlreadyClosed=true; laterfenceholds but no consumed-late-answer claim"
+  },
+  "audit": {
+    "observedAt": "2026-10-10T22:17:09.462Z",
+    "humanMessages": 4,
+    "nullBodies": 1,
+    "conversationRequests": 5,
+    "eraseRequests": 1,
+    "eraseKey": "3323700a-507e-433b-be4e-43738ad5af64",
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    }
+  },
+  "cleanup": {
+    "wrapperSession": 67834,
+    "exit": 0,
+    "allOwnedStacksClean": 75,
+    "tab98": "closed",
+    "postgresStopped": true,
+    "clusterRemoved": true,
+    "finalAuditExit": 0,
+    "pidsPorts": {
+      "wrapper": {
+        "pid": 27332,
+        "present": false
+      },
+      "node": {
+        "pid": 27384,
+        "present": false
+      },
+      "api": {
+        "pid": 27403,
+        "present": false
+      },
+      "studio": {
+        "pid": 27404,
+        "present": false
+      },
+      "apiPort": {
+        "port": 56180,
+        "open": false
+      },
+      "studioPort": {
+        "port": 56181,
+        "open": false
+      }
+    }
+  },
+  "limitations": [
+    "No framezero sampling/mobile/fullG3/combinedcurrentmain/provider/native/hosted acceptance",
+    "Closedclient means late200ordering not independentlyproved here",
+    "Correction source not installed in current3b1a; combinedreview held",
+    "Independent cleanup checker initial port typeerror corrected; final check succeeds, no effects from checker"
+  ],
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "namedscopedcrossings only",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no live/provider/native/spend effects",
+  "next": "Author terminalfail-before/after/freshreview, then smallest exactmain+S1+docs+correction combinedcandidate; affectedindependent qualification beforemerge"
+}

@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0082
+# Current checkpoint — CX-0083
+
+[Independent correction crossings](../coordination/CON-01/CX-0083.md), [structured evidence](../coordination/CON-01/CX-0083.evidence.json). Exacta7044690/tree523bb586/parenta1dd; review-onlybranch/noPR; main0ccc/#199a1dd/#2263b1a unchanged. Complete4filedelta read/install0/TSC0. Actualepisode75Studio/API/PG17.6: originallist-first403/503control/remount/exactdraftrecovery/newformfields/unknownsamekeyerase scopedPASS. Late200bufferedafternewfence clientclosed, INCONCLUSIVEforbrowserordering. Currentcombinedstilloldsource/P1held, authorfullterminal/failbeforeafterpending. No reviewerfeaturefix.
+
+Quiesced4human1NULL/5requests/1erase/0replies/bootstrapgoal1/allmodelop0/48reads200armedfromlaunch. Membershipfourremove/restorepairsreconciled; wrapper67834exit0/finalaudit0/DBdrop/PGstopclusterremoved/PIDs27332/27384/27403/27404absent/ports56180-81closed/tab98closed/all75stacks clean/no unknownlocalwrite. All36verdictstatuses retained. OP1r2/OP2r2draftnotauthorized/approvalexpiryNULL; liveinbox/cohort/subscriptionroute/credential/payerfiniteallowanceexpiry/privacy/sharedwindow/rollbackunbound. LastlivetupleLIVE_PREFLIGHTnotrefreshed. No hosted/provider/native/deploy/spend/liverollback; whole reviewed/authorized/deployed/app_verified/owneracceptedfalse. Davidefinalproductdecision/othermissionsopen.
+
+Nextboundedaction: authorterminal/freshreview, then smallest exactcurrentmain+S1+docs+correctioncombinedcandidate/affectedindependentqualification, including meaningfuloldsuccess-order. Finalizedapprovedlivebatchstillrequired.
+
+# Historical checkpoint — CX-0082
 
 [Actual list-first403 P1 failure](../coordination/CON-01/CX-0082.md), [structured evidence](../coordination/CON-01/CX-0082.evidence.json). Samecombined3b1a/tree2718/main0ccc. Freshbot5480950760/P1r4239350130 fullyread/sourceconfirmed. Episode74realApp/API/PG: transientlist503stalecontrol; exactsyntheticmembershiprevoke cursor4->4; already-mountedlistRetry actual40322:02:04.544/.05.578; cachedrows/excerpts/authors/C1body/draft/Send/Newconversation/Propose/Withdraw/Erase stillshown22:02:16.968. No transcriptGETafterrevoke; clearindependentP1FAIL, notremountconfound. Backenddenies; no writeattempted. Originalmembershiprestored/sameRetry200/draftkept.
 

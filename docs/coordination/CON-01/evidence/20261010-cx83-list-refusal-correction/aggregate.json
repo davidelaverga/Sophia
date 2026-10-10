@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-10-10T22:17:09.462Z",
+  "humanMessages": 4,
+  "nullBodies": 1,
+  "conversationRequests": 5,
+  "eraseRequests": 1,
+  "eraseKey": "3323700a-507e-433b-be4e-43738ad5af64",
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}
