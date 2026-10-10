@@ -4,7 +4,7 @@ The written inventory CX-0002 asked for before any G2 code. Its subject: every r
 
 The sweep was read-only, at `main` `71dbea3e` (the branch's base for G2). Each SQL function is cited at its **latest** definition. Line numbers are approximate. Claims marked *verified* were re-read directly for this file.
 
-**State:** proposed, for Codex's review and Davide's D-6. No G2 code exists. The [binding map](BINDING_MAP.md) §8.2 binds what this file finds. Revision 5 (CX-0009) corrects two rows this file first left unedited: `apply_runtime_receipt` and `runtime_record_observations` (§3, §4.6, §4.7). Revision 6 (CX-0012) makes an uncertain or failed create terminal and fail-closed (§4.5, §4.6).
+**State:** proposed, for Codex's review. Davide accepted D-6 (option C) and B-1 on 2026-10-10 as source design, not live authorization. No G2 code is in this branch. The [binding map](BINDING_MAP.md) §8.2 binds what this file finds. Revision 5 (CX-0009) corrects two rows this file first left unedited: `apply_runtime_receipt` and `runtime_record_observations` (§3, §4.6, §4.7). Revision 6 (CX-0012) makes an uncertain or failed create terminal and fail-closed (§4.5, §4.6). Revisions 7 and 8 bring §7's runtime rows to B-1's attempt home, the execution claim, the lease and the launcher (BINDING_MAP §8.5).
 
 ## 1. The finding that shapes the design: goal paths fail open
 
