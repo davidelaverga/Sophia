@@ -16,7 +16,8 @@ const PAGES = [
 
 /**
  * In the page: every visible segmented box with its height, its presses' heights (distinct), its size, and whether its
- * thumb lies under the press that is on (the thumb's left and width are the press's, within a pixel).
+ * thumb lies under the press that is on (the thumb's offsets and size are the press's, within a pixel: on the press's
+ * row when the box wraps, not a column through every row).
  */
 function readSegmented() {
   // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
@@ -31,9 +32,15 @@ function readSegmented() {
     )
     const style = getComputedStyle(box)
     const x = parseFloat(style.getPropertyValue('--thumb-x'))
+    const y = parseFloat(style.getPropertyValue('--thumb-y'))
     const w = parseFloat(style.getPropertyValue('--thumb-w'))
+    const h = parseFloat(style.getPropertyValue('--thumb-h'))
     const under =
-      on instanceof HTMLElement ? Math.abs(on.offsetLeft - x) <= 1 && Math.abs(on.offsetWidth - w) <= 1 : false
+      on instanceof HTMLElement &&
+      Math.abs(on.offsetLeft - x) <= 1 &&
+      Math.abs(on.offsetTop - y) <= 1 &&
+      Math.abs(on.offsetWidth - w) <= 1 &&
+      Math.abs(on.offsetHeight - h) <= 1
     return {
       label: box.getAttribute('aria-label') ?? '',
       small: box.classList.contains('sz-sm'),
