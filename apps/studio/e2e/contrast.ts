@@ -52,8 +52,8 @@ export function contrastOf({ ink, opacity, grounds }: Seen): number {
 }
 
 /**
- * Every readable text under `selector` below its floor (4.5:1; 3:1 from 24 px), as "words (ratio)": the placeholders of
- * empty fields too. Left out: text not drawn (screen-reader only, zero size, invisible, its ink or its tree all but
+ * Every readable text under `selector` below its floor (4.5:1; 3:1 from 24 px), as "words (ratio)": the placeholders
+ * shown too. Left out: text not drawn (screen-reader only, zero size, invisible, its ink or its tree all but
  * transparent), inert parts, `skip`'s matches, and lone glyphs a person sees as marks (an arrow, aria-hidden).
  * Aria-hidden words are still measured: they are read by the eye.
  */
@@ -65,8 +65,8 @@ export async function lowContrast(page: Page, selector: string, skip = ''): Prom
       const arriving = document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity)
       await Promise.all(arriving.map((a) => a.finished.catch(() => null)))
       const out: (Seen & { drawn: boolean; mark: boolean })[] = []
-      const read = (el: Element, words: string, ink: string) => {
-        let opacity = 1
+      const read = (el: Element, words: string, ink: string, own = 1) => {
+        let opacity = own
         const grounds: string[] = []
         for (let up: Element | null = el; up; up = up.parentElement) {
           opacity *= parseFloat(getComputedStyle(up).opacity)
@@ -89,10 +89,11 @@ export async function lowContrast(page: Page, selector: string, skip = ''): Prom
         if (n.parentElement)
           read(n.parentElement, (n.textContent ?? '').trim(), getComputedStyle(n.parentElement).color)
       }
-      // A field's placeholder is words too, read where the field is empty.
+      // A field's placeholder is words too, read while it shows, at its own ink and opacity.
       for (const field of root.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')) {
-        if (field.placeholder && !field.value)
-          read(field, field.placeholder, getComputedStyle(field, '::placeholder').color)
+        if (!field.placeholder || !field.matches(':placeholder-shown')) continue
+        const shown = getComputedStyle(field, '::placeholder')
+        read(field, field.placeholder, shown.color, parseFloat(shown.opacity))
       }
       return out
     },

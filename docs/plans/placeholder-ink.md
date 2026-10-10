@@ -7,15 +7,16 @@
 
 - The contrast check (`e2e/contrast.ts`, `lowContrast`) measured text nodes only: a placeholder never. Measured, every
   field's placeholder read at about 2:1 (1.99–2.15): the searches on Knowledge, Tasks, Resources and the work space,
-  sign-in's address, the door's name, Conversations' filter and the line that continues a question. Only Home's and
-  the personal space's read, in the third ink of their own.
+  sign-in's address, the door's name, Conversations' filter and the line that continues a question. Only Home's (the
+  third ink) and the personal composer's (`--text-sec`) read, by rules of their own.
 
 ## What changes
 
-- A placeholder reads in the third ink (`--text-3`, 4.6:1 or more), as Home's and the personal space's already do:
-  the rule for every field's, in `theme.css`. What is typed stays brighter (`--text`).
-- `lowContrast` measures the placeholder of each empty field, from `::placeholder`, over the field's grounds: every
-  check that measures a page measures its placeholders too.
+- A placeholder reads in the third ink (`--text-3`, 4.6:1 or more), as Home's already does: the rule for every
+  field's, in `theme.css`. What is typed stays brighter (`--text`).
+- `lowContrast` measures each placeholder while it shows (`:placeholder-shown`), at its own ink and opacity
+  (`::placeholder`), over the field's grounds: every check that measures a page measures its placeholders too.
+  Disabled fields are not left out, as disabled text isn't: none has a placeholder today.
 - `.title-input`'s own placeholder rule is left as it is: no component uses the class (its removal is its own task).
 
 ## Checks (written first)
