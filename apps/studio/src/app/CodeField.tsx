@@ -2,6 +2,7 @@
 // of them (the length is a setting of the Supabase project), in one field with its button. The button waits as an
 // outline until the code is long enough, and says "Checking…" while it is checked.
 import { useEffect, useRef, useState } from 'react'
+import { Field } from '@sophia/ui'
 
 interface Props {
   id: string
@@ -20,8 +21,9 @@ export function CodeField({ id, action, busy, focus = false, onCheck }: Props) {
     if (focus) input.current?.focus()
   }, [focus])
   return (
-    <form
-      className="field"
+    <Field
+      as="form"
+      size="lg"
       onSubmit={(e) => {
         e.preventDefault()
         if (!busy) onCheck(code)
@@ -51,6 +53,6 @@ export function CodeField({ id, action, busy, focus = false, onCheck }: Props) {
       >
         {busy ? 'Checking…' : action}
       </button>
-    </form>
+    </Field>
   )
 }
