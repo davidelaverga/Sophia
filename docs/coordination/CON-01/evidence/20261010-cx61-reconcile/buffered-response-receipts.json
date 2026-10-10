@@ -1,0 +1,52 @@
+[
+  {
+    "at": "2026-10-10T17:19:53.116Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T17:20:12.482Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/2991c525-9bd6-4901-9520-767eb465cba2/erasure",
+    "actualApiStatus": 503,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T17:22:02.082Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T17:22:17.358Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/72c9f5de-dcf6-4b56-a809-be4bc2d1094a/erasure",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": true,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T17:23:52.357Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]

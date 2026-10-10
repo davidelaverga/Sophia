@@ -1,0 +1,206 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0061",
+  "candidate": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+  "tree": "8f938ee64c9e49cd7e06b15dbe1d5df2dfeaa1b6",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6; synthetic development identities; no fixtures/native/provider/hosted acceptance",
+  "focused": {
+    "tests": 77,
+    "suites": 18,
+    "pass": 77,
+    "fail": 0,
+    "skip": 0,
+    "typecheckExit": 0
+  },
+  "actualVerdicts": [
+    {
+      "case": "genuine pool.connect503 erasure refusal after held Start",
+      "verdict": "PASS bounded",
+      "details": "Kept form fenced under read outage, current UI list retry lands once/blank newform; no duplicate DB request or message"
+    },
+    {
+      "case": "unknown committed erasure then same-key403 before Start",
+      "verdict": "PASS bounded",
+      "details": "Late Start remains held with originalwords; current whole list confirms erase/removes receipt/restores editable originalwords"
+    },
+    {
+      "case": "capped list/direct current GET200",
+      "verdict": "FAIL P2",
+      "details": "Current direct read ends doubt and clears originalform, but created conversation remains omitted/unreachable; no old row/body injection"
+    }
+  ],
+  "freshReview": {
+    "request": 6100163732,
+    "exactCommit": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+    "findings": [
+      {
+        "id": 4238533084,
+        "severity": "P2",
+        "independent": "actual local reproduction"
+      },
+      {
+        "id": 4238533090,
+        "severity": "P2",
+        "independent": "source-inspected; actual wait/provider crossing not run"
+      }
+    ],
+    "reviewSubmissionId": null
+  },
+  "audits": [
+    {
+      "file": "audit-before-503.json",
+      "at": "2026-10-10T17:20:18.813Z",
+      "humanMessages": 4,
+      "nullBodies": 0,
+      "semanticRequests": 4,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      }
+    },
+    {
+      "file": "audit-after-503-recovery.json",
+      "at": "2026-10-10T17:21:52.215Z",
+      "humanMessages": 4,
+      "nullBodies": 0,
+      "semanticRequests": 4,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      }
+    },
+    {
+      "file": "audit-before-earlier403-start.json",
+      "at": "2026-10-10T17:22:42.946Z",
+      "humanMessages": 5,
+      "nullBodies": 1,
+      "semanticRequests": 6,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      }
+    },
+    {
+      "file": "audit-cap-before-landing.json",
+      "at": "2026-10-10T17:24:34.713Z",
+      "humanMessages": 207,
+      "nullBodies": 1,
+      "semanticRequests": 208,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      }
+    },
+    {
+      "file": "audit-final.json",
+      "at": "2026-10-10T17:25:36.589Z",
+      "humanMessages": 207,
+      "nullBodies": 1,
+      "semanticRequests": 208,
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      }
+    }
+  ],
+  "cleanup": {
+    "stack": {
+      "candidate": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+      "tree": "8f938ee64c9e49cd7e06b15dbe1d5df2dfeaa1b6",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 53097,
+      "studioPort": 53098,
+      "pid": 87442,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "children": {
+      "projectId": "3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa",
+      "apiStopped": true,
+      "studioStopped": true,
+      "databaseDropped": true
+    },
+    "independent": {
+      "at": "2026-10-10T17:26:44.646945+00:00",
+      "pids": {
+        "pid": "absent",
+        "apiPid": "absent",
+        "studioPid": "absent"
+      },
+      "ports": {
+        "apiPort": {
+          "port": 53097,
+          "closed": true
+        },
+        "studioPort": {
+          "port": 53098,
+          "closed": true
+        }
+      }
+    },
+    "execSession": 16320,
+    "terminalExit": 0,
+    "tab": 78,
+    "tabClosed": true,
+    "all56SuccessfulOwnedBrowserStacksClean": true
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "hostedEffects": 0,
+    "unresolvedLocalWrite": false,
+    "sourceFrozen": true,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "readiness": {
+    "combined_reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Immutable smallest capped reachability and stale-wait correction, independently recheck affected current-read/privacy/wait crossings before current-main/S1 combinedG4."
+}

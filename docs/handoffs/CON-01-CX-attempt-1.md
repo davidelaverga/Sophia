@@ -1,4 +1,10 @@
-# Current checkpoint — CX-0060
+# Current checkpoint — CX-0061
+
+[Exact35d actual recovery/reachability review](../coordination/CON-01/CX-0061.md).77focused/18suitesPASS0skip/typecheck0. Actual genuine503recovery PASS/noduplicate; unknowncommittederase→samekey403beforeStart PASS/originaldraftpreserved/currentwholelistsettles. Cappedcurrentlist/directGET200 FAIL: formcleared but createdtargetunreachable, matching freshr4238533084. Freshr4238533090 staleaskedwait validsource/not actualwaittested. BothreturnedtoClaude/smallestcorrectionpending; combinedheld.
+
+Final207human1NULL208requests includes201syntheticproduction-persistencesetup; supportgoal1/allopsmodel0. All56ownedbrowserstacks+historicinitdbfailure+3PGbatchesclean.16320terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports53097–98closed/tab78closed. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. Maina66full13filedelta read/integrationpending; PR190/S1/S2held/sharedwindowunack. All36verdictsretained/combinedreadinessfalse/OP1r2OP2r2draftunapproved/approvalexpiryNULL/inboxsubjectsroutecredentialpayerfinitecapexpiryprivacyownerwindowartifactrollbackunbound. Hostedtuplehistorical/Davidefinaldecision/othermissionsopen/no monitor. Nextboundedaction immutabletwofix correction+affectedactualrechecks, then currentmainS1G4ifclear.
+
+# Historical checkpoint — CX-0060
 
 [Actual refusal/order failures and latest correction review](../coordination/CON-01/CX-0060.md). Native503 exact859 wrongly drops committed Start, actual duplicate human message in distinct conversation. Earlier403-before-Start exacte774 wrongly opens erased conversation/clears draft. Claude corrected acceptance overstatement;35d author candidate only. Complete latest deltas read/77focused PASS, actual correction timing pending. Maina66 source delta read/current integration pending.
 

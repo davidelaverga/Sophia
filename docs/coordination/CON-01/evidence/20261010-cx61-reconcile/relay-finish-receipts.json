@@ -1,0 +1,79 @@
+[
+  {
+    "at": "2026-10-10T17:20:53.119Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa/conversations",
+    "idempotencyKey": "9593089f-8d9b-4b84-a89c-36ca0949235d",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T17:21:12.489Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/2991c525-9bd6-4901-9520-767eb465cba2/erasure",
+    "idempotencyKey": "8cf4ccd6-b548-4beb-b10d-1066bcba5a57",
+    "actualApiStatus": 503,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T17:22:17.359Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/72c9f5de-dcf6-4b56-a809-be4bc2d1094a/erasure",
+    "idempotencyKey": "dfeafc0c-885f-49cd-9524-96ef473f8604",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": true,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T17:22:33.383Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/72c9f5de-dcf6-4b56-a809-be4bc2d1094a/erasure",
+    "idempotencyKey": "dfeafc0c-885f-49cd-9524-96ef473f8604",
+    "actualApiStatus": 403,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T17:23:02.087Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa/conversations",
+    "idempotencyKey": "83b3e116-0956-4c4c-8d1a-06a92603083f",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T17:24:10.819Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/491f3737-c306-49b0-82d7-23f2b6f43b12/erasure",
+    "idempotencyKey": "52cf9af8-a105-4719-83de-7ac020387ace",
+    "actualApiStatus": 403,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  },
+  {
+    "at": "2026-10-10T17:24:52.359Z",
+    "kind": "start",
+    "path": "/api/v1/projects/3ff6ecfa-b157-4f1c-8c24-55d3cefe4cfa/conversations",
+    "idempotencyKey": "58c3703b-b36b-4a4c-bf71-05a9a07fbe5d",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]
