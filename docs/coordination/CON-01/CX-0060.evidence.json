@@ -1,0 +1,154 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0060",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6; synthetic development identities; no fixture/native/provider/hosted acceptance",
+  "cases": [
+    {
+      "label": "native503-before",
+      "candidate": "85926e6cbc5452fabcb54f972f58d91c0819c246",
+      "verdict": "FAIL",
+      "audits": [
+        {
+          "file": "audit-before-503-delivery.json",
+          "at": "2026-10-10T16:13:44.651Z",
+          "humanMessages": 4,
+          "nullBodies": 0,
+          "semanticRequests": 4,
+          "counts": {
+            "goals": 1,
+            "jobs": 0,
+            "work_attempts": 0,
+            "execution_bindings": 0,
+            "commands": 0,
+            "outbox": 0,
+            "runtime_commands": 0,
+            "usage_records": 0,
+            "conversation_replies": 0
+          }
+        },
+        {
+          "file": "audit-duplicate.json",
+          "at": "2026-10-10T16:15:06.968Z",
+          "humanMessages": 5,
+          "nullBodies": 0,
+          "semanticRequests": 5,
+          "counts": {
+            "goals": 1,
+            "jobs": 0,
+            "work_attempts": 0,
+            "execution_bindings": 0,
+            "commands": 0,
+            "outbox": 0,
+            "runtime_commands": 0,
+            "usage_records": 0,
+            "conversation_replies": 0
+          }
+        }
+      ],
+      "tab": 76,
+      "tabClosed": true,
+      "cleanup": {
+        "at": "2026-10-10T17:17:38.133045+00:00",
+        "pids": {
+          "pid": "absent",
+          "apiPid": "absent",
+          "studioPid": "absent"
+        },
+        "ports": {
+          "apiPort": {
+            "port": 65274,
+            "closed": true
+          },
+          "studioPort": {
+            "port": 65275,
+            "closed": true
+          }
+        }
+      }
+    },
+    {
+      "label": "prior-unknown-before-start",
+      "candidate": "e774917e2aeb793ed971515de6324dc0ecb73ad0",
+      "verdict": "FAIL",
+      "audits": [
+        {
+          "file": "audit-before-start-delivery.json",
+          "at": "2026-10-10T16:18:29.487Z",
+          "humanMessages": 4,
+          "nullBodies": 1,
+          "semanticRequests": 5,
+          "counts": {
+            "goals": 1,
+            "jobs": 0,
+            "work_attempts": 0,
+            "execution_bindings": 0,
+            "commands": 0,
+            "outbox": 0,
+            "runtime_commands": 0,
+            "usage_records": 0,
+            "conversation_replies": 0
+          }
+        }
+      ],
+      "tab": 77,
+      "tabClosed": true,
+      "cleanup": {
+        "at": "2026-10-10T17:17:38.134303+00:00",
+        "pids": {
+          "pid": "absent",
+          "apiPid": "absent",
+          "studioPid": "absent"
+        },
+        "ports": {
+          "apiPort": {
+            "port": 49274,
+            "closed": true
+          },
+          "studioPort": {
+            "port": 49275,
+            "closed": true
+          }
+        }
+      }
+    }
+  ],
+  "e774Focused": {
+    "tests": 61,
+    "pass": 61,
+    "fail": 0,
+    "skip": 0
+  },
+  "automaticReview": {
+    "request": 6099587346,
+    "review": 5479831768,
+    "candidate": "e774917e2aeb793ed971515de6324dc0ecb73ad0",
+    "findings": [
+      4238311485,
+      4238311491
+    ]
+  },
+  "limits": {
+    "hostedEffects": 0,
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "reviewerFeatureFix": false,
+    "all55OwnedBrowserStacksClean": true
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "latestCandidate": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+  "latestTree": "8f938ee64c9e49cd7e06b15dbe1d5df2dfeaa1b6",
+  "latestReviewState": "source delta read;77focused PASS; actual timing recheck pending",
+  "readiness": {
+    "combined_reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  }
+}

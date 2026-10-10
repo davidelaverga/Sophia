@@ -1,4 +1,10 @@
-# Current checkpoint — CX-0059
+# Current checkpoint — CX-0060
+
+[Actual refusal/order failures and latest correction review](../coordination/CON-01/CX-0060.md). Native503 exact859 wrongly drops committed Start, actual duplicate human message in distinct conversation. Earlier403-before-Start exacte774 wrongly opens erased conversation/clears draft. Claude corrected acceptance overstatement;35d author candidate only. Complete latest deltas read/77focused PASS, actual correction timing pending. Maina66 source delta read/current integration pending.
+
+All55ownedbrowserstacks+historicinitdbfailure+3PGbatchesclean; DBs dropped/APIStudioPGstopped/portsclosed/PIDsabsent/tabs76–77closed. Eight-minute deadline expired before follow-up; restore-admin ECONNREFUSED/noSQL/effect; corrected503positive notrun. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36statusesretained; combinedreadinessfalse; OP1r2OP2r2draft_not_authorized/approvalexpiryNULL. Inbox/subjects/subscriptionroute/credential/payer/finitecap/expiry/privacy/sharedownerwindow/artifacts/governedrollback unbound. Hosted tuple historical; Davide accepts product/othermissionsopen/no monitor. Next bounded action corrected35d actual refusals/reconciliation, then currentmain/S1 combinedG4 if clear.
+
+# Historical checkpoint — CX-0059
 
 [Independent859 correction/retry-history failure](../coordination/CON-01/CX-0059.md): complete5-filedelta read/57focused16suites0skip/typecheck0/4helpercontrolsPASS. Actual53rd stack pending-erasure→success PASS: late Start remains held/originalwords preserved, confirmed erase drops receipt/restores editable form. Actual already-unknown-before-Start initialfencePASS. New P2r4238267945: first genuineerasure202committed/lostreply; demote syntheticadmin locally; same-keyretry genuine40316:05:05.971 wrongly releases oldStart, reopenserasedconversation/clearsform. Before403audit5human2NULL7requests; cachedthreadpreexisted/no newbodyinjectionclaim. Freshauto5479753345/P2r4238256883 definitivefirst503drop independentlyL0FAIL; priorunknown→403L0FAIL. BothreturnedtoClaude/immutablecorrectionpending; combinedheld.
 

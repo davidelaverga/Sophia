@@ -1,0 +1,16 @@
+{
+  "candidate": "e774917e2aeb793ed971515de6324dc0ecb73ad0",
+  "scope": "L0 actual production held-write/withErasure/landed/talk-store; no API/UI proof",
+  "case": "Unknown committed erasure then same-key403 BEFORE late Start",
+  "keysEqual": true,
+  "expectedPuts": 0,
+  "puts": 1,
+  "opened": true,
+  "fields": {
+    "title": "",
+    "text": "",
+    "askSophia": true
+  },
+  "erasureRetained": false,
+  "pass": false
+}

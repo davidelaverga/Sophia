@@ -1,0 +1,22 @@
+[
+  {
+    "at": "2026-10-10T16:13:25.770Z",
+    "kind": "start",
+    "path": "/api/v1/projects/4355d90e-5f30-4f33-81bc-4f7e2bc4bf59/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T16:13:37.896Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/6013c6e0-5469-480f-806d-58079de7d686/erasure",
+    "actualApiStatus": 503,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]
