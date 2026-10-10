@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0074
+# Current checkpoint — CX-0075
+
+[Live metadata refresh and source capability audit](../coordination/CON-01/CX-0075.md), unchanged published e4c8cf8d/tree53c4/main0ccc/PR1904801draft. Actual20:15:51.421UTC PostgreSQL17.6 READ ONLY metadata/ROLLBACK: m03 last_seen8s/two roles and six bindings still running; stale m02/s1-03 ready labels remain. Metadata only, not installed composition/safe-drain/authorization. Serving dashboard tuple and migration ledger not newly refreshed; linked live preflight retains their exact last-observed identities.
+
+Source audit confirms quota UI is fixture-fed; generic real snapshot resources report runtime state, not subscription windows. Owner-native connection/capacity remains Omnigent/SCM dependency; CON reply route unbound/no API-PAYG fallback. These requirements remain incomplete. Exact Claude still implementing scoped-read correction/affected tests; reported PG and1212unit passes are author-only, later wording edit needs affected checks. No immutable correction published, no new independent app acceptance. CurrentP1/G3changes_requested/combinedG4unqualified.
+
+Private next harness syntax/JSON/fresh guards PASS, prepared unlaunched; all67 prior stacks clean. No hosted/account/project/invite/email/schema/config/deploy/provider/spend/uncertain effect or feature fix. All36 statuses unchanged. OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL; inbox/cohort/subjects/route/credential/payer/finite allowance/expiry/privacy/shared owner-window/combined artifacts/governed rollback unbound. No rollback performed or newly qualified. D6/B1 retained, Davide product decision/other missions open/no monitor.
+
+Next bounded action: immutable author correction/source-tree-delta and terminal focused receipts; independent affected realPG/browser checks, then current-main/S1 integration if clear. G2/native/subscription and exact approved hosted-app episode remain required.
+
+# Historical checkpoint — CX-0074
 
 [Independent authorization/absence binding review](../coordination/CON-01/CX-0074.md), exact unchanged e4c8cf8d/tree53c4/main0ccc. Permanent unresolved capped-out erasures rejected as a replacement for explicit erasure/recovery acceptance; interim fence remains valid containment. Exact Claude message362 acknowledges and holds unpublished sophia-fix pending a concrete server-authorized proposal in issue198 before code. Message363 supplies independently inspected existing repeatable-read actor transaction, project access helper/RLS, global message route/generated shape and event limits. No reviewer feature patch, accepted new endpoint or new app episode.
 

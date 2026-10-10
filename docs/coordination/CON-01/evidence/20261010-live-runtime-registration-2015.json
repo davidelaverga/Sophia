@@ -1,0 +1,86 @@
+{
+  "observedAt": "2026-10-10T20:15:49.316Z",
+  "scope": "bounded metadata SELECTs only; BEGIN READ ONLY; ROLLBACK",
+  "reviewerSource": "13cde995a5a3bfbd73514ed12c6fd27e1ece7aae",
+  "candidate": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+  "credentialRef": "~/.config/sophia/smc-m01-owner-db-url",
+  "limits": "Self-reported registration metadata only. No installed artifact/config/composition, provider usefulness, drain, authorization or product acceptance is established.",
+  "server": {
+    "version": "17.6",
+    "read_only": "on",
+    "observed_at": "2026-10-10T20:15:51.421Z"
+  },
+  "instanceCount": 4,
+  "registrations": [
+    {
+      "runtime_unit_id": "sophia-runtime-m02-dev",
+      "state": "active",
+      "protocol_version": 1,
+      "reported_dsh_version": "0.2.0-rc.2",
+      "hello_at": "2026-09-30T22:46:15.137Z",
+      "ready_state": "ready",
+      "ready_at": "2026-09-30T22:46:15.265Z",
+      "seen_at": "2026-10-02T21:58:18.015Z",
+      "advertised_role_count": 0,
+      "reported_unrecovered_count": 0,
+      "seconds_since_seen": "685054",
+      "reported_bundle_sha256": "5b031010a0ca23565f56734b05649574270ba5035cc522515d50be2144873b32"
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-m02-dev",
+      "state": "revoked",
+      "protocol_version": null,
+      "reported_dsh_version": null,
+      "hello_at": null,
+      "ready_state": "not_ready",
+      "ready_at": null,
+      "seen_at": null,
+      "advertised_role_count": 0,
+      "reported_unrecovered_count": 0,
+      "seconds_since_seen": null,
+      "reported_bundle_sha256": null
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-m03-dev",
+      "state": "active",
+      "protocol_version": 1,
+      "reported_dsh_version": "0.2.0-rc.2",
+      "hello_at": "2026-10-02T21:59:39.404Z",
+      "ready_state": "ready",
+      "ready_at": "2026-10-02T21:59:39.649Z",
+      "seen_at": "2026-10-10T20:15:43.682Z",
+      "advertised_role_count": 2,
+      "reported_unrecovered_count": 0,
+      "seconds_since_seen": "8",
+      "reported_bundle_sha256": "5b031010a0ca23565f56734b05649574270ba5035cc522515d50be2144873b32"
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-s1-03-dev",
+      "state": "active",
+      "protocol_version": 1,
+      "reported_dsh_version": "0.1.7-rc.1",
+      "hello_at": "2026-09-28T00:52:59.609Z",
+      "ready_state": "ready",
+      "ready_at": "2026-09-28T00:52:59.888Z",
+      "seen_at": "2026-09-30T22:44:58.806Z",
+      "advertised_role_count": 0,
+      "reported_unrecovered_count": 0,
+      "seconds_since_seen": "855053",
+      "reported_bundle_sha256": "5b031010a0ca23565f56734b05649574270ba5035cc522515d50be2144873b32"
+    }
+  ],
+  "truncated": false,
+  "bindings": [
+    {
+      "runtime_unit_id": "sophia-runtime-m03-dev",
+      "state": "running",
+      "bindings": 6
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-s1-03-dev",
+      "state": "settled",
+      "bindings": 2
+    }
+  ],
+  "transactionEnded": "ROLLBACK"
+}

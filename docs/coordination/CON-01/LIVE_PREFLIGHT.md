@@ -1,5 +1,9 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Runtime registration metadata — 2026-10-10, 20:15 UTC
+
+Bounded metadata SELECTs under `BEGIN READ ONLY`, statement_timeout5s/connection-query timeout7s, terminal `ROLLBACK`; PostgreSQL17.6/read_only=on. [Safe receipt](evidence/20261010-live-runtime-registration-2015.json), [scope and limitations](CX-0075.md). Four rows/no truncation, locally hashed bundle labels/no secret or project content. Active m03 last_seen20:15:43.682 (8s before server observation), self-reported protocol1/dsh0.2.0-rc.2/two roles; six m03 bindings still running. Active m02 and s1-03 ready labels remain stale (Oct2/Sep30), one m02 revoked, two s1-03 settled. No operational function or mutation/provider/spend effect. Fresh status is not installed-composition or safe-drain proof; preserve concurrent work. Dashboard service/deployment identities and migration ledger were not refreshed; OP1r2/OP2r2 remain unapproved.
+
 ## Runtime registration metadata — 2026-10-10, 19:25 UTC
 
 A new bounded metadata-only transaction used the existing private DB credential reference, connection/query timeout7s, statement_timeout5s, `BEGIN READ ONLY`, and terminal `ROLLBACK`. PostgreSQL17.6/read_only=on; four registration rows, no truncation. [Safe receipt](evidence/20261010-live-runtime-registration-1925.json). The bundle column was hashed locally; no token, lease/session ID, project content, readiness reason or unrecovered content was disclosed. No runtime hello/poll/ready or other operational function was called.
