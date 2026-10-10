@@ -1,0 +1,10 @@
+{
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "browserObservedAt": "2026-10-10T20:56:23.376Z",
+  "first403FinishedAt": "2026-10-10T20:56:11.611Z",
+  "minimumObservedDelaySeconds": 11.765,
+  "observed": "three actual cached human bodies/authors, exact draft, composer, Send, propose/withdraw/remove/erase controls and both rows remain after actual scoped403, retry held before upstream",
+  "verdict": "FAIL r4239161783 independently reproduced",
+  "limits": "local synthetic dev identities only; hold extends retry beyond normal delay; no new bytes read or server-authorized writes after revocation; passive-effect extra paint not independently measured"
+}

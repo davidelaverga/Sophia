@@ -1,0 +1,15 @@
+{
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+  "apiPort": 49422,
+  "studioPort": 49423,
+  "pid": 16092,
+  "postgresStopped": false,
+  "clusterRemoved": false,
+  "emptyClusterRemoved": true,
+  "childrenStarted": false,
+  "databaseCreated": false,
+  "providerCalls": 0,
+  "reason": "Older non-owned temporary PG binary lacked postgres.bki; recovered already-owned complete pg17-owned runtime"
+}

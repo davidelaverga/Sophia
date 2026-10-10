@@ -1,0 +1,64 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/studio
+    - link "Conversations":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/conversations
+    - link "Goals":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/goals
+    - link "Tasks":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/work
+    - link "Knowledge":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/knowledge
+    - link "Updates":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/updates
+    - link "Resources":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - alert:
+        - text: The conversations can’t be read now.
+        - button "Try again"
+      - status: This project refused a read of its conversations. None is shown until they can be read again.
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

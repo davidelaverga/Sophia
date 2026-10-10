@@ -1,0 +1,83 @@
+{
+  "record": "CX-0077",
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "episode": 69,
+  "verdicts": {
+    "firstScoped403": "FAIL r4239161783: cached bodies/authors/composer/controls remain11.765s after first real403 during controlled retry hold",
+    "terminal403": "PASS scoped fence after terminal refusal",
+    "unknownOwnErasure": "PASS scoped exact draft and original key retained through refusal/restoration, retry202 gives one actual DBerasure"
+  },
+  "observation": {
+    "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+    "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+    "browserObservedAt": "2026-10-10T20:56:23.376Z",
+    "first403FinishedAt": "2026-10-10T20:56:11.611Z",
+    "minimumObservedDelaySeconds": 11.765,
+    "observed": "three actual cached human bodies/authors, exact draft, composer, Send, propose/withdraw/remove/erase controls and both rows remain after actual scoped403, retry held before upstream",
+    "verdict": "FAIL r4239161783 independently reproduced",
+    "limits": "local synthetic dev identities only; hold extends retry beyond normal delay; no new bytes read or server-authorized writes after revocation; passive-effect extra paint not independently measured"
+  },
+  "audit": {
+    "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+    "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+    "observedAt": "2026-10-10T20:58:11.595Z",
+    "projectId": "29176597-d060-446b-a594-dc644e99c9fd",
+    "humanMessages": 4,
+    "nullBodies": 3,
+    "requests": 5,
+    "replies": 0,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "unknownErasureKey": "f6ed37ba-10d4-4bb3-9c20-1b4193bd2040",
+    "apiErasureReceipts": [
+      {
+        "at": "2026-10-10T20:57:31.939Z",
+        "kind": "erasure",
+        "path": "/api/v1/conversations/95e10654-0ea9-4cf9-acbc-920baf897a51/erasure",
+        "idempotencyKey": "f6ed37ba-10d4-4bb3-9c20-1b4193bd2040",
+        "actualApiStatus": 202,
+        "bodyWithheld": false
+      }
+    ],
+    "readCeiling": {
+      "count": 20,
+      "limit": 200,
+      "armedAt": "2026-10-10T20:56:02.644Z",
+      "contained": false
+    },
+    "originalMembershipRestored": true
+  },
+  "cleanup": {
+    "at": "2026-10-10T20:58:27.204301+00:00",
+    "pids": {
+      "16326": false,
+      "16335": false,
+      "16336": false
+    },
+    "ports": {
+      "49485": false,
+      "49486": false
+    },
+    "tab92Closed": true,
+    "pass": true
+  },
+  "limits": [
+    "L1 actual local Studio/API/PG17.6 synthetic development identities; no fixtures/native/provider/hosted",
+    "Finite20s retry hold extends natural retry delay; two held target GETs observed, not exact-one attempt",
+    "No passive-effect extra-paint measurement or post-revocation authorized server write claimed",
+    "Old200-after-new403 mounted test still open; pending erasure with real upstream lost202 is distinct from this preforward503",
+    "No wholeG3/G4/authorization/deployment/app_verified/owner acceptance"
+  ],
+  "next": "Separate immutable Claude first403 correction, affected source review and independent first-refusal/order/draft-key recheck, then current-main/shared integration"
+}

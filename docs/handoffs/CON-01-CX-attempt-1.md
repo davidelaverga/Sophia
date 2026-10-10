@@ -1,4 +1,16 @@
-# Current checkpoint — CX-0076
+# Current checkpoint — CX-0077
+
+[Independent first-refusal failure](../coordination/CON-01/CX-0077.md), [structured evidence](../coordination/CON-01/CX-0077.evidence.json). Exact127b4334/tree7409fed4, main0ccc344d076ba433543b6a72b052fd0c6c065eca. Actual local episode69 confirms automatedP2r4239161783: real scoped40320:56:11.611, cached3bodies/authors/rows/composer/draft/controls remain20:56:23.376 while retry held before upstream. Terminal403 fences; passive-effect extra paint not measured/two heldGETs observed. Claude message379 has exact reproducer/smallest correction request, author preparing separate immutable correction. No reviewer feature patch.
+
+Unknown own-erasure preforward503 retains exact draft and original key through refusal/restoration; UIretry same f6ed37ba... actual202, exactlyone DBerasure. FinalSQL4human/3NULL/5requests/0replies, bootstrapgoal1/all operational+usage0,20reads/200 ceiling not reached.70608terminal0/DBdropped/PGstoppedclusterremoved; independentPIDs16326/16335/16336absent/ports49485–86closed/tab92closed; all69ownedappstacks clean. Failed empty setup cleaned/recovered existing ownedPG17; no install/shared change.
+
+PR190 nowd90d2dc2/treeba17966b (3commits/7authfixtureCIpaths), shared reviewer6102086354 and no-major-issue automated6102098612 separately attributed; fullCI/finalauthorgate/billingP1s open. Exact127b browserCI stilllive, otherchecks pass; e4c8 failures unwaived/causeunproven. All36 acceptance statuses retained; G3changes_requested/combinedG4unqualified. No native/hosted/two-real-account/subscription/owner acceptance.
+
+OP1r2/OP2r2 draft_not_authorized/expiryNULL. Exact lastobserved live tuple remains LIVE_PREFLIGHT; six m03bindings running20:15 notsafe-drain. Inbox/cohort/subjects/compatible subscriptionroute/credential/payer/finite allowance/expiry/privacy/sharedownerwindow/combinedartifacts/governedrollback unbound. No hosted account/project/email/schema/config/deploy/provider/spend/uncertain effect. D6/B1 retained; Davide finalproductdecision/othermissions open.
+
+Next bounded action: immutable first403 correction, independent affected source/first-refusal/old200-order/draft-key recheck, then current-main/S1/PR190 combinedG4 if clear.
+
+# Historical checkpoint — CX-0076
 
 [Independent exact correction review](../coordination/CON-01/CX-0076.md), [structured evidence](../coordination/CON-01/CX-0076.evidence.json). Candidate127b4334a0a9e762d09286507080db34a218b0dc/tree7409fed4876c0084313e9d1000734ac879cc19a2/parent e4c8. Current main0ccc344d, PR1904801draft. Complete21filedelta read;218units/32actualPG_API/contracts/Studio typecheck PASS. Actual owned local episode68: human-only Send/list outage, two genuine scoped403 cache fences after fresh lists, bounded capped-out recovery/relist/exact draft, ordinary authorized erasure/list failure/return all scopedPASS. Preserved1280x720 three panes visually inspected; no mobile/native/hosted claim. Earlier CX73 residual exposure scoped resolved here, not whole privacy acceptance.
 

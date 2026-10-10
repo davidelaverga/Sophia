@@ -1,0 +1,20 @@
+{
+  "episode": 69,
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "scope": "local actual Studio/API/PG synthetic dev identities only",
+  "cases": [
+    "unknown own erasure before upstream retains key/draft",
+    "cached open thread first actual403 then controlled20s retry hold",
+    "terminal403 fence",
+    "restore same identity and verify exact draft/key retry"
+  ],
+  "limits": {
+    "durationSeconds": 480,
+    "outerSeconds": 600,
+    "readCeiling": 200,
+    "providerCalls": 0,
+    "liveEffects": 0
+  },
+  "effects": "owned synthetic test DB only, dropped after audit"
+}

@@ -1,0 +1,39 @@
+{
+  "candidate": "127b4334a0a9e762d09286507080db34a218b0dc",
+  "tree": "7409fed4876c0084313e9d1000734ac879cc19a2",
+  "observedAt": "2026-10-10T20:58:11.595Z",
+  "projectId": "29176597-d060-446b-a594-dc644e99c9fd",
+  "humanMessages": 4,
+  "nullBodies": 3,
+  "requests": 5,
+  "replies": 0,
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "unknownErasureKey": "f6ed37ba-10d4-4bb3-9c20-1b4193bd2040",
+  "apiErasureReceipts": [
+    {
+      "at": "2026-10-10T20:57:31.939Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/95e10654-0ea9-4cf9-acbc-920baf897a51/erasure",
+      "idempotencyKey": "f6ed37ba-10d4-4bb3-9c20-1b4193bd2040",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    }
+  ],
+  "readCeiling": {
+    "count": 20,
+    "limit": 200,
+    "armedAt": "2026-10-10T20:56:02.644Z",
+    "contained": false
+  },
+  "originalMembershipRestored": true
+}

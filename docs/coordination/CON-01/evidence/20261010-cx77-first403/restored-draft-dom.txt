@@ -1,0 +1,126 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/studio
+    - link "Conversations":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/conversations
+    - link "Goals":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/goals
+    - link "Tasks":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/work
+    - link "Knowledge":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/knowledge
+    - link "Updates":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/updates
+    - link "Resources":
+      - /url: /p/29176597-d060-446b-a594-dc644e99c9fd/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC current access check":
+          - generic: SYNTHETIC current access check
+          - generic: 22:54
+          - generic: "You: SYNTHETIC current conversation before revocation"
+          - generic: You. No recorded questions yet. Last moved 22:54.
+        - button "SYNTHETIC stale sender regression" [active] [pressed]:
+          - generic: SYNTHETIC stale sender regression
+          - generic: 22:54
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 22:54.
+    - region "Open conversation":
+      - heading "SYNTHETIC stale sender regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: S
+        - generic: "Contributors:"
+        - text: You, Synthetic C Old, Synthetic A Surviving
+      - region "Messages":
+        - list:
+          - generic: Oct 10
+          - text: You
+          - text: ·
+          - time: Oct 10, 22:54
+          - paragraph: SYNTHETIC B first message
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 22:54
+          - text: Synthetic C Old
+          - text: ·
+          - time: Oct 10, 22:54
+          - paragraph: SYNTHETIC C old second message
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - generic: 22:54
+          - text: Synthetic A Surviving
+          - text: ·
+          - time: Oct 10, 22:54
+          - paragraph: SYNTHETIC A surviving third
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - generic: 22:54
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team": SYNTHETIC 127b unknown erase draft must survive denial
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send":
+          - generic: Send
+        - paragraph:
+          - generic: Sophia doesn’t answer here yet
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+        - button "Erase this conversation"
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

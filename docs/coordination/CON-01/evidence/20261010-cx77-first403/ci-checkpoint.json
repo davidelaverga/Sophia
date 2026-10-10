@@ -1,0 +1,93 @@
+[
+  {
+    "name": "SQL, persistence and API on PostgreSQL 16",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:41:41Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257187/job/114307313704"
+  },
+  {
+    "name": "The room in Chromium, on its fixture page",
+    "status": "in_progress",
+    "conclusion": null,
+    "completed_at": null,
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257187/job/114307313695"
+  },
+  {
+    "name": "Confined PDF renderer on a real Chromium",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:48:52Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257187/job/114307313666"
+  },
+  {
+    "name": "Paperclip image under a 2 GiB cgroup",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:50:41Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257168/job/114307313629"
+  },
+  {
+    "name": "Media bridge against a real LiveKit server",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:38:55Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257187/job/114307313626"
+  },
+  {
+    "name": "Live auth on local Supabase",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:38:30Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257187/job/114307313605"
+  },
+  {
+    "name": "runtime-unit",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:42:43Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084257187/job/114307313494"
+  },
+  {
+    "name": "Confined PDF renderer on a real Chromium",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:47:58Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084253016/job/114307301869"
+  },
+  {
+    "name": "Media bridge against a real LiveKit server",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:36:54Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084253016/job/114307301844"
+  },
+  {
+    "name": "The room in Chromium, on its fixture page",
+    "status": "in_progress",
+    "conclusion": null,
+    "completed_at": null,
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084253016/job/114307301837"
+  },
+  {
+    "name": "SQL, persistence and API on PostgreSQL 16",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:38:08Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084253016/job/114307301782"
+  },
+  {
+    "name": "Live auth on local Supabase",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:36:02Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084253016/job/114307301759"
+  },
+  {
+    "name": "runtime-unit",
+    "status": "completed",
+    "conclusion": "success",
+    "completed_at": "2026-10-10T20:41:16Z",
+    "details_url": "https://github.com/davidelaverga/Sophia/actions/runs/38084253016/job/114307301673"
+  }
+]

@@ -1,0 +1,46 @@
+{
+  "head": "d90d2dc28878215120a69adcde962dce099bbc81",
+  "tree": "ba17966be310cfd5a587985fed514bd8e30b4f2e",
+  "previous": "4801f44785cf24aca0e51d8f76397acb9bbefbd0",
+  "deltaCommits": 3,
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "additions": 9,
+      "deletions": 0
+    },
+    {
+      "path": "apps/studio/e2e/app-auth.spec.ts",
+      "additions": 28,
+      "deletions": 16
+    },
+    {
+      "path": "apps/studio/playwright.config.ts",
+      "additions": 12,
+      "deletions": 1
+    },
+    {
+      "path": "apps/studio/tsconfig.json",
+      "additions": 1,
+      "deletions": 0
+    },
+    {
+      "path": "apps/studio/vite.app-build.config.ts",
+      "additions": 58,
+      "deletions": 0
+    },
+    {
+      "path": "apps/studio/vite.app.config.ts",
+      "additions": 7,
+      "deletions": 23
+    },
+    {
+      "path": "apps/studio/vite.fixtures.config.ts",
+      "additions": 38,
+      "deletions": 8
+    }
+  ],
+  "sharedOwnerReceipt": 6102086354,
+  "automaticReviewNoMajorIssues": 6102098612,
+  "qualification": "metadata/receipt refreshed; not a CON combined review or waiver; fullCI/final author gate pending"
+}
