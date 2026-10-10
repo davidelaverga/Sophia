@@ -1117,7 +1117,9 @@ export class RoomSession {
 
   /**
    * Under a grant, a typed message may start a generation: it is reserved first, and sent once granted, if the
-   * conversation still takes it. One waits at a time; a refusal stops the session.
+   * conversation still takes it, on the connection it was reserved for (Codex r4235562640): one that recovered
+   * meanwhile is another provider connection, whose output that grant does not cover, so the sender is refused and
+   * nothing is sent. One waits at a time; a refusal stops the session.
    */
   private typedUnderGrant(
     qualification: SessionQualification,
@@ -1130,11 +1132,13 @@ export class RoomSession {
       return
     }
     this.typedReserving = true
-    void qualification.prompt(this.connection, typed.length).then((stop) => {
+    const connection = this.connection
+    void qualification.prompt(connection, typed.length).then((stop) => {
       this.typedReserving = false
       if (stop) this.guardStop(stop)
       const busy = this.awaitingReply || this.responding || this.typedOutputUntilTurnEnd
-      if (stop || busy || !this.mayAcceptTyped(identity, packet)) {
+      const moved = connection !== this.connection || this.closed
+      if (stop || busy || moved || !this.mayAcceptTyped(identity, packet)) {
         this.typedReply(identity, packet, 'refused', 'Sophia cannot receive this message now.')
         return
       }

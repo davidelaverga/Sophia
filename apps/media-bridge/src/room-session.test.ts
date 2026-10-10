@@ -5538,3 +5538,82 @@ describe('room session: audio dropped while its reservation waits is counted (Co
     assert.deepEqual(window, { chunkCount: 3, sampleCount: 4800, droppedSamples: 0 })
   })
 })
+
+describe('room session: a typed message reserved on one connection is sent on it or not at all (Codex r4235562640)', () => {
+  const packet = () => ({
+    kind: 'input' as const,
+    id: REQUEST,
+    exchangeId: EXCHANGE,
+    inputEpoch: 1,
+    text: 'Synthetic typed request',
+  })
+  const kinds = () => service.reservations.map((r) => r.kind)
+
+  /** The provider connection lost and recovered: a new one, its own connection reserved and answered, then ready. */
+  async function recovered(session: RoomSession, live: FakeLive): Promise<FakeLive> {
+    live.events.closed('network lost')
+    clock += 1000
+    session.tick()
+    await flush()
+    service.answerFirst('connection')
+    await until('the new connection', () => lives.length === 2)
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    await flush()
+    return next
+  }
+
+  it('the connection recovers while its generation is reserved: nothing is sent on the new one, the sender is refused, and no turn is charged unasked there', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    service.holdReservations = true
+    room.events.typed?.(LUIS, packet())
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['generation'])
+    const next = await recovered(session, live)
+    service.answerFirst('generation')
+    await flush()
+    // Had it gone out on the new connection, the provider would answer it there, a generation that grant never covered.
+    if (next.notices.length > 0) next.events.outputTranscript('Synthetic reply', false)
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    // Recorded as the API answered them: the new connection's, then the typed message's generation.
+    assert.deepEqual(kinds(), ['connection', 'connection', 'generation'], 'no turn charged unasked')
+    assert.deepEqual([live.notices, next.notices], [[], []], 'sent on neither connection')
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused', 'the sender is told')
+    service.holdReservations = false
+    await session.close()
+  })
+
+  it('no recovery (control): sent once granted, on its connection', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    service.holdReservations = true
+    room.events.typed?.(LUIS, packet())
+    await flush()
+    service.answerFirst('generation')
+    await flush()
+    assert.equal(live.notices.length, 1)
+    assert.equal(room.chat.at(-1)?.packet.kind, 'accepted')
+    service.holdReservations = false
+    await session.close()
+  })
+
+  it('a recovery before the message (control): reserved and sent on the new connection', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    service.holdReservations = true
+    const next = await recovered(session, live)
+    room.events.typed?.(LUIS, packet())
+    await flush()
+    service.answerFirst('generation')
+    await flush()
+    assert.deepEqual([live.notices.length, next.notices.length], [0, 1])
+    assert.equal(room.chat.at(-1)?.packet.kind, 'accepted')
+    assert.deepEqual(kinds(), ['connection', 'connection', 'generation'])
+    service.holdReservations = false
+    await session.close()
+  })
+})
