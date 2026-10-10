@@ -188,3 +188,78 @@ describe('putStarted: a start writes its row and its first message, and nothing 
     assert.equal(client.getQueryData(messagesKey('b', 'bea')), undefined)
   })
 })
+
+/** The started conversation's row in Ana's list read for project p. */
+const rowB = (client: QueryClient) =>
+  client.getQueryData<ConversationList>(listKey('p', 'ana'))?.conversations.find((c) => c.id === 'b')
+
+const opening = {
+  author: 'member',
+  actorId: 'ana',
+  name: 'You',
+  text: 'Words withdrawn since.',
+  at: '2026-10-10T14:46:00.000Z',
+  seq: 1,
+}
+/** The receipt's row (revision 1, its first message as it was), current at feed position 6. */
+const receipt = (cursor = '6') =>
+  ({
+    conversation: {
+      id: 'b',
+      title: 'Started',
+      revision: 1,
+      contributors: [{ actorId: 'ana', name: 'You' }],
+      lastMessage: opening,
+    },
+    message: { id: 'b1', seq: 1, text: opening.text },
+    reply: null,
+    cursor,
+  }) as unknown as ConversationStarted
+/** The list as read after the withdrawal: the row at revision 2, nobody's words in it. */
+const readAfter = () =>
+  ({
+    projectId: 'p',
+    conversations: [
+      { id: 'b', title: 'Started', revision: 2, contributors: [], lastMessage: null },
+      { id: 'a', title: 'Older' },
+    ],
+    more: false,
+  }) as unknown as ConversationList
+
+describe('a start’s receipt and the list read: a newer row kept, a stale receipt listed without its words (PR #199 r4237924424)', () => {
+  it('the list already holds a newer row, its reads now failing: the late receipt leaves the row and the failure', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const key = listKey('p', 'ana')
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(readAfter()) })
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.reject(new Error('503')) }).catch(() => undefined)
+    putStarted(client, 'p', 'ana', receipt(), '7')
+    assert.deepEqual(rowB(client), readAfter().conversations[0])
+    assert.equal(client.getQueryCache().find({ queryKey: key, exact: true })?.state.status, 'error')
+  })
+
+  it('a row at the receipt’s own revision is kept as read', () => {
+    const client = new QueryClient()
+    const held = { id: 'b', title: 'Started', revision: 1, contributors: [], lastMessage: null }
+    client.setQueryData(listKey('p', 'ana'), { projectId: 'p', conversations: [held], more: false })
+    putStarted(client, 'p', 'ana', receipt(), '6')
+    assert.deepEqual(rowB(client), held)
+  })
+
+  it('not listed yet, the receipt past by the page’s feed: listed at the top without its opening or writer', () => {
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'ana'), listOf('Older'))
+    putStarted(client, 'p', 'ana', receipt(), '7')
+    assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
+    assert.equal(rowB(client)?.lastMessage, null)
+    assert.deepEqual(rowB(client)?.contributors, [])
+    assert.equal(rowB(client)?.title, 'Started')
+  })
+
+  it('not listed yet, the receipt current where the page’s feed stands: listed with its words (control)', () => {
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'ana'), listOf('Older'))
+    putStarted(client, 'p', 'ana', receipt(), '6')
+    assert.deepEqual(rowB(client)?.lastMessage, opening)
+    assert.deepEqual(rowB(client)?.contributors, [{ actorId: 'ana', name: 'You' }])
+  })
+})

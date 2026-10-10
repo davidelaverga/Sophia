@@ -24,6 +24,19 @@ export function setListsData(
 }
 
 /**
+ * The list read with a start's row: the row it already holds, where that is at the receipt's revision or later (read
+ * after the start, a withdrawal since included), kept as it is; else the receipt's row at the top. A receipt not
+ * current where the page's feed stands lists the conversation without what its first message says (no opening, no
+ * writer), which may have been withdrawn since (PR #199 r4237924424).
+ */
+function startedIn(list: ConversationList, row: ConversationStarted['conversation'], current: boolean) {
+  const held = list.conversations.find((c) => c.id === row.id)
+  if (held && held.revision >= row.revision) return list
+  const listed = current ? row : { ...row, lastMessage: null, contributors: [] }
+  return { ...list, conversations: [listed, ...list.conversations.filter((c) => c.id !== row.id)] }
+}
+
+/**
  * A start that landed: at the top of the list read and its first message read, at once (then read again). The receipt
  * proves the new row only, so only the list's data takes it: a list read failing stays failing, its error and «This may
  * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985).
@@ -42,12 +55,10 @@ export function putStarted(
   pageAt: string | undefined,
 ): void {
   const key = listKey(projectId, account)
-  setListsData(queryClient, key, (list) => ({
-    ...list,
-    conversations: [conversation, ...list.conversations.filter((c) => c.id !== conversation.id)],
-  }))
+  const current = followedAt(cursor, pageAt)
+  setListsData(queryClient, key, (list) => startedIn(list, conversation, current))
   const thread = messagesKey(conversation.id, account)
-  if (queryClient.getQueryData(thread) === undefined && followedAt(cursor, pageAt)) {
+  if (queryClient.getQueryData(thread) === undefined && current) {
     queryClient.setQueryData(thread, {
       pages: [{ messages: [message], before: null, readAt: cursor }],
       pageParams: [null],
