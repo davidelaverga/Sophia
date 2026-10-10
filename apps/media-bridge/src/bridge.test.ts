@@ -1,6 +1,6 @@
 // The assignment loop against LABELLED FAKES (no LiveKit, no Google): one session per live exchange.
 import type { FunctionResponse } from '@google/genai'
-import type { MediaAssignment, MediaEvidenceWrite } from '@sophia/contracts'
+import type { MediaAssignment, MediaEvidenceWrite, MediaPresenceReport } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { MediaBridge, STOP_DEADLINE_MS } from './bridge.ts'
@@ -46,6 +46,8 @@ interface RoomFake {
   stopDeadlineMs?: number
   /** How the API answers a tool call, when a test calls one. */
   toolCall?: MediaService['toolCall']
+  /** The presence reports the API took, in order, when a test keeps them. */
+  presences?: MediaPresenceReport[]
 }
 
 /**
@@ -60,7 +62,10 @@ function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
   const ordinals = new Map<string, number>()
   const service: MediaService = {
     assignments: () => Promise.reject(new Error('unused')),
-    presence: () => Promise.resolve(),
+    presence: (report) => {
+      fake.presences?.push(report)
+      return Promise.resolve()
+    },
     ackQuiesce: () => Promise.resolve(),
     holder: () => Promise.resolve(),
     announced: () => Promise.resolve(),
@@ -219,6 +224,28 @@ describe('media bridge assignment loop', () => {
     await bridge.apply([assignment(E1)])
     await settle()
     assert.equal(log.filter((l) => l === 'join').length, 2)
+    await bridge.stop()
+  })
+
+  it('a session that replaces a lost one continues its process’s presence numbers, never starting again (item 7 C)', async () => {
+    const presences: MediaPresenceReport[] = []
+    const { bridge, roomEvents } = harness({ presences })
+    await bridge.apply([assignment(E1)])
+    await settle()
+    bridge.session(E1)?.tick()
+    await settle()
+    roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await bridge.apply([assignment(E1)])
+    await settle()
+    bridge.session(E1)?.tick()
+    await settle()
+    const [lost, replacement] = presences.map((r) => r.reportSeq ?? 0)
+    assert.equal(presences.length, 2)
+    assert.ok(
+      lost !== undefined && lost >= 1 && replacement !== undefined && replacement > lost,
+      `${lost} then ${replacement}`,
+    )
     await bridge.stop()
   })
 

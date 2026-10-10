@@ -23,6 +23,7 @@ import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
 import { GUIDE_DIR, loadMissionGuide, type GuideVersion, type MissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
+import { PRESENCE_SEQUENCE_MAX, PresenceSequence } from './presence-sequence.ts'
 import { Sha256Chain } from './qualification-recorder.ts'
 import {
   HOLDER_ARRIVAL_MS,
@@ -356,6 +357,8 @@ let reserveTimeoutMs: number | undefined
 let postAttemptMs: number | undefined
 /** One tool call attempt's transport ceiling, when a test sets it (item 7 B). */
 let toolAttemptMs: number | undefined
+/** The presence reports' counter the next session is given, when a test gives one; otherwise the process's. */
+let presenceSequence: PresenceSequence | undefined
 /** The waits before a tool call is sent again, when a test sets them; otherwise none ([0, 0]). */
 let toolRetryWaits: number[] | undefined
 
@@ -399,6 +402,7 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
       ...(postAttemptMs === undefined ? {} : { postAttemptMs }),
       ...(toolAttemptMs === undefined ? {} : { toolAttemptMs }),
+      ...(presenceSequence === undefined ? {} : { presenceSequence }),
     },
     handover,
   )
@@ -439,6 +443,7 @@ beforeEach(() => {
   postAttemptMs = undefined
   toolAttemptMs = undefined
   toolRetryWaits = undefined
+  presenceSequence = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -3817,6 +3822,8 @@ describe('room session: voice qualification evidence (A15), off by default', () 
   /** One scripted exchange: everything that reached the provider, the room and the API, and how many receipts. */
   async function scripted(over: Partial<MediaAssignment>) {
     service = new FakeService()
+    // Each run as a new process would number its presence reports, so two runs' traffic compares equal.
+    presenceSequence = new PresenceSequence()
     const { session, room, live } = await ready(over)
     const holder = over.inputActorId ?? LUIS
     room.events.audio(holder, voice16k(), 16000, 1)
@@ -6464,5 +6471,147 @@ describe('room session: a tool call attempt is bounded by its transport ceiling 
     } finally {
       await p.close()
     }
+  })
+})
+
+/** The reportSeq of each request a peer read. */
+const seqsOf = (bodies: string[]) => bodies.map((b) => (JSON.parse(b) as { reportSeq?: number }).reportSeq)
+
+describe('room session: presence reports are numbered by their process and bounded per attempt (item 7 C)', () => {
+  const OTHER_EXCHANGE = 'abababab-abab-4bab-8bab-abababababab'
+  const OTHER_ROOM = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd'
+
+  it('each report takes the next number of the counter when it is built, one in flight at a time; a replacement session and another room share the counter', async () => {
+    presenceSequence = new PresenceSequence()
+    const first = await ready()
+    const from = service.presences.length
+    first.session.tick()
+    await flush()
+    first.session.tick()
+    await flush()
+    clock += PRESENCE_EVERY_MS
+    first.session.tick()
+    await flush()
+    await first.session.close()
+    const replacement = await ready()
+    replacement.session.tick()
+    await flush()
+    const other = await ready({ exchangeId: OTHER_EXCHANGE, roomId: OTHER_ROOM })
+    other.session.tick()
+    await flush()
+    clock += PRESENCE_EVERY_MS
+    replacement.session.tick()
+    await flush()
+    assert.deepEqual(
+      service.presences.slice(from).map((r) => [r.exchangeId, r.reportSeq]),
+      [
+        [EXCHANGE, 1],
+        [EXCHANGE, 2],
+        [EXCHANGE, 3],
+        [OTHER_EXCHANGE, 4],
+        [EXCHANGE, 5],
+      ],
+    )
+    await replacement.session.close()
+    await other.session.close()
+  })
+
+  it('without a counter of its own, every session takes the process’s: numbers rise across sessions', async () => {
+    const one = await ready()
+    one.session.tick()
+    await flush()
+    const two = await ready({ exchangeId: OTHER_EXCHANGE, roomId: OTHER_ROOM })
+    two.session.tick()
+    await flush()
+    clock += PRESENCE_EVERY_MS
+    one.session.tick()
+    await flush()
+    const seqs = service.presences.slice(-3).map((r) => r.reportSeq ?? 0)
+    assert.equal(seqs.length, 3)
+    assert.ok(seqs[0]! >= 1 && seqs[1]! > seqs[0]! && seqs[2]! > seqs[1]!, JSON.stringify(seqs))
+    await one.session.close()
+    await two.session.close()
+  })
+
+  for (const shape of ['silent', 'drip'] as const) {
+    it(`presence (${shape} peer): a report is cut at the default 3 s bound and never sent again; the next tick sends a new one with a higher number`, async () => {
+      const p = await peer(shape)
+      try {
+        service.presence = p.media.presence
+        const { session } = await ready()
+        session.tick()
+        await until('the report sent', () => p.seen.length === 1)
+        clock += PRESENCE_EVERY_MS * 2
+        session.tick()
+        await flush()
+        assert.equal(p.seen.length, 1, 'one report in flight at a time')
+        // Cut: its socket closed by the bridge at the bound (the peer never closes it), its failure handled then.
+        await until('the report’s socket closed', () => (p.seen[0]?.closedAt ?? null) !== null, POST_ATTEMPT_MS + 3000)
+        const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
+        assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+        session.tick()
+        await until('a new report', () => p.seen.length === 2)
+        const [cutSeq, nextSeq] = seqsOf(p.bodies())
+        assert.ok(
+          typeof cutSeq === 'number' && typeof nextSeq === 'number' && nextSeq > cutSeq,
+          `${cutSeq} then ${nextSeq}`,
+        )
+        assert.equal(seqsOf(p.bodies()).filter((s) => s === cutSeq).length, 1, 'the cut report is never sent again')
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+  }
+
+  it('an answered report is not aborted afterwards, and the next one waits for the cadence (control)', async () => {
+    postAttemptMs = 200
+    const p = await peer('answer')
+    const signals: Array<AbortSignal | undefined> = []
+    try {
+      service.presence = (r: Parameters<MediaService['presence']>[0], signal?: AbortSignal) => {
+        signals.push(signal)
+        return p.media.presence(r, signal)
+      }
+      const { session } = await ready()
+      session.tick()
+      await until('answered', () => p.seen.length === 1)
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      assert.equal(signals[0]?.aborted, false, 'never aborted once answered')
+      session.tick()
+      await flush()
+      assert.equal(p.seen.length, 1, 'not due before PRESENCE_EVERY_MS')
+      clock += PRESENCE_EVERY_MS
+      session.tick()
+      await until('the next report', () => p.seen.length === 2)
+      const [one, two] = seqsOf(p.bodies())
+      assert.ok((two ?? 0) > (one ?? 0))
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('at Number.MAX_SAFE_INTEGER the counter is spent: that number is sent, then no report at all (never wrapped or reused), logged once', async () => {
+    presenceSequence = new PresenceSequence(PRESENCE_SEQUENCE_MAX - 1)
+    const { session } = await ready()
+    const from = service.presences.length
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.presences.slice(from).map((r) => r.reportSeq),
+      [PRESENCE_SEQUENCE_MAX],
+    )
+    for (let i = 0; i < 3; i += 1) {
+      clock += PRESENCE_EVERY_MS
+      session.tick()
+      await flush()
+    }
+    assert.equal(service.presences.length, from + 1, 'nothing past the bound')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'presence.sequence_spent'),
+      [['presence.sequence_spent', { max: PRESENCE_SEQUENCE_MAX }]],
+    )
+    await session.close()
   })
 })

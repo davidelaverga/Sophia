@@ -5258,7 +5258,7 @@
         "parameters": [],
         "responses": {
           "204": {
-            "description": "Recorded"
+            "description": "Recorded, or ignored: a report whose reportSeq is not above its process's last one for the room changes nothing"
           },
           "401": {
             "description": "No or unknown media-bridge capability"
@@ -17222,6 +17222,12 @@
                 "standing"
               ]
             }
+          },
+          "reportSeq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "This bridge process's report sequence, from one counter shared by all its sessions and never reused: a report not above the last one the API applied for this room and process changes nothing. Omitted only by a bridge built before it."
           }
         },
         "required": [

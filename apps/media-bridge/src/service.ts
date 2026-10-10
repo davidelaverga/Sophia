@@ -28,11 +28,11 @@ import type { GuideVersion } from './guide.ts'
 export interface MediaService {
   /** Long-polls: returns at once when `after` is stale, else when assignments change or `waitMs` passes. */
   assignments: (after: string | null, waitMs: number, signal: AbortSignal) => Promise<MediaAssignmentBatch>
-  presence: (report: MediaPresenceReport) => Promise<void>
   /**
-   * The quiesce acknowledgement, a holder event, an announcement's record and a tool call. `signal` ends the attempt,
-   * its body's read included (attempt.ts, withinAttempt).
+   * The presence report, the quiesce acknowledgement, a holder event, an announcement's record and a tool call. `signal`
+   * ends the attempt, its body's read included (attempt.ts, withinAttempt).
    */
+  presence: (report: MediaPresenceReport, signal?: AbortSignal) => Promise<void>
   ackQuiesce: (ack: MediaQuiesceAck, signal?: AbortSignal) => Promise<void>
   holder: (event: MediaHolderEvent, signal?: AbortSignal) => Promise<void>
   announced: (event: MediaAnnounced, signal?: AbortSignal) => Promise<void>
@@ -95,7 +95,7 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
         await send(`/v1/media/assignments?${query.toString()}`, { method: 'GET', signal }),
       )
     },
-    presence: async (report) => void (await post('/v1/media/presence', report)),
+    presence: async (report, signal) => void (await post('/v1/media/presence', report, signal)),
     ackQuiesce: async (ack, signal) => void (await post('/v1/media/quiesce-acks', ack, signal)),
     holder: async (event, signal) => void (await post('/v1/media/holder', event, signal)),
     announced: async (event, signal) => void (await post('/v1/media/announced', event, signal)),

@@ -7,6 +7,9 @@
 // 0047's call-key claim (the tool-call path claims each call's key, voice qualification on or off); 0047 needs nothing
 // of 0046, so the staged database below has it from the start, and a database through 0046 alone is not ready. With
 // voice qualification on, the API numbers the bridge's receipts (0051): not ready without it; off, it needs none of 0051.
+// Every API also requires 0052 (provisional number): it accepts the presence reports' reportSeq, so it needs the last
+// sequence per room and process (a column, read from pg_attribute) and the guest aggregate (a function); 0052 needs only
+// 0013 and 0017, so the staged databases below have it from the start, and a database without it is not ready.
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -28,6 +31,7 @@ const REQUEUE = '0045_render_requeue_output.sql'
 const VOICE = '0046_voice_qualification.sql'
 const KEYS = '0047_live_call_keys.sql'
 const NUMBERING = '0051_voice_evidence_numbering.sql'
+const PRESENCE = '0052_presence_order.sql'
 
 let dir: string
 let db: TestDatabase
@@ -37,9 +41,10 @@ let stored: FastifyInstance
 let voiced: FastifyInstance
 
 before(async () => {
-  // The migrations before 0043, exactly as written, and 0047 (it needs none of 0043-0046).
+  // The migrations before 0043, exactly as written, and 0047 and 0052 (they need none of 0043-0046).
   dir = mkdtempSync(join(tmpdir(), 'sophia-0042-'))
-  for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && (f < DELIVERY || f === KEYS)))
+  const early = (f: string) => f < DELIVERY || f === KEYS || f === PRESENCE
+  for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && early(f)))
     copyFileSync(join(MIGRATIONS, file), join(dir, file))
   db = await createTestDatabase(dir)
   pool = createPool(db.apiUrl, { max: 2 })
@@ -121,7 +126,7 @@ describe('readiness across 0043', () => {
 describe('readiness across 0047', () => {
   it('is not ready on a database through 0046 without 0047, voice qualification on or off; ready with it', async () => {
     const through = mkdtempSync(join(tmpdir(), 'sophia-0046-'))
-    for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f < KEYS))
+    for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && (f < KEYS || f === PRESENCE)))
       copyFileSync(join(MIGRATIONS, file), join(through, file))
     const before0047 = await createTestDatabase(through)
     const pool0046 = createPool(before0047.apiUrl, { max: 2 })
@@ -158,6 +163,51 @@ describe('readiness across 0047', () => {
       await on.close()
       await pool0046.end()
       await before0047.drop()
+      rmSync(through, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('readiness across 0052 (provisional number)', () => {
+  it('is not ready without 0052, voice qualification on or off; ready with it; and not ready if its column or its function is missing', async () => {
+    const through = mkdtempSync(join(tmpdir(), 'sophia-no-0052-'))
+    for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql') && f !== PRESENCE))
+      copyFileSync(join(MIGRATIONS, file), join(through, file))
+    const without = await createTestDatabase(through)
+    const pool0052 = createPool(without.apiUrl, { max: 2 })
+    const verifyActor = createActorVerifier({
+      issuer: 'https://synthetic.supabase.test/auth/v1',
+      audience: 'authenticated',
+      secret: 'synthetic-test-secret-at-least-32-bytes-long!!',
+    })
+    const off = buildApp({ pool: pool0052, verifyActor })
+    const on = buildApp({ pool: pool0052, verifyActor, voiceQualification: true })
+    const asOwner = async (sql: string) => {
+      const c = new pg.Client({ connectionString: without.ownerUrl })
+      await c.connect()
+      try {
+        await c.query(sql)
+      } finally {
+        await c.end()
+      }
+    }
+    try {
+      assert.deepEqual(await ready(off), [503, { ready: false, reason: 'schema' }], 'voice off, no 0052')
+      assert.deepEqual(await ready(on), [503, { ready: false, reason: 'schema' }], 'voice on, no 0052')
+      await asOwner(readFileSync(join(MIGRATIONS, PRESENCE), 'utf8'))
+      assert.deepEqual(await ready(off), [200, { ready: true }], 'voice off, with 0052')
+      assert.deepEqual(await ready(on), [200, { ready: true }], 'voice on, with 0052')
+      await asOwner(`ALTER FUNCTION sophia.room_guests_asserted(uuid,timestamptz) RENAME TO room_guests_asserted_gone`)
+      assert.deepEqual(await ready(off), [503, { ready: false, reason: 'schema' }], 'the column without the function')
+      await asOwner(`ALTER FUNCTION sophia.room_guests_asserted_gone(uuid,timestamptz) RENAME TO room_guests_asserted`)
+      assert.deepEqual(await ready(off), [200, { ready: true }], 'both again')
+      await asOwner(`ALTER TABLE sophia.room_bridge_reports DROP COLUMN last_seq`)
+      assert.deepEqual(await ready(off), [503, { ready: false, reason: 'schema' }], 'the function without the column')
+    } finally {
+      await off.close()
+      await on.close()
+      await pool0052.end()
+      await without.drop()
       rmSync(through, { recursive: true, force: true })
     }
   })

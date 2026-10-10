@@ -59,6 +59,7 @@ import { Captions } from './captions.ts'
 import { EVIDENCE_RETRY_MS } from './evidence-sender.ts'
 import { RESERVE_RETRY_MS, RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
 import { type Assignment, type Attribution, ExchangeState, type InputState } from './exchange-state.ts'
+import { PRESENCE_SEQUENCE_MAX, type PresenceSequence, processPresenceSequence } from './presence-sequence.ts'
 import { GuideContext } from './guide-context.ts'
 import type { GuideVersion, MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
@@ -90,10 +91,15 @@ export interface SessionDeps {
   /** One tool call attempt's transport ceiling (TOOL_ATTEMPT_MS); tests shorten it. */
   toolAttemptMs?: number
   /**
-   * One attempt's bound for the quiesce acknowledgement, a holder event and an announcement's record
+   * One attempt's bound for the presence report, the quiesce acknowledgement, a holder event and an announcement's record
    * (POST_ATTEMPT_MS); tests shorten it.
    */
   postAttemptMs?: number
+  /**
+   * The counter the presence reports' reportSeq comes from (presence-sequence.ts): this process's, shared by every
+   * session, unless a test gives its own.
+   */
+  presenceSequence?: PresenceSequence
   /** Live captions for the members present (CX-0023); false sends none (SOPHIA_LIVE_CAPTIONS=off). On by default. */
   liveCaptions?: boolean
   /**
@@ -130,11 +136,13 @@ export const HOLDER_ARRIVAL_MS = 5000
 /** A holder event the API did not take is sent again after this wait. */
 export const HOLDER_RETRY_MS = 2000
 /**
- * How long one attempt of the quiesce acknowledgement, a holder event or an announcement's record may take, its body's
- * read included (item 7 of the PR #190 review: these posts had no bound but undici's own 300 s). Past it the request is
- * cancelled, its socket closed, and it is sent again with the same identity after its own wait (QUIESCE_RETRY_MS,
- * HOLDER_RETRY_MS, RECEIPT_RETRY_MS). Each is idempotent on the API (0013 media_ack_quiesce, ON CONFLICT DO NOTHING;
- * media_holder_event, compare-and-set on actor and epoch; 0035 media_record_announced, a union upsert).
+ * How long one attempt of the quiesce acknowledgement, a holder event, an announcement's record or a presence report may
+ * take, its body's read included (item 7 of the PR #190 review: these posts had no bound but undici's own 300 s). Past it
+ * the request is cancelled and its socket closed. The first three are sent again with the same identity after their own
+ * wait (QUIESCE_RETRY_MS, HOLDER_RETRY_MS, RECEIPT_RETRY_MS); each is idempotent on the API (0013 media_ack_quiesce, ON
+ * CONFLICT DO NOTHING; media_holder_event, compare-and-set on actor and epoch; 0035 media_record_announced, a union
+ * upsert). A presence report is never sent again: the next tick builds a new one with the next reportSeq, and the API
+ * ignores a cut one that commits after it (item 7 C; 0052, provisional number).
  */
 export const POST_ATTEMPT_MS = 3000
 /** A quiesce acknowledgement the API did not take is sent again after this wait, on the tick, while still asked for. */
@@ -531,6 +539,8 @@ export class RoomSession {
   private lastReport = 0
   private reportDirty = true
   private reporting = false
+  /** This session logged that its process's presence sequence is spent (presence-sequence.ts). */
+  private sequenceSpentLogged = false
   private published = ''
   private readonly acked = new Set<string>()
   /** When a quiesce acknowledgement the API did not take is sent again (on the tick), or null. */
@@ -2505,20 +2515,32 @@ export class RoomSession {
     if (this.room && !this.roomDown && !this.reporting && due) this.report(now)
   }
 
+  /**
+   * One presence report, numbered when it is built from this process's counter, within POST_ATTEMPT_MS. One whose
+   * attempt failed or was cut is never sent again: the session is marked dirty, and the next tick builds a new one with
+   * the next number (item 7 C). With the counter spent, nothing is sent.
+   */
   private report(now: number): void {
+    const reportSeq = (this.deps.presenceSequence ?? processPresenceSequence).next()
+    if (reportSeq === null) {
+      if (!this.sequenceSpentLogged) this.deps.log('presence.sequence_spent', { max: PRESENCE_SEQUENCE_MAX })
+      this.sequenceSpentLogged = true
+      return
+    }
     this.reporting = true
     this.reportDirty = false
     this.lastReport = now
     const participants = this.people.map((p) => ({ identity: p.identity, standing: p.standing }))
-    this.deps.service
-      .presence({
-        roomId: this.assignment.roomId,
-        exchangeId: this.exchangeId,
-        bridgeInstanceId: this.deps.bridgeInstanceId,
-        voice: this.state.provider,
-        reason: this.reason,
-        participants,
-      })
+    const report = {
+      roomId: this.assignment.roomId,
+      exchangeId: this.exchangeId,
+      bridgeInstanceId: this.deps.bridgeInstanceId,
+      voice: this.state.provider,
+      reason: this.reason,
+      participants,
+      reportSeq,
+    }
+    this.bounded((signal) => this.deps.service.presence(report, signal))
       .catch((err: unknown) => {
         this.reportDirty = true
         this.deps.log('presence.report_failed', { error: message(err) })

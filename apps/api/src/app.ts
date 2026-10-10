@@ -104,9 +104,16 @@ export interface AppDeps {
  * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call. 0043
  * (#117) is required by the two functions the capture routes call, the only ones this API calls that main's doesn't:
  * the migration is one transaction, and its other changes replace functions under their own signatures. The previous
- * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts).
+ * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts). The bridge's
+ * presence reports carry their process's sequence (the presence-order amendment and 0052, provisional numbers): this API
+ * accepts reportSeq, so it requires 0052's last sequence per room and process (its column, read from pg_attribute) and
+ * the guest aggregate its media_report_presence calls. The previous API calls 0052's function with no reportSeq (its
+ * contract has none) and stays ready on either database; the bridge that sends reportSeq is deployed after this API.
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
+  AND EXISTS(SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid=to_regclass('sophia.room_bridge_reports')
+    AND attname='last_seq' AND NOT attisdropped)
+  AND to_regprocedure('sophia.room_guests_asserted(uuid,timestamptz)') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
   AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
   AND to_regprocedure('sophia.transfer_input_floor(uuid,uuid,bigint,text)') IS NOT NULL

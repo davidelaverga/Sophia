@@ -138,8 +138,17 @@ export interface PresenceReport {
   voice: 'connecting' | 'ready' | 'recovering' | 'unavailable'
   reason: string | null
   participants: ReadonlyArray<{ identity: string; standing: string }>
+  /**
+   * The bridge process's report sequence (the presence-order amendment, provisional number; 0052): a report not above its
+   * process's last one for the room changes nothing. Omitted only by a bridge built before it.
+   */
+  reportSeq?: number
 }
 
+/**
+ * The bridge's report for a room (0052's media_report_presence): applied, or, if stale for its process, ignored with
+ * nothing changed. Either way it returns nothing.
+ */
 export async function reportPresence(c: pg.PoolClient, report: PresenceReport): Promise<void> {
   await c.query(`SELECT sophia.media_report_presence($1)`, [JSON.stringify(report)])
 }
