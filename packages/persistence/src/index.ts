@@ -6,6 +6,11 @@ export {
   withActor,
   withoutActor,
   withService,
+  withServiceWithin,
+  boundedAcquisitions,
+  BOUNDED_ACQUISITIONS_MAX,
+  NOT_IN_TIME,
+  POOL_BUSY,
   type PoolOptions,
   type TxMode,
 } from './tx.ts'

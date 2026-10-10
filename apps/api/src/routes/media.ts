@@ -3,7 +3,7 @@
 // functions refuse a transaction that carries a member identity. Each assignment carries a short-lived LiveKit
 // token for the `sophia` identity; the version that wakes the poll never includes tokens.
 import { createHash } from 'node:crypto'
-import type { FastifyInstance, FastifyRequest } from 'fastify'
+import type { FastifyInstance, FastifyReply, FastifyRequest, HookHandlerDoneFunction } from 'fastify'
 import type pg from 'pg'
 import type {
   MediaAnnounced,
@@ -27,6 +27,7 @@ import {
   reportPresence,
   voiceQualificationGuard,
   withService,
+  withServiceWithin,
 } from '@sophia/persistence'
 import type { CallFences } from '../call-fence.ts'
 import { issueBridgeToken, type LiveKitConfig } from '../livekit.ts'
@@ -46,6 +47,31 @@ export const MEDIA_ROUTES: ReadonlySet<string> = new Set([
   '/v1/media/evidence-writes',
   '/v1/media/qualification-reserve',
 ])
+
+/**
+ * The API's deadline for one of the bridge's bounded posts, counted from the route's onRequest hook (when Fastify begins
+ * handling the request: its headers read, its body not yet parsed or validated), on the API process's own clock (Codex
+ * P1 r4238081302). The bridge gives an attempt of each up at its own bound (POST_ATTEMPT_MS for presence, holder events,
+ * quiesce acknowledgements and announcement records; EVIDENCE_ATTEMPT_MS for receipts; RESERVE_TIMEOUT_MS for
+ * reservations: 3 s each) and then sends again; the request's socket closes, but nothing stopped its transaction, so a
+ * lock held longer piled the attempts' transactions up until the pool was exhausted. withServiceWithin bounds by this
+ * deadline the wait for a pool connection, each statement (its lock waits included) and each of COMMIT's lock waits; one
+ * cut before COMMIT is rolled back and answers 503 `unavailable` (retry safe_read), so in the ordinary case the bridge
+ * has its answer before it gives up. It is not an aggregate hard bound: COMMIT's own completion (WAL write and flush),
+ * the network round trips and what comes before the hook (accepting the connection, reading the headers) are outside it,
+ * and a cut at COMMIT is `outcome_unknown`. It bounds the server's own waits, not any handler or provider.
+ * bridge-post-bound.db.test.ts checks it against the bridge's bounds.
+ */
+export const BRIDGE_POST_BOUND_MS = 2000
+
+/** When each bridge post's onRequest hook ran (headers read, body not yet parsed): its deadline counts from then. */
+const arrived = new WeakMap<FastifyRequest, number>()
+const markArrival = (req: FastifyRequest, _reply: FastifyReply, done: HookHandlerDoneFunction) => {
+  arrived.set(req, performance.now())
+  done()
+}
+/** The deadline of a bridge post's transaction: BRIDGE_POST_BOUND_MS after its onRequest hook ran. */
+const deadlineOf = (req: FastifyRequest) => (arrived.get(req) ?? performance.now()) + BRIDGE_POST_BOUND_MS
 
 interface Deps {
   pool: pg.Pool
@@ -136,32 +162,7 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice, f
     reserveRoute(app, pool)
   }
 
-  app.post<{ Body: MediaQuiesceAck }>(
-    '/v1/media/quiesce-acks',
-    { schema: { body: { $ref: 'MediaQuiesceAck#' } } },
-    async (req, reply) => {
-      await withService(pool, (c) => ackQuiesce(c, req.body.requestId, req.body.bridgeInstanceId))
-      return reply.status(204).send()
-    },
-  )
-
-  app.post<{ Body: MediaHolderEvent }>(
-    '/v1/media/holder',
-    { schema: { body: { $ref: 'MediaHolderEvent#' } } },
-    async (req, reply) => {
-      await withService(pool, (c) => holderEvent(c, req.body))
-      return reply.status(204).send()
-    },
-  )
-
-  app.post<{ Body: MediaAnnounced }>(
-    '/v1/media/announced',
-    { schema: { body: { $ref: 'MediaAnnounced#' } } },
-    async (req, reply) => {
-      await withService(pool, (c) => recordAnnounced(c, req.body))
-      return reply.status(204).send()
-    },
-  )
+  bridgeEventRoutes(app, pool)
 
   // The bridge activates its guide only when these equal its declarations (A08): an API without a handler for an
   // operation the prompt names must not be talked to by that prompt.
@@ -177,6 +178,48 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice, f
 }
 
 /**
+ * The bridge's quiesce acknowledgement, holder events and announcement records, each in a transaction bounded by
+ * BRIDGE_POST_BOUND_MS: the bridge sends each again after its own wait when an attempt is not answered.
+ */
+function bridgeEventRoutes(app: FastifyInstance, pool: pg.Pool): void {
+  app.post<{ Body: MediaQuiesceAck }>(
+    '/v1/media/quiesce-acks',
+    { schema: { body: { $ref: 'MediaQuiesceAck#' } }, onRequest: markArrival },
+    async (req, reply) => {
+      await withServiceWithin(pool, deadlineOf(req), async (c, within) => {
+        await within()
+        await ackQuiesce(c, req.body.requestId, req.body.bridgeInstanceId)
+      })
+      return reply.status(204).send()
+    },
+  )
+
+  app.post<{ Body: MediaHolderEvent }>(
+    '/v1/media/holder',
+    { schema: { body: { $ref: 'MediaHolderEvent#' } }, onRequest: markArrival },
+    async (req, reply) => {
+      await withServiceWithin(pool, deadlineOf(req), async (c, within) => {
+        await within()
+        await holderEvent(c, req.body)
+      })
+      return reply.status(204).send()
+    },
+  )
+
+  app.post<{ Body: MediaAnnounced }>(
+    '/v1/media/announced',
+    { schema: { body: { $ref: 'MediaAnnounced#' } }, onRequest: markArrival },
+    async (req, reply) => {
+      await withServiceWithin(pool, deadlineOf(req), async (c, within) => {
+        await within()
+        await recordAnnounced(c, req.body)
+      })
+      return reply.status(204).send()
+    },
+  )
+}
+
+/**
  * A receipt for an exchange under a voice qualification grant (A15, 0046), numbered by the database (0051; Codex P1
  * r4232908444): under the exchange's locks, from its durable high-water counter, the same number for a repeat of the
  * same write (its writeId), never a number given before. The database binds it to the grant and its run and runs the
@@ -185,18 +228,22 @@ export function mediaRoutes(app: FastifyInstance, { pool, hub, livekit, voice, f
 function evidenceRoute(app: FastifyInstance, pool: pg.Pool): void {
   app.post<{ Body: MediaEvidenceWrite }>(
     '/v1/media/evidence-writes',
-    { schema: { body: { $ref: 'MediaEvidenceWrite#' }, response: { 200: { $ref: 'MediaEvidenceAck#' } } } },
+    {
+      schema: { body: { $ref: 'MediaEvidenceWrite#' }, response: { 200: { $ref: 'MediaEvidenceAck#' } } },
+      onRequest: markArrival,
+    },
     async (req) => {
       const { exchangeId, grantId, writeId, receipt } = req.body
-      return withService(pool, (c) =>
-        recordQualificationEvidenceWrite(c, {
+      return withServiceWithin(pool, deadlineOf(req), async (c, within) => {
+        await within()
+        return recordQualificationEvidenceWrite(c, {
           exchangeId,
           grantId,
           writeId,
           kind: receipt.kind,
           receipt: { ...receipt },
-        }),
-      )
+        })
+      })
     },
   )
   app.post('/v1/media/evidence', () => {
@@ -220,8 +267,13 @@ function reserveRoute(app: FastifyInstance, pool: pg.Pool): void {
         body: { $ref: 'MediaQualificationReserve#' },
         response: { 200: { $ref: 'MediaQualificationReservation#' } },
       },
+      onRequest: markArrival,
     },
-    async (req) => withService(pool, (c) => reserveQualification(c, req.body)),
+    async (req) =>
+      withServiceWithin(pool, deadlineOf(req), async (c, within) => {
+        await within()
+        return reserveQualification(c, req.body)
+      }),
   )
 }
 
@@ -229,17 +281,24 @@ function reserveRoute(app: FastifyInstance, pool: pg.Pool): void {
  * The bridge's presence in a room (each 5 s), with a voice qualification grant's guard in the same transaction. A report
  * whose reportSeq is not above its process's last one for the room (0052) is answered 204 like any other and has no
  * presence effect; the independent guard still runs on it: it acts on the grant's deadline and limits, may end an
- * exchange for them and emits its own guard event, never on the report's account.
+ * exchange for them and emits its own guard event, never on the report's account. Its wait for a connection, the
+ * report's statement, the guard's and COMMIT's lock waits each have only what is left of BRIDGE_POST_BOUND_MS from the
+ * route's onRequest hook. One cut before COMMIT rolls the whole transaction back (503 `unavailable`): nothing of the
+ * report or of the guard is kept, and the bridge's next report, numbered anew, has it all again. One cut at COMMIT is
+ * `outcome_unknown` (503).
  */
 function presenceRoute(app: FastifyInstance, pool: pg.Pool, voice: boolean): void {
   app.post<{ Body: MediaPresenceReport }>(
     '/v1/media/presence',
-    { schema: { body: { $ref: 'MediaPresenceReport#' } } },
+    { schema: { body: { $ref: 'MediaPresenceReport#' } }, onRequest: markArrival },
     async (req, reply) => {
-      await withService(pool, async (c) => {
+      await withServiceWithin(pool, deadlineOf(req), async (c, within) => {
+        await within()
         await reportPresence(c, req.body)
         // Every presence report (each 5 s) holds an exchange under a grant to its deadline, whether or not the Lab is there.
-        if (voice) await voiceQualificationGuard(c)
+        if (!voice) return
+        await within()
+        await voiceQualificationGuard(c)
       })
       return reply.status(204).send()
     },

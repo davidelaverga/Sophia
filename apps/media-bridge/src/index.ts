@@ -1,4 +1,7 @@
 export { ASSIGNMENT_WAIT_MS, MediaBridge } from './bridge.ts'
+// The bridge's own bounds for one attempt of a post: the API's deadline for its waits (BRIDGE_POST_BOUND_MS) is below them.
+export { EVIDENCE_ATTEMPT_MS } from './evidence-sender.ts'
+export { RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
 export {
   DEFAULT_GUIDE_VERSION,
   GUIDE_DIR,
@@ -15,6 +18,7 @@ export {
 export { connectGeminiLive, geminiLive, type ConnectLive, type LiveEvents, type LiveLink } from './live-session.ts'
 export {
   HOLDER_GRACE_MS,
+  POST_ATTEMPT_MS,
   PRESENCE_EVERY_MS,
   RoomSession,
   TOOL_ATTEMPT_MS,
