@@ -4,8 +4,8 @@
 
 ## What was found
 
-- `e2e/room-passage-task.spec.ts`, «a Done with no reply says so, and Try again records it once», failed about one
-  run in five, on `main` too: either the row already said «Done by you.» where «Not confirmed. Try again.» was
+- `e2e/room-passage-task.spec.ts`, «a Done with no reply says so, and Try again records it once», failed some runs,
+  on `main` too (1 of 6 in one local run, 15 of 25 repeated back to back, below): either the row already said «Done by you.» where «Not confirmed. Try again.» was
   expected, or it said «Not confirmed» and then its Try again was gone before the press.
 - Why: the test makes the task with `fixture.taskBy(null)`, which records it and moves the project's feed. The feed's
   move reaches the page asynchronously (an event, then the snapshot read, then the tasks read again). Meanwhile the
@@ -18,7 +18,8 @@
 ## What changes
 
 - The test waits for the feed's read of the new task (a tasks read past the count before it) before it opens the tab
-  and presses Done. After that nothing moves the feed: a reply lost moves nothing, and Try again replays the same
+  and presses Done. The tab's own read as it opens is sent before Done exists, so it can't bring the Done. After that
+  nothing moves the feed: a reply lost moves nothing, and Try again replays the same
   record. What it checks is unchanged: «Not confirmed. Try again.», then «Done by you.», one `task:done` recorded.
 
 ## Checks
