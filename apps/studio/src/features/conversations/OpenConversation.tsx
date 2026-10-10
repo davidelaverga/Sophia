@@ -19,6 +19,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { Mark } from '../../app/Mark.tsx'
+import { Button } from '@sophia/ui'
 import {
   answeredAfter,
   continuesRun,
@@ -159,11 +160,17 @@ function Head(props: {
   const { conversation: c, context } = props
   return (
     <header className="conv-head">
-      <button type="button" className="icon-button conv-back" aria-label="All conversations" onClick={props.onBack}>
+      <Button
+        kind="icon"
+        size="md"
+        className="icon-button conv-back"
+        aria-label="All conversations"
+        onClick={props.onBack}
+      >
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
           <path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-      </button>
+      </Button>
       <div className="conv-head-words">
         <h3 ref={props.head} tabIndex={-1}>
           {c.title}
@@ -185,9 +192,10 @@ function Head(props: {
 /** «Context»: opens the project's context where it is a panel (under 1180 px); over that it is a pane, and this hides. */
 export function ContextToggle({ context }: { context: Props['context'] }) {
   return (
-    <button
+    <Button
       ref={context.ref}
-      type="button"
+      kind="icon"
+      size="md"
       className="icon-button conv-context-toggle"
       aria-label="Context"
       title="Context"
@@ -199,7 +207,7 @@ export function ContextToggle({ context }: { context: Props['context'] }) {
         <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
         <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
