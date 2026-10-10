@@ -83,7 +83,8 @@ function useAccountCache(signedInAs: string | null) {
  * The signed-in Studio's chunk, fetched ahead (signed-in-load.ts) so it is here by the time the person is in: as the
  * page loads when a session is likely (one kept, a sign-in's return), so it goes with the session's check, never after
  * it; a link offered; or on the sign-in page once they start (a key, a press, caught before any field keeps it); never
- * at rest. On a room's door, only for a member, whom the door hands to the Studio; never for a guest.
+ * at rest. On a room's door, for a member, whom the door hands to the Studio (and, as the page loads, for an account's
+ * session kept there); never for a guest.
  */
 function useSignedInAhead(state: AuthState, door: boolean) {
   const { status } = state

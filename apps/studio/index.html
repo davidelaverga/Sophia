@@ -117,7 +117,8 @@
     <div id="root"></div>
     <!--
       The signed-in Studio's chunk, asked for beside the app's own start when a session is likely (signed-in-load.ts,
-      docs/plans/signed-in-early.md): its own small script, so the request never waits on the app's modules.
+      docs/plans/signed-in-early.md): its own script, so it never waits on the app's modules and first render. A build
+      joins it to the app's entry, first: it runs as soon as the entry has arrived.
     -->
     <script type="module" src="/src/app/signed-in-load.ts"></script>
     <script type="module" src="/src/main.tsx"></script>
