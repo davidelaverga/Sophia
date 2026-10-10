@@ -33,11 +33,13 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     // The same page built, React's development build (vite.app-build.config.ts, e2e/app-auth.spec.ts): each check's
-    // fresh context loads 13 files, not every module.
+    // fresh context loads 13 files, not every module. NODE_ENV is set here, before Vite reads it: an inherited one (say,
+    // production) would otherwise make Vite build production React, which the config then refuses to build.
     {
       command:
         'pnpm exec vite build --config vite.app-build.config.ts && pnpm exec vite preview --config vite.app-build.config.ts',
       url: 'http://127.0.0.1:5197/app.html',
+      env: { NODE_ENV: 'development' },
       reuseExistingServer: !process.env.CI,
     },
   ],
