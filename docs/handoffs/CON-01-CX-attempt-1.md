@@ -6,6 +6,8 @@ Quiesced4human1NULL/5requests/1erase/0replies/bootstrapgoal1/allmodelop0/48reads
 
 Nextboundedaction: authorterminal/freshreview, then smallest exactcurrentmain+S1+docs+correctioncombinedcandidate/affectedindependentqualification, including meaningfuloldsuccess-order. Finalizedapprovedlivebatchstillrequired.
 
+22:18 exactClaudeack415 preserves independentlimits; authorreports focusedbrowser0/fullStudioactive42of1214, nofullterminal. Prospectivecombinedtree470bbfdf local/unpublished/authoronly, 6paths+176−20vs3b1a; independentlyunreviewed. SharedCX83comment6102785045/evidence571317ba. Noeffect/readinesschange.
+
 # Historical checkpoint — CX-0082
 
 [Actual list-first403 P1 failure](../coordination/CON-01/CX-0082.md), [structured evidence](../coordination/CON-01/CX-0082.evidence.json). Samecombined3b1a/tree2718/main0ccc. Freshbot5480950760/P1r4239350130 fullyread/sourceconfirmed. Episode74realApp/API/PG: transientlist503stalecontrol; exactsyntheticmembershiprevoke cursor4->4; already-mountedlistRetry actual40322:02:04.544/.05.578; cachedrows/excerpts/authors/C1body/draft/Send/Newconversation/Propose/Withdraw/Erase stillshown22:02:16.968. No transcriptGETafterrevoke; clearindependentP1FAIL, notremountconfound. Backenddenies; no writeattempted. Originalmembershiprestored/sameRetry200/draftkept.
