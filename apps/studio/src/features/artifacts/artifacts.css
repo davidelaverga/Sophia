@@ -1038,8 +1038,10 @@
   }
 }
 @media (pointer: coarse) {
+  /* The viewer's format switch stands beside its tabs (44 to a finger) and keeps their height. */
   .output-open,
   .knowledge-filters .segmented button,
+  .report-format button,
   .report-pane-head .round {
     min-height: 44px;
   }

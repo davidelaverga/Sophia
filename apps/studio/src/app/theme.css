@@ -1241,11 +1241,11 @@ img.avatar {
 .segmented::before {
   content: '';
   position: absolute;
-  top: 3px;
-  bottom: 3px;
+  top: 0;
   left: 0;
   width: var(--thumb-w, 0);
-  transform: translateX(var(--thumb-x, 0));
+  height: var(--thumb-h, 0);
+  transform: translate(var(--thumb-x, 0), var(--thumb-y, 0));
   border-radius: var(--r-2);
   background: rgba(236, 235, 241, 0.08);
   box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
@@ -1253,7 +1253,8 @@ img.avatar {
 .segmented[data-thumb-ready]::before {
   transition:
     transform var(--base) var(--ease),
-    width var(--base) var(--ease);
+    width var(--base) var(--ease),
+    height var(--base) var(--ease);
 }
 .segmented button {
   position: relative;
