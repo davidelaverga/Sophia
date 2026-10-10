@@ -3,10 +3,11 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 
 // What a person reads never names the people who build the Studio (docs/plans/copy-no-team-names.md): a placeholder
-// once listed «Davide’s Codex and Claude, Luis’s Claude» to every customer. Read from the code the Studio builds, its
-// comments left out (they are for us); tests and test data aside.
+// once listed «Davide’s Codex and Claude, Luis’s Claude» to every customer. Read from the strings in the code the Studio
+// builds, as TypeScript parses them: never its comments (they are for us); tests and test data aside.
 const src = fileURLToPath(new URL('../', import.meta.url))
 
 /** The people who build the Studio, by the names the code has used for them. */
@@ -22,16 +23,34 @@ function production(dir: string): string[] {
   })
 }
 
-/** The code without its comments: line comments and block comments, JSX's braced ones included. */
-const withoutComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+/** The words a node holds, if it is a string: a literal, a template's part, or JSX text. */
+function wordsOf(node: ts.Node): string | null {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateLiteralToken(node)) {
+    return node.text
+  }
+  return ts.isJsxText(node) ? node.text : null
+}
+
+/** Every string a source file holds, as TypeScript parses it: never a comment. */
+function said(path: string): string[] {
+  const kind = path.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const file = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, false, kind)
+  const out: string[] = []
+  const visit = (node: ts.Node) => {
+    const words = wordsOf(node)
+    if (words !== null) out.push(words)
+    node.forEachChild(visit)
+  }
+  visit(file)
+  return out
+}
 
 describe('what a person reads', () => {
   it('names nobody who builds the Studio', () => {
     const naming = production(src).flatMap((path) =>
-      withoutComments(readFileSync(path, 'utf8'))
-        .split('\n')
-        .filter((line) => TEAM.test(line))
-        .map((line) => `${relative(src, path).split(sep).join('/')}: ${line.trim().slice(0, 80)}`),
+      said(path)
+        .filter((words) => TEAM.test(words))
+        .map((words) => `${relative(src, path).split(sep).join('/')}: ${words.trim().slice(0, 80)}`),
     )
     assert.deepEqual(naming, [])
   })

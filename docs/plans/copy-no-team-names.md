@@ -15,11 +15,13 @@
 
 - Resources: «The tools your team connects to this project will live here.», as its siblings say what will live there.
 - The access sheet: «No assistant is connected, and none can be connected from here yet.»
-- A check (`src/app/no-team-names.test.ts`) reads the code the Studio builds, its comments left out, and finds no name
-  of the people who build it; tests and test data aside.
+- A check (`src/app/no-team-names.test.ts`) reads every string in the code the Studio builds, as TypeScript parses
+  it (literals, a template's parts, JSX text: never a comment), and finds no name of the people who build it; tests
+  and test data aside.
 
 ## Checks (written first)
 
 - The new check failed on exactly the two strings; with the change it passes. `project-connections`, whose check held
   the access sheet's words, says them as they are now, and passes.
-- Mutants: a name put back in a string fails the check; a name in a comment doesn't (comments are for us).
+- Mutants, with a control that passes: a name put back in a string fails the check, a name after a `//` inside a
+  string too (what a regex that strips comments would have hidden); a name in a comment doesn't (comments are for us).
