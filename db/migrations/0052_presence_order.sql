@@ -11,9 +11,12 @@
 -- Now:
 -- * Order. A report may carry reportSeq (1 to 9007199254740991; the presence-order amendment, provisional number), from one
 --   counter per bridge process, shared by all its sessions. Under the project's lock, a report whose reportSeq is not
---   above its process's last_seq for the room is STALE and changes NOTHING: no presence, no liveness (room_bridge_reports'
---   reported_at, which quiesce_settled reads), no guest assertion, no pause, no end, no empty_since, no event, no
---   last_seq. It is answered like any other (the API's 204).
+--   above its process's last_seq for the room is STALE and has NO PRESENCE EFFECT: no presence, no liveness
+--   (room_bridge_reports' reported_at, which quiesce_settled reads), no guest assertion, no pause, no empty-room end, no
+--   empty_since, no presence event, no last_seq. It is answered like any other (the API's 204). The independent
+--   voice-qualification guard (0046), which the API runs in the same request's transaction when voice qualification is on,
+--   may still run on that request: it acts on its grant's deadline and limits, may end an exchange for them, and emits its
+--   own guard event. Those are the guard's effects, not the report's.
 -- * Legacy, bounded. A report without reportSeq (a bridge built before this) is applied as 0017 applied it, within its own
 --   process, only while that process has never sent a sequenced report for the room; once it has, a report of its without
 --   one is stale. A bridge before this never has two presence reports in flight and never abandons one before undici's
@@ -26,12 +29,18 @@
 -- * Each process's own guest assertion. room_bridge_reports keeps, per room and process, the guests_present that process's
 --   last accepted report asserted (a 'guest' or 'unknown' participant) and guests_at, that report's reading. Only the
 --   process's own accepted report writes it: another process never overwrites or refreshes it and never extends its 30 s
---   horizon; its own later report (higher reportSeq, or a legacy one) may clear it; and it stops counting 30 s after it
---   was made (the window control_exchange's resume uses), so a process gone silent stops holding the room.
+--   horizon; its own later report (higher reportSeq, or a legacy one) may clear it; and it counts only while it is under
+--   30 s old at an accepted report's reading (the window control_exchange's resume uses).
 -- * The room's guests are the aggregate: room_guests_asserted(room, reading), true while any process's own assertion is
 --   fresh. room_ai_presence.guests_present, the guest pause and the presence event use it; and a room is empty for the
 --   5-minute count only if the report lists nobody AND no process's guest assertion is fresh, so a process that sees
 --   nobody cannot end the exchange while another one still sees a guest.
+--   The aggregate is recomputed ONLY when an accepted presence report is applied, at its reading; nothing expires it on a
+--   timer. room_ai_presence.guests_present is that cached room flag, and its reported_at its time. The unchanged start and
+--   resume checks read the cached flag with that freshness, never room_guests_asserted: 0015's control_exchange resume
+--   refuses while it is set or when reported_at is over 30 s old; start_exchange (0015's, as 0051 replaces it for T4)
+--   refuses while it is set and reported_at is under 2 minutes old. So an assertion past 30 s stops holding the room at
+--   the next accepted report from any process; until one comes, the cached flag stays, judged by those checks by its age.
 -- * The rest of room_ai_presence (exchange, voice, reason, participants, the reporting process) is the last accepted
 --   report's, from any process, as 0017 had it.
 -- Rollout: this migration first (the API and bridges before it keep working: their reports carry no reportSeq), then the
@@ -81,7 +90,8 @@ BEGIN
  SELECT project_id, revision INTO p, rev FROM sophia.room_state WHERE id=room;
  IF p IS NULL THEN RAISE EXCEPTION 'Room not found' USING ERRCODE='22023'; END IF;
  PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;
- -- Stale: not above its process's last sequence for the room (or no sequence once it has one). Nothing is changed.
+ -- Stale: not above its process's last sequence for the room (or no sequence once it has one). No presence effect: it
+ -- returns before any write (the API's guard, voice qualification on, runs after it in the request, on its own).
  SELECT * INTO mine FROM sophia.room_bridge_reports WHERE room_id=room AND bridge_instance=inst FOR UPDATE;
  IF mine.last_seq IS NOT NULL AND (v_seq IS NULL OR v_seq<=mine.last_seq) THEN RETURN; END IF;
  v_now:=clock_timestamp();

@@ -1,13 +1,13 @@
 {
   "id": "A17",
   "goal": "SDD-01-G7",
-  "title": "PROVISIONAL NUMBER (pending owner/root confirmation in the final census): the bridge's presence reports carry their process's sequence, so a late one changes nothing",
+  "title": "PROVISIONAL NUMBER (pending owner/root confirmation in the final census): the bridge's presence reports carry their process's sequence, so a late one has no presence effect",
   "why": [
     "This amendment's number is provisional. Nothing outside this file names it except the file's own name: a renumbering changes only the file name and the id above. Issue #105's historical \"A17\" (a passage becomes a task, docs/plans/room-passage-task.md) is a separate proposal label, NOT this presence amendment; it reserves nothing, and neither does this number. It follows #199's amendment (CON-01), and its generated output touches files #199's also touches (here openapi.json and generated-types.ts; validators.js is unchanged): whichever PR lands second merges main and regenerates them with `pnpm --filter @sophia/contracts generate`, never by hand.",
     "Item 7 C of the PR #190 review: the bridge's presence report (A06, POST /v1/media/presence, every 5 s and on a change) had no bound but undici's 300 s. Bounding it like the bridge's other posts (3 s per attempt) cancels the request on the bridge's side but not the API's transaction, and the next tick sends a newer report, so a cut report could be applied after a newer one, undoing it: a guest's flag cleared, the voice flapping, the empty-room count restarted.",
-    "reportSeq orders them. Each bridge process takes it from one counter shared by all its sessions (a replacement session continues it), when the report is built; a report whose attempt failed or was cut is never sent again, the next one has a higher number. The API keeps the last sequence per room and process (migration 0052, provisional number): a report whose reportSeq is not above it is answered 204 and changes nothing, neither the room's presence nor the process's liveness, a guest pause, an empty-room end or an event.",
+    "reportSeq orders them. Each bridge process takes it from one counter shared by all its sessions (a replacement session continues it), when the report is built; a report whose attempt failed or was cut is never sent again, the next one has a higher number. The API keeps the last sequence per room and process (migration 0052, provisional number): a report whose reportSeq is not above it is answered 204 and has no PRESENCE effect: no presence, liveness, guest assertion, pause, empty-room end, empty_since, presence event or last_seq. The independent voice-qualification guard (A15), which the API runs in the same request's transaction when voice qualification is on, may still run on that request: it acts on its grant's deadline and limits, may end an exchange for them, and emits its own guard event; those are the guard's effects, not the report's.",
     "Optional, so a bridge built before it still validates: a report without reportSeq is applied as before, only while its process has never sent one with it. An API built before this amendment refuses reportSeq (422), so the rollout is the migration, then the API, then the bridge. At 9007199254740991 a process's counter is spent: it sends no more presence reports (each of its sessions logs it once), and a new process, with a new bridgeInstanceId, starts again from 1.",
-    "Across processes (a deploy's overlap), each process's own guest assertion is kept with its own time, and the room has a guest while any process's assertion is under 30 s old: another process never clears, refreshes or extends it. This needs no wire change beyond reportSeq."
+    "Across processes (a deploy's overlap), each process's own guest assertion is kept with its own time, and an assertion counts while it is under 30 s old at an accepted report's reading: another process never clears, refreshes or extends it. The room's guests are the aggregate of those assertions, recomputed ONLY when an accepted presence report is applied; nothing expires it on a timer. It is stored as the room's cached flag (room_ai_presence.guests_present, with its reported_at), which the unchanged start and resume checks read with that reported_at's freshness. This needs no wire change beyond reportSeq."
   ],
   "patch": [
     {
@@ -17,13 +17,13 @@
         "type": "integer",
         "minimum": 1,
         "maximum": 9007199254740991,
-        "description": "This bridge process's report sequence, from one counter shared by all its sessions and never reused: a report not above the last one the API applied for this room and process changes nothing. Omitted only by a bridge built before it."
+        "description": "This bridge process's report sequence, from one counter shared by all its sessions and never reused: a report not above the last one the API applied for this room and process has no presence effect (the independent voice-qualification guard, A15, may still run on its request). Omitted only by a bridge built before it."
       }
     },
     {
       "op": "replace",
       "path": "/paths/~1v1~1media~1presence/post/responses/204/description",
-      "value": "Recorded, or ignored: a report whose reportSeq is not above its process's last one for the room changes nothing"
+      "value": "Recorded; or, for a report whose reportSeq is not above its process's last one for the room, no presence effect (the independent voice-qualification guard, A15, may still run on the request and act on its grant's limits)"
     }
   ]
 }

@@ -227,8 +227,9 @@ function reserveRoute(app: FastifyInstance, pool: pg.Pool): void {
 
 /**
  * The bridge's presence in a room (each 5 s), with a voice qualification grant's guard in the same transaction. A report
- * whose reportSeq is not above its process's last one for the room (0052) is answered 204 like any other and changes
- * nothing of the room's presence; the guard still runs, as it acts on the grant's deadline and limits, not on the report.
+ * whose reportSeq is not above its process's last one for the room (0052) is answered 204 like any other and has no
+ * presence effect; the independent guard still runs on it: it acts on the grant's deadline and limits, may end an
+ * exchange for them and emits its own guard event, never on the report's account.
  */
 function presenceRoute(app: FastifyInstance, pool: pg.Pool, voice: boolean): void {
   app.post<{ Body: MediaPresenceReport }>(

@@ -5258,7 +5258,7 @@
         "parameters": [],
         "responses": {
           "204": {
-            "description": "Recorded, or ignored: a report whose reportSeq is not above its process's last one for the room changes nothing"
+            "description": "Recorded; or, for a report whose reportSeq is not above its process's last one for the room, no presence effect (the independent voice-qualification guard, A15, may still run on the request and act on its grant's limits)"
           },
           "401": {
             "description": "No or unknown media-bridge capability"
@@ -17227,7 +17227,7 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 9007199254740991,
-            "description": "This bridge process's report sequence, from one counter shared by all its sessions and never reused: a report not above the last one the API applied for this room and process changes nothing. Omitted only by a bridge built before it."
+            "description": "This bridge process's report sequence, from one counter shared by all its sessions and never reused: a report not above the last one the API applied for this room and process has no presence effect (the independent voice-qualification guard, A15, may still run on its request). Omitted only by a bridge built before it."
           }
         },
         "required": [
