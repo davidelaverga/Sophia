@@ -897,7 +897,7 @@ describe('a confirmed message, as the API would say its row after it (r423729862
       'a',
       renamed,
     )
-    assert.deepEqual(c?.contributors, [
+    assert.deepEqual(namesOf(c?.contributors), [
       { actorId: 'lucia', name: 'Synthetic Former Name' },
       { actorId: ME, name: 'Synthetic Current Name' },
     ])
@@ -916,7 +916,7 @@ describe('a confirmed message, as the API would say its row after it (r423729862
     assert.equal(a?.lastMessage?.name, null)
     // A writer new here, the same.
     const [b] = withLastMessage([row()], 'a', { ...mine, name: null })
-    assert.deepEqual(b?.contributors.at(-1), { actorId: ME, name: 'A member' })
+    assert.deepEqual(namesOf(b?.contributors)?.at(-1), { actorId: ME, name: 'A member' })
   })
 
   it('renamed in a row naming as many as it may: the same place, the same count, the rest still unnamed', () => {
@@ -1241,6 +1241,41 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     assert.deepEqual(
       b?.contributors.map((p) => p.actorId),
       [ME, 'lucia', 'tomas', 'ana'],
+    )
+  })
+
+  it('a writer added here whose first message is withdrawn later goes where their first still shown now is (CX-0040)', () => {
+    // C1 (me), A2 lucía, B3 tomás; B4 and A5 withdrawn: the row says C, A, B. Then A2 withdrawn too, A6 still shown:
+    // lucía's first is 6 now, after tomás's 3, so C, B, A, as the API orders them.
+    const stale = assessed({ messageSeq: 1, contributors: [{ actorId: ME, name: 'Me' }] })
+    const two = msg(2, { actorId: 'lucia', name: 'Lucía' })
+    const four = msg(4, { actorId: 'tomas', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+    const five = msg(5, { actorId: 'lucia', name: null, text: null, withdrawn: { at: '2026-10-06T10:01:00.000Z' } })
+    const six = msg(6, { actorId: 'lucia', name: 'Lucía' })
+    const twoGone = { ...two, name: null, text: null, withdrawn: { at: '2026-10-06T10:02:00.000Z' } }
+    const earlier = [msg(1), two, msg(3, { actorId: 'tomas', name: 'Tomás' }), four, five, six]
+    const afterTwo = [msg(1), twoGone, msg(3, { actorId: 'tomas', name: 'Tomás' }), four, five, six]
+    const [first] = rowsKnown([stale], heldForA(page(earlier)), () => true)
+    assert.deepEqual(
+      first?.contributors.map((p) => p.actorId),
+      [ME, 'lucia', 'tomas'],
+    )
+    const [then] = rowsKnown(first ? [first] : [], heldForA(page(afterTwo)), () => true)
+    assert.deepEqual(
+      then?.contributors.map((p) => p.actorId),
+      [ME, 'tomas', 'lucia'],
+    )
+    // Withdrawn here, one at a time: the same.
+    const four1 = listWithdrawn(oneRow(stale), 'a', remainsAfter(page(earlier.slice(0, 4)), four))
+    const five1 = listWithdrawn(four1, 'a', remainsAfter(page(earlier), five))
+    const two1 = listWithdrawn(five1, 'a', remainsAfter(page(afterTwo), twoGone))
+    assert.deepEqual(
+      five1?.conversations[0]?.contributors.map((p) => p.actorId),
+      [ME, 'lucia', 'tomas'],
+    )
+    assert.deepEqual(
+      two1?.conversations[0]?.contributors.map((p) => p.actorId),
+      [ME, 'tomas', 'lucia'],
     )
   })
 

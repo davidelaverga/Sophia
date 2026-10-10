@@ -402,26 +402,38 @@ function writersAfter(
   remains: Remains,
 ): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
   const { writer, writerName } = remains
-  const { contributors } = c
-  if (writer === null) return { contributors }
-  if (!remains.writerStays) return { contributors: contributors.filter((p) => p.actorId !== writer) }
-  if (writerName === null) return { contributors }
-  if (contributors.some((p) => p.actorId === writer)) {
-    return {
-      contributors: contributors.map((p) =>
-        p.actorId === writer && p.name !== writerName ? { ...p, name: writerName } : p,
-      ),
-    }
-  }
+  const contributors: readonly Placed[] = c.contributors
+  if (writer === null || (remains.writerStays && writerName === null)) return { contributors: c.contributors }
+  if (!remains.writerStays || writerName === null)
+    return { contributors: contributors.filter((p) => p.actorId !== writer) }
+  const was = contributors.find((p) => p.actorId === writer)
+  // The list read's own writer (or the reader in the last place kept, at the cap) keeps their place, named again.
+  if (was !== undefined && was.added === undefined) return { contributors: renamedIn(contributors, writer, writerName) }
   const them = { actorId: writer, name: writerName }
   const placed = remains.writerFirst === null ? them : { ...them, firstSeq: remains.writerFirst }
+  // One this view added is placed again by their first message still shown now: a first withdrawn since never stays
+  // (CX-0040); one no longer known goes last.
+  if (was !== undefined)
+    return {
+      contributors: withAdded(
+        contributors.filter((p) => p !== was),
+        placed,
+      ),
+    }
   if (contributors.length < NAMED_AT_MOST) return { contributors: withAdded(contributors, placed) }
   if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
   return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
 
-/** A writer as this view names them before a list read does: where their first message still shown is, if known. */
-type Placed = ConversationSummary['contributors'][number] & { firstSeq?: number }
+/**
+ * A writer as this view holds them: `added` where this view named them since the list read (a receipt's sender, or a
+ * writer restored by a withdrawal), with where their first message still shown is, where known (`firstSeq`).
+ */
+type Placed = ConversationSummary['contributors'][number] & { added?: true; firstSeq?: number }
+
+/** These writers, `writer` named `name`, each in their place. */
+const renamedIn = (all: readonly Placed[], writer: string, name: string) =>
+  all.map((p) => (p.actorId === writer && p.name !== name ? { ...p, name } : p))
 
 /**
  * Those who wrote there with `them` among the writers this view added since the list read. The list read's own writers
@@ -432,7 +444,8 @@ type Placed = ConversationSummary['contributors'][number] & { firstSeq?: number 
 function withAdded(contributors: readonly Placed[], them: Placed): Placed[] {
   const first = them.firstSeq
   const at = first === undefined ? -1 : contributors.findIndex((p) => p.firstSeq !== undefined && p.firstSeq > first)
-  return at < 0 ? [...contributors, them] : [...contributors.slice(0, at), them, ...contributors.slice(at)]
+  const added: Placed = { ...them, added: true }
+  return at < 0 ? [...contributors, added] : [...contributors.slice(0, at), added, ...contributors.slice(at)]
 }
 
 /**
@@ -619,11 +632,9 @@ function withWriter(
   const writer = m.author === 'member' ? m.actorId : null
   if (writer === null) return { contributors: c.contributors }
   const name = m.name ?? 'A member'
-  if (c.contributors.some((p) => p.actorId === writer)) {
-    return { contributors: c.contributors.map((p) => (p.actorId === writer && p.name !== name ? { ...p, name } : p)) }
-  }
+  if (c.contributors.some((p) => p.actorId === writer)) return { contributors: renamedIn(c.contributors, writer, name) }
   const them = { actorId: writer, name }
-  if (c.contributors.length < NAMED_AT_MOST) return { contributors: [...c.contributors, them] }
+  if (c.contributors.length < NAMED_AT_MOST) return { contributors: withAdded(c.contributors, them) }
   return { contributors: [...c.contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
 
