@@ -1932,6 +1932,7 @@
   .event.waiting.open .dot::after,
   .attention-label,
   .resource-sheet > *,
+  .resource-sheet .sheet-body > *,
   .resource-placeholder > span,
   .effort[data-look][data-alive] .effort-fill,
   .effort[data-look][data-alive] .effort-fill::after,
