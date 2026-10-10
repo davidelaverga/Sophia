@@ -55,6 +55,7 @@ import {
   releaseSources,
   releaseTask,
   releaseText,
+  releaseCovers,
   served,
   unexpected,
 } from './fixture-api.ts'
@@ -213,6 +214,8 @@ interface Fixture {
   holdSources: () => void
   /** The report's text, held since the page opened (`hold=text`), comes now. */
   releaseText: () => void
+  /** The library's covers, held since the page opened (`hold=covers`), come now, 400 ms apart. */
+  releaseCovers: () => void
   /** The person goes home: the project is kept out of sight for its call, and the address is the places'. */
   away: () => void
   /** Back to the project, as the places' call control brings it back: its address names no report. */
@@ -723,6 +726,7 @@ window.fixture = {
     project.sourcesHeld = true
   },
   releaseText: () => releaseText(project),
+  releaseCovers,
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry
     sight.set?.(false)

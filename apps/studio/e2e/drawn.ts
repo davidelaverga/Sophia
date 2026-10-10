@@ -50,15 +50,24 @@ export function coversOnScreen(page: Page) {
   )
 }
 
-/** Every cover on screen has drawn: none waits for its reads (after the list, which brings them). */
+/**
+ * Every cover on screen has drawn: none waits for its reads, and one at least shows words (covers that couldn't be read,
+ * marks alone, would leave the checks nothing to measure).
+ */
 async function coversDrawn(page: Page) {
-  await expect.poll(() => coversOnScreen(page)).not.toContain('waiting')
+  await expect
+    .poll(async () => {
+      const covers = await coversOnScreen(page)
+      return !covers.includes('waiting') && covers.some((c) => c === 'page' || c === 'lines')
+    })
+    .toBe(true)
 }
 
 /** Waits until every part of a page has drawn. */
 export async function drawn(page: Page, parts: readonly Part[]) {
   for (const part of parts) {
     const shown = part(page)
-    await (shown instanceof Promise ? shown : expect(shown).toBeVisible())
+    if (shown instanceof Promise) await shown
+    else await expect(shown).toBeVisible()
   }
 }

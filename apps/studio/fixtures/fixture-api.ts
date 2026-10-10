@@ -780,9 +780,9 @@ function versionsOf(project: Project, path: string): Response | Promise<Response
   return null
 }
 
-/** `covers=slow`: the library's covers read one after another, 400 ms apart, as a slow API answers them. */
-const COVERS_SLOW = DEMO && new URLSearchParams(window.location.search).get('covers') === 'slow'
-let shelvedReads = 0
+/** The library's covers the page holds (`hold=covers`), each waiting to be let through (`window.fixture.releaseCovers`). */
+let coversHeld = DEMO && new URLSearchParams(window.location.search).get('hold') === 'covers'
+const heldCovers: (() => void)[] = []
 
 /** The demo library's reports (demo-library.ts): their one version, and their sources, none. */
 function shelvedRead(path: string): Response | Promise<Response> | null {
@@ -790,10 +790,14 @@ function shelvedRead(path: string): Response | Promise<Response> | null {
   const shelf = listed ? libraryVersions(listed[1] ?? '') : null
   if (!listed || !shelf) return null
   if (listed[2]) return json({ sources: [] })
-  if (!COVERS_SLOW) return json(shelf)
-  shelvedReads += 1
-  const ms = shelvedReads * 400
-  return new Promise<Response>((done) => setTimeout(() => done(json(shelf)), ms))
+  if (!coversHeld) return json(shelf)
+  return new Promise<Response>((resolve) => heldCovers.push(() => resolve(json(shelf))))
+}
+
+/** Lets the held covers through one after another, 400 ms apart, as a slow API answers them; and every later one. */
+export function releaseCovers(): void {
+  coversHeld = false
+  heldCovers.splice(0).forEach((release, i) => setTimeout(release, (i + 1) * 400))
 }
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */

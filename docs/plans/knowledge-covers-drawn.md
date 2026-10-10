@@ -12,17 +12,19 @@
 ## What changes
 
 - Knowledge's last part in `e2e/drawn.ts` waits until every cover on screen has drawn (none `data-cover="waiting"`), on
-  a wide screen and a phone alike, with no branch on the width. Covers out of reach never read, so only those on
-  screen count.
+  a wide screen and a phone alike, with no branch on the width, and one at least shows words (a page or lines: marks
+  alone, covers that couldn't be read, would leave the checks nothing to measure). Covers out of reach never read, so
+  only those on screen count.
 - A part is a locator to be shown, or a wait of its own (`drawn()` awaits it).
-- The fixture's `covers=slow` answers the demo library's covers one after another, 400 ms apart, so a check can see
-  covers come after the list.
+- The fixture's `hold=covers` holds the demo library's covers until `window.fixture.releaseCovers()`, which lets them
+  through one after another, 400 ms apart, as a slow API answers them.
 
 ## Checks (written first)
 
-- `e2e/drawn.spec.ts`, desktop and phone, with `covers=slow`: when the list shows, a cover on screen still waits (the
-  slowdown applies); once Knowledge has drawn, none does. With the old wait it failed: 3 covers still waiting on a
-  wide screen, 1 on a phone.
+- `e2e/drawn.spec.ts`, desktop and phone, with `hold=covers`: when the list shows, a cover on screen still waits (held:
+  whatever the runner's pace); let through, once Knowledge has drawn none does. With the old wait it failed (with the
+  covers 400 ms apart from the start: 3 covers still waiting on a wide screen, 1 on a phone).
 - `ink` and `type-scale`, unchanged, pass.
 - Mutants, with a control that passes: the old first-cover wait, «waiting» not looked for, the wait not awaited, one
-  cover measured, covers below the screen counted, and the fixture's slowdown dropped all fail.
+  cover measured, and the covers not held all fail. «One at least shows words» is a guard no check reaches (every
+  cover reads in these fixtures).
