@@ -2116,7 +2116,7 @@
   min-height: 28px;
 }
 .places .msgs mark {
-  border-radius: 2px;
+  border-radius: var(--r-1);
   background: rgba(185, 168, 255, 0.22);
   color: inherit;
 }
