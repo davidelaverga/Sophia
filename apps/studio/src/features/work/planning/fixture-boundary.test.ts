@@ -31,7 +31,8 @@ describe('the fixtures’ boundary', () => {
   })
 
   it('never hands the app’s own shell a plan: production Tasks shows only the board Sophia serves', () => {
-    const app = readFileSync(join(src, 'app/App.tsx'), 'utf8')
+    // The signed-in Studio draws the app's own shell: App loads it as its own chunk (docs/plans/signed-in-later.md).
+    const app = readFileSync(join(src, 'app/SignedIn.tsx'), 'utf8')
     assert.match(app, /<ProjectShell/)
     assert.doesNotMatch(app, /\bplans=/)
     const boardUsers = production(src).filter(

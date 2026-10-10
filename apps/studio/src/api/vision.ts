@@ -28,7 +28,7 @@ function parseFocusReceipt(value: unknown): FocusReceipt {
       cursor: value.cursor,
     }
   }
-  throw new ApiError(200, 'contract_violation', 'The focus receipt is not one', 'same_admission_key')
+  throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'same_admission_key')
 }
 
 /** A14: show a report version to the room, or stop showing (null), against the room's revision. */
@@ -149,7 +149,10 @@ const checked =
   (value: unknown): T => {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every field was checked against the proposal's shape
     if (fields(value, kinds)) return value as unknown as T
-    throw new ApiError(200, 'contract_violation', `The ${what} is not one`, 'safe_read')
+    // The person reads that the reply couldn't be read; which reply, for us.
+    throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'safe_read', {
+      cause: new Error(`The ${what} is not one`),
+    })
   }
 
 const parseMeetings = checked<{ meetings: readonly MeetingSummary[] }>(
@@ -164,7 +167,7 @@ const parseDigest = checked<Digest>(
 )
 const nothing = (value: unknown): undefined => {
   if (value === null) return undefined
-  throw new ApiError(200, 'contract_violation', 'A seen write answers nothing', 'never')
+  throw new ApiError(200, 'contract_violation', 'Sophia’s reply couldn’t be read.', 'never')
 }
 const parseMeetingReceipt = checked<MeetingReceipt>({ meetingId: isStr, revision: isNum, cursor: isStr }, 'receipt')
 
