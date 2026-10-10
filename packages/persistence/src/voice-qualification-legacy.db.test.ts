@@ -4,7 +4,10 @@
 //   numbered by the service (voice-evidence-numbering.db.test.ts). On a database before 0051, 0046 behaves as written.
 // - 0051's precondition (root's C2): it applies only from the pre-activation state. A bridge receipt already kept by
 //   0046's bridge-numbered path makes it refuse (55000) and change nothing. The guard's own receipts (service, seq 0)
-//   do not, and once 0051 is applied the direct path is closed (42501) while the service's numbering works.
+//   do not, and once 0051 is applied the direct path is closed (42501) while the service's numbering works. Its count
+//   comes after the evidence table's lock (root's correction): an old writer's receipt not yet committed is waited
+//   for, then counted. This shows the lock's effect on a writer already writing; it is not a claim that 0051 may run
+//   beside online old writers (the rollout requires quiescence: see 0051's header).
 import { randomUUID } from 'node:crypto'
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -114,9 +117,15 @@ const legacyRecord = (
     return rows[0]?.ack
   })
 
-/** Apply 0051 as written, as the owner: 'applied', or its SQLSTATE and message. */
-const apply0051 = (db: TestDatabase) =>
-  on(db.ownerUrl, async (c) => {
+/**
+ * 0051 as written, started as the owner on a connection of its own: its backend's pid, and its outcome, 'applied' or
+ * its SQLSTATE and message. The connection ends with it.
+ */
+async function applying(db: TestDatabase) {
+  const c = new pg.Client({ connectionString: db.ownerUrl })
+  await c.connect()
+  const pid = (await c.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid
+  const run = async () => {
     try {
       await c.query(readFileSync(join(MIGRATIONS, NUMBERING), 'utf8'))
       return 'applied'
@@ -124,8 +133,15 @@ const apply0051 = (db: TestDatabase) =>
       const { code, message } = err as { code?: string; message?: string }
       await c.query('ROLLBACK').catch(() => undefined)
       return `${String(code)}: ${String(message)}`
+    } finally {
+      await c.end()
     }
-  })
+  }
+  return { pid, outcome: run() }
+}
+
+/** Apply 0051 as written, as the owner: 'applied', or its SQLSTATE and message. */
+const apply0051 = async (db: TestDatabase) => (await applying(db)).outcome
 
 const has0051 = (db: TestDatabase) =>
   on(db.ownerUrl, async (c) => {
@@ -146,6 +162,116 @@ const apiExecutes = (db: TestDatabase) =>
     )
     return rows[0]
   })
+
+/** The functions 0051 replaces (the room token's, and T4's three), as their definitions' digests. */
+const REPLACED = [
+  'sophia.voice_room_qualification(uuid)',
+  'sophia.start_exchange(uuid,bigint,boolean,text)',
+  'sophia.voice_qualification_grant(uuid,uuid,text,text,integer,integer,integer,integer,bigint,integer)',
+  'sophia.voice_qualification_revoke(uuid,uuid,text)',
+]
+
+/**
+ * What 0051 changes or must leave as it was: its own objects, who may execute 0046's path (and its ACL), the
+ * definitions it replaces, and the exchange's bridge receipts.
+ */
+async function stateOf(db: TestDatabase, exchangeId: string) {
+  const objects = await has0051(db)
+  const executes = await apiExecutes(db)
+  const rest = await on(db.ownerUrl, async (c) => {
+    const { rows } = await c.query<{ acl: string; replaced: string[]; bridge: number[] }>(
+      `SELECT (SELECT proacl::text FROM pg_proc
+                WHERE oid='sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)'::regprocedure) AS acl,
+              (SELECT array_agg(md5(pg_get_functiondef(f::regprocedure)) ORDER BY o) FROM unnest($1::text[]) WITH ORDINALITY u(f,o)) AS replaced,
+              coalesce((SELECT array_agg(seq ORDER BY seq) FROM sophia.voice_qualification_evidence
+                         WHERE exchange_id=$2 AND source='bridge'), '{}') AS bridge`,
+      [REPLACED, exchangeId],
+    )
+    return rows[0]!
+  })
+  return { ...objects, executes, ...rest }
+}
+
+/**
+ * An old writer that has not finished: on the API's login, as 0046's path ran, a transaction begun and a bridge receipt
+ * kept by media_record_evidence under the bridge's own number, not yet committed.
+ */
+async function oldWriter(db: TestDatabase, at: { exchangeId: string; grantId: string; seq: number }) {
+  const c = new pg.Client({ connectionString: db.apiUrl })
+  await c.connect()
+  await c.query('BEGIN')
+  await c.query(`SELECT sophia.media_record_evidence($1,$2,$3,'input_turn',$4)`, [
+    at.exchangeId,
+    at.grantId,
+    at.seq,
+    JSON.stringify(receipt(at.grantId, 'input_turn', { turnOrdinal: 1 })),
+  ])
+  let open = true
+  const end = async (how: 'COMMIT' | 'ROLLBACK') => {
+    if (!open) return
+    open = false
+    try {
+      await c.query(how)
+    } finally {
+      await c.end()
+    }
+  }
+  return { commit: () => end('COMMIT'), rollback: () => end('ROLLBACK') }
+}
+
+/**
+ * The lock backend `pid` waits for, within 5 s: a relation lock not granted (pg_locks) while pg_stat_activity shows a
+ * Lock wait. Null if it never waits.
+ */
+async function waitsFor(db: TestDatabase, pid: number) {
+  const deadline = Date.now() + 5000
+  while (Date.now() < deadline) {
+    const waiting = await on(
+      db.ownerUrl,
+      async (c) =>
+        (
+          await c.query<{ evidence: boolean; mode: string }>(
+            `SELECT l.relation='sophia.voice_qualification_evidence'::regclass AS evidence, l.mode
+               FROM pg_locks l JOIN pg_stat_activity a ON a.pid=l.pid
+              WHERE l.pid=$1 AND NOT l.granted AND l.locktype='relation' AND a.wait_event_type='Lock'`,
+            [pid],
+          )
+        ).rows[0],
+    )
+    if (waiting) return waiting
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  return null
+}
+
+/**
+ * A fresh database through 0047 with an exchange under a grant; an old writer's bridge receipt (seq 7) not yet
+ * committed; and 0051 started beside it, shown waiting for the evidence table's lock. `end()` finishes whatever is left.
+ */
+async function migrationWaitingOnAWriter() {
+  const fresh = await createTestDatabase(dir)
+  const api = createPool(fresh.apiUrl, { max: 2 })
+  let writer: Awaited<ReturnType<typeof oldWriter>> | undefined
+  let migration: Awaited<ReturnType<typeof applying>> | undefined
+  // The writer first (an open writer holds the migration back), then the migration's own end, then the database.
+  const end = async () => {
+    await writer?.rollback().catch(() => undefined)
+    await migration?.outcome
+    await api.end()
+    await fresh.drop()
+  }
+  try {
+    const { grantId, exchangeId } = await exchange(fresh, api)
+    const untouched = await stateOf(fresh, exchangeId)
+    writer = await oldWriter(fresh, { exchangeId, grantId, seq: 7 })
+    migration = await applying(fresh)
+    const waiting = await waitsFor(fresh, migration.pid)
+    return { fresh, exchangeId, untouched, writer, migration, waiting, end }
+  } catch (err) {
+    await end()
+    throw err
+  }
+}
 
 describe('0046’s bridge receipts before 0051 (a database migrated through 0047)', () => {
   it('are bound to the exchange’s grant and run, once per sequence number', async () => {
@@ -283,6 +409,58 @@ describe('0051 applies only from the pre-activation state (root’s C2)', () => 
     } finally {
       await api.end()
       await fresh.drop()
+    }
+  })
+})
+
+describe('0051’s check waits for an old writer’s uncommitted receipt (root’s correction to C2: the table lock)', () => {
+  it('an old writer has kept a bridge receipt and not committed; 0051 waits on the evidence table’s lock; the writer commits; 0051 refuses (55000) and changes nothing', async () => {
+    const t = await migrationWaitingOnAWriter()
+    try {
+      assert.deepEqual(
+        t.waiting,
+        { evidence: true, mode: 'ShareRowExclusiveLock' },
+        '0051 waits (a Lock wait) for the evidence table while the writer’s receipt is uncommitted',
+      )
+      assert.deepEqual(t.untouched.bridge, [], 'no bridge receipt was committed before 0051 started')
+      await t.writer.commit()
+      const outcome = await t.migration.outcome
+      assert.deepEqual(
+        { outcome: outcome.split(':')[0], ...(await stateOf(t.fresh, t.exchangeId)) },
+        { outcome: '55000', ...t.untouched, bridge: [7] },
+        'refused, and nothing of 0051: no tables, no wrapper, no revoke (0046’s grant and ACL as they were), the room function and the stamping functions as they were; the committed receipt kept as seq 7',
+      )
+      assert.match(outcome, /^55000: 0051 refused: 1 bridge receipt\(s\) numbered by the bridge \(0046\) are kept/)
+    } finally {
+      await t.end()
+    }
+  })
+
+  it('the writer rolls back instead: 0051, which waited the same way, applies (control)', async () => {
+    const t = await migrationWaitingOnAWriter()
+    try {
+      assert.deepEqual(t.waiting, { evidence: true, mode: 'ShareRowExclusiveLock' }, 'the same wait')
+      await t.writer.rollback()
+      assert.equal(await t.migration.outcome, 'applied')
+      const applied = await stateOf(t.fresh, t.exchangeId)
+      assert.deepEqual(
+        {
+          fn: applied.fn,
+          counter: applied.counter,
+          writes: applied.writes,
+          executes: applied.executes,
+          bridge: applied.bridge,
+        },
+        { fn: true, counter: true, writes: true, executes: { group: false, login: false }, bridge: [] },
+        '0051 applied: its tables and wrapper, the revoke; no bridge receipt',
+      )
+      assert.deepEqual(
+        applied.replaced.map((digest, i) => digest !== t.untouched.replaced[i]),
+        [true, true, true, true],
+        'the room function and the three stamping functions are 0051’s',
+      )
+    } finally {
+      await t.end()
     }
   })
 })

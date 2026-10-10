@@ -23,13 +23,22 @@
 -- calls it as its owner. And this migration starts from the pre-activation state: if any bridge receipt is already
 -- kept (numbered by the bridge through 0046, with no counter here), it refuses to apply (55000) rather than number
 -- beside it sparsely or collide with it; such receipts expire in 24 h (voice_evidence_expire), or are migrated by an
--- explicit, reviewed step.
+-- explicit, reviewed step. The check takes the evidence table's lock first (SHARE ROW EXCLUSIVE, held to this
+-- transaction's end), so it waits for a writer whose receipt is not yet committed and then counts it.
+-- THE ROLLOUT REQUIRES QUIESCENCE: every evidence-writing process must be stopped or drained before this migration,
+-- with no already-authorized call of 0046's media_record_evidence in flight. The table lock does NOT make a migration
+-- beside online old writers safe: it does not revoke a function invocation that passed its permission check before
+-- the migration and resumes later; such a call keeps a bridge-numbered receipt once this migration has committed.
 -- It also replaces 0046's voice_room_qualification (below): a room token names a grant only while the room's open
 -- exchange, if any, is under it (Codex P1 r4232975804). And it stamps coverage times after the project's lock (T4,
 -- below): 0015's start_exchange and 0046's voice_qualification_grant and voice_qualification_revoke are replaced.
 BEGIN;
 
--- The pre-activation state: no bridge receipt kept yet (C2). Checked first, so a refusal changes nothing.
+-- The pre-activation state: no bridge receipt kept yet (C2). Checked first, so a refusal changes nothing. The lock comes
+-- before the count, in this transaction (root's correction): it waits for every transaction that holds a write on the
+-- table, so the count sees each receipt they committed. A write asked meanwhile waits for this transaction's end and
+-- then proceeds: the lock is not a substitute for quiescence (see above).
+LOCK TABLE sophia.voice_qualification_evidence IN SHARE ROW EXCLUSIVE MODE;
 DO $$
 DECLARE n bigint;
 BEGIN
