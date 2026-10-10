@@ -47,6 +47,11 @@ export interface TalkWrites {
   eraseMissed?: boolean
   /** The conversations erased here: a read of one is refused as not found (0048 hides it), never answered with words. */
   erasedIds?: Set<string>
+  /**
+   * One still listed whose message reads are refused as not found, as the API refuses a reader no longer in the project
+   * (`refuseMessageReads`; null: they answer again). Not erased: given the project back, it reads as before.
+   */
+  refusedOf?: string | null
   /** This conversation's messages fail to read (`messages=fail`, or after a `send=thenFail` write). */
   failMessagesOf: string | null
   /** Each write's receipt by its key, with the words it was sent with: the same key replays it, only with them. */

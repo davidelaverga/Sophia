@@ -328,8 +328,10 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
   useReadAgain(cursor, read.refetch)
   // Its own read answering not found: what it read before (the cache keeps that across a failed read) is never shown
   // again, and no other conversation shows until a list read says the reader is still here (PR #199 r4238633930,
-  // r4238709217). Any other failure proves nothing: what was read stays, said possibly out of date.
-  const gone = read.error instanceof ApiError && read.error.code === 'not_found'
+  // r4238709217). Only a read made since it opened says so: a not found the cache kept from before (a reader given
+  // the project back, this conversation open again as the list lists it) is not one, until its own read answers
+  // (CX-0069). Any other failure proves nothing: what was read stays, said possibly out of date.
+  const gone = read.isFetchedAfterMount && read.error instanceof ApiError && read.error.code === 'not_found'
   useEffect(() => {
     if (gone) onGone()
   }, [gone, onGone])

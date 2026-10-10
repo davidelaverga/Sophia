@@ -168,6 +168,11 @@ interface Fixture {
   failConversationReads: (conversationId: string | null) => void
   /** Only this conversation's message reads fail from now on (null: they answer again); the list's still answer. */
   failMessageReads: (conversationId: string | null) => void
+  /**
+   * This conversation's message reads are refused as not found from now on, as to a reader no longer in the project;
+   * it stays listed, and the feed doesn't move (null: they answer again, the project given back).
+   */
+  refuseMessageReads: (conversationId: string | null) => void
   /** Another admin, elsewhere, withdraws the newest message with these words; the feed moves. */
   withdrawElsewhere: (conversationId: string, text: string) => void
   /** The same, the feed held up: it doesn't move, so only a read made for another reason learns it. */
@@ -652,6 +657,9 @@ window.fixture = {
   failMessageReads: (conversationId) => {
     if (project.conversations) project.conversations.failMessagesOf = conversationId
   },
+  refuseMessageReads: (conversationId) => {
+    if (project.conversations) project.conversations.refusedOf = conversationId
+  },
   withdrawElsewhere: (conversationId, text) => {
     if (project.conversations && withdrawnElsewhere(project.conversations, conversationId, text)) publish(project)
   },
@@ -991,6 +999,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',
       cappedOut: null as string | null,
+      refusedOf: null as string | null,
       heldList: null as (() => void)[] | null,
       sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,

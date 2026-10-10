@@ -510,6 +510,10 @@ function conversationsRead(talk: Conversations, role: Membership['role']) {
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
 function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   if (talk.failMessagesOf === conversationId) return unavailable()
+  if (talk.refusedOf === conversationId) {
+    served.push(`messages-refused:${conversationId.slice(-2)}`)
+    return conversationGone()
+  }
   // Erased here: as 0048's row policy hides it, the API refuses its read as not found. A page reads it again only as
   // the feed moves (the open thread and the list read at once), before the list shows it gone.
   if (talk.erasedIds?.has(conversationId)) {

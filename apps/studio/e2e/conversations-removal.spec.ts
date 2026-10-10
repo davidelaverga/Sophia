@@ -46,6 +46,14 @@ async function noReadOnceGone(page: Page) {
   expect(await written(page, 'messages-gone')).toHaveLength(refused)
 }
 
+/** To Goals and back: the conversations' view is mounted anew, and the open thread read again as it opens. */
+async function trip(page: Page) {
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  await views.getByRole('link', { name: 'Conversations' }).click()
+}
+
 /** The first conversation open, its context shown (a panel «Context» opens where it is one). */
 async function opened(page: Page, query = '') {
   await page.goto(`${PAGE}${query}`)
@@ -399,20 +407,14 @@ test('removal · its own read answers not found, the list’s reads failing: no 
   await page.evaluate((c) => window.fixture?.failMessageReads(c), C2)
   await page.evaluate((c) => window.fixture?.eraseQuietly(c), C1)
   // To another view and back: its thread, cached, is read again as it opens, and answered not found.
-  const views = page.getByRole('navigation', { name: 'Project views' })
-  const trip = async () => {
-    await views.getByRole('link', { name: 'Goals' }).click()
-    await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
-    await views.getByRole('link', { name: 'Conversations' }).click()
-  }
-  await trip()
+  await trip(page)
   await expect.poll(async () => (await served(page)).includes('messages-gone:c1')).toBe(true)
   await expect(messages(page)).toHaveCount(0)
   await expect(open(page)).toHaveCount(0)
   await expect(rows(page)).toHaveCount(0)
   await expect(context(page).getByRole('heading', { name: 'This conversation' })).toHaveCount(0)
   await expect(list(page)).toContainText('A conversation here can’t be found any more.')
-  await trip()
+  await trip(page)
   await expect(list(page)).toContainText('A conversation here can’t be found any more.')
   await page.waitForTimeout(1000)
   await expect(open(page)).toHaveCount(0)
@@ -429,6 +431,37 @@ test('removal · its own read answers not found, the list’s reads failing: no 
   await expect(list(page)).not.toContainText(FIRST)
   await expect(messages(page).first()).toBeVisible()
   await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+})
+
+test('removal · not found while out of the project, then given it back: the list read that lifts the fence lists it, and it opens again, read once', async ({
+  page,
+}) => {
+  // CX-0069: not found to a reader no longer in the project isn't an erasure. Given the project back, the list read
+  // that lifts the fence still lists it, so it stands and opens again. The not found its earlier read left in the cache
+  // is never taken for a new one: no fence again, and no reads over and over.
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  await trip(page)
+  await expect.poll(async () => (await served(page)).includes('messages-refused:c1')).toBe(true)
+  await expect(rows(page)).toHaveCount(0)
+  await expect(list(page)).toContainText('A conversation here can’t be found any more.')
+  // The project given back: its reads answer again, and the list is read again.
+  await page.evaluate(() => window.fixture?.refuseMessageReads(null))
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  const reads = async () =>
+    (await served(page)).filter((s) => s === 'conversations:read' || s.startsWith('messages:c1'))
+  const before = (await reads()).length
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(open(page).getByRole('heading', { name: FIRST })).toHaveCount(1)
+  await expect(messages(page)).toHaveCount(6)
+  await page.waitForTimeout(2000)
+  expect((await reads()).length - before).toBeLessThanOrEqual(4)
+  expect((await kept(page))?.fence).toBeNull()
+  expect((await kept(page))?.erased[C1]).toBeUndefined()
+  await expect(list(page)).not.toContainText('can’t be found any more')
+  await expect(messages(page)).toHaveCount(6)
 })
 
 test('removal · older, then erased elsewhere with the list unchanged: read again on its own clock, its part goes then', async ({
