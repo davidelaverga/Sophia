@@ -3,7 +3,8 @@ import { DRAWN, drawn } from './drawn.ts'
 
 // One menu (docs/plans/menu-scale.md): the account's, the resources' sort, the dock's «Pass to…» and the personal
 // space's days open in the one `.menu` plane, 6 px from the control that opens them and aligned to it, 6 px of
-// padding, rows of 32 px in the body type (44 to a finger), their first row (or the one checked) focused on opening;
+// padding, rows of 32 px in the body type (44 to a finger), each at its own width, their first row (or the one checked)
+// focused on opening;
 // the arrows move, Escape closes and gives the focus back to the control, Tab closes it too.
 
 /** The open menu as the page sees it, beside the control that opened it (the one expanded). */
@@ -33,6 +34,7 @@ function readMenu() {
     label: menu.getAttribute('aria-label') ?? '',
     plane: `${cs.padding} · ${cs.borderRadius} · ${cs.borderTopWidth} ${cs.borderTopColor}`,
     at: `${String(gap)} px ${under ? 'under' : 'over'}, ${aligned}`,
+    size: near(m.width, o.width) ? 'the control’s' : `${String(Math.round(m.width))} px`,
     rows: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
     type: [...new Set(rows.map((r) => getComputedStyle(r).fontSize))],
     stops: rows.every((r) => r.tabIndex === -1),
@@ -67,7 +69,14 @@ test('menu · the account’s: the plane 6 px under its control at its end, the 
   await drawn(page, DRAWN.room)
   const account = page.getByRole('button', { name: 'Account' })
   await account.click()
-  await openMenu(page).toEqual({ ...ONE, label: 'Account', at: '6 px under, end', focused: 0, checked: [] })
+  await openMenu(page).toEqual({
+    ...ONE,
+    label: 'Account',
+    at: '6 px under, end',
+    size: '230 px',
+    focused: 0,
+    checked: [],
+  })
   await page.keyboard.press('ArrowDown')
   await expect(page.getByRole('menuitem', { name: 'How privacy works' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
@@ -87,6 +96,7 @@ test('menu · the resources’ sort: the same plane, the order in use marked and
     ...ONE,
     label: 'Sort',
     at: '6 px under, end',
+    size: 'the control’s',
     focused: 0,
     checked: ['Attention ●'],
   })
@@ -104,6 +114,7 @@ test('menu · the dock’s «Pass to…»: the same plane 6 px over its control,
     ...ONE,
     label: 'Pass the floor to',
     at: '6 px over, centre',
+    size: '140 px',
     focused: 0,
     checked: [],
   })
@@ -132,6 +143,7 @@ test('menu · the personal space’s days: the same plane 6 px under the day pil
     ...ONE,
     label: 'Earlier days',
     at: '6 px under, centre',
+    size: '230 px',
     focused: 0,
     checked: [],
   })

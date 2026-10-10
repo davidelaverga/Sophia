@@ -253,8 +253,9 @@
 .resource-sort-button[aria-expanded='true'] .icon {
   transform: rotate(180deg);
 }
-/* Its menu: the kit's, as wide as its field; the order in use wears the menu's mark. */
-.resource-sort-menu {
+/* Its menu: the kit's, as wide as its field (named with the menu, so the field's width outweighs the plane's 160
+   whatever the order the sheets load in); the order in use wears the menu's mark. */
+.menu.resource-sort-menu {
   min-width: 100%;
 }
 .resource-sort-label {
