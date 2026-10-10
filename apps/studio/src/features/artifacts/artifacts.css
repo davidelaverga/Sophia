@@ -1038,10 +1038,11 @@
   }
 }
 @media (pointer: coarse) {
-  /* The viewer's format switch stands beside its tabs (44 to a finger) and keeps their height. */
+  /* The viewer's format switch stands beside its tabs (44 to a finger) and keeps their height: named with its row, so
+     it outweighs the segmented's own 36 whatever the order the sheets load in. */
   .output-open,
   .knowledge-filters .segmented button,
-  .report-format button,
+  .report-tabs .report-format button,
   .report-pane-head .round {
     min-height: 44px;
   }
