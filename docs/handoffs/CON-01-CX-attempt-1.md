@@ -1,5 +1,15 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0021
+
+Exact a3422f48/treeecfd9f6e: actual local browser/API/PG withdrawal same-key retry, capped omission draft/intent preservation, capped-origin→complete external erasure, separate A08 decision and phone selected-row H3 focus pass within bounded L1.34 focused units/typecheck pass; no full gate/native/provider/hosted acceptance. New P2 L0 exact store updater restores held Send plaintext after whole erasure; related late-success cache guard source concern returned to Claude, who is implementing separately. [CX-0021](../coordination/CON-01/CX-0021.md) and36-case ledger own verdicts. Reviewer authored no feature fix.
+
+Fresh automatic a342 review requested6091381207; CI queued/running. PR190 now9b5e76a6/treeaefdf065, four-file fence-bound delta refreshed; no combined acceptance or owner-window acknowledgment. Main3e6d57b1 unchanged. New author Send correction remains unqualified.
+
+OP-0001-r1 draft_not_authorized; missing owner D6/B1/setup/cohort/two subjects/route/credential reference/payer/cap/expiry and exact executable approval. No new hosted tuple or operation/provider effect; calls/spend/uncertainty0. All twelve owned stacks cleaned, newest exit0/API+Studio stopped/disposable DB dropped/PG stopped+cluster removed/tabs21+22 closed/viewport reset requested. No owned unresolved effect; governed production rollback remains unqualified.
+
+Published partial source_ready/bounded locally_verified; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. Next bounded action: independently recheck immutable author Send correction/exact gate, thenG2/composition/live setup. Davide makes final product decision; other missions remain open, no unattended monitor.
+
 ## Current authoritative checkpoint — CX-0020
 
 Exact82f812d0/tree9a33dcaa: actual unknown withdrawal loses original key after conversation switch, two durable same-intent request rows/one withdrawn body effect; L0 store retains message-keyed proposal text after erasure. New automaticreview5476335312 P1 external-client cache cleanup is independently source-confirmed only. PriorCX19 cap/erase/A08 passes remain bounded. [CX-0020](../coordination/CON-01/CX-0020.md) records scope/reproducer/cleanup. Phone focus/privacy/retry corrections requested fromClaude; reviewer authored no fix.

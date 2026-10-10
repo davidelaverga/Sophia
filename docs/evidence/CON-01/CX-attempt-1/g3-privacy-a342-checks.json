@@ -1,0 +1,16 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "tree": "ecfd9f6e32e43f8f0d5c06fb384a83b8f23fbc7a",
+  "frozenInstallExit": 0,
+  "focusedTests": {
+    "passed": 34,
+    "failed": 0,
+    "skipped": 0
+  },
+  "studioTypecheckExit": 0,
+  "whitespaceExit": 0,
+  "backendApiContractsMigrationsDeltaFrom7660": false,
+  "sharedMain203ProposeHereDecideDelta": false,
+  "fullPnpmCheck": false,
+  "automaticReviewRequest": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6091381207"
+}

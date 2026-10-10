@@ -1,0 +1,76 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "tree": "ecfd9f6e32e43f8f0d5c06fb384a83b8f23fbc7a",
+  "level": "L1 actual local Studio/API/PostgreSQL; synthetic accounts; no fixtures/provider/native",
+  "projectId": "4c0dbe37-8d68-4396-8f57-fe3ee355daeb",
+  "observations": [
+    {
+      "at": "2026-10-10T00:01:06.321Z",
+      "case": "withdrawal lost success",
+      "actualApiStatus": 202,
+      "bodyWithheld": true,
+      "key": "2fd90a13-131a-4b67-bd92-7639fabe5bba",
+      "ui": "Not confirmed"
+    },
+    {
+      "at": "2026-10-10T00:01:13.883Z",
+      "case": "switch other/back, reopen confirmation, retry",
+      "sameKey": true,
+      "actualApiStatus": 202,
+      "durableWithdrawalRequests": 1,
+      "ui": "This message was withdrawn"
+    },
+    {
+      "at": "2026-10-10T00:01:39.802Z",
+      "case": "199 unrelated actual human-only starts push target beyond200",
+      "more": true,
+      "targetActualState": "open",
+      "falseErasedNotice": false
+    },
+    {
+      "at": "2026-10-10T00:02:11.195Z",
+      "case": "fresh editor first opened project already capped; proposal response delayed12000ms",
+      "capVisible": true,
+      "proposalWaiting": true,
+      "unsentConversationDraft": "SYNTHETIC-CAPPED-ORIGIN-ERASE-DRAFT"
+    },
+    {
+      "at": "2026-10-10T00:02:16.488Z",
+      "case": "another account erases target before proposal receipt",
+      "completeListNow": true,
+      "draftVisible": false,
+      "openConversation": "Synthetic cap arrival 197"
+    },
+    {
+      "at": "2026-10-10T00:02:32.408Z",
+      "case": "after late proposal response",
+      "oldConversationRowVisible": false,
+      "oldDraftVisible": false,
+      "openConversation": "Synthetic cap arrival 197",
+      "separateAcceptedDecisionVisible": true,
+      "memoryLimitation": "DOM evidence only; no browser internal-cache assertion"
+    },
+    {
+      "at": "2026-10-10T00:02:32.408Z",
+      "case": "legitimate new activity brings omitted target back",
+      "draft": "SYNTHETIC-CAPPED-DRAFT-MUST-SURVIVE",
+      "erasureConfirmation": "Not confirmed; retry same key"
+    },
+    {
+      "at": "2026-10-10T00:03:19.857Z",
+      "case": "phone390x844 same-key erasure retry",
+      "focusTag": "BUTTON",
+      "focusTarget": "Synthetic cap arrival 197",
+      "erasedNotice": true,
+      "horizontalOverflow": false
+    },
+    {
+      "at": "2026-10-10T00:03:23.790Z",
+      "case": "Enter surviving already-selected row",
+      "focusTag": "H3",
+      "focusTarget": "Synthetic cap arrival 197",
+      "horizontalOverflow": false
+    }
+  ],
+  "cleanup": "tab21 and22 closed; viewport reset requested. First viewport override targeted latest tab22; verified actual390 before phone evidence. Immediate reset read still390 and no desktop-focus claim made. All owned API/Studio/DB/PG cleanup independently recorded."
+}

@@ -1,0 +1,15 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "at": "2026-10-10T00:02:26.396Z",
+  "action": "bump",
+  "level": "L1 actual non-owner persistence, no provider/runtime",
+  "target": "64a92aaa-c9ed-4da9-be1b-19d25d93fb44",
+  "listCount": 200,
+  "more": false,
+  "targetListed": true,
+  "actual": {
+    "id": "64a92aaa-c9ed-4da9-be1b-19d25d93fb44",
+    "state": "open",
+    "title": "Cap erasure target next"
+  }
+}

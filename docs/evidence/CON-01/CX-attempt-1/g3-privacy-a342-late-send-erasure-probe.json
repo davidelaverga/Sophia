@@ -1,0 +1,15 @@
+{
+  "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
+  "level": "L0 actual store function and exact production onHeld updater; no browser-memory claim",
+  "erased": true,
+  "draftRemoved": true,
+  "proposalGuarded": true,
+  "lateSendHeld": {
+    "key": "synthetic-send-key",
+    "ask": {
+      "text": "SYNTHETIC-ERASED-SEND-WORDS",
+      "askSophia": false
+    },
+    "sending": false
+  }
+}
