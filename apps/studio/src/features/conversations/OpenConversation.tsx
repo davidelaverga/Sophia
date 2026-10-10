@@ -79,7 +79,10 @@ interface Props {
   onArrived: () => void
   /** Back to the list (a phone shows one at a time). */
   onBack: () => void
-  /** Its own read answered not found (erased, or not this reader's any more): the view lets it go (r4238633930). */
+  /**
+   * Its own read answered not found: erased, or the reader no longer in the project, which the API answers alike. The
+   * view fences until a list read answers (talk-store `fence`; PR #199 r4238633930, r4238709217).
+   */
   onGone: () => void
   /** The context as a panel (under 1180 px): whether it is open, its press, and that press's element for the focus. */
   context: { open: boolean; toggle: () => void; ref: RefObject<HTMLButtonElement | null> }
@@ -323,9 +326,9 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     retry: 1,
   })
   useReadAgain(cursor, read.refetch)
-  // Its own read answering not found says it is gone as surely as a whole list without it: the view lets it go now, and
-  // what it read before (the cache keeps that across a failed read) is never shown again (PR #199 r4238633930). Any
-  // other failure proves nothing: what was read stays, said possibly out of date.
+  // Its own read answering not found: what it read before (the cache keeps that across a failed read) is never shown
+  // again, and no other conversation shows until a list read says the reader is still here (PR #199 r4238633930,
+  // r4238709217). Any other failure proves nothing: what was read stays, said possibly out of date.
   const gone = read.error instanceof ApiError && read.error.code === 'not_found'
   useEffect(() => {
     if (gone) onGone()

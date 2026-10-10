@@ -72,6 +72,18 @@ export function contributorsLine(
   return c.sophia ? `${people} · Sophia` : people
 }
 
+/**
+ * What a list of the newest only says of itself (A16's `more`): how many it holds as read, and the starts made here
+ * that it shows besides, kept reachable though the read leaves them out (list-data `shownList`). That older ones
+ * can’t be opened is said only of the others (Codex CX-0067).
+ */
+export function newestWords(read: number, besides: number): string {
+  const newest = `Only the newest ${String(read)} conversations are listed here`
+  if (besides <= 0) return `${newest}: older ones can’t be opened from this list yet.`
+  const yours = besides === 1 ? 'the one you started here' : `the ${String(besides)} you started here`
+  return `${newest}, and ${yours}: other older ones can’t be opened from this list yet.`
+}
+
 export const openWords = (n: number): string =>
   n === 0 ? 'No open questions' : n === 1 ? '1 open question' : `${String(n)} open questions`
 
@@ -110,7 +122,7 @@ export const byActivity = (all: readonly ConversationSummary[]): ConversationSum
 const folded = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
 
 /** The conversations whose title has every word typed, in any order; all of them for none. */
-export function matching(all: readonly ConversationSummary[], typed: string): readonly ConversationSummary[] {
+export function matching<T extends ConversationSummary>(all: readonly T[], typed: string): readonly T[] {
   const words = folded(typed).split(/\s+/u).filter(Boolean)
   return words.length > 0 ? all.filter((c) => words.every((w) => folded(c.title).includes(w))) : all
 }
@@ -122,12 +134,27 @@ export interface Narrowing {
   mine: boolean
 }
 
-/** The conversations that pass every narrowing asked for, in the list's order. */
-export function narrowed(all: readonly ConversationSummary[], by: Narrowing, me: string) {
+/**
+ * The conversations that pass every narrowing asked for, in the list's order. A row by its title only (`partial`)
+ * passes neither «Open» nor «Mine»: what is open there and who wrote there aren't known (`unjudged` counts it).
+ */
+export function narrowed<T extends ConversationSummary & Unnamed>(all: readonly T[], by: Narrowing, me: string) {
   return matching(all, by.typed).filter(
-    (c) => (!by.open || c.openQuestions > 0) && (!by.mine || c.contributors.some((p) => p.actorId === me)),
+    (c) =>
+      (!by.open && !by.mine) ||
+      (!c.partial && (!by.open || c.openQuestions > 0) && (!by.mine || c.contributors.some((p) => p.actorId === me))),
   )
 }
+
+/** How many rows by their title only «Open» or «Mine» leaves out, whether they match not known (`narrowed`). */
+export const unjudged = (all: readonly (ConversationSummary & Unnamed)[], by: Narrowing): number =>
+  by.open || by.mine ? matching(all, by.typed).filter((c) => c.partial).length : 0
+
+/** What is said of the rows `unjudged` counts, beside what the narrowing shows. */
+export const unjudgedWords = (n: number): string =>
+  n === 1
+    ? 'One more may match: it’s known here by its title only.'
+    : `${String(n)} more may match: they’re known here by their titles only.`
 
 /** How many accepted decisions show before «and N more». */
 export const SHOWN_DECISIONS = 3
@@ -288,7 +315,7 @@ export function withWithdrawn(
 }
 
 /** Nothing known yet about what a summary or a question list covers. */
-const NOT_ASSESSED: ProjectionCoverage = {
+export const NOT_ASSESSED: ProjectionCoverage = {
   state: 'not_assessed',
   complete: false,
   fromSeq: null,

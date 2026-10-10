@@ -159,6 +159,11 @@ interface Fixture {
   capPast: (conversationId: string | null) => void
   /** Another admin, elsewhere, erases this conversation: it leaves the list and its messages go; the feed moves. */
   eraseElsewhere: (conversationId: string) => void
+  /**
+   * The same, the feed held up: it doesn't move, so only a read made for another reason learns it. Its read answers not
+   * found, as the API answers a reader no longer in the project too (PR #199 r4238709217).
+   */
+  eraseQuietly: (conversationId: string) => void
   /** Every read of this conversation's messages, and of the list, fails from now on (null: they answer again). */
   failConversationReads: (conversationId: string | null) => void
   /** Only this conversation's message reads fail from now on (null: they answer again); the list's still answer. */
@@ -632,13 +637,12 @@ window.fixture = {
     publish(project)
   },
   eraseElsewhere: (conversationId) => {
-    const talk: Conversations | undefined = project.conversations
-    if (!talk) return
-    const at = talk.list.findIndex((c) => c.id === conversationId)
-    if (at >= 0) talk.list.splice(at, 1)
-    delete talk.messages[conversationId]
-    ;(talk.erasedIds ??= new Set()).add(conversationId)
+    if (!project.conversations) return
+    erasedElsewhere(project.conversations, conversationId)
     publish(project)
+  },
+  eraseQuietly: (conversationId) => {
+    if (project.conversations) erasedElsewhere(project.conversations, conversationId)
   },
   failConversationReads: (conversationId) => {
     if (!project.conversations) return
@@ -1044,3 +1048,11 @@ createRoot(root).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+/** Erased by another admin: out of the list, its messages gone, and its reads answered not found (fixture-api). */
+function erasedElsewhere(talk: Conversations, conversationId: string) {
+  const at = talk.list.findIndex((c) => c.id === conversationId)
+  if (at >= 0) talk.list.splice(at, 1)
+  delete talk.messages[conversationId]
+  ;(talk.erasedIds ??= new Set()).add(conversationId)
+}

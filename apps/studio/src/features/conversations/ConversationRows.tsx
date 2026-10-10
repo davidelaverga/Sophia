@@ -5,7 +5,15 @@ import { useId, useRef, useState } from 'react'
 import type { ConversationSummary } from '../../api/conversations.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
-import { contributorsLine, gistOf, narrowed, questionWords, type Unnamed } from './conversation-list.ts'
+import {
+  contributorsLine,
+  gistOf,
+  narrowed,
+  questionWords,
+  unjudged,
+  unjudgedWords,
+  type Unnamed,
+} from './conversation-list.ts'
 
 /** «Open» and «Mine», per project and reader, while the page lives: another view and back finds them as left. */
 const shownBy = pageMemory<{ open: boolean; mine: boolean }>()
@@ -14,7 +22,7 @@ const NONE = { open: false, mine: false }
 export function Rows(props: {
   projectId: string
   reader: string
-  all: readonly ConversationSummary[]
+  all: readonly (ConversationSummary & Unnamed)[]
   openId: string | undefined
   me: string
   onOpen: (id: string) => void
@@ -26,7 +34,10 @@ export function Rows(props: {
   const by = useMemory(shownBy, key) ?? NONE
   const set = (next: Partial<typeof NONE>) => shownBy.set(key, { ...by, ...next })
   // «Mine» waits for who the reader is: until then it narrows nothing.
-  const shown = narrowed(props.all, { typed, open: by.open, mine: by.mine && props.me !== '' }, props.me)
+  const asked = { typed, open: by.open, mine: by.mine && props.me !== '' }
+  const shown = narrowed(props.all, asked, props.me)
+  // Rows by their title only that «Open» or «Mine» can't judge: left out, and said to be.
+  const left = unjudged(props.all, asked)
   const narrowing = typed.trim() !== '' || by.open || by.mine
   const none = by.open || by.mine ? 'No conversation matches.' : `No conversation’s title has «${typed.trim()}».`
   const clear = () => {
@@ -52,6 +63,7 @@ export function Rows(props: {
         said={!narrowing ? '' : shown.length > 0 ? `${String(shown.length)} of ${String(props.all.length)}` : none}
         counted={shown.length > 0}
       />
+      {left > 0 && <p className="conv-note">{unjudgedWords(left)}</p>}
       {shown.length === 0 ? (
         <p className="conv-note">
           {none}{' '}

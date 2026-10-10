@@ -10,7 +10,7 @@ import type {
   ConversationStarted,
   ConversationSummary,
 } from '../../api/conversations.ts'
-import { listKey, messagesKey, replyOf, replyOpen } from './conversation-list.ts'
+import { NOT_ASSESSED, listKey, messagesKey, replyOf, replyOpen, type Unnamed } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
 import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
@@ -46,15 +46,26 @@ function startedIn(list: ConversationList, row: ConversationStarted['conversatio
 }
 
 /**
- * A start's row as one not current where the feed stands: its title only, with no opening and no writer, whatever was
- * withdrawn since, and said to be partial (`partial`: what isn't known here is said to be unknown, never none). A16
- * changes a title only by erasing it, so while the conversation stands its title is current.
+ * A start's row as one not current where the feed stands: its title only, and said to be partial (`partial`: what
+ * isn't known here is said to be unknown, never none). Nothing else of the receipt is kept, as it may have changed
+ * since: no opening or writer, no summary, questions, Sophia or output, each coverage not assessed (PR #199
+ * r4238709220). Its start's time stays only to place it among the rest; it is never said (ConversationRows `Row`).
+ * A16 changes a title only by erasing it, so while the conversation stands its title is current.
  */
-const titleOnly = (row: ConversationStarted['conversation']) => ({
-  ...row,
-  lastMessage: null,
+const titleOnly = (row: ConversationStarted['conversation']): ConversationSummary & Unnamed => ({
+  id: row.id,
+  title: row.title,
+  revision: row.revision,
+  lastAt: row.lastAt,
+  summary: null,
+  summaryCoverage: NOT_ASSESSED,
   contributors: [],
-  partial: true as const,
+  sophia: false,
+  openQuestions: 0,
+  questionsCoverage: NOT_ASSESSED,
+  output: null,
+  lastMessage: null,
+  partial: true,
 })
 
 /**

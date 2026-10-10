@@ -81,6 +81,14 @@ export interface Kept {
    * read's not found, settles it.
    */
   reached: Readonly<Record<string, ConversationSummary>>
+  /**
+   * An open conversation's own read answered not found, at this view's order then (withdrawn-purge `orderNow`): it is
+   * erased, or this reader is no longer in the project, which the API answers alike (PR #199 r4238709217). Until a list
+   * read set out since answers, which only a reader still in the project gets, the view shows no conversation's row,
+   * thread or summary, cached or not, and settles nothing; a list read refused or failing keeps it so (`liftFence`).
+   * Kept across trips to another view.
+   */
+  fence: { at: number; id: string } | null
 }
 
 /**
@@ -125,6 +133,7 @@ const EMPTY: Kept = {
   gone: {},
   listed: {},
   reached: {},
+  fence: null,
 }
 
 const kept = new Map<string, Kept>()
@@ -315,6 +324,18 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
   ])
   return [...knew].filter((id) => !here.has(id))
 }
+
+/** Fenced (`fence`) by an open conversation's read answering not found; one already fenced stays as it was. */
+export const withFence = (k: Kept, fence: NonNullable<Kept['fence']>): Kept => (k.fence ? k : { ...k, fence })
+
+/** Whether a list read set out at `readFrom` (this view's order) is since the fence, and so lifts it (`liftFence`). */
+export const fenceLifts = (k: Kept, readFrom: number): boolean => k.fence !== null && readFrom > k.fence.at
+
+/**
+ * What is kept once a list read set out at `readFrom` answered: the reader is still in the project, so a fence from
+ * before it goes. A read from before the fence, or from the same moment, changes nothing.
+ */
+export const liftFence = (k: Kept, readFrom: number): Kept => (fenceLifts(k, readFrom) ? { ...k, fence: null } : k)
 
 /** The conversations in doubt (`doubted`) with no erasure of them held here now: a list read made since says. */
 export const awaiting = (k: Kept): string[] => Object.keys(k.doubted).filter((id) => (k.erasures[id] ?? null) === null)

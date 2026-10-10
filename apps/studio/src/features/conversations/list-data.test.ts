@@ -5,11 +5,13 @@ import { ApiError } from '../../api/client.ts'
 import type { ConversationList, ConversationStarted, ConversationSummary } from '../../api/conversations.ts'
 import {
   LISTS,
+  NOT_ASSESSED,
   contributorsLine,
   coverageWords,
   listKey,
   listWithdrawn,
   messagesKey,
+  newestWords,
   withLastMessage,
 } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
@@ -292,6 +294,33 @@ describe('a start’s receipt and the list read: a newer row kept, a stale recei
     assert.equal(row && contributorsLine(row, 'ana'), 'Who wrote here isn’t known yet')
   })
 
+  it('by its title only, nothing else the receipt said is kept: no summary, questions, Sophia or output (r4238709220)', () => {
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'ana'), listOf('Older'))
+    const said = receipt()
+    const stale = {
+      ...said,
+      conversation: {
+        ...said.conversation,
+        summary: 'Said when it was started.',
+        summaryCoverage: { ...NOT_ASSESSED, state: 'current', fromSeq: 1, throughSeq: 1 },
+        openQuestions: 2,
+        questionsCoverage: { ...NOT_ASSESSED, state: 'current', fromSeq: 1, throughSeq: 1 },
+        sophia: true,
+        output: { artifactId: 'a1', versionId: 'v1', versionNumber: 1, title: 'Made then' },
+        messageSeq: 1,
+      },
+    } as unknown as ConversationStarted
+    putStarted(client, 'p', 'ana', stale, '7')
+    const row = rowB(client)
+    assert.deepEqual(
+      [row?.summary, row?.summaryCoverage, row?.openQuestions, row?.questionsCoverage, row?.sophia, row?.output],
+      [null, NOT_ASSESSED, 0, NOT_ASSESSED, false, null],
+    )
+    assert.equal(row?.messageSeq, undefined)
+    assert.deepEqual([row?.id, row?.title, row?.revision], ['b', 'Started', 1])
+  })
+
   it('not listed yet, the receipt current where the page’s feed stands: listed with its words (control)', () => {
     const client = new QueryClient()
     client.setQueryData(listKey('p', 'ana'), listOf('Older'))
@@ -398,11 +427,14 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
       shown.map((c) => c.id),
       ['a', 'b'],
     )
-    assert.deepEqual([shown[1]?.title, shown[1]?.lastMessage, shown[1]?.contributors], ['Started', null, []])
-    // Said to be partial, and not counted among the newest the list holds (Codex at bfc2635c).
-    const row = shown[1]
-    assert.equal(row && 'partial' in row ? row.partial : undefined, true)
-    assert.equal(row && contributorsLine(row, 'ana'), 'Who wrote here isn’t known yet')
+    const row: (ConversationSummary & { partial?: true }) | undefined = shown[1]
+    assert.ok(row)
+    assert.deepEqual([row.title, row.lastMessage, row.contributors], ['Started', null, []])
+    // Said to be partial, nothing else of the receipt kept, and not counted among the newest the list holds (Codex at
+    // bfc2635c, r4238709220).
+    assert.equal(row.partial, true)
+    assert.equal(contributorsLine(row, 'ana'), 'Who wrote here isn’t known yet')
+    assert.deepEqual([row.summary, row.openQuestions, row.sophia, row.output], [null, 0, false, null])
     assert.equal(newestRead({ all: read, more: true }), 1)
     assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
     assert.equal(typeof keptAt(PLACE)?.asked.b?.after, 'number')
@@ -756,6 +788,8 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
     // «Only the newest N» counts the read alone, never the row shown after it (Codex at bfc2635c); a whole one, none.
     assert.equal(newestRead({ all: read, more: true }), 1)
     assert.equal(newestRead({ all: read, more: false }), null)
+    // And said besides them, so that older ones can’t be opened is said only of the others (Codex CX-0067).
+    assert.match(newestWords(1, shownList(read, kept, true).length - 1), /and the one you started here: other older/)
     // A whole list without it: not shown, and named gone (useSeen settles it; `reached` goes with it).
     assert.deepEqual(
       shownList(read, kept, false).map((c) => c.id),

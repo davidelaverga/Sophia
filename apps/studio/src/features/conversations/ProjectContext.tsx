@@ -12,7 +12,7 @@ import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { acceptedOf, coverageWords, pendingOf, questionWords } from './conversation-list.ts'
+import { acceptedOf, coverageWords, pendingOf, questionWords, type Unnamed } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import {
   contextQuery,
@@ -30,7 +30,7 @@ interface Props {
   identity: Identity
   cursor: string | undefined
   /** The conversation open beside it, whose summary comes first. */
-  conversation: ConversationSummary | undefined
+  conversation: (ConversationSummary & Unnamed) | undefined
   /** Opened as a panel (under 1180 px): its Close takes the focus. */
   opened: boolean
   onClose: () => void
@@ -95,7 +95,7 @@ export function ProjectContext(props: Props) {
 function Frame(props: {
   opened: boolean
   onClose: () => void
-  conversation: ConversationSummary | undefined
+  conversation: (ConversationSummary & Unnamed) | undefined
   notice: string | null
   erase: Erase | null
   children: ReactNode
@@ -140,20 +140,28 @@ function Frame(props: {
 
 /**
  * The open conversation, first: Sophia's summary of it, and how many questions are open there; at its foot, an admin's
- * Erase this conversation.
+ * Erase this conversation. Known here by its title only (`partial`), neither is known, and it says so: never «No
+ * summary yet» or «No recorded questions yet» (PR #199 r4238709220).
  */
-function ThisConversation({ conversation: c, erase }: { conversation: ConversationSummary; erase: Erase | null }) {
+function ThisConversation(props: { conversation: ConversationSummary & Unnamed; erase: Erase | null }) {
+  const { conversation: c } = props
   const id = useId()
-  const away = useEraseHere(erase, c.id)
+  const away = useEraseHere(props.erase, c.id)
   return (
     <section className="conv-this" aria-labelledby={id}>
       <h4 id={id} className="eyebrow">
         This conversation
       </h4>
-      <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
-      <Covers words={coverageWords(c.summaryCoverage)} />
-      <p className="conv-note">{questionWords(c)}</p>
-      <Covers words={coverageWords(c.questionsCoverage)} />
+      {c.partial ? (
+        <p className="conv-this-summary">Its summary and open questions aren’t known here yet.</p>
+      ) : (
+        <>
+          <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
+          <Covers words={coverageWords(c.summaryCoverage)} />
+          <p className="conv-note">{questionWords(c)}</p>
+          <Covers words={coverageWords(c.questionsCoverage)} />
+        </>
+      )}
       {away.press}
       {away.form}
     </section>

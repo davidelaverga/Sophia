@@ -4,11 +4,14 @@ import {
   changeIfCurrent,
   changeKept,
   currentGeneration,
+  fenceLifts,
   forgetKept,
   goneFrom,
   keepsFor,
   keptAt,
+  liftFence,
   withErasure,
+  withFence,
   withStanding,
   withHome,
   withListed,
@@ -114,6 +117,40 @@ describe('withStanding: a conversation in doubt ends it only on a read set out s
 
   it('erased: its doubt goes with it', () => {
     assert.deepEqual(withoutConversation(inDoubt, 'c1').doubted, {})
+  })
+})
+
+describe('the fence: a transcript read’s not found holds until a list read set out since answers (PR #199 r4238709217)', () => {
+  const fenced = withFence(keptWith({ drafts: { c1: 'kept words' } }), { at: 5, id: 'c1' })
+
+  it('fenced once: a second not found leaves the first as it was, and nothing else kept changes', () => {
+    assert.deepEqual(fenced.fence, { at: 5, id: 'c1' })
+    assert.equal(withFence(fenced, { at: 7, id: 'c2' }), fenced)
+    assert.equal(fenced.drafts.c1, 'kept words')
+    assert.deepEqual(fenced.erased, {})
+  })
+
+  it('a list read set out before it, or when, lifts nothing: a failing or refused one never answers anew', () => {
+    assert.equal(fenceLifts(fenced, 4), false)
+    assert.equal(fenceLifts(fenced, 5), false)
+    assert.equal(liftFence(fenced, 5), fenced)
+  })
+
+  it('one set out since lifts it, and settles nothing itself (the view settles one the read doesn’t list)', () => {
+    assert.equal(fenceLifts(fenced, 6), true)
+    const lifted = liftFence(fenced, 6)
+    assert.equal(lifted.fence, null)
+    assert.equal(lifted.drafts.c1, 'kept words')
+    assert.deepEqual(lifted.erased, {})
+    assert.equal(fenceLifts(lifted, 9), false)
+  })
+
+  it('kept with everything else, and forgotten with it', () => {
+    forgetKept()
+    changeKept(PLACE, (k) => withFence(k, { at: 3, id: 'c1' }))
+    assert.deepEqual(keptAt(PLACE)?.fence, { at: 3, id: 'c1' })
+    forgetKept()
+    assert.equal(keptAt(PLACE), undefined)
   })
 })
 

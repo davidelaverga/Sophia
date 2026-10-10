@@ -21,7 +21,10 @@ import {
   matching,
   messageBy,
   narrowed,
+  newestWords,
   openWords,
+  unjudged,
+  unjudgedWords,
   replyEndWords,
   replyOf,
   replyOpen,
@@ -115,6 +118,27 @@ describe('contributorsLine', () => {
     assert.equal(
       contributorsLine({ ...conversation({ sophia: true }), partial: true }, ME),
       'Who wrote here isn’t known yet',
+    )
+  })
+})
+
+describe('newestWords: a list of the newest only says what it holds (Codex CX-0067)', () => {
+  it('as read, nothing besides: older ones can’t be opened from it (control, as before)', () => {
+    assert.equal(
+      newestWords(200, 0),
+      'Only the newest 200 conversations are listed here: older ones can’t be opened from this list yet.',
+    )
+  })
+
+  it('with starts made here shown besides: they are said, and only the others are said not to open', () => {
+    assert.equal(
+      newestWords(200, 1),
+      'Only the newest 200 conversations are listed here, and the one you started here: other older ones can’t be ' +
+        'opened from this list yet.',
+    )
+    assert.match(
+      newestWords(3, 2),
+      /^Only the newest 3 conversations are listed here, and the 2 you started here: other/,
     )
   })
 })
@@ -468,6 +492,26 @@ describe('narrowed', () => {
     assert.deepEqual(ids('briefs', false, true), ['open-mine', 'closed-mine'])
     assert.deepEqual(ids('briefs', true, false), ['open-mine'])
     assert.deepEqual(ids('setup', true, false), [])
+  })
+  it('a row by its title only passes neither Open nor Mine, and is counted as unjudged (PR #199 r4238709220)', () => {
+    // Whatever its row held when it was started: none of it is judged.
+    const partial = {
+      ...conversation({ id: 'partial', title: 'Briefs, started', openQuestions: 3 }),
+      partial: true as const,
+    }
+    const withIt = [...all, { ...partial, contributors: [me] }]
+    const of = (open: boolean, mine: boolean, typed = '') =>
+      narrowed(withIt, { typed, open, mine }, ME).map((c) => c.id)
+    assert.deepEqual(of(false, false), ['open-mine', 'open-theirs', 'closed-mine', 'closed-theirs', 'partial'])
+    assert.deepEqual(of(true, false), ['open-mine', 'open-theirs'])
+    assert.deepEqual(of(false, true), ['open-mine', 'closed-mine'])
+    assert.equal(unjudged(withIt, { typed: '', open: true, mine: false }), 1)
+    assert.equal(unjudged(withIt, { typed: 'briefs', open: false, mine: true }), 1)
+    // Not narrowed by Open or Mine, or its title not typed: none is left out unjudged.
+    assert.equal(unjudged(withIt, { typed: 'briefs', open: false, mine: false }), 0)
+    assert.equal(unjudged(withIt, { typed: 'setup', open: true, mine: false }), 0)
+    assert.equal(unjudgedWords(1), 'One more may match: it’s known here by its title only.')
+    assert.equal(unjudgedWords(2), '2 more may match: they’re known here by their titles only.')
   })
 })
 
