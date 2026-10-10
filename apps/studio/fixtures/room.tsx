@@ -62,6 +62,7 @@ import {
   unexpected,
 } from './fixture-api.ts'
 import { missionWrites } from './mission-writes.ts'
+import { withdrawnElsewhere } from './conversation-writes.ts'
 import {
   briefNotice,
   LONG_TITLE,
@@ -158,6 +159,12 @@ interface Fixture {
   eraseElsewhere: (conversationId: string) => void
   /** Every read of this conversation's messages, and of the list, fails from now on (null: they answer again). */
   failConversationReads: (conversationId: string | null) => void
+  /** Only this conversation's message reads fail from now on (null: they answer again); the list's still answer. */
+  failMessageReads: (conversationId: string | null) => void
+  /** Another admin, elsewhere, withdraws the newest message with these words; the feed moves. */
+  withdrawElsewhere: (conversationId: string, text: string) => void
+  /** The next message is stamped with its conversation's last time (two messages in one millisecond). */
+  sameTimeNext: () => void
   /** The list says (or stops saying) that it holds the newest only (`more`); the feed moves. */
   listMore: (on: boolean) => void
   /** What the view keeps for this project and this page's account (talk-store.ts), as a check reads it. */
@@ -627,6 +634,15 @@ window.fixture = {
     project.conversations.failList = conversationId !== null
     project.conversations.failMessagesOf = conversationId
   },
+  failMessageReads: (conversationId) => {
+    if (project.conversations) project.conversations.failMessagesOf = conversationId
+  },
+  withdrawElsewhere: (conversationId, text) => {
+    if (project.conversations && withdrawnElsewhere(project.conversations, conversationId, text)) publish(project)
+  },
+  sameTimeNext: () => {
+    if (project.conversations) project.conversations.sameTimeNext = true
+  },
   listMore: (on) => {
     if (!project.conversations) return
     project.conversations.more = on
@@ -948,6 +964,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       lastShown: DEMO || query.get('last') === '1',
       more: query.get('more') === '1',
       cappedOut: null as string | null,
+      sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),

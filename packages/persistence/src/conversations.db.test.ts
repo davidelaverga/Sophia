@@ -168,6 +168,9 @@ describe('starting and continuing', () => {
     assert.equal(c.output, null)
     assert.equal(c.lastMessage?.text, 'Map first, list second?')
     assert.equal(c.lastMessage?.actorId, E)
+    // Its order (CON-01-CC-0023): the highest place taken, and the opening's own.
+    assert.equal(c.messageSeq, 1)
+    assert.equal(c.lastMessage?.seq, 1)
     const first = await page(V, r.conversationId)
     assert.equal(first.before, null)
     assert.equal(first.messages.length, 1)
@@ -401,6 +404,9 @@ describe('withdrawal and erasure (CON-01-T04)', () => {
       [E],
     )
     assert.equal(relisted.conversations[0]!.lastMessage?.text, 'Map first, list second?')
+    // Two places taken, the second withdrawn: the highest stays 2 (withdrawal never lowers it); the opening is seq 1's.
+    assert.equal(relisted.conversations[0]!.messageSeq, 2)
+    assert.equal(relisted.conversations[0]!.lastMessage?.seq, 1)
     assert.equal(await codeOf(send(F, r.conversationId, 'A detail I regret', { key })), 'request_erased')
     const [stored] = await owner<{ body: string | null; author_name: string | null }>(
       `SELECT body, author_name FROM sophia.conversation_messages WHERE id = $1`,

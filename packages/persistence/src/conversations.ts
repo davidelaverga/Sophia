@@ -95,6 +95,8 @@ interface SummaryRow {
   last_name: string | null
   last_text: string | null
   last_at_message: Date | null
+  last_seq: string | null
+  message_seq: string
 }
 
 /** How many contributors a summary names: A16's `ConversationSummary.contributors` `maxItems`. */
@@ -105,7 +107,7 @@ const CONTRIBUTORS_NAMED = 200
 // except that the reader, whenever they wrote here, is always among them (in the last place kept, when they first wrote
 // later), so «Mine» and «You» stay true for them. A writer beyond them is named on every message they wrote. Sophia: an
 // answer of hers that is not withdrawn. The opening: the newest message not withdrawn.
-const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at,
+const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at, c.message_seq,
     (SELECT coalesce(jsonb_agg(jsonb_build_object('actorId', x.actor_id, 'name', x.name) ORDER BY x.first_seq), '[]')
        FROM (SELECT m.actor_id, min(m.seq) AS first_seq, (array_agg(m.author_name ORDER BY m.seq DESC))[1] AS name
                FROM sophia.conversation_messages m
@@ -116,9 +118,9 @@ const SUMMARIES = `SELECT c.id, c.title, c.revision, c.last_at,
     EXISTS (SELECT 1 FROM sophia.conversation_messages s
              WHERE s.conversation_id = c.id AND s.author = 'sophia' AND s.withdrawn_at IS NULL) AS sophia,
     l.author AS last_author, l.actor_id AS last_actor, l.author_name AS last_name,
-    left(l.body, ${CONVERSATION_OPENING}) AS last_text, l.created_at AS last_at_message
+    left(l.body, ${CONVERSATION_OPENING}) AS last_text, l.created_at AS last_at_message, l.seq AS last_seq
   FROM sophia.conversations c
-  LEFT JOIN LATERAL (SELECT author, actor_id, author_name, body, created_at FROM sophia.conversation_messages
+  LEFT JOIN LATERAL (SELECT author, actor_id, author_name, body, created_at, seq FROM sophia.conversation_messages
                       WHERE conversation_id = c.id AND withdrawn_at IS NULL ORDER BY seq DESC LIMIT 1) l ON true`
 
 function summaryOf(r: SummaryRow): ConversationSummary {
@@ -129,6 +131,9 @@ function summaryOf(r: SummaryRow): ConversationSummary {
     summary: null,
     summaryCoverage: NOT_ASSESSED,
     lastAt: r.last_at.toISOString(),
+    // The highest place taken here, withdrawn messages included, read with this row: an order observed, not
+    // eligibility (CON-01-CC-0023).
+    messageSeq: safeInt(r.message_seq, 'conversation.messageSeq'),
     contributors: r.contributors.map((c) => ({ actorId: c.actorId, name: c.name ?? 'A member' })),
     sophia: r.sophia,
     openQuestions: 0,
@@ -136,13 +141,14 @@ function summaryOf(r: SummaryRow): ConversationSummary {
     // No CON-01 path associates an output with a conversation (binding map §10).
     output: null,
     lastMessage:
-      r.last_author && r.last_text !== null && r.last_at_message
+      r.last_author && r.last_text !== null && r.last_at_message && r.last_seq !== null
         ? {
             author: r.last_author,
             actorId: r.last_actor,
             name: r.last_author === 'sophia' ? 'Sophia' : r.last_name,
             text: r.last_text,
             at: r.last_at_message.toISOString(),
+            seq: safeInt(r.last_seq, 'conversation.lastMessage.seq'),
           }
         : null,
   }

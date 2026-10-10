@@ -455,6 +455,25 @@ A21 is **not** closed as not-applicable (CX-0002). The existing linked-output re
 
 **Rollback:** first the grant, then settings to `read_only`. The data is kept: no table is dropped, and governed reads, withdrawal and erasure stay available (A29). Disabling a reply never revives it.
 
+### 11.1 A row's order: `messageSeq` and `lastMessage.seq` (CON-01-CC-0023, Codex's review)
+
+A16 adds two optional fields:
+- `ConversationSummary.messageSeq`: 0048's `message_seq`, the highest place any message of the conversation has taken, withdrawn ones included. It is 0 before any message.
+- `ConversationOpening.seq`: the place of the message the row's opening is from.
+
+Both are whole numbers from 0 (or 1 for `seq`) to 2^53 − 1. They are read from the same snapshot as the row (`SUMMARIES`), with no new SQL object and no migration.
+
+How the Studio uses them (Codex's invariants, each with a unit test in `conversation-list.test.ts`):
+1. **A local receipt that is accepted** moves the cached row's `messageSeq` to the receipt's `seq`, as well as setting `lastMessage.seq`. It makes up no `revision`, `lastAt` or coverage.
+2. **A receipt is put on the row only when the row's `messageSeq` is below the receipt's `seq`**, even when `lastMessage` is null. Neither an equal place nor a cleared preview gives permission. When only one side says an order, the row's `lastAt` decides, and equal times keep the row.
+3. **The exact tombstone cleanup** (`listTombstoned`) touches only that conversation's row, in the list the current account reads for the current project (`listKey(projectId, account)`). Places are never compared across conversations.
+4. **Covered shapes:** only one side ordered; an empty conversation (`messageSeq` 0, no opening); unsafe, fractional and negative bounds; receipts 3 then 2; m2 withdrawn and m3 said in the same millisecond.
+5. **The local watermark is a lower bound on observed order, not proof that a message is still eligible.** The current successful list read, and the thread's own tombstone, win over it.
+
+**Reader before API.** A reader built from A16 before these fields rejects a row or opening that says them, because both schemas have `additionalProperties: false`. So the Studio ships with or before the API that says them, and rolling back the Studio means rolling back that API with it. A new Studio reads an older API: neither field is said, and it falls back to `lastAt`.
+
+Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
+
 ## 12. Tests written first (mapped to the acceptance ids)
 
 **G1, real PostgreSQL:**

@@ -6,10 +6,11 @@
 // message has a face, a person's initial or Sophia's mark; messages by one author within minutes read as one run, its
 // byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import {
   getConversationMessages,
+  type ConversationList,
   type ConversationMessage,
   type ConversationReply,
   type ConversationSummary,
@@ -24,6 +25,8 @@ import {
   continuesRun,
   contributorsLine,
   initialOf,
+  listTombstoned,
+  listKey,
   messageBy,
   messagesKey,
   replyEndWords,
@@ -103,7 +106,7 @@ function useAwaiting(asked: Asked | null) {
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
-  const read = useTranscript(c.id, identity, props.cursor)
+  const read = useTranscript(c.id, identity, props.cursor, props.projectId)
   const head = useRef<HTMLHeadingElement>(null)
   const follow = useFollow()
   useEffect(() => {
@@ -285,7 +288,7 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
 }
 
 /** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
-function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
+function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined, projectId: string) {
   const read = useInfiniteQuery({
     queryKey: messagesKey(conversationId, accountOf(identity)),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
@@ -294,6 +297,16 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     retry: 1,
   })
   useReadAgain(cursor, read.refetch)
+  // Read here withdrawn (by anyone): a list row still saying it says nothing, whether or not the list is read again.
+  // Only this conversation's row, in the list this account reads for this project (CC-0023, Codex's third invariant).
+  const queryClient = useQueryClient()
+  const account = accountOf(identity)
+  useEffect(() => {
+    if (!read.data) return
+    queryClient.setQueryData<ConversationList>(listKey(projectId, account), (list) =>
+      listTombstoned(list, conversationId, read.data),
+    )
+  }, [read.data, conversationId, projectId, account, queryClient])
   return read
 }
 

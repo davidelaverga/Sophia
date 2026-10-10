@@ -47,6 +47,9 @@ export const wireMessage = (m: FixtureMessage, index: number): ConversationMessa
   replyTo: m.replyTo ?? null,
 })
 
+/** `?order=none`: rows as an API before CC-0023 lists them, with neither `messageSeq` nor `lastMessage.seq`. */
+const ORDERLESS = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('order') === 'none'
+
 /** A conversation as A16 lists it; its newest message's opening only where the page asks for last messages. */
 export function wireSummary(
   c: FixtureConversation,
@@ -54,14 +57,24 @@ export function wireSummary(
   lastShown: boolean,
 ): ConversationSummary {
   const last = messages.findLast((m) => !m.withdrawn && m.text !== null)
+  // The highest place taken, withdrawn messages included (0048's message_seq), and the opening's own (CC-0023).
+  const placed = (seq: number) => (ORDERLESS ? {} : { seq })
   return {
     ...c,
     revision: messages.length + 1,
     summaryCoverage: c.summary === null ? NOT_ASSESSED : assessed(messages, c.lastAt),
     questionsCoverage: c.summary === null && c.openQuestions === 0 ? NOT_ASSESSED : assessed(messages, c.lastAt),
+    ...(ORDERLESS ? {} : { messageSeq: messages.length }),
     lastMessage:
       lastShown && last?.text
-        ? { author: last.author, actorId: last.actorId, name: last.name, text: last.text.slice(0, 140), at: last.at }
+        ? {
+            author: last.author,
+            actorId: last.actorId,
+            name: last.name,
+            text: last.text.slice(0, 140),
+            at: last.at,
+            ...placed(messages.indexOf(last) + 1),
+          }
         : null,
   }
 }

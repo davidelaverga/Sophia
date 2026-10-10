@@ -66,6 +66,12 @@
           "at": {
             "type": "string",
             "format": "date-time"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "The opening message's own place in its conversation (the newest message not withdrawn). Optional: an API that doesn't say it leaves a reader to match the row by writer, actor and time."
           }
         },
         "required": ["author", "actorId", "name", "text", "at"],
@@ -283,6 +289,12 @@
                 "type": "null"
               }
             ]
+          },
+          "messageSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The highest place any message of this conversation has ever taken, withdrawn ones included, read with the rest of this row. It is an order a reader has observed, not proof that a message is still eligible. Optional: an API that doesn't say it leaves a reader to order a receipt by lastAt."
           }
         },
         "required": [

@@ -15,9 +15,11 @@ Starting worktree/commit:
 - `main` was merged at `8f5cbea` (`71dbea3e`), `7660c73` (`6744e78`), `5c3866a` (`6ef8d855`) and `7e21538` (`3e6d57b`, #203).
 
 Ending commit/tree and changed files:
-- Source `1f49c4fd38bfdff54a4b3097b3e731ff3d0ef7ec` (tree `cea781c2a1fa7f4fe339e4b7f74f83fb29cb97fc`).
-- Receipts `715d2b1a1c677c46a9b168c30475c32d0a5f00bc` (tree `6053d6b5cf754d6709c8d1cab3168d6555155d74`).
-- This handoff is the commit after them, documentation only.
+- The last gated source: `1f49c4fd38bfdff54a4b3097b3e731ff3d0ef7ec` (tree `cea781c2a1fa7f4fe339e4b7f74f83fb29cb97fc`), with its receipts at `715d2b1a1c677c46a9b168c30475c32d0a5f00bc` (tree `6053d6b5cf754d6709c8d1cab3168d6555155d74`).
+- After it:
+  - this handoff's first draft (`7d87dbdd`);
+  - `f12786aa`, the interim `ConversationOpening.seq` alone, reverted at `69b0f586` because it did not block CX-0027;
+  - the CON-01-CC-0023 correction, `messageSeq` with `lastMessage.seq`, committed with this revision of the handoff. Its exact commit and tree are named on #198 (CON-01-CC-0024). It is `source_ready`: no browser gate has run on it.
 - 93 files differ from `main`: `db/migrations/0048_project_conversations.sql`, A16, the persistence and API conversation routes, the Studio's `features/conversations/`, its fixtures and specs, and the coordination records under [docs/coordination/CON-01](../coordination/CON-01/README.md).
 - Draft PR [#199](https://github.com/davidelaverga/Sophia/pull/199); coordination issue [#198](https://github.com/davidelaverga/Sophia/issues/198).
 
@@ -30,7 +32,11 @@ Ending commit/tree and changed files:
 - Erasure clears what the Studio keeps for that conversation (its draft, its held messages, its proposals' words) and its cached derivatives. This holds for an erasure by another client and for a list capped at the newest 200, and the cleared state is never revived by a late answer.
 - Coverage words in summaries and context; drafts, retries under the same key, and return behaviour.
 - A08 proposal and decision controls are kept as `main` owns them (#200, #203).
-- Codex rechecked these on the actual local app (CX-0019, CX-0021, CX-0023, CX-0025).
+- Codex's rechecks on the actual local app:
+  - CX-0019, CX-0021 and CX-0023 passed, each bounded to what it ran.
+  - **CX-0025 failed** at `653fe9a`: StrictMode's second mount left the direct reads closed, so a capped list's erasure was never proved. It was corrected at `1f49c4f`.
+  - CX-0026 passed, bounded: the capped crossing at `715d2b1`.
+  - **CX-0027 is a P1 failure reproduced at `715d2b1`:** a list read after a withdrawal had its row overwritten by a delayed Send success while the thread's reads failed. CON-01-CC-0023 is its correction, and Codex has not rechecked it.
 
 **Not built**
 - G2, the read-only native reply. The binding (revision 6) was reviewed at specification and direction level (CX-0014). It still needs Davide's D-6 and B-1, the shared-window acknowledgments from #190's owner and the runtime owner, and a review of the exact combined G2 source.
@@ -41,9 +47,13 @@ Ending commit/tree and changed files:
   - `447e7ae`'s scoped gate failed: 2 of 1131.
   - `82f812d`'s full run is invalid: its source was edited under it.
   - `a3422f4`'s full run failed: 4 of 1150, none in conversation specs; three reproduce on unchanged `main` here ([receipt](../coordination/CON-01/receipts/a3422f4-browser-gate.md)).
-  - `715d2b1`'s gates were running when this was written; see «Remaining obligations».
+  - `715d2b1`: the focused conversation gate passed (exit 0, 154 passed). Its full run was still running when this was written; see «Remaining obligations».
+  - The CC-0023 correction has had no browser run of any kind.
 - `pnpm check` was run in full only at `a7cc081` (G1). It has not been run on any later head.
-- PR #199 r4235629903 is open: on equal times the list's row may lag behind a newer message when the list read fails. The proposed `seq` fix is in CON-01-CC-0020 and is not implemented.
+- PR #199 r4235629903 (a row lagging on equal times) and r4235862543 (CX-0027) are open.
+  - Their correction, `messageSeq` (CON-01-CC-0023), is implemented with unit, contract and PostgreSQL tests.
+  - Its browser cases are written and have not run. That includes the fail-before run on `715d2b1`'s source.
+- Whether any older CON-01 reader is enabled anywhere is UNVERIFIED. Such a reader rejects the new fields, so the Studio ships with or before the API ([BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md)).
 - A30 (two hosted accounts, a native or provider answer) was not run.
 
 ## Evidence
@@ -61,12 +71,20 @@ Ending commit/tree and changed files:
 - **Option C for G2:** reply-first branches with fail-closed guards; six functions are named for 0049. These are bound in [BINDING_MAP.md](../coordination/CON-01/BINDING_MAP.md) and not implemented.
 - **A08:** CON-01's own receipt rewrite (`88ee51e`) was reverted in favour of `main` #203, whose proposal files are byte for byte `main`'s.
 - **Erasure is settled only by proof:** its own receipt, a complete list read, or the API's 422 `not_found` on a direct read of a conversation a capped list left out (`probes.ts`: bounded, with deadlines, timer-driven). A capped omission alone proves nothing.
-- **Equal times keep the list's row:** the row carries no message identity.
+- **A row's order is its place, not its time** (CON-01-CC-0023):
+  - `messageSeq` is the highest place taken, withdrawn messages included, and `lastMessage.seq` is the opening's own place.
+  - A receipt goes on the row only below its watermark. The tombstone cleanup is exact, and limited to the conversation's own row in this account's list for this project.
+  - `lastAt` is the fallback for an API that says no order. There, equal times keep the row.
+  - The five invariants are in [BINDING_MAP §11.1](../coordination/CON-01/BINDING_MAP.md).
 - **No new authority was used.** No hosted read or write, migration applied anywhere but local disposable PostgreSQL, deployment, provider call or spend.
 
 ## Remaining obligations
 
-- **The browser gates on `715d2b1`**, started from `/home/user/sophia-g3-erase` by `cand715-checks.sh`. Their exits go on #198. If this session ends first, they are lost with the container: rerun them, do not infer them.
+- **The full browser gate on `715d2b1`**, started from `/home/user/sophia-g3-erase` by `cand715-checks.sh`. Its exit goes on #198. If this session ends first, it is lost with the container: rerun it, do not infer it.
+- **The CC-0023 correction's browser cases:**
+  - fail-before on `715d2b1`'s and `f12786a`'s source;
+  - then its own gate.
+  - None may run while `715d2b1`'s gate holds the fixture server.
 - **`pnpm check`** on the latest head, PostgreSQL included, is not yet run.
 - **Local resources to clean up:** the PostgreSQL 16 cluster `/var/lib/postgresql/con01` (port 55432), and the worktrees `/home/user/sophia-g1-check`, `/home/user/sophia-g3-erase` and `/home/user/sophia-dev`. None holds anything hosted.
 - **Open PR threads:** every PR #199 thread stays unresolved until Codex reruns the affected evidence. r4235629903 is open as a defect.
@@ -75,6 +93,7 @@ Ending commit/tree and changed files:
 
 ## Next bounded action
 
-1. Report `715d2b1`'s gate exits, then run `pnpm check` on that head.
-2. Codex rechecks `1f49c4f` on the actual app: the StrictMode lifecycle, value-based retention, and the conservative tie.
-3. G2 waits for Davide's D-6 and B-1 and for the shared-window acknowledgments. Nothing in this attempt grants them.
+1. Report `715d2b1`'s full gate exit. Then run the CC-0023 correction's browser cases (fail-before, then its gate), and then `pnpm check` on that head.
+2. Codex rechecks CX-0027 and the same-millisecond row on the actual app at the corrected head.
+3. Integrating `main` `31dd587` (#204) must keep its fixture changes, `fixture-api.ts` and `room.tsx` (`coversHeld`, `hold=covers`, `releaseCovers`, staggered version reads), beside CON-01's.
+4. G2 waits for Davide's D-6 and B-1 and for the shared-window acknowledgments. Nothing in this attempt grants them.

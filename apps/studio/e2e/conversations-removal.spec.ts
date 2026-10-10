@@ -477,6 +477,92 @@ test('removal · withdrawn while its send’s receipt is on its way, every read 
   await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
 })
 
+test('removal · withdrawn elsewhere after a late send, the list read since: the receipt never brings its words back', async ({
+  page,
+}) => {
+  // Codex, CX-0027 (actual app at 715d2b1): the thread's reads fail, the list's answer after the withdrawal, then the
+  // send's receipt comes. The row's last activity is the message's own time: the list read knew of it.
+  const WORDS = 'SYNTHETIC-WITHDRAWN-ELSEWHERE-LATE-SEND'
+  await page.goto(`${PAGE}&send=late&last=1`)
+  await expect(messages(page)).toHaveCount(6)
+  const ask = open(page)
+    .locator('.conv-compose')
+    .getByRole('checkbox', { name: /Ask Sophia/ })
+  if (await ask.isChecked()) await ask.uncheck()
+  await field(page).fill(WORDS)
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(list(page)).toContainText(WORDS)
+  await page.evaluate((c) => window.fixture?.failMessageReads(c), C1)
+  await page.evaluate(([c, w]) => window.fixture?.withdrawElsewhere(c, w), [C1, WORDS] as const)
+  await expect(list(page)).not.toContainText(WORDS)
+  // Then the list's reads fail too, and the send's receipt comes.
+  await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
+  await expect.poll(async () => (await written(page, 'reply')).includes('reply:message'), { timeout: 6000 }).toBe(true)
+  await page.waitForTimeout(500)
+  await expect(list(page)).not.toContainText(WORDS)
+})
+
+test('removal · withdrawn elsewhere while the list’s reads fail: the thread’s own read takes its words off the row', async ({
+  page,
+}) => {
+  // Codex's CX-0027 recovery: a row still saying a message the thread now reads withdrawn says nothing of it.
+  const WORDS = 'SYNTHETIC-TOMBSTONE-OFF-THE-ROW'
+  await page.goto(`${PAGE}&last=1`)
+  await expect(messages(page)).toHaveCount(6)
+  const ask = open(page)
+    .locator('.conv-compose')
+    .getByRole('checkbox', { name: /Ask Sophia/ })
+  if (await ask.isChecked()) await ask.uncheck()
+  await field(page).fill(WORDS)
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(list(page)).toContainText(WORDS)
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(([c, w]) => window.fixture?.withdrawElsewhere(c, w), [C1, WORDS] as const)
+  await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
+  await expect(list(page)).not.toContainText(WORDS)
+})
+
+/** Sends a message timed in the same millisecond as the conversation's last, every list read failing meanwhile. */
+async function sendSameMillisecond(page: Page, words: string, query: string) {
+  await page.goto(`${PAGE}&last=1${query}`)
+  await expect(messages(page)).toHaveCount(6)
+  const before = (await rows(page).first().textContent()) ?? ''
+  const ask = open(page)
+    .locator('.conv-compose')
+    .getByRole('checkbox', { name: /Ask Sophia/ })
+  if (await ask.isChecked()) await ask.uncheck()
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(() => window.fixture?.sameTimeNext())
+  await field(page).fill(words)
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(messages(page).filter({ hasText: words })).toHaveCount(1)
+  return before
+}
+
+test('removal · a message in the same millisecond as the last, the list’s reads failing: its place puts it on the row at once', async ({
+  page,
+}) => {
+  // PR #199 r4235629903, CON-01-CC-0023: the row says its order (messageSeq), so a list read before the second message
+  // is told from one after it, whatever their times.
+  const WORDS = 'SYNTHETIC-SAME-MILLISECOND-PLACED'
+  await sendSameMillisecond(page, WORDS, '')
+  await expect(list(page)).toContainText(WORDS)
+})
+
+test('removal · the same, from an API that says no order: the row lags, never wrong, then catches up', async ({
+  page,
+}) => {
+  // An older API (no messageSeq, no lastMessage.seq): equal times keep the row until the list is read again.
+  const WORDS = 'SYNTHETIC-SAME-MILLISECOND-UNPLACED'
+  const before = await sendSameMillisecond(page, WORDS, '&order=none')
+  await page.waitForTimeout(500)
+  await expect(list(page)).not.toContainText(WORDS)
+  expect(await rows(page).first().textContent()).toBe(before)
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await page.evaluate(() => window.fixture?.listMore(false))
+  await expect(list(page)).toContainText(WORDS)
+})
+
 test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
   await opened(page, '&erase=lost')
   await erase(page).click()

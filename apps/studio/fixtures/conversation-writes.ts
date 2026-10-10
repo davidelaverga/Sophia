@@ -34,6 +34,8 @@ export interface TalkWrites {
   withdraw: 'slow' | 'feedFirst' | 'thenFail' | 'unreached' | null
   /** A withdrawal has already failed to reach the API (`withdraw=unreached` lets one through after it). */
   withdrawMissed?: boolean
+  /** The next message is stamped with its conversation's last time, as two messages in one millisecond are. */
+  sameTimeNext?: boolean
   /** The list's reads fail. */
   failList: boolean
   /**
@@ -169,7 +171,7 @@ function messageSent(talk: TalkWrites, id: string, key: string, body: Record<str
   if (talk.send === 'refused') return refused()
   if (talk.send === 'refusedSlow') return later(1500, refused)
   sent += 1
-  const at = next(talk.list)
+  const at = tiedOnce(talk, conversation) ?? next(talk.list)
   const mid = freshId()
   const message: FixtureMessage = {
     id: mid,
@@ -311,6 +313,13 @@ function withdrawalReplied(order: TalkWrites['withdraw'], answer: unknown, ctx: 
   return order === 'slow' ? later(1500, both) : both()
 }
 
+/** `sameTimeNext`: once, the conversation's last time (0048 stamps from one clock; two may share a millisecond). */
+function tiedOnce(talk: TalkWrites, conversation: FixtureConversation): string | undefined {
+  if (!talk.sameTimeNext) return undefined
+  talk.sameTimeNext = false
+  return conversation.lastAt
+}
+
 /**
  * A message its author withdraws: its words and name go, and so do Sophia's answers that read it (asked at it or
  * after), and a request still open there is cancelled; whoever has nothing left there stops counting.
@@ -323,13 +332,28 @@ function withdrawn(talk: TalkWrites, conversationId: string, messageId: string, 
   if (!conversation || !all || !message) return null
   const own = message.author === 'member' && message.actorId === ME
   if (!own && !ctx.admin) return refused('Only its author or an admin withdraws a message')
+  withdrawAt(talk, conversation, all, at)
+  ctx.record(`conversation-withdraw:${message.id.slice(-2)}`)
+  return { conversationId, message: wireMessage(message, at) }
+}
+
+/** The message at `at` withdrawn, as 0048 does it (the conversation's last activity left as it was). */
+function withdrawAt(talk: TalkWrites, conversation: FixtureConversation, all: FixtureMessage[], at: number) {
   withdrawFrom(all, at, next(talk.list))
   conversation.contributors = conversation.contributors.filter((p) =>
     all.some((m) => m.author === 'member' && m.actorId === p.actorId && !m.withdrawn),
   )
   conversation.sophia = all.some((m) => m.author === 'sophia' && !m.withdrawn)
-  ctx.record(`conversation-withdraw:${message.id.slice(-2)}`)
-  return { conversationId, message: wireMessage(message, at) }
+}
+
+/** Another admin, elsewhere, withdraws the newest message with these words: whether one was there to withdraw. */
+export function withdrawnElsewhere(talk: TalkWrites, conversationId: string, text: string): boolean {
+  const conversation = talk.list.find((c) => c.id === conversationId)
+  const all = talk.messages[conversationId]
+  const at = all?.findLastIndex((m) => m.text === text && !m.withdrawn) ?? -1
+  if (!conversation || !all || at < 0) return false
+  withdrawAt(talk, conversation, all, at)
+  return true
 }
 
 /** The message at `at` withdrawn, with Sophia's answers to it or after it; a request still open from there cancelled. */
