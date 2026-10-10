@@ -1,0 +1,34 @@
+Browser tab: 81, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:56751/p/a6764fde-92fc-4b05-ba08-34cfafe75658/conversations".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 900-902, 944-974
+~					94 text Only the newest  200  conversations are listed here: older ones can’t be opened from this list yet.
++				944 text The conversation was erased.
+~					100 checkbox SYNTHETIC CAP 200, Value: 1
++			945 container Open conversation
++				946 container
++					947 heading SYNTHETIC CAP 200, Value: 3
++						948 text SYNTHETIC CAP 200
++					949 text Contributors: You
++				950 container Messages
++					951 content list
++						952 container
++							953 text You
++							954 text · 
++							955 text Oct 10, 19:53
++							956 text SYNTHETIC LOCAL CAP SETUP 200
++							957 button Propose as decision
++							958 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
++				959 container Continue this conversation
++					960 text entry area (settable) Continue this question with the team
++					961 container
++						962 checkbox (settable, integer) Description: Ask Sophia, Value: 1
++						963 text Ask Sophia
++					964 button (disabled) Send
++					965 text Sophia doesn’t answer here yet Enter sends · Shift+Enter, a new line
++				966 container This conversation
++					967 heading This conversation, Value: 4
++						968 text This conversation
++					969 text No summary yet.
++					970 text No recorded questions yet
++					971 button (collapsed) Erase this conversation, Secondary Actions: Expand
+The focused UI element is 0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:56751/p/a6764fde-92fc-4b05-ba08-34cfafe75658/conversations

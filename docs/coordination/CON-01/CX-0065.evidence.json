@@ -1,0 +1,298 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0065",
+  "candidate": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+  "tree": "8899457399739fde0b5855a623ad3f8af17b75fd",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6, synthetic development actors; no native/provider/hosted qualification",
+  "sourceDelta": {
+    "files": 7,
+    "fullyRead": true,
+    "authorReceipt": 6100454135
+  },
+  "focused": {
+    "tests": 103,
+    "suites": 21,
+    "pass": 103,
+    "fail": 0,
+    "skip": 0,
+    "typecheckExit": 0
+  },
+  "replyCorrectionL0": {
+    "candidate": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+    "scope": "L0 production helpers and actual React Query cache with synthetic direct probe/records; no mounted UI or provider qualification",
+    "outcomes": [
+      {
+        "finding": 4238594445,
+        "probeState": "blocked",
+        "cacheStatus": "error",
+        "cachedState": "pending",
+        "observed": {
+          "ended": false,
+          "waiting": false
+        },
+        "expectedWaiting": false,
+        "pass": true
+      },
+      {
+        "finding": 4238594450,
+        "newer": {
+          "replyId": "r2",
+          "messageId": "m2",
+          "here": 1791654968676
+        },
+        "observed": {
+          "replyId": "r2",
+          "messageId": "m2",
+          "here": 1791654968676
+        },
+        "pass": true
+      }
+    ],
+    "controls": [
+      {
+        "case": "no cache deferred wait",
+        "pass": true
+      },
+      {
+        "case": "fresh ended read",
+        "pass": true
+      },
+      {
+        "case": "ordinary request no cached read still waits",
+        "pass": true
+      },
+      {
+        "case": "fresh correlated pending read",
+        "pass": true
+      },
+      {
+        "case": "wrong request fresh read",
+        "pass": true
+      },
+      {
+        "case": "read set out at landing",
+        "pass": true
+      }
+    ]
+  },
+  "freshReviewL0": {
+    "candidate": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+    "tree": "8899457399739fde0b5855a623ad3f8af17b75fd",
+    "scope": "L0 production helpers/actual React Query cache with synthetic records; no mounted/native/provider qualification",
+    "outcomes": [
+      {
+        "finding": 4238633930,
+        "scope": "L0 actual Query cache/reached projection; source confirms open transcript has no settlement callback; not mounted external erasure",
+        "queryError": "not_found",
+        "shownRowIds": [
+          "c"
+        ],
+        "cachedWords": [
+          "SYNTHETIC erased message"
+        ],
+        "pass": false
+      },
+      {
+        "finding": 4238633935,
+        "scope": "L0 even granting older page a fresh stamp, newest-page-only stamp suppresses matching fresh Ask; actual query stamps only newest",
+        "newestReadFrom": 6,
+        "matchingPageReadFrom": 8,
+        "observed": {
+          "ended": false,
+          "waiting": false
+        },
+        "expectedWaiting": true,
+        "pass": false
+      }
+    ],
+    "controls": [
+      {
+        "case": "known settlement removes reached row",
+        "pass": true
+      },
+      {
+        "case": "fresh newest matching Ask waits",
+        "pass": true
+      }
+    ]
+  },
+  "automaticReview": {
+    "request": 6100464274,
+    "submission": 5480196460,
+    "submittedAt": "2026-10-10T17:55:04Z",
+    "fullyRead": true,
+    "paginationUsed": true,
+    "findings": [
+      {
+        "id": 4238633930,
+        "severity": "P1",
+        "qualification": "source-valid plus L0 actual Query cache/reached projection; mounted external-erasure case not yet run"
+      },
+      {
+        "id": 4238633935,
+        "severity": "P2",
+        "qualification": "source-valid plus L0 helper repro; mounted older-page native wait not yet run"
+      }
+    ]
+  },
+  "actualVerdicts": [
+    {
+      "case": "deferred Start/capped read/subsequent refetch",
+      "verdict": "PASS bounded",
+      "target": "41b2d619-4772-4a78-9559-a00a4174d0bc"
+    },
+    {
+      "case": "leave Tasks/return/reopen retained row",
+      "verdict": "PASS bounded; prior selection resets to newest on view return, target remains reachable"
+    },
+    {
+      "case": "local actual erasure202/return no resurrection",
+      "verdict": "PASS bounded; not external erasure"
+    },
+    {
+      "case": "fallback contributor attribution",
+      "verdict": "FAIL P2",
+      "observed": "Nobody has written yet beside actual saved human message"
+    },
+    {
+      "case": "coverage count/older reachability wording",
+      "verdict": "FAIL P3",
+      "observed": "Newest201 count includes one older retained fallback; says older cannot open while selected older row is open"
+    }
+  ],
+  "audits": [
+    {
+      "file": "audit-cap.json",
+      "at": "2026-10-10T17:54:31.877Z",
+      "humanMessages": 205,
+      "nullBodies": 0,
+      "semanticRequests": 205,
+      "replies": [],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      },
+      "target": [
+        {
+          "title": "SYNTHETIC BFC capped target",
+          "id": "8705bb9d-f4ec-4057-a3aa-368f2be7151d",
+          "conversation_id": "41b2d619-4772-4a78-9559-a00a4174d0bc",
+          "actor_id": "bc14f423-68c5-44f6-96bd-9cd30f6a8482",
+          "seq": "1",
+          "body": "SYNTHETIC held receipt remains reachable after capped refresh.",
+          "withdrawn_at": null
+        }
+      ]
+    },
+    {
+      "file": "audit-final.json",
+      "at": "2026-10-10T17:55:00.888Z",
+      "humanMessages": 205,
+      "nullBodies": 1,
+      "semanticRequests": 206,
+      "replies": [],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 0
+      },
+      "target": [
+        {
+          "title": null,
+          "id": "8705bb9d-f4ec-4057-a3aa-368f2be7151d",
+          "conversation_id": "41b2d619-4772-4a78-9559-a00a4174d0bc",
+          "actor_id": "bc14f423-68c5-44f6-96bd-9cd30f6a8482",
+          "seq": "1",
+          "body": null,
+          "withdrawn_at": "2026-10-10T17:54:53.076Z"
+        }
+      ]
+    }
+  ],
+  "cleanup": {
+    "stack": {
+      "candidate": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+      "tree": "8899457399739fde0b5855a623ad3f8af17b75fd",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 56750,
+      "studioPort": 56751,
+      "pid": 91999,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "children": {
+      "projectId": "a6764fde-92fc-4b05-ba08-34cfafe75658",
+      "apiStopped": true,
+      "studioStopped": true,
+      "databaseDropped": true
+    },
+    "independent": {
+      "at": "2026-10-10T17:56:27.148722+00:00",
+      "pids": {
+        "pid": "absent",
+        "apiPid": "absent",
+        "studioPid": "absent"
+      },
+      "ports": {
+        "apiPort": {
+          "port": 56750,
+          "closed": true
+        },
+        "studioPort": {
+          "port": 56751,
+          "closed": true
+        }
+      }
+    },
+    "execSession": 5453,
+    "terminalExit": 0,
+    "tab": 81,
+    "tabClosed": true,
+    "all59OwnedBrowserStacksClean": true
+  },
+  "main": {
+    "commit": "41f6a9add19a661a8b364fe49d778fab7f8f25c6",
+    "tree": "e9789214e70caad582d86105bd50a9981772704e",
+    "nineFileDeltaFrom": "a33805fedff9dfe547a725836272386ea29e5109",
+    "fullyRead": true,
+    "combinedQualified": false
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "hostedEffects": 0,
+    "unresolvedLocalWrite": false,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "readiness": {
+    "source_ready": "author candidate only",
+    "locally_verified": "scoped passes plus explicit privacy/reply/metadata failures",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Smallest immutable definitive-open-read settlement, per-Ask-page freshness and truthful fallback-metadata correction; independently recheck affected failures before current-main/S1 combinedG4."
+}

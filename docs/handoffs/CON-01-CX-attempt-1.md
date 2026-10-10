@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0064
+# Current checkpoint — CX-0065
+
+[Exact bfc independent review and actual app episode](../coordination/CON-01/CX-0065.md). Complete7-file delta/103focused21suitesPASS0skip/typecheck0; previous reply failures now2L0PASS+6controlsPASS. Actual59th local realStudio/API/PG: capped target survives refetch, remains reachable on return and reopens human message; own explicit erasure202 removes target/text without resurrection on return. Those passes are bounded. New actual P2 fallback falsely says nobody wrote; P3 coverage miscounts retained older row among newest.
+
+Fresh exact-head review5480196460 fully read: P1r4238633930 open-thread definitive not_found retains reached row/cached erased text; P2r4238633935 newest-page stamp suppresses fresh older-page Ask. Independently source-valid and L0 reproduced, not mounted external-erasure/native-wait proof. All sent to Claude; smallest immutable correction pending. G3 changes_requested; combined G4 held. Main41f6a9ad/treee9789214 delta fully read, no integration qualification.
+
+All59 owned stacks plus historic initdb failure/3PG batches clean;5453terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports56750–51closed/tab81closed. Final205human1NULL206requests, no replies/supportgoal1/allopsmodel0. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36 verdicts unchanged. OP1r2/OP2r2 drafts/approvalexpiryNULL; pending actual inbox and subjects/subscription route/allowance/privacy/shared owner-window/combined artifacts/governed rollback remain unbound. Historical hosted tuple unrefreshed. Product acceptance remains Davide's; other missions open; no monitor.
+
+Next bounded action: immutable definitive-open-read settlement, per-Ask-page freshness and truthful partial-metadata correction, independently rechecked before current-main/S1 G4.
+
+# Historical checkpoint — CX-0064
 
 [Independent reply-state review](../coordination/CON-01/CX-0064.md). Exact dfeb/tree ac969d50: two independently reproduced L0 P2 failures (stale cached pending wait and old Start overwriting newer Ask), three controls PASS. CX63 actual capped-refetch wrong-destination failure remains open. All three sent directly to Claude and acknowledged; immutable correction pending. Main a33805fe/tree6c93bd89 inventoried, combined integration unqualified. PR190 filenames0051/0052/A17 now acknowledged by comment6100363804; exclusive runtime owner/window is expressly not granted.
 

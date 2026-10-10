@@ -1,0 +1,30 @@
+{
+  "file": "audit-final.json",
+  "at": "2026-10-10T17:55:00.888Z",
+  "humanMessages": 205,
+  "nullBodies": 1,
+  "semanticRequests": 206,
+  "replies": [],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "target": [
+    {
+      "title": null,
+      "id": "8705bb9d-f4ec-4057-a3aa-368f2be7151d",
+      "conversation_id": "41b2d619-4772-4a78-9559-a00a4174d0bc",
+      "actor_id": "bc14f423-68c5-44f6-96bd-9cd30f6a8482",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-10T17:54:53.076Z"
+    }
+  ]
+}
