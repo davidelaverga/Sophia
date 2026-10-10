@@ -850,10 +850,10 @@
   ],
   "reviewer_session": "01a1224a-32b4-7222-a017-50a277572d95",
   "attempt": "CON-01-CX-attempt-1",
-  "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
-  "candidate_tree": "bd7f01da94da9e2be9063094a79bd32f2eead79b",
-  "review_ref": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
-  "current_main_observed": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
+  "candidate_sha": "2f87eb36a38ec0ac018ea5c07d6e1df334c05134",
+  "candidate_tree": "c0defbe4445c60bb7dfb2504e1ab1737624caa23",
+  "review_ref": "2f87eb36a38ec0ac018ea5c07d6e1df334c05134",
+  "current_main_observed": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
   "supplemental_candidates": [
     {
       "candidate_sha": "839fb45b378a4f22517e4bf940372c6734f558ef",
@@ -931,5 +931,11 @@
     "operation": "OP1r2/OP2r2 draft_not_authorized;approvalexpiryNULL",
     "cleanup": "all66ownedstacks clean;68721terminal0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports58746\u201347closed/tab89closed",
     "next": "Immutableauthorprobe-fence/nonpoisoningrecovery and monotoniclastAtcorrection; independentactualaffectedcrossings before freshcurrent-main/S1combinedG4"
+  },
+  "historical_header_pin": {
+    "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+    "candidate_tree": "bd7f01da94da9e2be9063094a79bd32f2eead79b",
+    "review_ref": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+    "current_main_observed": "444235d0e8f62d7cd708b47a21ea0242374fb7e7"
   }
 }

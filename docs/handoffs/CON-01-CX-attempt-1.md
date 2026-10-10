@@ -4,6 +4,8 @@
 
 All66stacks clean/68721terminal0/DBdropped/APIStudioPGstoppedclusterremoved/tab89closed/PIDsabsent/ports58746–47closed. Final207human0NULL207requests/0replies/supportgoal1/allopsusage0. Privatebumpcommittedonce thenreceiptshapeerror; read-onlyreconciledone seq5/no retry/no unresolvedwrite. No hosted/provider/spend/reviewerfeaturefix. All36verdictstatusesretained; G3changes_requested/P1P2hold; combinedG4unqualified. Authorisolatedebe8inheritsaffectedsource/unpublished/unreviewed. OP1r2/OP2r2drafts/approvalexpiryNULL; inboxsubjects/route/allowance/privacy/sharedownerwindow/artifacts/governedrollback unbound. No livegrant. Davidefinaldecision/othermissionsopen.
 
+Shared receipt6101180976/b669ff8c published; exactClaude acknowledged, preparing authorcorrection/unpublishedunqualified. PR1904801 new6101183601 reports bothStudioCIjobsfailed/authAccountvisibility with existingbillingP1s open; fullcommentread, rawlogsnotindependentlyqualifiedhere/no waiver/windowgrant. Ledgerstaleheaderpins preservedhistorically and currentheader aligned2f87/main0ccc/CX72.
+
 Next bounded action: immutableauthorprobe-fence/nonpoisoningrecovery+monotoniclastAtcorrection; independentactualsameprobe revoke→restore and sendorder/time/olderreceiptcontrols, originalfence/cleanup; then freshcurrent-main/S1combinedG4/fullgate/artifactreview.
 
 # Historical checkpoint — CX-0071
