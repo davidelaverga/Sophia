@@ -14,6 +14,7 @@ import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
+import { LoadFailed } from './LoadFailed.tsx'
 import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
@@ -80,25 +81,31 @@ function useAccountCache(signedInAs: string | null) {
 
 /**
  * The signed-in Studio's chunk, fetched ahead (signed-in-load.ts) so it is here by the time the person is in: a link
- * offered, or on the sign-in page once they start (a key, a press); never at rest, nor while who is in is still found
- * out (nobody may be: a session back is in, its chunk in the browser's cache since); never for a room's door, whose
- * guests never open the Studio.
+ * offered, or on the sign-in page once they start (a key, a press, caught before any field keeps it); never at rest,
+ * nor while who is in is still found out (nobody may be: a session back is in, its chunk in the browser's cache since).
+ * On a room's door, only for a member, whom the door hands to the Studio; never for a guest.
  */
-function useSignedInAhead(status: AuthState['status'], door: boolean) {
+function useSignedInAhead(state: AuthState, door: boolean) {
+  const { status } = state
+  const member = status === 'signed_in' && state.identity.role !== 'guest'
   useEffect(() => {
-    if (door || status === 'loading' || status === 'signed_in') return undefined
+    if (door) {
+      if (member) warmSignedIn()
+      return undefined
+    }
+    if (status === 'loading' || status === 'signed_in') return undefined
     if (status === 'link_offer') {
       warmSignedIn()
       return undefined
     }
     const start = () => warmSignedIn()
-    window.addEventListener('keydown', start, { once: true })
-    window.addEventListener('pointerdown', start, { once: true })
+    window.addEventListener('keydown', start, { once: true, capture: true })
+    window.addEventListener('pointerdown', start, { once: true, capture: true })
     return () => {
-      window.removeEventListener('keydown', start)
-      window.removeEventListener('pointerdown', start)
+      window.removeEventListener('keydown', start, { capture: true })
+      window.removeEventListener('pointerdown', start, { capture: true })
     }
-  }, [status, door])
+  }, [status, member, door])
 }
 
 export function App() {
@@ -111,7 +118,7 @@ export function App() {
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)
   const joinPage = opensJoinPage(window.location.pathname, state.status)
-  useSignedInAhead(state.status, joinPage)
+  useSignedInAhead(state, joinPage)
   // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
   useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !joinPage)
 
@@ -157,15 +164,17 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       {/* Its chunk on its way, the session's face stays: the opening hands off once Home is mounted (Studio). */}
-      <Suspense fallback={<Centered title="Sophia" busy />}>
-        <Studio
-          identity={state.identity}
-          notice={state.notice}
-          routing={routing}
-          onChooseDev={switchIdentity}
-          onSignOut={leaveSession}
-        />
-      </Suspense>
+      <LoadFailed>
+        <Suspense fallback={<Centered title="Sophia" busy />}>
+          <Studio
+            identity={state.identity}
+            notice={state.notice}
+            routing={routing}
+            onChooseDev={switchIdentity}
+            onSignOut={leaveSession}
+          />
+        </Suspense>
+      </LoadFailed>
     </QueryClientProvider>
   )
 }

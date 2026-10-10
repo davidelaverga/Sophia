@@ -1,19 +1,53 @@
 // The sign-in page downloads only what signing in needs (docs/plans/signed-in-later.md): the signed-in Studio, the
 // API's client and the contract validators it brings come once a session is there, or once the person starts to sign
 // in. On the app itself (fixtures/app.tsx, vite.app.config.ts), whose modules the dev server serves one by one, so
-// what the page asked for is what it would download. Nobody is signed in; nothing reaches an Auth service or an API.
+// what the page asks for is what it would download. Nobody is signed in but a synthetic account at sophia.test in the
+// last check; nothing reaches an Auth service or an API.
 import { expect, test, type Page } from '@playwright/test'
 
 const APP = 'http://127.0.0.1:5198'
+/** supabase-js's own key for a session with the synthetic Auth service at 127.0.0.1 (as app-auth.spec.ts). */
+const SESSION_KEY = 'sb-127-auth-token'
+
+const part = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url')
+
+/** A synthetic session, unsigned, for an account at sophia.test: only the synthetic Auth service ever sees it. */
+function session() {
+  const exp = Math.floor(Date.now() / 1000) + 24 * 3600
+  const user = { id: '00000000-0000-4000-8000-00000000d001', email: 'davide@sophia.test' }
+  const claims = { sub: user.id, email: user.email, role: 'authenticated', aud: 'authenticated', exp }
+  return {
+    access_token: `${part({ alg: 'none', typ: 'JWT' })}.${part({ ...claims, is_anonymous: false })}.synthetic`,
+    refresh_token: `synthetic-refresh-${user.id}`,
+    token_type: 'bearer',
+    expires_in: 24 * 3600,
+    expires_at: exp,
+    user: {
+      ...user,
+      aud: 'authenticated',
+      role: 'authenticated',
+      is_anonymous: false,
+      app_metadata: { provider: 'email' },
+      user_metadata: {},
+      created_at: '2026-10-01T00:00:00Z',
+    },
+  }
+}
 
 /** The signed-in Studio's own modules, and what only it needs: none is the sign-in's. */
 const LATER = ['/src/app/SignedIn.tsx', '/src/api/client.ts', '/contracts/src/generated/validators.js']
 
-/** Every module and file the page has asked for, by its path. */
-const asked = (page: Page) =>
-  page.evaluate(() => performance.getEntriesByType('resource').map((r) => new URL(r.name).pathname))
+/** How long the page is left at rest before what it asked for is read: past any idle callback or short timer. */
+const AT_REST_MS = 2000
 
-const later = (paths: string[]) => paths.filter((p) => LATER.some((l) => p.endsWith(l)))
+/** Every module and file the page asks for, by its path, as each request leaves (not once its answer is in). */
+function recorded(page: Page) {
+  const paths: string[] = []
+  page.on('request', (request) => paths.push(new URL(request.url()).pathname))
+  return paths
+}
+
+const later = (paths: readonly string[]) => paths.filter((p) => LATER.some((l) => p.endsWith(l)))
 
 test.beforeEach(async ({ context }) => {
   // No session: the synthetic Auth service has nothing; no API answers.
@@ -24,16 +58,33 @@ test.beforeEach(async ({ context }) => {
 test('later · the sign-in page at rest asks for none of the signed-in Studio, its client or the validators', async ({
   page,
 }) => {
+  const asked = recorded(page)
   await page.goto(`${APP}/app.html`)
   await expect(page.locator('input[type="email"]')).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
-  expect(later(await asked(page))).toEqual([])
+  // Nothing asked for at rest: not on drawing, nor on an idle moment or a timer after it.
+  await page.waitForTimeout(AT_REST_MS)
+  expect(later(asked)).toEqual([])
 })
 
 test('later · the person starting to sign in fetches the signed-in Studio ahead', async ({ page }) => {
+  const asked = recorded(page)
   await page.goto(`${APP}/app.html`)
   const email = page.locator('input[type="email"]')
   await expect(email).toBeVisible()
   await email.press('a')
-  await expect.poll(async () => (await asked(page)).some((p) => p.endsWith('/src/app/SignedIn.tsx'))).toBe(true)
+  await expect.poll(() => asked.some((p) => p.endsWith('/src/app/SignedIn.tsx'))).toBe(true)
+})
+
+test('later · a signed-in Studio that doesn’t arrive says so, with the page again one press away', async ({ page }) => {
+  // Its chunk refused, as a deploy that replaced it or a dropped connection would.
+  await page.route('**/src/app/SignedIn.tsx*', (route) => route.abort())
+  await page.goto(`${APP}/favicon.svg`)
+  await page.evaluate(([key, value]) => localStorage.setItem(key, value), [
+    SESSION_KEY,
+    JSON.stringify(session()),
+  ] as const)
+  await page.goto(`${APP}/app.html`)
+  await expect(page.getByRole('heading', { name: 'Sophia couldn’t finish opening' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Load again' })).toBeVisible()
 })

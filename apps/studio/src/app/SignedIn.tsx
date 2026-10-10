@@ -210,7 +210,7 @@ function ProjectShells(props: ShellsProps) {
  * project. The personal padlock lives here, above both, so a room shuts it wherever the person is; so does the toast,
  * so a result is said the same way in a project and in the places, and a call that ends out of sight says why.
  */
-export function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedInProps) {
+function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedInProps) {
   const { route, open, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)

@@ -4,9 +4,12 @@ import type { Studio } from './SignedIn.tsx'
 
 let loading: Promise<{ Studio: typeof Studio }> | null = null
 
-/** The signed-in Studio's module: one fetch, whoever asks first. */
+/** The signed-in Studio's module: one fetch, whoever asks first; a failed one forgotten, so the next asks again. */
 export function loadSignedIn(): Promise<{ Studio: typeof Studio }> {
-  loading ??= import('./SignedIn.tsx')
+  loading ??= import('./SignedIn.tsx').catch((err: unknown) => {
+    loading = null
+    throw err
+  })
   return loading
 }
 
