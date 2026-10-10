@@ -131,7 +131,7 @@ function undelivered(task: Pick<NativeTask, 'phase' | 'state' | 'reason'>, read:
   }
   if (isFinished(task)) return finished(read)
   if (STARTING.has(task.phase)) {
-    return { state: 'starting', label: 'Starting', tone: 'lav', note: 'Waiting for the research runtime.' }
+    return { state: 'starting', label: 'Starting', tone: 'lav', note: 'Waiting for Sophia to start the research.' }
   }
   const note =
     read.status === 'failed'
