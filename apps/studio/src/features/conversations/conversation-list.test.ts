@@ -1359,6 +1359,50 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     assert.equal(c, sent)
   })
 
+  it('pages older than the list read never reorder its writers: an event moves only the writer it is about (r4237660062)', () => {
+    // The list read, after A's 1 was withdrawn, orders B, A. The thread held here is older: A1, B2, A3, all still shown.
+    const current = assessed({
+      messageSeq: 3,
+      contributors: [
+        { actorId: 'bea', name: 'Bea' },
+        { actorId: 'ana', name: 'Ana' },
+      ],
+    })
+    const a1 = msg(1, { actorId: 'ana', name: 'Ana' })
+    const b2 = msg(2, { actorId: 'bea', name: 'Bea' })
+    const older = [a1, b2, msg(3, { actorId: 'ana', name: 'Ana' })]
+    // C (me) is confirmed at 4: placed by my own first, the list read's order kept.
+    const mine = { author: 'member' as const, actorId: ME, name: 'Me', text: 'Four.', at, seq: 4 }
+    const [sent] = withLastMessage([current], 'a', mine, page([...older, msg(4, { name: 'Me', text: 'Four.' })]))
+    assert.deepEqual(
+      sent?.contributors.map((p) => p.actorId),
+      ['bea', 'ana', ME],
+    )
+    // Fresh pages (A1's tombstone held) and pages that don't run from 1: the same, B, A, then me.
+    const a1Gone = { ...a1, name: null, text: null, withdrawn: { at: '2026-10-06T09:59:00.000Z' } }
+    const four = msg(4, { name: 'Me', text: 'Four.' })
+    for (const pages of [
+      [a1Gone, b2, older[2] ?? a1, four],
+      [b2, older[2] ?? a1, four],
+    ]) {
+      const [c] = withLastMessage([current], 'a', mine, page(pages))
+      assert.deepEqual(
+        c?.contributors.map((p) => p.actorId),
+        ['bea', 'ana', ME],
+      )
+    }
+    // An old receipt (B2) can't change the newer row at all.
+    const b2Receipt = { author: 'member' as const, actorId: 'bea', name: 'Bea', text: 'Two.', at, seq: 2 }
+    assert.equal(withLastMessage([current], 'a', b2Receipt, page(older))[0], current)
+    // A withdraws 3 (not her first, as these pages say): she keeps her place.
+    const threeGone = msg(3, { actorId: 'ana', name: null, text: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+    const [kept] = rowsKnown([current], heldForA(page([a1, b2, threeGone])), () => true)
+    assert.deepEqual(
+      kept?.contributors.map((p) => p.actorId),
+      ['bea', 'ana'],
+    )
+  })
+
   it('firsts: proven by the places held from 1 without a gap, at any size, with nothing built per place (r4237627178)', () => {
     assert.deepEqual(
       [...firstsIn(page([msg(1), msg(2, { actorId: 'lucia' }), msg(4, { actorId: 'tomas' })]))],
