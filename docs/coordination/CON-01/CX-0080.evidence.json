@@ -149,7 +149,7 @@
     "No combinedG4, nativeusefulness/hostcopycleanup/subscription/tworealaccount/hosted acceptance"
   ],
   "readiness": {
-    "source_ready": "author exacta1dd CC75; terminalpending",
+    "source_ready": "author exacta1dd terminal receipts read; firstPGinfrastructurefailure preserved, exactrerunpasses",
     "locally_verified": "named independentL1 crossings/typecheckPASS",
     "reviewed": false,
     "scoped_delta_reviewed": true,
@@ -159,5 +159,51 @@
     "owner_accepted": false
   },
   "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL",
-  "next": "Author exacta1dd terminal/freshautomaticreview; current-main/S1/PR190 concretecombinedG4 candidate with affectedbrowser/mobile/API/contracts/artifact identity review; operational inputs and approval stillrequired"
+  "next": "Author exacta1dd terminal/freshautomaticreview; current-main/S1/PR190 concretecombinedG4 candidate with affectedbrowser/mobile/API/contracts/artifact identity review; operational inputs and approval stillrequired",
+  "authorTerminalRead": {
+    "at": "2026-10-10T21:42:14.532116+00:00",
+    "authorComment": 6102466676,
+    "candidate": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+    "tree": "df075eaf1b911df581cb499f650c7a0b146b9df3",
+    "format": 0,
+    "lint": 0,
+    "typecheck": 0,
+    "contracts": 0,
+    "units": {
+      "passed": 1212,
+      "exit": 0
+    },
+    "fixtureBrowser": {
+      "passed": 169,
+      "exit": 0
+    },
+    "firstPG": {
+      "persistenceExit": 1,
+      "apiExit": 1,
+      "testsRun": 0,
+      "reason": "ECONNREFUSED stopped owned disposable cluster; preserved as infrastructure failure, not code evidence"
+    },
+    "sameSHARerun": {
+      "persistencePassed": 22,
+      "apiPassed": 10,
+      "bothExit": 0
+    },
+    "freshReviewRequest": 6102467030,
+    "automaticResult": "pending",
+    "attribution": "author, independently read, not reviewer rerun"
+  },
+  "integrationPreparation": {
+    "scope": "preparatory git merge-tree projections only; no combined candidate/commit/artifact/test qualification",
+    "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+    "CON": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+    "S1": "32b0c22eecb2210b6dcaff298c5d0d3db39c2406",
+    "mainPlusCONTree": "55d17b17113f8b4723a73c815db9ae40921e6359",
+    "CONPlusS1Tree": "c6cfa84a1368b559ff2488710b279b3a3c40df83",
+    "bothPairwiseMergesClean": true,
+    "mainDeltaFromCON": "71 files +1629/-526, including App/SignedIn/auth/client/vision/report/artifacts/fixtures/tests",
+    "S1DeltaFromCON": "6 files +71/-5, Studio outcome_unknown wording/tests and BINDING_MAP; no runtime or SQL change",
+    "PR190": "draftd90d2dc2/separate unabsorbed; SHA not fetched in candidate checkout, no permission inferred",
+    "currentMainMigrations": "0001-0045; CON0048separate; live ledgerlast0036 historical, recensus beforeoperations",
+    "qualification": "G4 unqualified pending actual author triplecombinedcandidate and affected tests"
+  }
 }

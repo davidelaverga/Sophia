@@ -1,0 +1,32 @@
+{
+  "at": "2026-10-10T21:42:14.532116+00:00",
+  "authorComment": 6102466676,
+  "candidate": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+  "tree": "df075eaf1b911df581cb499f650c7a0b146b9df3",
+  "format": 0,
+  "lint": 0,
+  "typecheck": 0,
+  "contracts": 0,
+  "units": {
+    "passed": 1212,
+    "exit": 0
+  },
+  "fixtureBrowser": {
+    "passed": 169,
+    "exit": 0
+  },
+  "firstPG": {
+    "persistenceExit": 1,
+    "apiExit": 1,
+    "testsRun": 0,
+    "reason": "ECONNREFUSED stopped owned disposable cluster; preserved as infrastructure failure, not code evidence"
+  },
+  "sameSHARerun": {
+    "persistencePassed": 22,
+    "apiPassed": 10,
+    "bothExit": 0
+  },
+  "freshReviewRequest": 6102467030,
+  "automaticResult": "pending",
+  "attribution": "author, independently read, not reviewer rerun"
+}

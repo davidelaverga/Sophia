@@ -1,0 +1,14 @@
+{
+  "scope": "preparatory git merge-tree projections only; no combined candidate/commit/artifact/test qualification",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "CON": "a1dd32097cddcdaaff052166f5ecbc0ed0c289f8",
+  "S1": "32b0c22eecb2210b6dcaff298c5d0d3db39c2406",
+  "mainPlusCONTree": "55d17b17113f8b4723a73c815db9ae40921e6359",
+  "CONPlusS1Tree": "c6cfa84a1368b559ff2488710b279b3a3c40df83",
+  "bothPairwiseMergesClean": true,
+  "mainDeltaFromCON": "71 files +1629/-526, including App/SignedIn/auth/client/vision/report/artifacts/fixtures/tests",
+  "S1DeltaFromCON": "6 files +71/-5, Studio outcome_unknown wording/tests and BINDING_MAP; no runtime or SQL change",
+  "PR190": "draftd90d2dc2/separate unabsorbed; SHA not fetched in candidate checkout, no permission inferred",
+  "currentMainMigrations": "0001-0045; CON0048separate; live ledgerlast0036 historical, recensus beforeoperations",
+  "qualification": "G4 unqualified pending actual author triplecombinedcandidate and affected tests"
+}

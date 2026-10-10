@@ -8,6 +8,8 @@ Claude389received exactfeedback/request isolatedcurrentmain+CON+S1combinedcandid
 
 Next boundedaction: a1ddexactterminal/freshreview and concretecurrent-main/S1/PR190combinedG4 candidate; independentaffectedbrowser/mobile/API/contracts/artifact checks, operationalinputsapprovalstillrequired.
 
+Terminal addendum: author6102466676 exactstatic/contracts/1212units/169fixturePASS; originalPGexit1/1zerotestsECONNREFUSEDpreserved, sameSHArerun22+10PASS. Freshreview6102467030pending. Pairwisemergetreeclean(main+CON55d17b, CON+S1c6cfa84), nottriplecandidatequalification. Currentmain adds71paths/AppSignedInAPIclientvision/artifact/UI, S1adds6Studio/docpaths; requireactualcombinedreview/tests.
+
 # Historical checkpoint — CX-0079
 
 [Independent actual recovery failure](../coordination/CON-01/CX-0079.md), [structured evidence](../coordination/CON-01/CX-0079.evidence.json). Exact52090daa/treecb8be295/main0ccc344d. Actual mounted403→exactmembershiprestore→freshlist200→ownterminal503 leaves endlessReading/noRetry; oldbody/composer hidden correctly. SourceThread branch independently read; P2smallest correction sent exactClaude385, freeze released aftercleanup. No reviewer featurefix. PriorCX78mountedfirst403PASS stands; CX77remount causalqualificationrefined/inconclusive.

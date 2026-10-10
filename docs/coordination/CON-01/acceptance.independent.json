@@ -948,7 +948,7 @@
     "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
     "statement": "CX79recoveryP2 scopedresolved; boundedretry/exactdraft/originalkeyerasure and actualold200-after-new403 scopedPASS. All36statuses retained; wholeG3/native/hosted/combinedG4 unqualified.",
     "readiness": {
-      "source_ready": "author exacta1dd CC75; terminalpending",
+      "source_ready": "author exacta1dd terminal receipts read; stoppedPGfirstfailure preserved, exactrerun22+10passes; freshreviewpending",
       "locally_verified": "named independentL1 crossings/typecheckPASS",
       "reviewed": false,
       "scoped_delta_reviewed": true,
