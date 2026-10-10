@@ -306,9 +306,11 @@ export function listWithdrawn(list: ConversationList | undefined, conversationId
 }
 
 /**
- * A row as a withdrawal leaves its summary, its writers and Sophia's part (listWithdrawn's, its opening aside): the
- * summary, which may say the words withdrawn, goes; the writer goes from those who wrote there unless the pages read
- * show words of theirs still there; Sophia's part goes unless they show an answer of hers still there.
+ * A row as a withdrawal leaves its summary, its questions, its writers and Sophia's part (listWithdrawn's, its opening
+ * aside): the summary and the question projection, which may rest on the words withdrawn, go back to not assessed, with
+ * no question counted open (as the API says them before any assessment; PR #199 r4237222580); the writer goes from those
+ * who wrote there unless the pages read show words of theirs still there; Sophia's part goes unless they show an answer
+ * of hers still there.
  */
 export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, remains: Remains): T {
   // A list that named as many as it may can't say the rest: one taken out of it never makes it look whole.
@@ -316,6 +318,8 @@ export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, rema
     ...c,
     summary: null,
     summaryCoverage: NOT_ASSESSED,
+    openQuestions: 0,
+    questionsCoverage: NOT_ASSESSED,
     contributors:
       remains.writer === null || remains.writerStays
         ? c.contributors
@@ -406,11 +410,13 @@ function rowKnown<T extends ConversationSummary & Unnamed>(
   return sameRow(row, c) ? c : row
 }
 
-/** Whether rowKnown took nothing (it only takes: an opening, a summary, a writer, Sophia's part). */
+/** Whether rowKnown took nothing (it only takes: an opening, a summary, the questions, a writer, Sophia's part). */
 const sameRow = (row: ConversationSummary & Unnamed, c: ConversationSummary & Unnamed) =>
   row.lastMessage === c.lastMessage &&
   row.summary === c.summary &&
   JSON.stringify(row.summaryCoverage) === JSON.stringify(c.summaryCoverage) &&
+  row.openQuestions === c.openQuestions &&
+  JSON.stringify(row.questionsCoverage) === JSON.stringify(c.questionsCoverage) &&
   row.sophia === c.sophia &&
   row.contributors.length === c.contributors.length &&
   row.othersUnnamed === c.othersUnnamed

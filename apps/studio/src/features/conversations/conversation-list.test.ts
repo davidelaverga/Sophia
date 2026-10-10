@@ -716,6 +716,48 @@ describe('withWithdrawn: what a withdrawal takes off the screen at once (PR #199
   })
 })
 
+describe('a withdrawal leaves no question projection standing (PR #199 r4237222580)', () => {
+  const at = '2026-10-07T10:00:00.000Z'
+  const assessed = {
+    state: 'current',
+    complete: true,
+    fromSeq: 1,
+    throughSeq: 2,
+    newer: 0,
+    generatedAt: at,
+    replyId: null,
+    eligibilityRevision: 1,
+    ledgerRevision: 1,
+  } as const
+  const asked = () =>
+    conversation({
+      id: 'a',
+      lastAt: at,
+      contributors: [{ actorId: ME, name: 'You' }],
+      openQuestions: 2,
+      questionsCoverage: assessed,
+      lastMessage: { author: 'member', actorId: ME, name: 'You', text: 'Seq 2.', at, seq: 2 },
+    })
+  const remains = { writer: ME, writerStays: true, sophiaStays: false }
+
+  it('withdrawn here: its questions are not assessed any more, and none is counted open', () => {
+    const list = { conversations: [asked()] } as unknown as Parameters<typeof listWithdrawn>[0]
+    const a = listWithdrawn(list, 'a', remains)?.conversations[0]
+    assert.equal(a?.openQuestions, 0)
+    assert.equal(a?.questionsCoverage.state, 'not_assessed')
+  })
+
+  it('withdrawn elsewhere, the list read not knowing it: the same', () => {
+    const thread = page([
+      message('m1', { seq: 1, at, actorId: ME, author: 'member', text: 'Seq 1.' }),
+      message('m2', { seq: 2, at, actorId: ME, author: 'member', text: null, withdrawn: { at } }),
+    ])
+    const [a] = rowsKnown([asked()], heldForA(thread), () => true)
+    assert.equal(a?.openQuestions, 0)
+    assert.equal(a?.questionsCoverage.state, 'not_assessed')
+  })
+})
+
 describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 review)', () => {
   const last = { author: 'member' as const, actorId: ME, name: 'Me', text: 'words 3', at: '2026-10-06T09:00:00.000Z' }
   const people = [
