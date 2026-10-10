@@ -76,9 +76,17 @@ function purgeList(cache: QueryCache, hash: string, account: string) {
     (seenIn(cache)
       .get(thread(id) ?? '')
       ?.get(m.id) ?? 0) > from
-  const conversations = rowsKnown(list.conversations, heldBy(cache, account), seenSince)
+  const conversations = rowsKnown(list.conversations, heldBy(cache, account), seenSince, actorOf(account))
   if (conversations !== list.conversations) query.setState({ data: { ...list, conversations } })
 }
+
+/**
+ * The reader's actor, from the account their reads are kept under: their token's subject, which the API takes as the
+ * actor only as a UUID, in lower case (apps/api/src/auth.ts). An account kept under a name or an email (a token with
+ * no subject) is no actor here: no writer is taken for the reader then.
+ */
+const actorOf = (account: string) => (UUID.test(account) ? account.toLowerCase() : null)
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** Every list read this reader holds, purged by what their threads hold withdrawn now. */
 export function purgeWithdrawn(cache: QueryCache, account: string): void {

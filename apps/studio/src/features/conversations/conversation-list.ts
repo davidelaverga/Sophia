@@ -299,6 +299,8 @@ export interface Remains {
    * in pages read with a gap, possibly an older message's until the list is read again. Null where they don't stay.
    */
   writerName: string | null
+  /** Whether the writer is the one who reads here (whom the API always names, in the last place kept at the cap). */
+  writerIsReader: boolean
   sophiaStays: boolean
   /** The withdrawn message's place. */
   seq: number
@@ -313,7 +315,8 @@ const shown = (m: ConversationMessage) => !m.withdrawn && m.text !== null
 const newestOf = (all: readonly ConversationMessage[]) =>
   all.reduce<ConversationMessage | null>((n, m) => (n === null || m.seq > n.seq ? m : n), null)
 
-export function remainsAfter(after: ThreadHeld, gone: ConversationMessage): Remains {
+/** What a withdrawal leaves in the pages read (`Remains`), for the reader `reader` (their actor id; null if unknown). */
+export function remainsAfter(after: ThreadHeld, gone: ConversationMessage, reader: string | null = null): Remains {
   const now = (after?.pages ?? []).flatMap((p) => p.messages).filter(shown)
   const writer = gone.author === 'member' ? gone.actorId : null
   const theirs = newestOf(now.filter((m) => m.author === 'member' && m.actorId === writer))
@@ -321,6 +324,7 @@ export function remainsAfter(after: ThreadHeld, gone: ConversationMessage): Rema
     writer,
     writerStays: theirs !== null,
     writerName: theirs === null ? null : (theirs.name ?? 'A member'),
+    writerIsReader: writer !== null && writer === reader,
     sophiaStays: now.some((m) => m.author === 'sophia'),
     seq: gone.seq,
     newestShown: newestOf(now)?.seq ?? null,
@@ -345,12 +349,14 @@ export function listWithdrawn(list: ConversationList | undefined, conversationId
  *   withdrawn goes back to not assessed, with its words, or no question counted open (as the API says them before any
  *   assessment; PR #199 r4237222580); one whose range ends before them stays (r4237439149);
  * - the writer goes from those who wrote there unless the pages read show words of theirs still there, and is then
- *   named by those (r4237439145);
+ *   named by those (r4237439145), and among them where the row, read before they first wrote, doesn't name them
+ *   (`writersAfter`, r4237494296);
  * - Sophia's part goes unless they show an answer of hers still there.
  */
 export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, remains: Remains): T {
   const summaryCoverage = afterWithdrawal(c.summaryCoverage, remains)
   const questionsCoverage = afterWithdrawal(c.questionsCoverage, remains)
+  const writers = writersAfter(c, remains)
   // A list that named as many as it may can't say the rest: one taken out of it never makes it look whole.
   return {
     ...c,
@@ -358,19 +364,40 @@ export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, rema
     summaryCoverage,
     openQuestions: questionsCoverage === NOT_ASSESSED ? 0 : c.openQuestions,
     questionsCoverage,
-    contributors: writersAfter(c.contributors, remains),
+    contributors: writers.contributors,
     sophia: c.sophia && remains.sophiaStays,
-    ...(c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed ? { othersUnnamed: true as const } : {}),
+    ...(c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed || writers.othersUnnamed
+      ? { othersUnnamed: true as const }
+      : {}),
   }
 }
 
-/** Those who wrote there after a withdrawal: its writer gone, unless words of theirs are still shown, then named by them. */
-function writersAfter(contributors: ConversationSummary['contributors'], remains: Remains) {
+/**
+ * Those who wrote there after a withdrawal: its writer gone, unless words of theirs are still shown, then named by them
+ * in their place. One the row doesn't name (read before they first wrote: PR #199 r4237494296) is named last where the
+ * row has room. At the cap, as the API names them: the reader takes the last place kept, the rest then unnamed; anyone
+ * else is among the others unnamed, and nobody named is taken out for them (the reader among them, CX-0038).
+ */
+function writersAfter(
+  c: ConversationSummary & Unnamed,
+  remains: Remains,
+): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
   const { writer, writerName } = remains
-  if (writer === null) return contributors
-  if (!remains.writerStays) return contributors.filter((p) => p.actorId !== writer)
-  if (writerName === null) return contributors
-  return contributors.map((p) => (p.actorId === writer && p.name !== writerName ? { ...p, name: writerName } : p))
+  const { contributors } = c
+  if (writer === null) return { contributors }
+  if (!remains.writerStays) return { contributors: contributors.filter((p) => p.actorId !== writer) }
+  if (writerName === null) return { contributors }
+  if (contributors.some((p) => p.actorId === writer)) {
+    return {
+      contributors: contributors.map((p) =>
+        p.actorId === writer && p.name !== writerName ? { ...p, name: writerName } : p,
+      ),
+    }
+  }
+  const them = { actorId: writer, name: writerName }
+  if (contributors.length < NAMED_AT_MOST) return { contributors: [...contributors, them] }
+  if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
+  return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
 }
 
 /**
@@ -450,8 +477,9 @@ export function rowsKnown<T extends ConversationSummary & Unnamed>(
   rows: readonly T[],
   heldOf: (conversationId: string) => ThreadHeld,
   seenSince: (conversationId: string, m: ConversationMessage) => boolean = () => false,
+  reader: string | null = null,
 ): readonly T[] {
-  const known = rows.map((c) => rowKnown(c, heldOf(c.id), (m) => seenSince(c.id, m)))
+  const known = rows.map((c) => rowKnown(c, heldOf(c.id), (m) => seenSince(c.id, m), reader))
   return known.some((c, i) => c !== rows[i]) ? known : rows
 }
 
@@ -460,13 +488,14 @@ function rowKnown<T extends ConversationSummary & Unnamed>(
   c: T,
   thread: ThreadHeld,
   seenSince: (m: ConversationMessage) => boolean,
+  reader: string | null,
 ): T {
   const held = (thread?.pages ?? []).flatMap((p) => p.messages)
   if (!held.some((m) => m.withdrawn)) return c
   let row = c.lastMessage && saysWithdrawn(c.lastMessage, held) ? { ...c, lastMessage: null } : c
   const since = (m: ConversationMessage) =>
     m.withdrawn !== null && seenSince(m) && Date.parse(m.withdrawn.at) >= Date.parse(c.lastAt)
-  for (const m of held.filter(since)) row = rowWithdrawn(row, remainsAfter(thread, m))
+  for (const m of held.filter(since)) row = rowWithdrawn(row, remainsAfter(thread, m, reader))
   return sameRow(row, c) ? c : row
 }
 

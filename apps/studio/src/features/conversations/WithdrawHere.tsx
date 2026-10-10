@@ -26,6 +26,8 @@ export interface WithdrawArgs {
   messageId: string
   /** The reader's own message (they withdraw it), else one an admin removes. */
   own: boolean
+  /** The reader's actor id, as their membership says it ('' while it isn't read). */
+  me: string
 }
 
 /** What a refused withdrawal says. */
@@ -71,7 +73,7 @@ export function useWithdrawHere(args: WithdrawArgs | null): { press: ReactNode; 
     const before = queryClient.getQueryData<ReadPages<ConversationMessage>>(pages)
     const after = withWithdrawn(before, message)
     queryClient.setQueryData<ReadPages<ConversationMessage>>(pages, () => after)
-    const remains = remainsAfter(after, message)
+    const remains = remainsAfter(after, message, args.me || null)
     // Its data only: a list whose reads are failing still says so (PR #199 r4237298620).
     setListsData(queryClient, LISTS, (list) => listWithdrawn(list, args.conversationId, remains) ?? list)
     void queryClient.invalidateQueries({ queryKey: pages })

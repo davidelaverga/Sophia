@@ -83,6 +83,41 @@ describe('keepWithdrawnPurged: the list reads as cached hold no words their thre
     assert.equal(opening(client, 'a'), null)
   })
 
+  it('a writer who stays, unnamed by a row read before they first wrote: named by the purge; the reader at the cap too (r4237494296)', () => {
+    // The reader's account is their token's subject (here in upper case); the API keeps the actor in lower case.
+    const reader = 'f0a1b2c3-d4e5-4f60-8a7b-9c0d1e2f3a4b'
+    const account = reader.toUpperCase()
+    const key = listKey('p', account)
+    const theirs = (seq: number) => message(seq, { actorId: reader, name: 'Ana' })
+    const full = Array.from({ length: 200 }, (_, i) => ({ actorId: `p${String(i)}`, name: `P${String(i)}` }))
+    const client = purging()
+    // The list read sets out before she first wrote; her place 1 stays, her place 2 is then withdrawn.
+    const read = listOf(listReadSetsOut(), row('a', null, { contributors: full }), row('b', null, { contributors: [] }))
+    client.setQueryData(key, read)
+    for (const id of ['a', 'b']) client.setQueryData(messagesKey(id, account), pages(theirs(1), theirs(2)))
+    for (const id of ['a', 'b']) {
+      client.setQueryData(messagesKey(id, account), pages(theirs(1), gone(2, { actorId: reader })))
+    }
+    // At the cap, she reads here: the last place kept, the rest unnamed.
+    const a = rowOf(client, 'a', key)
+    assert.equal(a?.contributors.length, 200)
+    assert.deepEqual(a?.contributors.at(-1), { actorId: reader, name: 'Ana' })
+    assert.ok(a && 'othersUnnamed' in a && a.othersUnnamed === true)
+    // With room: named.
+    assert.deepEqual(rowOf(client, 'b', key)?.contributors, [{ actorId: reader, name: 'Ana' }])
+  })
+
+  it('an account kept under a name, not a subject, is no actor: nobody named is taken out for a writer at the cap', () => {
+    const full = Array.from({ length: 200 }, (_, i) => ({ actorId: `p${String(i)}`, name: `P${String(i)}` }))
+    const client = purging()
+    client.setQueryData(LIST, listOf(listReadSetsOut(), row('a', null, { contributors: full })))
+    client.setQueryData(messagesKey('a', 'ana'), pages(message(1), message(2)))
+    client.setQueryData(messagesKey('a', 'ana'), pages(message(1), gone(2)))
+    const a = rowOf(client, 'a')
+    assert.deepEqual(a?.contributors, full)
+    assert.ok(a && 'othersUnnamed' in a && a.othersUnnamed === true)
+  })
+
   it('the thread’s read after the list’s: purged then', () => {
     const client = purging()
     client.setQueryData(LIST, listOf(listReadSetsOut(), row('a', said(2, 'Two.'))))

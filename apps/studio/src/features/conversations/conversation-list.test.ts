@@ -45,6 +45,7 @@ const remainsOf = (over: Partial<Remains>): Remains => ({
   writer: null,
   writerStays: false,
   writerName: null,
+  writerIsReader: false,
   sophiaStays: true,
   seq: 3,
   newestShown: null,
@@ -1056,6 +1057,7 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
       writer: ME,
       writerStays: false,
       writerName: null,
+      writerIsReader: false,
       sophiaStays: false,
       seq: 3,
       newestShown: 2,
@@ -1101,7 +1103,7 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
       eligibilityRevision: 1,
       ledgerRevision: 1,
     }) as const
-  const assessed = (over: Partial<ConversationSummary> = {}) =>
+  const assessed = (over: Partial<ConversationSummary> = {}): ConversationSummary & Unnamed =>
     conversation({
       id: 'a',
       messageSeq: 6,
@@ -1179,6 +1181,57 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
   it('stale for the project’s decisions only (none newer counted): as it was', () => {
     const row = assessed({ summaryCoverage: through(5, 'stale', 0) })
     assert.deepEqual(withdrawnIn(row, before)?.summaryCoverage, row.summaryCoverage)
+  })
+
+  it('a writer who stays but the row, read before they first wrote, doesn’t name: named now, and in «Mine» (r4237494296)', () => {
+    // The list read set out before lucía's first message and answered after her later one was withdrawn.
+    const stale = assessed({ contributors: [{ actorId: ME, name: 'Me' }] })
+    const theirs = [msg(1), msg(2, { actorId: 'lucia', name: 'Lucía' })]
+    const gone6 = { ...gone, actorId: 'lucia' }
+    const thread = page([...theirs, gone6])
+    const [a] = rowsKnown([stale], heldForA(thread), () => true)
+    assert.deepEqual(a?.contributors, [
+      { actorId: ME, name: 'Me' },
+      { actorId: 'lucia', name: 'Lucía' },
+    ])
+    assert.equal(narrowed(a ? [a] : [], { typed: '', open: false, mine: true }, 'lucia').length, 1)
+    // The same where the withdrawal is made here.
+    const b = listWithdrawn(oneRow(stale), 'a', remainsAfter(thread, gone6))?.conversations[0]
+    assert.deepEqual(b?.contributors.at(-1), { actorId: 'lucia', name: 'Lucía' })
+    // A row that leaves others unnamed takes them too, and still says so.
+    const [c] = rowsKnown([{ ...stale, othersUnnamed: true as const }], heldForA(thread), () => true)
+    assert.equal(c?.contributors.length, 2)
+    assert.equal(c?.othersUnnamed, true)
+  })
+
+  it('at the cap, a writer the row doesn’t name is among the others: nobody named is taken out for them', () => {
+    const full = Array.from({ length: NAMED_AT_MOST }, (_, i) => ({ actorId: `p${String(i)}`, name: `P${String(i)}` }))
+    const gone6 = { ...gone, actorId: 'lucia' }
+    const thread = page([msg(2, { actorId: 'lucia', name: 'Lucía' }), gone6])
+    // The reader (p199, in the last place kept, as the API keeps them) stays named, and in «Mine».
+    const [a] = rowsKnown([assessed({ contributors: full })], heldForA(thread), () => true, 'p199')
+    assert.deepEqual(a?.contributors, full)
+    assert.equal(a?.othersUnnamed, true)
+    assert.equal(narrowed(a ? [a] : [], { typed: '', open: false, mine: true }, 'p199').length, 1)
+    // The same where the withdrawal is made here, and with no reader known.
+    const b = listWithdrawn(oneRow(assessed({ contributors: full })), 'a', remainsAfter(thread, gone6, 'p199'))
+    assert.deepEqual(b?.conversations[0]?.contributors, full)
+    assert.deepEqual(rowsKnown([assessed({ contributors: full })], heldForA(thread), () => true)[0]?.contributors, full)
+  })
+
+  it('at the cap, the writer who reads here takes the last place kept, the rest unnamed: «Mine» holds (CX-0038)', () => {
+    const full = Array.from({ length: NAMED_AT_MOST }, (_, i) => ({ actorId: `p${String(i)}`, name: `P${String(i)}` }))
+    const gone6 = { ...gone, actorId: 'lucia' }
+    const thread = page([msg(2, { actorId: 'lucia', name: 'Lucía' }), gone6])
+    const [a] = rowsKnown([assessed({ contributors: full })], heldForA(thread), () => true, 'lucia')
+    assert.equal(a?.contributors.length, NAMED_AT_MOST)
+    assert.deepEqual(a?.contributors.at(-1), { actorId: 'lucia', name: 'Lucía' })
+    assert.deepEqual(a?.contributors.slice(0, -1), full.slice(0, -1))
+    assert.equal(a?.othersUnnamed, true)
+    assert.equal(narrowed(a ? [a] : [], { typed: '', open: false, mine: true }, 'lucia').length, 1)
+    // Again: the same row, no second place taken.
+    const [again] = rowsKnown(a ? [a] : [], heldForA(thread), () => true, 'lucia')
+    assert.equal(again, a)
   })
 
   it('a writer who stays is named by their newest message still shown, never by the withdrawn one', () => {

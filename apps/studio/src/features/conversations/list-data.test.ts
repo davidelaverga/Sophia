@@ -118,6 +118,7 @@ describe('setListsData: what this view writes into a list read, and nothing of i
       writer: null,
       writerStays: false,
       writerName: null,
+      writerIsReader: false,
       sophiaStays: false,
       seq: 2,
       newestShown: 1,
