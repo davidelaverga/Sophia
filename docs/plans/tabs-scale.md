@@ -32,7 +32,8 @@
   by `hidden`. The Invite sheet's three panels stay mounted (an address half typed survives switching), as before.
 - The keyboard: Left and Right wrap, Home and End reach the ends, the choice follows the focus; `C` and `B` still
   open the room's panels from the dock (unchanged, outside the strip).
-- On a phone the tabs are 44 px (`pointer: coarse`), as the side panel's were.
+- On a phone the tabs are 44 px (`pointer: coarse`), as the side panel's were, and the report viewer's format switch
+  beside them keeps its 44 (Codex on #223: the strip's rule alone had left it at the segmented's 36).
 - A screen reader hears the same: a tab list by its name, each tab selected or not, each panel labelled by its tab.
 
 ## Checks (written first)
