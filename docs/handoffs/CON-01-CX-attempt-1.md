@@ -1,4 +1,10 @@
-# Current checkpoint — CX-0044
+# Current checkpoint — CX-0045
+
+[Early S2/S3 binding review](../coordination/CON-01/CX-0045.md) changes_requested before schemafinalization: immutable grant/request/call lineage and trusted subscriptionasking-subject scope; currentacceptedmission via projects/project_revisions; byte/tokenbounded atomicassembly/exactprovenance/fullsourcepredicate. Additive/no-caller direction suitable; no source/migrationnumber/sharedwindow/grant/provider authorization. Claudenormalizationpending. Exactabc fresh review6097938208running13:22:03UTC/headheld; S1reviewonly32b0immutable/unmerged. Currentabc scoped79external/117focused/typecheck/actual105paginationPASS evidence inCX44, all38ownedstacks clean.
+
+All36verdicts preserved/nativeA09A13/A30hostednot_run/A24toollimitation. OP1r2/OP2r2unapproved/inbox/cohort/route/credentialpayerfinitecapexpiry/privacy/sharedruntimewindow/artifacts/rollbackopen. No hosted/provider/spend; combinedreadinessfalse; historicalservingtuplebelowunrefreshed. LatestSDD1906097537955unpublished316d2bac/treef89e6861C2T4PresenceCrepairsopen/0051provisional; published8a39unchanged/noownerwindowack. Nextboundedaction normalizedS2S3proposalreview andexactabcreview, thenimmutablecombinedS1affectedrechecks. Davideacceptsproduct/othermissionsopen/noautonomousmonitor.
+
+# Historical checkpoint — CX-0044
 
 Exactabcfe255/tree551d666c pagination provenance correction independently scoped-qualified: full2filedelta,79externalhelper/actualQueryClient cases,117focused/typecheck0. Actual105-messageAPI/PG/Studio beforec6cYou,B,A FAIL→afterabcYou,A,B PASS matches canonicalC,A,B; partialpages stillfailclosed. [Full evidence/actions/verdicts](../coordination/CON-01/CX-0044.md). r4237660062eligibleforscopedresolution/fresh exactabcreviewpending/headheldbeforeS1integration.
 
