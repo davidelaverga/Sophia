@@ -784,10 +784,10 @@
       "studioTypecheckExit": 0,
       "fullPnpmCheck": false
     },
-    "fullGate": "Author a342 focused150 reported; full a342 running, live process handle requested; not89eb full gate.",
+    "fullGate": "CC17 author remote driver5794/full Playwright10386 frozen a342 last227/1150; focused150 exit0. No direct reviewer host access or terminal/full newer-source outcome.",
     "operation": "draft_not_authorized; owner/setup/exact batch missing",
     "cleanup": "All fourteen owned stacks clean/tabs closed/no hosted/provider effects",
     "automaticReview": "a3425476507184 P1r4235535893; fresh89eb requested6091468072",
-    "sharedPR190": "9b5e76a675324879532d182d4e3cda25a1fa1950"
+    "sharedPR190": "dd3d1ffd9a06f87154bc0ccfe4d645a9a7db766e"
   }
 }

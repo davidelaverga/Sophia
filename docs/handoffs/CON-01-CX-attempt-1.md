@@ -12,6 +12,8 @@ OP-0001-r1 draft_not_authorized; missing owner D6/B1/cohort/two subjects/provide
 
 Partial source_ready/bounded locally_verified, P1 changes_requested; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. Next bounded action: immutable author preview-reconciliation correction independently rechecked against actual falsifier, then exact gates/G2 authority/source. Davide makes final product decision; no unattended monitor or broader completion.
 
+Later checkpoint: CC17 records a342 remote gate driver5794/Playwright10386/last227 of1150; author evidence, no terminal outcome. Equal-time/newer-seq preview countercase accepted before finalization; correction unpublished. Current PR190 nowdd3d1ffd/treeade80bfc, evidence-timeout increment scoped/source refreshed; combined preservation required, no SDD acceptance or owner acknowledgment. Material finding issue1986091489663.
+
 ## Current authoritative checkpoint — CX-0021
 
 Exact a3422f48/treeecfd9f6e: actual local browser/API/PG withdrawal same-key retry, capped omission draft/intent preservation, capped-origin→complete external erasure, separate A08 decision and phone selected-row H3 focus pass within bounded L1.34 focused units/typecheck pass; no full gate/native/provider/hosted acceptance. New P2 L0 exact store updater restores held Send plaintext after whole erasure; related late-success cache guard source concern returned to Claude, who is implementing separately. [CX-0021](../coordination/CON-01/CX-0021.md) and36-case ledger own verdicts. Reviewer authored no feature fix.
