@@ -1,0 +1,19 @@
+{
+  "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+  "level": "L0 actual production helpers/store/QueryClient; synthetic assessed projections, no mounted proposal race",
+  "passed": 11,
+  "failed": 0,
+  "checks": [
+    "Actual QueryClient retains failed read/error/counters during held refetch and optimistic Send",
+    "Trusted first sender appears in contributors and Mine",
+    "Exact-key helper leaves unrelated project data untouched",
+    "No invented query/data for unread key",
+    "Assessed projections become stale with one known newer message",
+    "Duplicate and older receipts do not duplicate writers or increment coverage",
+    "200-name bound keeps current sender and honest unnamed remainder",
+    "Sophia does not invent a human contributor and unassessed range stays unassessed",
+    "Unavailable projection remains explicitly unavailable",
+    "Erasure names cached message ID before removal, scrubs unassociated proposal and fences late success; unrelated proposal retained (L0 only)",
+    "Late old-generation result cannot restore forgotten actor state"
+  ]
+}

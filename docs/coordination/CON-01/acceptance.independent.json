@@ -169,7 +169,8 @@
         "CON-01-CX-0007.md",
         "CX-0008.md",
         "CX-0010.md",
-        "CX-0015.md"
+        "CX-0015.md",
+        "CX-0033.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
       "live_blockers": [
@@ -177,7 +178,17 @@
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
         "No accepted saved-text policy or exact approved operation batch"
       ],
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
+      "current_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      }
     },
     {
       "id": "CON01-A04",
@@ -380,11 +391,23 @@
       "required_evidence": "Database + UI + inference counter",
       "gate": "G3",
       "status": "not_run",
-      "evidence_refs": [],
+      "evidence_refs": [
+        "CX-0033.md"
+      ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [
         "F2: openWords(0) implies completeness without coverage; G0 coverage is still being bound."
-      ]
+      ],
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
+      "current_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      }
     },
     {
       "id": "CON01-A18",
@@ -393,9 +416,21 @@
       "required_evidence": "Database/native race test",
       "gate": "G2/G3",
       "status": "not_run",
-      "evidence_refs": [],
+      "evidence_refs": [
+        "CX-0033.md"
+      ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
+      "current_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      }
     },
     {
       "id": "CON01-A19",
@@ -474,15 +509,20 @@
         "CX-0026.md",
         "CX-0027.md",
         "CX-0028.md",
-        "CX-0029.md"
+        "CX-0029.md",
+        "CX-0033.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Exact CX18 cap falsifier now passes actual L1: draft and unknown key survive omission; same-key actual erase once, late lost response preserves new draft. Required G2/native/provider/hosted arms remain open. CurrentCX20: Actual unknown withdrawal key lost after conversation switch, two durable same-intent requests, P2 changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending. CX26: Exact715 actual local capped timer200/older draft return and identical-list externalerase scheduled422 pass; placeholder and ambiguous tie L0 safe correction pass. Original equal-time usefulness P2 remains open; G2/native/hosted/full combined gates unqualified. CX27: P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof. CX28 exact7969: originallateSendpassesbounded, newactualdelayed-list P1 resurrectsknownwithdrawnpreview; actualstale-warningP2 and L0fallbackorderP2 open. All19stacks cleaned.715fullgate1151/1154/3fail/exit1 authorreport, notwaiver/newcandidategate. No hosted/provider/nativeacceptance oroperationalauthorization.",
       "baseline_evidence": [],
-      "latest_checkpoint": "CX29 supersedes affected historical G3 failures with bounded local passes atb981/source4252; full native/provider/hosted requirements remain open. See current_checkpoint and CX29 for exact scope.",
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
       "current_checkpoint": {
-        "candidate": "f12786aa9451371842f0e0f083924a12443ad633",
-        "record": "CX-0027.md",
-        "verdict": "P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof."
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
       }
     },
     {
@@ -496,10 +536,21 @@
         "CX-0008.md",
         "CX-0010.md",
         "CX-0014.md",
-        "CX-0015.md"
+        "CX-0015.md",
+        "CX-0033.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open.",
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
+      "current_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      }
     },
     {
       "id": "CON01-A24",
@@ -519,7 +570,8 @@
         "CX-0018.md",
         "CX-0019.md",
         "CX-0020.md",
-        "CX-0021.md"
+        "CX-0021.md",
+        "CX-0033.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. At338878df ordinary withdrawal and moved-focus delayed success pass; feed-first own/admin withdrawal still drops focus until HTTP returns. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Mobile feed-first erase lands surviving visible row/no overflow; activating already-selected surviving row opens thread but focus BODY, independently keyboard reproduced. P2 changes_requested. Required G2/native/provider/hosted arms remain open. CurrentCX20: CX19 phone row-to-thread focus remains BODY; unpublished author correction pending independent test.",
       "live_blockers": [
@@ -531,14 +583,14 @@
         "L0 fixture browser: 1440/1000/390 widths, pane/drawer/list-first/Send checks pass on main; feature candidate and actual app not qualified."
       ],
       "latest_checkpoint": {
-        "record": "CX-0020.md",
-        "candidate": "82f812d01c946ad5ef306111bf241e138db67558",
-        "verdict": "CX19 phone row-to-thread focus remains BODY; unpublished author correction pending independent test."
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "Current requested390x844 override ineffective: existing/reloaded/fresh IAB tabs all1280x720; required mobile/tablet/1440 arms unqualified through this tool path. Desktop visually inspected; author fixture evidence separate."
       },
       "current_checkpoint": {
-        "candidate": "a3422f48ac8a40f1ad7ab06dd490ff97a64e1473",
-        "record": "CX-0021.md",
-        "verdict": "phone focus bounded L1 pass; full accessibility/live open"
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "Current requested390x844 override ineffective: existing/reloaded/fresh IAB tabs all1280x720; required mobile/tablet/1440 arms unqualified through this tool path. Desktop visually inspected; author fixture evidence separate."
       }
     },
     {
@@ -566,7 +618,8 @@
         "CX-0026.md",
         "CX-0027.md",
         "CX-0028.md",
-        "CX-0029.md"
+        "CX-0029.md",
+        "CX-0033.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Actual cap false-erasure claim corrected; target words NULL after one same-key actual erase, other thread/draft/accepted A08 retained. Native/hosted privacy remains open. Required G2/native/provider/hosted arms remain open. CurrentCX20: L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending. CX26: Exact715 actual local capped timer200/older draft return and identical-list externalerase scheduled422 pass; placeholder and ambiguous tie L0 safe correction pass. Original equal-time usefulness P2 remains open; G2/native/hosted/full combined gates unqualified. CX27: P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof. CX28 exact7969: originallateSendpassesbounded, newactualdelayed-list P1 resurrectsknownwithdrawnpreview; actualstale-warningP2 and L0fallbackorderP2 open. All19stacks cleaned.715fullgate1151/1154/3fail/exit1 authorreport, notwaiver/newcandidategate. No hosted/provider/nativeacceptance oroperationalauthorization.",
       "live_blockers": [
@@ -575,11 +628,15 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX29 supersedes affected historical G3 failures with bounded local passes atb981/source4252; full native/provider/hosted requirements remain open. See current_checkpoint and CX29 for exact scope.",
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
       "current_checkpoint": {
-        "candidate": "f12786aa9451371842f0e0f083924a12443ad633",
-        "record": "CX-0027.md",
-        "verdict": "P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof."
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
       }
     },
     {
@@ -715,23 +772,28 @@
         "CX-0026.md",
         "CX-0027.md",
         "CX-0028.md",
-        "CX-0029.md"
+        "CX-0029.md",
+        "CX-0033.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound. Required G2/native/provider/hosted arms remain open. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending. CX26: Exact715 actual local capped timer200/older draft return and identical-list externalerase scheduled422 pass; placeholder and ambiguous tie L0 safe correction pass. Original equal-time usefulness P2 remains open; G2/native/hosted/full combined gates unqualified. CX27: P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof. CX28 exact7969: originallateSendpassesbounded, newactualdelayed-list P1 resurrectsknownwithdrawnpreview; actualstale-warningP2 and L0fallbackorderP2 open. All19stacks cleaned.715fullgate1151/1154/3fail/exit1 authorreport, notwaiver/newcandidategate. No hosted/provider/nativeacceptance oroperationalauthorization.",
       "baseline_evidence": [],
-      "latest_checkpoint": "CX29 supersedes affected historical G3 failures with bounded local passes atb981/source4252; full native/provider/hosted requirements remain open. See current_checkpoint and CX29 for exact scope.",
+      "latest_checkpoint": {
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
+      },
       "current_checkpoint": {
-        "candidate": "f12786aa9451371842f0e0f083924a12443ad633",
-        "record": "CX-0027.md",
-        "verdict": "P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof."
+        "record": "CX-0033.md",
+        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
       }
     }
   ],
   "reviewer_session": "01a1224a-32b4-7222-a017-50a277572d95",
   "attempt": "CON-01-CX-attempt-1",
-  "candidate_sha": "95ea5126f87c83cf7c19abe745d47d17671f31c5",
-  "candidate_tree": "8b4f68daaa8e9163d18047e6a78a0459813e0610",
-  "review_ref": "CON-01-CX-0007.md",
+  "candidate_sha": "e91b1c7a555b74414898e53248afab2f6292b23a",
+  "candidate_tree": "4c5e15956917c50b12042a763b6c0b240607a028",
+  "review_ref": "CX-0033.md",
   "current_main_observed": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
   "supplemental_candidates": [
     {
@@ -793,33 +855,60 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0031.md",
-    "candidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
-    "tree": "37df9d109fd64f6f663b65c4c43de9abe75d835b",
-    "actualAppCandidate": "c52455de2fdd03d9d8f81581b80a4f9ab8cc3dc0",
-    "actualAppTree": "37df9d109fd64f6f663b65c4c43de9abe75d835b",
+    "record": "CX-0033.md",
+    "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+    "tree": "4c5e15956917c50b12042a763b6c0b240607a028",
+    "actualAppCandidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+    "actualAppTree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "P2 question projection corrected/independently qualified L0 with9externalprobes.83focused/typecheck pass. Current local actual app lostSend/samekey/return/withdrawal/stale-warning/deniedactor pass bounded, no provider/native/hosted acceptance.",
+    "statement": "90focused/typecheck+11externalcorrection+9privacyprobes pass. Actual2e5 fail-before/e91 success for list warning and first sender; current lostSend/samekey/withdrawal/external erase/new start/reload pass bounded. Current mobile override ineffective, no mobile pass. No G2/provider/native/hosted acceptance.",
     "independentFocusedTests": {
-      "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts",
-      "passed": 83,
+      "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts apps/studio/src/features/conversations/list-data.test.ts",
+      "passed": 90,
       "failed": 0,
       "skipped": 0,
-      "exit": 0,
-      "studioTypecheckExit": 0,
-      "fullPnpmCheck": false
+      "exit": 0
     },
-    "fullGate": "Author4252 pnpmcheck/PG pass; local full browser FAILED2/1160. GitHub all checks success atb981; separate environments.",
-    "operation": "OP-0001-r2 draft_not_authorized; D6/B1 source-design accepted. New project and synthetic actual account requested, not created. Supported subscription route/credential/finite allowance/expiry/shared window/exact effect approval unbound.",
-    "cleanup": "All22owned local stacks cleaned; tabs40/41closed, processesabsent, portsclosed, PG/DBremoved; no provider/native/hosted/spend/uncertain paid effect.",
-    "automaticReview": "P2r4237222580 qualifiedforresolution bounded L0; latest sourcec524 fresh CIqueued. New automatic review request to be recorded.",
+    "externalProbes": {
+      "currentCorrectionProbe": 11,
+      "previousQuestionPrivacyProbe": 9,
+      "failures": 0,
+      "level": "L0 helpers/store/actual QueryClient, assessed fields synthetic"
+    },
+    "studioTypecheckExit": 0,
+    "fullGate": "Author e91 full gate/pnpmcheck/allSQL running per6096611962; no terminal pass read. Previous2e5 stopped/superseded, not pass.",
+    "findings": "Four new P2s qualified within CX33 L0/L1/hardening scopes; original mounted proposal race unproven. Not whole PR approval.",
+    "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
+    "cleanup": "All24owned stacks clean; tabs42\u201345closed; override reset; DB/PGclustersremoved/processesabsent/portsclosed. No hosted/provider/native/spend/uncertain paid effect.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
-    "liveRefresh": "Render/Vercel dashboard tuple independently unchanged between10:01:57.540Z and10:03:23.913Z. No deployed CON candidate; installed composition/StudioSHA unknown; DB not freshly probed. All temporary setup/dashboard tabs closed, no account/project created.",
-    "automatic_review_request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096473793",
-    "automatic_review_outcome": "Completed on c524: four new P2 findings4237298613/20/22/23. Three independently confirmed L0; proposal association store gap confirmed but mounted UI timing unqualified. All remain open pending exact correction review.",
-    "setup_operation_request": "CON-01-OP-0002-r2.json; draft_not_authorized, designated mailbox pending, zero live effects",
-    "integration_state": "Published combined2e5fe53b/treee4ec6c03 mechanically verified. Author focused gate stopped/superseded137/160 with no completed-case failure claimed; not a gate pass. A separate failed background task terminal cause unread. Three confirmed P2 corrections plus store-level hardening are unpublished/unqualified.",
-    "new_findings_evidence": "CX-0032.md and evidence/20261010-cx32-four-findings/",
-    "shared_coordination": "SDD facts6096548099 read: provisional0051 migration collision correction; A15 evidence-write route/old410 proposed; explicitly no exclusive window/runtime-owner acknowledgment. Published main444/CON2e5/SDD8a39 have no0051. Final combined source and namespace/window confirmation still required."
+    "sharedCoordination": "6096561293 provisional0051 technical filename coordination only; final census and A15/A16 integration/regenerate-second required, no exclusive runtime window.",
+    "liveRefresh": "Last unchanged authenticated Render/Vercel10:01\u201303UTC observation; not refreshed here; installed composition/StudioSHA unknown.",
+    "mobile": {
+      "requested": [
+        390,
+        844
+      ],
+      "observed": [
+        1280,
+        720
+      ],
+      "verdict": "blocked_current_tool_path; no mobile pass",
+      "paths": [
+        "viewport.set existing tab43",
+        "reload tab43",
+        "fresh tab45"
+      ],
+      "overrideReset": true
+    },
+    "readiness": {
+      "source_ready": "partial",
+      "locally_verified": "bounded L0/L1",
+      "reviewed": false,
+      "authorized": false,
+      "deployed": false,
+      "app_verified": false,
+      "owner_accepted": false
+    },
+    "next": "Fresh immutable automatic review/terminal gates; owner-coordinated G2 source qualification. Actual-account setup separately needs mailbox and concrete batch approval."
   }
 }

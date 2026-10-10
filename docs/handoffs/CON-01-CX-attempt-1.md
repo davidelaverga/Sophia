@@ -1,16 +1,20 @@
-# Current checkpoint — CX-0032
+# Current checkpoint — CX-0033
+
+Exact e91b1c7a/tree4c5e1595 independently read11files,90focused/typecheck+11correction/9privacyprobes pass. Actual2e5 before/e91 after qualifies list warning and first sender bounded L1; projections and proposal hardening L0 only. Current lostSend/samekey/withdrawal/external erase/new start/reload pass; all24owned stacks cleaned. Built-in viewport setter ineffective on existing/reloaded/fresh tabs:1280x720 instead of390x844; A24 current mobile/tablet/1440 arms unqualified. [Full handoff/evidence](../coordination/CON-01/CX-0033.md). G2 design-only/full G4/actual authorized hosted provider episode/A30 remain open. OP1r2/OP2r2 drafts, mailbox and finite route/window/batch missing. Next bounded action: fresh automatic review and terminal combined-gate receipts, then owner-coordinated G2 qualification. No deployment, spending or owner acceptance.
+
+# Historical checkpoint — CX-0032
 
 Author combined2e5fe53b/treee4ec6c03 mechanically integrates current main444235d. Four fresh bot P2 findings remain open; three independently reproduced L0, proposal-home store gap reproduced with mounted timing explicitly unqualified. Exact evidence: [CX-0032](../coordination/CON-01/CX-0032.md). The author stopped/superseded the 2e5 focused gate after137/160; no full gate pass. New corrections/hardening are unpublished. SDD facts6096548099 disclose provisional0051 migration collision correction and A15 compatibility change; no exclusive window acknowledgment. G2 source/native/provider/combined G4/authorized deployment/A30/owner acceptance remain open. Setup request now OP0002r2, draft/unapproved; owner mailbox missing. No live writes or new model usage; all22 owned test stacks cleaned. Next bounded action: immutable correction review and terminal gate receipts, then affected independent checks.
 
-## Current authoritative checkpoint — CX-0031
+## Historical checkpoint — CX-0031
 
 [Current-source independent correction and actual-browser regression](../coordination/CON-01/CX-0031.md): c52455de/tree37df9d10 (source5c4f1c0/tree7538608d) complete delta read,83focused/typecheck and9externalL0probes pass. P2questionprojection qualifiedforresolution at bounded L0scope. Actual local UI/API/PG lostSend+samekey retry/return/withdrawal/message-only stale-warning/deniedactor pass; humanrows2/withdrawnbodyNULL1/semanticrequests3/bootstrapgoal1/allmodeloperationaltables0. No actual assessed projection/native/provider/hosted acceptance claim. All22owned stacks cleaned, tabs40/41closed, ports55463/55464closed and ownedprocessesabsent. Refined G2 binding reviewed only at design level. Currentmain444/PR1908a39/sharedwindowrequest6096401122 pending; mechanical merge603c6cd1 is not G4. OP1r2/OP2r1 draftunapproved, mailbox/route/allowance/expiry/combined runtime still unbound; A30not_run. Next: owner-coordinated immutable G2/combined candidate qualification and concrete real-account setup batch. Davide retains product acceptance; no broader mission/monitoring completion.
 
-## Current authoritative checkpoint — CX-0030
+## Historical checkpoint — CX-0030
 
 [G2 revision 8 and independent question-projection reproducer](../coordination/CON-01/CX-0030.md): d92328da/tree2e5c13dd complete docs-only delta read; CX29 design gaps addressed, suitable for owner-coordinated implementation with identity-bound signaling and full acknowledgment barrier requirements. No G2 source/native/provider pass. New bot P2 question projection independently reproduced L0 on b981/4252; author correction not independently qualified yet. OP1r2/OP2r1 draft_not_authorized; mailbox/role/subjects still pending. All21 owned stacks cleaned; no new hosted/provider effects or spend. Earlier CX29 actual browser crossings remain bounded. Fresh10:01:57–10:03:24 Render/Vercel dashboard tuple unchanged; Studio sourceSHA/installednative composition still unknown and DB metadata not refreshed. Temporary tabs34/39 closed and project draft cancelled without submission; user-owned tab1 retained. Claude still running focused browser checks on unpublished correction at last actual checkpoint. Next: immutable correction recheck and concrete setup batch binding; no broader product acceptance.
 
-## Current authoritative checkpoint — CX-0029, bounded G3 passes; G2 corrections requested
+## Historical checkpoint — CX-0029, bounded G3 passes; G2 corrections requested
 
 Current local app candidate b9815b11/tree8cacf81d (source4252cd74/tree9afcad10) independently passes late-Send/current-list, delayed-old-list/sole-writer withdrawal, message-only retry preserving list stale warning, and denied actor. 81 focused tests/typecheck pass. Final actual DB audit: four human messages/two withdrawn bodiesNULL; bootstrapgoal1; all operational/model tables0. All21owned stacks cleaned; twentieth interrupted before completed app proof. [CX-0029](../coordination/CON-01/CX-0029.md) and its safe receipts own exact actions/results/limits.
 
@@ -20,7 +24,7 @@ Complete docs-only G2 rev7 3c1158db/tree5f5b5a6f reviewed. Direction aligns with
 
 Main444235d0; PR1908a39b076 preserved. Author4252 ordinary/PG gates pass; full local browser FAILED2/1160; GitHub checks success separate. Fresh bot request6096247230 returned P2 question-projection finding4237222580; author correction pending independent qualification. All36 acceptance verdicts retained; A30not_run. Combined reviewed/authorized/deployed/app_verified/owner_accepted=false. Davide owns acceptance. Next bounded action: revised immutable G2 replay/crash binding reviewed independently while real mailbox/setup batch is finalized. No monitor/future-session promise.
 
-## Current authoritative checkpoint — CX-0028, new actual-app P1 release hold
+## Historical checkpoint — CX-0028, new actual-app P1 release hold
 
 Exact7969d40aa9ba776816bf8199a76e971980b51f69/tree1642c0e3e6f2245454aa8681b681ca8e3626b394 complete16-file authored delta reviewed;107focusedtests/Studio typecheck/contractsGeneratecheck pass. OriginalCX27late-Send and message-only tombstone privacy crossing passes bounded. New independently reproduced actualappP1: oldlistGET buffered02:05:34.819, adminwithdraw.990/bodyNULL, threadGET20002:05:35.823, DOM02:05:45.499 cleared, oldlistfinish02:05:54.823, DOM02:05:59.427 resurrectswithdrawnpreview whilethreadretainstombstones. RecoveryDOM02:10:59.669clean. SeparateactualP2message-onlysuccessclearsindependentlistfailurelabel; L0olderAPIhelper3then2regressesP2. [CX-0028](../coordination/CON-01/CX-0028.md) owns exact commands/actions/receipts/limits; firsttimingattempt explicitlyunqualified. No reviewerfeaturefix.
 
@@ -30,7 +34,7 @@ All19owned stacks cleaned/API+Studio stopped/DBdropped/PGstopped+removed/process
 
 Readiness partialsource_ready/boundedlocally_verified/P1P2changes_requested; combinedreviewed/authorized/deployed/app_verified/owner_accepted=false.36acceptanceverdicts/base95eapin retained/A30not_run. Davidefinalproductacceptance; othermissionsopen. Nextboundedaction: immutableauthorcorrectionreview and independentaffectedlate-list/liststaleness/oldAPIordering reruns/usefulsame-ms control, then current-sourcegates/G2/exactoperationsauthorization. No monitor/future-sessionpromise.
 
-## Current authoritative checkpoint — CX-0027, P1 privacy release hold
+## Historical checkpoint — CX-0027, P1 privacy release hold
 
 01:55UTC follow-up: main31dd5874/treeb2f9a3eb six-file Knowledge fixture/test increment and PR1908a39b076/tree04894c42 seven-file Studio release-identity increment read for CON overlap, returned to Claude; no SDD acceptance. Fresh read-only dashboard tuple unchanged; signed-in hosted room ready/no Conversations/no build tag, DB READ ONLY17.6/0036/no drift/sixrunningm03. [Live preflight refresh](../coordination/CON-01/LIVE_PREFLIGHT.md) distinguishes deployment labels from unproven installed composition/Studio SHA. Dashboardtab31 closed/user tab1 retained. Guarded author dev checks running, no corrected immutable candidate yet. All18 stacks cleaned/no new paid/native/provider/hosted effects. OP draft/approvalnull and readiness/P1/rollback limits unchanged.
 
@@ -42,7 +46,7 @@ All18owned stacks cleaned/DBdropped/PGstopped+removed/processesabsent/portsclose
 
 715focused154pass authorreceipt;full1154running01:17:26Z/PID436; prior missingexit/overwrittenlogattempt unqualified. f127freshautomaticreview6092246172 pending. Main3e6unchanged;PR1905dab733a/tree5f6ac3ab complete3file malformedPCMdecode/test/plan increment read for overlap only, noSDDqualification/configchange. New dev lastAt/messageSeq/tombstone direction reviewed early with maxever-seq identity and useful same-ms browser proof required beforefinalization. Nextboundedaction: immutableprivacy/highwatermarkcorrection independentlyreviewed/actualaffectedrerun; thenfinalgates/G2/operations under missingbindings. No monitor/future-sessionpromise orothermissioncompletion.
 
-## Current authoritative checkpoint — CX-0026, bounded lifecycle correction passes
+## Historical checkpoint — CX-0026, bounded lifecycle correction passes
 
 Exact715d2b1a/tree6053d6b5: complete11-file delta independently reviewed;92 focused tests/Studio typecheck pass. Actual local Studio/API/PG scheduled200 preserves omitted older conversation draft on return; after externalerase with identical capped200/moretrue list/feedblocked, scheduled422 within20.121s; current otherdraft/view/focus retained; no further targetreads through88.477s. Placeholder L0 correction passes. Original equal-time usefulness P2 remains open. [CX-0026](../coordination/CON-01/CX-0026.md) records exact identities/commands/results/limits.
 
@@ -52,7 +56,7 @@ Both author committed receipts read: a342 full FAILED4/1150, isolated main compa
 
 # CON-01 independent reviewer/operator handoff — attempt 1
 
-## Current authoritative checkpoint — CX-0025, published correction changes requested
+## Historical checkpoint — CX-0025, published correction changes requested
 
 Exact653fe9a8/treeae1e1c62 complete nine-file delta reviewed;90 focused units/Studio typecheck pass. New P1 StrictMode memoized scheduler permanently closed by cleanup, author explicitly confirmed. Actual local browser/API/PG capped list remains identical200/more=true across external erase, durable title/bodyNULL/editor not_found, zero target GETs over67.336s after erase. No mounted-cache memory observation claimed. New P2 production-helper L0: unseen newer seq11 repeats seq9 projected text/actor/time, so late seq10 receipt incorrectly replaces it. [CX-0025](../coordination/CON-01/CX-0025.md) owns exact reproducers/evidence/scope. Claude corrects separately; no reviewer feature fix.
 
@@ -62,7 +66,7 @@ All16 owned stacks cleaned; newest exit0/API+Studio stopped/disposable DB droppe
 
 Fresh exact653 automatic review5476739975 adds P2r4235731017, cleared placeholders falsely retain eligibility. Independently confirmed L0 with positive/negative controls; author corrects value-based retention. Dev browser run reports two failures; specific test repairs reviewed conditionally with required direct-not_found proof and preserved negative/privacy assertions. No newer source/pass/waiver inferred.
 
-## Current authoritative checkpoint — CX-0024, new P1/P2 changes requested
+## Historical checkpoint — CX-0024, new P1/P2 changes requested
 
 Exactd130/treee2c0d069: fresh formal review5476614195 adds external permanently-capped erasure retention P1r4235629899 and equal-time newest-preview P2r4235629903. Independent production helpers/store/QueryClient+exact useSeen branch confirm both L0/source, with complete-list/different-time positive controls. No mounted-browser-memory/equal-time claim. CX23 actual local corrected late-Send cases remain bounded passes. [CX-0024](../coordination/CON-01/CX-0024.md) owns reproducers, early proposal countercases and evidence. Claude corrects in dev; unpublished/unqualified, no reviewer feature fix.
 
@@ -76,7 +80,7 @@ Partial source_ready/bounded locally_verified, P1/P2 changes_requested; combined
 
 Pre-publication follow-up: actual partial draft probes.ts source revealed an abort-only15s deadline that could retain all3 slots forever. Claude confirmed and is correcting independent attempt settlement/late-result suppression;6 module tests author-reported only, guarded chain running, correction unpublished. CX24 records scope and countercase. No independent new source/browser pass or hosted effect.
 
-## Current authoritative checkpoint — CX-0023, bounded correction passes
+## Historical checkpoint — CX-0023, bounded correction passes
 
 Exact d13029c0/treee2c0d069: independently passes CX22 actual local Studio/API/PostgreSQL withdrawn-preview falsifier, whole-conversation late-success preserving other draft/view/focus, and normal human Send preview control.76 focused units/Studio typecheck pass; exact-store L0 guard passes. Complete six-file source delta reviewed; no reviewer feature fix. [CX-0023](../coordination/CON-01/CX-0023.md) owns exact identities/actions/verdicts and safe evidence. Earlier P1 is superseded within these bounded crossings only.
 
@@ -86,7 +90,7 @@ OP-0001-r1 draft_not_authorized. Owner D6/B1/project/two subjects/route/credenti
 
 Partial source_ready/bounded locally_verified/affected correction reviewed; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. A30 hosted two-account/real-native-answer not_run. Next bounded action: assess exact latest automatic review and author full-gate/fail-before receipts, then new source afresh/G2/composition/operations under missing bindings. Davide makes final product decision; no unattended monitor or broader completion.
 
-## Current authoritative checkpoint — CX-0022, P1 release hold
+## Historical checkpoint — CX-0022, P1 release hold
 
 Exact89eb193b/tree294fa081: earlier whole-conversation late-Send guard passes independent L0/source,35 focused units/typecheck. New actual local Studio/API/PG P1: after sender already sees message withdrawn, delayed real Send success restores withdrawn words in list preview under failed reads; thread/DB stay withdrawn. Claude implements correction; no reviewer feature fix. [CX-0022](../coordination/CON-01/CX-0022.md) owns exact falsifier/evidence.
 
@@ -100,7 +104,7 @@ Partial source_ready/bounded locally_verified, P1 changes_requested; combined re
 
 Later checkpoint: CC17 records a342 remote gate driver5794/Playwright10386/last227 of1150; author evidence, no terminal outcome. Equal-time/newer-seq preview countercase accepted before finalization; correction unpublished. Current PR190 nowdd3d1ffd/treeade80bfc, evidence-timeout increment scoped/source refreshed; combined preservation required, no SDD acceptance or owner acknowledgment. Material finding issue1986091489663.
 
-## Current authoritative checkpoint — CX-0021
+## Historical checkpoint — CX-0021
 
 Exact a3422f48/treeecfd9f6e: actual local browser/API/PG withdrawal same-key retry, capped omission draft/intent preservation, capped-origin→complete external erasure, separate A08 decision and phone selected-row H3 focus pass within bounded L1.34 focused units/typecheck pass; no full gate/native/provider/hosted acceptance. New P2 L0 exact store updater restores held Send plaintext after whole erasure; related late-success cache guard source concern returned to Claude, who is implementing separately. [CX-0021](../coordination/CON-01/CX-0021.md) and36-case ledger own verdicts. Reviewer authored no feature fix.
 
@@ -110,7 +114,7 @@ OP-0001-r1 draft_not_authorized; missing owner D6/B1/setup/cohort/two subjects/r
 
 Published partial source_ready/bounded locally_verified; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. Next bounded action: independently recheck immutable author Send correction/exact gate, thenG2/composition/live setup. Davide makes final product decision; other missions remain open, no unattended monitor.
 
-## Current authoritative checkpoint — CX-0020
+## Historical checkpoint — CX-0020
 
 Exact82f812d0/tree9a33dcaa: actual unknown withdrawal loses original key after conversation switch, two durable same-intent request rows/one withdrawn body effect; L0 store retains message-keyed proposal text after erasure. New automaticreview5476335312 P1 external-client cache cleanup is independently source-confirmed only. PriorCX19 cap/erase/A08 passes remain bounded. [CX-0020](../coordination/CON-01/CX-0020.md) records scope/reproducer/cleanup. Phone focus/privacy/retry corrections requested fromClaude; reviewer authored no fix.
 
@@ -118,7 +122,7 @@ Author147 focused browser pass separate; full82f gate explicitly invalidated/sto
 
 Verified next author checkpoint: Claude accepted capped-origin→complete cleanup countercase before finalization;12 own store units reported, combined correction unpublished. This does not clear privacy/retry findings or permit operations. Next bounded action: immutable author privacy/withdrawal/phone corrections independently rechecked, thenG2/composition/exact gates. Davide makes final decision; no unattended monitoring or broader completion.
 
-## Current authoritative checkpoint — CX-0019
+## Historical checkpoint — CX-0019
 
 Exact82f812d0/tree9a33dcaa integrates main3e6d57b1. Actual local Studio/API/PG recheck passes CX18 cap falsifier, same-key erasure once, late lost HTTP preserving other thread/focus/draft and main203 A08 accept→failed reread→recovery.28 focused units/typecheck pass. New bounded P2: on phone, activating already-selected surviving row opens thread with focus BODY; author correction requested. [CX-0019](../coordination/CON-01/CX-0019.md) and updated36-case ledger own current verdicts. No feature fix authored by reviewer.
 
@@ -128,7 +132,7 @@ OP-0001-r1 draft_not_authorized; owner cohort/project/two subjects, route/creden
 
 Next bounded action: immutable author phone-focus correction independently rechecked, then G2 implementation/composition/exact gates. Davide decides final product acceptance; no unattended monitoring or broader completion.
 
-## Current authoritative checkpoint — CX-0018, P1 release hold
+## Historical checkpoint — CX-0018, P1 release hold
 
 This supersedes earlier readiness summaries below. On exact0f2f3798/tree dca8624 actual local app, erasure never reached API (one controlled pre-upstream503), then200 legitimate new conversations capped target out of list. UI falsely announced erased and discarded unsent draft while PostgreSQL target remained open/readable with zero erasure requests. Actual activity brought it back with draft lost. [CX-0018](../coordination/CON-01/CX-0018.md) contains exact records/reproducer/cleanup; prior positive same-key/navigation branches remain bounded passes only.
 
@@ -140,7 +144,7 @@ Next bounded action: immutable author settlement/A08 correction; independently r
 
 Current main subsequently3e6d57b1/tree e7c2b25f (#203 proposal-truth): direct shared ProposeHere/decide/talk-store/NewConversation/ProjectContext changes, ProposedMark/current-error semantics. Author alerted to preserve accepted main behavior;5c lacks it and affected A08 review is invalidated until combined immutable candidate. Full exact SHA/source/gate distinctions are in CX18. No additional operation or application test occurred after the cleaned control.
 
-## Current authoritative checkpoint — CX-0017
+## Historical checkpoint — CX-0017
 
 This supersedes earlier readiness summaries below. Exact0f2f3798/tree dca8624:59 focused units/typecheck pass. Actual local API/PG/browser passes same-key erasure retry after lost success/navigation, mobile feed-only settlement, late HTTP and late feed preserving newly selected thread/focus/draft. Capped/unloaded attribution probe passes L0 only. See [CX-0017](../coordination/CON-01/CX-0017.md), durable receipts/audit and each case in the36-case ledger. New held-erasure cleanup/list-absence source concerns were returned to Claude, not presented as an actual duplicate.
 
@@ -150,7 +154,7 @@ No hosted operation or new serving tuple observation. Existing hosted browser ro
 
 One next bounded action: inspect/recheck immutable author settlement and current-main/A08 corrections, then exact gate/review results. Davide owns final acceptance; no other mission or broader product is complete.
 
-## Current authoritative checkpoint — CX-0016
+## Historical checkpoint — CX-0016
 
 This section supersedes earlier readiness/candidate summaries below; their observations remain historical. Exact independent candidate7660c734/tree1a2f9da:27 published PG/API tests and57 focused units pass; actual201-writer participation, human contributor privacy under failed reads, original mobile erase focus and separate accepted A08 write pass within L1. New late erase HTTP navigation fails; unread Sophia attribution gap reproduced L0 only. See [CX-0016](../coordination/CON-01/CX-0016.md) and the 36-case ledger.
 

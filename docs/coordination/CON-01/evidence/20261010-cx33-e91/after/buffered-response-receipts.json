@@ -1,0 +1,12 @@
+[
+  {
+    "at": "2026-10-10T10:40:16.210Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/b1769243-8587-4d78-8433-502d05b7a30e/messages",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": true,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]

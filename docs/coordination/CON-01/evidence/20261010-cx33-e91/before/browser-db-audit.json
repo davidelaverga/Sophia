@@ -1,0 +1,66 @@
+{
+  "candidate": "2e5fe53bfa5f2f1259da7f3b3105b8639c179535",
+  "tree": "e4ec6c0327843a918134010182afbb7e8e20c16d",
+  "observedAt": "2026-10-10T10:36:04.637Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "b76eb072-e7e4-4f93-bed6-cb571fbe91b1",
+  "messages": [
+    {
+      "title": "SYNTHETIC first-sender regression",
+      "id": "b97d1072-90c6-4770-888e-6261f01a3ed0",
+      "conversation_id": "bdf2d14b-96a0-4bae-b681-bd62fe621cd9",
+      "actor_id": "573ce119-463f-47fd-b954-e81b6c8e3883",
+      "seq": "1",
+      "body": "SYNTHETIC admin opening message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC first-sender regression",
+      "id": "c6ae0b81-7b26-4b6d-a902-97600f3fe6c3",
+      "conversation_id": "bdf2d14b-96a0-4bae-b681-bd62fe621cd9",
+      "actor_id": "3fac44d3-5b14-4acd-a9c7-7ef99e82f75b",
+      "seq": "2",
+      "body": "SYNTHETIC editor first surviving message",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "573ce119-463f-47fd-b954-e81b6c8e3883",
+      "idempotency_key": "098d3a7c-0481-45a7-b2cc-7997ab30a6f8",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "d5ddcefdfefe027ccd31c6f57d9f877f7965d2ecfaa3817c9ef35b997186f484",
+        "titleSha256": "f61605951f8440d52404596e185f0f5d7a47caa0945623deb8987180aa6d2a76"
+      },
+      "message_id": "b97d1072-90c6-4770-888e-6261f01a3ed0"
+    },
+    {
+      "actor_id": "3fac44d3-5b14-4acd-a9c7-7ef99e82f75b",
+      "idempotency_key": "2be2ee66-67a1-4aa1-84cd-c1ed469a9b6e",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "8edda5078900098f0aa57349ba2fa48cd60ac614f5f7250176747bc9048fb756",
+        "conversationId": "bdf2d14b-96a0-4bae-b681-bd62fe621cd9"
+      },
+      "message_id": "c6ae0b81-7b26-4b6d-a902-97600f3fe6c3"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

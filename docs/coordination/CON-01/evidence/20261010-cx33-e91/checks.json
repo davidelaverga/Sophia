@@ -1,0 +1,115 @@
+{
+  "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+  "tree": "4c5e15956917c50b12042a763b6c0b240607a028",
+  "base": "2e5fe53bfa5f2f1259da7f3b3105b8639c179535",
+  "completeDeltaRead": {
+    "files": 11,
+    "dependencyInputs": "unchanged; dependencies reused"
+  },
+  "focused": {
+    "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts apps/studio/src/features/conversations/list-data.test.ts",
+    "passed": 90,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  },
+  "typecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "session": 74690,
+    "exit": 0
+  },
+  "external": {
+    "currentCorrectionProbe": 11,
+    "previousQuestionPrivacyProbe": 9,
+    "failures": 0,
+    "level": "L0 helpers/store/actual QueryClient, assessed fields synthetic"
+  },
+  "actualBrowser": {
+    "before": "23rd owned actual local Studio/API/PG17.6, candidate2e5; list warning/first sender failures reproduced",
+    "after": "24th owned actual local Studio/API/PG17.6, candidatee91; same two cases pass, lost Send/same-key retry/withdrawal/external erasure/new start/reload regression",
+    "fixtureApi": false,
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "worker": false
+  },
+  "mobile": {
+    "requested": [
+      390,
+      844
+    ],
+    "observed": [
+      1280,
+      720
+    ],
+    "verdict": "blocked_current_tool_path; no mobile pass",
+    "paths": [
+      "viewport.set existing tab43",
+      "reload tab43",
+      "fresh tab45"
+    ],
+    "overrideReset": true
+  },
+  "cleanup": {
+    "allOwnedStacksClean": 24,
+    "beforeSession": 80583,
+    "afterSession": 63540,
+    "exits": [
+      0,
+      0
+    ],
+    "tabsClosed": [
+      42,
+      43,
+      44,
+      45
+    ],
+    "databasesDropped": true,
+    "postgresStopped": true,
+    "clustersRemoved": true,
+    "processesAbsent": true,
+    "portsClosed": true
+  },
+  "effects": {
+    "hostedWrites": 0,
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "newSpend": 0,
+    "uncertainPaidOutcome": 0
+  },
+  "fullGate": "Not qualified; author e91 full gate/check/SQL running at last source handback6096611962",
+  "hashes": {
+    "e91-question-regression.json": "e50a833a1e648da68080126b9490863392ec0076af7d1b9cc70032a591c6e827",
+    "e91-probe-result.json": "394016f96510ce25d384b904a253bc26804e069783619d3a9b5582d135a712cb",
+    "e91-correction-probe.mjs": "be2c0ca1bc2465010cb45fd38397216eb274c5832ab38db126fdc276fa42b8ef",
+    "before/relay-finish-receipts.json": "cc6d8db89dbe4c73179185fddcdfa0d12c521c144004840476dc4e1bc49cc22d",
+    "before/browser-observations.json": "b86fa60edd64f576dafdc8baf9afac7721f735cb470c62fdd0c1cbed3d35f439",
+    "before/held-list-receipts.json": "db5c096c6fb3cdf4d0fd4294f088272b25ef321db0a9885a7e856318b9c8d4f0",
+    "before/mine-defect.jpg": "0ef1b11ade2b89d78270a052328657bb7c624efc5ad4105713d5a64fa2c017be",
+    "before/browser-db-audit.json": "71a4e2f7c33dba5575f365adc450d81cb178237a51e2cb9567929e580fc928c3",
+    "before/after-send-defect.jpg": "85af4e8f8ab5c5ffe0a7dcf75d25448487861e0ae211782227ab5e553b5a9340",
+    "before/owned-cleanup-verification.json": "2aa5248abb7b548454646d4a4cb5a8eb7fe2184757dda5a589b44005131a3e9c",
+    "before/browser-stack-cleanup.json": "51c9e692fe28de8b4ed778bcab7279e069e302b5b13c751c2ffb012c1c989994",
+    "before/write-receipts.json": "9f5733218e0c1acb68d75a010be30bc447df36285cd638990dd1463948b91315",
+    "before/recovered-control.jpg": "ebe0524e2f3812d8dfc27fd7f9daac6616efbc421e64cfeee4fb8027f571beb3",
+    "before/browser-stack-receipt.json": "faa58220f5a021e5099246f773e4a619098c42d3f59cf38e98f46261ee09bf8a",
+    "before/conversation-read-receipts.json": "296f3bc33763109fdeb47642e5fb6a64b47d78fadbbb4b1bb5d379e86e6f4b85",
+    "before/before-send.jpg": "224aaeed2f1f08118752d138770980cd12f46d6f4f883d20e3dfeea97fe4af90",
+    "after/mine-pass.jpg": "bac9e8f46645a2656067a8cf6aa907d3e13272634f1553fd5dc78181a84f86b3",
+    "after/relay-finish-receipts.json": "1c25c247e5daf0daabca570f41439569c6ad5d6f3beec8cab2d71122395504a6",
+    "after/lost-send-receipt.json": "b2ee4ea617e47df0630710d6848078caf0d834ed8f5724badc9b6bcd7d1bf2dd",
+    "after/browser-observations.json": "df01a77989d625d331bb565d142379a5c9e17775d2672c2e18428391ee9dc2d5",
+    "after/held-list-receipts.json": "a67d5d532c328a7c26bd919af47c8228bc341d2ebac6b80cd4705b74f1d5d8d6",
+    "after/viewport-attempt-desktop.jpg": "db4006fd94c2a0ffb2a1d0e7ee0d94578535755f2c4d4b267b833cd80514f7bb",
+    "after/browser-db-audit.json": "d5fb0be1c87ad1f27650c29f3c7e072008dfe942a81aa44e5567b91663280984",
+    "after/erased-editor-pass.jpg": "a23f5c127303ae7496879a941f2eb3816b12e4013576a9f0729577eded626139",
+    "after/after-send-pass.jpg": "64ed3d96d8d141aa081e6e18d5ae9ca8e9312949c0b492ec9315aa57b2438bee",
+    "after/owned-cleanup-verification.json": "df29aadf2e399f2d8dc6a23bcd73be5b8ce4b439bfe57e24951d3aa985f6d2f4",
+    "after/browser-stack-cleanup.json": "907abf8f393619976b10e998ef3adc87afd0c7f2567d7f5dadb104c37f84a588",
+    "after/write-receipts.json": "cb5c50562ed139506a646a44a78cc7bce1b10765c341ecd686b4ad1496977f29",
+    "after/browser-stack-receipt.json": "5528ae989f16ff265539ed688faf2702b51ff8b6e795fd569285e5610c711f07",
+    "after/pre-erasure-db-audit.json": "9ddd3800df6e59cdb38b5ed7bce2eee23d8ce6b1210ad5c9068403f4763117d9",
+    "after/conversation-read-receipts.json": "b84da309c94c91cac29b84198fb92818bd9352fe5e56bac2778141df3500fdd5",
+    "after/post-erasure-db-audit.json": "cf9e319ee5648ffc7a7d033dd0b60500e52578c7541e8bf07a138f504d4e22dc",
+    "after/buffered-response-receipts.json": "012b84e690a79c54693fe80e2678a768efd9c5a3597b98b5ef866514df57467f"
+  }
+}

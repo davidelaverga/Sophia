@@ -1,0 +1,11 @@
+{
+  "candidate": "2e5fe53bfa5f2f1259da7f3b3105b8639c179535",
+  "at": "2026-10-10T10:35:47.152Z",
+  "level": "Actual CUA local Studio/API/PG; synthetic actors, no fixtures/provider",
+  "before": "List stale warning and Try again visible; only Synthetic Admin contributor; editor has not written",
+  "afterSend": "Actual Send showed editor message/cleared field, removed list warning and Try again while subsequent list GET held; contributors still Synthetic Admin",
+  "mine": "Pressing Mine after confirmed editor message shows No conversation matches; thread still shows editor message",
+  "assessment": "No native assessed projection claimed",
+  "recovery": "After fault markers removed, real reads recovered automatically: Mine1of1, Synthetic Admin and You contributor line, first-save notice gone. Attempted old Try again click was interrupted/stale; no manual retry effect claimed.",
+  "recoveredAt": "2026-10-10T10:36:24.660Z"
+}

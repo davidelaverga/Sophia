@@ -1,0 +1,42 @@
+[
+  {
+    "at": "2026-10-10T10:39:45.009Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/b1769243-8587-4d78-8433-502d05b7a30e/messages",
+    "idempotencyKey": "2171d71b-fed8-4f7a-922c-b2bf82948af1",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-10T10:40:16.209Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/b1769243-8587-4d78-8433-502d05b7a30e/messages",
+    "idempotencyKey": "c5f20961-3c9e-46df-8415-5a92e7d462e7",
+    "actualApiStatus": 202,
+    "bodyWithheld": true
+  },
+  {
+    "at": "2026-10-10T10:40:19.803Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/b1769243-8587-4d78-8433-502d05b7a30e/messages",
+    "idempotencyKey": "c5f20961-3c9e-46df-8415-5a92e7d462e7",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-10T10:40:29.631Z",
+    "kind": "withdrawal",
+    "path": "/api/v1/conversations/b1769243-8587-4d78-8433-502d05b7a30e/messages/3be20919-0684-4911-84ab-93905ae67aff/withdrawal",
+    "idempotencyKey": "8a7696d4-b606-464f-891a-c4de679cf094",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  },
+  {
+    "at": "2026-10-10T10:41:58.849Z",
+    "kind": "erasure",
+    "path": "/api/v1/conversations/b1769243-8587-4d78-8433-502d05b7a30e/erasure",
+    "idempotencyKey": "84b9b9d7-ba10-4608-87f1-af27be0e9f6f",
+    "actualApiStatus": 202,
+    "bodyWithheld": false
+  }
+]

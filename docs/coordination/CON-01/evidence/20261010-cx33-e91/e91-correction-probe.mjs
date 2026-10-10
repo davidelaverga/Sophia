@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {pathToFileURL} from 'node:url';
+import {resolve} from 'node:path';
+const root=process.env.CON01_CANDIDATE_ROOT;
+const req=createRequire(resolve(root,'apps/studio/package.json'));
+const {QueryClient}=req('@tanstack/react-query');
+const list=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/conversation-list.ts')));
+const data=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/list-data.ts')));
+const store=await import(pathToFileURL(resolve(root,'apps/studio/src/features/conversations/talk-store.ts')));
+const at='2026-10-10T09:00:00Z',later='2026-10-10T09:01:00Z';
+const coverage={state:'current',complete:true,fromSeq:1,throughSeq:2,newer:0,generatedAt:at,replyId:'reply',eligibilityRevision:1,ledgerRevision:1};
+const none={...coverage,state:'not_assessed',fromSeq:null,throughSeq:null};
+const row={id:'conversation',title:'Synthetic',revision:1,summary:'Synthetic summary',summaryCoverage:coverage,lastAt:at,messageSeq:2,contributors:[{actorId:'other',name:'Synthetic Other'}],sophia:true,openQuestions:0,questionsCoverage:coverage,output:null,lastMessage:null};
+const receipt={id:'message',author:'member',actorId:'sender',name:'Synthetic Sender',text:'Synthetic new question?',at:later,seq:3};
+const c=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:Infinity}}});const checks=[];const pass=name=>checks.push(name);
+try{
+ const key=list.listKey('project','sender'), unrelated=list.listKey('other-project','sender');c.setQueryData(key,{projectId:'project',conversations:[row]});c.setQueryData(unrelated,{projectId:'other-project',conversations:[{...row,id:'other-conversation'}]});
+ const error=new Error('Synthetic failed read');await c.fetchQuery({queryKey:key,queryFn:()=>Promise.reject(error)}).catch(()=>{});const q=c.getQueryCache().find({queryKey:key,exact:true});const prior={...q.state};
+ void c.fetchQuery({queryKey:key,queryFn:()=>new Promise(()=>{})}).catch(()=>{});
+ data.setListsData(c,key,read=>({...read,conversations:list.withLastMessage(read.conversations,'conversation',receipt)}));
+ assert.equal(q.state.status,'error');assert.equal(q.state.error,error);assert.equal(q.state.fetchStatus,'fetching');for(const field of ['dataUpdatedAt','dataUpdateCount','errorUpdatedAt','errorUpdateCount'])assert.equal(q.state[field],prior[field]);pass('Actual QueryClient retains failed read/error/counters during held refetch and optimistic Send');
+ const updated=c.getQueryData(key).conversations[0];assert.equal(updated.lastMessage.seq,3);assert.equal(updated.contributors.at(-1).actorId,'sender');assert.equal(list.narrowed([updated],{typed:'',mine:true,open:false},'sender').length,1);pass('Trusted first sender appears in contributors and Mine');
+ assert.equal(c.getQueryData(unrelated).conversations[0].lastMessage,null);assert.equal(c.getQueryData(unrelated).conversations[0].contributors.length,1);pass('Exact-key helper leaves unrelated project data untouched');
+ data.setListsData(c,list.listKey('not-read','sender'),()=>({projectId:'fake',conversations:[]}));assert.equal(c.getQueryData(list.listKey('not-read','sender')),undefined);pass('No invented query/data for unread key');
+ for(const field of ['summaryCoverage','questionsCoverage']){assert.equal(updated[field].state,'stale');assert.equal(updated[field].newer,1);assert.equal(updated[field].throughSeq,2)}assert.match(list.coverageWords(updated.questionsCoverage),/1 newer since/);pass('Assessed projections become stale with one known newer message');
+ assert.equal(list.withLastMessage([updated],'conversation',receipt)[0],updated);assert.equal(list.withLastMessage([updated],'conversation',{...receipt,seq:2})[0],updated);pass('Duplicate and older receipts do not duplicate writers or increment coverage');
+ const full=Array.from({length:200},(_,i)=>({actorId:'p'+i,name:'Synthetic '+i}));const cap=list.withLastMessage([{...row,contributors:full}],'conversation',receipt)[0];assert.equal(cap.contributors.length,200);assert.equal(cap.contributors.at(-1).actorId,'sender');assert.equal(cap.othersUnnamed,true);assert.match(list.contributorsLine(cap,'sender'),/You and others/);pass('200-name bound keeps current sender and honest unnamed remainder');
+ const sophia=list.withLastMessage([row],'conversation',{...receipt,author:'sophia',actorId:null,name:null})[0];assert.deepEqual(sophia.contributors,row.contributors);const unassessed=list.withLastMessage([{...row,summaryCoverage:none,questionsCoverage:none}],'conversation',receipt)[0];assert.equal(unassessed.questionsCoverage,none);pass('Sophia does not invent a human contributor and unassessed range stays unassessed');
+ const unavailable={...coverage,state:'unavailable',newer:2};const failed=list.withLastMessage([{...row,summaryCoverage:unavailable}],'conversation',receipt)[0];assert.equal(failed.summaryCoverage.state,'unavailable');assert.equal(failed.summaryCoverage.newer,3);pass('Unavailable projection remains explicitly unavailable');
+ store.forgetKept();const place='project sender';store.changeKept(place,k=>({...k,proposals:{message:{key:'key',ask:'Synthetic held',sending:true},other:{key:'other',ask:'Other retained',sending:false}},homes:{other:'other-conversation'}}));store.changeKept(place,k=>store.withoutConversation(k,'conversation',['message']));store.changeKept(place,k=>({...k,proposed:{message:{id:'decision',statement:'Synthetic late result'}}}));assert.equal(store.keptAt(place).proposals.message,undefined);assert.equal(store.keptAt(place).proposed.message,undefined);assert.equal(store.keptAt(place).proposals.other.ask,'Other retained');pass('Erasure names cached message ID before removal, scrubs unassociated proposal and fences late success; unrelated proposal retained (L0 only)');
+ const generation=store.currentGeneration();store.forgetKept();store.changeIfCurrent(place,generation,k=>({...k,proposed:{message:{id:'decision',statement:'Late old actor'}}}));assert.equal(store.keptAt(place),undefined);pass('Late old-generation result cannot restore forgotten actor state');
+ console.log(JSON.stringify({candidate:'e91b1c7a555b74414898e53248afab2f6292b23a',level:'L0 actual production helpers/store/QueryClient; synthetic assessed projections, no mounted proposal race',passed:checks.length,failed:0,checks},null,2));
+}finally{await c.cancelQueries();c.clear();store.forgetKept()}

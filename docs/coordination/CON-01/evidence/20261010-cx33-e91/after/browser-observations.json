@@ -1,0 +1,31 @@
+{
+  "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
+  "at": "2026-10-10T10:40:01.493Z",
+  "level": "Actual local CUA Studio/API/PG17.6; synthetic actors, no fixtures/provider/runtime",
+  "failedListBefore": "Stale warning and Try again visible with cached admin-authored conversation",
+  "afterConfirmedSend": "Human-only editor Send adds one message, contributor You, removes first-save notice; independent list stale warning and Try again remain while subsequent list read held",
+  "mine": "Mine1of1 before successful list recovery; thread and row show saved editor message",
+  "assessment": "No assessed native projection claimed",
+  "lostSend": "Second human-only Send committed but success body withheld; UI Not confirmed; retry shows one message and clears field; transport key/durable count checked separately.",
+  "withdrawal": "Second editor message withdrawal removes text/shows tombstone while reads fail; first editor message/contributor remain, list stale warning remains.",
+  "erasure": "Separate actual local admin tab44 erased disposable conversation; editor tab43 learned erasure and removed title/messages/composer/older unsent draft; empty project shown.",
+  "erasureObservedAt": "2026-10-10T10:42:25.081Z",
+  "mobile": {
+    "requested": {
+      "width": 390,
+      "height": 844
+    },
+    "observed": {
+      "width": 1280,
+      "height": 720
+    },
+    "paths": [
+      "existing tab after viewport.set",
+      "same tab after reload",
+      "fresh tab45 after override"
+    ],
+    "verdict": "unqualified; documented viewport override did not take effect in selected IAB; no mobile pass",
+    "cleanup": "override reset; probe tab45 closed",
+    "actualAdditionalAction": "One new human-only conversation was started through the form and survived actual reload, but observed at desktop dimensions"
+  }
+}
