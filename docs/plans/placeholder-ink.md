@@ -23,5 +23,6 @@
 
 - With placeholders measured, 17 checks failed (`ink` on seven pages, desktop and phone; Knowledge's filters;
   Conversations' thread and start): each a placeholder near 2:1. With the change, every contrast check passes.
-- Mutants, with a control that passes: the placeholder back in the faintest ink fails. With it faint, a measure that
-  reads the field's own ink, or skips placeholders, passes: the checks catch it by reading `::placeholder`, nothing else.
+- Mutants, with a control that passes: the placeholder back in the faintest ink fails; so does one in the third ink at
+  opacity 0.4. With either, a measure that reads the field's own ink, skips placeholders or ignores their opacity
+  passes: the checks catch them by reading `::placeholder`, its opacity included.
