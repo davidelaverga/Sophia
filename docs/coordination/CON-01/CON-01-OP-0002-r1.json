@@ -1,0 +1,93 @@
+{
+  "schema": "sophia.part2.operation-request.v1",
+  "template": false,
+  "mission_id": "CON-01",
+  "request_id": "CON-01-OP-0002",
+  "revision": 1,
+  "status": "draft_not_authorized",
+  "approval_ref": null,
+  "approved_by": null,
+  "expires_at": null,
+  "proposed_validity": "60 minutes from explicit approval of the finalized batch; no expiry inferred until approved",
+  "purpose": "One synthetic actual-account/project setup only; no inference, deployment or CON feature enablement",
+  "candidate_sha": null,
+  "candidate_identity": "Currently serving Studio/API artifact tuple, to be refreshed and pinned before approval; not the undeployed CON feature candidate",
+  "target": {
+    "studio": "https://studio.sophia-ei.com/work",
+    "auth": "Supabase sophia-next/main PRODUCTION/ikigawvpaxnvdjzzzhws",
+    "api": "Render srv-daqrn08473hc73flhi8g",
+    "identity_observation_ref": "LIVE_PREFLIGHT.md; 01:51\u201355 tuple is historical; setup forms reachable later without mutation"
+  },
+  "credential_references": {
+    "project_creation": "Existing signed-in Davide Studio session; server derives actor, no vendor token custody",
+    "account_creation": "Existing authenticated Supabase dashboard owner session, or supported real email OTP flow with designated owner-controlled mailbox; no admin key discovered",
+    "test_mailbox": null
+  },
+  "project": {
+    "title": "CON-01 Synthetic Review \u00b7 2026-10-10",
+    "maximum_created": 1,
+    "project_id": null,
+    "owner_subject": null,
+    "initial_role": "creator/admin"
+  },
+  "synthetic_account": {
+    "maximum_created": 1,
+    "email_ref": null,
+    "subject": null,
+    "authentication": "Actual Supabase sign-in and app session; no synthetic JWT/fixture",
+    "membership_role_proposal": "editor on this project only; owner choice/approval pending",
+    "credential_entry": "Any new credential entry through UI is completed by owner; do not record passwords/codes in public evidence"
+  },
+  "ordered_effects": [
+    {
+      "order": 1,
+      "effect": "Read-only pin serving artifact/API/auth target and owner subject; check no preexisting project/account under designated title/mailbox and no competing setup operation"
+    },
+    {
+      "order": 2,
+      "effect": "Create exactly one project through Work/New project/Start the project (POST /api/v1/projects, server-generated actor; stable UI admission key for unknown outcome retries); verify returned project ID and owner membership"
+    },
+    {
+      "order": 3,
+      "effect": "Create exactly one synthetic actual auth account using the finalized supported mailbox/flow; owner completes credential/terms steps if present; reconcile unknown creation before retry"
+    },
+    {
+      "order": 4,
+      "effect": "Through the existing project invitation/join flow, give only that account the approved project role; verify both authenticated subjects and membership receipts"
+    },
+    {
+      "order": 5,
+      "effect": "Verify browser return and denied unrelated project; record subject/project IDs privately by reference and count exact setup writes. No saved conversation enabled yet"
+    }
+  ],
+  "allowance": {
+    "maximum_new_spend": 0,
+    "currency": "USD",
+    "provider_calls": 0,
+    "native_model_calls": 0,
+    "deployments": 0,
+    "schema_changes": 0,
+    "provider_or_extra_credit_purchase": false,
+    "new_payer_allowed": false
+  },
+  "preconditions": [
+    "Exact serving tuple and source/artifact identity refreshed",
+    "Designated owner-controlled test inbox and supported real sign-in bound",
+    "Owner and synthetic subjects distinct; project role approved",
+    "No broad permissions, vendor credential custody, new resource enrollment or quota collector in this setup batch",
+    "User approval of this concrete finalized batch recorded under WORKING_PROTOCOL section3 and mission pack08"
+  ],
+  "recovery": {
+    "partial_failure": "Stop further setup effects; retain private synthetic project/account and exact IDs, reconcile unknown write under original admission key; no destructive cleanup inferred",
+    "membership": "No access outside designated synthetic project; revocation/cleanup requires its exact approved scope",
+    "data": "Retain governed records; no SQL DELETE or direct auth-table insertion, no auth-policy weakening"
+  },
+  "unbound": [
+    "Fresh serving candidate/artifact identities and owner subject reference",
+    "Owner-controlled mailbox and usable authentication flow",
+    "Synthetic subject ID (returned only after creation)",
+    "Final invitation/join role and target confirmation",
+    "Approval reference and exact expiry"
+  ],
+  "related_release_request": "CON-01-OP-0001-r2.json"
+}

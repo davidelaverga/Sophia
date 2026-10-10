@@ -1,0 +1,32 @@
+[
+  {
+    "at": "2026-10-10T09:41:53.900Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/2798744a-1c00-4849-904e-68ecca411e07/messages",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 60000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T09:44:18.430Z",
+    "kind": null,
+    "path": "/api/v1/projects/8ac96bbb-bfd0-45e5-ae67-35afedcc636f/conversations",
+    "actualApiStatus": 200,
+    "delayed": true,
+    "delayMs": 20000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  },
+  {
+    "at": "2026-10-10T09:44:18.447Z",
+    "kind": null,
+    "path": "/api/v1/projects/8ac96bbb-bfd0-45e5-ae67-35afedcc636f/conversations",
+    "actualApiStatus": 200,
+    "delayed": true,
+    "delayMs": 20000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]

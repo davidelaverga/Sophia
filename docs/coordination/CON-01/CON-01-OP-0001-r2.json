@@ -131,7 +131,7 @@
     "No automatic human acceptance",
     "No unrelated v3 installation or replay of historical production batches",
     "No global VISION, no new provider/payer fallback",
-    "No shared-service fault injection, broad cohort, account creation or privilege change",
+    "No shared-service fault injection, broad cohort or privilege change outside the separately approved synthetic test-account setup batch",
     "No automatic monitoring or future-session promise"
   ],
   "coordination_issue": "https://github.com/davidelaverga/Sophia/issues/198",
@@ -161,7 +161,8 @@
     "accounts": [],
     "roles": [],
     "denied_project_id": null,
-    "project_setup": "new synthetic test project requested; not created"
+    "project_setup": "new synthetic test project requested; not created",
+    "account_setup": "Create one second synthetic actual Supabase account, requested by Davide; owner-controlled mailbox reference and exact membership role pending"
   },
   "saved_text_policy": {
     "id": "conversation-text-v1 (proposal)",

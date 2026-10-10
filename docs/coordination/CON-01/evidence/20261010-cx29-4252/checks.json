@@ -1,0 +1,65 @@
+{
+  "candidate": "b9815b1163efe5c53e4a0aec56581733d02dcb98",
+  "tree": "8cacf81dca80113ead2bb081e7d7bbb9978fcdd8",
+  "featureSource": "4252cd74bca0ed18bc190d8832e98c75a920c7bf",
+  "featureTree": "9afcad10deb23f3f714bdeea09ad4df596f85d09",
+  "frozenInstallExit": 0,
+  "focusedTests": {
+    "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts",
+    "exit": 0,
+    "passed": 81,
+    "failed": 0,
+    "skipped": 0
+  },
+  "studioTypecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "exit": 0
+  },
+  "independentFullCheck": false,
+  "harnessSha256": {
+    "g3-browser-stack.py": "ddcf23021839de22d8dd39ded04e6e39bc7605573631b595ab699b7b9dcce42b",
+    "g3-browser-stack.mjs": "cdf8c0c4a095413af1239e51ffd583e7e6c0d3750e4cd5021224a58f20d2d681",
+    "list-only-withdraw.mjs": "10aa5493cf378cf8f883556eef09c9df4cd9e3d35d1f125fc1b324645ce8e8c2",
+    "controlled-list-withdraw.mjs": "cf3e1d75302a6f30c3f62ae4c255b8360ba80e9bc6f6fbec39b777892c258d60",
+    "g3-browser-db-audit.mjs": "e78f5c90c4fcc64429120e43e1ad84030c9a868c0ad5ed2b8196969a16a6874f"
+  },
+  "browserObservations": {
+    "origin": "Independent CUA AX observations; manually transcribed from tool results, not a captured network or mounted-memory dump",
+    "lateSendAfterAllReadsRefused": "2026-10-10T09:42:57.946Z: eligible seq1 remains list preview; field cleared; stale thread still says seq2 until revalidation, with warning",
+    "messagesOnlyRetry": "Thread tombstone replaces seq2; list stale warning/Try again remain",
+    "beforeLateList": "2026-10-10T09:44:27.394Z: withdrawn words and sole admin writer absent; eligible editor remains",
+    "afterLateList": "2026-10-10T09:44:54.015Z: unchanged after transport finish09:44:38.448Z",
+    "freshRead": "Eligible editor preview and thread tombstone restored on Knowledge/Conversations return",
+    "denied": "New synthetic outsider tab37: No access to this project, no content/write controls"
+  },
+  "limitations": [
+    "Synthetic JWT identities and disposable local PostgreSQL only; not two hosted authorized accounts",
+    "No provider, native runtime, worker, fixture API, or G2 execution",
+    "No actual Sophia-derived reply arm",
+    "No mounted cache memory or complete host-copy deletion claim",
+    "No new same-millisecond browser or old-API browser proof in this episode"
+  ],
+  "cleanup": {
+    "allOwnedStacksClean": 21,
+    "testTabsClosed": [
+      35,
+      36,
+      37
+    ],
+    "ownedProcessesAbsent": [
+      34514,
+      34537,
+      34545,
+      34546
+    ],
+    "closedPorts": [
+      53696,
+      53697
+    ],
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "hostedEffects": 0,
+    "newSpend": 0,
+    "uncertainPaidOutcome": 0
+  }
+}

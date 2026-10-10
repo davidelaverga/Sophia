@@ -1,0 +1,124 @@
+{
+  "candidate": "b9815b1163efe5c53e4a0aec56581733d02dcb98",
+  "tree": "8cacf81dca80113ead2bb081e7d7bbb9978fcdd8",
+  "observedAt": "2026-10-10T09:45:43.332Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "8ac96bbb-bfd0-45e5-ae67-35afedcc636f",
+  "messages": [
+    {
+      "title": "List-only withdrawal target",
+      "id": "21513af6-e28a-4d76-90fe-cfcc0caa0bf6",
+      "conversation_id": "2798744a-1c00-4849-904e-68ecca411e07",
+      "actor_id": "57b13131-8250-405c-8088-56c530e4605e",
+      "seq": "1",
+      "body": "SYNTHETIC earlier eligible editor context",
+      "withdrawn_at": null
+    },
+    {
+      "title": "List-only withdrawal target",
+      "id": "75194ca2-1fe5-403c-b671-720d0234d91c",
+      "conversation_id": "2798744a-1c00-4849-904e-68ecca411e07",
+      "actor_id": "57b13131-8250-405c-8088-56c530e4605e",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T09:42:00.349Z"
+    },
+    {
+      "title": "Late list read target",
+      "id": "07e2e355-e491-4046-8964-09b42ba3b7e3",
+      "conversation_id": "5a16296d-ba02-4f2b-adf9-42ee00342c3e",
+      "actor_id": "57b13131-8250-405c-8088-56c530e4605e",
+      "seq": "1",
+      "body": "SYNTHETIC editor remains eligible",
+      "withdrawn_at": null
+    },
+    {
+      "title": "Late list read target",
+      "id": "d405a21c-4347-4366-a517-fc2500ab369f",
+      "conversation_id": "5a16296d-ba02-4f2b-adf9-42ee00342c3e",
+      "actor_id": "48ece6d8-fef2-4127-8f75-e79d3c5ff274",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T09:44:18.616Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "57b13131-8250-405c-8088-56c530e4605e",
+      "idempotency_key": "8dd91e79-3199-417e-8c6b-7362f7267f93",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "3152595b015e52e8aa6811ac0c36727d06e0102e9879c43533719c2a7146142a",
+        "titleSha256": "6959582a6c1419d6f97d48ea2d39071e656afe7a9a4b314b4053f92b7fc66ccd"
+      },
+      "message_id": "21513af6-e28a-4d76-90fe-cfcc0caa0bf6"
+    },
+    {
+      "actor_id": "57b13131-8250-405c-8088-56c530e4605e",
+      "idempotency_key": "db65558c-d162-416b-a6c6-d023b7fd8f3d",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "75194ca2-1fe5-403c-b671-720d0234d91c"
+    },
+    {
+      "actor_id": "48ece6d8-fef2-4127-8f75-e79d3c5ff274",
+      "idempotency_key": "429832ff-6353-411b-bff9-030cab9d3a15",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "75194ca2-1fe5-403c-b671-720d0234d91c",
+        "operation": "withdraw",
+        "conversationId": "2798744a-1c00-4849-904e-68ecca411e07"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "57b13131-8250-405c-8088-56c530e4605e",
+      "idempotency_key": "595893ae-4695-4ccc-bc75-7af4ccb2b97f",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "f00c8e4f5b67b53ad75624a504e3ebf7211003c109bafe2a9dae6c948492e10c",
+        "titleSha256": "1aab414b824df301a1d336825f5e3505d7e474fc92981842de0469e33e6ba2e9"
+      },
+      "message_id": "07e2e355-e491-4046-8964-09b42ba3b7e3"
+    },
+    {
+      "actor_id": "48ece6d8-fef2-4127-8f75-e79d3c5ff274",
+      "idempotency_key": "58fc03f5-e6f6-4583-986e-001afc7310e2",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "d405a21c-4347-4366-a517-fc2500ab369f"
+    },
+    {
+      "actor_id": "48ece6d8-fef2-4127-8f75-e79d3c5ff274",
+      "idempotency_key": "03e728dc-85b2-4205-8ecc-cd413284a414",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "d405a21c-4347-4366-a517-fc2500ab369f",
+        "operation": "withdraw",
+        "conversationId": "5a16296d-ba02-4f2b-adf9-42ee00342c3e"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

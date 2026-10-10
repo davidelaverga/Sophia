@@ -1,0 +1,83 @@
+{
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "at": "2026-10-10T09:42:00.357Z",
+  "action": "withdraw",
+  "projectId": "8ac96bbb-bfd0-45e5-ae67-35afedcc636f",
+  "conversationId": "2798744a-1c00-4849-904e-68ecca411e07",
+  "messageId": "75194ca2-1fe5-403c-b671-720d0234d91c",
+  "target": {
+    "id": "2798744a-1c00-4849-904e-68ecca411e07",
+    "title": "List-only withdrawal target",
+    "revision": 6,
+    "summary": null,
+    "summaryCoverage": {
+      "state": "not_assessed",
+      "complete": false,
+      "fromSeq": null,
+      "throughSeq": null,
+      "newer": 0,
+      "generatedAt": null,
+      "replyId": null,
+      "eligibilityRevision": null,
+      "ledgerRevision": null
+    },
+    "lastAt": "2026-10-10T09:41:53.889Z",
+    "messageSeq": 2,
+    "contributors": [
+      {
+        "actorId": "57b13131-8250-405c-8088-56c530e4605e",
+        "name": "57b13131@synthetic.example.test"
+      }
+    ],
+    "sophia": false,
+    "openQuestions": 0,
+    "questionsCoverage": {
+      "state": "not_assessed",
+      "complete": false,
+      "fromSeq": null,
+      "throughSeq": null,
+      "newer": 0,
+      "generatedAt": null,
+      "replyId": null,
+      "eligibilityRevision": null,
+      "ledgerRevision": null
+    },
+    "output": null,
+    "lastMessage": {
+      "author": "member",
+      "actorId": "57b13131-8250-405c-8088-56c530e4605e",
+      "name": "57b13131@synthetic.example.test",
+      "text": "SYNTHETIC earlier eligible editor context",
+      "at": "2026-10-10T09:41:39.539Z",
+      "seq": 1
+    }
+  },
+  "withdrawal": {
+    "messageId": "75194ca2-1fe5-403c-b671-720d0234d91c",
+    "conversationId": "2798744a-1c00-4849-904e-68ecca411e07"
+  },
+  "messages": [
+    {
+      "id": "21513af6-e28a-4d76-90fe-cfcc0caa0bf6",
+      "seq": "1",
+      "body": "SYNTHETIC earlier eligible editor context",
+      "withdrawn_at": null
+    },
+    {
+      "id": "75194ca2-1fe5-403c-b671-720d0234d91c",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T09:42:00.349Z"
+    }
+  ]
+}
