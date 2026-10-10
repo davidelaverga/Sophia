@@ -1,0 +1,141 @@
+{
+  "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
+  "tree": "e2c0d069bdc2f2146b10f2d69a6f85f75180c5b3",
+  "observedAt": "2026-10-10T00:26:51.911Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "eda040af-8159-45db-933b-899123f16b5c",
+  "messages": [
+    {
+      "title": "Synthetic late receipt withdrawal",
+      "id": "06858d1d-465b-4ffb-ac44-344daf8d9a6f",
+      "conversation_id": "292b5a90-6b33-4221-ab77-d514fcfc8e53",
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "seq": "1",
+      "body": "SYNTHETIC retained initial context",
+      "withdrawn_at": null
+    },
+    {
+      "title": "Synthetic late receipt withdrawal",
+      "id": "be366218-146c-4ba7-81e9-87dff01b62f7",
+      "conversation_id": "292b5a90-6b33-4221-ab77-d514fcfc8e53",
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T00:25:15.149Z"
+    },
+    {
+      "title": "Synthetic late receipt withdrawal",
+      "id": "7f8adc17-7927-4d02-881f-b919949c6820",
+      "conversation_id": "292b5a90-6b33-4221-ab77-d514fcfc8e53",
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "seq": "3",
+      "body": "SYNTHETIC normal send after privacy recheck",
+      "withdrawn_at": null
+    },
+    {
+      "title": null,
+      "id": "4325cbe6-45fa-4592-8703-5e2b6061afc5",
+      "conversation_id": "b8c84ac3-8286-41e1-a96e-24d69837a6ef",
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "seq": "1",
+      "body": null,
+      "withdrawn_at": "2026-10-10T00:26:16.219Z"
+    },
+    {
+      "title": null,
+      "id": "da609250-9066-48e1-90ea-acb3b69574c7",
+      "conversation_id": "b8c84ac3-8286-41e1-a96e-24d69837a6ef",
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T00:26:16.219Z"
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "idempotency_key": "557d3c81-0586-4972-affa-eca6c374d673",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "77167739c997b12ac3dc802091247c624609ae72be4dff9e2180497867e3c657",
+        "titleSha256": "0b09af16391fd31781a8a979c274cb0d016460e5c7d8aa0c0e6228371110d472"
+      },
+      "message_id": "06858d1d-465b-4ffb-ac44-344daf8d9a6f"
+    },
+    {
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "idempotency_key": "cbdc3fb2-2c18-4fa6-ac9d-bc689dc23f40",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "be366218-146c-4ba7-81e9-87dff01b62f7"
+    },
+    {
+      "actor_id": "92020147-e1b2-4172-aa2c-247c7a8f6764",
+      "idempotency_key": "66058672-a2b1-44a7-b931-f426c0974f31",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "be366218-146c-4ba7-81e9-87dff01b62f7",
+        "operation": "withdraw",
+        "conversationId": "292b5a90-6b33-4221-ab77-d514fcfc8e53"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "idempotency_key": "6139f09f-6cee-496d-8b0a-7e08f05bcaf8",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "bc3a40b91d1299b753ab13e45233e9a62b73a18d6610f03c5539c64da68547f6",
+        "conversationId": "292b5a90-6b33-4221-ab77-d514fcfc8e53"
+      },
+      "message_id": "7f8adc17-7927-4d02-881f-b919949c6820"
+    },
+    {
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "idempotency_key": "ab6f016d-cc15-4cdc-ad51-7efb03d9a677",
+      "operation": "start",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "4325cbe6-45fa-4592-8703-5e2b6061afc5"
+    },
+    {
+      "actor_id": "cd892511-942a-4a74-8949-5e59dd9b78fb",
+      "idempotency_key": "1602b3c9-233f-4c25-8f2f-b7173a3d85f1",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "da609250-9066-48e1-90ea-acb3b69574c7"
+    },
+    {
+      "actor_id": "92020147-e1b2-4172-aa2c-247c7a8f6764",
+      "idempotency_key": "cda379d3-9e36-4c88-ba74-561344a45c7e",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "b8c84ac3-8286-41e1-a96e-24d69837a6ef"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

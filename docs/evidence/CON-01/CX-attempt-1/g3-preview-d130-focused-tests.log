@@ -1,0 +1,148 @@
+▶ contributorsLine
+  ✔ says there may be others once it names as many as A16 lets it (PR #199 review) (0.544125ms)
+  ✔ names who wrote there, mine as You, and Sophia only where she answered (0.078666ms)
+  ✔ with nobody but Sophia, says Sophia; with nobody, says nobody yet (0.050334ms)
+✔ contributorsLine (1.195583ms)
+▶ openWords
+  ✔ counts the open questions in words (0.054167ms)
+✔ openWords (0.119625ms)
+▶ byActivity
+  ✔ puts the newest activity first, whatever order they came in (0.449042ms)
+✔ byActivity (0.49875ms)
+▶ matching
+  ✔ keeps the titles that have the words, in any case and with or without accents (0.413042ms)
+✔ matching (0.482ms)
+▶ gistOf
+  ✔ says the last message, who said it first; else the summary (0.317667ms)
+✔ gistOf (0.361291ms)
+▶ withLastMessage
+  ✔ puts a confirmed message as its conversation’s last, its opening cut at 140 (0.088292ms)
+  ✔ never puts a late receipt in place of a later message the row already says, nor one at the same time (0.054917ms)
+✔ withLastMessage (0.186833ms)
+▶ a receipt after its message was withdrawn, or a later one said (Codex, CX-0022)
+  ✔ leaves the pages holding it withdrawn; the thread’s last words are another’s: none from the receipt (0.153917ms)
+  ✔ a later message said since, its time tied with the receipt’s, is the thread’s last: the receipt says nothing (0.036791ms)
+✔ a receipt after its message was withdrawn, or a later one said (Codex, CX-0022) (0.220541ms)
+▶ narrowed
+  ✔ Open keeps those with an open question; Mine those I wrote in; both, those that are both (0.084167ms)
+  ✔ the title words narrow with them (0.0685ms)
+✔ narrowed (0.186125ms)
+▶ acceptedOf
+  ✔ shows the three newest accepted decisions and counts the rest (0.124584ms)
+  ✔ all of them, newest first, when all are asked for (C9) (0.060584ms)
+  ✔ never shows what wasn’t accepted (0.039458ms)
+✔ acceptedOf (0.285917ms)
+▶ messageBy
+  ✔ names Sophia, mine as You, and a member by name (0.048166ms)
+✔ messageBy (0.071083ms)
+▶ pendingOf
+  ✔ shows the three newest proposals and counts the rest (0.048708ms)
+✔ pendingOf (0.066625ms)
+▶ the request a message asked, never the clock (CON01-A09)
+  ✔ is open while pending, running or uncertain, and ended otherwise (0.04275ms)
+  ✔ reads the request off the asking message only: a later message of Sophia's to another request settles nothing (0.042167ms)
+  ✔ says why a request ended without an answer, and nothing for one answered or open (0.055708ms)
+✔ the request a message asked, never the clock (CON01-A09) (0.193417ms)
+▶ firstWords
+  ✔ keeps a short message whole and cuts a long one with an ellipsis (0.053083ms)
+✔ firstWords (0.075375ms)
+▶ withMessage
+  ✔ puts the accepted message at the end of the newest page, once (0.05675ms)
+  ✔ leaves a conversation not read yet as it is (0.017792ms)
+✔ withMessage (0.096875ms)
+▶ continuesRun: a message that goes on from the one before it
+  ✔ never runs through a withdrawn message: its byline names nobody, and the next one names its writer (0.057458ms)
+  ✔ goes on: the same person within five minutes (0.018625ms)
+  ✔ starts a run: five minutes or more, another person, or Sophia after a person (0.027291ms)
+  ✔ goes on for Sophia after Sophia, and never from nothing (0.022667ms)
+  ✔ never joins two members known by no id: they may be two people (0.02375ms)
+✔ continuesRun: a message that goes on from the one before it (0.192375ms)
+▶ initialOf: a face’s letter
+  ✔ is the name’s first letter, upper case; «A member» without a name (0.0605ms)
+✔ initialOf: a face’s letter (0.075458ms)
+▶ withWithdrawn: what a withdrawal takes off the screen at once (PR #199 review)
+  ✔ withdraws the message, and Sophia’s answers that read it, before anything is read again (0.149ms)
+  ✔ withdraws an answer whose asking message isn’t read here when it came after the message (0.047833ms)
+  ✔ cancels a request still open from there, and leaves one asked before it (0.047125ms)
+  ✔ leaves a conversation not read yet as it is (0.01775ms)
+✔ withWithdrawn: what a withdrawal takes off the screen at once (PR #199 review) (0.305333ms)
+▶ listWithdrawn: the list says nothing the withdrawal took (PR #199 review)
+  ✔ drops that conversation’s last message and summary, and leaves the others (0.101708ms)
+  ✔ drops its writer among those who wrote there, unless words of theirs are still read there (0.04625ms)
+  ✔ a list that named as many as A16 lets it still says there are others once a named writer is taken out (0.563125ms)
+  ✔ keeps Sophia only where an answer of hers is still to be seen (0.038625ms)
+✔ listWithdrawn: the list says nothing the withdrawal took (PR #199 review) (0.802125ms)
+▶ remainsAfter: who still has words there, as read (PR #199 review)
+  ✔ says the writer is gone when no other words of theirs are read, and stays when some are (0.119083ms)
+  ✔ keeps Sophia only where an answer of hers that did not read it is still to be seen (0.037166ms)
+  ✔ never keeps Sophia on what isn’t read: an answer that read it may lie outside the pages (read again, a gap) (0.031125ms)
+✔ remainsAfter: who still has words there, as read (PR #199 review) (0.21975ms)
+▶ a message proposed as a decision (C7)
+  ✔ a member’s words, on one line, as written (0.276333ms)
+  ✔ Sophia’s words without the marks they are drawn with (0.36075ms)
+  ✔ a long message is cut after a sentence within 200 characters (0.063542ms)
+  ✔ one long sentence is cut at a word, and says so (0.049625ms)
+✔ a message proposed as a decision (C7) (1.151542ms)
+▶ a refused decision
+  ✔ a stale revision says someone decided first; a refused role says so; anything else says try again (0.0805ms)
+  ✔ a constraint or a lesson is decided here; a new direction or a stale one is not (0.038625ms)
+✔ a refused decision (0.173208ms)
+▶ a proposal already waiting (reconciled before a fresh one goes)
+  ✔ is found by its words, whatever the spaces or the case (0.072666ms)
+  ✔ other words are a new proposal (0.039375ms)
+  ✔ the same words waiting as another kind (a new direction) are not this constraint (0.039375ms)
+✔ a proposal already waiting (reconciled before a fresh one goes) (0.243542ms)
+▶ a proposal not sent because the brief could not be read first
+  ✔ says nothing was sent, and to try again (0.07275ms)
+✔ a proposal not sent because the brief could not be read first (0.099292ms)
+▶ a decision on its way (Still open)
+  ✔ the presses wait while it goes and while its outcome is unknown (0.063083ms)
+  ✔ answered, they wait until the brief read again no longer lists it (0.030584ms)
+  ✔ idle or refused, they don’t wait (0.019875ms)
+  ✔ refused while it still waits: the brief changed, not decided by someone (0.041375ms)
+  ✔ refused with the brief not read again: words true either way, none saying it shows the brief as it is (0.026ms)
+✔ a decision on its way (Still open) (0.239ms)
+▶ Still open’s decision, from what the view holds (held-decision.md)
+  ✔ held, it is on its way, or has no reply (0.256333ms)
+  ✔ held wins over a refusal or an answer left from before (0.024542ms)
+  ✔ let go: refused in its words, else answered, else nothing (0.027625ms)
+✔ Still open’s decision, from what the view holds (held-decision.md) (0.34375ms)
+▶ where a message’s proposal stands, in the brief as last read (proposed-truth.md)
+  ✔ waiting while the brief lists it, by its id, or by its words when the receipt named none (0.041625ms)
+  ✔ gone once the brief, read, no longer lists it (0.019208ms)
+  ✔ by its words only among the constraints waiting: a mission or lesson with them is not it (0.0185ms)
+  ✔ not read again when the last read failed, or there is none yet (0.020292ms)
+✔ where a message’s proposal stands, in the brief as last read (proposed-truth.md) (0.133ms)
+▶ changeIfCurrent
+  ✔ keeps a change made since the last forgetting (0.314292ms)
+  ✔ drops a change from before a forgetting: a late write never brings back what the account left (0.051083ms)
+✔ changeIfCurrent (0.748375ms)
+▶ withoutConversation
+  ✔ lets go of an erased conversation’s draft, intent, message held, refusal and wait, and keeps the others’ (0.409166ms)
+  ✔ settles the erased conversation’s erasure alone: another conversation’s, and Still open’s decision, stay (0.077583ms)
+✔ withoutConversation (0.567ms)
+▶ withErasure
+  ✔ holds an erasure on its way or with no reply, and lets it go once answered (0.093ms)
+  ✔ never brings back a settled erasure: its old request failing, or answering late, changes nothing (0.053458ms)
+✔ withErasure (0.209334ms)
+▶ a gone message’s part (PR #199 r4235397318, r4235397321)
+  ✔ an erased conversation takes its messages’ proposals and withdrawals; another’s, and the decision, stay (0.145834ms)
+  ✔ a late answer writing a gone message’s proposal back (ProposeHere writes its own) is left out (0.089166ms)
+  ✔ a message withdrawn here takes its own part only (0.053834ms)
+  ✔ a withdrawal is held under its message, its conversation known, and never comes back once gone (0.095041ms)
+✔ a gone message’s part (PR #199 r4235397318, r4235397321) (0.4835ms)
+▶ an erased conversation’s own part (Codex on a3422f4)
+  ✔ a late answer to a send writing its held message, refusal or wait back is left out; another’s and the decision stay (0.110625ms)
+✔ an erased conversation’s own part (Codex on a3422f4) (0.141708ms)
+▶ goneFrom and withListed: only a whole list says one is gone
+  ✔ seen in a list of the newest only, left out of one: kept; left out of a whole list later: gone (0.123459ms)
+  ✔ an erasure held here counts though never seen listed; a start seen listed is never gone while listed (0.039833ms)
+✔ goneFrom and withListed: only a whole list says one is gone (0.19875ms)
+ℹ tests 76
+ℹ suites 32
+ℹ pass 76
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 112.612583

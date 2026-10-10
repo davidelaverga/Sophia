@@ -1,5 +1,15 @@
 # CON-01 independent reviewer/operator handoff — attempt 1
 
+## Current authoritative checkpoint — CX-0023, bounded correction passes
+
+Exact d13029c0/treee2c0d069: independently passes CX22 actual local Studio/API/PostgreSQL withdrawn-preview falsifier, whole-conversation late-success preserving other draft/view/focus, and normal human Send preview control.76 focused units/Studio typecheck pass; exact-store L0 guard passes. Complete six-file source delta reviewed; no reviewer feature fix. [CX-0023](../coordination/CON-01/CX-0023.md) owns exact identities/actions/verdicts and safe evidence. Earlier P1 is superseded within these bounded crossings only.
+
+Author CC18 reports d130 format/lint/typecheck0/1046 Studio units pass; new browser fixture cases unrun. Frozen a342 full browser gate last author608/1150/four failures; no terminal/full newer-source/pnpm-check pass or waiver. Fresh d130 automatic review6091597724 pending; empty review containers do not qualify. Draft PR199 UNSTABLE/CI queued. Main3e6d57b1 unchanged; PR190 nowda7c3060/tree5179007c, ledger-settlement/stop-handover and35s shutdown precondition increment source-refreshed, no SDD acceptance/configuration change. Exact combined ownership/runtime window open.
+
+OP-0001-r1 draft_not_authorized. Owner D6/B1/project/two subjects/route/credential-reference/payer/finite cap/expiry/executable approval missing. No new serving tuple or hosted effect/provider call/spend/uncertain paid outcome. All fifteen owned stacks cleaned; newest exit0/API+Studio stopped/disposable DB dropped/PG stopped+cluster removed/tabs26+27 closed/no viewport override. No unresolved owned effect; other missions untouched. Current-reader rollback proof remains bounded; governed production/G2/native rollback unqualified.
+
+Partial source_ready/bounded locally_verified/affected correction reviewed; combined reviewed/authorized/deployed/app_verified/owner_accepted=false. A30 hosted two-account/real-native-answer not_run. Next bounded action: assess exact latest automatic review and author full-gate/fail-before receipts, then new source afresh/G2/composition/operations under missing bindings. Davide makes final product decision; no unattended monitor or broader completion.
+
 ## Current authoritative checkpoint — CX-0022, P1 release hold
 
 Exact89eb193b/tree294fa081: earlier whole-conversation late-Send guard passes independent L0/source,35 focused units/typecheck. New actual local Studio/API/PG P1: after sender already sees message withdrawn, delayed real Send success restores withdrawn words in list preview under failed reads; thread/DB stay withdrawn. Claude implements correction; no reviewer feature fix. [CX-0022](../coordination/CON-01/CX-0022.md) owns exact falsifier/evidence.

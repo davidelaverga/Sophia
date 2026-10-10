@@ -1,0 +1,15 @@
+{
+  "status": "reviewed_prepared_launch",
+  "candidate": "d13029c037deb07d5704b53c420d0d42f4b1080f",
+  "scope": "L1 actual local app/API/PostgreSQL synthetic accounts, no fixture/provider/native",
+  "effects": [
+    "freeze published correction after complete independent diff review",
+    "repeat CX22 exact Send202\u2192actual admin withdrawal\u2192sender observes withdrawal\u2192failed reads\u2192late receipt",
+    "normal current human-only Send remains useful/current",
+    "whole-conversation erase while delayed success receipt pending; surviving draft/view retained",
+    "audit, clean owned processes/database/tabs"
+  ],
+  "limits": "one owned synthetic project,zero provider calls/spend,30min/1900s lifetime",
+  "privacy": "only synthetic text; no external production effects; complete audit no credentials in public evidence",
+  "tree": "e2c0d069bdc2f2146b10f2d69a6f85f75180c5b3"
+}
