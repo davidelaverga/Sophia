@@ -774,10 +774,6 @@
   font-size: 9.5px;
   object-fit: cover;
 }
-.resource-sheet-actions {
-  display: flex;
-  gap: 2px;
-}
 .resource-host {
   display: flex;
   align-items: center;
@@ -1709,20 +1705,25 @@
   }
 }
 
-/* The sheet's sections arrive one after another. */
-.resource-sheet > :not(.sheet-top) {
+/* The sheet's body keeps its own flow (each section spaces itself), and its sections arrive one after another. */
+.resource-sheet .sheet-body {
+  display: block;
+  padding-top: 0;
+  animation: none;
+}
+.resource-sheet .sheet-body > * {
   animation: arrive 0.4s var(--ease) both;
 }
-.resource-sheet > :nth-child(3) {
+.resource-sheet .sheet-body > :nth-child(2) {
   animation-delay: 40ms;
 }
-.resource-sheet > :nth-child(4) {
+.resource-sheet .sheet-body > :nth-child(3) {
   animation-delay: 80ms;
 }
-.resource-sheet > :nth-child(5) {
+.resource-sheet .sheet-body > :nth-child(4) {
   animation-delay: 120ms;
 }
-.resource-sheet > :nth-child(n + 6) {
+.resource-sheet .sheet-body > :nth-child(n + 5) {
   animation-delay: 160ms;
 }
 

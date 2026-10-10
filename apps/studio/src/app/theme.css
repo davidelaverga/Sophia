@@ -2795,6 +2795,12 @@ button.contribution-quote:hover {
 .sheet-head h2 {
   font-size: 15px;
 }
+/* The head's presses (steps, a copy, Close): a row of 28 px squares without the square's edge, 20 from the edge. */
+.sheet-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 .sheet-head .round {
   width: 28px;
   height: 28px;

@@ -5,8 +5,7 @@
 // returns to the tile it was opened from.
 import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { Icon, Tag, Tip } from '@sophia/ui'
-import { SheetCall } from '../../app/call-in-reach.tsx'
-import { useDialog } from '../../app/useDialog.ts'
+import { Sheet } from '../../app/Sheet.tsx'
 import { CapacityBlock } from './CapacityBlock.tsx'
 import { ResourceRequests } from './RequiredActions.tsx'
 import {
@@ -397,43 +396,24 @@ function stepKey(e: React.KeyboardEvent, onStep: ((by: 1 | -1) => void) | undefi
   onStep(by[key])
 }
 
-interface HeadProps {
-  resource: Resource
-  mine: boolean
-  onClose: () => void
-  onStep: ((by: 1 | -1) => void) | undefined
-}
-
-function Head({ resource, mine, onClose, onStep }: HeadProps) {
+/** The head's own content: the tool's logo, its name and vendor, its owner. The frame adds the actions and Close. */
+function Head({ resource, mine }: { resource: Resource; mine: boolean }) {
   const { tool, owner } = resource
   return (
-    <div className="sheet-top">
-      <header className="sheet-head resource-sheet-head">
-        <span className="resource-id">
-          <ToolLogo tool={tool} />
-          <span className="resource-title">
-            <h2 id="resource-sheet-title">
-              {TOOL[tool]}
-              <span className="resource-vendor">{VENDOR[tool]}</span>
-            </h2>
-            <span className="resource-owner">
-              <OwnerAvatar owner={owner} />
-              {owner.name}
-              {mine && <Tag tone="lav">You</Tag>}
-            </span>
-          </span>
+    <span className="resource-id">
+      <ToolLogo tool={tool} />
+      <span className="resource-title">
+        <h2 id="resource-sheet-title">
+          {TOOL[tool]}
+          <span className="resource-vendor">{VENDOR[tool]}</span>
+        </h2>
+        <span className="resource-owner">
+          <OwnerAvatar owner={owner} />
+          {owner.name}
+          {mine && <Tag tone="lav">You</Tag>}
         </span>
-        <span className="resource-sheet-actions">
-          {onStep && <Steps onStep={onStep} />}
-          <CopyLink />
-          <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
-            <Icon name="close" />
-            <Tip label="Close" keys="Esc" side="bottom" align="end" />
-          </button>
-        </span>
-      </header>
-      <SheetCall />
-    </div>
+      </span>
+    </span>
   )
 }
 
@@ -537,53 +517,55 @@ function usePageTurns(panel: React.RefObject<HTMLDivElement | null>, onStep: Pro
 export function ResourceSheet(props: Props) {
   const { resource, observation, earlier, actions, viewerId, now, onClose, onStep, effort, room, onShow } = props
   const panel = useRef<HTMLDivElement>(null)
-  useDialog(panel, onClose)
   const { turn, show } = usePageTurns(panel, onStep, onShow)
   const host = resource.host
   return (
-    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div
-        ref={panel}
-        className="sheet resource-sheet"
-        data-tool={resource.tool}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${resource.owner.name} · ${TOOL[resource.tool]}`}
-        tabIndex={-1}
-        onKeyDown={(e) => stepKey(e, turn)}
-      >
-        {/* Keyed by the resource: stepping to another plays the sheet's arrival again, a page turned. */}
-        <Fragment key={resource.id}>
-          <Head resource={resource} mine={resource.owner.id === viewerId} onClose={onClose} onStep={turn} />
-          <p className={`resource-host ${host.state}`}>
-            <span className="resource-dot" aria-hidden />
-            Host {HOST[host.state]} · <Since at={host.observedAt} now={now} />
-          </p>
-          <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
-          <Sessions
-            resource={resource}
+    <Sheet
+      className="resource-sheet"
+      headClassName="resource-sheet-head"
+      label={`${resource.owner.name} · ${TOOL[resource.tool]}`}
+      head={<Head resource={resource} mine={resource.owner.id === viewerId} />}
+      actions={
+        <>
+          {turn && <Steps onStep={turn} />}
+          <CopyLink />
+        </>
+      }
+      onClose={onClose}
+      panelRef={panel}
+      onKeyDown={(e) => stepKey(e, turn)}
+      data={{ tool: resource.tool }}
+    >
+      {/* Keyed by the resource: stepping to another plays the sheet's arrival again, a page turned. */}
+      <Fragment key={resource.id}>
+        <p className={`resource-host ${host.state}`}>
+          <span className="resource-dot" aria-hidden />
+          Host {HOST[host.state]} · <Since at={host.observedAt} now={now} />
+        </p>
+        <ResourceRequests actions={actions} resource={resource} viewerId={viewerId} now={now} />
+        <Sessions
+          resource={resource}
+          now={now}
+          control={resource.owner.id === viewerId ? effort : undefined}
+          tasks={props.tasks}
+          acts={resource.owner.id === viewerId && canAct(resource) ? props.acts : undefined}
+        />
+        <section className="sheet-section" aria-labelledby="capacity-title">
+          <h3 id="capacity-title">Capacity</h3>
+          <CapacityBlock
+            observation={observation}
+            sessions={resource.sessions.length}
+            reservePercent={resource.reservePercent}
             now={now}
-            control={resource.owner.id === viewerId ? effort : undefined}
-            tasks={props.tasks}
-            acts={resource.owner.id === viewerId && canAct(resource) ? props.acts : undefined}
+            earlier={earlier}
+            room={room && <RoomLine room={room} onShow={show} />}
           />
-          <section className="sheet-section" aria-labelledby="capacity-title">
-            <h3 id="capacity-title">Capacity</h3>
-            <CapacityBlock
-              observation={observation}
-              sessions={resource.sessions.length}
-              reservePercent={resource.reservePercent}
-              now={now}
-              earlier={earlier}
-              room={room && <RoomLine room={room} onShow={show} />}
-            />
-          </section>
-          <section className="sheet-section" aria-labelledby="controls-title">
-            <h3 id="controls-title">Controls</h3>
-            <Controls controls={resource.controls} />
-          </section>
-        </Fragment>
-      </div>
-    </div>
+        </section>
+        <section className="sheet-section" aria-labelledby="controls-title">
+          <h3 id="controls-title">Controls</h3>
+          <Controls controls={resource.controls} />
+        </section>
+      </Fragment>
+    </Sheet>
   )
 }
