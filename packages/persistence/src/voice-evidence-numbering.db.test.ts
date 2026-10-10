@@ -215,6 +215,71 @@ describe('the service numbers the bridge’s receipts (0051, Codex P1 r423290844
     assert.deepEqual(await stateOf(exchangeId), { kept: [], writes: [], high: null })
   })
 
+  it('a member’s call is refused by the function’s own service check, before anything else: no other refusal tells it whether an exchange exists, and it waits for no lock', async () => {
+    const { projectId, exchangeId, grantId } = await exchange()
+    /** A member's transaction on the API's login (the actor set as withActor sets it), left open until `done`. */
+    async function member() {
+      const c = await pool.connect()
+      await c.query('BEGIN')
+      await c.query("SELECT set_config('sophia.actor_id', $1, true)", [P])
+      const call = async (target: string, writeId: string | null) => {
+        try {
+          await c.query(`SELECT sophia.media_record_evidence_write($1,$2,$3,'session_closed',$4)`, [
+            target,
+            grantId,
+            writeId,
+            JSON.stringify(receipt(grantId, 'session_closed')),
+          ])
+          return 'resolved'
+        } catch (err) {
+          const { code, message } = err as { code?: string; message?: string }
+          return `${String(code)}: ${String(message)}`
+        }
+      }
+      const done = async () => {
+        await c.query('ROLLBACK')
+        c.release()
+      }
+      return { call, done }
+    }
+    const refused = '42501: A media-bridge call cannot carry a member identity'
+    // (a) an exchange that does not exist, and (b) no write identity: the service check answers first, as it does for
+    // a real exchange, never 'Exchange not found' or the identity's own refusal.
+    for (const [what, target, writeId] of [
+      ['an exchange that does not exist', randomUUID(), randomUUID()],
+      ['no write identity', exchangeId, null],
+      ['an exchange that exists', exchangeId, randomUUID()],
+    ] as const) {
+      const m = await member()
+      try {
+        assert.equal(await m.call(target, writeId), refused, what)
+      } finally {
+        await m.done()
+      }
+    }
+    // (c) it takes no lock before it is refused: while a service transaction holds the project's lock (as every receipt
+    // and reservation takes it first), the member is refused at once, never queued behind it. (A refused statement's
+    // locks go with it, so what is held after the refusal shows nothing: the wait shows what it reached for.)
+    const holder = new pg.Client({ connectionString: db.ownerUrl })
+    await holder.connect()
+    await holder.query('BEGIN')
+    await holder.query('SELECT 1 FROM sophia.projects WHERE id=$1 FOR UPDATE', [projectId])
+    const m = await member()
+    let first = 'not asked'
+    try {
+      first = await Promise.race([
+        m.call(exchangeId, randomUUID()),
+        new Promise<string>((resolve) => setTimeout(() => resolve('waited for the project’s lock'), 2000)),
+      ])
+    } finally {
+      await holder.query('ROLLBACK')
+      await holder.end()
+      await m.done()
+    }
+    assert.equal(first, refused)
+    assert.deepEqual(await stateOf(exchangeId), { kept: [], writes: [], high: null })
+  })
+
   it('the counter alone gives the numbers: with every receipt gone (expired early, as the test forces), the next is 3, never 1 again', async () => {
     const { exchangeId, grantId } = await exchange()
     await write(exchangeId, grantId, randomUUID(), 1)
