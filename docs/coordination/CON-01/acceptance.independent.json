@@ -876,7 +876,7 @@
       "level": "L0 helpers/store/actual QueryClient, assessed fields synthetic"
     },
     "studioTypecheckExit": 0,
-    "fullGate": "Author e91 full gate/pnpmcheck/allSQL running per6096611962; no terminal pass read. Previous2e5 stopped/superseded, not pass.",
+    "fullGate": "Author exact e91 focused gate exit0; full at505/1195 with2 failures so far, attributed to main but no waiver/independent baseline proof. Terminal full/check/SQL absent. CI38045346176/38045351519 exacte91 in_progress.",
     "findings": "Four new P2s qualified within CX33 L0/L1/hardening scopes; original mounted proposal race unproven. Not whole PR approval.",
     "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
     "cleanup": "All24owned stacks clean; tabs42\u201345closed; override reset; DB/PGclustersremoved/processesabsent/portsclosed. No hosted/provider/native/spend/uncertain paid effect.",
@@ -909,6 +909,11 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "next": "Fresh immutable automatic review/terminal gates; owner-coordinated G2 source qualification. Actual-account setup separately needs mailbox and concrete batch approval."
+    "next": "Fresh immutable automatic review/terminal gates; owner-coordinated G2 source qualification. Actual-account setup separately needs mailbox and concrete batch approval.",
+    "publication": {
+      "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6096748870",
+      "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096749011",
+      "fourThreadsResolved": "within explicit L0/L1/hardening scopes; no mounted proposal race or wholePR acceptance"
+    }
   }
 }
