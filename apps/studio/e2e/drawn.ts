@@ -4,7 +4,8 @@ import { expect, type Locator, type Page } from '@playwright/test'
 // the last of a chain included, so a check that measures the page measures it whole. Never «the network is idle»: a
 // fixture page keeps loading as it draws, and a quiet moment may not come in time on a slow runner.
 
-type Part = (page: Page) => Locator
+/** A part shown (a locator), or a wait of its own for what no one locator says. */
+type Part = (page: Page) => Locator | Promise<void>
 
 /** A project's bar has drawn: its Invite, which the membership's read brings. */
 const BAR: Part = (page) => page.getByRole('button', { name: 'Invite' })
@@ -24,12 +25,9 @@ export const DRAWN = {
   knowledge: [
     BAR,
     (page) => page.getByText('Pilot readout: what kept 12 of 14 teams').first(),
-    // A cover draws three reads after the list (its versions, its content, its check), once in reach: on a wide
-    // screen cards with written covers are (their words are measured); on a phone only the first, a designed page.
-    (page) =>
-      (page.viewportSize()?.width ?? 0) > 600
-        ? page.locator('.report-cover-page').first()
-        : page.locator('.report-cover:not([data-cover="waiting"])').first(),
+    // A cover draws its own reads after the list (its versions, then its page or its text), once in reach, each in
+    // its own time: every cover on screen, never the first alone (docs/plans/knowledge-covers-drawn.md).
+    coversDrawn,
   ],
   updates: [BAR, (page) => page.getByText('Reports open on the answer'), (page) => page.getByText('38 min')],
   conversations: [
@@ -40,7 +38,36 @@ export const DRAWN = {
   ],
 } satisfies Record<string, readonly Part[]>
 
+/** The covers on screen, by what each shows (`data-cover`: waiting, page, lines, mark). */
+export function coversOnScreen(page: Page) {
+  return page.locator('.report-cover').evaluateAll((covers) =>
+    covers
+      .filter((c) => {
+        const r = c.getBoundingClientRect()
+        return r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth
+      })
+      .map((c) => c.getAttribute('data-cover')),
+  )
+}
+
+/**
+ * Every cover on screen has drawn: none waits for its reads, and one at least shows words (covers that couldn't be
+ * read, marks alone, would leave the checks nothing to measure).
+ */
+async function coversDrawn(page: Page) {
+  await expect
+    .poll(async () => {
+      const covers = await coversOnScreen(page)
+      return !covers.includes('waiting') && covers.some((c) => c === 'page' || c === 'lines')
+    })
+    .toBe(true)
+}
+
 /** Waits until every part of a page has drawn. */
 export async function drawn(page: Page, parts: readonly Part[]) {
-  for (const part of parts) await expect(part(page)).toBeVisible()
+  for (const part of parts) {
+    const shown = part(page)
+    if (shown instanceof Promise) await shown
+    else await expect(shown).toBeVisible()
+  }
 }
