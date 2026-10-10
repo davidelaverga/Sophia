@@ -1,0 +1,38 @@
+{
+  "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+  "studio_typecheck": {
+    "exit": 0,
+    "tool_session": 2052
+  },
+  "focused_units": {
+    "exit": 0,
+    "tests": 206,
+    "suites": 54,
+    "pass": 206,
+    "fail": 0,
+    "skip": 0,
+    "log": "private g4-current-main-app/combined-focused-tests.log"
+  },
+  "contracts_check": {
+    "exit": 0,
+    "tool_session": 97477
+  },
+  "artifacts": {
+    "exit": 0,
+    "tool_session": 97477,
+    "runtime_unit": "sophia-runtime-wbc02-dev",
+    "platform": "darwin-arm64",
+    "dsh_digest": "sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c",
+    "dsh_entries": 28427,
+    "lock_sha256": "fef64ddaf4c3445fd3e83d8c27bb9f731b4378c846f86e093f543c69e6676ff8",
+    "bundle_sha256": "b423d27eb70ef345137ee748a680a8664bb346786dbfb1ce6e7e6bb2193a8d19",
+    "qualification": "Reproduced local artifacts only; no installed/native/provider/composition qualification"
+  },
+  "diff_check": {
+    "apps_packages_db": 0,
+    "full_tree": 2,
+    "reason": "Imported mission Markdown intentional hard-break/template trailing spaces; no feature-source whitespace failure"
+  },
+  "source_clean": true
+}

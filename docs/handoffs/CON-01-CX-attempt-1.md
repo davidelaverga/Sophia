@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0080
+# Current checkpoint — CX-0081
+
+[Combined exact source/app review](../coordination/CON-01/CX-0081.md), [structured receipts](../coordination/CON-01/CX-0081.evidence.json). Exact3b1a7ea6/tree2718e6dd/main0ccc, draftPR226reviewonly; PR199a1ddunchanged. IndependentStudioTSC0/206units54suitesPASS0skip/contracts0/artifactsreproduce. Actual local episode73 realApp/API/PG: human-only actual202lostreceipt->originaldcfe27b6keyretry202/exactlyoneSQLmessage; explicitA08proposal+accept/currentcontextinotherthread; desktopthreepanes/mobile390x844context/back/exactdraft; viewerno adminstate/writecontrols; outsideractual403/no cache; own syntheticwithdrawal+ownedAPIrestart/reload durable PASS. No native/hosted acceptance.
+
+Quiesced5human/1NULL/6requests/0replies/oneacceptedconstraint/bootstrapgoal1/allmodelop0 matchesprestop.36reads; ceilingarmedlateafter32,4counted/no runaway. Wrapperexit0/quiescedaudit0/DBdropped/PGstoppedclusterremoved/PIDsabsent/ports54037-38closed/tab96closed/viewportreset; all73ownedstacks clean. No unresolvedlocalwrite/reviewerfeaturefix. First403/late200/recovery retained at a1dd/CX80, not relabeledcombined.
+
+Claude399received exactfeedback/keepPR226frozen. a1ddbot6102482343no-majorissues read; combinedauthorfullgateactive/reviewpending. PR190d90separate/browseroneactive/e4c8causeunwaived/obsoleteebe8unqualified. All36statuses retained; wholeG4/native/hosted/reviewed/authorized/deployed/app_verified/owneracceptedfalse. OP1r2/OP2r2draft_not_authorized/approvalexpiryNULL; latestlive tuple inLIVE_PREFLIGHT notrefreshed. Inbox/cohort/subscriptionroute/credential/payer/finiteallowanceexpiry/privacy/sharedownerwindow/governedrollback unbound. Combinedlocalartifacts reproduce, no installedcompositiongrant. No hosted/project/account/email/schema/config/cohort/deploy/provider/native/spend effect. Davide finalproductdecision/othermissionsopen.
+
+Next boundedaction: exactcombinedterminal/freshreview, independentlyreproduceconcretefailures beforeG4/merge qualification; live batchinputs andapprovalstillrequired.
+
+# Historical checkpoint — CX-0080
 
 [Independent corrected recovery/order proof](../coordination/CON-01/CX-0080.md), [structured receipts](../coordination/CON-01/CX-0080.evidence.json). Exacta1dd3209/treedf075eaf/main0ccc344d. Complete2filedelta read/independentStudioTSC0. Proper mounted oldC1actual200buffered→newC2actual403fence→old200relayclientopen/finish→laterfullfenceholds scopedPASS. Exactmembershiprestore/freshlist/ownterminal503 truthfulerror+oneRetry/nobodycomposer PASS; onepress2GETsbounded; samebutton actual200 restores4bodies/authors/exactdraft/no remount. Originalunknowneraseintent/key retained; same06e0c1a5key202/exactlyoneSQLerase PASS. CX79P2 scopedresolved; no reviewerfeaturefix. Author exactterminal/newautomaticreview pending.
 

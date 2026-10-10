@@ -1,0 +1,101 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0081",
+  "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+  "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "pr": 226,
+  "level": "L1 actual owned local mainApp/API/PostgreSQL17.6; synthetic devJWT, no fixtures/native/provider/hosted",
+  "episode": 73,
+  "reviewerSession": "01a1224a-32b4-7222-a017-50a277572d95",
+  "attempt": 1,
+  "checks": {
+    "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+    "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+    "studio_typecheck": {
+      "exit": 0,
+      "tool_session": 2052
+    },
+    "focused_units": {
+      "exit": 0,
+      "tests": 206,
+      "suites": 54,
+      "pass": 206,
+      "fail": 0,
+      "skip": 0,
+      "log": "private g4-current-main-app/combined-focused-tests.log"
+    },
+    "contracts_check": {
+      "exit": 0,
+      "tool_session": 97477
+    },
+    "artifacts": {
+      "exit": 0,
+      "tool_session": 97477,
+      "runtime_unit": "sophia-runtime-wbc02-dev",
+      "platform": "darwin-arm64",
+      "dsh_digest": "sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c",
+      "dsh_entries": 28427,
+      "lock_sha256": "fef64ddaf4c3445fd3e83d8c27bb9f731b4378c846f86e093f543c69e6676ff8",
+      "bundle_sha256": "b423d27eb70ef345137ee748a680a8664bb346786dbfb1ce6e7e6bb2193a8d19",
+      "qualification": "Reproduced local artifacts only; no installed/native/provider/composition qualification"
+    },
+    "diff_check": {
+      "apps_packages_db": 0,
+      "full_tree": 2,
+      "reason": "Imported mission Markdown intentional hard-break/template trailing spaces; no feature-source whitespace failure"
+    },
+    "source_clean": true
+  },
+  "audit": {
+    "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+    "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+    "observedAt": "2026-10-10T21:51:52.031Z",
+    "humanMessages": 5,
+    "nullBodies": 1,
+    "lostSendRows": 1,
+    "conversationRequests": 6,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "decisions": [
+      {
+        "id": "e2b4a1e1-985d-4cb6-898c-448120850d25",
+        "kind": "constraint",
+        "state": "accepted",
+        "revision": "2",
+        "body": "Proposed constraint: SYNTHETIC combined lost Send: choose the blue sample."
+      }
+    ],
+    "quiescedMatchesPreStop": true,
+    "readCount": 36,
+    "readStatuses": {
+      "200": 34,
+      "403": 2
+    },
+    "ceilingCaveat": "Armed after32observed reads;4subsequent counted,200limit not reached; not claimed active from start"
+  },
+  "readiness": {
+    "source_ready": "authorCC76; combined full gate active",
+    "locally_verified": "named cases passed independently",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptanceStatusesChanged": false,
+  "screenshots": "private g4-current-main-app/{desktop-accepted,mobile-context,mobile-return}.png; desktop and mobile-context visually inspected",
+  "cleanup": "all73ownedappstacks clean; wrapperexit0/quiescedaudit0/DBdrop/PGstop+clusterremoved/PIDsabsent/ports54037-38closed/tab96closed/viewportreset",
+  "operations": "OP1r2/OP2r2 draft_not_authorized, approval/expiryNULL; no hosted/provider/native/deploy/schema/config/cohort effect",
+  "next": "Read exact combined terminal gate and fresh automatic review; independently reproduce concrete failures before G4/merge qualification; keep live operation inputs unresolved"
+}

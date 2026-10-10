@@ -1,0 +1,36 @@
+{
+  "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+  "observedAt": "2026-10-10T21:51:52.031Z",
+  "humanMessages": 5,
+  "nullBodies": 1,
+  "lostSendRows": 1,
+  "conversationRequests": 6,
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "decisions": [
+    {
+      "id": "e2b4a1e1-985d-4cb6-898c-448120850d25",
+      "kind": "constraint",
+      "state": "accepted",
+      "revision": "2",
+      "body": "Proposed constraint: SYNTHETIC combined lost Send: choose the blue sample."
+    }
+  ],
+  "quiescedMatchesPreStop": true,
+  "readCount": 36,
+  "readStatuses": {
+    "200": 34,
+    "403": 2
+  },
+  "ceilingCaveat": "Armed after32observed reads;4subsequent counted,200limit not reached; not claimed active from start"
+}
