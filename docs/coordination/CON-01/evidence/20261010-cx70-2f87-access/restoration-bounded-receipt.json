@@ -1,0 +1,24 @@
+{
+  "count": 3,
+  "limit": 200,
+  "armedAt": "2026-10-10T18:55:24.343Z",
+  "contained": false,
+  "snapshotAt": "2026-10-10T18:55:54.765784+00:00",
+  "receipts": [
+    {
+      "at": "2026-10-10T18:55:24.350Z",
+      "path": "/api/v1/projects/8d2bb881-ef49-413d-bc72-2566ee068046/conversations",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:55:24.379Z",
+      "path": "/api/v1/conversations/c9c7c1b4-6029-4cdd-af1c-e37360fd8fb0/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T18:55:24.382Z",
+      "path": "/api/v1/conversations/c9c7c1b4-6029-4cdd-af1c-e37360fd8fb0/messages",
+      "status": 200
+    }
+  ]
+}

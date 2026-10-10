@@ -1,0 +1,33 @@
+{
+  "candidate": "2f87eb36a38ec0ac018ea5c07d6e1df334c05134",
+  "tree": "c0defbe4445c60bb7dfb2504e1ab1737624caa23",
+  "parent": "c4fecc351d9d4c615b1bc6583fbc43440b878ee1",
+  "completeDeltaFilesRead": 5,
+  "authorReceipt": "6101011007",
+  "focusedTests": {
+    "pass": 243,
+    "suites": 61,
+    "fail": 0,
+    "skip": 0
+  },
+  "studioTypecheckExit": 0,
+  "actualEpisode": 64,
+  "level": "L1 actual local Studio/API/PostgreSQL17.6 synthetic development accounts, no fixtures/native/provider",
+  "revokedCacheFence": "PASS bounded real422/list503/navigation/list403",
+  "authorizationCrossing": "PASS bounded nonowner/nonBYPASSRLS revoked negative and authorized viewer3",
+  "restoreExistingThread": "PASS bounded threeupstream200/30.422s, no ceiling triggered",
+  "ordinaryExternalErasure": "PASS bounded fence/list503/real422; fresh list excludes target; survivor3/return no resurrection",
+  "allOwnedStacksClean": 64,
+  "hostedEffects": 0,
+  "providerCalls": 0,
+  "paidSpend": 0,
+  "combinedG4": "unqualified",
+  "liveBatchAuthorized": false,
+  "acceptanceStatusesChanged": false,
+  "remaining": [
+    "mounted partial consumer/cap wording",
+    "current-main/S1 combined G4",
+    "native/provider/hosted app proof",
+    "inbox/subjects/route/finiteallowance/privacy/sharedownerwindow/artifacts/rollback/approval"
+  ]
+}

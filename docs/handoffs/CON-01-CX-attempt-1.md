@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0069
+# Current checkpoint — CX-0070
+
+[Independent actual2f87 restoration correction](../coordination/CON-01/CX-0070.md): complete5filedelta/CC70read/243focused61suitesPASS0skip/StudioTSC0. Actual64th real local Studio/API/PG: revoked-cache fence/list403/navigation PASS; nonowner/nonBYPASSRLS denied actor+authorizedviewer3 PASS. Restore original membership/list200 with existingC1 → actualC1body opens, three real upstream200responses over30.422s/noceilingcontainment PASS. Ordinary externalC1erase/list503/real422 fence, freshlist→survivingC2three/Tasksreturn noresurrection PASS bounded. WholeG3/current-mainS1combinedG4/native/provider/hosted acceptance unqualified.
+
+All64stacks clean/10898terminal0/DBdropped/APIStudioPGstoppedclusterremoved/tab87closed/PIDsabsent/ports57494–95closed. Final4human1NULL5requests/0replies/supportgoal1/allops0. No hosted/provider/spend/reviewerfeaturefix. All36verdicts retained; OP1r2/OP2r2draftunapproved/approvalexpiryNULL; inboxsubjects/route/allowance/privacy/sharedownerwindow/artifacts/rollback unbound. PR218docs-only244 scopedreview/corrected stale-header interpretation in2d765125; no newbinding/mergegrant. Davide finaldecision/othermissionsopen.
+
+Next bounded action: actual cap/partialconsumers/coverage-label recheck on frozen2f87, then current-main/S1 combinedG4/full gates/artifact identities.
+
+# Historical checkpoint — CX-0069
 
 [Independent actual c4 recovery failure and bounded passes](../coordination/CON-01/CX-0069.md). Exactc4fecc35/tree363d1e72 full12filedelta/CC68read/243focused61suitesPASS0skip/typecheck0. Actual63rd local app: original revoked-cache P1 fence PASS through real422/list503/navigation/real403; backend nonowner/nonBYPASSRLS negative+viewer3success PASS. Restore original membership/fresh list200 with existingC1→blank rows/thread and8608upstream200responses/30.337s FAIL P2. Contained ownedlist503; sentClaude. Real erasureC1/freshlist→survivingC2 PASS; ordinary openC2externalerase/list503/real422 fence andfreshlistempty/returnnoresurrection PASS bounded. Partial consumers/capwording source+unit only, mounted recheckpending.
 

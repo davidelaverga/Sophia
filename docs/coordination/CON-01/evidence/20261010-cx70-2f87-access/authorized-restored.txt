@@ -1,0 +1,86 @@
+Browser tab: 87, Title: "CON01 independent synthetic browser project · Sophia", URL: "http://127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/conversations".
+0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/conversations
+	3 container root
+		5 container
+			6 button Home
+			7 button Work
+			8 heading CON01 independent synthetic browser project, Value: 1
+				9 text CON01 independent synthetic browser project
+			10 container Project views
+				11 link Description: Studio, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/studio
+				12 link Description: Conversations, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/conversations
+				13 link Description: Goals, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/goals
+				14 link Description: Tasks, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/work
+				15 link Description: Knowledge, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/knowledge
+				16 link Description: Updates, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/updates
+				17 link Description: Resources, Value: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/resources
+			18 container Reconnecting
+				19 text RECONNECTING
+			20 button Invite
+			21 pop up button (collapsed) Description: Account, Secondary Actions: Expand
+		83 container Conversations
+			84 container All conversations
+				85 heading Conversations, Value: 2, ID: conversations-title
+					86 text Conversations
+				87 checkbox Description: New conversation, Value: 0
+				109 search text field (settable) Filter conversations
+				110 container Show only
+					111 checkbox Open, Value: 0
+					112 checkbox Mine, Value: 0
+				113 content list
+					114 checkbox SYNTHETIC current access check, Value: 1
+						115 text SYNTHETIC current access check
+						116 container
+							117 text You: SYNTHETIC current conversation before revocation You. No recorded questions yet. Last moved 20:54.
+					118 checkbox SYNTHETIC stale sender regression, Value: 0
+						119 text SYNTHETIC stale sender regression
+						120 container
+							121 text Synthetic A Surviving: SYNTHETIC A surviving third You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 20:54.
+			122 container Open conversation
+				123 container
+					124 heading SYNTHETIC current access check, Value: 3
+						125 text SYNTHETIC current access check
+					126 text Contributors: You
+				127 container Messages
+					128 content list
+						129 container
+							130 text You
+							131 text · 
+							132 text Oct 10, 20:54
+							133 text SYNTHETIC current conversation before revocation
+							134 button Propose as decision
+							135 button (collapsed) Description: Withdraw message, Secondary Actions: Expand
+				136 container Continue this conversation
+					137 text entry area (settable) Continue this question with the team
+					138 container
+						139 checkbox (settable, integer) Description: Ask Sophia, Value: 1
+						140 text Ask Sophia
+					141 button (disabled) Send
+					142 text Sophia doesn’t answer here yet Enter sends · Shift+Enter, a new line
+			92 container Description: Project context, ID: conv-context
+				143 container This conversation
+					144 heading This conversation, Value: 4
+						145 text This conversation
+					146 text No summary yet.
+					147 text No recorded questions yet
+					148 button (collapsed) Erase this conversation, Secondary Actions: Expand
+				93 heading Project context, Value: 3
+					94 text Project context
+				95 container
+					96 text This may be out of date.
+					97 button Try again
+				98 text No mission accepted yet.
+				99 container Accepted decisions
+					100 heading Accepted decisions, Value: 4
+						101 text Accepted decisions
+					102 text None accepted yet.
+				103 container Still open
+					104 heading Still open, Value: 4
+						105 text Still open
+					106 text Nothing waits for a decision.
+				107 button (collapsed) How conversation context works, Secondary Actions: Expand
+					108 text How conversation context works
+		81 container Project room
+			82 button Join the room
+
+The focused UI element is 0 AXWebArea CON01 independent synthetic browser project · Sophia, URL: 127.0.0.1:57495/p/8d2bb881-ef49-413d-bc72-2566ee068046/conversations
