@@ -11,6 +11,7 @@ import {
   gistOf,
   withLastMessage,
   lastSaid,
+  heldBefore,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -174,6 +175,31 @@ describe('withLastMessage', () => {
     const tied = { ...late, text: 'Said next, same time.' }
     const same = withLastMessage([conversation({ id: 'a', lastMessage: tied })], 'a', late)
     assert.equal(same[0]?.lastMessage?.text, 'Said next, same time.')
+  })
+})
+
+describe('equal times on the list’s row: the thread’s own order decides (PR #199 r4235629903)', () => {
+  const at = '2026-10-07T10:00:00.000Z'
+  const rowSays = (text: string, when = at) => [
+    conversation({ id: 'a', lastMessage: { author: 'member', actorId: ME, name: 'You', text, at: when } }),
+  ]
+  /** The row after the receipt of m10, the thread holding m9 then m10, both at the same time. */
+  const after = (list: ReturnType<typeof rowSays>) => {
+    const read = page([
+      message('m9', { seq: 9, at, text: 'Said first.' }),
+      message('m10', { seq: 10, at, text: 'Said next.' }),
+    ])
+    const m10 = message('m10', { seq: 10, at, text: 'Said next.' })
+    return withLastMessage(list, 'a', m10, (shown) => heldBefore(read, shown, m10))[0]?.lastMessage?.text
+  }
+
+  it('a row saying the message the thread holds before the receipt’s, at the same time, gives way to it', () => {
+    assert.equal(after(rowSays('Said first.')), 'Said next.')
+  })
+
+  it('a row the thread can’t place at the same time (said elsewhere, maybe later) stays; a later one stays', () => {
+    assert.equal(after(rowSays('Said by someone else, same time.')), 'Said by someone else, same time.')
+    assert.equal(after(rowSays('Said since.', '2026-10-07T10:05:00.000Z')), 'Said since.')
   })
 })
 

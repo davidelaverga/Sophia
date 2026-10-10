@@ -6,9 +6,10 @@
 // In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
 // a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
 import {
+  getConversationMessages,
   listConversations,
   type ConversationAsk,
   type ConversationList,
@@ -31,6 +32,7 @@ import { ProjectContext } from './ProjectContext.tsx'
 import type { Erase } from './EraseHere.tsx'
 import {
   goneFrom,
+  keepsFor,
   NO_WORDS,
   START,
   useKept,
@@ -38,8 +40,10 @@ import {
   withErasure,
   withListed,
   withoutConversation,
+  type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
 
@@ -125,7 +129,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     panes.show()
   })
   const talk = useTalk(projectId, accountOf(identity))
-  const erased = useErased(talk, panes, { all, seen: list.isSuccess, whole: reader.whole }, accountOf(identity))
+  const erased = useErased(talk, panes, { all, seen: list.isSuccess, whole: reader.whole }, identity)
   const start = useStart(projectId, identity, talk, (id) => {
     erased.clear()
     choose(id)
@@ -480,7 +484,7 @@ function useTalk(projectId: string, name: string) {
     onAnswered: (replyId: string) =>
       change((k) => (k.asked[id]?.replyId === replyId ? { ...k, asked: withEntry(k.asked, id, null) } : k)),
   })
-  return { of, kept, change }
+  return { of, kept, change, latest }
 }
 
 /** Where an admin erases here: the view keeps each conversation's erasure intent, and settles it (useErased). */
@@ -515,9 +519,10 @@ function useErased(
   talk: ReturnType<typeof useTalk>,
   panes: ReturnType<typeof usePanes>,
   read: Listed,
-  account: string,
+  identity: Identity,
 ) {
   const { all } = read
+  const account = accountOf(identity)
   const queryClient = useQueryClient()
   const [said, setSaid] = useState(false)
   const landing = useRef<{ id: string; land: (el: HTMLElement | null) => void } | null>(null)
@@ -546,7 +551,7 @@ function useErased(
     toList()
     setDue(true)
   }, [all, due, toList])
-  useSeen(talk, read, settle)
+  useSeen(talk, read, settle, useProbes(identity, settle, talk.latest))
   useEffect(() => {
     const at = landing.current
     if (!due || !at || screen !== 'list' || context) return
@@ -586,15 +591,40 @@ interface Listed {
  * else (PR #199 r4235397313): an erasure held here settles, and whatever was kept for it, or read of it, goes with it.
  * A list of the newest only leaving one out proves nothing.
  */
-function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void) {
+function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void, probes: Probes) {
   const { kept, change } = talk
   const { all, seen, whole } = read
   useEffect(() => {
     if (!seen) return
     const now = all.map((c) => c.id)
-    if (whole) for (const id of goneFrom(kept, now)) settle(id)
+    for (const id of now) probes.stop(id)
+    for (const id of goneFrom(kept, now)) {
+      if (whole) settle(id)
+      else probes.start(id)
+    }
     if (withListed(kept, now, whole) !== kept) change((k) => withListed(k, now, whole))
-  }, [seen, whole, all, kept, settle, change])
+  }, [seen, whole, all, kept, settle, probes, change])
+}
+
+/**
+ * The conversations left out of a list of the newest only that something is kept for here, read directly (probes.ts):
+ * the API's not found settles one; nothing else does. Every read stops with the view.
+ */
+function useProbes(identity: Identity, settle: (id: string) => void, latest: () => Kept): Probes {
+  const queryClient = useQueryClient()
+  const account = accountOf(identity)
+  const probes = useMemo(
+    () =>
+      new Probes({
+        read: (id, signal) => getConversationMessages(identity.token, id, null, signal),
+        keeps: (id) => keepsFor(latest(), id) || queryClient.getQueryData(messagesKey(id, account)) !== undefined,
+        settle,
+        notFound: (err) => err instanceof ApiError && err.code === 'not_found',
+      }),
+    [identity.token, settle, latest, queryClient, account],
+  )
+  useEffect(() => () => probes.stopAll(), [probes])
+  return probes
 }
 
 /** Where the focus goes as the form goes: back to New conversation when put away, not when a row is pressed. */

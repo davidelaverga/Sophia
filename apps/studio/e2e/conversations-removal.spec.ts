@@ -360,10 +360,11 @@ test('removal · erased while a message’s proposal is on its way: nothing of i
   expect(after?.gone[id]).toBe(true)
 })
 
-test('removal · erased elsewhere: a list of the newest only proves nothing; a whole list later lets its part go', async ({
+test('removal · erased elsewhere while the list holds the newest only: read directly, its not found lets its part go', async ({
   page,
 }) => {
-  // PR #199 r4235397313 and Codex's countercase: seen only in lists of the newest, then erased by someone else.
+  // PR #199 r4235397313, r4235629899: a project past the newest may never be listed whole. Left out of a list of the
+  // newest, a conversation something is kept for is read directly; the API refuses an erased one as not found.
   await page.goto(`${PAGE}&more=1`)
   await expect(messages(page)).toHaveCount(6)
   await field(page).fill('SYNTHETIC-DRAFT-ERASED-ELSEWHERE')
@@ -371,17 +372,44 @@ test('removal · erased elsewhere: a list of the newest only proves nothing; a w
   await expect(messages(page)).toHaveCount(2)
   await page.evaluate((c) => window.fixture?.eraseElsewhere(c), C1)
   await expect(list(page)).not.toContainText(FIRST)
-  await page.waitForTimeout(1000)
-  // Left out of a list of the newest only: nothing proved, what was kept for it stays.
-  expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-ERASED-ELSEWHERE')
-  expect((await kept(page))?.erased[C1]).toBeUndefined()
-  // The list read whole: it is gone, and so is what was kept for it.
-  await page.evaluate(() => window.fixture?.listMore(false))
   await expect.poll(async () => (await kept(page))?.drafts[C1]).toBeUndefined()
   expect((await kept(page))?.erased[C1]).toBe(true)
+  expect(await written(page, 'messages-gone')).toEqual(['messages-gone:c1'])
   // Erased by someone else: nothing here says it was erased here.
   await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
   await expect(messages(page)).toHaveCount(2)
+})
+
+test('removal · older, then erased elsewhere with the list unchanged: read again on its own clock, its part goes then', async ({
+  page,
+}) => {
+  // Codex's countercase: left out of the newest while it still exists (read: kept), then erased while every list read
+  // is the same; no list change comes, so the reads again come on their own clock (30 s, then longer).
+  await page.clock.install()
+  await page.goto(`${PAGE}&more=1`)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-OLDER-THEN-ERASED')
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  await page.evaluate((c) => window.fixture?.capPast(c), C1)
+  await expect(list(page)).not.toContainText(FIRST)
+  // Read directly: it is there, only older; what is kept for it stays.
+  await expect
+    .poll(async () => (await served(page)).filter((s) => s.startsWith('messages:c1')).length)
+    .toBeGreaterThan(0)
+  expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-OLDER-THEN-ERASED')
+  // A read that fails proves nothing either.
+  await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
+  await page.clock.fastForward(31_000)
+  await page.waitForTimeout(500)
+  expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-OLDER-THEN-ERASED')
+  await page.evaluate(() => window.fixture?.failConversationReads(null))
+  // Erased elsewhere; the list it reads is the same as before.
+  await page.evaluate((c) => window.fixture?.eraseElsewhere(c), C1)
+  await page.clock.fastForward(61_000)
+  await expect.poll(async () => (await kept(page))?.drafts[C1]).toBeUndefined()
+  expect((await kept(page))?.erased[C1]).toBe(true)
+  await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
 })
 
 for (const send of ['lostSlow', 'slow'] as const) {

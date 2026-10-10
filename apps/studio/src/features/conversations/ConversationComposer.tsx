@@ -20,6 +20,7 @@ import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import {
   firstWords,
+  heldBefore,
   lastSaid,
   LISTS,
   messagesKey,
@@ -98,7 +99,13 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     if (last?.id === sent.message.id) {
       queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
         { queryKey: LISTS },
-        (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, last) },
+        (read) =>
+          read && {
+            ...read,
+            conversations: withLastMessage(read.conversations, conversationId, last, (shown) =>
+              heldBefore(now, shown, last),
+            ),
+          },
       )
     }
     void queryClient.invalidateQueries({ queryKey: LISTS })

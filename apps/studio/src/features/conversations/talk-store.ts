@@ -234,6 +234,11 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
   return [...knew].filter((id) => !here.has(id))
 }
 
+/** Whether anything is kept here for this conversation: its own part, or a message of it (a proposal, a withdrawal). */
+export const keepsFor = (k: Kept, id: string): boolean =>
+  [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures].some((r) => id in r) ||
+  Object.values(k.homes).includes(id)
+
 /**
  * What is kept with the conversations a list read now holds seen: a whole list's are the ones seen from now on (what it
  * left out was settled before: goneFrom); a list of the newest only adds its own, and forgets none it left out.

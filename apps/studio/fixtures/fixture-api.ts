@@ -449,7 +449,7 @@ function meetingAnswer(project: Project, path: string): Promise<Response> | Resp
   return new Promise((resolve) => held.push(() => resolve(json(recap))))
 }
 
-/** A conversation this person can't see (erased): not found, as A16 refuses it. */
+/** A conversation this person can't see (erased): not found, as A16 refuses it (422, packages/domain/src/errors.ts). */
 const conversationGone = () =>
   new Response(
     JSON.stringify({
@@ -458,7 +458,7 @@ const conversationGone = () =>
       requestId: '00000000-0000-4000-8000-0000000000ce',
       retry: 'never',
     }),
-    { status: 404, headers: { 'content-type': 'application/json' } },
+    { status: 422, headers: { 'content-type': 'application/json' } },
   )
 
 /** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
