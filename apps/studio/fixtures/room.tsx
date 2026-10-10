@@ -5,13 +5,14 @@
 // (Sophia's conversation is open and this viewer holds the floor), `refuse=camera` (the browser refuses it),
 // `lobby=waiting` (someone is at the door), `place=knowledge` (Knowledge instead of the room; `place=work`, the Work
 // page with the research task's card), `hold=sources` (the report's sources come only once the check lets them through;
-// `hold=text`, its text; `hold=task`, the research task's record), `tamper=text` (its text arrives as bytes its record
-// does not name), `title=long` (the report's title runs far past the side pane's width), `versions=3` (that many of the
-// report's versions are published already), `history=pilot` (its first two are shaped like the pilot's, CX-0026); the
-// report viewer's own parameters (`report=…`) open the fixture report (report-data.ts). `window.fixture` lets a check
-// move the project on, have a member write, drop the call, publish the report's next version, deliver a result notice
-// (its revision, or a brief's) or a live caption, have Sophia leave, or read what happened. Others in the room, the
-// floor, who speaks, Sophia's states and video come from fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
+// `hold=text`, its text; `hold=task`, the research task's record; `hold=covers`, the demo library's covers),
+// `tamper=text` (its text arrives as bytes its record does not name), `title=long` (the report's title runs far past
+// the side pane's width), `versions=3` (that many of the report's versions are published already), `history=pilot` (its
+// first two are shaped like the pilot's, CX-0026); the report viewer's own parameters (`report=…`) open the fixture
+// report (report-data.ts). `window.fixture` lets a check move the project on, have a member write, drop the call,
+// publish the report's next version, deliver a result notice (its revision, or a brief's) or a live caption, have
+// Sophia leave, or read what happened. Others in the room, the floor, who speaks, Sophia's states and video come from
+// fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
 // `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
 // `looking=screen`; docs/plans/room-fixture-people.md).
 import '@fontsource-variable/geist/wght.css'
@@ -376,6 +377,7 @@ const project = {
   // The demo's research is on its second version, as its report (both published by default).
   taskRevision: RESEARCH_REVISION,
   taskHeld: query.get('hold') === 'task',
+  coversHeld: query.get('hold') === 'covers',
   // `fail=task`: every read of the research task is refused (503), as the hosted cards' detail went unread.
   taskFails: query.get('fail') === 'task',
   researching: query.get('research') === 'running' ? { reads: 0 } : null,
@@ -726,7 +728,7 @@ window.fixture = {
     project.sourcesHeld = true
   },
   releaseText: () => releaseText(project),
-  releaseCovers,
+  releaseCovers: () => releaseCovers(project),
   away: () => {
     window.history.pushState({ fixture: 'home' }, '', '/room.html?place=home') // the places' own entry
     sight.set?.(false)
