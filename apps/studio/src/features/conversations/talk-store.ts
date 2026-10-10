@@ -4,7 +4,7 @@
 // a refusal that answered one meanwhile; since when Sophia was asked; and the start's words and intent. Forgotten on
 // signing out or switching identity (App), as the cached reads are.
 import { useMemo, useSyncExternalStore } from 'react'
-import type { ConversationAsk, ConversationStarted, MessageAsk } from '../../api/conversations.ts'
+import type { ConversationAsk, ConversationStarted, ConversationSummary, MessageAsk } from '../../api/conversations.ts'
 import type { DecisionAsk, ProposedMark } from './decide.ts'
 import type { Held } from './held-write.ts'
 
@@ -74,6 +74,13 @@ export interface Kept {
    * whole list read later no longer holds is gone. A list of the newest only leaving one out proves nothing.
    */
   listed: Readonly<Record<string, true>>
+  /**
+   * The row of each start held back that landed here (list-data `landed`), by its title only (no opening, no writer):
+   * shown where a list of the newest only leaves it out, so it stays reachable and open across reads of it (list-data
+   * `shownList`; PR #199 r4238533084). Gone once it is erased (`retired`): a whole list without it, or its direct
+   * read's not found, settles it.
+   */
+  reached: Readonly<Record<string, ConversationSummary>>
 }
 
 /**
@@ -85,11 +92,12 @@ export interface Asked {
   messageId: string
   here: number
   /**
-   * Noted from a start's receipt held back (list-data `landed`): its request may have ended meanwhile, and nothing here
-   * read it since, so it is awaited only while a read of its thread shows it still open; no such read, no wait (PR #199
-   * r4238533090).
+   * Noted from a start's receipt held back (list-data `landed`), at this view's order then (withdrawn-purge
+   * `orderNow`): its request may have ended meanwhile, so it is waited on only while a read of its thread set out after
+   * that shows it still open; none such (none yet, one failing, one cached from before), no wait (PR #199 r4238533090,
+   * r4238594445).
    */
-  onlyAsRead?: true
+  after?: number
 }
 
 /** The form's own place among the refusals. */
@@ -116,6 +124,7 @@ const EMPTY: Kept = {
   homes: {},
   gone: {},
   listed: {},
+  reached: {},
 }
 
 const kept = new Map<string, Kept>()
@@ -207,7 +216,7 @@ const holdsAny = (out: Readonly<Record<string, true>>) => (r: Readonly<Record<st
 export function retired(k: Kept): Kept {
   const { gone, erased } = k
   const messages = [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes]
-  const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.doubted, k.listed]
+  const conversations = [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures, k.doubted, k.listed, k.reached]
   const back = k.start.heldBack
   const backErased = back !== null && erased[back.receipt.conversation.id] === true
   if (!messages.some(holdsAny(gone)) && !conversations.some(holdsAny(erased)) && !backErased) return k
@@ -222,6 +231,7 @@ export function retired(k: Kept): Kept {
     erasures: without(k.erasures, erased),
     doubted: without(k.doubted, erased),
     listed: without(k.listed, erased),
+    reached: without(k.reached, erased),
     proposals: without(k.proposals, gone),
     proposalRefusals: without(k.proposalRefusals, gone),
     proposed: without(k.proposed, gone),
@@ -291,8 +301,8 @@ const heldBackFor = (k: Kept): string[] => (k.start.heldBack ? [k.start.heldBack
 
 /**
  * The conversations a whole list read now no longer holds, of those seen listed here, with an erasure held here or in
- * doubt, or with a start's receipt held back for them: gone (erased, here or by anyone else). Only a whole list says
- * so: call it with nothing else.
+ * doubt, with a start's receipt held back for them or landed after it (`reached`): gone (erased, here or by anyone
+ * else). Only a whole list says so: call it with nothing else.
  */
 export function goneFrom(k: Kept, now: readonly string[]): string[] {
   const here = new Set(now)
@@ -300,6 +310,7 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
     ...Object.keys(k.listed),
     ...Object.keys(k.erasures),
     ...Object.keys(k.doubted),
+    ...Object.keys(k.reached),
     ...heldBackFor(k),
   ])
   return [...knew].filter((id) => !here.has(id))
@@ -324,10 +335,12 @@ const held = (v: unknown) => v !== null && v !== undefined
 /**
  * Whether anything is kept here for this conversation, by what is kept, not by an entry left empty (PR #199
  * r4235731017): a draft with words; a message held, its refusal or its wait; its erasure held (its key) or in doubt; a
- * start's receipt held back for it; or a message of it with a proposal held, refused or recorded, or a withdrawal held.
+ * start's receipt held back for it, or landed after it (`reached`); or a message of it with a proposal held, refused or
+ * recorded, or a withdrawal held.
  */
 export function keepsFor(k: Kept, id: string): boolean {
-  if ((k.drafts[id] ?? '').trim() !== '' || id in k.doubted || heldBackFor(k).includes(id)) return true
+  if ((k.drafts[id] ?? '').trim() !== '' || id in k.doubted || id in k.reached || heldBackFor(k).includes(id))
+    return true
   if ([k.holds[id], k.refusals[id], k.asked[id], k.erasures[id]].some(held)) return true
   const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
   return messages.some((m) => [k.proposals[m], k.proposalRefusals[m], k.proposed[m], k.withdrawals[m]].some(held))

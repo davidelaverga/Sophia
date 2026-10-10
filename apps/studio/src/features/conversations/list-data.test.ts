@@ -5,7 +5,7 @@ import { ApiError } from '../../api/client.ts'
 import type { ConversationList, ConversationStarted, ConversationSummary } from '../../api/conversations.ts'
 import { LISTS, coverageWords, listKey, listWithdrawn, messagesKey, withLastMessage } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
-import { landed, putHeldBack, putStarted, releasable, replyWait, setListsData, startHeld } from './list-data.ts'
+import { landed, putStarted, releasable, replyWait, setListsData, shownList, startHeld } from './list-data.ts'
 import {
   NO_WORDS,
   changeKept,
@@ -346,28 +346,37 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
       }
       if (landed(talk, r, put, stood)) opened += 1
     }
-    // As the view lands a receipt held back once it is free (useStanding, useLanding): listed by its title only.
+    // As the view lands a receipt held back once it is free (useStanding, useLanding): the list is read again.
     const release = () => {
       const back = releasable(talk.latest())
       if (!back) return
       const put = () => {
         puts.push(`free ${back.receipt.conversation.id}`)
-        putHeldBack(client, 'p', 'ana', back.receipt)
+        void client.invalidateQueries({ queryKey: listKey('p', 'ana') })
       }
       if (landed(talk, back.receipt, put, back.fields)) opened += 1
     }
     return { client, talk, puts, land, release, opens: () => opened }
   }
   /**
-   * Listed by its title only, so it can be opened (r4238533084), and nothing else of the receipt: no opening or writer,
-   * no thread read made of it; its wait noted only as a read shows it (r4238533090). The reads say what it holds now.
+   * Kept reachable by its title only, so it can be opened (r4238533084), whichever list of the newest only is read
+   * since (the cache as read, without it), and nothing else of the receipt: no opening or writer, no thread read made
+   * of it, its wait only as a read set out since shows it (`after`; r4238533090, r4238594445). The reads say the rest.
    */
-  const listedTitleOnly = (client: QueryClient) => {
-    assert.deepEqual(ids(client, listKey('p', 'ana')), ['b', 'a'])
-    const row = client.getQueryData<ConversationList>(listKey('p', 'ana'))?.conversations[0]
-    assert.deepEqual([row?.title, row?.lastMessage, row?.contributors], ['Started', null, []])
+  const reachableTitleOnly = (client: QueryClient) => {
+    const read = client.getQueryData<ConversationList>(listKey('p', 'ana'))?.conversations ?? []
+    assert.deepEqual(
+      read.map((c) => c.id),
+      ['a'],
+    )
+    const shown = shownList(read, keptAt(PLACE) ?? talkHere().latest(), true)
+    assert.deepEqual(
+      shown.map((c) => c.id),
+      ['a', 'b'],
+    )
+    assert.deepEqual([shown[1]?.title, shown[1]?.lastMessage, shown[1]?.contributors], ['Started', null, []])
     assert.equal(client.getQueryCache().find({ queryKey: messagesKey('b', 'ana'), exact: true }), undefined)
-    assert.equal(keptAt(PLACE)?.asked.b?.onlyAsRead, true)
+    assert.equal(typeof keptAt(PLACE)?.asked.b?.after, 'number')
   }
   /** Nothing of the start shown, kept or awaited: the list as read, no thread, the form's words, no wait. */
   const untouched = (client: QueryClient) => {
@@ -438,7 +447,7 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
     release()
     assert.deepEqual(puts, ['free b'])
     assert.equal(opens(), 1)
-    listedTitleOnly(client)
+    reachableTitleOnly(client)
     assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
     assert.equal(keptAt(PLACE)?.start.heldBack, null)
     assert.equal(keptAt(PLACE)?.doubted.b, undefined)
@@ -669,7 +678,7 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
     readAt(9, 'b')
     release()
     assert.deepEqual(puts, ['free b'])
-    listedTitleOnly(client)
+    reachableTitleOnly(client)
     assert.deepEqual(keptAt(PLACE)?.start.fields, NO_WORDS)
   })
 
@@ -680,12 +689,50 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
     readAt(8, 'b', 'a')
     held.release()
     const late = keptAt(PLACE)?.asked.b
-    assert.deepEqual([late?.replyId, late?.messageId, late?.onlyAsRead], ['r1', 'b1', true])
+    assert.deepEqual([late?.replyId, late?.messageId, typeof late?.after], ['r1', 'b1', 'number'])
     const fresh = erasing(null)
     fresh.land(asking)
     assert.equal(keptAt(PLACE)?.asked.b?.replyId, 'r1')
-    assert.equal(keptAt(PLACE)?.asked.b?.onlyAsRead, undefined)
+    assert.equal(keptAt(PLACE)?.asked.b?.after, undefined)
     assert.deepEqual(fresh.puts, ['b'])
+  })
+
+  it('r4238594450: an Ask made in it since (a newer wait noted there) is never replaced by the late Start’s', () => {
+    const { land, release } = erasing(true)
+    land(asking)
+    answered()
+    const newer = { replyId: 'r2', messageId: 'b2', here: 1 }
+    changeKept(PLACE, (k) => ({ ...k, asked: { ...k.asked, b: newer } }))
+    readAt(8, 'b', 'a')
+    release()
+    assert.deepEqual(keptAt(PLACE)?.asked.b, newer)
+    assert.equal(keptAt(PLACE)?.start.heldBack, null)
+  })
+
+  it('r4238533084: kept reachable across a later read of a list of the newest only; a whole list without it lets it go', () => {
+    const { client, land, release } = erasing(true)
+    client.setQueryData(listKey('p', 'ana'), { ...listOf('Older'), more: true })
+    land(asking)
+    answered()
+    readAt(9, 'b')
+    release()
+    // putHeldBack's successor reads the list again: the server's newest only, still without it.
+    client.setQueryData(listKey('p', 'ana'), { ...listOf('Older'), more: true })
+    const kept = keptAt(PLACE) ?? talkHere().latest()
+    const read = client.getQueryData<ConversationList>(listKey('p', 'ana'))?.conversations ?? []
+    assert.deepEqual(
+      shownList(read, kept, true).map((c) => c.id),
+      ['a', 'b'],
+    )
+    // A whole list without it: not shown, and named gone (useSeen settles it; `reached` goes with it).
+    assert.deepEqual(
+      shownList(read, kept, false).map((c) => c.id),
+      ['a'],
+    )
+    assert.deepEqual(goneFrom({ ...kept, listed: {} }, ['a']), ['b'])
+    assert.equal(keepsFor(kept, 'b'), true)
+    changeKept(PLACE, (k) => withoutConversation(k, 'b'))
+    assert.deepEqual(keptAt(PLACE)?.reached, {})
   })
 
   it('a list read that already holds it at a newer revision keeps that row as read (control)', () => {
@@ -704,30 +751,48 @@ describe('a start’s receipt while an erasure of it pressed here is unanswered:
 const asked = (state: string) =>
   [{ id: 'b1', seq: 1, author: 'member', ask: { id: 'r1', state } }] as unknown as Parameters<typeof replyWait>[0]
 
-describe('replyWait: a wait a held-back Start noted is claimed only as a read shows it (PR #199 r4238533090)', () => {
-  const held = { replyId: 'r1', messageId: 'b1', onlyAsRead: true }
-  const here = { replyId: 'r1', messageId: 'b1', onlyAsRead: false }
+describe('replyWait: a wait a held-back Start noted is claimed only as a read set out since shows it (PR #199 r4238533090, r4238594445)', () => {
+  /** Noted at 7 in this view's order. */
+  const held = { replyId: 'r1', messageId: 'b1', after: 7 }
+  const here = { replyId: 'r1', messageId: 'b1', after: null }
 
   it('no read of its thread (none yet, or one failing): no wait claimed, and nothing ends', () => {
-    assert.deepEqual(replyWait([], held), { ended: false, waiting: false })
+    assert.deepEqual(replyWait([], held, 0), { ended: false, waiting: false })
+    assert.deepEqual(replyWait([], held, 9), { ended: false, waiting: false })
   })
 
-  it('the read shows it still open (pending or running): waited on', () => {
+  it('a read set out since shows it still open (pending or running): waited on', () => {
     for (const state of ['pending', 'running']) {
-      assert.deepEqual(replyWait(asked(state), held), { ended: false, waiting: true }, state)
+      assert.deepEqual(replyWait(asked(state), held, 8), { ended: false, waiting: true }, state)
     }
   })
 
-  it('the read shows it ended (answered, blocked, cancelled): ended, not waited on', () => {
+  it('r4238594445: a read cached from before (or at) its noting shows it open: not waited on, nothing ended', () => {
+    for (const readFrom of [0, 6, 7]) {
+      assert.deepEqual(replyWait(asked('running'), held, readFrom), { ended: false, waiting: false }, String(readFrom))
+    }
+  })
+
+  it('a read shows it ended (answered, blocked, cancelled), cached or fresh: ended for good, not waited on', () => {
     for (const state of ['answered', 'blocked', 'cancelled']) {
-      assert.deepEqual(replyWait(asked(state), held), { ended: true, waiting: false }, state)
+      for (const readFrom of [0, 8]) {
+        assert.deepEqual(replyWait(asked(state), held, readFrom), { ended: true, waiting: false }, state)
+      }
     }
   })
 
-  it('a wait asked here, as ever: waited on until a read shows it ended (control)', () => {
-    assert.deepEqual(replyWait([], here), { ended: false, waiting: true })
-    assert.deepEqual(replyWait(asked('answered'), here), { ended: true, waiting: false })
-    assert.deepEqual(replyWait([], { replyId: null, messageId: null, onlyAsRead: false }), {
+  it('a read holding another request on that message, or not the message: not this one, not waited on', () => {
+    const other = [
+      { id: 'b1', seq: 1, author: 'member', ask: { id: 'r9', state: 'running' } },
+    ] as unknown as Parameters<typeof replyWait>[0]
+    assert.deepEqual(replyWait(other, held, 8), { ended: false, waiting: false })
+  })
+
+  it('a wait asked here, as ever: waited on until a read shows it ended, whatever the read (control)', () => {
+    assert.deepEqual(replyWait([], here, 0), { ended: false, waiting: true })
+    assert.deepEqual(replyWait(asked('running'), here, 0), { ended: false, waiting: true })
+    assert.deepEqual(replyWait(asked('answered'), here, 0), { ended: true, waiting: false })
+    assert.deepEqual(replyWait([], { replyId: null, messageId: null, after: null }, 0), {
       ended: false,
       waiting: false,
     })

@@ -44,7 +44,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, putHeldBack, putStarted, releasable, startHeld } from './list-data.ts'
+import { landed, putStarted, releasable, shownList, startHeld } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -133,9 +133,23 @@ function useReader(projectId: string, identity: Identity, membership: Membership
   }
 }
 
+/**
+ * What this view keeps for the project and account (useTalk), and the list as shown with it: as read, with a start that
+ * landed here held back and that a list of the newest only leaves out (list-data `shownList`).
+ */
+function useShown(
+  projectId: string,
+  identity: Identity,
+  reader: { all: readonly ConversationSummary[]; more: boolean },
+) {
+  const talk = useTalk(projectId, accountOf(identity))
+  return { talk, all: shownList(reader.all, talk.kept, reader.more) }
+}
+
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const reader = useReader(projectId, identity, membership, cursor)
-  const { list, all, capability, notice, settled, me, writer } = reader
+  const { talk, all } = useShown(projectId, identity, reader)
+  const { list, capability, notice, settled, me, writer } = reader
   const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
   // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
@@ -143,8 +157,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     ask(to.conversationId)
     panes.show()
   })
-  const talk = useTalk(projectId, accountOf(identity))
-  const erased = useErased(talk, panes, { all, seen: list.isSuccess, whole: reader.whole }, identity)
+  const erased = useErased(talk, panes, { all: reader.all, seen: list.isSuccess, whole: reader.whole }, identity)
   const feedAt = useLatest(cursor)
   const start = useStart(projectId, identity, feedAt, talk, (id) => {
     erased.clear()
@@ -753,7 +766,7 @@ function useStart(
 /**
  * A start's receipt landing: as it comes (`started`: listed, and its first message written where putStarted's gates
  * let it, unless list-data `landed` holds it back), or once held back and now free (`land`, list-data `releasable`):
- * listed by its title only, its wait claimed only as a read shows it (putHeldBack, `landed`): the reads say the rest.
+ * kept reachable by its title only, its wait claimed only as a fresh read shows it (`landed`); the list read again.
  * Either is opened (`arrive`) only for one still on the form.
  */
 function useLanding(
@@ -771,7 +784,7 @@ function useLanding(
       if (landed(talk, receipt, put)) arrive(receipt.conversation.id)
     },
     land: (receipt: ConversationStarted, words: ConversationAsk) => {
-      const put = () => putHeldBack(queryClient, projectId, account, receipt)
+      const put = () => void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
       if (landed(talk, receipt, put, words)) arrive(receipt.conversation.id)
     },
   }

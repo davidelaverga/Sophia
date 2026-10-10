@@ -29,10 +29,11 @@ import {
   replyEndWords,
 } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
-import { dropUnfollowed } from './followed-thread.ts'
+import { dropUnfollowed, readFromOf } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
 import { replyWait } from './list-data.ts'
 import { useKept, withHome, type Asked } from './talk-store.ts'
+import { orderNow } from './withdrawn-purge.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
@@ -100,7 +101,7 @@ function useAwaiting(asked: Asked | null) {
   return {
     replyId: asked?.replyId ?? null,
     messageId: asked?.messageId ?? null,
-    onlyAsRead: asked?.onlyAsRead === true,
+    after: asked?.after ?? null,
     late,
   }
 }
@@ -307,8 +308,10 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     queryKey: key,
     queryFn: ({ pageParam, signal }) => {
       const readAt = at.current
+      // Where in this view's order the newest page's read set out: a wait noted before it is judged by it (replyWait).
+      const readFrom = orderNow()
       return getConversationMessages(identity.token, conversationId, pageParam, signal).then((page) =>
-        pageParam === null && readAt !== undefined ? { ...page, readAt } : page,
+        pageParam === null ? { ...page, readFrom, ...(readAt === undefined ? {} : { readAt }) } : page,
       )
     },
     initialPageParam: null as string | null,
@@ -323,7 +326,7 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
 function Messages(props: {
   read: ReturnType<typeof useTranscript>
   me: string
-  awaiting: { replyId: string | null; messageId: string | null; onlyAsRead: boolean; late: boolean }
+  awaiting: { replyId: string | null; messageId: string | null; after: number | null; late: boolean }
   onAnswered: (replyId: string) => void
   /** The thread grew (a message, or «Sophia is answering…»): its scroll may follow. */
   onGrown: () => void
@@ -335,7 +338,7 @@ function Messages(props: {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
   const messages = read.data?.pages.toReversed().flatMap((p) => p.messages) ?? []
-  const waiting = useReplyWait(messages, props.awaiting, onAnswered)
+  const waiting = useReplyWait(messages, props.awaiting, readFromOf(read.data), onAnswered)
   // Grown at its end (a message, or the wait): an earlier page read above leaves where the reader is.
   const newest = messages.at(-1)?.id
   useEffect(() => onGrown(), [newest, waiting, onGrown])
@@ -383,11 +386,12 @@ function Messages(props: {
  */
 function useReplyWait(
   messages: readonly ConversationMessage[],
-  awaiting: { replyId: string | null; messageId: string | null; onlyAsRead: boolean },
+  awaiting: { replyId: string | null; messageId: string | null; after: number | null },
+  readFrom: number,
   onAnswered: (replyId: string) => void,
 ): boolean {
   const { replyId } = awaiting
-  const { ended, waiting } = replyWait(messages, awaiting)
+  const { ended, waiting } = replyWait(messages, awaiting, readFrom)
   useEffect(() => {
     if (ended && replyId !== null) onAnswered(replyId)
   }, [ended, replyId, onAnswered])

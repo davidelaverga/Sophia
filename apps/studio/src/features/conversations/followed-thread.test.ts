@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import { InfiniteQueryObserver, QueryClient } from '@tanstack/react-query'
 import type { ConversationMessage, ConversationStarted } from '../../api/conversations.ts'
 import { listKey, messagesKey, withMessage, type ThreadHeld } from './conversation-list.ts'
-import { dropUnfollowed, readAtOf } from './followed-thread.ts'
+import { dropUnfollowed, readAtOf, readFromOf } from './followed-thread.ts'
 import { putStarted } from './list-data.ts'
 
 const AT = '2026-10-10T13:55:00.000Z'
@@ -215,5 +215,16 @@ describe('a start’s receipt: stamped where it is current, written only where t
     const client = new QueryClient()
     putStarted(client, 'p', 'ana', startedAt('6'), '5')
     assert.deepEqual(opened(client, b, '5').words, ['Words withdrawn after the start.'])
+  })
+})
+
+/** A thread read of one page, with what its newest page notes. */
+const page = (extra: object) => ({ pages: [{ messages: [], before: null, ...extra }], pageParams: [null] })
+
+describe('where a thread read set out in this view’s order (PR #199 r4238594445)', () => {
+  it('its newest page notes it; a read written here, or none, counts as before all', () => {
+    assert.equal(readFromOf(page({ readFrom: 12 })), 12)
+    assert.equal(readFromOf(page({ readAt: '6' })), 0)
+    assert.equal(readFromOf(undefined), 0)
   })
 })

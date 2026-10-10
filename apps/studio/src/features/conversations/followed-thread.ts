@@ -23,6 +23,15 @@ export function readAtOf(held: ThreadHeld): string | undefined {
   return newest && 'readAt' in newest && typeof newest.readAt === 'string' ? newest.readAt : undefined
 }
 
+/**
+ * Where in this view's order the thread read held set out, as its newest page notes it (`readFrom`, withdrawn-purge
+ * `orderNow`); 0 where not noted (a read written here, or made before it was noted), as if it set out before all.
+ */
+export function readFromOf(held: ThreadHeld): number {
+  const newest = held?.pages[0]
+  return newest && 'readFrom' in newest && typeof newest.readFrom === 'number' ? newest.readFrom : 0
+}
+
 /** A feed position as a number, where it is one. */
 const positionOf = (cursor: string | undefined) =>
   cursor !== undefined && POSITION.test(cursor) ? BigInt(cursor) : undefined
