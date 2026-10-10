@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0042
+# Current checkpoint — CX-0043
+
+Exactc6c3424f/tree8907c95 independently passes the actual local stale-sender crossing after cf3 and457 failures: B,A,You matches canonicalB,A,C under failed list/message reads.116focused/typecheck0/71unchanged external passes. NEW P2 valid105-message pagination sequence loses original contributor provenance after fail-closed purge, then restores C,B,A rather thanC,A,B; helper and actualQueryClient independently FAIL, freshrow/partialpurge controlsPASS. Finding r4237660062 remainsopen; correction requested directly. [Full source, evidence, actions and limits](../coordination/CON-01/CX-0043.md).
+
+S1 review-only32b0c22e/tree9f81aef/PR209 independently scoped-qualified: complete7filedelta/0048unchanged/7terminal+5heldtransport probes/117focused/typecheck0. No native/provider/uncertain dispatch/budget/hostcopy qualification. Branch immutable/unmerged; exactcombined integration/rechecks required. All36 verdicts unchanged, A09/A13native not_run, A24tool limitation/A30not_run.
+
+All36 successful owned stacks plus oldinitdb-onlyfailure clean; sessions89680/46162/35357terminal0, portsclosed/PIDsabsent/PGstopped/clustersremoved/tabs56–58closed. Eachaudit4human/1NULL/5requests/bootstrapgoal1/allmodeloperational0. No hosted/provider/spend or unresolved effect. Main444/PR1908a39 unchanged, currentCIpending; olde91 aggregateFAILED/unwaived. combined reviewed/authorized/deployed/app_verified/owner_acceptedfalse.
+
+OP0001r2/OP0002r2 draftunapproved/approvalexpiryNULL; inbox/actualsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacybackupproviderlimits/sharedruntimewindow/combinedartifact/governedrollback remainopen. Historical10:01–03UTC servingtuple below unrefreshed; currentStudioSHA/installedcomposition unknown. Davide decides acceptance/othermissionsopen. Nextboundedaction immutablepagination correction and independent affected rechecks/fresh exactreview beforeS1integration. No autonomousmonitor.
+
+# Historical checkpoint — CX-0042
 
 Fresh exactcf3 review completed12:48:17UTC with newP2r4237660062. Independently1fail/3controls: newercanonicalB,A row regressesA,B,C whenC4receipt usesstaleA1,B2,A3 pages afterA1withdraw. Freshtombstone/gap/oldreceipt controls pass. ReturnedtoClaude; correctionunpublished/S1held. Prior scopedpasses below stand. Nextboundedaction immutablefreshnesscorrection/affectedindependent app rechecks.
 

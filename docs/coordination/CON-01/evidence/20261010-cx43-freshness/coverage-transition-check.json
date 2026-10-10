@@ -1,0 +1,17 @@
+{
+  "candidate": "457e65dcd260be84bed61221874583ec5fb2ba77",
+  "level": "L0 production helpers/actual QueryClient with synthetic assessed inputs",
+  "passed": 8,
+  "failed": 0,
+  "passedCases": [
+    "Sole newer withdrawal retains partial summary and count with neutral uncertain-since wording",
+    "Uncertain since remains honest after a later adjacent accepted send",
+    "Gap in cached eligible pages cannot turn unknown since into a numeric count",
+    "Known surviving newer message uses uncounted newer wording and preserves projection",
+    "Each range independent: overlap removed while prior summary remains",
+    "Known decision-only stale state not promoted or mislabeled newer",
+    "Repeated withdrawal is idempotent for retained projection and count",
+    "Successful real QueryClient authoritative reread removes view-local uncertainty"
+  ],
+  "failedCases": []
+}

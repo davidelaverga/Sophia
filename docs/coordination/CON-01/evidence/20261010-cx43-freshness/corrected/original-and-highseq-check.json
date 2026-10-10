@@ -1,0 +1,14 @@
+{
+  "candidate": "c6c3424f6b9ce14b8f7e9dbf2e029b9a60f236d4",
+  "scope": "L0 actual production helpers; synthetic complete-prefix writer transition and valid high-sequence one-message page; no mounted/native/live claim",
+  "passed": 5,
+  "failed": 0,
+  "passedCases": [
+    "Original writer A whose first surviving3 follows receipt B2 must reorder to B,A",
+    "Prefix evidence proves surviving B2 and A3, withdrawn1 body stays null",
+    "Initial canonical A1 then receiptB2 remains A,B before withdrawal",
+    "Valid large sequence with absent prefix yields no first, without RangeError",
+    "Ordinary missing prefix yields no invented order"
+  ],
+  "failedCases": []
+}

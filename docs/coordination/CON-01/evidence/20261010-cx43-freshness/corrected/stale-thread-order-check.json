@@ -1,0 +1,13 @@
+{
+  "candidate": "c6c3424f6b9ce14b8f7e9dbf2e029b9a60f236d4",
+  "scope": "L0 actual production helper/synthetic currentAPIrow and independent stale thread; no mounted/provider/live claim",
+  "passed": 4,
+  "failed": 0,
+  "passedCases": [
+    "Newer canonical B,A cannot be reordered from stale A1 by sender C4 receipt",
+    "Fresh tombstone pages and same receipt preserve B,A,C",
+    "Incomplete prefix cannot reorder newer row B,A while adding C once",
+    "Older receipt never changes newer canonical row"
+  ],
+  "failedCases": []
+}

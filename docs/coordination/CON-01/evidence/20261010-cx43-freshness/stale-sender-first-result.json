@@ -1,0 +1,17 @@
+{
+  "candidate": "457e65dcd260be84bed61221874583ec5fb2ba77",
+  "scope": "L0 actual production helper/synthetic currentAPIrow and independent stale thread; no mounted/provider/live claim",
+  "passed": 3,
+  "failed": 1,
+  "passedCases": [
+    "Fresh tombstone pages and same receipt preserve B,A,C",
+    "Incomplete prefix cannot reorder newer row B,A while adding C once",
+    "Older receipt never changes newer canonical row"
+  ],
+  "failedCases": [
+    {
+      "name": "Newer canonical B,A cannot be reordered from stale withdrawn senderC2 by C4 receipt",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'B',\n+   'C',\n    'A',\n-   'C'\n  ]\n"
+    }
+  ]
+}

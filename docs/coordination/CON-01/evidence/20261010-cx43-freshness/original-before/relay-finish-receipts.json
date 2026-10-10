@@ -1,0 +1,13 @@
+[
+  {
+    "at": "2026-10-10T12:54:20.590Z",
+    "kind": "send",
+    "path": "/api/v1/conversations/e72955d1-c860-4ca8-abb6-9cb3aec76918/messages",
+    "idempotencyKey": "3bd08abf-1f77-4376-9f3b-77b44a4b3754",
+    "actualApiStatus": 202,
+    "delayed": false,
+    "delayMs": 0,
+    "substituted": false,
+    "evidence": "Node outgoing finish: bytes handed to transport, not browser consumption"
+  }
+]

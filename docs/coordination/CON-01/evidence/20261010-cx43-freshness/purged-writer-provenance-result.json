@@ -1,0 +1,20 @@
+{
+  "candidate": "c6c3424f6b9ce14b8f7e9dbf2e029b9a60f236d4",
+  "scope": "L0 production helpers; valid canonical row, partial fail-closed cache then complete pages; no mounted claim",
+  "passed": 2,
+  "failed": 2,
+  "passedCases": [
+    "Partial cache fails closed and removes writers whose surviving messages were not held",
+    "Fresh canonical row control retains canonical order"
+  ],
+  "failedCases": [
+    {
+      "name": "Complete pages restore previously named surviving writers in canonical order after fail-closed purge",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'B',\n    'A',\n-   'B'\n  ]\n"
+    },
+    {
+      "name": "Actual QueryClient restores previously purged writers in API order after oldest page arrives",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n  [\n    'C',\n+   'B',\n    'A',\n-   'B'\n  ]\n"
+    }
+  ]
+}

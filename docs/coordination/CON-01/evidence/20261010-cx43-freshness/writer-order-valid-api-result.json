@@ -1,0 +1,13 @@
+{
+  "candidate": "c6c3424f6b9ce14b8f7e9dbf2e029b9a60f236d4",
+  "scope": "L0 production helpers/synthetic canonical old API row at seq1; no mounted/auth/provider claim",
+  "passed": 4,
+  "failed": 0,
+  "passedCases": [
+    "Direct reverse withdrawal preserves API first surviving sequence order C,A,B",
+    "Late row with reverse tombstone page order preserves API contributor order",
+    "Forward withdrawal control preserves C,A,B",
+    "Both surviving writers retained, no duplicates or withdrawn content"
+  ],
+  "failedCases": []
+}

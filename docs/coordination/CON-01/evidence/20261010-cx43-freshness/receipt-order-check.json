@@ -1,0 +1,13 @@
+{
+  "candidate": "457e65dcd260be84bed61221874583ec5fb2ba77",
+  "scope": "L0 actual production helpers, synthetic late trusted receipt/full cached thread; no mounted/auth/providerclaim",
+  "passed": 4,
+  "failed": 0,
+  "passedCases": [
+    "Direct restoration of A2 must precede receipt-added B3",
+    "Late rowsKnown restoration must precede receipt-added B3",
+    "Receipt itself retains known C and adds B once",
+    "Surviving A name and B reader retained,200bound and no duplicate"
+  ],
+  "failedCases": []
+}

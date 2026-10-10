@@ -1,0 +1,116 @@
+{
+  "candidate": "457e65dcd260be84bed61221874583ec5fb2ba77",
+  "tree": "dd3f475efb4f6241278dd224e107a2e45767d46a",
+  "observedAt": "2026-10-10T12:58:23.714Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "d6473526-ecce-49b9-9c65-16f5c491693b",
+  "messages": [
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "67a82065-e48d-4887-be54-9753bc7d8f6b",
+      "conversation_id": "74aad6ed-40dd-4079-869c-7f40329c4819",
+      "actor_id": "6482bd52-f362-40e6-87ec-b47df56e1bef",
+      "seq": "1",
+      "body": "SYNTHETIC B first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "4d9e5e36-d196-4f29-a2c3-bfa880f6d151",
+      "conversation_id": "74aad6ed-40dd-4079-869c-7f40329c4819",
+      "actor_id": "406cce52-d034-40b1-90e1-7a1c2bc488a0",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T12:57:59.789Z"
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "867cca79-1a55-4f6e-8c4f-bf76572c7b5e",
+      "conversation_id": "74aad6ed-40dd-4079-869c-7f40329c4819",
+      "actor_id": "98082d15-24ca-4e1e-9907-9c933a2fbaaf",
+      "seq": "3",
+      "body": "SYNTHETIC A surviving third",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "90a8e8b5-e7f8-4e6f-acd6-7ee2a99e3edb",
+      "conversation_id": "74aad6ed-40dd-4079-869c-7f40329c4819",
+      "actor_id": "406cce52-d034-40b1-90e1-7a1c2bc488a0",
+      "seq": "4",
+      "body": "SYNTHETIC C human-only fourth",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "6482bd52-f362-40e6-87ec-b47df56e1bef",
+      "idempotency_key": "27a6466a-fb20-424c-9797-90697f1e92c0",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5330ccde42281581f28f37610b9174ef048359dbf751d4b51bb3ed3a950c3b25",
+        "titleSha256": "18737aa98ca1e588aa6a15aedbde45e440c8396987f4904bc602f317eb4624f9"
+      },
+      "message_id": "67a82065-e48d-4887-be54-9753bc7d8f6b"
+    },
+    {
+      "actor_id": "406cce52-d034-40b1-90e1-7a1c2bc488a0",
+      "idempotency_key": "7288f2b1-a98d-4b6a-abc8-25a6d1ae4323",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "4d9e5e36-d196-4f29-a2c3-bfa880f6d151"
+    },
+    {
+      "actor_id": "98082d15-24ca-4e1e-9907-9c933a2fbaaf",
+      "idempotency_key": "bdaab048-8f2f-47d5-8d1b-e35b3de89cf3",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "de4331acb084b25f6752b3f63bb3d7250c17a3c8f84b2c96125762bc134fe329",
+        "conversationId": "74aad6ed-40dd-4079-869c-7f40329c4819"
+      },
+      "message_id": "867cca79-1a55-4f6e-8c4f-bf76572c7b5e"
+    },
+    {
+      "actor_id": "6482bd52-f362-40e6-87ec-b47df56e1bef",
+      "idempotency_key": "199f5b98-fee3-4bc8-95c3-0b427a2c73b4",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "4d9e5e36-d196-4f29-a2c3-bfa880f6d151",
+        "operation": "withdraw",
+        "conversationId": "74aad6ed-40dd-4079-869c-7f40329c4819"
+      },
+      "message_id": null
+    },
+    {
+      "actor_id": "406cce52-d034-40b1-90e1-7a1c2bc488a0",
+      "idempotency_key": "af8a1fe2-894c-430d-acf6-cb8300a4e873",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "b9ba859306dd9f74e98d575809509705680ecc0e02718150333d74f6fea4bd4b",
+        "conversationId": "74aad6ed-40dd-4079-869c-7f40329c4819"
+      },
+      "message_id": "90a8e8b5-e7f8-4e6f-acd6-7ee2a99e3edb"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

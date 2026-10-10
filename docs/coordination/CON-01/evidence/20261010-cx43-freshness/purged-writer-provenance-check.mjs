@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const h=await import(pathToFileURL(resolve(process.env.CON01_CANDIDATE_ROOT,'apps/studio/src/features/conversations/conversation-list.ts')));
+const {QueryClient}=await import(pathToFileURL(resolve(process.env.CON01_CANDIDATE_ROOT,'apps/studio/node_modules/@tanstack/react-query/build/modern/index.js')));
+const purge=await import(pathToFileURL(resolve(process.env.CON01_CANDIDATE_ROOT,'apps/studio/src/features/conversations/withdrawn-purge.ts')));
+const at='2026-10-10T12:00:00Z';
+const msg=(seq,actorId)=>({id:'m'+seq,seq,author:'member',actorId,name:'Synthetic '+actorId,text:'Synthetic '+seq,at,withdrawn:null,ask:null,replyTo:null});
+const gone=(seq,actorId)=>({...msg(seq,actorId),text:null,name:null,withdrawn:{at}});
+const page=messages=>({pages:[{messages,before:null}],pageParams:[null]});
+const cov={state:'not_assessed',complete:false,fromSeq:null,throughSeq:null,newer:0,generatedAt:null,replyId:null,eligibilityRevision:null,ledgerRevision:null};
+const row={id:'c',title:'Synthetic',revision:1,summary:null,summaryCoverage:cov,lastAt:at,messageSeq:5,contributors:[{actorId:'C',name:'Synthetic C'}],sophia:false,openQuestions:0,questionsCoverage:cov,output:null,lastMessage:null};
+const messages=[msg(1,'C'),msg(2,'A'),msg(3,'B'),gone(4,'A'),gone(5,'B')];
+const passed=[],failed=[];
+const check=(name,f)=>{try{f();passed.push(name)}catch(e){failed.push({name,error:e.message})}};
+const history=Array.from({length:105},(_,i)=>msg(i+1,i===1?'A':i===2?'B':i===53?'A':i===104?'B':'C'));
+history[53]=gone(54,'A'); history[104]=gone(105,'B');
+const canonical={...row,messageSeq:105,contributors:['C','A','B'].map(actorId=>({actorId,name:'Synthetic '+actorId}))};
+// Actual newest-first pages, each oldest first; the oldest five have not been loaded yet.
+const incomplete={pages:[{messages:history.slice(55),before:'55'},{messages:history.slice(5,55),before:'5'}],pageParams:[null,'55']};
+let purged={conversations:h.rowsKnown([canonical],()=>incomplete,()=>true,'C')};
+check('Partial cache fails closed and removes writers whose surviving messages were not held',()=>assert.deepEqual(purged.conversations[0].contributors.map(x=>x.actorId),['C']));
+const complete={pages:[...incomplete.pages,{messages:history.slice(0,5),before:null}],pageParams:[...incomplete.pageParams,'5']};
+check('Complete pages restore previously named surviving writers in canonical order after fail-closed purge',()=>assert.deepEqual(h.rowsKnown(purged.conversations,()=>complete,()=>true,'C')[0].contributors.map(x=>x.actorId),['C','A','B']));
+check('Fresh canonical row control retains canonical order',()=>assert.deepEqual(h.rowsKnown([canonical],()=>complete,()=>true,'C')[0].contributors.map(x=>x.actorId),['C','A','B']));
+check('Actual QueryClient restores previously purged writers in API order after oldest page arrives',()=>{
+ const client=new QueryClient(); const account='00000000-0000-4000-8000-000000000001';
+ purge.keepWithdrawnPurged(client.getQueryCache());
+ client.setQueryData(h.listKey('p',account),{conversations:[canonical],readFrom:purge.listReadSetsOut()});
+ client.setQueryData(h.messagesKey('c',account),incomplete);
+ assert.deepEqual(client.getQueryData(h.listKey('p',account)).conversations[0].contributors.map(x=>x.actorId),['C']);
+ client.setQueryData(h.messagesKey('c',account),complete);
+ const actual=client.getQueryData(h.listKey('p',account)).conversations[0].contributors.map(x=>x.actorId); client.clear();
+ assert.deepEqual(actual,['C','A','B']);
+});
+process.stdout.write(JSON.stringify({candidate:process.env.CON01_CANDIDATE_SHA,scope:'L0 production helpers; valid canonical row, partial fail-closed cache then complete pages; no mounted claim',passed:passed.length,failed:failed.length,passedCases:passed,failedCases:failed},null,2)+'\n');process.exitCode=failed.length?1:0;

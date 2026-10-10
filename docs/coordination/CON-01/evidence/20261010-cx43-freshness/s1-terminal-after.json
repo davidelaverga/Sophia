@@ -1,0 +1,16 @@
+{
+  "candidate": "32b0c22eecb2210b6dcaff298c5d0d3db39c2406",
+  "scope": "L0 production helpers with synthetic request/message states; no native dispatch/budget/backend/mounted-app claim",
+  "passed": 7,
+  "failed": 0,
+  "passedCases": [
+    "Durable outcome_unknown is terminal, never indefinite wait",
+    "Uncertain ended Ask gives visible no-answer/new-Ask words",
+    "Only pending and running are open; every terminal is ended",
+    "Withdrawal cannot rewrite terminal outcome_unknown into cancelled or restore copies",
+    "Withdrawal still cancels pending/running, each terminal state stays terminal",
+    "Request correlation stays scoped to asking message, never a later reply/request",
+    "Blocked/failed/cancelled still have end words; open/answered have none"
+  ],
+  "failedCases": []
+}

@@ -1,0 +1,14 @@
+{
+  "candidate": "32b0c22eecb2210b6dcaff298c5d0d3db39c2406",
+  "scope": "L0 production held-write control flow/synthetic transport callbacks, no actual DB/native/budget or mountedappclaim",
+  "passed": 5,
+  "failed": 0,
+  "passedCases": [
+    "Lost Send transport retains original key and intent without automatic retry",
+    "Explicit retry reuses admission key and exact intent despite changed fresh text",
+    "Already sending cannot dispatch another call",
+    "Transport outcome_unknown keeps key while durable request outcome_unknown is terminal",
+    "Definite refusal ends held transport and shows refusal instead of spending reset"
+  ],
+  "failedCases": []
+}

@@ -1,0 +1,78 @@
+{
+  "at": "2026-10-10T12:54:43.920Z",
+  "scope": "Read-only supported viewer canonical list, no write replay",
+  "canonical": {
+    "projectId": "f8c29cf9-01eb-43c5-b040-f17b16053b36",
+    "conversations": [
+      {
+        "id": "e72955d1-c860-4ca8-abb6-9cb3aec76918",
+        "title": "SYNTHETIC stale thread regression",
+        "revision": 10,
+        "summary": null,
+        "summaryCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "lastAt": "2026-10-10T12:54:20.576Z",
+        "messageSeq": 4,
+        "contributors": [
+          {
+            "actorId": "53666ef1-dcd1-42ea-a59c-3d6f7de3b96c",
+            "name": "Synthetic B"
+          },
+          {
+            "actorId": "b917c0eb-163c-4c22-a466-ba52bc2585bc",
+            "name": "Synthetic A Surviving"
+          },
+          {
+            "actorId": "cf7e68d8-5081-4ed2-9ecb-a7e6d91d8321",
+            "name": "cf7e68d8@synthetic.example.test"
+          }
+        ],
+        "sophia": false,
+        "openQuestions": 0,
+        "questionsCoverage": {
+          "state": "not_assessed",
+          "complete": false,
+          "fromSeq": null,
+          "throughSeq": null,
+          "newer": 0,
+          "generatedAt": null,
+          "replyId": null,
+          "eligibilityRevision": null,
+          "ledgerRevision": null
+        },
+        "output": null,
+        "lastMessage": {
+          "author": "member",
+          "actorId": "cf7e68d8-5081-4ed2-9ecb-a7e6d91d8321",
+          "name": "cf7e68d8@synthetic.example.test",
+          "text": "SYNTHETIC C human-only fourth",
+          "at": "2026-10-10T12:54:20.576Z",
+          "seq": 4
+        }
+      }
+    ],
+    "more": false,
+    "policy": {
+      "id": "conversation-text-v1",
+      "notice": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "retention": "until_withdrawn_or_erased",
+      "audience": "project_members"
+    },
+    "capability": {
+      "state": "enabled",
+      "write": false,
+      "moderate": false,
+      "ask": "unavailable",
+      "askReason": "replies_not_enabled"
+    }
+  }
+}

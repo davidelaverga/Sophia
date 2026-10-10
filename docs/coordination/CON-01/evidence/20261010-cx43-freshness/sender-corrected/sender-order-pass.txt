@@ -1,0 +1,131 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/studio
+    - link "Conversations":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/conversations
+    - link "Goals":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/goals
+    - link "Tasks":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/work
+    - link "Knowledge":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/knowledge
+    - link "Updates":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/updates
+    - link "Resources":
+      - /url: /p/89299c3b-1c2f-4f9f-bd25-c2c682bb7f89/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC stale sender regression" [pressed]:
+          - generic: SYNTHETIC stale sender regression
+          - generic: 15:03
+          - generic: "You: SYNTHETIC C human-only fourth"
+          - generic: Synthetic B, Synthetic A Surviving, You. No recorded questions yet. Last moved 15:03.
+    - region "Open conversation":
+      - heading "SYNTHETIC stale sender regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: "1"
+        - generic: "Contributors:"
+        - text: Synthetic B, Synthetic A Surviving, You
+      - region "Messages":
+        - alert:
+          - text: This may be out of date.
+          - button "Try again"
+        - list:
+          - generic: Oct 10
+          - text: Synthetic B
+          - text: ·
+          - time: Oct 10, 15:03
+          - paragraph: SYNTHETIC B first message
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - generic: 15:03
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:03
+          - paragraph: SYNTHETIC C old second message
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:03
+          - text: Synthetic A Surviving
+          - text: ·
+          - time: Oct 10, 15:03
+          - paragraph: SYNTHETIC A surviving third
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - generic: 15:03
+          - text: You
+          - text: ·
+          - time: Oct 10, 15:08
+          - paragraph: SYNTHETIC C human-only fourth
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 15:08
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia"
+          - generic: Ask Sophia
+        - button "Send" [disabled] [active]:
+          - generic: Send
+        - paragraph:
+          - generic: To the team only
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status
