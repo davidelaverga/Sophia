@@ -1,0 +1,102 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0066",
+  "candidate": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+  "tree": "8899457399739fde0b5855a623ad3f8af17b75fd",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6 synthetic development accounts; no fixture/provider/runtime/hosted qualification",
+  "finding": {
+    "id": 4238633930,
+    "severity": "P1",
+    "verdict": "FAIL actual app",
+    "erasureAt": "2026-10-10T18:05:18.644Z",
+    "messageReadStatuses": [
+      422,
+      422
+    ],
+    "listReadStatus": 503,
+    "screenshotAt": "2026-10-10T18:05:23.392336+00:00",
+    "observed": "all3 erased bodies, author names, list row and propose controls remain visible under stale notice",
+    "expected": "definitive current transcript not_found purges cached transcript/row immediately, regardless of failed list read",
+    "coverage": "ordinary selected row also affected; reached fallback is not a necessary condition"
+  },
+  "audit": {
+    "candidate": "bfc2635c2dbfffbbaf3189c93845fde2c65eac89",
+    "tree": "8899457399739fde0b5855a623ad3f8af17b75fd",
+    "observedAt": "2026-10-10T18:05:36.954Z",
+    "projectId": "9c54a4bf-28cf-46aa-a74c-1b3e6cdb744e",
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "human": 3,
+    "nullBodies": 3,
+    "requests": 4,
+    "replies": []
+  },
+  "cleanup": {
+    "execSession": 46844,
+    "terminalExit": 0,
+    "tab82Closed": true,
+    "all60OwnedBrowserStacksClean": true,
+    "independent": {
+      "at": "2026-10-10T18:06:17.669368+00:00",
+      "pids": {
+        "pid": {
+          "pid": 94440,
+          "alive": false
+        },
+        "apiPid": {
+          "pid": 94451,
+          "alive": false
+        },
+        "studioPid": {
+          "pid": 94452,
+          "alive": false
+        }
+      },
+      "ports": {
+        "apiPort": {
+          "port": 60615,
+          "open": false
+        },
+        "studioPort": {
+          "port": 60616,
+          "open": false
+        }
+      },
+      "tab82Closed": true,
+      "screenshotAt": "2026-10-10T18:05:23.392336+00:00"
+    }
+  },
+  "limits": {
+    "hostedEffects": 0,
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "unresolvedLocalEffects": false,
+    "reviewerFeatureFix": false
+  },
+  "readiness": {
+    "source_ready": "author candidate only",
+    "locally_verified": "scoped prior passes plus this independently reproduced privacy failure",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operationRequests": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "next": "Claude immutable definitive-open-read settlement/per-page freshness/partial-metadata correction, then independently repeat affected crossings before combined current-main/S1 G4"
+}

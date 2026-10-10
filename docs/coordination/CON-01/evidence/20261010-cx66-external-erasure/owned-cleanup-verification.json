@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-10T18:06:17.669368+00:00",
+  "pids": {
+    "pid": {
+      "pid": 94440,
+      "alive": false
+    },
+    "apiPid": {
+      "pid": 94451,
+      "alive": false
+    },
+    "studioPid": {
+      "pid": 94452,
+      "alive": false
+    }
+  },
+  "ports": {
+    "apiPort": {
+      "port": 60615,
+      "open": false
+    },
+    "studioPort": {
+      "port": 60616,
+      "open": false
+    }
+  },
+  "tab82Closed": true,
+  "screenshotAt": "2026-10-10T18:05:23.392336+00:00"
+}

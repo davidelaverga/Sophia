@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0065
+# Current checkpoint — CX-0066
+
+[Actual-app privacy failure](../coordination/CON-01/CX-0066.md). Exactbfc/tree88994573: external production-persistence erasure18:05:18.644; live transcript422 twice, list503; actual browser18:05:23.392 still displays3 erased bodies/authors/row/propose controls. SQL3/3NULL,4requests,0replies/allops0. Independent mounted failure confirms P1r4238633930 and affects ordinary selected rows too. Returned directly to Claude; immutable correction pending. G3 changes_requested; combinedG4 held.
+
+All60 owned stacks clean;46844terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports60615–16closed/tab82closed. No hosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36 acceptance statuses unchanged. OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL. Actual inbox/subjects/subscription route/allowance/privacy/sharedownerwindow/combinedartifacts/governedrollback remain unbound. source_ready author candidate only; locally_verified scoped failures/passes; reviewed/authorized/deployed/app_verified/owner_accepted false. Davide retains final product decision, other missions open, no monitor.
+
+Next bounded action: independently review immutable correction and repeat actual external-erasure crossing plus affected freshness/partial metadata before current-main/S1 combinedG4.
+
+# Historical checkpoint — CX-0065
 
 [Exact bfc independent review and actual app episode](../coordination/CON-01/CX-0065.md). Complete7-file delta/103focused21suitesPASS0skip/typecheck0; previous reply failures now2L0PASS+6controlsPASS. Actual59th local realStudio/API/PG: capped target survives refetch, remains reachable on return and reopens human message; own explicit erasure202 removes target/text without resurrection on return. Those passes are bounded. New actual P2 fallback falsely says nobody wrote; P3 coverage miscounts retained older row among newest.
 
