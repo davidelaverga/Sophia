@@ -17,7 +17,8 @@
 - `lowContrast` measures each placeholder while it shows (`:placeholder-shown`), at its own ink and opacity
   (`::placeholder`), over the field's grounds: every check that measures a page measures its placeholders too.
   Disabled fields are not left out, as disabled text isn't: none has a placeholder today.
-- `.title-input`'s own placeholder rule is left as it is: no component uses the class (its removal is its own task).
+- `.title-input`'s own placeholder rule is left as it is: no component uses the class (since removed:
+  `title-input-dead.md`).
 
 ## Checks (written first)
 

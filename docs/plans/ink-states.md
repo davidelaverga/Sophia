@@ -28,4 +28,5 @@
 ## Left
 
 - `--text-4` still colours marks only (a separator, a dot before a connection, the disabled send arrow), and the
-  placeholder of `.title-input`, a class no component uses (its removal is its own task): no words a page shows.
+  placeholder of `.title-input`, a class no component uses (since removed: `title-input-dead.md`): no words a page
+  shows.
