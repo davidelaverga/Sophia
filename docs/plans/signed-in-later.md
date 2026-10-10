@@ -32,7 +32,7 @@
   again.
 - The opening still covers the chunk's fetch, within its own 5 s: on a path that never fetched ahead (a link opened in
   another tab, a provider's return) on a slow connection, it may hand off to «Sophia» while the chunk arrives.
-- Production build, what the sign-in downloads: 103 kB gzip of script (from 335) and 15 kB gzip of style (from 40).
+- Production build, what the sign-in downloads: 104 kB gzip of script (from 335) and 15 kB gzip of style (from 40).
   The signed-in Studio (162 kB gzip) and the validators (81 kB gzip) come once a session is there.
 
 ## Checks (written first)
