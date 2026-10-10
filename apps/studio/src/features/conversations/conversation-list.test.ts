@@ -1093,6 +1093,18 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
 const namesOf = (all: readonly { actorId: string; name: string }[] | undefined) =>
   all?.map(({ actorId, name }) => ({ actorId, name }))
 
+/** CX-0043's conversation of 105 places: C everywhere but A's 2 and 54 and B's 3 and 105; 54 and 105 withdrawn. */
+const writerAt105 = (seq: number) => (seq === 2 || seq === 54 ? 'ana' : seq === 3 || seq === 105 ? 'bea' : 'carla')
+const withdrawnAt105 = (seq: number) => seq === 54 || seq === 105
+const at105 = (seq: number) =>
+  msg(seq, {
+    actorId: writerAt105(seq),
+    name: withdrawnAt105(seq) ? null : writerAt105(seq),
+    text: withdrawnAt105(seq) ? null : `words ${String(seq)}`,
+    withdrawn: withdrawnAt105(seq) ? { at: '2026-10-06T10:00:00.000Z' } : null,
+  })
+const span = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => at105(from + i))
+
 /** A list holding only that row. */
 const oneRow = (row: ConversationSummary) =>
   ({ conversations: [row] }) as unknown as Parameters<typeof listWithdrawn>[0]
@@ -1464,6 +1476,52 @@ describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r
     assert.deepEqual(
       a?.contributors.map((p) => p.actorId),
       ['carla', 'lucia', ME],
+    )
+  })
+
+  it('a writer this view took out on a withdrawal, read back from older pages, keeps the place the list read gave them (CX-0043)', () => {
+    // The list read (messageSeq 105) names C, A, B: C1, A2, B3 still shown; A's 54 and B's 105 are withdrawn later.
+    const row = assessed({
+      messageSeq: 105,
+      contributors: [
+        { actorId: 'carla', name: 'carla' },
+        { actorId: 'ana', name: 'ana' },
+        { actorId: 'bea', name: 'bea' },
+      ],
+    })
+    const newest = { messages: span(56, 105), before: '56' }
+    const next = { messages: span(6, 55), before: '6' }
+    const oldest = { messages: span(1, 5), before: null }
+    const partial = { pages: [newest, next], pageParams: [null, '56'] }
+    const whole = { pages: [newest, next, oldest], pageParams: [null, '56', '6'] }
+    // Their words not in the pages read: taken out, failing closed.
+    const [closed] = rowsKnown(
+      [row],
+      (id) => (id === 'a' ? partial : undefined),
+      () => true,
+    )
+    assert.deepEqual(
+      closed?.contributors.map((p) => p.actorId),
+      ['carla'],
+    )
+    // The oldest page read too: back, in the list read's order, by their first places 2 and 3.
+    const [back] = rowsKnown(
+      closed ? [closed] : [],
+      (id) => (id === 'a' ? whole : undefined),
+      () => true,
+    )
+    assert.deepEqual(
+      back?.contributors.map((p) => p.actorId),
+      ['carla', 'ana', 'bea'],
+    )
+    // The fresh list read itself, with every page: as it was.
+    assert.deepEqual(
+      rowsKnown(
+        [row],
+        (id) => (id === 'a' ? whole : undefined),
+        () => true,
+      )[0]?.contributors.map((p) => p.actorId),
+      ['carla', 'ana', 'bea'],
     )
   })
 

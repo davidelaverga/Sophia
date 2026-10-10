@@ -36,6 +36,11 @@ export interface Unnamed {
    * to it, the list read named everyone with a message still shown (below the cap, nobody unnamed; `firstsFor`).
    */
   listSeq?: number
+  /**
+   * Writers this view took out of the row on a withdrawal, their words not shown in the pages read (`writersAfter`):
+   * the list read named them, so their places are no less theirs for it (`firstsFor`; CX-0043).
+   */
+  removedHere?: readonly string[]
 }
 
 /**
@@ -352,7 +357,8 @@ function shownIn(thread: ThreadHeld): ReadonlyMap<string, readonly number[]> {
  * The firsts as `writer`, whom the row doesn't name yet, may take one: only past the place the list read said
  * (`listSeq`), where it named everyone with a message still shown up to it (below the cap, nobody unnamed). One it left
  * out had none there, whatever older pages held here still show, so such a place is never their first (PR #199
- * r4237660062); their first is the next one shown, if proven, else none.
+ * r4237660062); their first is the next one shown, if proven, else none. One it did name, taken out here only because
+ * the pages read didn't show their words (`removedHere`), has no such bound (CX-0043).
  */
 function firstsFor(
   c: ConversationSummary & Unnamed,
@@ -360,7 +366,8 @@ function firstsFor(
   places: readonly number[],
   firsts: ReadonlyMap<string, number>,
 ): ReadonlyMap<string, number> {
-  const bound = c.othersUnnamed || c.contributors.length >= NAMED_AT_MOST ? 0 : (c.listSeq ?? c.messageSeq ?? 0)
+  const named = c.othersUnnamed || c.contributors.length >= NAMED_AT_MOST || c.removedHere?.includes(writer)
+  const bound = named ? 0 : (c.listSeq ?? c.messageSeq ?? 0)
   const theirs = places.find((place) => place > bound)
   const out = new Map(firsts)
   if (theirs === undefined) out.delete(writer)
@@ -421,6 +428,7 @@ export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, rema
     openQuestions: questionsCoverage === NOT_ASSESSED ? 0 : c.openQuestions,
     questionsCoverage,
     contributors: writers.contributors,
+    ...(writers.removedHere ? { removedHere: writers.removedHere } : {}),
     sophia: c.sophia && remains.sophiaStays,
     ...(c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed || writers.othersUnnamed
       ? { othersUnnamed: true as const }
@@ -438,13 +446,11 @@ export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, rema
 function writersAfter(
   c: ConversationSummary & Unnamed,
   remains: Remains,
-): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed'> {
+): Pick<ConversationSummary & Unnamed, 'contributors' | 'othersUnnamed' | 'removedHere'> {
   const { writer, writerName } = remains
   const { contributors } = c
   if (writer === null || (remains.writerStays && writerName === null)) return { contributors }
-  if (!remains.writerStays || writerName === null) {
-    return { contributors: contributors.filter((p) => p.actorId !== writer) }
-  }
+  if (!remains.writerStays || writerName === null) return takenOut(c, writer)
   const them = { actorId: writer, name: writerName }
   const first = remains.firsts.get(writer)
   if (contributors.some((p) => p.actorId === writer)) {
@@ -464,6 +470,18 @@ function writersAfter(
   }
   if (!remains.writerIsReader) return { contributors, othersUnnamed: true }
   return { contributors: [...contributors.slice(0, NAMED_AT_MOST - 1), them], othersUnnamed: true }
+}
+
+/** The row's writers with `writer` taken out, failing closed; one it named kept as named by the list read (`removedHere`). */
+function takenOut(
+  c: ConversationSummary & Unnamed,
+  writer: string,
+): Pick<ConversationSummary & Unnamed, 'contributors' | 'removedHere'> {
+  const named = c.contributors.some((p) => p.actorId === writer) && !c.removedHere?.includes(writer)
+  return {
+    contributors: c.contributors.filter((p) => p.actorId !== writer),
+    ...(named ? { removedHere: [...(c.removedHere ?? []), writer] } : {}),
+  }
 }
 
 /** A writer as a row names them. */
