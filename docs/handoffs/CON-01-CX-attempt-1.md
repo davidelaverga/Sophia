@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0050
+# Current checkpoint — CX-0051
+
+[Independent7ff source/PG and actual browser failure](../coordination/CON-01/CX-0051.md): full15-file delta and OpenAPI-only ConversationStarted change;126focused/typecheck/contracts0;35 actualPGtests/8suites including6 independent subtests+parent, allpass. Actual browser blank before identity selection: server-only contracts root/node:fs import, P1r4237960249. Separate L0 active-thread delayed receipt1FAIL/3controls; Claude617 correction published, source/app qualification pending. No actual delayed episode passed on7ff.
+
+All46 ownedbrowserstacks and separatePGbatch clean; exec77359/48983terminal0, PG stopped/clustersremoved, DB/APIStudio stopped, portsPIDsabsent/tab68closed. Audit3human/3requests/supportgoal1/allmodeloperational0. Remoteempty/dummy remains disclosed. CC54 direction suitable isolated review-only no-grants/no-callersS2 prep; release-before-dispatch must terminally fence exactoutbox/attempt in same transaction, claim-order PGtests required. No sharedwindow/schema/runtime qualification.
+
+All36 verdictsretained; G3failed/G2nativeunqualified/combined reviewed-authorized-deployed-app_verified-owner_acceptedfalse. OP1r2/OP2r2draftunapproved/expiryNULL; inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/runtimewindow/artifacts/governedrollback unbound. No hosted/provider/spend/uncertain effect, historical servingtupleunrefreshed. Nextboundedaction immutable617 affectedsource+actualapp+gate/freshreview; S1held, Davideacceptsproduct/othermissionsopen/no monitor.
+
+# Historical checkpoint — CX-0050
 
 [Exactbc65 newP1 independently actual reproduced](../coordination/CON-01/CX-0050.md): freshreview6098455429 completed14:24:16UTC/newP1r4237924424. RealStart202body held30s/supportedadminwithdrawfirstmessage before response/currentlist removeswriter-preview/messageGET503; stale receipt restoreswithdrawn words+Propose/Withdraw whileDBbodyNULL. ActualFAIL; liftingreadfault/Tryagain→realtombstonePASSrecovery. Candidatewithheld/correctionunpublished/S1held. P2 prior scopedresolution tool-confirmed, no aggregateprivacyqualification.
 

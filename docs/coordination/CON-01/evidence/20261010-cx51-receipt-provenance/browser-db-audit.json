@@ -1,0 +1,87 @@
+{
+  "candidate": "7ff0eac924d0bfeafedac2e60c157d8bfad769bc",
+  "tree": "44f20d0107a02c5075a57bf3cf2aaae21fa157be",
+  "observedAt": "2026-10-10T14:35:29.702Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "02a73c2f-e696-4fef-a2bc-bd6abefca85c",
+  "messages": [
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "d6b0d534-35f0-4ce0-8475-798fb68223ee",
+      "conversation_id": "9d9bc204-a7ce-4978-87e2-2a72b76e423a",
+      "actor_id": "fde481c8-6b1d-40f8-8b7b-acda7487f7e9",
+      "seq": "1",
+      "body": "SYNTHETIC B first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "538508bd-fcc1-448f-80eb-d2696b5eeeae",
+      "conversation_id": "9d9bc204-a7ce-4978-87e2-2a72b76e423a",
+      "actor_id": "7fdf95e0-412b-4bb7-ad23-76e8e09187cf",
+      "seq": "2",
+      "body": "SYNTHETIC C old second message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "f72c6d56-75d8-4d27-ab17-036e6a91c8f1",
+      "conversation_id": "9d9bc204-a7ce-4978-87e2-2a72b76e423a",
+      "actor_id": "7a8978a6-6c27-44e8-8b5f-65cf0ffb903e",
+      "seq": "3",
+      "body": "SYNTHETIC A surviving third",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "fde481c8-6b1d-40f8-8b7b-acda7487f7e9",
+      "idempotency_key": "e382b989-2a1c-4c61-86ec-02aee7367f5d",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5330ccde42281581f28f37610b9174ef048359dbf751d4b51bb3ed3a950c3b25",
+        "titleSha256": "18737aa98ca1e588aa6a15aedbde45e440c8396987f4904bc602f317eb4624f9"
+      },
+      "message_id": "d6b0d534-35f0-4ce0-8475-798fb68223ee"
+    },
+    {
+      "actor_id": "7fdf95e0-412b-4bb7-ad23-76e8e09187cf",
+      "idempotency_key": "98d9d7a0-4776-4f08-b033-4fec4062290a",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ff2c5f55edf25ae541697c17eb3d60f67921bc88a4e68d4cc3feef8c21208f02",
+        "conversationId": "9d9bc204-a7ce-4978-87e2-2a72b76e423a"
+      },
+      "message_id": "538508bd-fcc1-448f-80eb-d2696b5eeeae"
+    },
+    {
+      "actor_id": "7a8978a6-6c27-44e8-8b5f-65cf0ffb903e",
+      "idempotency_key": "5a6db95f-994f-48a4-985a-fc4d41348477",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "de4331acb084b25f6752b3f63bb3d7250c17a3c8f84b2c96125762bc134fe329",
+        "conversationId": "9d9bc204-a7ce-4978-87e2-2a72b76e423a"
+      },
+      "message_id": "f72c6d56-75d8-4d27-ab17-036e6a91c8f1"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

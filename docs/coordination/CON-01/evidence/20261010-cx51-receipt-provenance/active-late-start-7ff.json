@@ -1,0 +1,17 @@
+{
+  "candidate": "7ff0eac924d0bfeafedac2e60c157d8bfad769bc",
+  "scope": "L0 actual QueryClient/InfiniteQueryObserver and production Start/drop helpers; synthetic valid receipts/read failure; no mounted-hook/API/privacy-receipt claim",
+  "passed": 3,
+  "failed": 1,
+  "passedCases": [
+    "Inactive stale receipt is dropped on later opening (existing correction control)",
+    "Eligible receipt stays available when no event past it is known",
+    "Receipt for one reader does not populate another readers thread"
+  ],
+  "failedCases": [
+    {
+      "name": "Active thread with refused read does not display stale Start body after current feed already includes withdrawal",
+      "error": "Expected values to be strictly deep-equal:\n+ actual - expected\n\n+ [\n+   'SYNTHETIC words withdrawn while Start response delayed'\n+ ]\n- []\n"
+    }
+  ]
+}

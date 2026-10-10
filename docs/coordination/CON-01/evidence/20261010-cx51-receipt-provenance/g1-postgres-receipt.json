@@ -1,0 +1,25 @@
+{
+  "candidate": "7ff0eac924d0bfeafedac2e60c157d8bfad769bc",
+  "tree": "44f20d0107a02c5075a57bf3cf2aaae21fa157be",
+  "root": "/Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-candidate",
+  "level": "L1 disposable real PostgreSQL; no provider, hosted writes or app acceptance",
+  "tests": [
+    "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx51/receipt-provenance.test.mjs",
+    "apps/api/src/conversations.db.test.ts",
+    "packages/persistence/src/conversations.db.test.ts"
+  ],
+  "postgres": "pg_ctl (PostgreSQL) 17.6",
+  "at": "2026-10-10T14:34:03.071952+00:00",
+  "command": [
+    "node",
+    "--test",
+    "--test-concurrency=1",
+    "--test-timeout=90000",
+    "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx51/receipt-provenance.test.mjs",
+    "apps/api/src/conversations.db.test.ts",
+    "packages/persistence/src/conversations.db.test.ts"
+  ],
+  "exit": 0,
+  "ownedServerStopped": true,
+  "ownedClusterRemoved": true
+}

@@ -1,0 +1,68 @@
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+(node:68780) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+▶ independent actual API/PG: receipt provenance, replay, isolation, refusal and zero operational work
+  ✔ same-transaction Start cursor is its own event; identical replay writes no second message (50.942834ms)
+  ✔ different project current feed has no bearing on target receipt (8.427667ms)
+  ✔ later target event advances replay cursor, keeps author/id/key and exposes no other conversation (5.607ms)
+  ✔ wrong subject/project and viewer cannot use this write boundary; no body/cursor leaks (2.780625ms)
+  ✔ withdrawn original request cannot replay its body or a misleading current cursor (10.191875ms)
+  ✔ all human-only crossings leave operational/model counts unchanged (1.009ms)
+✔ independent actual API/PG: receipt provenance, replay, isolation, refusal and zero operational work (1038.611125ms)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+strict mode: missing type "object" for keyword "properties" at "#/allOf/1" (strictTypes)
+▶ A16 over HTTP
+  ✔ switched off, no route exists; switched on, every answer matches the contract (106.858792ms)
+  ✔ a body naming an actor, a name, an author, a project or a reply target is refused (CON01-A06) (11.596875ms)
+  ✔ a reply lost after the write committed: the retry under its key returns the same records (CON01-A02, A03) (22.398125ms)
+  ✔ a start receipt names the feed position it is current at, read under its own lock (PR #199 r4237924424) (23.973916ms)
+  ✔ who may: viewer writes refused, outsiders read nothing, and the codes say so (CON01-A05) (7.163708ms)
+  ✔ withdrawal and erasure over HTTP, and the replay of a withdrawn text refused (CON-01-T04) (14.403375ms)
+  ✔ another conversation's cursor is refused before anything is read (CON01-A07) (93.991625ms)
+  ✔ a member removed while their withdrawal waits for the project's row is refused, and the text stays (CON-01-CX-0006) (15.461958ms)
+  ✔ /ready needs 0048's functions only while conversations are served (7.980333ms)
+✔ A16 over HTTP (1657.949416ms)
+▶ the project setting (the cohort and rollback switch)
+  ✔ with no setting, the list is empty and says nothing may be written; a start is refused (12.922125ms)
+  ✔ read-only keeps reads, withdrawal and a replay; refuses new text (19.184542ms)
+✔ the project setting (the cohort and rollback switch) (253.015708ms)
+▶ starting and continuing
+  ✔ a start is a conversation and its first message, with the writer and the name the token carried (43.967834ms)
+  ✔ a failure after the conversation row leaves no conversation, message, request or event (CON01-A01) (17.157083ms)
+  ✔ asking Sophia records a reply request, blocked and saying why, and still starts no work (CON01-A10) (40.135041ms)
+✔ starting and continuing (101.485667ms)
+▶ one intent, one write (CON01-A02, A03, A04)
+  ✔ a retry under the key returns the same conversation and message, and writes nothing more (12.617583ms)
+  ✔ anything changed under an old key is refused: title, text, ask, target, operation (14.197875ms)
+  ✔ a key is the actor's and the project's own: another actor or project under it writes its own (16.238166ms)
+✔ one intent, one write (CON01-A02, A03, A04) (43.293333ms)
+▶ who reads and writes (CON01-A05)
+  ✔ a viewer reads and cannot write; an outsider reads nothing, by project, id or cursor (41.903709ms)
+  ✔ a member removed since cannot read, write or replay what they wrote (11.286ms)
+✔ who reads and writes (CON01-A05) (53.305208ms)
+▶ order and pages (CON01-A07)
+  ✔ concurrent messages each take their own place; pages have no gap or repeat (88.749292ms)
+  ✔ a conversation with more writers than A16 names lists 200, the reader among them, in order (PR #199 review) (118.28225ms)
+  ✔ another conversation's cursor, or a made-up one, is refused (37.717417ms)
+✔ order and pages (CON01-A07) (244.886417ms)
+▶ withdrawal and erasure (CON-01-T04)
+  ✔ an author withdraws their own: its text and name go from every read, and its request can't replay (17.137ms)
+  ✔ an author made a viewer since still withdraws their own; an admin withdraws any (12.251ms)
+  ✔ an open reply request whose history reaches the withdrawn text is cancelled (12.967292ms)
+  ✔ an admin erases a conversation: it leaves every read and its keys cannot replay (13.009041ms)
+✔ withdrawal and erasure (CON-01-T04) (55.50675ms)
+▶ a member removed while their write waits for the project's row (CON-01-CX-0006)
+  ✔ cannot withdraw: membership is read again once the row is held, and the text stays (14.823208ms)
+  ✔ cannot send either, and a member made a viewer meanwhile still withdraws their own (36.750625ms)
+✔ a member removed while their write waits for the project's row (CON-01-CX-0006) (51.684583ms)
+ℹ tests 35
+ℹ suites 8
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10216.382958
