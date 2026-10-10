@@ -1,0 +1,26 @@
+{
+  "candidate": "c4e0da277754067ea370bafd319881f131080ff7",
+  "level": "L0 actual helpers, synthetic late pre-first-contribution row and eligible cached thread; no mounted race claim",
+  "passed": 4,
+  "failed": 3,
+  "passedCases": [
+    "Unrelated existing writer B preserved",
+    "No withdrawn name restored",
+    "Repeated reconciliation does not duplicate contributors",
+    "Full contributor list stays bounded200 and retains existing reader B"
+  ],
+  "failedCases": [
+    {
+      "name": "Direct withdrawal adds known surviving writer absent from stale row",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'Synthetic Surviving'\n"
+    },
+    {
+      "name": "Late row reconciliation adds known surviving writer absent from stale row",
+      "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ undefined\n- 'Synthetic Surviving'\n"
+    },
+    {
+      "name": "Mine includes current reader A whose surviving message is in the cached thread",
+      "error": "Expected values to be strictly equal:\n\n0 !== 1\n"
+    }
+  ]
+}

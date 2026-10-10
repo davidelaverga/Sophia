@@ -1,0 +1,18 @@
+{
+  "candidate": "c4e0da277754067ea370bafd319881f131080ff7",
+  "tree": "2d7107033240e3c2315a1b1ebb19f2c767957e28",
+  "automaticReviewCompletedAt": "2026-10-10T11:41:51.700677Z",
+  "finding": 4237494296,
+  "severity": "P2",
+  "status": "independently_reproduced_unresolved",
+  "command": "CON01_CANDIDATE_ROOT=<owned exactc4e worktree> CON01_CANDIDATE_SHA=c4e0da277754067ea370bafd319881f131080ff7 node <private journal>/cx38/missing-writer-check.mjs",
+  "exit": 1,
+  "passed": 4,
+  "failed": 3,
+  "level": "L0 actual production helpers/synthetic stale row+eligible cached thread; no mounted race claim",
+  "effects": "No new stacks/hosted writes/provider/native/spend/uncertain paid effects; all26owned stacks clean",
+  "hashes": {
+    "missing-writer-check.mjs": "dc85ae3548ad5ac65f764f8b77537247bad20984be475179cac4eabef9d1e517",
+    "c4e-missing-writer-result.json": "5e5b85b34d0146ab56244582448d00f766c232e80130bf4cc1d44a16ee0f559a"
+  }
+}

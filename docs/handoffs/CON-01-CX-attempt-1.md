@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0037
+# Current checkpoint — CX-0038
+
+Fresh exactc4e automaticreview completed11:41:51UTC/newP2r4237494296 independentlyreproducedL0(3fail/4pass): late stale row omitswriterA despitecachedsurvivingAmessage, Minefalse. ReturnedtoClaude with200cap/currentreader-preservation constraint. [Full evidence/handoff](../coordination/CON-01/CX-0038.md). PreviousCX37passes scoped; no new actualappclaim/effects/stacks. All26ownedstacks clean, operations draftunapproved/mailbox-route-caps-policy-expiry-runtimewindow missing. Exacte91backgroundgate independentlyseenRunning, no streamedoutput; fullbrowserfailed/unwaived. Next immutablecorrection/capreaderrechecks then terminalgates/S1/coordinatedG2; wholePR/production/owneracceptance false.
+
+# Historical checkpoint — CX-0037
 
 Currentc4e0da27/tree2d710703 fullcorrectionread,107focused/typecheck0/27externalL0pass. P1 actual70771fail/3c4pass (externalwithdrawal/list503/realAPIthreadtombstone), currentnamepaths unchanged; P2 residualreturned andc4equalifiedL0. [Full record/evidence](../coordination/CON-01/CX-0037.md). All26successfulownedstacks clean+oneinitdb-onlyfailureclean, tabs46-48closed/no live/provider effects/spend. Olde91 fullbrowserFAILED1192pass/2fail/1skip; check/PGsequencepending/no waiver. S1unpublished/runtimewindowpending, OPdraftsapprovalNULL/mailbox-route-caps-policy-expiry missing. A30not_run/wholePRacceptancefalse. Next freshexactreview/terminalreceipts thenS1/coordinatedG2. Davide retains acceptance.
 
