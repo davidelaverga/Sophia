@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test'
 import { DRAWN, drawn } from './drawn.ts'
 
 // Every press stands on one of four heights (docs/plans/control-heights.md): on each fixture page, once drawn, every
-// single-line button a person can see is 24, 28, 32 or 36 px tall. Rows, tiles, covers and cards (48 px or more, or
-// two lines) are not presses on the scale; neither is a press no one sees. Measured on a desktop: a finger's sizes are another rule.
+// single-line button a person can see is 24, 28, 32 or 36 px tall: one with words on one line, or an icon press, a
+// square with no words. A row, a tile or a cover is as wide as the list or card it is in, and is not a press on the
+// scale; neither is a press no one sees. Nothing is told apart by its height: a height is what is measured. Measured on a desktop: a finger's sizes are another rule.
 
 const PAGES = [
   ['sign-in', '/signin.html', DRAWN.signin],
@@ -27,8 +28,9 @@ const SCALE = [24, 28, 32, 36]
 /**
  * In the page: every visible press whose words sit on one line, with its height, class and name. A press is a button,
  * a pill link or anything in the button role; the fixture's own label is not the Studio's. Visible means drawn with a
- * size, not hidden, and inside the viewport. A press is under 48 px (a row, a tile, a cover are not presses on the
- * scale), and its own words take under one and a half lines of its line-height (a two-line chip is left out too).
+ * size, not hidden, and inside the viewport. One line means its own words take under one and a half lines of its
+ * line-height (a two-line chip is left out); with no words, a square is an icon press. A press as wide as its parent
+ * is a row, a tile or a cover, not a press; one whose word stands on end is a rail.
  */
 function readPresses() {
   // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
@@ -38,7 +40,6 @@ function readPresses() {
     return (
       r.width > 0 &&
       r.height > 0 &&
-      r.height < 48 &&
       cs.visibility !== 'hidden' &&
       cs.display !== 'none' &&
       r.bottom > 0 &&
@@ -63,12 +64,34 @@ function readPresses() {
         bottom = Math.max(bottom, r.bottom)
       }
     }
-    if (!Number.isFinite(top)) return 1
+    if (!Number.isFinite(top)) return null
     const lh = parseFloat(getComputedStyle(el).lineHeight)
     return Number.isFinite(lh) && lh > 0 ? (bottom - top) / lh : 1
   }
+  // A row, a tile or a cover is as wide as the list or card it is in; a press is as wide as its words. Never told apart
+  // by its height: a height is what is measured.
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+  const fillsItsRow = (el: Element) => {
+    const parent = el.parentElement
+    // Within a border's width of its parent (a cover sits inside its card's edge).
+    return !!parent && el.getBoundingClientRect().width >= parent.getBoundingClientRect().width - 4
+  }
+  // An edge (the personal space's way across) stands on end, its word written downwards: a rail, not a press.
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+  const standsOnEnd = (el: Element) =>
+    [el, ...el.querySelectorAll('*')].some((e) => getComputedStyle(e).writingMode.startsWith('vertical'))
+  // A press with no words of its own is an icon press when it is a square (a microphone, Close).
+  // oxlint-disable-next-line unicorn/consistent-function-scoping -- page.evaluate sends only this function to the page
+  const square = (el: Element) => {
+    const r = el.getBoundingClientRect()
+    return Math.abs(r.width - r.height) <= 1
+  }
   return [...document.querySelectorAll('button, a.pill, [role="button"]')]
-    .filter((el) => !el.closest('.fixture-label') && seen(el) && lines(el) < 1.5)
+    .filter((el) => {
+      if (el.closest('.fixture-label') || !seen(el) || fillsItsRow(el) || standsOnEnd(el)) return false
+      const n = lines(el)
+      return n === null ? square(el) : n < 1.5
+    })
     .map((el) => ({
       height: Math.round(el.getBoundingClientRect().height),
       className: el.className,
