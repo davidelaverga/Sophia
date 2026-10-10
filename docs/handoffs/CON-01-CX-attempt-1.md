@@ -1,4 +1,10 @@
-# Current checkpoint — CX-0061
+# Current checkpoint — CX-0062
+
+[Actual blocked-reply falsewait failure](../coordination/CON-01/CX-0062.md). Exact35d actualAskStart202delayed60s/erasurefirst403/deferredreceipt/currentlist200/messageGET503: UI falselyclaimsSophiaisanswering, SQLblocked/replies_not_enabled. RestoremessageGET+UIretry→honestblockednotice/falsewaitgonePASS. Bothfresh5480084066P2findingsnowindependentlyactualreproduced (capCX61/waitCX62); firstpage-reviewretrieval corrected/paginated5480084066 submitted17:22:43. Claude implementing immutable correction/notaccepted.
+
+Final4human0NULL4requests1blockedreply/supportgoal1/allopsmodel0. All57ownedbrowserstacks+historicinitdbfailure+3PGbatchesclean;70176terminal0/DBdropped/APIStudioPGstopped/clusterremoved/PIDsabsent/ports55124–25closed/tab79closed. Nohosted/provider/spend/unresolvedwrite/reviewerfeaturefix. All36statusesretained/currentG3changes_requested/combinedreadinessfalse/OP1r2OP2r2draftunapproved/approvalexpiryNULL. Inboxsubjectsroutecredentialpayerfinitecapexpiryprivacylimitssharedownerwindowartifactrollbackunbound/historicalhostedtuple/Davidefinaldecision/othermissionsopen/no monitor. Nextboundedaction immutabletwofix correction+affectedactualrechecks, then currentmainS1G4ifclear.
+
+# Historical checkpoint — CX-0061
 
 [Exact35d actual recovery/reachability review](../coordination/CON-01/CX-0061.md).77focused/18suitesPASS0skip/typecheck0. Actual genuine503recovery PASS/noduplicate; unknowncommittederase→samekey403beforeStart PASS/originaldraftpreserved/currentwholelistsettles. Cappedcurrentlist/directGET200 FAIL: formcleared but createdtargetunreachable, matching freshr4238533084. Freshr4238533090 staleaskedwait validsource/not actualwaittested. BothreturnedtoClaude/smallestcorrectionpending; combinedheld.
 

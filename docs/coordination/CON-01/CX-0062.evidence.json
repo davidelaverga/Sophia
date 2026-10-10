@@ -1,0 +1,183 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "checkpoint": "CX-0062",
+  "candidate": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+  "tree": "8f938ee64c9e49cd7e06b15dbe1d5df2dfeaa1b6",
+  "scope": "L1 actual local Studio/API/PostgreSQL17.6 with synthetic development identities; actual blocked request/no provider/runtime dispatch",
+  "verdicts": [
+    {
+      "case": "deferred blocked request then current-list landing while message reads fail",
+      "verdict": "FAIL P2",
+      "finding": 4238533090,
+      "observed": "UI claims Sophia is answering although durable request blocked/replies_not_enabled"
+    },
+    {
+      "case": "restore message reads and actual UI retry",
+      "verdict": "PASS bounded",
+      "observed": "Current blocked reply notice appears and false wait clears"
+    }
+  ],
+  "automaticReview": {
+    "id": 5480084066,
+    "at": "2026-10-10T17:22:43Z",
+    "commit": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+    "findings": [
+      4238533084,
+      4238533090
+    ]
+  },
+  "audits": [
+    {
+      "file": "audit-before-landing.json",
+      "at": "2026-10-10T17:31:04.246Z",
+      "humanMessages": 4,
+      "nullBodies": 0,
+      "semanticRequests": 4,
+      "replies": [
+        {
+          "id": "1e8906a5-ddb0-47c6-994f-7d26e712a9d8",
+          "conversation_id": "effd014a-96b3-48d8-b07c-c63b1c640c68",
+          "message_id": "295613bf-fe80-49c9-a83b-d0aa7af3af59",
+          "asked_by": "4ea1f53c-09b2-4793-9db6-719a03ebeed3",
+          "cutoff_seq": "1",
+          "state": "blocked",
+          "reason": "replies_not_enabled"
+        }
+      ],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 1
+      }
+    },
+    {
+      "file": "audit-false-wait.json",
+      "at": "2026-10-10T17:32:03.404Z",
+      "humanMessages": 4,
+      "nullBodies": 0,
+      "semanticRequests": 4,
+      "replies": [
+        {
+          "id": "1e8906a5-ddb0-47c6-994f-7d26e712a9d8",
+          "conversation_id": "effd014a-96b3-48d8-b07c-c63b1c640c68",
+          "message_id": "295613bf-fe80-49c9-a83b-d0aa7af3af59",
+          "asked_by": "4ea1f53c-09b2-4793-9db6-719a03ebeed3",
+          "cutoff_seq": "1",
+          "state": "blocked",
+          "reason": "replies_not_enabled"
+        }
+      ],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 1
+      }
+    },
+    {
+      "file": "audit-final.json",
+      "at": "2026-10-10T17:32:18.614Z",
+      "humanMessages": 4,
+      "nullBodies": 0,
+      "semanticRequests": 4,
+      "replies": [
+        {
+          "id": "1e8906a5-ddb0-47c6-994f-7d26e712a9d8",
+          "conversation_id": "effd014a-96b3-48d8-b07c-c63b1c640c68",
+          "message_id": "295613bf-fe80-49c9-a83b-d0aa7af3af59",
+          "asked_by": "4ea1f53c-09b2-4793-9db6-719a03ebeed3",
+          "cutoff_seq": "1",
+          "state": "blocked",
+          "reason": "replies_not_enabled"
+        }
+      ],
+      "counts": {
+        "goals": 1,
+        "jobs": 0,
+        "work_attempts": 0,
+        "execution_bindings": 0,
+        "commands": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_replies": 1
+      }
+    }
+  ],
+  "cleanup": {
+    "stack": {
+      "candidate": "35d2cf2fe1b706e8bd7a69fdaeda8e085afb7224",
+      "tree": "8f938ee64c9e49cd7e06b15dbe1d5df2dfeaa1b6",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 55124,
+      "studioPort": 55125,
+      "pid": 89429,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "children": {
+      "projectId": "5549431e-563e-4596-8feb-130e39872b97",
+      "apiStopped": true,
+      "studioStopped": true,
+      "databaseDropped": true
+    },
+    "independent": {
+      "at": "2026-10-10T17:34:13.282496+00:00",
+      "pids": {
+        "pid": "absent",
+        "apiPid": "absent",
+        "studioPid": "absent"
+      },
+      "ports": {
+        "apiPort": {
+          "port": 55124,
+          "closed": true
+        },
+        "studioPort": {
+          "port": 55125,
+          "closed": true
+        }
+      }
+    },
+    "execSession": 70176,
+    "terminalExit": 0,
+    "tab": 79,
+    "tabClosed": true,
+    "all57OwnedBrowserStacksClean": true
+  },
+  "limits": {
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainSpend": 0,
+    "hostedEffects": 0,
+    "unresolvedLocalWrite": false,
+    "sourceFrozen": true,
+    "reviewerFeatureFix": false
+  },
+  "operations": {
+    "OP0001r2": "draft_not_authorized",
+    "OP0002r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null
+  },
+  "readiness": {
+    "combined_reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Immutable capped-reachability/current-reply-wait correction: independently read and rerun affected actual cases before current-main/S1 combinedG4."
+}
