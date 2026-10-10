@@ -1,0 +1,32 @@
+{
+  "recordedAt": "2026-10-10T20:05:59Z",
+  "turnClassification": "verified_wait",
+  "publishedCandidate": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "latestAutomaticReview": 5480526458,
+  "author": {
+    "source": "CUA exact Claude desktop mission UI, verified session URL before acting",
+    "session": "session_01KUDtFK9gWthsXSrepcLQz3",
+    "liveTask": "Memoize Open's handlers; typecheck and lint the source",
+    "status": "running",
+    "workObserved": "Server scoped read/route/A16 generation and conversation database tests reported complete; client denied marks, scoped read, erasure/gone wording and render gate being implemented; test-file updates remain",
+    "authorReportedResults": "Three new persistence tests pass; both conversation DB files pass after fixing the unauthenticated HTTP test helper",
+    "independentQualification": "No immutable correction published. Author results are not independently rerun or accepted. Partial mutable UI edit inspection does not qualify source."
+  },
+  "ci": [
+    { "run": 38080024705, "event": "pull_request", "head": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da", "attempt": 1, "status": "in_progress", "browserJob": 114294857894, "liveStep": "Run pnpm --filter @sophia/studio test:browser", "conclusion": null },
+    { "run": 38080021388, "event": "push", "head": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da", "attempt": 1, "status": "in_progress", "browserJob": 114294848026, "conclusion": null }
+  ],
+  "privatePreparation": "g3-scoped-read-correction: independent asserted revoked-actor forbidden / authorized-viewer success crossing and finite8min actual-app plan prepared, unexecuted. No copied results/markers/secrets.",
+  "newOwnedProcesses": 0,
+  "allPriorOwnedStacksClean": 67,
+  "newAppEpisode": false,
+  "newFeaturePatchAuthored": false,
+  "hostedEffects": 0,
+  "providerCalls": 0,
+  "paidSpend": 0,
+  "uncertainWrite": false,
+  "acceptanceStatusesChanged": false,
+  "operationRequests": "OP1r2/OP2r2 remain draft_not_authorized; approval/expiry null",
+  "nextBoundedAction": "Review immutable author correction and terminal focused receipts; independently rerun affected real PostgreSQL/browser crossings. Do not restart live author/CI work because it is still running."
+}
