@@ -14,7 +14,6 @@ import type {
 } from '@sophia/contracts'
 import {
   asErrorBody,
-  ContractViolation,
   parseExchangeReceipt,
   parseProjectCreated,
   parseReceipt,
@@ -28,8 +27,8 @@ export class ApiError extends Error {
   readonly code: string
   readonly retry: ApiErrorBody['retry']
 
-  constructor(status: number, code: string, message: string, retry: ApiErrorBody['retry']) {
-    super(message)
+  constructor(status: number, code: string, message: string, retry: ApiErrorBody['retry'], options?: ErrorOptions) {
+    super(message, options)
     this.status = status
     this.code = code
     this.retry = retry
@@ -38,10 +37,11 @@ export class ApiError extends Error {
 
 /**
  * A refusal with no words of its own, the same over any protocol (HTTP/2 carries no status text, and an empty refusal
- * shows as nothing): what happened, and «Try again» only where trying again can help.
+ * shows as nothing): what happened, and «Try again» only where trying again can help. The status is the code's
+ * (`http_502`), never the person's to read (docs/plans/copy-no-raw-codes.md).
  */
 const unreadRefusal = (status: number) =>
-  `That didn’t go through (HTTP ${String(status)}).${status >= 500 || status === 429 ? ' Try again.' : ''}`
+  `That didn’t go through.${status >= 500 || status === 429 ? ' Try again.' : ''}`
 
 /** The reply's error body when it matches the contract; otherwise the HTTP status speaks, in words. */
 export async function toError(res: Response, retry: ApiErrorBody['retry'] = 'never'): Promise<ApiError> {
@@ -61,8 +61,8 @@ async function readBody<T>(res: Response, parse: (value: unknown) => T, retry: A
     if (res.status === 204) return parse(null)
     return parse(await res.json())
   } catch (err: unknown) {
-    const message = err instanceof ContractViolation ? err.message : 'Unreadable reply from Sophia'
-    throw new ApiError(res.status, 'contract_violation', message, retry)
+    // The person reads that the reply couldn't be read; the contract's own words stay with the error, for us.
+    throw new ApiError(res.status, 'contract_violation', 'Sophia’s reply couldn’t be read.', retry, { cause: err })
   }
 }
 

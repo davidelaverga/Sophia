@@ -48,7 +48,8 @@ function notProducedNote(reason: string | null): string {
   const blocked = /^blocked:\s*(.+)$/s.exec(reason)
   if (blocked?.[1]) return `Not produced: ${blocked[1]}`
   if (reason.startsWith('no_result_submitted')) return 'Not produced: the research ended without submitting a report.'
-  return `Not produced (${reason}).`
+  // A reason the Studio doesn't know is a code, not words: the plain line instead.
+  return 'No report was produced.'
 }
 
 const ENDED_BADLY: ReadonlySet<string> = new Set(['failed', 'outcome_unknown', 'denied'])
@@ -67,10 +68,26 @@ export function htmlNote(html: ResearchProgress['html']): string | null {
 
 const htmlFailed = (html: ResearchProgress['html']) => html?.state === 'failed' || html?.state === 'not_started'
 
+/** A reason in words after its kind («cancelled: a newer version of the report was published»): the words alone. */
+const reasonWords = (reason: string | null | undefined) =>
+  /^(?:stopped|cancelled|blocked):\s*(.+)$/s.exec(reason ?? '')?.[1]?.replace(/\.$/, '') ?? null
+
+/** A line, closed with its reason in words when there is one, never with a code. */
+const withReason = (line: string, reason: string | null | undefined) => {
+  const words = reasonWords(reason)
+  return words ? `${line}: ${words}.` : `${line}.`
+}
+
+/** The service's own line about the PDF, its code taken out: «… again (failed: render_error)» says «… again.». */
+function pdfNewsSaid(reason: string): string {
+  const coded = /^(.*?)\s*\(([^)]*)\)\.?$/s.exec(reason)
+  return coded?.[1] ? withReason(coded[1], coded[2]) : reason.replace(/\.?$/, '.')
+}
+
 function partialNote({ pdfReason, pdfRendering }: PdfNews): string {
   if (pdfRendering) return 'The Markdown report is ready. The PDF is being rendered again.'
   return pdfReason
-    ? `The Markdown report is ready. ${pdfReason.replace(/\.?$/, '.')}`
+    ? `The Markdown report is ready. ${pdfNewsSaid(pdfReason)}`
     : 'The Markdown report is ready; the PDF was not produced.'
 }
 
@@ -185,7 +202,7 @@ export function renditionWords(r: ResearchRendition): string {
   }
   if (r.state === 'succeeded') return 'The PDF is ready.'
   if (r.state === 'failed' || r.state === 'cancelled')
-    return `The PDF could not be produced again (${r.reason ?? r.state}).`
+    return withReason('The PDF could not be produced again', r.reason)
   return 'Rendering the PDF again. It appears here when it’s ready.'
 }
 
@@ -547,23 +564,31 @@ export interface SourceWords {
   tone: Tone
   /** The retrieval route, or null for the project's own input. */
   route: string | null
-  /** The origin's HTTP status in words; "unknown" when the extractor did not report it. */
+  /** What the page answered, in words; said unknown when the reading didn't report it. */
   origin: string | null
+}
+
+/** What a source's page answered, in words: never its status code, nor the services that read it. */
+function originSaid(status: number | null): string {
+  if (status === null) return 'The page’s answer isn’t known'
+  if (status < 400) return 'The page answered'
+  if (status === 404 || status === 410) return 'The page wasn’t found'
+  return status < 500 ? 'The page refused' : 'The page’s site had an error'
 }
 
 /** The provenance of one cited source in words (plan §2.6): what was read, by which route, what is known. */
 export function sourceWords(source: Pick<ReportSource, 'kind' | 'coverage' | 'originHttpStatus'>): SourceWords {
   if (source.kind === 'input') return { coverage: 'From the project', tone: 'muted', route: null, origin: null }
   if (source.kind === 'search_results') {
-    return { coverage: 'Snippet only', tone: 'amber', route: 'Search results (Tavily)', origin: null }
+    return { coverage: 'Snippet only', tone: 'amber', route: 'A search snippet', origin: null }
   }
   const coverage =
     source.coverage === 'complete' ? 'Read in full' : source.coverage === 'partial' ? 'Read in part' : 'Not read'
   return {
     coverage,
     tone: source.coverage === 'complete' ? 'teal' : source.coverage === 'partial' ? 'lav' : 'rose',
-    route: 'Page extraction (Jina)',
-    origin: source.originHttpStatus === null ? 'Origin status unknown' : `Origin answered ${source.originHttpStatus}`,
+    route: 'Read from the page',
+    origin: originSaid(source.originHttpStatus),
   }
 }
 

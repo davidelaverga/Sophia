@@ -83,5 +83,8 @@ export function reviewSaid(view: ItemView | null): string | null {
   return of ? `${said} for ${view.review.candidate_version_ref ?? ''}, ${of}` : said
 }
 
-/** A version in a few words: its id, its type and the start of its hash. */
-export const versionSaid = (c: Candidate) => `${c.version_id} · ${c.media_type} · ${c.sha256.slice(0, 8)}`
+/** What a version is, in words: Markdown, a page or a PDF; another type is not named. */
+const KIND: Record<string, string> = { 'text/markdown': 'Markdown', 'text/html': 'Page', 'application/pdf': 'PDF' }
+
+/** A version in a few words: its name and its kind, never its media type or a piece of its hash. */
+export const versionSaid = (c: Candidate) => [c.version_id, KIND[c.media_type]].filter(Boolean).join(' · ')
