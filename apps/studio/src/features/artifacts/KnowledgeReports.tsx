@@ -9,7 +9,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
-import { Search } from '@sophia/ui'
+import { Search, Segmented } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
@@ -160,13 +160,13 @@ function MoreReports({ loading, onMore }: { loading: boolean; onMore: () => void
 /** A filter, not tabs: no panel of its own, so pressed buttons, as the project filter beside it. */
 function FormatFilter({ format, onFormat }: { format: Format; onFormat: (format: Format) => void }) {
   return (
-    <div className="segmented" role="group" aria-label="Format">
-      {FORMATS.map(([value, label]) => (
-        <button key={value} type="button" aria-pressed={format === value} onClick={() => onFormat(value)}>
-          {label}
-        </button>
-      ))}
-    </div>
+    <Segmented
+      role="group"
+      label="Format"
+      items={FORMATS.map(([value, label]) => ({ id: value, label }))}
+      value={format}
+      onChange={onFormat}
+    />
   )
 }
 
@@ -181,24 +181,24 @@ interface FilterProps {
 function ProjectFilter({ projectId, project, counts, onProject }: FilterProps) {
   const others = project === 'all' || project !== projectId ? counts.filter((c) => c.projectId !== projectId) : []
   return (
-    <div className="segmented" role="group" aria-label="Project">
-      <button type="button" aria-pressed={project === projectId} onClick={() => onProject(projectId)}>
-        This project
-      </button>
-      <button type="button" aria-pressed={project === 'all'} onClick={() => onProject('all')}>
-        All projects
-      </button>
-      {others.map((c) => (
-        <button
-          key={c.projectId}
-          type="button"
-          aria-pressed={project === c.projectId}
-          onClick={() => onProject(c.projectId)}
-        >
-          {c.title} <span className="count">{c.count}</span>
-        </button>
-      ))}
-    </div>
+    <Segmented
+      role="group"
+      label="Project"
+      items={[
+        { id: projectId, label: 'This project' },
+        { id: 'all', label: 'All projects' },
+        ...others.map((c) => ({
+          id: c.projectId,
+          label: (
+            <>
+              {c.title} <span className="count">{c.count}</span>
+            </>
+          ),
+        })),
+      ]}
+      value={project}
+      onChange={onProject}
+    />
   )
 }
 

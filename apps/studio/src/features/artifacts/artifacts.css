@@ -1096,28 +1096,12 @@
 }
 
 /* The format switch (S5b): Markdown or PDF, for a version that has both. */
+/* The format switch: the kit's small segmented (32 with 24), kept on the tabs' line. */
 .report-format {
   display: inline-flex;
   align-self: center;
   margin-block: 3px; /* 32 + 6: the tabs' 38, so the bar keeps its height beside them */
   margin-left: auto;
-  padding: 2px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-}
-.report-format button {
-  height: 26px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--r-2);
-  background: none;
-  color: var(--text-2);
-  font-size: 12px;
-  font-weight: 500;
-}
-.report-format button[aria-pressed='true'] {
-  background: rgba(236, 235, 241, 0.08);
-  color: var(--text);
 }
 /* On touch the switch's buttons take the tabs' 44 px (above): no margin beside them, so the bar is no taller than it was. */
 @media (pointer: coarse) {

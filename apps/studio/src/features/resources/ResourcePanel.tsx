@@ -3,8 +3,7 @@
 // where everything else is. It goes in ProjectShell's `resources`. Its owner's acts (guidance, Hold, Stop) and effort
 // requests go out through `onAct` and `onEffort`, to whoever the host passes; nothing here calls a tool.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Search as SearchField, useSlidingThumb } from '@sophia/ui'
-import { nextInRow } from '../../app/roving.ts'
+import { Search as SearchField, Segmented } from '@sophia/ui'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
@@ -141,36 +140,15 @@ interface FiltersProps {
 }
 
 function Filters({ filter, counts, onChange }: FiltersProps) {
-  const tabs = useRef(new Map<Filter, HTMLButtonElement>())
-  const thumb = useSlidingThumb<HTMLDivElement>(filter)
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    const next = nextInRow(FILTERS, filter, event.key)
-    if (!next) return
-    event.preventDefault()
-    onChange(next)
-    tabs.current.get(next)?.focus()
-  }
   return (
-    <div ref={thumb} className="segmented resource-filters" role="tablist" aria-label="Show" onKeyDown={onKeyDown}>
-      {FILTERS.map((f) => (
-        <button
-          key={f}
-          ref={(el) => {
-            if (el) tabs.current.set(f, el)
-          }}
-          type="button"
-          role="tab"
-          data-thumb={f}
-          aria-selected={f === filter}
-          aria-controls="resource-grid"
-          tabIndex={f === filter ? 0 : -1}
-          onClick={() => onChange(f)}
-        >
-          {FILTER_LABEL[f]}
-          <span className="filter-count">{counts[f]}</span>
-        </button>
-      ))}
-    </div>
+    <Segmented
+      role="tablist"
+      label="Show"
+      className="resource-filters"
+      items={FILTERS.map((f) => ({ id: f, label: FILTER_LABEL[f], count: counts[f], controls: 'resource-grid' }))}
+      value={filter}
+      onChange={onChange}
+    />
   )
 }
 

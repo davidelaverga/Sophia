@@ -1,6 +1,7 @@
 // A thumb that slides to the active option of a segmented control or a navigation. The container gets
 // --thumb-x and --thumb-w (the active child's offset and width) and data-thumb-ready once placed, so the
-// first placement is instant and later ones glide. The container must be `position: relative`.
+// first placement is instant and later ones glide. The container must be `position: relative`. The thumb follows
+// the active option when it changes size too (the web font arriving), not only the container.
 import { useLayoutEffect, useRef } from 'react'
 
 export function useSlidingThumb<T extends HTMLElement>(active: string) {
@@ -15,8 +16,13 @@ export function useSlidingThumb<T extends HTMLElement>(active: string) {
     }
     place()
     const ready = requestAnimationFrame(() => box.setAttribute('data-thumb-ready', ''))
+    // Placed again when the box or the active option changes size: the web font arriving reshapes every option
+    // without always widening the box (a box of a fixed width, one that wraps), which left the thumb 2–3 px short.
     const observer = new ResizeObserver(place)
     observer.observe(box)
+    const chosen = box.querySelector<HTMLElement>(`[data-thumb="${CSS.escape(active)}"]`)
+    if (chosen) observer.observe(chosen)
+    void document.fonts.ready.then(place)
     return () => {
       cancelAnimationFrame(ready)
       observer.disconnect()

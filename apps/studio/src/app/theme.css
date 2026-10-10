@@ -1229,6 +1229,7 @@ img.avatar {
 .segmented {
   position: relative;
   display: flex;
+  min-height: 36px;
   padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
@@ -1272,8 +1273,18 @@ img.avatar {
   color: var(--text-2);
 }
 /* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
-.segmented button:is([aria-selected='true'], [aria-checked='true']) {
+.segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
   color: var(--text);
+}
+/* The small one (docs/plans/segmented-scale.md): 32 px with 24 px presses in the small type, as the report viewer's
+   format switch. */
+.segmented.sz-sm {
+  min-height: 32px;
+}
+.segmented.sz-sm button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: var(--type-small);
 }
 /* A filter's count reads (the third ink); the chosen one's a step up, under its word. */
 .segmented .filter-count {
@@ -1282,7 +1293,7 @@ img.avatar {
   font-size: var(--type-small);
   color: var(--text-3);
 }
-.segmented button:is([aria-selected='true'], [aria-checked='true']) > .filter-count {
+.segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) > .filter-count {
   color: var(--text-2);
 }
 
