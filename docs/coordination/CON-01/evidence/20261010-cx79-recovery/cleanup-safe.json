@@ -1,0 +1,28 @@
+{
+  "pids": {
+    "19965": false,
+    "19989": false,
+    "19998": false,
+    "19999": false
+  },
+  "ports": {
+    "51791": false,
+    "51792": false
+  },
+  "stack": {
+    "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+    "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+    "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+    "apiPort": 51791,
+    "studioPort": 51792,
+    "pid": 19965,
+    "exit": 0,
+    "postgresStopped": true,
+    "clusterRemoved": true
+  },
+  "finalAudit": {
+    "at": "2026-10-10T21:26:20.975Z",
+    "exit": 0,
+    "phase": "API/Studio stopped, before disposable DB drop"
+  }
+}

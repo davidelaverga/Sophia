@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-10T21:26:20.715Z",
+  "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+  "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+  "humanMessages": 206,
+  "nullBodies": 4,
+  "requests": 207,
+  "replies": 0,
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "originalKey": "1135c650-beac-44cb-b7e8-25dec399ab3d",
+  "erasureRequests": [
+    {
+      "actor_id": "88549d1e-62b8-4631-b012-08813828da3b",
+      "idempotency_key": "1135c650-beac-44cb-b7e8-25dec399ab3d",
+      "operation": "erase",
+      "semantic_request": {
+        "operation": "erase",
+        "conversationId": "b032d7c4-7f65-4e51-a8fd-e2560121947a"
+      },
+      "message_id": null
+    }
+  ],
+  "writeReceipts": [
+    {
+      "at": "2026-10-10T21:25:52.412Z",
+      "kind": "erasure",
+      "path": "/api/v1/conversations/b032d7c4-7f65-4e51-a8fd-e2560121947a/erasure",
+      "idempotencyKey": "1135c650-beac-44cb-b7e8-25dec399ab3d",
+      "actualApiStatus": 202,
+      "bodyWithheld": false
+    }
+  ],
+  "readCeiling": {
+    "count": 35,
+    "limit": 200,
+    "armedAt": "2026-10-10T21:22:16.042Z",
+    "contained": false
+  }
+}

@@ -1,0 +1,1079 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/studio
+    - link "Conversations":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/conversations
+    - link "Goals":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/goals
+    - link "Tasks":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/work
+    - link "Knowledge":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/knowledge
+    - link "Updates":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/updates
+    - link "Resources":
+      - /url: /p/2023b1a0-196d-46bb-8779-551ea4a992eb/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - paragraph: "Only the newest 200 conversations are listed here: older ones can’t be opened from this list yet."
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC stale sender regression" [active] [pressed]:
+          - generic: SYNTHETIC stale sender regression
+          - generic: 23:21
+          - generic: "Synthetic C Old: SYNTHETIC authorized other member bumps existing conversation after restore"
+          - generic: You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 200":
+          - generic: SYNTHETIC CAP 200
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 200"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 199":
+          - generic: SYNTHETIC CAP 199
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 199"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 198":
+          - generic: SYNTHETIC CAP 198
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 198"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 197":
+          - generic: SYNTHETIC CAP 197
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 197"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 196":
+          - generic: SYNTHETIC CAP 196
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 196"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 195":
+          - generic: SYNTHETIC CAP 195
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 195"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 194":
+          - generic: SYNTHETIC CAP 194
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 194"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 193":
+          - generic: SYNTHETIC CAP 193
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 193"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 192":
+          - generic: SYNTHETIC CAP 192
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 192"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 191":
+          - generic: SYNTHETIC CAP 191
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 191"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 190":
+          - generic: SYNTHETIC CAP 190
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 190"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 189":
+          - generic: SYNTHETIC CAP 189
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 189"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 188":
+          - generic: SYNTHETIC CAP 188
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 188"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 187":
+          - generic: SYNTHETIC CAP 187
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 187"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 186":
+          - generic: SYNTHETIC CAP 186
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 186"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 185":
+          - generic: SYNTHETIC CAP 185
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 185"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 184":
+          - generic: SYNTHETIC CAP 184
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 184"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 183":
+          - generic: SYNTHETIC CAP 183
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 183"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 182":
+          - generic: SYNTHETIC CAP 182
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 182"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 181":
+          - generic: SYNTHETIC CAP 181
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 181"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 180":
+          - generic: SYNTHETIC CAP 180
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 180"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 179":
+          - generic: SYNTHETIC CAP 179
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 179"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 178":
+          - generic: SYNTHETIC CAP 178
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 178"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 177":
+          - generic: SYNTHETIC CAP 177
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 177"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 176":
+          - generic: SYNTHETIC CAP 176
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 176"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 175":
+          - generic: SYNTHETIC CAP 175
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 175"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 174":
+          - generic: SYNTHETIC CAP 174
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 174"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 173":
+          - generic: SYNTHETIC CAP 173
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 173"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 172":
+          - generic: SYNTHETIC CAP 172
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 172"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 171":
+          - generic: SYNTHETIC CAP 171
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 171"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 170":
+          - generic: SYNTHETIC CAP 170
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 170"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 169":
+          - generic: SYNTHETIC CAP 169
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 169"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 168":
+          - generic: SYNTHETIC CAP 168
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 168"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 167":
+          - generic: SYNTHETIC CAP 167
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 167"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 166":
+          - generic: SYNTHETIC CAP 166
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 166"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 165":
+          - generic: SYNTHETIC CAP 165
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 165"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 164":
+          - generic: SYNTHETIC CAP 164
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 164"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 163":
+          - generic: SYNTHETIC CAP 163
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 163"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 162":
+          - generic: SYNTHETIC CAP 162
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 162"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 161":
+          - generic: SYNTHETIC CAP 161
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 161"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 160":
+          - generic: SYNTHETIC CAP 160
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 160"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 159":
+          - generic: SYNTHETIC CAP 159
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 159"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 158":
+          - generic: SYNTHETIC CAP 158
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 158"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 157":
+          - generic: SYNTHETIC CAP 157
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 157"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 156":
+          - generic: SYNTHETIC CAP 156
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 156"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 155":
+          - generic: SYNTHETIC CAP 155
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 155"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 154":
+          - generic: SYNTHETIC CAP 154
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 154"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 153":
+          - generic: SYNTHETIC CAP 153
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 153"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 152":
+          - generic: SYNTHETIC CAP 152
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 152"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 151":
+          - generic: SYNTHETIC CAP 151
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 151"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 150":
+          - generic: SYNTHETIC CAP 150
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 150"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 149":
+          - generic: SYNTHETIC CAP 149
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 149"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 148":
+          - generic: SYNTHETIC CAP 148
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 148"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 147":
+          - generic: SYNTHETIC CAP 147
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 147"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 146":
+          - generic: SYNTHETIC CAP 146
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 146"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 145":
+          - generic: SYNTHETIC CAP 145
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 145"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 144":
+          - generic: SYNTHETIC CAP 144
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 144"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 143":
+          - generic: SYNTHETIC CAP 143
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 143"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 142":
+          - generic: SYNTHETIC CAP 142
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 142"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 141":
+          - generic: SYNTHETIC CAP 141
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 141"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 140":
+          - generic: SYNTHETIC CAP 140
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 140"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 139":
+          - generic: SYNTHETIC CAP 139
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 139"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 138":
+          - generic: SYNTHETIC CAP 138
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 138"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 137":
+          - generic: SYNTHETIC CAP 137
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 137"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 136":
+          - generic: SYNTHETIC CAP 136
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 136"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 135":
+          - generic: SYNTHETIC CAP 135
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 135"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 134":
+          - generic: SYNTHETIC CAP 134
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 134"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 133":
+          - generic: SYNTHETIC CAP 133
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 133"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 132":
+          - generic: SYNTHETIC CAP 132
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 132"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 131":
+          - generic: SYNTHETIC CAP 131
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 131"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 130":
+          - generic: SYNTHETIC CAP 130
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 130"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 129":
+          - generic: SYNTHETIC CAP 129
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 129"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 128":
+          - generic: SYNTHETIC CAP 128
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 128"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 127":
+          - generic: SYNTHETIC CAP 127
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 127"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 126":
+          - generic: SYNTHETIC CAP 126
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 126"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 125":
+          - generic: SYNTHETIC CAP 125
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 125"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 124":
+          - generic: SYNTHETIC CAP 124
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 124"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 123":
+          - generic: SYNTHETIC CAP 123
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 123"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 122":
+          - generic: SYNTHETIC CAP 122
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 122"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 121":
+          - generic: SYNTHETIC CAP 121
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 121"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 120":
+          - generic: SYNTHETIC CAP 120
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 120"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 119":
+          - generic: SYNTHETIC CAP 119
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 119"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 118":
+          - generic: SYNTHETIC CAP 118
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 118"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 117":
+          - generic: SYNTHETIC CAP 117
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 117"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 116":
+          - generic: SYNTHETIC CAP 116
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 116"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 115":
+          - generic: SYNTHETIC CAP 115
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 115"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 114":
+          - generic: SYNTHETIC CAP 114
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 114"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 113":
+          - generic: SYNTHETIC CAP 113
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 113"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 112":
+          - generic: SYNTHETIC CAP 112
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 112"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 111":
+          - generic: SYNTHETIC CAP 111
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 111"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 110":
+          - generic: SYNTHETIC CAP 110
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 110"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 109":
+          - generic: SYNTHETIC CAP 109
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 109"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 108":
+          - generic: SYNTHETIC CAP 108
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 108"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 107":
+          - generic: SYNTHETIC CAP 107
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 107"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 106":
+          - generic: SYNTHETIC CAP 106
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 106"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 105":
+          - generic: SYNTHETIC CAP 105
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 105"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 104":
+          - generic: SYNTHETIC CAP 104
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 104"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 103":
+          - generic: SYNTHETIC CAP 103
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 103"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 102":
+          - generic: SYNTHETIC CAP 102
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 102"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 101":
+          - generic: SYNTHETIC CAP 101
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 101"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 100":
+          - generic: SYNTHETIC CAP 100
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 100"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 99":
+          - generic: SYNTHETIC CAP 99
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 99"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 98":
+          - generic: SYNTHETIC CAP 98
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 98"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 97":
+          - generic: SYNTHETIC CAP 97
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 97"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 96":
+          - generic: SYNTHETIC CAP 96
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 96"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 95":
+          - generic: SYNTHETIC CAP 95
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 95"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 94":
+          - generic: SYNTHETIC CAP 94
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 94"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 93":
+          - generic: SYNTHETIC CAP 93
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 93"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 92":
+          - generic: SYNTHETIC CAP 92
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 92"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 91":
+          - generic: SYNTHETIC CAP 91
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 91"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 90":
+          - generic: SYNTHETIC CAP 90
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 90"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 89":
+          - generic: SYNTHETIC CAP 89
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 89"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 88":
+          - generic: SYNTHETIC CAP 88
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 88"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 87":
+          - generic: SYNTHETIC CAP 87
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 87"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 86":
+          - generic: SYNTHETIC CAP 86
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 86"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 85":
+          - generic: SYNTHETIC CAP 85
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 85"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 84":
+          - generic: SYNTHETIC CAP 84
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 84"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 83":
+          - generic: SYNTHETIC CAP 83
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 83"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 82":
+          - generic: SYNTHETIC CAP 82
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 82"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 81":
+          - generic: SYNTHETIC CAP 81
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 81"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 80":
+          - generic: SYNTHETIC CAP 80
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 80"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 79":
+          - generic: SYNTHETIC CAP 79
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 79"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 78":
+          - generic: SYNTHETIC CAP 78
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 78"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 77":
+          - generic: SYNTHETIC CAP 77
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 77"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 76":
+          - generic: SYNTHETIC CAP 76
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 76"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 75":
+          - generic: SYNTHETIC CAP 75
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 75"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 74":
+          - generic: SYNTHETIC CAP 74
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 74"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 73":
+          - generic: SYNTHETIC CAP 73
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 73"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 72":
+          - generic: SYNTHETIC CAP 72
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 72"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 71":
+          - generic: SYNTHETIC CAP 71
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 71"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 70":
+          - generic: SYNTHETIC CAP 70
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 70"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 69":
+          - generic: SYNTHETIC CAP 69
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 69"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 68":
+          - generic: SYNTHETIC CAP 68
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 68"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 67":
+          - generic: SYNTHETIC CAP 67
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 67"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 66":
+          - generic: SYNTHETIC CAP 66
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 66"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 65":
+          - generic: SYNTHETIC CAP 65
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 65"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 64":
+          - generic: SYNTHETIC CAP 64
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 64"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 63":
+          - generic: SYNTHETIC CAP 63
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 63"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 62":
+          - generic: SYNTHETIC CAP 62
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 62"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 61":
+          - generic: SYNTHETIC CAP 61
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 61"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 60":
+          - generic: SYNTHETIC CAP 60
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 60"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 59":
+          - generic: SYNTHETIC CAP 59
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 59"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 58":
+          - generic: SYNTHETIC CAP 58
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 58"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 57":
+          - generic: SYNTHETIC CAP 57
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 57"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 56":
+          - generic: SYNTHETIC CAP 56
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 56"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 55":
+          - generic: SYNTHETIC CAP 55
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 55"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 54":
+          - generic: SYNTHETIC CAP 54
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 54"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 53":
+          - generic: SYNTHETIC CAP 53
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 53"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 52":
+          - generic: SYNTHETIC CAP 52
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 52"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 51":
+          - generic: SYNTHETIC CAP 51
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 51"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 50":
+          - generic: SYNTHETIC CAP 50
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 50"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 49":
+          - generic: SYNTHETIC CAP 49
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 49"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 48":
+          - generic: SYNTHETIC CAP 48
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 48"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 47":
+          - generic: SYNTHETIC CAP 47
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 47"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 46":
+          - generic: SYNTHETIC CAP 46
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 46"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 45":
+          - generic: SYNTHETIC CAP 45
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 45"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 44":
+          - generic: SYNTHETIC CAP 44
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 44"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 43":
+          - generic: SYNTHETIC CAP 43
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 43"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 42":
+          - generic: SYNTHETIC CAP 42
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 42"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 41":
+          - generic: SYNTHETIC CAP 41
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 41"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 40":
+          - generic: SYNTHETIC CAP 40
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 40"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 39":
+          - generic: SYNTHETIC CAP 39
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 39"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 38":
+          - generic: SYNTHETIC CAP 38
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 38"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 37":
+          - generic: SYNTHETIC CAP 37
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 37"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 36":
+          - generic: SYNTHETIC CAP 36
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 36"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 35":
+          - generic: SYNTHETIC CAP 35
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 35"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 34":
+          - generic: SYNTHETIC CAP 34
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 34"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 33":
+          - generic: SYNTHETIC CAP 33
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 33"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 32":
+          - generic: SYNTHETIC CAP 32
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 32"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 31":
+          - generic: SYNTHETIC CAP 31
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 31"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 30":
+          - generic: SYNTHETIC CAP 30
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 30"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 29":
+          - generic: SYNTHETIC CAP 29
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 29"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 28":
+          - generic: SYNTHETIC CAP 28
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 28"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 27":
+          - generic: SYNTHETIC CAP 27
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 27"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 26":
+          - generic: SYNTHETIC CAP 26
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 26"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 25":
+          - generic: SYNTHETIC CAP 25
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 25"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 24":
+          - generic: SYNTHETIC CAP 24
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 24"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 23":
+          - generic: SYNTHETIC CAP 23
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 23"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 22":
+          - generic: SYNTHETIC CAP 22
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 22"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 21":
+          - generic: SYNTHETIC CAP 21
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 21"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 20":
+          - generic: SYNTHETIC CAP 20
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 20"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 19":
+          - generic: SYNTHETIC CAP 19
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 19"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 18":
+          - generic: SYNTHETIC CAP 18
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 18"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 17":
+          - generic: SYNTHETIC CAP 17
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 17"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 16":
+          - generic: SYNTHETIC CAP 16
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 16"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 15":
+          - generic: SYNTHETIC CAP 15
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 15"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 14":
+          - generic: SYNTHETIC CAP 14
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 14"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 13":
+          - generic: SYNTHETIC CAP 13
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 13"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 12":
+          - generic: SYNTHETIC CAP 12
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 12"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 11":
+          - generic: SYNTHETIC CAP 11
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 11"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 10":
+          - generic: SYNTHETIC CAP 10
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 10"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 9":
+          - generic: SYNTHETIC CAP 9
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 9"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 8":
+          - generic: SYNTHETIC CAP 8
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 8"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 7":
+          - generic: SYNTHETIC CAP 7
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 7"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 6":
+          - generic: SYNTHETIC CAP 6
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 6"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 5":
+          - generic: SYNTHETIC CAP 5
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 5"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 4":
+          - generic: SYNTHETIC CAP 4
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 4"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 3":
+          - generic: SYNTHETIC CAP 3
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 3"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+        - button "SYNTHETIC CAP 2":
+          - generic: SYNTHETIC CAP 2
+          - generic: 23:21
+          - generic: "You: SYNTHETIC LOCAL CAP SETUP 2"
+          - generic: You. No recorded questions yet. Last moved 23:21.
+    - region "Open conversation":
+      - heading "SYNTHETIC stale sender regression" [level=3]
+      - paragraph:
+        - generic: S
+        - generic: S
+        - generic: S
+        - generic: "Contributors:"
+        - text: You, Synthetic C Old, Synthetic A Surviving
+      - region "Messages":
+        - status: Reading this conversation again… Taking longer than usual. After a quiet spell, the first answer can take up to a minute.
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+        - button "Erase this conversation"
+      - heading "Project context" [level=3]
+      - paragraph: No mission accepted yet.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - paragraph: None accepted yet.
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

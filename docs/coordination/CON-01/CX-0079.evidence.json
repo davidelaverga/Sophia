@@ -1,0 +1,114 @@
+{
+  "record": "CX-0079",
+  "episode": 71,
+  "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+  "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "verdicts": {
+    "refusalRecoveryFailedRead": "FAIL P2: terminal503 after authorized freshlist leaves endless Waiting/no retry",
+    "withheldOldContent": "PASS scoped: refused C2 words/composer remain hidden until actual200",
+    "unknownOwnErasure": "PASS scoped: original exactdraft and pendingintent survive, originalkey retry202 yields exactlyoneDBerase",
+    "old200AfterNew403": "NOT_QUALIFIED: first cancelled; second transport200 finished before newer403"
+  },
+  "audit": {
+    "at": "2026-10-10T21:26:20.715Z",
+    "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+    "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+    "humanMessages": 206,
+    "nullBodies": 4,
+    "requests": 207,
+    "replies": 0,
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "originalKey": "1135c650-beac-44cb-b7e8-25dec399ab3d",
+    "erasureRequests": [
+      {
+        "actor_id": "88549d1e-62b8-4631-b012-08813828da3b",
+        "idempotency_key": "1135c650-beac-44cb-b7e8-25dec399ab3d",
+        "operation": "erase",
+        "semantic_request": {
+          "operation": "erase",
+          "conversationId": "b032d7c4-7f65-4e51-a8fd-e2560121947a"
+        },
+        "message_id": null
+      }
+    ],
+    "writeReceipts": [
+      {
+        "at": "2026-10-10T21:25:52.412Z",
+        "kind": "erasure",
+        "path": "/api/v1/conversations/b032d7c4-7f65-4e51-a8fd-e2560121947a/erasure",
+        "idempotencyKey": "1135c650-beac-44cb-b7e8-25dec399ab3d",
+        "actualApiStatus": 202,
+        "bodyWithheld": false
+      }
+    ],
+    "readCeiling": {
+      "count": 35,
+      "limit": 200,
+      "armedAt": "2026-10-10T21:22:16.042Z",
+      "contained": false
+    }
+  },
+  "cleanup": {
+    "pids": {
+      "19965": false,
+      "19989": false,
+      "19998": false,
+      "19999": false
+    },
+    "ports": {
+      "51791": false,
+      "51792": false
+    },
+    "stack": {
+      "candidate": "52090daa8655899ffb0a606aed043cbcfe9d0b55",
+      "tree": "cb8be295dc54c2c49b929eaa462aee6eb6dcdf2f",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 51791,
+      "studioPort": 51792,
+      "pid": 19965,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "finalAudit": {
+      "at": "2026-10-10T21:26:20.975Z",
+      "exit": 0,
+      "phase": "API/Studio stopped, before disposable DB drop"
+    }
+  },
+  "tab94Closed": true,
+  "all71OwnedStacksClean": true,
+  "feedback": {
+    "claudeMessage": 385,
+    "request": "Smallest author correction for terminal failure UI while hidden; maintain draft/intents/order, fail-before/after, immutable source/tree and affected invalidation",
+    "reviewerFeatureFix": false
+  },
+  "limits": [
+    "Local actualPG17.6/API/Studio synthetic dev identities only, no fixtures/native/provider/hosted",
+    "Source Thread branch independently read, exact terminal503 receipts and DOM/screenshot; no hidden query-store inspection",
+    "Only preforward503 unknown erasure, not completed upstream/lost202",
+    "No consumption claim for late200, no broad privacy/native/hosted/fullG4 acceptance"
+  ],
+  "readiness": {
+    "source_ready": "author frozen5209; newcorrection requested",
+    "locally_verified": "named scopedPASS and recoveryP2FAIL",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL",
+  "next": "Immutable Claude recovery correction; independent affected failure/success/retry and synchronized late200 crossing with final audit; then current-main/S1/PR190 combinedG4"
+}

@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0078
+# Current checkpoint — CX-0079
+
+[Independent actual recovery failure](../coordination/CON-01/CX-0079.md), [structured evidence](../coordination/CON-01/CX-0079.evidence.json). Exact52090daa/treecb8be295/main0ccc344d. Actual mounted403→exactmembershiprestore→freshlist200→ownterminal503 leaves endlessReading/noRetry; oldbody/composer hidden correctly. SourceThread branch independently read; P2smallest correction sent exactClaude385, freeze released aftercleanup. No reviewer featurefix. PriorCX78mountedfirst403PASS stands; CX77remount causalqualificationrefined/inconclusive.
+
+Sameepisode actualreadrestoration recovers exactdraft+Notconfirmedintent; UIretryoriginal1135c650key202, exactlyoneSQLerase PASS. Final206human/4NULL/207requests/0replies/bootstrapgoal1/allmodeloperational0/35reads. Both late200stimuli unqualified (cancelled first; secondfinishedbefore newer403), no orderingupgrade. Wrapper3449exit0/quiescedaudit0/PGstoppedclusterremoved/PIDsabsent/ports51791-92closed/tab94closed; all71ownedstacks clean, no unknown localwrite.
+
+All36 statuses retained; G3changes_requested/G4held/e4c8failuresunwaived/S1PR209separate/PR190d90unabsorbed/obsoletecombinedunqualified. OP1r2/OP2r2draft_not_authorized/approvalexpiryNULL; lastlive tuple inLIVE_PREFLIGHTunchanged. Inbox/cohort/subscription route/credential/payer/finiteallowanceexpiry/privacy/sharedownerwindow/combinedartifacts/rollback unbound. No hosted/native/provider/spend/deploy/app_verified/owneracceptance; Davide productdecision, othermissions open.
+
+Next boundedaction: immutableClaude recoverycorrection and independentactualfailed/successfulretry, synchronizedold200crossing/finalSQL thencombinedG4ifclear.
+
+# Historical checkpoint — CX-0078
 
 [Independent current evidence](../coordination/CON-01/CX-0078.md), [structured receipt](../coordination/CON-01/CX-0078.evidence.json). Exact52090daa/treecb8be295, main0ccc344d. Complete2filedelta independently read; Studio typecheck0. Proper mounted terminal503→membershiprevoke→MessagesTryagain→actual403→fullfence238mslater scopedPASS. No frame-zero claim. CX77 remount causal failure qualification withdrawn as inconclusive: canceledGET/replacement not excluded; observed facts retained, bot+authorframefailbefore separatevalid. Exact Claude message383 received refinement.
 
