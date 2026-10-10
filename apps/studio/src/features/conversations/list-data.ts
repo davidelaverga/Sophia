@@ -3,11 +3,10 @@
 // so «This may be out of date» stays while its reads fail, whatever is written here (PR #199 r4235976256,
 // r4237298620, r4237767985). `setQueryData` would mark the read answered; `Query.setState({ data })` does not.
 import type { QueryClient } from '@tanstack/react-query'
-import type { ApiError } from '../../api/client.ts'
 import type { ConversationAsk, ConversationList, ConversationStarted } from '../../api/conversations.ts'
 import { listKey, messagesKey } from './conversation-list.ts'
 import { followedAt } from './followed-thread.ts'
-import type { Held, Refusal } from './held-write.ts'
+import type { Held } from './held-write.ts'
 import { NO_WORDS, withEntry, type Kept } from './talk-store.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
@@ -91,15 +90,19 @@ interface Talk {
  *
  * Nor while an erasure of it pressed here is on its way or has had no reply: it may have erased already. The receipt is
  * held back with the start (`heldBack`), with none of that done, and the form starts nothing new meanwhile (startHeld):
- * erased, it goes (talk-store `retired`); refused, it lands then, once (`released`; PR #199 r4238177970). Held back
- * where this view keeps things for this project and account: forgotten with the account, kept while the view is away.
+ * erased, it goes (talk-store `retired`); answered otherwise, a list read made since says whether it lands (`standing`;
+ * PR #199 r4238177970, r4238256883). Held back where this view keeps things for this project and account: forgotten
+ * with the account, kept while the view is away.
  */
 export function landed(talk: Talk, receipt: ConversationStarted, put: () => void, words?: ConversationAsk): boolean {
   const { conversation, reply } = receipt
   const k = talk.latest()
   if (k.erased[conversation.id]) return false
   if ((k.erasures[conversation.id] ?? null) !== null) {
-    talk.change((was) => ({ ...was, start: { ...was.start, heldBack: { receipt, fields: was.start.fields } } }))
+    talk.change((was) => ({
+      ...was,
+      start: { ...was.start, heldBack: { receipt, fields: was.start.fields, answered: false } },
+    }))
     return false
   }
   put()
@@ -127,31 +130,21 @@ export function startHeld(start: Kept['start']): Held<ConversationAsk> | null {
 }
 
 /**
- * An erasure pressed here, refused outright (`err`): a start's receipt held back for it lands now, once (`land`, as
- * if it had just come, with the form's words as they stood when it was held back), and nothing is sent. Unless the
- * conversation may not stand: refused as not found (it is gone), or by the server failing (a 5xx, whatever it says),
- * which may have come after the erasure took. Then it never lands, and the form's words stay (PR #199 r4238177970).
+ * A start's receipt held back for an erasure answered without erasing it here (talk-store `heldBack.answered`): a
+ * refusal of that erasure proves nothing of an earlier try that had no reply, whatever it says (PR #199 r4238256883,
+ * CX-0059), so only a list read set out since (`read.readFrom` past `since`, this view's order when it asked: a read
+ * cached or under way before says nothing) says. Listing it, it stands: the receipt lands, once (`land`, as if it had
+ * just come, with the form's words as they stood when it was held back; putStarted's gates as ever), and nothing is
+ * sent. Not listing it, nothing lands: a whole list without it lets it go (useSeen settles it, goneFrom naming it), and
+ * one of the newest only has it read directly (probes, keepsFor): its not found lets it go, any other answer keeps it.
  */
-export function released(
+export function standing(
   talk: Talk,
-  conversationId: string,
-  err: ApiError,
+  read: { listed: readonly string[]; readFrom: number },
+  since: number | null,
   land: (receipt: ConversationStarted, words: ConversationAsk) => void,
 ): void {
   const back = talk.latest().start.heldBack
-  if (back?.receipt.conversation.id !== conversationId) return
-  talk.change((k) => ({ ...k, start: { ...k.start, heldBack: null } }))
-  if (err.status >= 400 && err.status < 500 && err.code !== 'not_found') land(back.receipt, back.fields)
+  if (since === null || read.readFrom <= since || !back?.answered) return
+  if (read.listed.includes(back.receipt.conversation.id)) land(back.receipt, back.fields)
 }
-
-/**
- * An erasure's refusal that also tells `onRefused` when it is said: held-write says one only for a refusal outright,
- * after letting its intent go, never for no reply (sent again under its key).
- */
-export const releasing = (refusal: Refusal, onRefused: (err: ApiError) => void): Refusal => ({
-  ...refusal,
-  say: (err) => {
-    onRefused(err)
-    return refusal.say(err)
-  },
-})

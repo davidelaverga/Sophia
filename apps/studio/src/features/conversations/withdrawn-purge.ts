@@ -36,6 +36,9 @@ let order = 0
 /** A list read setting out: its place in this view's order (the list's query function takes it first). */
 export const listReadSetsOut = (): number => (order += 1)
 
+/** Now, in this view's order: a list read set out later says what is so since (list-data `standing`). */
+export const orderNow = (): number => (order += 1)
+
 /** Per cache, per thread read (its hash): when this view first saw each of its messages withdrawn. */
 const seen = new WeakMap<QueryCache, Map<string, Map<string, number>>>()
 

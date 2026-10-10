@@ -42,15 +42,17 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, putStarted, released, startHeld } from './list-data.ts'
-import { keepWithdrawnPurged, listReadSetsOut } from './withdrawn-purge.ts'
+import { landed, putStarted, standing, startHeld } from './list-data.ts'
+import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
 
 /** Newest activity first, sorted once per answer, with what the reader may do there. */
-const sorted = (answer: ConversationList) => ({
+const sorted = (answer: ListRead) => ({
   all: byActivity(answer.conversations),
+  // Where in this view's order the read set out (withdrawn-purge.ts): none noted, before everything.
+  readFrom: answer.readFrom ?? 0,
   // The API lists the newest only, and says so (`more`): older ones exist that this list can't open.
   more: answer.more,
   capability: answer.capability,
@@ -103,6 +105,7 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
     more: list.data?.more === true,
     capability: list.data?.capability,
     notice: list.data?.notice ?? null,
+    readFrom: list.data?.readFrom ?? 0,
     settled: list.isSuccess && !list.isFetching,
     /** Read, as it is now, and holding every conversation (no `more`): one missing from it is gone. */
     whole: list.isSuccess && !list.isFetching && !list.data.more,
@@ -146,6 +149,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     choose(id)
     panes.show()
   })
+  useStanding(projectId, identity, talk, reader, start.stand)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
   return (
@@ -182,7 +186,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         {...{ projectId, identity, cursor }}
         conversation={shown}
         notice={notice}
-        erase={reader.moderate ? eraseOf(projectId, identity, erased, talk, start.release) : null}
+        erase={reader.moderate ? eraseOf(projectId, identity, erased, talk) : null}
         opened={panes.context}
         onClose={panes.closeContext}
       />
@@ -504,14 +508,12 @@ function eraseOf(
   identity: Identity,
   erased: ReturnType<typeof useErased>,
   talk: ReturnType<typeof useTalk>,
-  release: Erase['onRefused'],
 ): Erase {
   return {
     projectId,
     identity,
     arm: erased.arm,
     onErased: erased.on,
-    onRefused: release,
     held: (id) => talk.kept.erasures[id] ?? null,
     onHeld: (id, next) => talk.change((k) => withErasure(k, id, next)),
   }
@@ -700,7 +702,7 @@ function useStart(
     onForm.current = shown
     setStarting(shown)
   }
-  // Landed (or held back while an erasure of it here is unanswered, to land once that erasure is refused: `release`,
+  // Landed (or held back while an erasure of it here is unanswered, to land once a list read since lists it: `stand`,
   // with the form's `words` as they stood then).
   const started = (receipt: ConversationStarted, words?: ConversationAsk) => {
     const put = () => putStarted(queryClient, projectId, accountOf(identity), receipt, feedAt.current)
@@ -731,8 +733,31 @@ function useStart(
     toggle: () => (starting ? cancel() : setForm(true)),
     close: () => setForm(false),
     form,
-    release: (id: string, err: ApiError) => released(talk, id, err, started),
+    stand: (read: Parameters<typeof standing>[1], since: number | null) => standing(talk, read, since, started),
   }
+}
+
+/**
+ * A start's receipt held back for an erasure answered without erasing it here (list-data `standing`): a list read is
+ * asked for now, and the first one set out since says whether the conversation stands (it lands) or not (a whole one
+ * lets it go: useSeen). Asked again each time the view comes back while it waits.
+ */
+function useStanding(
+  projectId: string,
+  identity: Identity,
+  talk: ReturnType<typeof useTalk>,
+  read: { all: readonly ConversationSummary[]; readFrom: number },
+  stand: ReturnType<typeof useStart>['stand'],
+) {
+  const queryClient = useQueryClient()
+  const waiting = talk.kept.start.heldBack?.answered === true
+  const since = useRef<number | null>(null)
+  useEffect(() => {
+    since.current = waiting ? orderNow() : null
+    if (waiting) void queryClient.invalidateQueries({ queryKey: listKey(projectId, accountOf(identity)) })
+  }, [waiting, queryClient, projectId, identity])
+  const { all, readFrom } = read
+  useEffect(() => stand({ listed: all.map((c) => c.id), readFrom }, since.current), [all, readFrom, stand])
 }
 
 /** What the form says while its start's receipt is held back for an erasure of that conversation pressed here. */
