@@ -1,0 +1,244 @@
+{
+  "observedAt": "2026-10-10T01:54:41.384Z",
+  "mode": "READ ONLY; metadata only",
+  "source": "015f08469efebe7b69ed7687298b50742894694a",
+  "currentMain": "31dd5874a1566110c65dcae18cbadce24445268b",
+  "comparisonScope": "reviewer checkout migrations0001–0045 only; no operational or combined-migration approval",
+  "credentialRef": "~/.config/sophia/smc-m01-owner-db-url",
+  "server": {
+    "version": "17.6",
+    "read_only": "on"
+  },
+  "ledger": [
+    {
+      "version": "0001",
+      "filename": "0001_core.sql",
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e"
+    },
+    {
+      "version": "0002",
+      "filename": "0002_roles_rls.sql",
+      "sha256": "6acdd303f6cc68a6745599a33d8003a8d5163d761961a158e631a13e9b0b3f04"
+    },
+    {
+      "version": "0003",
+      "filename": "0003_atomic_commands.sql",
+      "sha256": "ffc988ae25c166a87cd33d50aea0df19f6b27146e3e51b52119beea21ee90ae0"
+    },
+    {
+      "version": "0004",
+      "filename": "0004_queue_ownership.sql",
+      "sha256": "bcb37bc8fc42d5e4f19e1d7abf46bbbe48072fa83ddc5c4825df581cc3f05448"
+    },
+    {
+      "version": "0005",
+      "filename": "0005_event_notify.sql",
+      "sha256": "41e0b57be4d00e046e25383edd2593cf7d376567312f043c3069032bb42d937a"
+    },
+    {
+      "version": "0006",
+      "filename": "0006_idempotent_project_creation.sql",
+      "sha256": "fe9509f3cd4177706ea9b86dd570ebedcde940259db7039b7954f8cda94e275e"
+    },
+    {
+      "version": "0007",
+      "filename": "0007_dispatch_fencing.sql",
+      "sha256": "f9fa46d9f882187fc9e93d3573c0990b2055f252fe95d89af90bf18119c81d0d"
+    },
+    {
+      "version": "0008",
+      "filename": "0008_dispatch_result_idempotent.sql",
+      "sha256": "d87655c7ed4006edee134ccd09e41c5f1936fe394e56b1b1c57005bf7a3dd4d8"
+    },
+    {
+      "version": "0009",
+      "filename": "0009_project_room.sql",
+      "sha256": "2fb71a30541ac3a1a691a738e7b8b56dae88c0078c25d7bf94189fbc7b1617f1"
+    },
+    {
+      "version": "0010",
+      "filename": "0010_room_access.sql",
+      "sha256": "6f29ef7ab098147e65a91b25ec1771f0c05b19ea92de04d8501f5c28873df757"
+    },
+    {
+      "version": "0011",
+      "filename": "0011_lobby_decline_block.sql",
+      "sha256": "b2d7cfe8aa9f4e98c7c5cab1cec44768a074e9a17aeb6e1ef6d956b9d1830229"
+    },
+    {
+      "version": "0012",
+      "filename": "0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f"
+    },
+    {
+      "version": "0013",
+      "filename": "0013_room_exchange.sql",
+      "sha256": "44ac2a681e4179a2a7649d632f0382fff32b412a9d113d3d9b1db62521bad221"
+    },
+    {
+      "version": "0014",
+      "filename": "0014_room_removals.sql",
+      "sha256": "55948614ffb026fa040139a140518e8ee378055b28346ad953fc09354e65cfe2"
+    },
+    {
+      "version": "0015",
+      "filename": "0015_guest_joining.sql",
+      "sha256": "07eff40148b861705e3e6bf4e44975ff40934af5ec2321a22b0d5b007800712c"
+    },
+    {
+      "version": "0016",
+      "filename": "0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c"
+    },
+    {
+      "version": "0017",
+      "filename": "0017_empty_room.sql",
+      "sha256": "0d0b929f8648ee26281799b9de3cf4f89a4b109e0733912bdeffd67d83ba2742"
+    },
+    {
+      "version": "0018",
+      "filename": "0018_mission_ledger.sql",
+      "sha256": "d6e6598c3a4c4e1a9771c3ac8169fad5cca55d33c1f5a6cb119859e9a87aa181"
+    },
+    {
+      "version": "0019",
+      "filename": "0019_default_mission_capture.sql",
+      "sha256": "54b1e7f03c4fcf6c47abead77c2aec843dc1a3ee000ca4ee8ef23f42e6a912e9"
+    },
+    {
+      "version": "0020",
+      "filename": "0020_typed_mission_turns.sql",
+      "sha256": "61641a52fe9c5b66f2ea61d09eb8e2a5d995a2c0396c0d2caba3baf14e873a3e"
+    },
+    {
+      "version": "0021",
+      "filename": "0021_personal_space.sql",
+      "sha256": "25285fceaa33667d202ebe2d3e1ebc51f6646bfac007a1608a05f09122373f3a"
+    },
+    {
+      "version": "0022",
+      "filename": "0022_research_readers.sql",
+      "sha256": "0a1955ff7b787dad4939b4ee70e620d2d1146c8b3b8188245a3388df07e0cb9c"
+    },
+    {
+      "version": "0023",
+      "filename": "0023_usage_cache.sql",
+      "sha256": "f4b255d3361ad34250aae7803f364850c6412b557503e9a1715f5c12f3119d48"
+    },
+    {
+      "version": "0024",
+      "filename": "0024_research_allowance.sql",
+      "sha256": "713e7c9ce2403292bf482e04c34a6536108d509d0ac0d3a6f6a052b6ae7e3ba1"
+    },
+    {
+      "version": "0025",
+      "filename": "0025_research_admission.sql",
+      "sha256": "69cc606fa279d383928877894f3f56c457705d0384d5f7d243cf0f86cab704e9"
+    },
+    {
+      "version": "0026",
+      "filename": "0026_research_submission.sql",
+      "sha256": "926f7443ba662a95b261f73caf3ce9ab3238933ea6728fd50b0a907cd0e61107"
+    },
+    {
+      "version": "0027",
+      "filename": "0027_report_facts.sql",
+      "sha256": "9ed7a752305a6608bbc53190866d44bee569ef0d0cf0deb7db7b8fbe6ff773d9"
+    },
+    {
+      "version": "0028",
+      "filename": "0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640"
+    },
+    {
+      "version": "0029",
+      "filename": "0029_research_spend_bounds.sql",
+      "sha256": "836938a1107fa4308fe17843aedc6600bd652ba9d78d127ff04a644c5cd597bb"
+    },
+    {
+      "version": "0030",
+      "filename": "0030_render_jobs.sql",
+      "sha256": "15eccee230e64ad896157cf136f7ed0d9a8ca2aac5056f67ed9292880fcb70e9"
+    },
+    {
+      "version": "0031",
+      "filename": "0031_research_pdf.sql",
+      "sha256": "115224b10c478c39ae7a731a1af21b0e88c3f363c5ebb0c7b77cc70f94ef0b8f"
+    },
+    {
+      "version": "0032",
+      "filename": "0032_research_rendition.sql",
+      "sha256": "b13716def31538044f3c66ae038f439e8521c3b34d878a1a67144f6bb3df56f7"
+    },
+    {
+      "version": "0033",
+      "filename": "0033_research_withdrawal_closure.sql",
+      "sha256": "417ba23d666f8988e58b15264f491b70befb5bb2ea8166ebda375ff9d06ca271"
+    },
+    {
+      "version": "0034",
+      "filename": "0034_render_judgement.sql",
+      "sha256": "61d6828bff1405239b8779955b5837bacdd38673bc827ea175c826c984e2ceaf"
+    },
+    {
+      "version": "0035",
+      "filename": "0035_announcement_delivery.sql",
+      "sha256": "2e71cc64a103e1cb51b8a1d16ae339aa47eb16f68e886a13ba0a2b9dbd6ae820"
+    },
+    {
+      "version": "0036",
+      "filename": "0036_section_facts.sql",
+      "sha256": "5e010674d6ae3811672c8165b27a7f9d1b2e421864fafc53653a3e8ff913332b"
+    }
+  ],
+  "drift": [],
+  "pending": [
+    "0037_amendment_preservation.sql",
+    "0038_design_records.sql",
+    "0039_design_runtime.sql",
+    "0040_design_flow.sql",
+    "0041_design_lifecycle.sql",
+    "0042_source_review_coordination.sql",
+    "0043_design_delivery.sql",
+    "0044_object_write_once.sql",
+    "0045_render_requeue_output.sql"
+  ],
+  "runtime": [
+    {
+      "runtime_unit_id": "sophia-runtime-m02-dev",
+      "state": "active",
+      "ready_state": "ready",
+      "instances": 1
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-m02-dev",
+      "state": "revoked",
+      "ready_state": "not_ready",
+      "instances": 1
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-m03-dev",
+      "state": "active",
+      "ready_state": "ready",
+      "instances": 1
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-s1-03-dev",
+      "state": "active",
+      "ready_state": "ready",
+      "instances": 1
+    }
+  ],
+  "bindings": [
+    {
+      "runtime_unit_id": "sophia-runtime-m03-dev",
+      "state": "running",
+      "bindings": 6
+    },
+    {
+      "runtime_unit_id": "sophia-runtime-s1-03-dev",
+      "state": "settled",
+      "bindings": 2
+    }
+  ]
+}

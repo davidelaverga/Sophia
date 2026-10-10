@@ -1,5 +1,15 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Read-only refresh — 2026-10-10, 01:51–01:55 UTC
+
+Authenticated Render and Vercel dashboards were read through CUA in temporary tab31; their four live deployment IDs/source SHAs and Studio production ID below are **unchanged and freshly observed**. Vercel detail still says Ready/Production, Oct5 at14:13:31GMT+2, source `vercel deploy`; no Git SHA established. No deploy/config/environment-value/secret/account/grant controls used. Tab31 closed; user's hosted tab1 retained.
+
+The actual signed-in Studio at `studio.sophia-ei.com/p/32a56d1a-887e-4bcb-a119-ce9f3cc61a08/studio` now shows «The room is ready. Sophia joins when asked.» and Join the room, unlike the earlier joining/error observation. No Conversations navigation. Read-only DOM inspection: `meta[name="sophia-build"]` absent and no conversation links. No join/mic/chat/write to this personal project. This proves app accessibility and absent feature entry, not designated cohort/two-account/CON-01 acceptance. API HTTP probes return health `{ok:true}` and readiness `{ready:true}`/200; neither carries serving source identity, and probes are not app verification.
+
+Database metadata refresh at **2026-10-10T01:54:41.384Z** uses existing credential reference `~/.config/sophia/smc-m01-owner-db-url`, a `BEGIN READ ONLY` transaction, statement_timeout5s/query_timeout7s and ROLLBACK. PostgreSQL17.6/transaction_read_only=on; ledger36 entries/last0036/no drift against reviewer's unchanged0001–0045 migration files. Main pending0037–0045 remains. This comparison does not include reserved0046–0048 or constitute a combined migration review. Three active/ready units m02/m03/s1-03; one revoked/not_ready m02 row. **Six running m03 bindings**, two settled s1-03. Status rows are not proof of current live sessions or safe drain; preserve them until exact reconciliation/owner window is authorized. Safe metadata receipt: [20261010-live-readonly-refresh.json](evidence/20261010-live-readonly-refresh.json).
+
+Current integration main is now `31dd5874a1566110c65dcae18cbadce24445268b`, tree `b2f9a3eb01adba9b9df77338ac3e292d5ef88548`; PR190 is `8a39b0767439dd11d212b1768b8e905aec274865`, tree `04894c422fd61d947782763291a1a7a4531bef42`. These are source refs, not the live tuple. Its new `build:release` procedure must be assessed on the eventual combined candidate before upload. No old deployment batch replayed; OP-0001-r1 remains draft_not_authorized, all missing owner/setup/allowance/approval fields unresolved. No paid/native/provider effect, spend or uncertain paid outcome. Installed native profile/artifact/config composition and serving Studio SHA remain unproven. Historical observations below retain their original timestamps.
+
 These observations are not a CON-01 deployment or acceptance. Public app and provider dashboards were operated through the browser. No deployment, configuration, database row, account or provider grant was changed.
 
 | Component | Fresh observation | Limit |

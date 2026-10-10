@@ -731,7 +731,7 @@
   "candidate_sha": "95ea5126f87c83cf7c19abe745d47d17671f31c5",
   "candidate_tree": "8b4f68daaa8e9163d18047e6a78a0459813e0610",
   "review_ref": "CON-01-CX-0007.md",
-  "current_main_observed": "3e6d57b13ee8eabe62cb8e5e1d0ee2e7ebd76b3c",
+  "current_main_observed": "31dd5874a1566110c65dcae18cbadce24445268b",
   "supplemental_candidates": [
     {
       "candidate_sha": "839fb45b378a4f22517e4bf940372c6734f558ef",
@@ -797,7 +797,7 @@
     "tree": "08aa2829bd1e2eb0cab3bbdf031cfb883e0d7588",
     "actualAppCandidate": "715d2b1a1c677c46a9b168c30475c32d0a5f00bc",
     "actualAppTree": "6053d6b5cf754d6709c8d1cab3168d6555155d74",
-    "currentMain": "3e6d57b13ee8eabe62cb8e5e1d0ee2e7ebd76b3c",
+    "currentMain": "31dd5874a1566110c65dcae18cbadce24445268b",
     "statement": "P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof.",
     "independentFocusedTests": {
       "passed": 97,
@@ -811,7 +811,8 @@
     "operation": "draft_not_authorized; owner/setup/exact batch missing",
     "cleanup": "All eighteen owned stacks clean; tab30closed; no hosted/provider effects",
     "automaticReview": "Exactf127 review5476907917 P1r4235862543 confirms CX27; open",
-    "sharedPR190": "5dab733a6a4fdb3dcfcf17e24adcf98eda7eb2b4",
-    "proposalReview": "CC23 proposal6092294103 reviewed before implementation; invariants/tests returned; no new immutable correction"
+    "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
+    "proposalReview": "CC23 proposal6092294103 reviewed before implementation; invariants/tests returned; no new immutable correction",
+    "liveRefresh": "2026-10-10T01:54:41.384Z READ ONLY DB0036/sixrunningm03; dashboard deployment tuple unchanged; hosted roomready/noConversations/nobuildtag; seeLIVE_PREFLIGHT.md; no feature acceptance or effects"
   }
 }
