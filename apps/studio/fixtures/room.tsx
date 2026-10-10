@@ -150,6 +150,8 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
+  /** The list's reads are refused (403), as to a reader no longer in the project, the feed not moving; or answer again. */
+  refuseConversations: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
   /**
@@ -636,6 +638,9 @@ window.fixture = {
   failConversations: (on) => {
     if (project.conversations) project.conversations.failList = on
   },
+  refuseConversations: (on) => {
+    if (project.conversations) project.conversations.refusedList = on
+  },
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
@@ -1012,6 +1017,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       more: query.get('more') === '1',
       cappedOut: null as string | null,
       refusedOf: null as string | null,
+      refusedList: false,
       heldList: null as (() => void)[] | null,
       heldMessages: null as (() => void)[] | null,
       sameTimeNext: false,

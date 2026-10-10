@@ -488,6 +488,125 @@ test('removal · its own read refused (403), the list’s reads failing: nothing
   expect((await kept(page))?.erased[C1]).toBeUndefined()
 })
 
+/**
+ * The list's reads fail as the feed moves (it says it may be out of date, with Try again); then, out of the project, the
+ * list is refused, and the thread too though nothing reads it; Try again reads the list alone, and is refused.
+ */
+async function listRefusedOnTryAgain(page: Page) {
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect(list(page).getByRole('button', { name: 'Try again' })).toBeVisible()
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await page.evaluate(() => window.fixture?.refuseConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+}
+
+/** Given the project back: its reads answer again, and the list is read again. */
+async function projectGivenBack(page: Page) {
+  await page.evaluate(() => window.fixture?.refuseConversations(false))
+  await page.evaluate(() => window.fixture?.refuseMessageReads(null))
+  await readListAgain(page)
+}
+
+test('removal · the list read alone refused (403), on Try again: asked once, and no frame after shows a row, the thread, its composer or Start', async ({
+  page,
+}) => {
+  // PR #199 r4239350130, CX-0082: the list read may be the first, and the only, read to meet a refusal (Try again, the
+  // feed not moving, the open thread not read again). What the list held, the thread open from it, its composer and
+  // New conversation go with that answer, before any paint, across a trip to another view; an older thread read that
+  // answers after lifts nothing. A list read set out since lifts the fence, and the draft is as it was.
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-LIST-REFUSED')
+  // The thread's read as the feed moves is held (it answers as it was, after the refusal).
+  await page.evaluate(() => window.fixture?.holdMessageReads())
+  await page.evaluate(() => {
+    const frames = document.documentElement.dataset
+    frames.shownAfterRefusal = '0'
+    const shown = [
+      '[aria-label="All conversations"] li',
+      '[aria-label="Open conversation"]',
+      'button[aria-label="New conversation"]',
+    ].join(', ')
+    const tick = () => {
+      if ((window.fixture?.served ?? []).includes('conversations-refused') && document.querySelector(shown))
+        frames.shownAfterRefusal = String(Number(frames.shownAfterRefusal) + 1)
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  await listRefusedOnTryAgain(page)
+  await page.waitForTimeout(1500)
+  expect((await served(page)).filter((s) => s === 'conversations-refused')).toHaveLength(1)
+  await expect(rows(page)).toHaveCount(0)
+  await expect(open(page)).toHaveCount(0)
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toHaveCount(0)
+  // The older thread read answers now; then to another view and back: still nothing shows.
+  await page.evaluate(() => window.fixture?.releaseMessageReads())
+  await trip(page)
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  await page.waitForTimeout(1000)
+  expect(await page.evaluate(() => Number(document.documentElement.dataset.shownAfterRefusal))).toBeLessThanOrEqual(3)
+  const fenced = await kept(page)
+  expect(typeof fenced?.fence?.at).toBe('number')
+  expect([fenced?.erased[C1], fenced?.drafts[C1]]).toEqual([undefined, 'SYNTHETIC-DRAFT-LIST-REFUSED'])
+  await projectGivenBack(page)
+  await expect(rows(page)).not.toHaveCount(0)
+  await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toHaveValue('SYNTHETIC-DRAFT-LIST-REFUSED')
+  expect((await kept(page))?.fence).toBeNull()
+})
+
+test('removal · the list refused while a new conversation is being written: the form goes, its words kept, and comes back with the project', async ({
+  page,
+}) => {
+  // CX-0082: New conversation is a write control the refused list's capability offered; the form, and Start, go with
+  // the refusal. What was written in it is kept, and is there again once a list read since answers.
+  await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await list(page).getByRole('button', { name: 'New conversation' }).click()
+  const form = page.getByRole('form', { name: 'New conversation' })
+  await form.getByLabel('Question').fill('SYNTHETIC-QUESTION-LIST-REFUSED')
+  await listRefusedOnTryAgain(page)
+  await expect(form).toHaveCount(0)
+  await expect(list(page).getByRole('button', { name: 'New conversation' })).toHaveCount(0)
+  await expect(rows(page)).toHaveCount(0)
+  expect(await written(page, 'conversation-start')).toEqual([])
+  await projectGivenBack(page)
+  await expect(form.getByLabel('Question')).toHaveValue('SYNTHETIC-QUESTION-LIST-REFUSED')
+  await expect(rows(page)).not.toHaveCount(0)
+})
+
+test('removal · an erasure with no reply, then the list refused: fenced, its intent kept; given the project back it is sent again under its key', async ({
+  page,
+}) => {
+  // CX-0082: a refusal settles nothing. The erasure pressed and unanswered stays held across the fence, and goes again
+  // under the same key once the project is back.
+  await opened(page, '&erase=unreached')
+  await erase(page).click()
+  const confirm = page.getByRole('group', { name: 'Erase this conversation' })
+  await confirm.getByRole('button', { name: 'Erase' }).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await listRefusedOnTryAgain(page)
+  await expect(rows(page)).toHaveCount(0)
+  await expect(erase(page)).toHaveCount(0)
+  expect((await kept(page))?.erasures[C1]).toBeTruthy()
+  expect((await kept(page))?.erased[C1]).toBeUndefined()
+  await projectGivenBack(page)
+  await expect(messages(page)).toHaveCount(6)
+  const toggle = open(page).getByRole('button', { name: 'Context' })
+  if (await toggle.isVisible()) await toggle.click()
+  await erase(page).click()
+  await expect(confirm).toContainText('Not confirmed')
+  await confirm.getByRole('button', { name: 'Erase' }).click()
+  await expect(list(page)).not.toContainText(FIRST)
+  const keys = await written(page, 'erase-key')
+  expect(keys).toHaveLength(2)
+  expect(keys[1]).toBe(keys[0])
+})
+
 test('removal · refused (403), given the project back, its own reads failing (503): it says it can’t be read now, with Try again, and shows nothing it held', async ({
   page,
 }) => {

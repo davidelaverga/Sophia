@@ -223,6 +223,8 @@ export interface Conversations extends TalkWrites {
   messages: Record<string, FixtureMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
+  /** The list's reads are refused (403), as to a reader no longer in the project (`refuseConversations`). */
+  refusedList?: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
   lastShown?: boolean
   /** The list says older conversations exist that it doesn't hold (`more=1`, A16's `more`). */
@@ -513,6 +515,11 @@ function conversationRead(talk: Conversations, url: URL, role: Membership['role'
 /** The project's conversations (A16), as listed, each one's newest message where the page asks for last messages. */
 function conversationsRead(talk: Conversations, role: Membership['role']) {
   if (talk.failList) return unavailable()
+  // As to a reader no longer in the project: refused (403), nothing of the list read.
+  if (talk.refusedList) {
+    served.push('conversations-refused')
+    return projectRefused()
+  }
   served.push('conversations:read')
   const opts = {
     lastShown: talk.lastShown === true,

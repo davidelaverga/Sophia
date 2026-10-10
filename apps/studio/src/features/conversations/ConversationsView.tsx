@@ -6,7 +6,7 @@
 // In three panes (docs/plans/conversations-panes.md): the list, the open one, its context. Under 1180 px the context is
 // a panel «Context» opens; on a phone one screen shows at a time, the list or the conversation.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
 import {
   getConversationMessages,
@@ -43,6 +43,7 @@ import {
   withFound,
   withListed,
   withDenied,
+  withFence,
   withStanding,
   withoutConversation,
   type Kept,
@@ -86,6 +87,12 @@ const readerOf = (membership: Membership | undefined, write: boolean | undefined
   writer: membership && write !== undefined ? membership.role !== 'viewer' && write : undefined,
 })
 
+/** The project's refusal (403): the reader isn't a current member of it. */
+const isRefusal = (err: unknown) => err instanceof ApiError && err.code === 'forbidden'
+
+/** A read whose latest answer is the project's refusal, until a read since answers (r4239350130). */
+const refusedRead = (read: { isError: boolean; error: unknown }) => read.isError && isRefusal(read.error)
+
 /** The project's conversations, newest activity first, read again as the feed moves. */
 function useList(projectId: string, identity: Identity, cursor: string | undefined) {
   const list = useQuery({
@@ -96,7 +103,8 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
       return listConversations(identity.token, projectId, signal).then((answer) => ({ ...answer, readFrom }))
     },
     select: sorted,
-    retry: 1,
+    // Refused, it is not asked again: what it held never shows meanwhile (PR #199 r4239350130).
+    retry: (failures, err) => failures < 1 && !isRefusal(err),
   })
   useReadAgain(cursor, list.refetch)
   // What a thread read here learns withdrawn leaves the list reads as cached, for as long as the cache lives.
@@ -113,6 +121,8 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
     notice: list.data?.notice ?? null,
     readFrom: list.data?.readFrom ?? 0,
     settled: list.isSuccess && !list.isFetching,
+    /** Its latest read refused (403), until a read since answers: what it held from before shows nowhere. */
+    refused: refusedRead(list),
     /** Read, as it is now, and holding every conversation (no `more`): one missing from it is gone. */
     whole: list.isSuccess && !list.isFetching && !list.data.more,
   }
@@ -140,16 +150,23 @@ function useReader(projectId: string, identity: Identity, membership: Membership
 /**
  * What this view keeps for the project and account (useTalk), and the list as shown with it: as read, with a start that
  * landed here held back and that a list of the newest only leaves out (list-data `shownList`). Fenced (talk-store
- * `fence`: an open conversation's read answered not found, and no list read set out since has answered), none at all:
- * no row, and so no thread or summary, cached or not, until one does, which lifts it (PR #199 r4238709217).
+ * `fence`: a read within the project refused, the list's own included, and no list read set out since has answered),
+ * none at all: no row, and so no thread or summary, cached or not, nor Start, until one does, which lifts it (PR #199
+ * r4238709217, r4239350130).
  */
 function useShown(
   projectId: string,
   identity: Identity,
-  reader: { all: readonly ConversationSummary[]; more: boolean; readFrom: number },
+  reader: { all: readonly ConversationSummary[]; more: boolean; readFrom: number; refused: boolean },
 ) {
   const talk = useTalk(projectId, accountOf(identity))
-  const fenced = talk.kept.fence !== null && !fenceLifts(talk.kept, reader.readFrom)
+  // The list read itself refused: fenced from the render its answer comes in, and kept so before the browser paints,
+  // until a list read set out since answers (PR #199 r4239350130).
+  const { change } = talk
+  useLayoutEffect(() => {
+    if (reader.refused) change((k) => withFence(k, orderNow()))
+  }, [reader.refused, change])
+  const fenced = reader.refused || (talk.kept.fence !== null && !fenceLifts(talk.kept, reader.readFrom))
   return { talk, fenced, all: fenced ? NONE : shownList(reader.all, talk.kept, reader.more) }
 }
 
@@ -175,28 +192,24 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     panes.show()
   })
   useStanding(projectId, identity, talk, reader, start.land)
-  // The one open, unless the form for a new one is in its place.
+  // The one open, unless the form for a new one is in its place; neither while fenced (its fields kept meanwhile).
   const shown = start.starting ? undefined : open
   return (
     <section
       ref={panes.view}
       className="conversations"
-      data-screen={screenOf(Boolean(shown), start.starting, panes.screen)}
+      data-screen={screenOf(Boolean(shown), start.starting && !fenced, panes.screen)}
       data-context={panes.context || undefined}
       aria-labelledby="conversations-title"
     >
       <ListPane
-        projectId={projectId}
         reader={accountOf(identity)}
         read={list}
-        all={all}
         openId={shown?.id}
-        me={me}
-        missing={missing}
         more={newestRead(reader)}
         erased={erased.said}
-        {...{ capability, fenced }}
-        start={writer ? start : null}
+        {...{ projectId, all, me, missing, capability, fenced }}
+        start={writer && !fenced ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
         onOpen={(id) => {
@@ -206,7 +219,11 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
           panes.show()
         }}
       />
-      <Middle shown={shown} {...{ projectId, identity, cursor, reader, talk, start, panes }} settle={erased.gone} />
+      <Middle
+        shown={shown}
+        {...{ projectId, identity, cursor, reader, talk, start, panes, fenced }}
+        settle={erased.gone}
+      />
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
@@ -231,8 +248,11 @@ function Middle(props: {
   start: ReturnType<typeof useStart>
   panes: ReturnType<typeof usePanes>
   settle: (id: string) => void
+  /** Fenced: no conversation, and no form for a new one, until a list read since answers (r4239350130). */
+  fenced: boolean
 }) {
   const { shown, projectId, identity, cursor, reader, talk, start, panes, settle } = props
+  if (props.fenced) return null
   if (start.starting) {
     return <NewConversation projectId={projectId} identity={identity} notice={reader.firstNotice} {...start.form} />
   }
