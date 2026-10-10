@@ -780,12 +780,20 @@ function versionsOf(project: Project, path: string): Response | Promise<Response
   return null
 }
 
+/** `covers=slow`: the library's covers read one after another, 400 ms apart, as a slow API answers them. */
+const COVERS_SLOW = DEMO && new URLSearchParams(window.location.search).get('covers') === 'slow'
+let shelvedReads = 0
+
 /** The demo library's reports (demo-library.ts): their one version, and their sources, none. */
-function shelvedRead(path: string): Response | null {
+function shelvedRead(path: string): Response | Promise<Response> | null {
   const listed = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions(\/[0-9a-f-]{36}\/sources)?$/.exec(path)
   const shelf = listed ? libraryVersions(listed[1] ?? '') : null
   if (!listed || !shelf) return null
-  return json(listed[2] ? { sources: [] } : shelf)
+  if (listed[2]) return json({ sources: [] })
+  if (!COVERS_SLOW) return json(shelf)
+  shelvedReads += 1
+  const ms = shelvedReads * 400
+  return new Promise<Response>((done) => setTimeout(() => done(json(shelf)), ms))
 }
 
 /** The design task of the research's page, read while it is designed (`design=designing`, B-19), then published. */
