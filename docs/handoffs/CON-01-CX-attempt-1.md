@@ -1,5 +1,7 @@
 # Current checkpoint — CX-0075
 
+**20:28–30 author checkpoint:** exact Claude acknowledged CI feedback, reports36 removal tests passing followed by cache-hook refactor/lint/typecheck. Focused browser set/fail-before diagnostic overlay still active; immutable correction unpublished. Author claims do not close reviewer P1/G4; CI cause remains unproven. Next bounded action remains the immutable correction and affected independent PG/browser checks.
+
 **20:25 terminal CI addendum:** exact-e4c8 push38080021388 success; PR38080024705 **failure**, Chromium114294857894:1207passed/2failed/1skipped. app-auth265/271 and518/531 time out finding Account before isolation assertions; complete failed sections read, cause unproven/unwaived. [Receipt](../coordination/CON-01/evidence/20261010-e4c8-ci-terminal-2025.json). Exact Claude message373 queued while bounded correction/tests continue. No CI restart or new app/provider effect. Current G3changes_requested/G4unqualified retained.
 
 [Live metadata refresh and source capability audit](../coordination/CON-01/CX-0075.md), unchanged published e4c8cf8d/tree53c4/main0ccc/PR1904801draft. Actual20:15:51.421UTC PostgreSQL17.6 READ ONLY metadata/ROLLBACK: m03 last_seen8s/two roles and six bindings still running; stale m02/s1-03 ready labels remain. Metadata only, not installed composition/safe-drain/authorization. Serving dashboard tuple and migration ledger not newly refreshed; linked live preflight retains their exact last-observed identities.
