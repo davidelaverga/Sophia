@@ -36,7 +36,27 @@
   "automaticReview": {
     "request": 6100349033,
     "commit": "dfeb3815e40f2a5a2bebc480960def54055bfab9",
-    "submission": "pending inspection"
+    "submission": 5480157192,
+    "submittedAt": "2026-10-10T17:41:43Z",
+    "fullyRead": true,
+    "paginationUsed": true,
+    "findings": [
+      {
+        "id": 4238594453,
+        "severity": "P2",
+        "qualification": "independently actual app reproduced; capped refetch wrong destination"
+      },
+      {
+        "id": 4238594445,
+        "severity": "P2",
+        "qualification": "independently source-valid; stale cached pending/running; mounted app not yet reproduced"
+      },
+      {
+        "id": 4238594450,
+        "severity": "P2",
+        "qualification": "independently source-valid; old Start overwrites newer Ask; mounted app not yet reproduced"
+      }
+    ]
   },
   "audits": [
     {
@@ -193,5 +213,12 @@
     "app_verified": false,
     "owner_accepted": false
   },
-  "next": "Immutable capped reachability across refetch correction; independently rerun actual target/current-read/privacy/return cases before current-main/S1 combinedG4."
+  "next": "Inspect immutable three-P2 correction; independently rerun affected capped reachability, fresh/cached/no-cache/wrong-request/newer-Ask and deferred-receipt controls before current-main/S1 combinedG4.",
+  "mainCheckpoint": {
+    "commit": "a33805fedff9dfe547a725836272386ea29e5109",
+    "tree": "6c93bd896fd375cb3db375d945c640c018c41482",
+    "deltaFrom": "a66aa9ec58b40006fe4ae81279fe807dae12be1e",
+    "files": 29,
+    "qualification": "production paths/tests inventory; no current combined-tree qualification"
+  }
 }
