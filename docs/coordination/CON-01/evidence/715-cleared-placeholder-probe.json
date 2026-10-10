@@ -1,0 +1,15 @@
+{
+  "candidate": "715d2b1a1c677c46a9b168c30475c32d0a5f00bc",
+  "tree": "6053d6b5cf754d6709c8d1cab3168d6555155d74",
+  "at": "2026-10-10T01:15:04.264Z",
+  "level": "L0 actual production keepsFor/withEntry/store; no mounted polling/resource measurement",
+  "clearedValues": {
+    "draft": "",
+    "hold": null,
+    "refusal": null,
+    "wait": null
+  },
+  "clearedPlaceholdersCountAsKept": false,
+  "unrelatedIdControl": false,
+  "nonemptyDraftControl": true
+}

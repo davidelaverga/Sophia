@@ -1,0 +1,108 @@
+{
+  "candidate": "715d2b1a1c677c46a9b168c30475c32d0a5f00bc",
+  "tree": "6053d6b5cf754d6709c8d1cab3168d6555155d74",
+  "observedAt": "2026-10-10T01:18:37.080Z",
+  "level": "Actual local browser/API/PG read-request observation and non-owner persistence; no mounted client-cache observation",
+  "projectId": "85d72c84-7006-422c-a5f6-d82728ab0ed9",
+  "target": "a81244f2-319e-4cf4-af62-44605157388c",
+  "listCount": 200,
+  "more": true,
+  "listFingerprintBefore": "78ad736b15e05343f2fc49f86973435024980e42753cdb02d4f6488121d26740",
+  "listFingerprintAfter": "78ad736b15e05343f2fc49f86973435024980e42753cdb02d4f6488121d26740",
+  "listIdentical": true,
+  "erasedAt": "2026-10-10T01:17:08.604Z",
+  "targetReads": [
+    {
+      "at": "2026-10-10T01:15:46.785Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:15:46.788Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:15:46.918Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:15:59.686Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:15:59.729Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:16:29.766Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:16:45.544Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:16:45.549Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:16:58.651Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:16:58.692Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 200
+    },
+    {
+      "at": "2026-10-10T01:17:28.725Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 422
+    }
+  ],
+  "targetReadsAfterErase": [
+    {
+      "at": "2026-10-10T01:17:28.725Z",
+      "path": "/api/v1/conversations/a81244f2-319e-4cf4-af62-44605157388c/messages",
+      "status": 422
+    }
+  ],
+  "secondsObservedAfterErase": 88.477,
+  "nonOwnerEditorRead": {
+    "code": "not_found",
+    "message": "Conversation not found"
+  },
+  "durable": [
+    {
+      "state": "erased",
+      "title": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T01:17:08.582Z"
+    },
+    {
+      "state": "erased",
+      "title": null,
+      "body": null,
+      "withdrawn_at": "2026-10-10T01:17:08.582Z"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

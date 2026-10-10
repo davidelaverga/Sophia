@@ -1,0 +1,23 @@
+{
+  "pid": {
+    "value": 18259,
+    "absent": true
+  },
+  "apiPid": {
+    "value": 18267,
+    "absent": true
+  },
+  "studioPid": {
+    "value": 18268,
+    "absent": true
+  },
+  "apiPort": {
+    "value": "56466",
+    "closed": true
+  },
+  "studioPort": {
+    "value": "56467",
+    "closed": true
+  },
+  "at": "2026-10-10T01:19Z"
+}

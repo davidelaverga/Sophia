@@ -1,0 +1,9 @@
+{
+  "candidate": "715d2b1a1c677c46a9b168c30475c32d0a5f00bc",
+  "tree": "6053d6b5cf754d6709c8d1cab3168d6555155d74",
+  "at": "2026-10-10T01:17:34.594Z",
+  "level": "L0 actual production withLastMessage; no browser equal-timestamp proof",
+  "ambiguousTieKeepsRow": true,
+  "strictlyEarlierRowUpdated": true,
+  "originalEqualTimestampUsefulness": "open: earlier row may lag until a successful authoritative list read"
+}

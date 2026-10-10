@@ -1,3 +1,11 @@
+## Current authoritative checkpoint — CX-0026, bounded lifecycle correction passes
+
+Exact715d2b1a/tree6053d6b5: complete11-file delta independently reviewed;92 focused tests/Studio typecheck pass. Actual local Studio/API/PG scheduled200 preserves omitted older conversation draft on return; after externalerase with identical capped200/moretrue list/feedblocked, scheduled422 within20.121s; current otherdraft/view/focus retained; no further targetreads through88.477s. Placeholder L0 correction passes. Original equal-time usefulness P2 remains open. [CX-0026](../coordination/CON-01/CX-0026.md) records exact identities/commands/results/limits.
+
+All17owned stacks cleaned/DBdropped/PGstopped+removed/portsclosed/tab29closed. No provider/native/hosted effects, spend or uncertain paid outcome; no new serving tuple. OP-0001-r1 draft_not_authorized; D6/B1/cohort/two subjects/route/credentials-reference/payer/caps/expiry/window/exact executable approval absent. Current-reader rollback bounded; production/G2/native rollback open. Combined reviewed/authorized/deployed/app_verified/owner_accepted=false;36verdicts retained/A30not_run. Davide final acceptance; othermissions untouched.
+
+Both author committed receipts read: a342 full FAILED4/1150, isolated main comparisons no waiver; new71-pass development and fail-before evidence correctly bounded.715 frozen gate running since01:11:17Z; previous missing-exit/log-overwritten attempt unqualified. Fresh exact bot6092093908 no major issues, not acceptance. Main3e6/PR190d2e2 unchanged. Early optionalseq contract plan reviewed with strict-reader rollout/paired rollback caveat; existing generated-contract second-landing rule suffices for narrow local candidate, runtime owner/window approvals separate. Next bounded action: immutable seq correction + current715 terminal gates, then independent affected proof and G2/operations under missing bindings. No monitor/future-session promise.
+
 # CON-01 independent reviewer/operator handoff — attempt 1
 
 ## Current authoritative checkpoint — CX-0025, published correction changes requested
