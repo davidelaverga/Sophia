@@ -1,0 +1,38 @@
+{
+  "at": "2026-10-10T13:56:38.957187+00:00",
+  "pids": [
+    {
+      "pid": 64226,
+      "absent": true
+    },
+    {
+      "pid": 64250,
+      "absent": true
+    },
+    {
+      "pid": 64259,
+      "absent": true
+    },
+    {
+      "pid": 64260,
+      "absent": true
+    }
+  ],
+  "ports": [
+    {
+      "port": 54955,
+      "closed": true
+    },
+    {
+      "port": 54956,
+      "closed": true
+    },
+    {
+      "port": 54957,
+      "closed": true
+    }
+  ],
+  "postgresStopped": true,
+  "clusterRemoved": true,
+  "stackExit": 0
+}

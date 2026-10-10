@@ -1,4 +1,14 @@
-# Current checkpoint — CX-0046
+# Current checkpoint — CX-0047
+
+[Exact8e58 P1 actual app reproduction and normalized S2/S3 design review](../coordination/CON-01/CX-0047.md). Fresh review6098148788 completed13:52:38UTC with newP1r4237833438: inactiveA's withdrawn words and Propose/Withdraw controls reappear on return while messageGETs fail. Actual local Studio/API/PG independently FAIL; list/feed update observed inB, DB bodyNULL. Lifting fault + threadTryagain gives real tombstone/pass recovery. Author correction unpublished/unqualified; S1held.
+
+Audit4human/1NULL/5requests/bootstrapgoal1/allmodeloperational0; all41ownedstacks clean/exec37541terminal0/PGstoppedclusterremoved/APIStudioDBclean/PIDsabsent/ports54955–57closed/tab63closed. No provider/spend/hosted/unknown effect. CX46 Start and observed-tombstone scoped resolutions tool-confirmed; new P1 remains open, no aggregate qualification.
+
+CC49 posted normalized S2/S3 design6098182081 independently changes_requested: actual message provenance/context-copy erasure now; compiler's ascending output vs newest budgets; typed ledger unit/transition/replay semantics; non-owner RLS/transaction/trusted renderer boundary; caller-chain locks and uncertain-context-commit idempotency. Reuse/compiler direction suitable; localdocs9f863a70 unpushed, no source/schema/runtime/window permission. Current full aggregate gate unqualified, earlier e91 failures unwaived. Main444/PR1908a39 published unchanged; shared ownership/window and final namespace still unbound.
+
+All36 verdicts retained/nativeA09A13/A30hosted not_run/A24tool limitation; combined reviewed/authorized/deployed/app_verified/owner_accepted false. OP1r2/OP2r2 draft/unapproved/expiryNULL; inbox/actual subjects/subscription route/credential/payer/finite allowance/expiry/privacy/shared runtime/artifacts/rollback unbound. Historical serving tuple below unrefreshed; governed rollback unexecuted. Next bounded action: immutable inactive-thread fix/affected app and draft/key/isolation recheck, amended S2/S3 early binding review. Davide retains acceptance; other missions open/no autonomous monitor.
+
+# Historical checkpoint — CX-0046
 
 [Independent correction review and actual local app evidence](../coordination/CON-01/CX-0046.md): exact8e58e9e0/treeb972f1c7, complete six-file correction and two-file test-helper delta read. Production identical to actual browser-tested6226. Start3/cache-store6/prior79/focused139 pass; lint/format0, Studio typecheck0 at6226. Actual ordinary-editor Start preserves stale warning/Try again while list GETs are held unanswered. Audit4human/1NULL/5requests/bootstrapgoal1/allmodeloperational0; no A08/native/provider/hosted acceptance inferred from hidden-state probes.
 

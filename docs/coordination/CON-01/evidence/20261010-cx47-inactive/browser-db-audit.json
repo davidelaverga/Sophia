@@ -1,0 +1,116 @@
+{
+  "candidate": "8e58e9e0f046b72c83ea444ba2b0db2de0afc7af",
+  "tree": "b972f1c7bc4a7018efad4000add33d1995cdad92",
+  "observedAt": "2026-10-10T13:56:07.190Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "45e677b7-36d1-4e74-a9e5-54bd25a38179",
+  "messages": [
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "a7cf56ba-1cca-4171-b4e2-7025e48ec00d",
+      "conversation_id": "cfde8a7e-6977-4d50-8e87-15ae91926582",
+      "actor_id": "39dc7f24-f609-41be-8a49-d5d3e05ba71a",
+      "seq": "1",
+      "body": "SYNTHETIC B first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "ae25f262-a09d-4d88-904a-480a232255e6",
+      "conversation_id": "cfde8a7e-6977-4d50-8e87-15ae91926582",
+      "actor_id": "2bfcd67f-bf3c-4b49-a177-a0967820d28d",
+      "seq": "2",
+      "body": null,
+      "withdrawn_at": "2026-10-10T13:55:23.196Z"
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "a3574294-aaf8-40c1-91cd-5540c9fff3de",
+      "conversation_id": "cfde8a7e-6977-4d50-8e87-15ae91926582",
+      "actor_id": "8061c6ca-bd1c-4c57-98e6-8e47fc306a9f",
+      "seq": "3",
+      "body": "SYNTHETIC A surviving third",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC B active while A withdrawn",
+      "id": "25e120e0-bd5a-402f-9076-557b7982a56e",
+      "conversation_id": "41551762-cf2c-4f63-aa64-c334f84c9631",
+      "actor_id": "2bfcd67f-bf3c-4b49-a177-a0967820d28d",
+      "seq": "1",
+      "body": "SYNTHETIC separate conversation body",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "39dc7f24-f609-41be-8a49-d5d3e05ba71a",
+      "idempotency_key": "f6847859-e13b-471e-9338-c227c1735ec6",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5330ccde42281581f28f37610b9174ef048359dbf751d4b51bb3ed3a950c3b25",
+        "titleSha256": "18737aa98ca1e588aa6a15aedbde45e440c8396987f4904bc602f317eb4624f9"
+      },
+      "message_id": "a7cf56ba-1cca-4171-b4e2-7025e48ec00d"
+    },
+    {
+      "actor_id": "2bfcd67f-bf3c-4b49-a177-a0967820d28d",
+      "idempotency_key": "26016e50-07a2-460f-85e3-103e260fac9e",
+      "operation": "send",
+      "semantic_request": {
+        "redacted": true
+      },
+      "message_id": "ae25f262-a09d-4d88-904a-480a232255e6"
+    },
+    {
+      "actor_id": "8061c6ca-bd1c-4c57-98e6-8e47fc306a9f",
+      "idempotency_key": "50790c6a-eba2-4819-a8a8-1a53f5e38ea1",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "de4331acb084b25f6752b3f63bb3d7250c17a3c8f84b2c96125762bc134fe329",
+        "conversationId": "cfde8a7e-6977-4d50-8e87-15ae91926582"
+      },
+      "message_id": "a3574294-aaf8-40c1-91cd-5540c9fff3de"
+    },
+    {
+      "actor_id": "2bfcd67f-bf3c-4b49-a177-a0967820d28d",
+      "idempotency_key": "a9884983-116d-4630-8613-d8d7b5004f19",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5ae3477b137455d75deca606b8506db8f45a8546936d685686171e7bcdd3e90b",
+        "titleSha256": "3421de4543d706a0f7d4d01d72af27aa662bd876c9e230ec7f8a8ca0fd837fcb"
+      },
+      "message_id": "25e120e0-bd5a-402f-9076-557b7982a56e"
+    },
+    {
+      "actor_id": "39dc7f24-f609-41be-8a49-d5d3e05ba71a",
+      "idempotency_key": "c6ca4c78-d3ff-4021-b238-134f89822925",
+      "operation": "withdraw",
+      "semantic_request": {
+        "messageId": "ae25f262-a09d-4d88-904a-480a232255e6",
+        "operation": "withdraw",
+        "conversationId": "cfde8a7e-6977-4d50-8e87-15ae91926582"
+      },
+      "message_id": null
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}
