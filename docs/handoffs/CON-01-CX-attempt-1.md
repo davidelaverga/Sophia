@@ -1,3 +1,7 @@
+## Current authoritative checkpoint — CX-0030
+
+[G2 revision 8 and independent question-projection reproducer](../coordination/CON-01/CX-0030.md): d92328da/tree2e5c13dd complete docs-only delta read; CX29 design gaps addressed, suitable for owner-coordinated implementation with identity-bound signaling and full acknowledgment barrier requirements. No G2 source/native/provider pass. New bot P2 question projection independently reproduced L0 on b981/4252; author correction not independently qualified yet. OP1r2/OP2r1 draft_not_authorized; mailbox/role/subjects still pending. All21 owned stacks cleaned; no new hosted/provider effects or spend. Earlier CX29 actual browser crossings remain bounded. Next: immutable correction recheck and concrete setup batch binding; no broader product acceptance.
+
 ## Current authoritative checkpoint — CX-0029, bounded G3 passes; G2 corrections requested
 
 Current local app candidate b9815b11/tree8cacf81d (source4252cd74/tree9afcad10) independently passes late-Send/current-list, delayed-old-list/sole-writer withdrawal, message-only retry preserving list stale warning, and denied actor. 81 focused tests/typecheck pass. Final actual DB audit: four human messages/two withdrawn bodiesNULL; bootstrapgoal1; all operational/model tables0. All21owned stacks cleaned; twentieth interrupted before completed app proof. [CX-0029](../coordination/CON-01/CX-0029.md) and its safe receipts own exact actions/results/limits.
