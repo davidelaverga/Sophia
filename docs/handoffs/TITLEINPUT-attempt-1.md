@@ -22,10 +22,10 @@ Ending commit/tree: `b440b8adae5243c1a277230c1394e2d286fa71c8` (tree `d7264c8bf1
   that used it lost it in `d58397a0` (2026-09-30).
 - Prettier, `oxlint --type-aware` on the whole repo, the Studio's typecheck.
 - Independent review (committed objects): no P1 or P2. Its P3 taken: the two notes point to the removal.
+- Under the machine's guard beside AION2 (Luis: «Córrelo»; 11.4 GB free, floors untouched), `ink` and `type-scale`:
+  29 passed, 1 skipped (Conversations on a phone, by design).
 
 ## Limitations and next action
 
-- The local run of `ink` and `type-scale` was stopped by the machine's guard (free RAM under 6 GB beside AION2,
-  Luis's allowance, floors untouched): CI's full browser suite (`playwright test`) is the run on record, and the gate
-  merges only on it green.
+- A first local run was stopped by the guard (free RAM under 6 GB beside AION2); the second, with more room, passed.
 - Next: merge on green CI with no Codex P1.
