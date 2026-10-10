@@ -1,0 +1,19 @@
+{
+  "candidate": "4b57c53920c05aa5ef9f145e3bee1b3a8a020470",
+  "level": "L0 actual helper, permitted trusted name:null; auth.test has signed valid token with no email",
+  "finding": 4237385093,
+  "observed": [
+    {
+      "actorId": "A",
+      "name": "Synthetic Former"
+    }
+  ],
+  "openingName": null,
+  "expected": "A member, matching SQL list projection name ?? A member; null trusted name must not preserve former name",
+  "source": [
+    "auth.ts createActorVerifier name nullable and signed token with no email accepted in auth.test.ts:28",
+    "conversation_append stores null normalized name",
+    "conversations.ts readConversationList maps latest author_name null to A member"
+  ],
+  "newPaidOrHostedEffects": 0
+}

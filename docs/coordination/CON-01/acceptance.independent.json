@@ -42,7 +42,8 @@
         "CX-0017.md",
         "CX-0018.md",
         "CX-0029.md",
-        "CX-0034.md"
+        "CX-0034.md",
+        "CX-0035.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. Current7660 bounded recheck in CX16 supersedes the affected CX15 failures: human contributor metadata,201-writer contract and original mobile focus pass; late erase navigation fails. New4575 source is not yet qualified. Native/provider/hosted acceptance remains open. Exact0f affected erasure navigation/retry/feed cases pass locally (CX17); current-main/A08 correction is newer unqualified source. G2/native/provider/hosted acceptance remains open. CX18 independently reproduces P1 false erasure/draft loss under capped-list churn on0f; source unchanged5c, automatic review confirms. Overall erasure/privacy release qualification is withheld pending correction.",
       "live_blockers": [
@@ -51,8 +52,8 @@
         "No accepted saved-text policy or exact approved operation batch"
       ],
       "baseline_evidence": [],
-      "latest_checkpoint": "CX34 exacte91: new skipped-sequence projection count/renamed same-actor contributor defects reproduced L0; corrections pending. Prior bounded CX33 cases retained, no native assessment or actual rename/browser pass.",
-      "current_checkpoint": "CX-0034.md"
+      "latest_checkpoint": "CX35 exact70771: count/rename/nullfallback corrections pass independentL0/99focused/typecheck; no native assessment/actual hosted rename/current browser pass. Applied0048 rewrite proposal withdrawn; additiveSQL/sourcewindow stillpending.",
+      "current_checkpoint": "CX-0035.md"
     },
     {
       "id": "CON-01-T03",
@@ -395,14 +396,15 @@
       "status": "not_run",
       "evidence_refs": [
         "CX-0033.md",
-        "CX-0034.md"
+        "CX-0034.md",
+        "CX-0035.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [
         "F2: openWords(0) implies completeness without coverage; G0 coverage is still being bound."
       ],
-      "latest_checkpoint": "CX34 exacte91: new skipped-sequence projection count/renamed same-actor contributor defects reproduced L0; corrections pending. Prior bounded CX33 cases retained, no native assessment or actual rename/browser pass.",
-      "current_checkpoint": "CX-0034.md"
+      "latest_checkpoint": "CX35 exact70771: count/rename/nullfallback corrections pass independentL0/99focused/typecheck; no native assessment/actual hosted rename/current browser pass. Applied0048 rewrite proposal withdrawn; additiveSQL/sourcewindow stillpending.",
+      "current_checkpoint": "CX-0035.md"
     },
     {
       "id": "CON01-A18",
@@ -413,12 +415,13 @@
       "status": "not_run",
       "evidence_refs": [
         "CX-0033.md",
-        "CX-0034.md"
+        "CX-0034.md",
+        "CX-0035.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [],
-      "latest_checkpoint": "CX34 exacte91: new skipped-sequence projection count/renamed same-actor contributor defects reproduced L0; corrections pending. Prior bounded CX33 cases retained, no native assessment or actual rename/browser pass.",
-      "current_checkpoint": "CX-0034.md"
+      "latest_checkpoint": "CX35 exact70771: count/rename/nullfallback corrections pass independentL0/99focused/typecheck; no native assessment/actual hosted rename/current browser pass. Applied0048 rewrite proposal withdrawn; additiveSQL/sourcewindow stillpending.",
+      "current_checkpoint": "CX-0035.md"
     },
     {
       "id": "CON01-A19",
@@ -761,27 +764,20 @@
         "CX-0027.md",
         "CX-0028.md",
         "CX-0029.md",
-        "CX-0033.md"
+        "CX-0033.md",
+        "CX-0035.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX19 supersedes affected CX18 failures within exact82f local scope: Main203 integrated; PR19090a7 currentcallfence/media delta reviewed for overlap only; shared G2 owner window unbound. Required G2/native/provider/hosted arms remain open. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending. CX26: Exact715 actual local capped timer200/older draft return and identical-list externalerase scheduled422 pass; placeholder and ambiguous tie L0 safe correction pass. Original equal-time usefulness P2 remains open; G2/native/hosted/full combined gates unqualified. CX27: P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof. CX28 exact7969: originallateSendpassesbounded, newactualdelayed-list P1 resurrectsknownwithdrawnpreview; actualstale-warningP2 and L0fallbackorderP2 open. All19stacks cleaned.715fullgate1151/1154/3fail/exit1 authorreport, notwaiver/newcandidategate. No hosted/provider/nativeacceptance oroperationalauthorization.",
       "baseline_evidence": [],
-      "latest_checkpoint": {
-        "record": "CX-0033.md",
-        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
-      },
-      "current_checkpoint": {
-        "record": "CX-0033.md",
-        "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-        "verdict": "CX33 bounded current actual local regression and L0 controls; full native/provider/hosted acceptance open."
-      }
+      "latest_checkpoint": "CX35 exact70771: count/rename/nullfallback corrections pass independentL0/99focused/typecheck; no native assessment/actual hosted rename/current browser pass. Applied0048 rewrite proposal withdrawn; additiveSQL/sourcewindow stillpending.",
+      "current_checkpoint": "CX-0035.md"
     }
   ],
   "reviewer_session": "01a1224a-32b4-7222-a017-50a277572d95",
   "attempt": "CON-01-CX-attempt-1",
-  "candidate_sha": "e91b1c7a555b74414898e53248afab2f6292b23a",
-  "candidate_tree": "4c5e15956917c50b12042a763b6c0b240607a028",
-  "review_ref": "CX-0033.md",
+  "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+  "candidate_tree": "bd7f01da94da9e2be9063094a79bd32f2eead79b",
+  "review_ref": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
   "current_main_observed": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
   "supplemental_candidates": [
     {
@@ -843,30 +839,30 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0034.md",
-    "candidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
-    "tree": "4c5e15956917c50b12042a763b6c0b240607a028",
+    "record": "CX-0035.md",
+    "candidate": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+    "tree": "bd7f01da94da9e2be9063094a79bd32f2eead79b",
     "actualAppCandidate": "e91b1c7a555b74414898e53248afab2f6292b23a",
     "actualAppTree": "4c5e15956917c50b12042a763b6c0b240607a028",
     "currentMain": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
-    "statement": "CX33 bounded local app passes retained; fresh exacte91 automatic review5478696692 terminal with2newP2s. Independent actual production helper probe reproduces skipped-sequence exact-count defect and stale trusted contributor name;6controls pass. No correction qualified yet.",
+    "statement": "Complete3file correction+3file follow-up read. 4b57 independent typecheck2/null-name defect,70771 typecheck0/99focused/29externalprobes pass. Two newP2s qualifiedL0 only, no current70771 browser/native assessment/account rename claim.",
     "independentFocusedTests": {
       "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts apps/studio/src/features/conversations/list-data.test.ts",
-      "passed": 90,
+      "passed": 99,
       "failed": 0,
       "skipped": 0,
       "exit": 0
     },
     "externalProbes": {
-      "currentCorrectionProbe": 11,
-      "previousQuestionPrivacyProbe": 9,
+      "currentCorrection": 9,
+      "priorCorrection": 11,
+      "questionPrivacy": 9,
       "failures": 0,
-      "level": "L0 helpers/store/actual QueryClient, assessed fields synthetic",
-      "newDefectProbe": "2defects reproduced with6controls at L0; no actual native assessment/account rename claim"
+      "level": "L0 actual helpers/store/QueryClient, synthetic assessed fields/trusted receipt"
     },
     "studioTypecheckExit": 0,
     "fullGate": "Author exact e91 focused gate exit0; full at505/1195 with2 failures so far, attributed to main but no waiver/independent baseline proof. Terminal full/check/SQL absent. CI38045346176/38045351519 exacte91 in_progress.",
-    "findings": "r4237385090/r4237385093 open, independently reproduced L0. Prior4CX33 scoped resolutions retained; no wholePR approval.",
+    "findings": "r4237385090/r4237385093 qualifiedL0 on70771 including nullname; priorCX33 bounded evidence retained; no wholePR approval.",
     "operation": "OP0001r2/OP0002r2 draft_not_authorized; approval/expiry null; owner mailbox/actual cohort/supported route/finite allowance/shared window unbound.",
     "cleanup": "All24owned stacks clean; tabs42\u201345closed; override reset; DB/PGclustersremoved/processesabsent/portsclosed. No hosted/provider/native/spend/uncertain paid effect.",
     "sharedPR190": "8a39b0767439dd11d212b1768b8e905aec274865",
@@ -898,12 +894,13 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "next": "Immutable author2case correction and independent affected probes/app recheck; terminal full/check/SQL receipt; coordinated G2 source.",
+    "next": "Fresh exact70771 automatic review/terminal gates, then revised Studio-onlyS1 and shared-owner coordination.",
     "publication": {
       "mission": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6096748870",
       "freshAutomaticReview": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6096749011",
       "fourThreadsResolved": "within explicit L0/L1/hardening scopes; no mounted proposal race or wholePR acceptance",
       "freshAutomaticReviewResult": "5478696692 completed with2findings10:56:37UTC"
-    }
+    },
+    "g2S1": "0048 edit proposal withdrawn perWORKING_PROTOCOL\u00a72; separateStudio-only preparation, SQLadditive aftercoordination; no new window/effect authority."
   }
 }

@@ -1,0 +1,62 @@
+{
+  "candidate": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+  "tree": "bd7f01da94da9e2be9063094a79bd32f2eead79b",
+  "parent": "4b57c53920c05aa5ef9f145e3bee1b3a8a020470",
+  "parentTree": "663fd895ea47a7627ad0a9b6a0f2a04a0568057e",
+  "completeSourceDeltaRead": "3files e91\u21924b57 and3samefiles4b57\u219270771, dependencies unchanged",
+  "focused": {
+    "passed": 99,
+    "failed": 0,
+    "skipped": 0,
+    "suites": 36,
+    "command": "node --test apps/studio/src/features/conversations/conversation-list.test.ts apps/studio/src/features/conversations/withdrawn-purge.test.ts apps/studio/src/features/conversations/talk-store.test.ts apps/studio/src/features/conversations/revalidation.test.ts apps/studio/src/features/conversations/list-data.test.ts"
+  },
+  "typecheck": {
+    "command": "pnpm --filter @sophia/studio typecheck",
+    "beforeCandidate": "4b57c539",
+    "beforeSession": 8766,
+    "beforeExit": 2,
+    "afterSession": 48839,
+    "afterExit": 0
+  },
+  "external": {
+    "currentCorrection": 9,
+    "priorCorrection": 11,
+    "questionPrivacy": 9,
+    "failures": 0,
+    "level": "L0 actual helpers/store/QueryClient; synthetic assessed fields/trusted receipts"
+  },
+  "failBefore": {
+    "candidate": "4b57c539",
+    "script": "correction-check.mjs",
+    "exit": 1,
+    "failed": 1,
+    "passed": 8,
+    "case": "null trusted name keeps former name"
+  },
+  "ciBefore": {
+    "candidate": "4b57c539",
+    "job": 114198841522,
+    "run": 38047140060,
+    "observed": "four oxlint errors, process exit1; full run stillin_progress when job log read",
+    "logAccess": "gh api actions/jobs/.../logs --allow-escape-sequences, bounded error filter; gh run --log-failed refused while run in progress"
+  },
+  "actualApp": "No new actual browser episode; last actual app e91/tree4c5 CX33 remains scoped there, no current70771 browser or actual account-rename/native assessment claim",
+  "effects": {
+    "newStacks": 0,
+    "ownedStacksClean": 24,
+    "hostedWrites": 0,
+    "providerCalls": 0,
+    "nativeCalls": 0,
+    "newSpend": 0,
+    "uncertainPaidOutcome": 0
+  },
+  "hashes": {
+    "4b57-null-name-result.json": "021a138fc781d97644cf060a2d5ce01959588bc434d2a74cd793c4161a0220be",
+    "4b57-null-fail-before.json": "753a041fc79a6a970b8ffd3b32e27d99237710435012ccd456be3cfa78a0d50d",
+    "correction-check.mjs": "d3c8dc8e3d6af4f215274c80ffd96be0238c8dc3df29bb827ce2030d95e3961a",
+    "70771-question-privacy.json": "97bdcb2bfe9d78d1249ee1a048ec6db25e7633255a008711fd06ddf9340f7ef2",
+    "70771-correction-result.json": "fba3317fd60c49f38697be77d2cddc369122212e6a1e7158d0c539a0c06b6755",
+    "70771-prior-correction.json": "415f3137c61c657f08ed97a23c0311c86bf2beac405f245888769bd9a334978d"
+  }
+}

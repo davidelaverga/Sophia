@@ -1,0 +1,47 @@
+{
+  "level": "L0 production helpers and actual QueryClient, synthetic assessed projections; no browser/API/provider",
+  "checks": [
+    {
+      "name": "Local withdrawal invalidates only selected conversation projection",
+      "verdict": "pass"
+    },
+    {
+      "name": "Question-only change survives sameRow optimization",
+      "verdict": "pass"
+    },
+    {
+      "name": "Question labels and Open filter no longer claim withdrawn assessment",
+      "verdict": "pass"
+    },
+    {
+      "name": "Fresh authoritative list remains useful when read began after known withdrawal",
+      "verdict": "pass"
+    },
+    {
+      "name": "Actual QueryClient purges question-only projection; other actor/project caches untouched",
+      "verdict": "pass"
+    },
+    {
+      "name": "Question purge preserves failed list status, error and update counters",
+      "verdict": "pass"
+    },
+    {
+      "name": "Late old list cannot restore assessed question count",
+      "verdict": "pass"
+    },
+    {
+      "name": "New list read can restore currently authoritative question projection",
+      "verdict": "pass"
+    },
+    {
+      "name": "Cancelled old read cannot restore assessed question projection",
+      "verdict": "pass"
+    }
+  ],
+  "passed": 9,
+  "failed": 0,
+  "testedCandidate": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+  "exit": 0,
+  "probeEmbeddedCandidateLabel": null,
+  "candidate": "70771a3738b585b14a2819a8e1d32b8da09cdbeb"
+}

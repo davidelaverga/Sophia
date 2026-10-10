@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0034
+# Current checkpoint — CX-0035
+
+Exact70771a37/treebd7f01da fullthree-file follow-up read;99focused/Studio typecheck/29externalL0probes pass.4b57 typecheck/CI errors and null-name residual independently found, authorcorrected. Both freshP2s qualifiedL0 only; no actual account rename/native assessed/current70771 browser claim. [Full durable record/evidence](../coordination/CON-01/CX-0035.md). G2-S1 proposal to rewriteapplied0048 withdrawn; hashpreserved, Studio-only preparation andlater additiveSQL/namespacecoordination. Frozen e91fullgate live with2observedfailures/no waiver/current70771fullqualification. All24owned stacks clean/no new hosted/provider effects/spend. OP drafts unapproved; mailbox/route/finiteallowance/expiry/sharedwindow/G2/actualappacceptance open. Next: fresh exact70771review/terminal gates then revisedS1/sharedownercoordination. No broader product acceptance.
+
+# Historical checkpoint — CX-0034
 
 Fresh exacte91 automatic review5478696692 returned two new P2s; independently reproduced L0: skipped seq1→3 falsely says1newer (rawgap also unsafe with withdrawal), and trusted same-actor renamed receipt leaves old contributor name. Six controls pass. [Exact reproducers/evidence/limits](../coordination/CON-01/CX-0034.md). Claude received both and is inspecting them; no correction qualified yet. Prior CX33 actual app passes remain bounded. Full author gate/CI still running with two full-suite failures observed; no waiver/terminal pass. All24owned stacks clean, no hosted/provider effects/spend. G2/route/window/mailbox/finite allowance/batch/actual hosted acceptance remain open; OP drafts unapproved. Next bounded action: immutable two-case correction independently rechecked, then terminal gates/coordinated G2.
 
