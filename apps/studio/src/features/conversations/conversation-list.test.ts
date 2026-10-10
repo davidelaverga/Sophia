@@ -11,7 +11,6 @@ import {
   gistOf,
   withLastMessage,
   lastSaid,
-  heldBefore,
   pendingOf,
   byActivity,
   contributorsLine,
@@ -178,28 +177,22 @@ describe('withLastMessage', () => {
   })
 })
 
-describe('equal times on the list’s row: the thread’s own order decides (PR #199 r4235629903)', () => {
+describe('equal times on the list’s row: it stays (PR #199 r4235629903; Codex on 653fe9a)', () => {
   const at = '2026-10-07T10:00:00.000Z'
   const rowSays = (text: string, when = at) => [
     conversation({ id: 'a', lastMessage: { author: 'member', actorId: ME, name: 'You', text, at: when } }),
   ]
-  /** The row after the receipt of m10, the thread holding m9 then m10, both at the same time. */
-  const after = (list: ReturnType<typeof rowSays>) => {
-    const read = page([
-      message('m9', { seq: 9, at, text: 'Said first.' }),
-      message('m10', { seq: 10, at, text: 'Said next.' }),
-    ])
-    const m10 = message('m10', { seq: 10, at, text: 'Said next.' })
-    return withLastMessage(list, 'a', m10, (shown) => heldBefore(read, shown, m10))[0]?.lastMessage?.text
-  }
+  const receipt = { author: 'member' as const, actorId: ME, name: 'You', text: 'B, said tenth.', at }
+  const after = (list: ReturnType<typeof rowSays>) => withLastMessage(list, 'a', receipt)[0]?.lastMessage?.text
 
-  it('a row saying the message the thread holds before the receipt’s, at the same time, gives way to it', () => {
-    assert.equal(after(rowSays('Said first.')), 'Said next.')
+  it('a tied row may be a later message the thread hasn’t read (its words like an earlier one’s): it stays', () => {
+    // The thread holds m9 «A» and m10 «B»; the row says «A» — m9's words, or an unread m11's. Nothing tells which.
+    assert.equal(after(rowSays('A, said ninth or eleventh.')), 'A, said ninth or eleventh.')
   })
 
-  it('a row the thread can’t place at the same time (said elsewhere, maybe later) stays; a later one stays', () => {
-    assert.equal(after(rowSays('Said by someone else, same time.')), 'Said by someone else, same time.')
+  it('a later row stays; an earlier one gives way', () => {
     assert.equal(after(rowSays('Said since.', '2026-10-07T10:05:00.000Z')), 'Said since.')
+    assert.equal(after(rowSays('Said before.', '2026-10-07T09:55:00.000Z')), 'B, said tenth.')
   })
 })
 

@@ -234,10 +234,20 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
   return [...knew].filter((id) => !here.has(id))
 }
 
-/** Whether anything is kept here for this conversation: its own part, or a message of it (a proposal, a withdrawal). */
-export const keepsFor = (k: Kept, id: string): boolean =>
-  [k.drafts, k.asks, k.holds, k.refusals, k.asked, k.erasures].some((r) => id in r) ||
-  Object.values(k.homes).includes(id)
+/** An entry that holds something (not left empty, not cleared). */
+const held = (v: unknown) => v !== null && v !== undefined
+
+/**
+ * Whether anything is kept here for this conversation, by what is kept, not by an entry left empty (PR #199
+ * r4235731017): a draft with words; a message held, its refusal or its wait; its erasure held (its key); or a message of
+ * it with a proposal held, refused or recorded, or a withdrawal held.
+ */
+export function keepsFor(k: Kept, id: string): boolean {
+  if ((k.drafts[id] ?? '').trim() !== '') return true
+  if ([k.holds[id], k.refusals[id], k.asked[id], k.erasures[id]].some(held)) return true
+  const messages = Object.keys(k.homes).filter((m) => k.homes[m] === id)
+  return messages.some((m) => [k.proposals[m], k.proposalRefusals[m], k.proposed[m], k.withdrawals[m]].some(held))
+}
 
 /**
  * What is kept with the conversations a list read now holds seen: a whole list's are the ones seen from now on (what it

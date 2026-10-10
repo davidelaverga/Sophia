@@ -6,6 +6,7 @@ import {
   currentGeneration,
   forgetKept,
   goneFrom,
+  keepsFor,
   keptAt,
   withErasure,
   withHome,
@@ -160,6 +161,28 @@ describe('an erased conversation’s own part (Codex on a3422f4)', () => {
     )
     assert.equal(now.drafts.c2, 'stays')
     assert.deepEqual(now.decision, DECISION)
+  })
+})
+
+describe('keepsFor: by what is kept, not by an entry left empty (PR #199 r4235731017)', () => {
+  it('an empty draft and cleared entries keep nothing; words, a held message, an erasure’s key or a proposal do', () => {
+    const empty = keptWith({
+      drafts: { c1: '  ' },
+      asks: { c1: false },
+      holds: { c1: null },
+      refusals: { c1: null },
+      asked: { c1: null },
+      homes: { m1: 'c1' },
+      proposals: { m1: null },
+      proposed: { m1: null },
+    })
+    assert.equal(keepsFor(empty, 'c1'), false)
+    assert.equal(keepsFor({ ...empty, drafts: { c1: 'words' } }, 'c1'), true)
+    const message = { key: 's1', ask: { text: 'held words', askSophia: false }, sending: false }
+    assert.equal(keepsFor({ ...empty, holds: { c1: message } }, 'c1'), true)
+    assert.equal(keepsFor({ ...empty, erasures: { c1: { key: 'e1', ask: 'c1', sending: false } } }, 'c1'), true)
+    assert.equal(keepsFor({ ...empty, proposals: { m1: held('p1') } }, 'c1'), true)
+    assert.equal(keepsFor({ ...empty, drafts: { c2: 'words' } }, 'c1'), false)
   })
 })
 

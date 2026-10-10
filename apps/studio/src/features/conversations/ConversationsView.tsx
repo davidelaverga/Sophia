@@ -623,7 +623,11 @@ function useProbes(identity: Identity, settle: (id: string) => void, latest: () 
       }),
     [identity.token, settle, latest, queryClient, account],
   )
-  useEffect(() => () => probes.stopAll(), [probes])
+  // Opened with the view, closed as it goes: a remount (StrictMode's setup, cleanup, setup) leaves it open.
+  useEffect(() => {
+    probes.open()
+    return () => probes.stopAll()
+  }, [probes])
   return probes
 }
 

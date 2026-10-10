@@ -120,6 +120,17 @@ describe('Probes: reading directly a conversation left out of the newest (PR #19
     assert.deepEqual(settled, [])
   })
 
+  it('a view mounted twice over (StrictMode: setup, cleanup, setup) reads again once opened', async () => {
+    const { work, reads } = workWith(() => Promise.resolve({}))
+    const probes = new Probes(work)
+    probes.open()
+    probes.stopAll()
+    probes.open()
+    probes.start('c1')
+    await heard()
+    assert.deepEqual(reads, ['c1'])
+  })
+
   it('the view gone: every read stops, none starts after', async () => {
     const { work, reads } = workWith(() => new Promise<unknown>(() => undefined))
     const probes = new Probes(work)

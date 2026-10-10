@@ -64,7 +64,15 @@ export class Probes {
     if (queued >= 0) this.waiting.splice(queued, 1)
   }
 
-  /** The view gone: nothing more starts, every read stops. */
+  /**
+   * The view here (again): reads may start. A view mounted twice over (React's StrictMode runs an effect's setup, its
+   * cleanup, then its setup again) opens what its cleanup closed.
+   */
+  open(): void {
+    this.closed = false
+  }
+
+  /** The view gone: nothing more starts, every read stops (until it is opened again). */
   stopAll(): void {
     this.closed = true
     for (const id of this.on.keys()) this.stop(id)

@@ -257,19 +257,22 @@ test('removal · an erasure with no reply is sent again under its key, after ano
   expect(keys[1]).toBe(keys[0])
 })
 
-test('removal · an erasure whose reply is lost, out of a list of the newest only: the focus lands, nothing says erased', async ({
+test('removal · an erasure whose reply is lost, out of a list of the newest only: read directly, its not found says it', async ({
   page,
 }) => {
-  // A list holding the newest only proves nothing by leaving one out (it may be older): only a reply or a whole list
-  // settles an erasure, so with its reply lost the list says nothing of it.
+  // A list holding the newest only proves nothing by leaving one out (it may be older); the conversation read directly
+  // does: the API refuses an erased one as not found (422), and that alone settles it (probes.ts). Older, or a read that
+  // fails otherwise, it is kept and nothing is said (the cases after this one).
   await opened(page, '&erase=lost&more=1')
   await erase(page).click()
   await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
   await expect(list(page)).not.toContainText(FIRST)
   await expect(rows(page).first()).toBeFocused()
-  await page.waitForTimeout(1000)
-  await expect(list(page)).not.toContainText('The conversation was erased.')
-  await noReadOnceGone(page)
+  // The proof first: its direct read, refused as not found; only then is it said.
+  await expect.poll(() => written(page, 'messages-gone')).toContain('messages-gone:c1')
+  await expect(list(page).getByRole('status').filter({ hasText: 'The conversation was erased.' })).toBeVisible()
+  expect((await kept(page))?.erased[C1]).toBe(true)
+  expect((await kept(page))?.erasures[C1]).toBeUndefined()
 })
 
 test('removal · an erasure with no reply, its conversation pushed past the list’s newest: kept, its draft too, and sent again under its key', async ({
@@ -467,7 +470,8 @@ test('removal · withdrawn while its send’s receipt is on its way, every read 
   await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)
   // Every read after it fails; then the old receipt comes.
   await page.evaluate((c) => window.fixture?.failConversationReads(c), C1)
-  await expect.poll(() => written(page, 'reply'), { timeout: 6000 }).toEqual(['reply:message'])
+  // The withdrawal's own receipt came before (reply:withdrawal); the send's receipt is the one waited for.
+  await expect.poll(async () => (await written(page, 'reply')).includes('reply:message'), { timeout: 6000 }).toBe(true)
   await page.waitForTimeout(500)
   await expect(page.getByText('SYNTHETIC-WITHDRAWN-LATE-SEND-MUST-NOT-RETURN')).toHaveCount(0)
   await expect(messages(page).getByText('This message was withdrawn.')).toHaveCount(1)

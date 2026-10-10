@@ -200,25 +200,6 @@ export interface ReadPages<M> {
 }
 
 /**
- * Whether these pages hold the row's last message at an earlier place than `m` (its writer, time and opening words, a
- * lower `seq`): on equal times, the thread's own order says the row's message came first.
- */
-export function heldBefore(read: ReadPages<ConversationMessage> | undefined, shown: LastMessage, m: { seq: number }) {
-  const at = Date.parse(shown.at)
-  return (read?.pages ?? []).some((p) =>
-    p.messages.some(
-      (x) =>
-        x.seq < m.seq &&
-        !x.withdrawn &&
-        x.text?.slice(0, 140) === shown.text &&
-        x.author === shown.author &&
-        x.actorId === shown.actorId &&
-        Date.parse(x.at) === at,
-    ),
-  )
-}
-
-/**
  * The newest message these pages hold with its words (by its place in the conversation, `seq`; withdrawn ones say
  * nothing), if they hold any: what a confirmed message may say on the list's row, only if it is this one.
  */
@@ -353,29 +334,21 @@ export function gistOf(c: ConversationSummary, me: string): string | null {
   return `${who}: ${last.author === 'sophia' ? plainOf(last.text) : last.text}`
 }
 
-type LastMessage = NonNullable<ConversationSummary['lastMessage']>
-
 /**
  * The list as a confirmed message leaves it: that conversation's last message is the message, where the list says last
- * messages at all (A18 proposed), unless the row already says a later one (a receipt that comes late never takes a
- * newer message's place). On equal times, which may be two messages, the row gives way only to a message `before`
- * says comes after it (the thread holds the row's message at an earlier place: heldBefore); one the thread can't place
- * stays. The rest, and a list that doesn't say them, as they were.
+ * messages at all (A18 proposed), unless the row already says one as late or later. A receipt that comes late never
+ * takes a newer message's place; on equal times the row stays, since the row carries no message identity and its
+ * writer, time and words can be another, later message's too (Codex on 653fe9a): a row that lags until the list is read
+ * again is honest, one that goes back is not. The rest, and a list that doesn't say them, as they were.
  */
 export function withLastMessage(
   list: readonly ConversationSummary[],
   conversationId: string,
   m: Pick<ConversationMessage, 'author' | 'actorId' | 'name' | 'text' | 'at'>,
-  before: (shown: LastMessage) => boolean = () => false,
 ): readonly ConversationSummary[] {
   const text = m.text
   if (text === null) return list
-  const later = (c: ConversationSummary) => {
-    const says = c.lastMessage
-    if (!says) return false
-    const [was, now] = [Date.parse(says.at), Date.parse(m.at)]
-    return was > now || (was === now && !before(says))
-  }
+  const later = (c: ConversationSummary) => c.lastMessage && Date.parse(c.lastMessage.at) >= Date.parse(m.at)
   return list.map((c) =>
     c.id === conversationId && !later(c)
       ? {
