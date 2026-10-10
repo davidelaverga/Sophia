@@ -28,6 +28,7 @@ import {
   remainsAfter,
   withWithdrawn,
   type ReadPages,
+  type Remains,
   type Unnamed,
 } from './conversation-list.ts'
 
@@ -38,6 +39,17 @@ const heldForA = (held: ReturnType<typeof page>) => (id: string) => (id === 'a' 
 
 /** What a row's coverage says, where there is a row. */
 const words = (c: ProjectionCoverage | undefined) => (c ? coverageWords(c) : 'no row')
+
+/** What a withdrawal leaves, as remainsAfter says it: by default nobody's writer, Sophia staying, place 3. */
+const remainsOf = (over: Partial<Remains>): Remains => ({
+  writer: null,
+  writerStays: false,
+  writerName: null,
+  sophiaStays: true,
+  seq: 3,
+  newestShown: null,
+  ...over,
+})
 
 /** 01:0m on 7 October: Codex's minutes. */
 const minute = (m: number) => `2026-10-07T01:0${String(m)}:00.000Z`
@@ -838,7 +850,7 @@ describe('a confirmed message, as the API would say its row after it (r423729862
     const read = row({ ...readAt1, summaryCoverage: range('current', 0, { throughSeq: 1 }) })
     const [a] = withLastMessage([read], 'a', mine)
     const list = { conversations: a ? [a] : [] } as unknown as Parameters<typeof listWithdrawn>[0]
-    const gone = listWithdrawn(list, 'a', { writer: ME, writerStays: false, sophiaStays: false })?.conversations[0]
+    const gone = listWithdrawn(list, 'a', remainsOf({ writer: ME, sophiaStays: false }))?.conversations[0]
     assert.deepEqual(gone?.summaryCoverage, notAssessed)
     assert.equal(words(gone?.summaryCoverage), null)
   })
@@ -951,7 +963,7 @@ describe('a withdrawal leaves no question projection standing (PR #199 r42372225
       questionsCoverage: assessed,
       lastMessage: { author: 'member', actorId: ME, name: 'You', text: 'Seq 2.', at, seq: 2 },
     })
-  const remains = { writer: ME, writerStays: true, sophiaStays: false }
+  const remains = remainsOf({ writer: ME, writerStays: true, writerName: 'You', sophiaStays: false, seq: 2 })
 
   it('withdrawn here: its questions are not assessed any more, and none is counted open', () => {
     const list = { conversations: [asked()] } as unknown as Parameters<typeof listWithdrawn>[0]
@@ -987,7 +999,7 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
     policy: null,
     capability: { state: 'enabled' as const, write: true, moderate: false, ask: 'available' as const, askReason: null },
   })
-  const nothingElse = { writer: null, writerStays: false, sophiaStays: true }
+  const nothingElse = remainsOf({})
 
   it('drops that conversation’s last message and summary, and leaves the others', () => {
     const list = listOf()
@@ -999,12 +1011,12 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
   })
 
   it('drops its writer among those who wrote there, unless words of theirs are still read there', () => {
-    const gone = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: false, sophiaStays: true })
+    const gone = listWithdrawn(listOf(), 'c1', remainsOf({ writer: ME }))
     assert.deepEqual(
       gone?.conversations[0]?.contributors.map((p) => p.actorId),
       ['lucia'],
     )
-    const stays = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: true, sophiaStays: true })
+    const stays = listWithdrawn(listOf(), 'c1', remainsOf({ writer: ME, writerStays: true, writerName: 'Me' }))
     assert.equal(stays?.conversations[0]?.contributors.length, 2)
   })
 
@@ -1012,16 +1024,16 @@ describe('listWithdrawn: the list says nothing the withdrawal took (PR #199 revi
     // 201 wrote there; the list names 200, you among them. Your only message withdrawn, the reads after it failing:
     const named = Array.from({ length: 199 }, (_, i) => ({ actorId: `w${String(i)}`, name: `W${String(i)}` }))
     const capped = listOf({ contributors: [...named, { actorId: ME, name: 'Me' }] })
-    const after = listWithdrawn(capped, 'c1', { writer: ME, writerStays: false, sophiaStays: true })
+    const after = listWithdrawn(capped, 'c1', remainsOf({ writer: ME }))
     const row = after?.conversations[0]
     assert.equal(row?.contributors.length, 199)
     assert.ok(row)
     assert.match(contributorsLine(row, ME), /W198 and others/)
     // Taken out again, it still says so; a list that never reached the cap stays exact.
-    const again = listWithdrawn(after, 'c1', { writer: 'w0', writerStays: false, sophiaStays: true })?.conversations[0]
+    const again = listWithdrawn(after, 'c1', remainsOf({ writer: 'w0' }))?.conversations[0]
     assert.ok(again)
     assert.match(contributorsLine(again, ME), /and others/)
-    const small = listWithdrawn(listOf(), 'c1', { writer: ME, writerStays: false, sophiaStays: true })?.conversations[0]
+    const small = listWithdrawn(listOf(), 'c1', remainsOf({ writer: ME }))?.conversations[0]
     assert.ok(small)
     assert.doesNotMatch(contributorsLine(small, ME), /others/)
   })
@@ -1043,7 +1055,10 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
     assert.deepEqual(after(page([msg(2, { actorId: 'lucia', name: 'Lucía' }), msg(3)])), {
       writer: ME,
       writerStays: false,
+      writerName: null,
       sophiaStays: false,
+      seq: 3,
+      newestShown: 2,
     })
     assert.equal(after(page([msg(1), msg(3)])).writerStays, true)
   })
@@ -1064,5 +1079,98 @@ describe('remainsAfter: who still has words there, as read (PR #199 review)', ()
     }
     assert.equal(after(gap).sophiaStays, false)
     assert.equal(remainsAfter(undefined, gone).sophiaStays, false)
+  })
+})
+
+/** A list holding only that row. */
+const oneRow = (row: ConversationSummary) =>
+  ({ conversations: [row] }) as unknown as Parameters<typeof listWithdrawn>[0]
+
+describe('a withdrawal, a row’s projections and its writer’s name (PR #199 r4237439149, r4237439145)', () => {
+  const at = '2026-10-06T09:00:00.000Z'
+  const gone = msg(6, { text: null, name: null, withdrawn: { at: '2026-10-06T10:00:00.000Z' } })
+  const through = (last: number, state: 'current' | 'stale', newer: number) =>
+    ({
+      state,
+      complete: true,
+      fromSeq: 1,
+      throughSeq: last,
+      newer,
+      generatedAt: at,
+      replyId: null,
+      eligibilityRevision: 1,
+      ledgerRevision: 1,
+    }) as const
+  const assessed = (over: Partial<ConversationSummary> = {}) =>
+    conversation({
+      id: 'a',
+      messageSeq: 6,
+      summary: 'Said so far.',
+      summaryCoverage: through(5, 'current', 0),
+      openQuestions: 2,
+      questionsCoverage: through(5, 'current', 0),
+      contributors: [{ actorId: ME, name: 'Me' }],
+      ...over,
+    })
+  const withdrawnIn = (row: ConversationSummary, messages: ConversationMessage[]) =>
+    listWithdrawn(oneRow(row), 'a', remainsAfter(page([...messages, gone]), gone))?.conversations[0]
+  const before = [msg(1), msg(2), msg(3), msg(4), msg(5)]
+
+  it('projections whose range ends before the message never read it: they stay, words and all', () => {
+    const row = assessed()
+    const a = withdrawnIn(row, before)
+    assert.equal(a?.summary, 'Said so far.')
+    assert.deepEqual(a?.summaryCoverage, row.summaryCoverage)
+    assert.equal(a?.openQuestions, 2)
+    assert.deepEqual(a?.questionsCoverage, row.questionsCoverage)
+    // The same for a withdrawal the list read may not have known (rowsKnown), its thread held here.
+    const [b] = rowsKnown([row], heldForA(page([...before, gone])), () => true)
+    assert.equal(b?.summary, 'Said so far.')
+    assert.equal(b?.openQuestions, 2)
+  })
+
+  it('each projection by its own range: one that reached the message goes, the other stays', () => {
+    const a = withdrawnIn(assessed({ questionsCoverage: through(6, 'current', 0) }), before)
+    assert.equal(a?.summary, 'Said so far.')
+    assert.equal(a?.questionsCoverage.state, 'not_assessed')
+    assert.equal(a?.openQuestions, 0)
+  })
+
+  it('a count that may have held the message isn’t a count any more: newer still shown, said uncounted', () => {
+    const counted = assessed({ messageSeq: 7, summaryCoverage: through(5, 'stale', 2) })
+    const a = withdrawnIn(counted, [...before, msg(7)])
+    assert.equal(a?.summary, 'Said so far.')
+    assert.equal(words(a?.summaryCoverage), 'Covers messages 1–5; newer messages since.')
+  })
+
+  it('and with nothing newer still shown, nothing true is left to say of what came since: not assessed', () => {
+    const a = withdrawnIn(assessed({ summaryCoverage: through(5, 'stale', 1) }), before)
+    assert.equal(a?.summary, null)
+    assert.equal(a?.summaryCoverage.state, 'not_assessed')
+  })
+
+  it('stale for the project’s decisions only (none newer counted): as it was', () => {
+    const row = assessed({ summaryCoverage: through(5, 'stale', 0) })
+    assert.deepEqual(withdrawnIn(row, before)?.summaryCoverage, row.summaryCoverage)
+  })
+
+  it('a writer who stays is named by their newest message still shown, never by the withdrawn one', () => {
+    const row = assessed({
+      contributors: [
+        { actorId: 'lucia', name: 'Lucía' },
+        { actorId: ME, name: 'Synthetic Current Name' },
+      ],
+    })
+    const former = [msg(1, { actorId: 'lucia', name: 'Lucía' }), msg(2, { name: 'Synthetic Former Name' })]
+    assert.deepEqual(withdrawnIn(row, former)?.contributors, [
+      { actorId: 'lucia', name: 'Lucía' },
+      { actorId: ME, name: 'Synthetic Former Name' },
+    ])
+    // Their newest one still shown carries no name: «A member», as the API names them.
+    const unnamed = [msg(1, { actorId: 'lucia', name: 'Lucía' }), msg(2, { name: null })]
+    assert.deepEqual(withdrawnIn(row, unnamed)?.contributors[1], { actorId: ME, name: 'A member' })
+    // The same through rowsKnown, where the name is all that changes: it is kept, not taken for no change (CX-0036).
+    const [b] = rowsKnown([row], heldForA(page([...former, gone])), () => true)
+    assert.deepEqual(b?.contributors[1], { actorId: ME, name: 'Synthetic Former Name' })
   })
 })

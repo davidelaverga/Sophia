@@ -290,27 +290,45 @@ const NOT_ASSESSED: ProjectionCoverage = {
 export interface Remains {
   writer: string | null
   writerStays: boolean
+  /**
+   * Where the writer stays, the name their newest message still shown here carries, «A member» where it carries none:
+   * as the API names a writer, by their newest message not withdrawn (PR #199 r4237439145). Never the withdrawn one's;
+   * in pages read with a gap, possibly an older message's until the list is read again. Null where they don't stay.
+   */
+  writerName: string | null
   sophiaStays: boolean
+  /** The withdrawn message's place. */
+  seq: number
+  /** The newest place a message still shown holds in the pages read; null where none does. */
+  newestShown: number | null
 }
 
 /** A message that still says something here. */
 const shown = (m: ConversationMessage) => !m.withdrawn && m.text !== null
 
+/** The newest of these by place; null for none. */
+const newestOf = (all: readonly ConversationMessage[]) =>
+  all.reduce<ConversationMessage | null>((n, m) => (n === null || m.seq > n.seq ? m : n), null)
+
 export function remainsAfter(after: ThreadHeld, gone: ConversationMessage): Remains {
-  const now = (after?.pages ?? []).flatMap((p) => p.messages)
+  const now = (after?.pages ?? []).flatMap((p) => p.messages).filter(shown)
   const writer = gone.author === 'member' ? gone.actorId : null
+  const theirs = newestOf(now.filter((m) => m.author === 'member' && m.actorId === writer))
   return {
     writer,
-    writerStays: now.some((m) => shown(m) && m.author === 'member' && m.actorId === writer),
-    sophiaStays: now.some((m) => shown(m) && m.author === 'sophia'),
+    writerStays: theirs !== null,
+    writerName: theirs === null ? null : (theirs.name ?? 'A member'),
+    sophiaStays: now.some((m) => m.author === 'sophia'),
+    seq: gone.seq,
+    newestShown: newestOf(now)?.seq ?? null,
   }
 }
 
 /**
- * A list as a withdrawal leaves it, at once and before it is read again: that conversation's last message and summary,
- * which may say the words withdrawn, go; so does its writer among those who wrote there, unless the pages read show
- * words of theirs still there, and Sophia's part where the withdrawal took her answers (`remainsAfter`). The next read
- * says what remains.
+ * A list as a withdrawal leaves it, at once and before it is read again: that conversation's last message goes, and
+ * its summary where it may rest on the words withdrawn (rowWithdrawn); so does its writer among those who wrote there,
+ * unless the pages read show words of theirs still there, and Sophia's part where the withdrawal took her answers
+ * (`remainsAfter`). The next read says what remains.
  */
 export function listWithdrawn(list: ConversationList | undefined, conversationId: string, remains: Remains) {
   const left = (c: ConversationSummary & Unnamed) => ({ ...rowWithdrawn(c, remains), lastMessage: null })
@@ -319,26 +337,53 @@ export function listWithdrawn(list: ConversationList | undefined, conversationId
 
 /**
  * A row as a withdrawal leaves its summary, its questions, its writers and Sophia's part (listWithdrawn's, its opening
- * aside): the summary and the question projection, which may rest on the words withdrawn, go back to not assessed, with
- * no question counted open (as the API says them before any assessment; PR #199 r4237222580); the writer goes from those
- * who wrote there unless the pages read show words of theirs still there; Sophia's part goes unless they show an answer
- * of hers still there.
+ * aside):
+ * - the summary and the question projection, each by its own range (`afterWithdrawal`): one that may rest on the words
+ *   withdrawn goes back to not assessed, with its words, or no question counted open (as the API says them before any
+ *   assessment; PR #199 r4237222580); one whose range ends before them stays (r4237439149);
+ * - the writer goes from those who wrote there unless the pages read show words of theirs still there, and is then
+ *   named by those (r4237439145);
+ * - Sophia's part goes unless they show an answer of hers still there.
  */
 export function rowWithdrawn<T extends ConversationSummary & Unnamed>(c: T, remains: Remains): T {
+  const summaryCoverage = afterWithdrawal(c.summaryCoverage, remains)
+  const questionsCoverage = afterWithdrawal(c.questionsCoverage, remains)
   // A list that named as many as it may can't say the rest: one taken out of it never makes it look whole.
   return {
     ...c,
-    summary: null,
-    summaryCoverage: NOT_ASSESSED,
-    openQuestions: 0,
-    questionsCoverage: NOT_ASSESSED,
-    contributors:
-      remains.writer === null || remains.writerStays
-        ? c.contributors
-        : c.contributors.filter((p) => p.actorId !== remains.writer),
+    summary: summaryCoverage === NOT_ASSESSED ? null : c.summary,
+    summaryCoverage,
+    openQuestions: questionsCoverage === NOT_ASSESSED ? 0 : c.openQuestions,
+    questionsCoverage,
+    contributors: writersAfter(c.contributors, remains),
     sophia: c.sophia && remains.sophiaStays,
     ...(c.contributors.length >= NAMED_AT_MOST || c.othersUnnamed ? { othersUnnamed: true as const } : {}),
   }
+}
+
+/** Those who wrote there after a withdrawal: its writer gone, unless words of theirs are still shown, then named by them. */
+function writersAfter(contributors: ConversationSummary['contributors'], remains: Remains) {
+  const { writer, writerName } = remains
+  if (writer === null) return contributors
+  if (!remains.writerStays) return contributors.filter((p) => p.actorId !== writer)
+  if (writerName === null) return contributors
+  return contributors.map((p) => (p.actorId === writer && p.name !== writerName ? { ...p, name: writerName } : p))
+}
+
+/**
+ * A projection as the withdrawal of the message at `remains.seq` leaves it (PR #199 r4237222580, r4237439149):
+ * - one with no range, or whose range reaches that place, may rest on the words withdrawn: not assessed;
+ * - one whose range ends before it never read it, and stays. What it says came since is all that may change. A count
+ *   that can't have held the message stays: `current`, or `stale` with none counted newer (the project's decisions
+ *   moved). One that may have held it is no count any more, whether or not the list read or a receipt counted it: said
+ *   uncounted where a newer message is still shown here, else not assessed, nothing true being left to say of what
+ *   came since. Never made `current`: nothing here knows the project's decisions.
+ */
+function afterWithdrawal(coverage: Coverage, remains: Remains): Coverage {
+  if (coverage.throughSeq === null || coverage.throughSeq >= remains.seq) return NOT_ASSESSED
+  if (coverage.state !== 'stale' || (coverage.newer === 0 && !coverage.newerUncounted)) return coverage
+  const newerShown = remains.newestShown !== null && remains.newestShown > coverage.throughSeq
+  return newerShown ? { ...coverage, newerUncounted: true } : NOT_ASSESSED
 }
 
 /**
@@ -422,7 +467,11 @@ function rowKnown<T extends ConversationSummary & Unnamed>(
   return sameRow(row, c) ? c : row
 }
 
-/** Whether rowKnown took nothing (it only takes: an opening, a summary, the questions, a writer, Sophia's part). */
+/** The same writers, in the same places, by the same names: a name corrected alone is a change (PR #199 CX-0036). */
+const sameWriters = (a: ConversationSummary['contributors'], b: ConversationSummary['contributors']) =>
+  a.length === b.length && a.every((p, i) => p.actorId === b.at(i)?.actorId && p.name === b.at(i)?.name)
+
+/** Whether rowKnown changed nothing: an opening, a projection, the questions, a writer or their name, Sophia's part. */
 const sameRow = (row: ConversationSummary & Unnamed, c: ConversationSummary & Unnamed) =>
   row.lastMessage === c.lastMessage &&
   row.summary === c.summary &&
@@ -430,7 +479,7 @@ const sameRow = (row: ConversationSummary & Unnamed, c: ConversationSummary & Un
   row.openQuestions === c.openQuestions &&
   JSON.stringify(row.questionsCoverage) === JSON.stringify(c.questionsCoverage) &&
   row.sophia === c.sophia &&
-  row.contributors.length === c.contributors.length &&
+  sameWriters(row.contributors, c.contributors) &&
   row.othersUnnamed === c.othersUnnamed
 
 /** Whether the row's last message is one these pages hold withdrawn (by its place, else as rowsKnown says). */
