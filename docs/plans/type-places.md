@@ -15,8 +15,14 @@
 - The page's base is the body token (`--type-body`, 13 px).
 - In `personal.css` (Home and the personal space), each size off the scale goes to its nearest on it, as the captures
   showed: 12.5 → 12, 13.5 → 13, 11 → 10.5, 10 → 10.5, 17 → 16 (Sophia's words in the conversation).
-- Kept, said so: Home's greeting, a display line that grows with the screen; an initial in its circle (`.pdot`), a
-  glyph sized to it, as the board's avatars are.
+- The same rule where no check reaches yet: the carry picker and a note's «carried from» line, 11.5 → 12; Work's
+  heading on a phone, 19 → 20 (as on a wide screen). The fixtures draw no Work page, and the checks stop before the
+  carry picker: these three are changed, not measured.
+- Kept, said so: Home's greeting, a display line that grows with the screen (`typeSizes` leaves it out); an initial in
+  its circle (`.pdot`), a glyph sized to it, as the board's avatars are.
+- What else follows the base: a column measured in `ch` (a message's, the week's: 64ch) is a little narrower, as the
+  captures showed; a heading with no size of its own takes the browser's step from 13 (an `h2` 19.5, not 20.25): both
+  were off the scale before, and still are where nothing sets them.
 
 ## Checks (written first)
 

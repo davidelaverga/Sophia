@@ -2,7 +2,8 @@ import type { Page } from '@playwright/test'
 
 /**
  * The font sizes a person sees in a part of the page: visible text, and the words in a field (its value or its
- * placeholder, which are not text nodes), but not an avatar's initial (a glyph).
+ * placeholder, which are not text nodes), but not an avatar's initial (a glyph) nor Home's greeting (its one display
+ * size, a line that grows with the screen: docs/plans/type-places.md).
  */
 export const typeSizes = (page: Page, selector: string) =>
   page.evaluate((sel) => {
@@ -20,7 +21,7 @@ export const typeSizes = (page: Page, selector: string) =>
     }
     const seen = new Set<string>()
     for (const el of said) {
-      if (el.getBoundingClientRect().width > 0 && !el.closest('.sr-only, .tip, .avatar')) {
+      if (el.getBoundingClientRect().width > 0 && !el.closest('.sr-only, .tip, .avatar, .hw-hello')) {
         seen.add(getComputedStyle(el).fontSize)
       }
     }

@@ -40,8 +40,8 @@ for (const [name, url, parts] of PLACES) {
     test(`type${phone ? ' @phone' : ''} · ${name} keeps to the app's scale`, async ({ page }) => {
       await page.goto(url)
       await drawn(page, parts)
-      // The fixture's label is the page's; Home's greeting is its one display size.
-      await page.evaluate(() => document.querySelectorAll('.fixture-label, .hw-hello').forEach((el) => el.remove()))
+      // The fixture's label is the page's (Home's greeting, its one display size, typeSizes leaves out).
+      await page.evaluate(() => document.querySelector('.fixture-label')?.remove())
       const sizes = await typeSizes(page, 'body')
       for (const s of sizes) expect(SCALE, sizes.join(' ')).toContain(s)
     })
