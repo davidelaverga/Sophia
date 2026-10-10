@@ -1,0 +1,35 @@
+{
+  "candidate": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
+  "tree": "bd7f01da94da9e2be9063094a79bd32f2eead79b",
+  "command": "CON01_CANDIDATE_ROOT=<owned exact70771 worktree> CON01_CANDIDATE_SHA=70771a3738b585b14a2819a8e1d32b8da09cdbeb node <private journal>/cx36/withdrawal-check.mjs",
+  "exit": 1,
+  "passed": 4,
+  "failed": 6,
+  "scope": "L0 production helpers; synthetic trusted messages and assessed projections",
+  "findings": [
+    {
+      "id": 4237439145,
+      "severity": "P1",
+      "status": "independently_reproduced_unresolved"
+    },
+    {
+      "id": 4237439149,
+      "severity": "P2",
+      "status": "independently_reproduced_unresolved"
+    }
+  ],
+  "automaticReviewCompletedAt": "2026-10-10T11:18:51.045476Z",
+  "effects": {
+    "newStacks": 0,
+    "ownedStacksClean": 24,
+    "hostedWrites": 0,
+    "nativeCalls": 0,
+    "providerCalls": 0,
+    "spend": 0,
+    "uncertainPaidOutcome": 0
+  },
+  "hashes": {
+    "withdrawal-check.mjs": "b2471f518b835cad0731f5fa460e2ddb375668001806f5cef4221d12a9b558b1",
+    "70771-withdrawal-result.json": "cc5156a1c34386f2428fbec2d605e25fc0c6d7ebec7e2d75f76aa3b6f7442e0d"
+  }
+}

@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0035
+# Current checkpoint — CX-0036
+
+Exact70771 fresh automatic review completed; P1 withdrawn contributor name/P2 unaffected projections independently reproduced (10L0cases:6fail/4pass), including name-only late-row reconciliation risk. Claude received smallest correction request; no reviewer feature fix. [Full record/evidence](../coordination/CON-01/CX-0036.md). Author local S1 source unpushed/unreviewed,0048 preserved. Currentmain444/PR1908a39 unchanged; shared runtime window pending. CI runtime/PG/LiveKit/Supabase pass, browser jobs/old e91 gate still live with no aggregate pass. All24owned stacks clean/no new effects/spend. Operations draft/unapproved, mailbox/route/caps/policy/expiry missing. A30not_run; Davide retains acceptance. Next: immutable correction and independent affected rechecks, terminal receipts.
+
+# Historical checkpoint — CX-0035
 
 Exact70771a37/treebd7f01da fullthree-file follow-up read;99focused/Studio typecheck/29externalL0probes pass.4b57 typecheck/CI errors and null-name residual independently found, authorcorrected. Both freshP2s qualifiedL0 only; no actual account rename/native assessed/current70771 browser claim. [Full durable record/evidence](../coordination/CON-01/CX-0035.md). G2-S1 proposal to rewriteapplied0048 withdrawn; hashpreserved, Studio-only preparation andlater additiveSQL/namespacecoordination. Frozen e91fullgate live with2observedfailures/no waiver/current70771fullqualification. All24owned stacks clean/no new hosted/provider effects/spend. OP drafts unapproved; mailbox/route/finiteallowance/expiry/sharedwindow/G2/actualappacceptance open. Next: fresh exact70771review/terminal gates then revisedS1/sharedownercoordination. No broader product acceptance.
 
