@@ -1,9 +1,10 @@
 // What this view writes into a list read it holds: the data only, never the read's own state. Whether the list was
 // answered or is failing, its error, when it was last answered and how often stay as the list's own reads left them,
 // so «This may be out of date» stays while its reads fail, whatever is written here (PR #199 r4235976256,
-// r4237298620). `setQueryData` would mark the read answered; `Query.setState({ data })` does not.
+// r4237298620, r4237767985). `setQueryData` would mark the read answered; `Query.setState({ data })` does not.
 import type { QueryClient } from '@tanstack/react-query'
-import type { ConversationList } from '../../api/conversations.ts'
+import type { ConversationList, ConversationStarted } from '../../api/conversations.ts'
+import { listKey, messagesKey } from './conversation-list.ts'
 
 /** Each list read under `queryKey` that holds data, changed in place; one the change leaves as it was is not touched. */
 export function setListsData(
@@ -19,4 +20,27 @@ export function setListsData(
     const next = change(list)
     if (next !== list) query.setState({ data: next })
   }
+}
+
+/**
+ * A start that landed: at the top of the list read and its first message read, at once (then read again). The receipt
+ * proves the new row only, so only the list's data takes it: a list read failing stays failing, its error and «This may
+ * be out of date» kept, as a send, a withdrawal and an erasure leave it (PR #199 r4237767985).
+ */
+export function putStarted(
+  queryClient: QueryClient,
+  projectId: string,
+  account: string,
+  { conversation, message }: ConversationStarted,
+): void {
+  const key = listKey(projectId, account)
+  setListsData(queryClient, key, (list) => ({
+    ...list,
+    conversations: [conversation, ...list.conversations.filter((c) => c.id !== conversation.id)],
+  }))
+  queryClient.setQueryData(messagesKey(conversation.id, account), {
+    pages: [{ messages: [message], before: null }],
+    pageParams: [null],
+  })
+  void queryClient.invalidateQueries({ queryKey: key })
 }

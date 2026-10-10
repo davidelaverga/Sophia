@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
-import type { ConversationList, ConversationSummary } from '../../api/conversations.ts'
-import { LISTS, coverageWords, listKey, listWithdrawn, withLastMessage } from './conversation-list.ts'
-import { setListsData } from './list-data.ts'
+import type { ConversationList, ConversationStarted, ConversationSummary } from '../../api/conversations.ts'
+import { LISTS, coverageWords, listKey, listWithdrawn, messagesKey, withLastMessage } from './conversation-list.ts'
+import { putStarted, setListsData } from './list-data.ts'
 
 const listOf = (title: string) =>
   ({ projectId: 'p', conversations: [{ id: 'a', title }], more: false }) as unknown as ConversationList
@@ -129,5 +129,60 @@ describe('setListsData: what this view writes into a list read, and nothing of i
     assert.equal(summaryWords(client, key), 'Covers messages 1–1; it may be out of date.')
     await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(answer(assessedAt(2, 0))), staleTime: 0 })
     assert.equal(summaryWords(client, key), 'Covers messages 1–1.')
+  })
+})
+
+describe('putStarted: a start writes its row and its first message, and nothing of the list read’s state (PR #199 r4237767985)', () => {
+  const started = (id: string) =>
+    ({
+      conversation: { id, title: 'Started' },
+      message: { id: `${id}1`, seq: 1, text: 'First.' },
+      reply: null,
+    }) as unknown as ConversationStarted
+  const ids = (client: QueryClient, key: readonly unknown[]) =>
+    client.getQueryData<ConversationList>(key)?.conversations.map((c) => c.id)
+
+  it('a failing list read takes the new row and stays failing: its error, when and how often, as they were', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const key = listKey('p', 'ana')
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(listOf('Before')) })
+    const unavailable = new Error('The records can’t be read right now')
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.reject(unavailable) }).catch(() => undefined)
+    const query = client.getQueryCache().find({ queryKey: key, exact: true })
+    const before = { ...query?.state }
+    putStarted(client, 'p', 'ana', started('b'))
+    assert.deepEqual(ids(client, key), ['b', 'a'])
+    assert.equal(query?.state.status, 'error')
+    assert.equal(query?.state.error, unavailable)
+    assert.equal(query?.state.errorUpdatedAt, before.errorUpdatedAt)
+    assert.equal(query?.state.dataUpdatedAt, before.dataUpdatedAt)
+    assert.equal(query?.state.dataUpdateCount, before.dataUpdateCount)
+    assert.equal(query?.state.errorUpdateCount, before.errorUpdateCount)
+    assert.equal(query?.state.fetchFailureCount, before.fetchFailureCount)
+  })
+
+  it('an answered list read takes the new row first, once; its first message is read at once (control)', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const key = listKey('p', 'ana')
+    await client.fetchQuery({ queryKey: key, queryFn: () => Promise.resolve(listOf('Before')) })
+    putStarted(client, 'p', 'ana', started('b'))
+    putStarted(client, 'p', 'ana', started('b'))
+    assert.deepEqual(ids(client, key), ['b', 'a'])
+    assert.equal(client.getQueryCache().find({ queryKey: key, exact: true })?.state.status, 'success')
+    assert.deepEqual(client.getQueryData(messagesKey('b', 'ana')), {
+      pages: [{ messages: [started('b').message], before: null }],
+      pageParams: [null],
+    })
+  })
+
+  it('another reader’s list, another project’s, and a list not read yet are not touched (control)', () => {
+    const client = new QueryClient()
+    client.setQueryData(listKey('p', 'bea'), listOf('Theirs'))
+    client.setQueryData(listKey('q', 'ana'), listOf('Elsewhere'))
+    putStarted(client, 'p', 'ana', started('b'))
+    assert.deepEqual(ids(client, listKey('p', 'bea')), ['a'])
+    assert.deepEqual(ids(client, listKey('q', 'ana')), ['a'])
+    assert.equal(client.getQueryData(listKey('p', 'ana')), undefined)
+    assert.equal(client.getQueryData(messagesKey('b', 'bea')), undefined)
   })
 })

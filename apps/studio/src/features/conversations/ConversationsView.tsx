@@ -43,6 +43,7 @@ import {
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { putStarted } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -716,26 +717,6 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     close: () => setForm(false),
     form,
   }
-}
-
-/** A start that landed: at the top of the list and its first message read, at once (then read again). */
-function putStarted(
-  queryClient: ReturnType<typeof useQueryClient>,
-  projectId: string,
-  account: string,
-  { conversation, message }: ConversationStarted,
-) {
-  const key = listKey(projectId, account)
-  queryClient.setQueryData<ConversationList>(
-    key,
-    (was) =>
-      was && { ...was, conversations: [conversation, ...was.conversations.filter((c) => c.id !== conversation.id)] },
-  )
-  queryClient.setQueryData(messagesKey(conversation.id, account), {
-    pages: [{ messages: [message], before: null }],
-    pageParams: [null],
-  })
-  void queryClient.invalidateQueries({ queryKey: key })
 }
 
 /** An API that serves no conversations (A16 switched off) answers the list with 404: not a failure to try again. */

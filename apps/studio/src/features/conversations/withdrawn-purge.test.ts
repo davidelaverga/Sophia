@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import { QueryClient } from '@tanstack/react-query'
 import type { ConversationList, ConversationMessage } from '../../api/conversations.ts'
 import { listKey, messagesKey } from './conversation-list.ts'
+import { changeIfCurrent, changeKept, currentGeneration, forgetKept, keptAt, type Kept } from './talk-store.ts'
 import { keepWithdrawnPurged, listReadSetsOut, type ListRead } from './withdrawn-purge.ts'
 
 const AT = '2026-10-10T02:05:34.000Z'
@@ -249,5 +250,95 @@ describe('keepWithdrawnPurged: who wrote there and Sophia’s part, from a list 
       ['ana'],
     )
     assert.equal(a?.lastMessage, null)
+  })
+})
+
+describe('a withdrawal a thread read holds, whoever made it, retires what this view keeps for it (PR #199 r4237767988)', () => {
+  const HERE = 'p ana'
+  const OTHER_READER = 'p bea'
+  const OTHER_PROJECT = 'q ana'
+  const held = (key: string) => ({ key, ask: 'Words from the message.', sending: false })
+  const mark = { id: 'd1', statement: 'Words from the message.' }
+  /** A proposal held, refused and recorded, and a withdrawal held, for m1 and m2 of conversation c; and c's draft. */
+  const keepFor = (place: string) =>
+    changeKept(place, (k) => ({
+      ...k,
+      drafts: { c: 'A draft.' },
+      proposals: { m1: held('p1'), m2: held('p2') },
+      proposalRefusals: { m1: 'Refused.', m2: 'Refused.' },
+      proposed: { m1: mark, m2: mark },
+      withdrawals: { m1: held('w1'), m2: held('w2') },
+      homes: { m1: 'c', m2: 'c' },
+    }))
+  const messageParts = (k: Kept | undefined) =>
+    [k?.proposals, k?.proposalRefusals, k?.proposed, k?.withdrawals, k?.homes].map((r) => Object.keys(r ?? {}).sort())
+  /** c's thread: m3 on the newest page, m1 (withdrawn elsewhere, where `withdrawn`) and m2 on the older one. */
+  const twoPages = (withdrawn: boolean) => ({
+    pages: [
+      { messages: [message(3)], before: 'c1.c.3' },
+      { messages: [withdrawn ? gone(1) : message(1), message(2)], before: null },
+    ],
+    pageParams: [null, 'c1.c.3'],
+  })
+
+  it('a tombstone in an older page: m1’s part goes here, and only here; m2’s, the draft, other readers’ stay', () => {
+    forgetKept()
+    const client = new QueryClient()
+    keepWithdrawnPurged(client.getQueryCache())
+    keepFor(HERE)
+    keepFor(OTHER_READER)
+    changeKept(OTHER_PROJECT, (k) => ({ ...k, drafts: { d: 'Elsewhere.' }, proposals: { m9: held('p9') } }))
+    const elsewhere = keptAt(OTHER_PROJECT)
+    client.setQueryData(messagesKey('c', 'ana'), twoPages(true))
+    const here = keptAt(HERE)
+    assert.equal(here?.gone.m1, true)
+    assert.deepEqual(messageParts(here), [['m2'], ['m2'], ['m2'], ['m2'], ['m2']])
+    assert.deepEqual(here?.drafts, { c: 'A draft.' })
+    // Another reader of the same project: their thread read isn't this one, and nothing of theirs moves.
+    assert.equal(keptAt(OTHER_READER)?.gone.m1, undefined)
+    assert.deepEqual(messageParts(keptAt(OTHER_READER)), [
+      ['m1', 'm2'],
+      ['m1', 'm2'],
+      ['m1', 'm2'],
+      ['m1', 'm2'],
+      ['m1', 'm2'],
+    ])
+    assert.equal(keptAt(OTHER_PROJECT), elsewhere)
+  })
+
+  it('a proposal’s answer that comes after it writes nothing of m1 back', () => {
+    forgetKept()
+    const born = currentGeneration()
+    const client = new QueryClient()
+    keepWithdrawnPurged(client.getQueryCache())
+    keepFor(HERE)
+    client.setQueryData(messagesKey('c', 'ana'), twoPages(true))
+    changeIfCurrent(HERE, born, (k) => ({
+      ...k,
+      proposals: { ...k.proposals, m1: null },
+      proposed: { ...k.proposed, m1: mark },
+    }))
+    changeIfCurrent(HERE, born, (k) => ({ ...k, proposalRefusals: { ...k.proposalRefusals, m1: 'Refused late.' } }))
+    assert.deepEqual(messageParts(keptAt(HERE)), [['m2'], ['m2'], ['m2'], ['m2'], ['m2']])
+  })
+
+  it('a thread read cached before this view watched the cache is read for its withdrawals at once', () => {
+    forgetKept()
+    const client = new QueryClient()
+    client.setQueryData(messagesKey('c', 'ana'), twoPages(true))
+    keepFor(HERE)
+    keepWithdrawnPurged(client.getQueryCache())
+    assert.equal(keptAt(HERE)?.gone.m1, true)
+    assert.deepEqual(messageParts(keptAt(HERE)), [['m2'], ['m2'], ['m2'], ['m2'], ['m2']])
+  })
+
+  it('a thread read with nothing withdrawn retires nothing (control)', () => {
+    forgetKept()
+    const client = new QueryClient()
+    keepWithdrawnPurged(client.getQueryCache())
+    keepFor(HERE)
+    const before = keptAt(HERE)
+    client.setQueryData(messagesKey('c', 'ana'), twoPages(false))
+    assert.equal(keptAt(HERE), before)
   })
 })

@@ -19,9 +19,13 @@
 //   with it), or with the whole cache (another account, or signing out: App.tsx clears it, lists and threads together).
 //   A list read can't outlast that: each is given up after READ_TIMEOUT_MS (30 s) and aborted once nothing reads it. A
 //   list read that sets out after this view saw a withdrawal is read after it, and the API then says none of it.
+//
+// What this view keeps for a message (talk-store: a proposal held, refused or recorded, a withdrawal held) goes too
+// when a thread read of the same reader holds it withdrawn, rendered or not, whoever withdrew it (PR #199 r4237767988).
 import type { Query, QueryCache } from '@tanstack/react-query'
 import type { ConversationList, ConversationMessage } from '../../api/conversations.ts'
 import { LISTS, messagesKey, rowsKnown, type ThreadHeld } from './conversation-list.ts'
+import { retireWithdrawn } from './talk-store.ts'
 
 /** A list read as cached: what the API said, and where in this view's order its read set out. */
 export type ListRead = ConversationList & { readFrom?: number }
@@ -43,11 +47,15 @@ const seenIn = (cache: QueryCache) => {
   return made
 }
 
-/** The thread read's withdrawals not seen before are seen now. */
-function noteWithdrawals(cache: QueryCache, query: Query) {
+/** The thread read's withdrawals not seen before are seen now; what this view keeps for them goes (talk-store). */
+function noteWithdrawals(cache: QueryCache, query: Query, account: string) {
   const held = cache.get<ThreadHeld>(query.queryHash)?.state.data
   const messages = (held?.pages ?? []).flatMap((p) => p.messages)
   if (!messages.some((m) => m.withdrawn)) return
+  retireWithdrawn(
+    account,
+    messages.filter((m) => m.withdrawn).map((m) => m.id),
+  )
   const byThread = seenIn(cache)
   const at = byThread.get(query.queryHash) ?? new Map<string, number>()
   byThread.set(query.queryHash, at)
@@ -101,6 +109,10 @@ const kept = new WeakSet<QueryCache>()
 export function keepWithdrawnPurged(cache: QueryCache): void {
   if (kept.has(cache)) return
   kept.add(cache)
+  for (const query of cache.findAll({ queryKey: ['conversations', 'messages'] })) {
+    const account = readerOf(query)
+    if (account !== null) noteWithdrawals(cache, query, account)
+  }
   for (const query of cache.findAll({ queryKey: LISTS })) {
     const account = readerOf(query)
     if (account !== null) purgeList(cache, query.queryHash, account)
@@ -112,7 +124,7 @@ export function keepWithdrawnPurged(cache: QueryCache): void {
     const account = query ? readerOf(query) : null
     if (!query || account === null) return
     if (query.queryKey[1] === LISTS[1]) return purgeList(cache, query.queryHash, account)
-    noteWithdrawals(cache, query)
+    noteWithdrawals(cache, query, account)
     purgeWithdrawn(cache, account)
   })
 }

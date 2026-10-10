@@ -197,6 +197,26 @@ const withGone = (k: Kept, messages: readonly string[]): Kept =>
 /** What is kept once a message is withdrawn here: its proposal and its withdrawal held go, and never come back. */
 export const withoutMessage = (k: Kept, messageId: string): Kept => withGone(k, [messageId])
 
+/** Whether something is kept for this message: a proposal held, refused or recorded, a withdrawal held, its home. */
+const keepsMessage = (k: Kept, messageId: string) =>
+  [k.proposals, k.proposalRefusals, k.proposed, k.withdrawals, k.homes].some((r) => messageId in r)
+
+/**
+ * Messages a thread read of this account's holds withdrawn, whoever withdrew them (another tab, an admin): gone, as
+ * withoutMessage leaves one withdrawn here, in each of this account's projects that keeps something for one, and
+ * nothing of theirs is kept again there, a late answer's write included (`retired`; PR #199 r4237767988). Another
+ * account's part, another message's, and each conversation's own (its draft, its message held) stay. A proposal already
+ * recorded stays recorded: only what this view keeps of it goes.
+ */
+export function retireWithdrawn(account: string, messages: readonly string[]): void {
+  for (const [place, k] of kept) {
+    // `${projectId} ${name}`: a project id holds no space, so the account is all after the first.
+    if (place.slice(place.indexOf(' ') + 1) !== account) continue
+    const out = messages.filter((m) => k.gone[m] !== true && keepsMessage(k, m))
+    if (out.length > 0) changeKept(place, (was) => withGone(was, out))
+  }
+}
+
 /**
  * What is kept without one erased conversation's part: its draft, intent, message held, refusal and wait, its
  * messages' proposals and withdrawals (never brought back: `retired`), and its erasure, settled (never brought back:
