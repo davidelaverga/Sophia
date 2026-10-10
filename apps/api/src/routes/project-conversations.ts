@@ -19,6 +19,7 @@ import {
   readConversationMessage,
   readConversationPage,
   readConversationReply,
+  readProjectConversationPage,
   readConversationSummary,
   readFeedPosition,
   sendConversationMessage,
@@ -34,6 +35,16 @@ const conversationParams = {
   additionalProperties: false,
   properties: { conversationId: { type: 'string', pattern: UUID_PATTERN } },
   required: ['conversationId'],
+} as const
+
+const projectConversationParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    projectId: { type: 'string', pattern: UUID_PATTERN },
+    conversationId: { type: 'string', pattern: UUID_PATTERN },
+  },
+  required: ['projectId', 'conversationId'],
 } as const
 
 const messageParams = {
@@ -92,6 +103,23 @@ function readRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
     async (req) =>
       withActor(pool, req.actorId, 'read', (c) =>
         readConversationPage(c, req.params.conversationId, req.query.before ?? null),
+      ),
+  )
+
+  // Within its project, in one snapshot: a non-member is refused (403) before anything of the conversation is read;
+  // to a member, not found means none open in this project (CON-01-CC-0072).
+  app.get<{ Params: { projectId: string; conversationId: string }; Querystring: { before?: string } }>(
+    '/api/v1/projects/:projectId/conversations/:conversationId/messages',
+    {
+      schema: {
+        params: projectConversationParams,
+        querystring: pageQuery,
+        response: { 200: { $ref: 'ConversationMessagePage#' } },
+      },
+    },
+    async (req) =>
+      withActor(pool, req.actorId, 'read', (c) =>
+        readProjectConversationPage(c, req.params.projectId, req.params.conversationId, req.query.before ?? null),
       ),
   )
 }

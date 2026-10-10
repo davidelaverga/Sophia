@@ -160,8 +160,8 @@ interface Fixture {
   /** Another admin, elsewhere, erases this conversation: it leaves the list and its messages go; the feed moves. */
   eraseElsewhere: (conversationId: string) => void
   /**
-   * The same, the feed held up: it doesn't move, so only a read made for another reason learns it. Its read answers not
-   * found, as the API answers a reader no longer in the project too (PR #199 r4238709217).
+   * The same, the feed held up: it doesn't move, so only a read made for another reason learns it. Its read within the
+   * project answers not found (422), to a current member.
    */
   eraseQuietly: (conversationId: string) => void
   /** Every read of this conversation's messages, and of the list, fails from now on (null: they answer again). */
@@ -169,8 +169,8 @@ interface Fixture {
   /** Only this conversation's message reads fail from now on (null: they answer again); the list's still answer. */
   failMessageReads: (conversationId: string | null) => void
   /**
-   * This conversation's message reads are refused as not found from now on, as to a reader no longer in the project;
-   * it stays listed, and the feed doesn't move (null: they answer again, the project given back).
+   * This conversation's message reads are refused (403) from now on, as to a reader no longer in the project; it stays
+   * listed, and the feed doesn't move (null: they answer again, the project given back).
    */
   refuseMessageReads: (conversationId: string | null) => void
   /** Another admin, elsewhere, withdraws the newest message with these words; the feed moves. */
@@ -181,6 +181,10 @@ interface Fixture {
   holdListReads: () => void
   /** The list's reads held are answered, each as it was when asked; the ones after answer at once. */
   releaseListReads: () => void
+  /** From now on message reads that answer wait, each to answer as it was when asked; refusals answer at once. */
+  holdMessageReads: () => void
+  /** The message reads held are answered, each as it was when asked; the ones after answer at once. */
+  releaseMessageReads: () => void
   /** The next message is stamped with its conversation's last time (two messages in one millisecond). */
   sameTimeNext: () => void
   /** The list says (or stops saying) that it holds the newest only (`more`); the feed moves. */
@@ -674,6 +678,14 @@ window.fixture = {
     if (project.conversations) project.conversations.heldList = null
     for (const answer of held) answer()
   },
+  holdMessageReads: () => {
+    if (project.conversations) project.conversations.heldMessages ??= []
+  },
+  releaseMessageReads: () => {
+    const held = project.conversations?.heldMessages ?? []
+    if (project.conversations) project.conversations.heldMessages = null
+    for (const answer of held) answer()
+  },
   sameTimeNext: () => {
     if (project.conversations) project.conversations.sameTimeNext = true
   },
@@ -1001,6 +1013,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       cappedOut: null as string | null,
       refusedOf: null as string | null,
       heldList: null as (() => void)[] | null,
+      heldMessages: null as (() => void)[] | null,
       sameTimeNext: false,
       failMessagesOf: (failMessages ? CONVERSATION.briefs : null) as string | null,
       send: sendAsked(query.get('send')),

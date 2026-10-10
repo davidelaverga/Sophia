@@ -231,6 +231,11 @@ export interface Conversations extends TalkWrites {
   cappedOut?: string | null
   /** While set, the list's reads wait for these, each to answer as the list was when asked (`holdListReads`). */
   heldList?: (() => void)[] | null
+  /**
+   * While set, message reads that would answer wait for these, each to answer as the conversation was when asked
+   * (`holdMessageReads`); a refusal, a not found or a failure answers at once.
+   */
+  heldMessages?: (() => void)[] | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -466,6 +471,18 @@ const conversationGone = () =>
     { status: 422, headers: { 'content-type': 'application/json' } },
   )
 
+/** A reader not a current member of the project: refused, before anything of a conversation is read (A16, CC-0072). */
+const projectRefused = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000fb',
+      retry: 'never',
+    }),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  )
+
 /** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
 const unavailable = () =>
   new Response(
@@ -481,13 +498,16 @@ const unavailable = () =>
 /** Any report's reviews or tasks (A16, A17): the report (and the version) captured. */
 const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
 const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
-const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
+/** A page of a conversation's messages, read within its project (A16 getProjectConversationMessages). */
+const MESSAGES_OF = /^\/api\/v1\/projects\/([0-9a-f-]{36})\/conversations\/([0-9a-f-]{36})\/messages$/
 
 /** A16's reads: the list, or a page of a conversation's messages; undefined for any other request. */
 function conversationRead(talk: Conversations, url: URL, role: Membership['role']) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk, role)
-  const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
-  return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
+  const scoped = MESSAGES_OF.exec(url.pathname)
+  if (!scoped?.[2]) return undefined
+  // Another project's: this reader is a member of this fixture's only, and is refused there before anything is read.
+  return scoped[1] === PROJECT ? messagesRead(talk, scoped[2], url) : projectRefused()
 }
 
 /** The project's conversations (A16), as listed, each one's newest message where the page asks for last messages. */
@@ -510,9 +530,10 @@ function conversationsRead(talk: Conversations, role: Membership['role']) {
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
 function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   if (talk.failMessagesOf === conversationId) return unavailable()
+  // As to a reader no longer in the project: refused (403), the conversation itself never read.
   if (talk.refusedOf === conversationId) {
     served.push(`messages-refused:${conversationId.slice(-2)}`)
-    return conversationGone()
+    return projectRefused()
   }
   // Erased here: as 0048's row policy hides it, the API refuses its read as not found. A page reads it again only as
   // the feed moves (the open thread and the list read at once), before the list shows it gone.
@@ -528,11 +549,14 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const end = Math.min(all.length, Number(before ?? all.length))
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
-  return json({
+  const asRead = json({
     conversationId,
     messages: all.slice(start, end).map((m, i) => wireMessage(m, start + i)),
     before: start > 0 ? String(start) : null,
   })
+  // Held: it answers later as it was read now, a read under way across what happens meanwhile (CX-0074).
+  const held = talk.heldMessages
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(asRead))) : asRead
 }
 
 /** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */

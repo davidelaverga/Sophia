@@ -1,7 +1,8 @@
 // Reading directly a conversation left out of a list of the newest only (PR #199 r4235397313, r4235629899; Codex's
 // countercases on d13029c): a project past the newest 200 may never be listed whole, so a conversation something is
-// kept for here, once out of the list, is read on its own. The API refuses an erased one as not found (422 `not_found`;
-// 0048 hides it), and that alone settles it. A read that answers says it stands, which only a conversation in doubt
+// kept for here, once out of the list, is read on its own, within its project. The API answers a current member with
+// not found (422 `not_found`) for one not open there now, and that settles it; a reader not a current member is refused
+// (403), which settles nothing. A read that answers says it stands, which only a conversation in doubt
 // asks (`found`: an erasure let go without being known erased; PR #199 r4238311491). One that fails otherwise
 // (unavailable, no connection) or runs past its deadline proves nothing: what is kept stays (a draft, an erasure's
 // key), and it is read again later.
@@ -12,12 +13,16 @@ export interface ProbeWork {
   read: (id: string, signal: AbortSignal) => Promise<unknown>
   /** Whether something is still kept here for it: when nothing is, it is no longer read. */
   keeps: (id: string) => boolean
-  /** Not found: erased (or gone from this reader): let go of what is kept for it. */
+  /** Not found, read within the project (to a current member): none open there now; let go of what is kept for it. */
   settle: (id: string) => void
+  /** Refused (the reader not a current member of the project): the view says nothing of it until it reads again. */
+  deny: (id: string) => void
   /** Answered: it stands as this read found it (its answer, as `read` resolved). */
   found: (id: string, answer: unknown) => void
   /** Whether a read's failure is the API's not found. */
   notFound: (err: unknown) => boolean
+  /** Whether a read's failure is the project's refusal (403). */
+  denied: (err: unknown) => boolean
 }
 
 /** The schedule: the first read again, the longest wait between two, a read's deadline, and reads at once. */
@@ -135,7 +140,12 @@ export class Probes {
       (err: unknown) =>
         end(() => {
           if (!current()) return
-          // Any failure but not found proves nothing: read again later.
+          // Refused: read no more on its own clock; the view fences and reads it again once a list read answers.
+          if (this.work.denied(err)) {
+            this.stop(id)
+            return this.work.deny(id)
+          }
+          // Any failure but these proves nothing: read again later.
           if (!this.work.notFound(err)) return this.later(id, wait)
           this.stop(id)
           this.work.settle(id)

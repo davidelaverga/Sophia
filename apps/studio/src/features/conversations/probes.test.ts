@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, it, mock } from 'node:test'
 import { PROBE, Probes, type ProbeWork } from './probes.ts'
 
 const NOT_FOUND = Object.assign(new Error('Conversation not found'), { code: 'not_found' })
+const FORBIDDEN = Object.assign(new Error('Not permitted'), { code: 'forbidden' })
+const INVALID = Object.assign(new Error('That page is not this conversation’s'), { code: 'invalid_request' })
 const UNAVAILABLE = Object.assign(new Error('The records can’t be read right now'), { code: 'unavailable' })
 
 /** Lets every answer already given be heard (promise callbacks), without moving the clock. */
@@ -21,6 +23,7 @@ function workWith(answer: (id: string) => Promise<unknown>, keeps: (id: string) 
   const reads: string[] = []
   const settled: string[] = []
   const found: string[] = []
+  const denied: string[] = []
   const work: ProbeWork = {
     read: (id) => {
       reads.push(id)
@@ -28,10 +31,12 @@ function workWith(answer: (id: string) => Promise<unknown>, keeps: (id: string) 
     },
     keeps,
     settle: (id) => settled.push(id),
+    deny: (id) => denied.push(id),
     found: (id) => found.push(id),
     notFound: (err) => err === NOT_FOUND,
+    denied: (err) => err === FORBIDDEN,
   }
-  return { work, reads, settled, found }
+  return { work, reads, settled, found, denied }
 }
 
 describe('Probes: reading directly a conversation left out of the newest (PR #199 r4235629899, Codex)', () => {
@@ -74,6 +79,29 @@ describe('Probes: reading directly a conversation left out of the newest (PR #19
     mock.timers.tick(PROBE.longest * 2)
     await heard()
     assert.deepEqual(reads, ['c1'])
+  })
+
+  it('refused (403): nothing settled, the view told once, and it is read no more on its own clock (CX-0074)', async () => {
+    const { work, reads, settled, denied } = workWith(() => Promise.reject(FORBIDDEN))
+    const probes = new Probes(work)
+    probes.start('c1')
+    await heard()
+    assert.deepEqual([settled, denied], [[], ['c1']])
+    assert.deepEqual(probes.load, { flying: 0, watched: 0 })
+    mock.timers.tick(PROBE.longest * 2)
+    await heard()
+    assert.deepEqual(reads, ['c1'])
+  })
+
+  it('a page not this conversation’s (invalid_request): neither settled nor refused, read again later', async () => {
+    const { work, reads, settled, denied } = workWith(() => Promise.reject(INVALID))
+    const probes = new Probes(work)
+    probes.start('c1')
+    await heard()
+    mock.timers.tick(PROBE.first)
+    await heard()
+    assert.deepEqual([reads, settled, denied], [['c1', 'c1'], [], []])
+    assert.equal(probes.load.watched, 1)
   })
 
   it('read (there, only older) or unavailable: nothing settled, read again 30 s on, then the wait doubles', async () => {

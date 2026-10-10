@@ -10,12 +10,10 @@ import {
   keepsFor,
   keptAt,
   liftFence,
-  unfoundRead,
-  unfoundSettles,
+  withDenied,
   withErasure,
   withFence,
   withFound,
-  withUnfound,
   withStanding,
   withHome,
   withListed,
@@ -124,10 +122,10 @@ describe('withStanding: a conversation in doubt ends it only on a read set out s
   })
 })
 
-describe('the fence: a read’s not found holds until a list read set out after the latest answers (PR #199 r4238709217, r4238826981)', () => {
+describe('the fence: a read refused holds until a list read set out after the latest answers (PR #199 r4238709217, CX-0074)', () => {
   const fenced = withFence(keptWith({ drafts: { c1: 'kept words' } }), 5)
 
-  it('fenced at the latest not found: an earlier one moves it nothing, a later one on; nothing else kept changes', () => {
+  it('fenced at the latest refusal: an earlier one moves it nothing, a later one on; nothing else kept changes', () => {
     assert.deepEqual(fenced.fence, { at: 5 })
     assert.equal(withFence(fenced, 3), fenced)
     assert.equal(withFence(fenced, 5), fenced)
@@ -160,45 +158,42 @@ describe('the fence: a read’s not found holds until a list read set out after 
   })
 })
 
-describe('unfound: a direct read’s not found settles nothing until a list read set out since says (PR #199 r4238826981)', () => {
-  const unfound = withUnfound(keptWith({ drafts: { c1: 'kept words' } }), 'c1', 5)
+describe('denied: a read within the project refused (403) settles nothing, and fences (CX-0073, CX-0074)', () => {
+  const denied = withDenied(keptWith({ drafts: { c1: 'kept words' } }), 'c1', 5)
 
-  it('noted, its draft kept and kept for (so read again), nothing erased; a direct read that answers ends it', () => {
-    assert.deepEqual(unfound.unfound, { c1: { at: 5 } })
-    assert.equal(unfound.drafts.c1, 'kept words')
-    assert.deepEqual(unfound.erased, {})
-    assert.equal(keepsFor(withUnfound(keptWith({}), 'c2', 5), 'c2'), true)
-    assert.deepEqual(withFound(unfound, 'c1').unfound, {})
+  it('noted at the refusal, fenced then, its draft kept and kept for (so read again), nothing erased', () => {
+    assert.deepEqual(denied.denied, { c1: 5 })
+    assert.deepEqual(denied.fence, { at: 5 })
+    assert.equal(denied.drafts.c1, 'kept words')
+    assert.deepEqual(denied.erased, {})
+    assert.equal(keepsFor(withDenied(keptWith({}), 'c2', 5), 'c2'), true)
   })
 
-  it('a list read from before it, or when, says nothing', () => {
-    assert.deepEqual(unfoundRead(unfound, 5, [], true), { kept: unfound, settle: [], recheck: [] })
+  it('refused again later: noted then, and fenced then; an earlier refusal moves neither', () => {
+    const later = withDenied(denied, 'c1', 7)
+    assert.deepEqual([later.denied, later.fence], [{ c1: 7 }, { at: 7 }])
+    assert.equal(withDenied(later, 'c1', 6), later)
   })
 
-  it('one since that lists it: it stands, unfound no more, nothing settled', () => {
-    const after = unfoundRead(unfound, 6, ['c1'], false)
-    assert.deepEqual([after.kept.unfound, after.settle, after.recheck], [{}, [], []])
+  it('an answer from a read set out before, or when, it was refused changes nothing; one set out since ends it', () => {
+    assert.equal(withFound(denied, 'c1', 4), denied)
+    assert.equal(withFound(denied, 'c1', 5), denied)
+    const found = withFound(denied, 'c1', 6)
+    assert.deepEqual(found.denied, {})
+    assert.equal(found.drafts.c1, 'kept words')
+    // A conversation's answer is its own, and lifts no fence: only a list read since does.
+    assert.equal(withFound(denied, 'c2', 9), denied)
+    assert.deepEqual(found.fence, { at: 5 })
   })
 
-  it('a whole list since without it: erased, settled by the view', () => {
-    const after = unfoundRead(unfound, 6, [], true)
-    assert.deepEqual([after.settle, after.recheck], [['c1'], []])
+  it('erased: its refusal goes with it', () => {
+    assert.deepEqual(withoutConversation(denied, 'c1').denied, {})
   })
 
-  it('one of the newest only since without it: read directly again, and only a read set out after it settles it', () => {
-    const after = unfoundRead(unfound, 6, [], false)
-    assert.deepEqual([after.kept.unfound, after.settle, after.recheck], [{ c1: { at: 5, checked: 6 } }, [], ['c1']])
-    assert.equal(unfoundSettles(after.kept, 'c1', 6), false)
-    assert.equal(unfoundSettles(after.kept, 'c1', 7), true)
-    assert.equal(unfoundSettles(unfound, 'c1', 9), false)
-    // Checked already: a later list of the newest only without it changes nothing; erased, it goes.
-    assert.equal(unfoundRead(after.kept, 8, [], false).kept, after.kept)
-    assert.deepEqual(withoutConversation(after.kept, 'c1').unfound, {})
-  })
-
-  it('erased here already: never unfound, and a list read listing it again never notes it seen (no change, CX-0071)', () => {
+  it('erased here already: refused, only fenced; and a list read listing it again never notes it seen (CX-0071)', () => {
     const erased = withoutConversation(keptWith({}), 'c1')
-    assert.equal(withUnfound(erased, 'c1', 5), erased)
+    const refused = withDenied(erased, 'c1', 5)
+    assert.deepEqual([refused.denied, refused.fence], [{}, { at: 5 }])
     assert.equal(withListed(erased, ['c1'], false), erased)
     assert.deepEqual(withListed(erased, ['c1', 'c2'], true).listed, { c2: true })
   })

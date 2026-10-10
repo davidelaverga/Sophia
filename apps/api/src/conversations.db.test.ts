@@ -252,6 +252,72 @@ describe('A16 over HTTP', () => {
     assert.equal((await call(`/api/v1/conversations/${s.conversation.id}/messages`)).status, 401)
   })
 
+  it('within its project: a member reads it; a non-member is refused first; to a member any absence is one not_found (CC-0072)', async () => {
+    // V is a member of this project and of another; nobody but A is in a third.
+    const { projectId: other } = await seedProject(db.ownerUrl, { admin: A, editors: [E], viewers: [V] })
+    await owner(`SELECT sophia.set_conversation_settings($1, 'enabled', 'CON-01 API test')`, [other])
+    const { projectId: closed } = await seedProject(db.ownerUrl, { admin: A })
+    const said = { text: 'Hello', askSophia: false }
+    const here = parseConversationStarted((await start({ title: 'Here', ...said })).json)
+    const goneHere = parseConversationStarted((await start({ title: 'Gone here', ...said })).json)
+    const e = await call(`/api/v1/conversations/${goneHere.conversation.id}/erasure`, {
+      as: A,
+      key: randomUUID(),
+      post: true,
+    })
+    assert.equal(e.status, 202)
+    const there = parseConversationStarted(
+      (
+        await call(`/api/v1/projects/${other}/conversations`, {
+          as: E,
+          key: randomUUID(),
+          body: { title: 'There', ...said },
+        })
+      ).json,
+    )
+    for (let i = 0; i < 52; i++) await send(here.conversation.id, { text: `m${i}`, askSophia: false })
+    const scoped = (p: string, id: string, as = V, query = '') =>
+      call(`/api/v1/projects/${p}/conversations/${id}/messages${query}`, { as })
+    const read = await scoped(projectId, here.conversation.id)
+    assert.equal(read.status, 200)
+    const page = parseConversationMessagePage(read.json)
+    assert.ok(page.before)
+    // To a member: erased here, another project's (V's too) and made up are one not_found, nothing of them told.
+    const absent = [goneHere.conversation.id, there.conversation.id, randomUUID()]
+    for (const id of absent) {
+      const r = await scoped(projectId, id)
+      assert.deepEqual([r.status, r.json.code, r.json.message], [422, 'not_found', 'Conversation not found'], id)
+      assert.equal(r.json.messages, undefined)
+    }
+    // A non-member, and a member of another project only: refused before the conversation or the cursor is read.
+    const cursor = `?before=${encodeURIComponent(page.before)}`
+    for (const id of [here.conversation.id, goneHere.conversation.id, there.conversation.id, randomUUID()]) {
+      for (const query of ['', cursor, '?before=made-up']) {
+        const r = await scoped(projectId, id, O, query)
+        assert.deepEqual([r.status, r.json.code], [403, 'forbidden'], `${id}${query}`)
+        assert.deepEqual([(await scoped(closed, id, V, query)).status], [403], `${id}${query}`)
+      }
+    }
+    // A member: another conversation's cursor, or a made-up one, is a refused cursor, not an absence.
+    const cross = await scoped(projectId, goneHere.conversation.id, V, cursor)
+    assert.deepEqual([cross.status, cross.json.code], [422, 'invalid_request'])
+    assert.equal((await scoped(projectId, here.conversation.id, V, '?before=made-up')).json.code, 'invalid_request')
+    assert.equal(
+      parseConversationMessagePage((await scoped(projectId, here.conversation.id, V, cursor)).json).messages.length,
+      3,
+    )
+    assert.equal(
+      (await call(`/api/v1/projects/${projectId}/conversations/${here.conversation.id}/messages`)).status,
+      401,
+    )
+    // CX-0073's sequence: the list read answers V as a member; V is removed; the read held until then is refused.
+    assert.equal((await call(`/api/v1/projects/${other}/conversations`, { as: V })).status, 200)
+    await owner(`UPDATE sophia.project_members SET active = false WHERE project_id = $1 AND actor_id = $2`, [other, V])
+    const held = await scoped(other, there.conversation.id)
+    assert.deepEqual([held.status, held.json.code], [403, 'forbidden'])
+    assert.equal((await call(`/api/v1/projects/${other}/conversations`, { as: V })).status, 403)
+  })
+
   it('withdrawal and erasure over HTTP, and the replay of a withdrawn text refused (CON-01-T04)', async () => {
     const s = parseConversationStarted((await start({ title: 'To forget', text: 'Keep', askSophia: false })).json)
     const key = randomUUID()

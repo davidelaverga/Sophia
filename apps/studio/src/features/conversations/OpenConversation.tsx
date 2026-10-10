@@ -30,7 +30,7 @@ import {
   replyEndWords,
 } from './conversation-list.ts'
 import { ConversationComposer } from './ConversationComposer.tsx'
-import { dropUnfollowed, readFromOf } from './followed-thread.ts'
+import { dropUnfollowed, readFromOf, shows } from './followed-thread.ts'
 import type { Held } from './held-write.ts'
 import { replyWait } from './list-data.ts'
 import { useKept, withHome, type Asked } from './talk-store.ts'
@@ -80,10 +80,18 @@ interface Props {
   /** Back to the list (a phone shows one at a time). */
   onBack: () => void
   /**
-   * Its own read answered not found: erased, or the reader no longer in the project, which the API answers alike. The
-   * view fences until a list read answers (talk-store `fence`; PR #199 r4238633930, r4238709217).
+   * Its own read within the project (CON-01-CC-0072, CX-0074), each counted only from a read made since it opened:
+   * not found, to a current member: gone (the view settles it); refused, the reader not a current member: the view
+   * fences (talk-store `fence`, `denied`); answered, set out at `from`: it stands, if after any refusal.
    */
   onGone: () => void
+  onDenied: () => void
+  onFound: (from: number) => void
+  /**
+   * Where in this view's order its read within the project was refused, if it was: what a read set out before then
+   * holds is not shown, its messages and their presses, nor its composer, until a read set out since answers.
+   */
+  deniedAt: number | undefined
   /** The context as a panel (under 1180 px): whether it is open, its press, and that press's element for the focus. */
   context: { open: boolean; toggle: () => void; ref: RefObject<HTMLButtonElement | null> }
 }
@@ -115,7 +123,7 @@ function useAwaiting(asked: Asked | null) {
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
-  const read = useTranscript(c.id, identity, props.cursor, props.onGone)
+  const read = useTranscript(props.projectId, c.id, identity, props.cursor, props)
   const head = useRef<HTMLHeadingElement>(null)
   const follow = useFollow()
   useEffect(() => {
@@ -126,7 +134,6 @@ export function OpenConversation(props: Props) {
   return (
     <section className="conv-open" aria-label="Open conversation">
       <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
-      {/* A scrolled region the keyboard reaches (arrows scroll it); from the keyboard, every time shows there. */}
       <div
         ref={follow.scroll}
         className="conv-scroll"
@@ -135,7 +142,8 @@ export function OpenConversation(props: Props) {
         tabIndex={0}
         onScroll={follow.onScroll}
       >
-        <Messages
+        <Thread
+          shown={shows(read.data, props.deniedAt)}
           read={read}
           me={me}
           awaiting={awaiting}
@@ -145,7 +153,7 @@ export function OpenConversation(props: Props) {
           withdraw={{ projectId: props.projectId, conversationId: c.id, identity, me, moderate: props.moderate }}
         />
       </div>
-      {props.writer === true && (
+      {props.writer === true && shows(read.data, props.deniedAt) && (
         <ConversationComposer
           conversationId={c.id}
           identity={identity}
@@ -301,7 +309,13 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
  * before that no view followed as the feed moved is let go as it opens, before it is shown (followed-thread.ts); each
  * read notes where the feed stood as it set out, on its newest page.
  */
-function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined, onGone: () => void) {
+function useTranscript(
+  projectId: string,
+  conversationId: string,
+  identity: Identity,
+  cursor: string | undefined,
+  on: Pick<Props, 'onGone' | 'onDenied' | 'onFound'>,
+) {
   const queryClient = useQueryClient()
   const key = messagesKey(conversationId, accountOf(identity))
   // Once, as it opens (a part per conversation), before the read below is first shown.
@@ -317,7 +331,7 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
       // Where in this view's order each page's read set out: a wait noted before it is judged by the page holding its
       // ask (replyWait, readFromOf; PR #199 r4238633935).
       const readFrom = orderNow()
-      return getConversationMessages(identity.token, conversationId, pageParam, signal).then((page) =>
+      return getConversationMessages(identity.token, projectId, conversationId, pageParam, signal).then((page) =>
         pageParam === null && readAt !== undefined ? { ...page, readFrom, readAt } : { ...page, readFrom },
       )
     },
@@ -326,16 +340,31 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     retry: 1,
   })
   useReadAgain(cursor, read.refetch)
-  // Its own read answering not found: what it read before (the cache keeps that across a failed read) is never shown
-  // again, and no other conversation shows until a list read says the reader is still here (PR #199 r4238633930,
-  // r4238709217). Only a read made since it opened says so: a not found the cache kept from before (a reader given
-  // the project back, this conversation open again as the list lists it) is not one, until its own read answers
-  // (CX-0069). Any other failure proves nothing: what was read stays, said possibly out of date.
-  const gone = read.isFetchedAfterMount && read.error instanceof ApiError && read.error.code === 'not_found'
+  // Its own read within the project says what it is, only from a read made since it opened: an answer the cache kept
+  // from before (a reader given the project back, this conversation open again) is not one, until its own read
+  // answers (CX-0069). Not found, to a current member: gone. Refused: the reader isn't a current member. Any other
+  // failure (a refused cursor, an outage) proves nothing: what was read stays, said possibly out of date.
+  const code = read.isFetchedAfterMount && read.error instanceof ApiError ? read.error.code : null
+  const { onGone, onDenied, onFound } = on
   useEffect(() => {
-    if (gone) onGone()
-  }, [gone, onGone])
+    if (code === 'not_found') onGone()
+    else if (code === 'forbidden') onDenied()
+  }, [code, onGone, onDenied])
+  // Answered since it opened: where its newest page's read set out (an older answer ends no refusal: CX-0074).
+  const newest = read.isFetchedAfterMount && read.isSuccess ? read.data.pages[0] : undefined
+  const from = newest && 'readFrom' in newest && typeof newest.readFrom === 'number' ? newest.readFrom : null
+  useEffect(() => {
+    if (from !== null) onFound(from)
+  }, [from, onFound])
   return read
+}
+
+/**
+ * The messages, or, where what is held may not show yet (`shows`), that it is being read again; in a scrolled region
+ * the keyboard reaches (arrows scroll it), where from the keyboard every time shows.
+ */
+function Thread(props: Parameters<typeof Messages>[0] & { shown: boolean }) {
+  return props.shown ? <Messages {...props} /> : <Waiting words="Reading this conversation again…" waiting />
 }
 
 /** The conversation's messages, oldest first, a page at a time: Earlier messages reads the one before. */

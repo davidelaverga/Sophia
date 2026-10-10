@@ -298,6 +298,42 @@ export async function readConversationPage(
 ): Promise<ConversationMessagePage> {
   const below = before === null ? null : cursorSeq(conversationId, before)
   await visibleConversation(c, conversationId)
+  return pageOf(c, conversationId, below)
+}
+
+/**
+ * A page of a conversation's messages read within its project, in the caller's one snapshot (PR #199 CX-0073, CX-0074;
+ * CON-01-CC-0072), in this order:
+ * 1. the caller's membership of the project (`conversation_access`): not a member, or no such project, is `forbidden`,
+ *    whatever the conversation or the cursor, so nothing of any conversation is told to a non-member;
+ * 2. the cursor against this conversation (`invalid_request`), read from nothing but itself;
+ * 3. an open conversation with this id in this project, as the member sees it: none is `not_found`, to a member only.
+ *    Erased, missing or another project's are alike: the server can't tell them apart, and doesn't say which;
+ * 4. the page.
+ */
+export async function readProjectConversationPage(
+  c: pg.PoolClient,
+  projectId: string,
+  conversationId: string,
+  before: string | null,
+): Promise<ConversationMessagePage> {
+  const access = await accessOf(c, projectId)
+  if (!access.member) throw new DomainError('forbidden', 'Not permitted')
+  const below = before === null ? null : cursorSeq(conversationId, before)
+  const { rows } = await c.query('SELECT 1 FROM sophia.conversations WHERE project_id = $1 AND id = $2', [
+    projectId,
+    conversationId,
+  ])
+  if (rows.length === 0) throw new DomainError('not_found', 'Conversation not found')
+  return pageOf(c, conversationId, below)
+}
+
+/** The page itself: the newest messages, or those below `below`, oldest first, with the cursor before them. */
+async function pageOf(
+  c: pg.PoolClient,
+  conversationId: string,
+  below: number | null,
+): Promise<ConversationMessagePage> {
   const { rows } = await c.query<MessageRow>(
     `${MESSAGES} WHERE m.conversation_id = $1 AND ($2::bigint IS NULL OR m.seq < $2) ORDER BY m.seq DESC LIMIT $3`,
     [conversationId, below, CONVERSATION_PAGE_LIMIT + 1],

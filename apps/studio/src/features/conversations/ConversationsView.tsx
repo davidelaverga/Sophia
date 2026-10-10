@@ -29,29 +29,26 @@ import type { Held } from './held-write.ts'
 import { NewConversation } from './NewConversation.tsx'
 import { ContextToggle, OpenConversation } from './OpenConversation.tsx'
 import { ProjectContext } from './ProjectContext.tsx'
-import type { Erase } from './EraseHere.tsx'
+import { listWithout, type Erase } from './EraseHere.tsx'
 import {
   goneFrom,
   keepsFor,
   fenceLifts,
   liftFence,
   START,
-  unfoundRead,
-  unfoundSettles,
   awaiting,
   useKept,
   withEntry,
   withErasure,
-  withFence,
   withFound,
   withListed,
+  withDenied,
   withStanding,
-  withUnfound,
   withoutConversation,
   type Kept,
 } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
-import { landed, newestRead, putStarted, releasable, shownList, startHeld } from './list-data.ts'
+import { landed, newestRead, putStarted, releasable, setListsData, shownList, startHeld } from './list-data.ts'
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
@@ -209,7 +206,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
           panes.show()
         }}
       />
-      <Middle shown={shown} {...{ projectId, identity, cursor, reader, talk, start, panes }} />
+      <Middle shown={shown} {...{ projectId, identity, cursor, reader, talk, start, panes }} settle={erased.gone} />
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
@@ -233,8 +230,9 @@ function Middle(props: {
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
   panes: ReturnType<typeof usePanes>
+  settle: (id: string) => void
 }) {
-  const { shown, projectId, identity, cursor, reader, talk, start, panes } = props
+  const { shown, projectId, identity, cursor, reader, talk, start, panes, settle } = props
   if (start.starting) {
     return <NewConversation projectId={projectId} identity={identity} notice={reader.firstNotice} {...start.form} />
   }
@@ -247,7 +245,7 @@ function Middle(props: {
       notice={reader.firstNotice}
       me={reader.me}
       writer={reader.writer}
-      {...{ projectId, identity, cursor, talk, start, panes }}
+      {...{ projectId, identity, cursor, talk, start, panes, settle }}
     />
   )
 }
@@ -269,8 +267,11 @@ interface ListProps {
    * holds them all.
    */
   more: number | null
-  /** The one open was just erased here (the newest is open now). */
-  erased: boolean
+  /**
+   * The one open, its erasure pressed here, just left (the newest is open now): erased, by its erasure's own reply; gone,
+   * as the reads show it absent, which they can't tell from an erasure (CX-0074). Null: nothing to say.
+   */
+  erased: 'erased' | 'gone' | null
   /** No conversation shown until a list read answers (talk-store `fence`; `all` is then empty). */
   fenced: boolean
   /** What the reader may do here now, as the list says it (advisory: each write is checked again). */
@@ -294,8 +295,7 @@ function ListPane(props: ListProps) {
       <ListState read={props.read} count={props.fenced ? null : props.all.length} capability={props.capability} />
       {props.fenced ? (
         <p className="conv-note" role="status">
-          A conversation here can’t be found any more. None is shown until this project’s conversations can be read
-          again.
+          This project refused a read of its conversations. None is shown until they can be read again.
         </p>
       ) : (
         <Listed {...props} />
@@ -319,7 +319,7 @@ function Listed(props: ListProps) {
       {props.more !== null && <p className="conv-note">{newestWords(props.more, all.length - props.more)}</p>}
       {props.erased && (
         <p className="conv-note" role="status">
-          The conversation was erased.
+          {props.erased === 'erased' ? 'The conversation was erased.' : 'The conversation isn’t here any more.'}
         </p>
       )}
       {all.length > 0 && (
@@ -469,17 +469,23 @@ function Open(props: {
   talk: ReturnType<typeof useTalk>
   start: ReturnType<typeof useStart>
   panes: ReturnType<typeof usePanes>
+  settle: (id: string) => void
 }) {
-  const { conversation: c, talk, start, panes } = props
+  const { conversation: c, talk, start, panes, settle } = props
   const queryClient = useQueryClient()
-  // Its own read answered not found: erased, or the reader no longer in the project. Fenced (talk-store `fence`): no
-  // conversation shows, its own included, until a list read set out since answers, which says what it is (`unfound`);
-  // the list is read again now.
-  const gone = () => {
+  const { change } = talk
+  const list = listKey(props.projectId, accountOf(props.identity))
+  const id = c.id
+  // Its own read within the project (CX-0074): refused, the reader isn't a current member: fenced (talk-store
+  // `fence`), nothing settled, and the list read again now; not found, to a current member: gone, settled; answered by a
+  // read set out after a refusal: it stands. Each the same between renders, so each is called once per answer.
+  const denied = useCallback(() => {
     const at = orderNow()
-    talk.change((k) => withUnfound(withFence(k, at), c.id, at))
-    void queryClient.invalidateQueries({ queryKey: listKey(props.projectId, accountOf(props.identity)) })
-  }
+    change((k) => withDenied(k, id, at))
+    void queryClient.invalidateQueries({ queryKey: list })
+  }, [change, id, queryClient, list])
+  const found = useCallback((from: number) => change((k) => withFound(k, id, from)), [change, id])
+  const gone = useCallback(() => settle(id), [settle, id])
   return (
     <OpenConversation
       key={c.id}
@@ -497,7 +503,10 @@ function Open(props: {
       onArrived={start.clearArrived}
       onBack={panes.back}
       context={{ open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
+      deniedAt={talk.kept.denied[c.id]}
       onGone={gone}
+      onDenied={denied}
+      onFound={found}
     />
   )
 }
@@ -597,30 +606,30 @@ function useErased(
   identity: Identity,
 ) {
   const { all } = read
-  const account = accountOf(identity)
-  const queryClient = useQueryClient()
-  const [said, setSaid] = useState(false)
+  // What is said of one erased here once settled: erased, only by its erasure's own reply (which, coming after the
+  // reads showed it gone, says so then); else gone, as the reads show it absent, which they can't tell from an
+  // erasure (CX-0074).
+  const [said, setSaid] = useState<'erased' | 'gone' | null>(null)
   const landing = useRef<{ id: string; land: (el: HTMLElement | null) => void } | null>(null)
-  // Erased here, and the view not taken elsewhere since: its reply may say so.
+  // Erased here, and the view not taken elsewhere since: its reply may say so; and the one said now.
   const saying = useRef<string | null>(null)
+  const told = useRef<string | null>(null)
   // It left the list: now the list is to show, and the focus to land once it does.
   const [due, setDue] = useState(false)
   const { toList, view, screen, context } = panes
-  const { change } = talk
-  // Settled, by a whole list without it or by its reply, whichever first: what was kept for it goes, its messages as
-  // read with it, and it is said, once.
+  const letGo = useLetGo(talk.change, read.projectId, accountOf(identity))
+  // Settled, by a whole list without it, its read within the project answering not found, or its reply, whichever
+  // first: what was kept for it goes (useLetGo), and it is said, once.
   const settle = useCallback(
-    (id: string) => {
-      // The messages its thread was read with go too, before that read goes (PR #199 r4237298613).
-      const thread = queryClient.getQueryData<ThreadHeld>(messagesKey(id, account))
-      const ids = (thread?.pages ?? []).flatMap((p) => p.messages.map((m) => m.id))
-      change((k) => withoutConversation(k, id, ids))
-      queryClient.removeQueries({ queryKey: messagesKey(id, account) })
+    (id: string, how: 'erased' | 'gone' = 'gone') => {
+      letGo(id)
+      if (how === 'erased' && told.current === id) return setSaid(how)
       if (saying.current !== id) return
       saying.current = null
-      setSaid(true)
+      told.current = id
+      setSaid(how)
     },
-    [change, queryClient, account],
+    [letGo],
   )
   // Out of the list as read, whatever the read: the list is where the focus goes (the newest is open in its place).
   useEffect(() => {
@@ -647,14 +656,38 @@ function useErased(
     clear: () => {
       landing.current = null
       saying.current = null
-      setSaid(false)
+      told.current = null
+      setSaid(null)
     },
     arm: (id: string, land: (el: HTMLElement | null) => void) => {
       landing.current = { id, land }
       saying.current = id
     },
-    on: settle,
+    /** Its erasure's own reply: erased. */
+    on: (id: string) => settle(id, 'erased'),
+    /** Absent from a read within the project, to a current member: gone. */
+    gone: (id: string) => settle(id, 'gone'),
   }
+}
+
+/**
+ * What goes with a conversation settled gone: what was kept for it, its messages as read with it (before that read
+ * goes: PR #199 r4237298613), and its row from the list as read (its data only: a list whose reads fail still says so).
+ */
+function useLetGo(change: (f: (k: Kept) => Kept) => void, projectId: string, account: string) {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (id: string) => {
+      const thread = queryClient.getQueryData<ThreadHeld>(messagesKey(id, account))
+      const ids = (thread?.pages ?? []).flatMap((p) => p.messages.map((m) => m.id))
+      change((k) => withoutConversation(k, id, ids))
+      setListsData(queryClient, listKey(projectId, account), (list) =>
+        list.conversations.some((c) => c.id === id) ? (listWithout(list, id) ?? list) : list,
+      )
+      queryClient.removeQueries({ queryKey: messagesKey(id, account) })
+    },
+    [change, queryClient, projectId, account],
+  )
 }
 
 /** The list as read: its conversations, whether it was read, and whether whole (no `more`) and read now. */
@@ -669,28 +702,19 @@ interface Listed {
 }
 
 /**
- * What waits on a list read set out since, once one answers: the reader is still in the project (PR #199 r4238709217,
- * r4238826981). A fence (talk-store `fence`) lifts, its conversation then unfound as a direct read's not found is. Each
- * unfound one the read lists stands; a whole list without it says it is erased, settled here; one of the newest only
- * without it is read directly again (`unfoundRead`). A read refused, failing or from before changes nothing.
+ * What waits on a list read set out since, once one answers: the reader is a current member, so the fence (talk-store
+ * `fence`) lifts, and each conversation refused before it is read again within the project, whose answer says what it
+ * is now (PR #199 r4238709217; CX-0073, CX-0074). A read refused, failing or from before changes nothing.
  */
-function useSince(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void, probes: Probes) {
+function useSince(talk: ReturnType<typeof useTalk>, read: Listed, probes: Probes) {
   const { kept, change, latest } = talk
-  const { all, readFrom, whole } = read
+  const { readFrom } = read
   useEffect(() => {
     const now = latest()
-    const base = liftFence(now, readFrom)
-    const after = unfoundRead(
-      base,
-      readFrom,
-      all.map((c) => c.id),
-      whole,
-    )
-    if (after.kept === now && after.settle.length === 0) return
-    if (after.kept !== now) change(() => after.kept)
-    for (const id of after.settle) settle(id)
-    for (const id of after.recheck) probes.start(id)
-  }, [kept, readFrom, all, whole, latest, change, settle, probes])
+    if (!fenceLifts(now, readFrom)) return
+    change((k) => liftFence(k, readFrom))
+    for (const id of Object.keys(now.denied)) probes.start(id)
+  }, [kept, readFrom, latest, change, probes])
 }
 
 /**
@@ -699,7 +723,7 @@ function useSince(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: s
  * A list of the newest only leaving one out proves nothing.
  */
 function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: string) => void, probes: Probes) {
-  useSince(talk, read, settle, probes)
+  useSince(talk, read, probes)
   const { kept, change } = talk
   const { all, seen, whole } = read
   useEffect(() => {
@@ -715,9 +739,10 @@ function useSeen(talk: ReturnType<typeof useTalk>, read: Listed, settle: (id: st
 }
 
 /**
- * The conversations left out of a list of the newest only that something is kept for here, read directly (probes.ts):
- * the API's not found settles one, and only to a read set out after a list read confirmed the reader is still here
- * (talk-store `unfound`; PR #199 r4238826981); nothing else does. Every read stops with the view.
+ * The conversations left out of a list of the newest only that something is kept for here, read directly within the
+ * project (probes.ts). Answered, it stands. Not found (to a current member, in the same snapshot): gone, settled. Refused
+ * (not a current member): the view is fenced, and nothing is settled (talk-store `denied`). No read goes while fenced.
+ * Every read stops with the view.
  */
 function useProbes(
   identity: Identity,
@@ -728,40 +753,33 @@ function useProbes(
   const queryClient = useQueryClient()
   const account = accountOf(identity)
   const { latest, change } = talk
-  const probes = useMemo(() => {
-    // Where in this view's order each conversation's last read set out (one at a time per conversation).
-    const setOut = new Map<string, number>()
-    return new Probes({
-      // Answering, it says where in this view's order it set out: a doubt from before it ends (withStanding).
-      read: (id, signal) => {
-        const from = orderNow()
-        setOut.set(id, from)
-        return getConversationMessages(identity.token, id, null, signal).then(() => from)
-      },
-      // One unfound waits on a list read since, not read directly meanwhile (its not found would fence anew).
-      keeps: (id) => {
-        const k = latest()
-        if (k.unfound[id] && k.unfound[id].checked === undefined) return false
-        return keepsFor(k, id) || queryClient.getQueryData(messagesKey(id, account)) !== undefined
-      },
-      // Not found: erased, or the reader no longer in the project, which the API answers alike. Settled only by a
-      // read set out after a list read since the last not found answered; else, as the open one's own, the view is
-      // fenced and it is unfound (talk-store) until a list read set out since says, read again now (r4238826981).
-      settle: (id) => {
-        // An erasure of it pressed here and unanswered: this is its answer, as its reply would be.
-        const was = latest()
-        if ((was.erasures[id] ?? null) !== null || unfoundSettles(was, id, setOut.get(id) ?? 0)) return settle(id)
-        const at = orderNow()
-        change((k) => withUnfound(withFence(k, at), id, at))
-        void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
-      },
-      found: (id, from) => {
-        change((k) => withFound(k, id))
-        if (typeof from === 'number') change((k) => withStanding(k, [id], from))
-      },
-      notFound: (err) => err instanceof ApiError && err.code === 'not_found',
-    })
-  }, [identity.token, projectId, settle, latest, change, queryClient, account])
+  const probes = useMemo(
+    () =>
+      new Probes({
+        // Answering, it says where in this view's order it set out: a doubt or a refusal from before it ends.
+        read: (id, signal) => {
+          const from = orderNow()
+          return getConversationMessages(identity.token, projectId, id, null, signal).then(() => from)
+        },
+        keeps: (id) => {
+          const k = latest()
+          if (k.fence) return false
+          return keepsFor(k, id) || queryClient.getQueryData(messagesKey(id, account)) !== undefined
+        },
+        settle,
+        deny: (id) => {
+          const at = orderNow()
+          change((k) => withDenied(k, id, at))
+          void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
+        },
+        found: (id, from) => {
+          if (typeof from === 'number') change((k) => withStanding(withFound(k, id, from), [id], from))
+        },
+        notFound: (err) => err instanceof ApiError && err.code === 'not_found',
+        denied: (err) => err instanceof ApiError && err.code === 'forbidden',
+      }),
+    [identity.token, projectId, settle, latest, change, queryClient, account],
+  )
   // Opened with the view, closed as it goes: a remount (StrictMode's setup, cleanup, setup) leaves it open.
   useEffect(() => {
     probes.open()

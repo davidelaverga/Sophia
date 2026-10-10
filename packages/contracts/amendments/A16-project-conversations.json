@@ -5,7 +5,8 @@
   "why": [
     "The Studio's conversations (Luis's C1-C9) run against the UI proposal its vision.ts names A18 (issue #105), answered only by fixtures. A18 is a proposal label, not a backend number: this amendment is the real contract, A16, after PR #190's A15 (CON-01 binding map §1, §3).",
     "The four proposed operations keep their paths and meanings. Added: an order (seq) and a cursor bound to its conversation; a reply request on the message that asked, and the request an answer settles (never 'any later Sophia message'); the saved-text policy and the reader's capability; coverage for the summary and the recorded open questions; withdrawal and erasure (CON-01 binding map §3-§7).",
-    "The actor, the author's name and the project are the server's: a body naming them is refused (additionalProperties false)."
+    "The actor, the author's name and the project are the server's: a body naming them is refused (additionalProperties false).",
+    "Added after PR #199's review (CON-01-CC-0072, CX-0074): getConversationMessages answers not_found alike to a member reading an erased conversation and to a reader no longer in the project, so the Studio can't tell them apart. getProjectConversationMessages reads within the project in one snapshot: a non-member is refused (403) before anything of the conversation is read; to a current member, not_found means none open in that project. The earlier path keeps its meaning."
   ],
   "patch": [
     {
@@ -1117,6 +1118,99 @@
               }
             }
           }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1conversations~1{conversationId}~1messages",
+      "value": {
+        "get": {
+          "operationId": "getProjectConversationMessages",
+          "summary": "A page of a conversation's messages read within its project, in one snapshot: the caller's membership first, then the cursor against this conversation, then an open conversation with this id in this project, then the page (the newest 50, or those before `before`). Answers what getConversationMessages does, and also which of a non-member and an absence it is.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "before",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationMessagePage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: the caller is not a current member of the project, or there is no such project. Said before anything of the conversation or the cursor is read, so a non-member learns nothing of either.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or its cursor is another conversation's (invalid_request); or, to a current member of the project only, no open conversation with this id is in it (not_found: erased, missing or another project's alike, which this read does not tell apart).",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01"
         }
       }
     },

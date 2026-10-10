@@ -53,15 +53,21 @@ export const listConversations = (token: string, projectId: string, signal?: Abo
     parseConversationList,
   )
 
-/** A page of a conversation's messages: the newest, or those before `before`. */
+/**
+ * A page of a conversation's messages, read within its project (A16 getProjectConversationMessages): the newest, or
+ * those before `before`. In one snapshot: a reader not a current member of the project is refused (403 `forbidden`)
+ * before anything of the conversation is read; to a member, `not_found` (422) is none open in this project (erased,
+ * missing or another project's alike: not proof of an erasure). The Studio reads a transcript only this way.
+ */
 export const getConversationMessages = (
   token: string,
+  projectId: string,
   conversationId: string,
   before: string | null,
   signal?: AbortSignal,
 ) =>
   callApi(
-    `/api/v1/conversations/${conversationId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
+    `/api/v1/projects/${projectId}/conversations/${conversationId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
     { token, method: 'GET', ...(signal ? { signal } : {}) },
     parseConversationMessagePage,
   )

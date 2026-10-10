@@ -271,22 +271,27 @@ test('removal · an erasure with no reply is sent again under its key, after ano
   expect(keys[1]).toBe(keys[0])
 })
 
-test('removal · an erasure whose reply is lost, out of a list of the newest only: read directly, its not found says it', async ({
+test('removal · an erasure whose reply is lost, out of a list of the newest only: read within its project, its not found says it is gone', async ({
   page,
 }) => {
-  // A list holding the newest only proves nothing by leaving one out (it may be older); the conversation read directly
-  // does: the API refuses an erased one as not found (422), and that alone settles it (probes.ts). Older, or a read that
-  // fails otherwise, it is kept and nothing is said (the cases after this one).
+  // A list holding the newest only proves nothing by leaving one out (it may be older); the conversation read within its
+  // project does: to a current member the API answers not found (422) for one not open there, and that alone settles it
+  // (probes.ts), with no fence. Older, or a read that fails otherwise, it is kept and nothing is said (the cases after
+  // this one). Erase pressed is no receipt: its reply lost, the list says it isn't here, not that it was erased (CX-0074).
   await opened(page, '&erase=lost&more=1')
   await erase(page).click()
   await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
   await expect(list(page)).not.toContainText(FIRST)
   await expect(rows(page).first()).toBeFocused()
-  // The proof first: its direct read, refused as not found; only then is it said.
+  // The proof first: its read within the project, answered not found; only then is it said.
   await expect.poll(() => written(page, 'messages-gone')).toContain('messages-gone:c1')
-  await expect(list(page).getByRole('status').filter({ hasText: 'The conversation was erased.' })).toBeVisible()
+  await expect(
+    list(page).getByRole('status').filter({ hasText: 'The conversation isn’t here any more.' }),
+  ).toBeVisible()
+  await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
   expect((await kept(page))?.erased[C1]).toBe(true)
   expect((await kept(page))?.erasures[C1]).toBeUndefined()
+  expect((await kept(page))?.fence).toBeNull()
 })
 
 test('removal · an erasure with no reply, its conversation pushed past the list’s newest: kept, its draft too, and sent again under its key', async ({
@@ -381,7 +386,8 @@ test('removal · erased elsewhere while the list holds the newest only: read dir
   page,
 }) => {
   // PR #199 r4235397313, r4235629899: a project past the newest may never be listed whole. Left out of a list of the
-  // newest, a conversation something is kept for is read directly; the API refuses an erased one as not found.
+  // newest, a conversation something is kept for is read within its project; to a current member the API answers an
+  // erased one not found (422), which settles it at once, with no fence (CX-0074).
   await page.goto(`${PAGE}&more=1`)
   await expect(messages(page)).toHaveCount(6)
   await field(page).fill('SYNTHETIC-DRAFT-ERASED-ELSEWHERE')
@@ -391,20 +397,20 @@ test('removal · erased elsewhere while the list holds the newest only: read dir
   await expect(list(page)).not.toContainText(FIRST)
   await expect.poll(async () => (await kept(page))?.drafts[C1]).toBeUndefined()
   expect((await kept(page))?.erased[C1]).toBe(true)
-  // Its not found fences the view; the list read since leaves it out (the newest only), so it is read directly again,
-  // and that not found settles it (PR #199 r4238826981).
-  expect(await written(page, 'messages-gone')).toEqual(['messages-gone:c1', 'messages-gone:c1'])
-  // Erased by someone else: nothing here says it was erased here.
+  expect(await written(page, 'messages-gone')).toEqual(['messages-gone:c1'])
+  expect((await kept(page))?.fence).toBeNull()
+  // Erased by someone else: nothing here says it was erased here, nor that it went.
   await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+  await expect(page.getByText('The conversation isn’t here any more.')).toHaveCount(0)
   await expect(messages(page)).toHaveCount(2)
 })
 
-test('removal · its own read answers not found, the list’s reads failing: no conversation shows, cached or not, until a list read answers', async ({
+test('removal · its own read answers not found to a current member, the list’s reads failing: it is gone at once, and the rest still show', async ({
   page,
 }) => {
-  // PR #199 r4238709217, CX-0068: not found is also what a reader no longer in the project gets, the feed not moving.
-  // Neither its thread nor another one cached here (whose own read fails) shows, across trips to another view, and
-  // nothing is settled, until a list read set out since answers; then it is erased, and the rest show again.
+  // CX-0074: read within its project, not found is what a current member gets for one not open there now (membership
+  // and the conversation read in one snapshot), so it settles at once, with no fence; another cached here still shows.
+  // None was erased here: nothing says so.
   await page.goto(PAGE)
   await expect(messages(page)).toHaveCount(6)
   await rows(page).nth(1).click()
@@ -412,65 +418,126 @@ test('removal · its own read answers not found, the list’s reads failing: no 
   await rows(page).filter({ hasText: FIRST }).click()
   await expect(messages(page)).toHaveCount(6)
   await page.evaluate(() => window.fixture?.failConversations(true))
-  await page.evaluate((c) => window.fixture?.failMessageReads(c), C2)
   await page.evaluate((c) => window.fixture?.eraseQuietly(c), C1)
   // To another view and back: its thread, cached, is read again as it opens, and answered not found.
   await trip(page)
-  await expect.poll(async () => (await served(page)).includes('messages-gone:c1')).toBe(true)
-  await expect(messages(page)).toHaveCount(0)
-  await expect(open(page)).toHaveCount(0)
-  await expect(rows(page)).toHaveCount(0)
-  await expect(context(page).getByRole('heading', { name: 'This conversation' })).toHaveCount(0)
-  await expect(list(page)).toContainText('A conversation here can’t be found any more.')
-  await trip(page)
-  await expect(list(page)).toContainText('A conversation here can’t be found any more.')
-  await page.waitForTimeout(1000)
-  await expect(open(page)).toHaveCount(0)
-  await expect(rows(page)).toHaveCount(0)
-  expect((await kept(page))?.erased[C1]).toBeUndefined()
-  expect(typeof (await kept(page))?.fence?.at).toBe('number')
-  expect(typeof (await kept(page))?.unfound[C1]?.at).toBe('number')
-  // A list read since answers: the reader is still here, so it is erased, and the rest show again.
-  await page.evaluate(() => window.fixture?.failConversations(false))
-  await page.evaluate(() => window.fixture?.failMessageReads(null))
-  await readListAgain(page)
   await expect.poll(async () => (await kept(page))?.erased[C1]).toBe(true)
   expect((await kept(page))?.fence).toBeNull()
-  await expect(rows(page)).toHaveCount(2)
   await expect(list(page)).not.toContainText(FIRST)
+  await expect(rows(page)).toHaveCount(2)
   await expect(messages(page).first()).toBeVisible()
+  await expect(list(page)).not.toContainText('This project refused')
   await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+  // Read as it opened (twice: StrictMode mounts the fixture's view twice) and that read's one retry; then never again.
+  const gone = (await written(page, 'messages-gone')).length
+  expect(gone).toBeLessThanOrEqual(3)
+  await page.waitForTimeout(1000)
+  expect(await written(page, 'messages-gone')).toHaveLength(gone)
 })
 
-test('removal · not found while out of the project, then given it back: the list read that lifts the fence lists it, and it opens again, read once', async ({
+test('removal · its own read refused (403), the list’s reads failing: nothing shows, cached or not, until a list read since answers; then its thread only once read since', async ({
   page,
 }) => {
-  // CX-0069: not found to a reader no longer in the project isn't an erasure. Given the project back, the list read
-  // that lifts the fence still lists it, so it stands and opens again. The not found its earlier read left in the cache
-  // is never taken for a new one: no fence again, and no reads over and over.
+  // CX-0073, CX-0074: refused within its project, the reader isn't a current member. Nothing is settled (its draft
+  // stays), and neither its thread nor another one cached here shows, across trips to another view, until a list read
+  // set out since answers. Given the project back, its thread, cached from before the refusal, shows only once a read
+  // set out since answers: never what the cache kept, nor its composer, meanwhile.
   await page.goto(PAGE)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-REFUSED')
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  await rows(page).filter({ hasText: FIRST }).click()
   await expect(messages(page)).toHaveCount(6)
   await page.evaluate(() => window.fixture?.failConversations(true))
   await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
+  // To another view and back: its thread, cached, is read again as it opens, and refused.
   await trip(page)
   await expect.poll(async () => (await served(page)).includes('messages-refused:c1')).toBe(true)
+  await expect(open(page)).toHaveCount(0)
   await expect(rows(page)).toHaveCount(0)
-  await expect(list(page)).toContainText('A conversation here can’t be found any more.')
-  // The project given back: its reads answer again, and the list is read again.
+  await expect(context(page).getByRole('heading', { name: 'This conversation' })).toHaveCount(0)
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  await trip(page)
+  await expect(list(page)).toContainText('This project refused a read of its conversations.')
+  await page.waitForTimeout(1000)
+  await expect(open(page)).toHaveCount(0)
+  await expect(rows(page)).toHaveCount(0)
+  const refused = await kept(page)
+  expect([refused?.erased[C1], refused?.drafts[C1]]).toEqual([undefined, 'SYNTHETIC-DRAFT-REFUSED'])
+  expect(typeof refused?.denied[C1]).toBe('number')
+  expect(refused?.fence?.at).toBe(refused?.denied[C1])
+  // Given the project back, the reads that answer held: the list read since lifts the fence, and the thread opens.
+  await page.evaluate(() => window.fixture?.holdMessageReads())
   await page.evaluate(() => window.fixture?.refuseMessageReads(null))
   await page.evaluate(() => window.fixture?.failConversations(false))
-  const reads = async () =>
-    (await served(page)).filter((s) => s === 'conversations:read' || s.startsWith('messages:c1'))
-  const before = (await reads()).length
   await readListAgain(page)
   await expect(open(page).getByRole('heading', { name: FIRST })).toHaveCount(1)
-  await expect(messages(page)).toHaveCount(6)
-  await page.waitForTimeout(2000)
-  expect((await reads()).length - before).toBeLessThanOrEqual(4)
   expect((await kept(page))?.fence).toBeNull()
-  expect((await kept(page))?.erased[C1]).toBeUndefined()
-  await expect(list(page)).not.toContainText('can’t be found any more')
+  // What the cache holds from before the refusal doesn't show, nor the composer, while its read since is under way.
+  await expect(open(page)).toContainText('Reading this conversation again…')
+  await page.waitForTimeout(500)
+  await expect(messages(page)).toHaveCount(0)
+  await expect(field(page)).toHaveCount(0)
+  expect(await page.evaluate((c) => window.fixture?.cachedMessages(c), C1)).toBe(true)
+  await page.evaluate(() => window.fixture?.releaseMessageReads())
   await expect(messages(page)).toHaveCount(6)
+  await expect(field(page)).toHaveValue('SYNTHETIC-DRAFT-REFUSED')
+  await expect.poll(async () => (await kept(page))?.denied[C1]).toBeUndefined()
+  await expect(list(page)).not.toContainText('This project refused')
+  expect((await kept(page))?.erased[C1]).toBeUndefined()
+})
+
+test('removal · reads set out before another’s refusal (403) answer after it: the fence holds, and nothing shows until read since', async ({
+  page,
+}) => {
+  // CX-0074: a direct read (probe) and the open thread's read, under way as the reader leaves the project, answer (200)
+  // after the open conversation's read within the project is refused. Neither lifts the fence or brings back a row, a
+  // thread or a composer; nothing is settled. Given the project back, the thread, cached from before, shows only once
+  // a read set out since answers.
+  await page.goto(`${PAGE}&more=1`)
+  await expect(messages(page)).toHaveCount(6)
+  await field(page).fill('SYNTHETIC-DRAFT-KEPT')
+  await rows(page).nth(1).click()
+  await expect(messages(page)).toHaveCount(2)
+  const readsOfC1 = async () => (await served(page)).filter((s) => s.startsWith('messages:c1')).length
+  const readBefore = await readsOfC1()
+  // From now on the reads that answer are held, each to answer as it was when asked.
+  await page.evaluate(() => window.fixture?.holdMessageReads())
+  // The first pushed past the newest: read directly (held: it is there); the open one read again as the feed moves.
+  await page.evaluate((c) => window.fixture?.capPast(c), C1)
+  await expect(list(page)).not.toContainText(FIRST)
+  await expect.poll(readsOfC1).toBe(readBefore + 1)
+  // Out of the project, the list's reads failing: the open one read again as the feed moves, and refused.
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C2)
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect.poll(async () => (await served(page)).includes('messages-refused:c2')).toBe(true)
+  await expect(rows(page)).toHaveCount(0)
+  await expect.poll(async () => typeof (await kept(page))?.denied[C2]).toBe('number')
+  const fenced = await kept(page)
+  // The reads set out before the refusal answer now.
+  await page.evaluate(() => window.fixture?.releaseMessageReads())
+  await page.waitForTimeout(1000)
+  await expect(rows(page)).toHaveCount(0)
+  await expect(open(page)).toHaveCount(0)
+  const after = await kept(page)
+  expect([after?.fence, after?.denied]).toEqual([fenced?.fence, fenced?.denied])
+  expect([after?.erased, after?.drafts[C1]]).toEqual([{}, 'SYNTHETIC-DRAFT-KEPT'])
+  // Given the project back, the reads that answer held again: the open one's cache shows nothing until read since.
+  await page.evaluate(() => window.fixture?.holdMessageReads())
+  await page.evaluate(() => window.fixture?.refuseMessageReads(null))
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await readListAgain(page)
+  await expect(rows(page)).not.toHaveCount(0)
+  await expect(open(page)).toContainText('Reading this conversation again…')
+  await page.waitForTimeout(500)
+  await expect(messages(page)).toHaveCount(0)
+  await expect(open(page).getByRole('textbox')).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.releaseMessageReads())
+  await expect(messages(page)).toHaveCount(2)
+  await expect.poll(async () => (await kept(page))?.denied[C2]).toBeUndefined()
+  expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-KEPT')
 })
 
 test('removal · older, then erased elsewhere with the list unchanged: read again on its own clock, its part goes then', async ({
@@ -506,13 +573,13 @@ test('removal · older, then erased elsewhere with the list unchanged: read agai
 })
 
 for (const back of ['older still', 'newest again'] as const) {
-  test(`removal · older, its direct read refused while out of the project: fenced, nothing settled; given the project back (${back}), it stands with its draft`, async ({
+  test(`removal · older, its read within the project refused (403) after a list read checked it: fenced, nothing settled; given the project back (${back}), it stands with its draft`, async ({
     page,
   }) => {
-    // PR #199 r4238826981, CX-0071/CX-0072: a direct read's not found is also what a reader no longer in the project
-    // gets. It fences the view as the open one's own does, and settles nothing (its draft stays) until a list read set
-    // out since answers. Given the project back, a list that lists it again says it stands; one of the newest only
-    // that still leaves it out has it read directly again, and that read says. No view crashes on the way.
+    // CX-0073, CX-0074: a list read under way as the reader leaves the project (it answers as a member) lifts nothing
+    // once the direct read within the project is refused: it set out before. The refusal fences the view and settles
+    // nothing (its draft stays) until a list read set out since answers. Given the project back, its read within the
+    // project, or its thread opened from a list that lists it again, says it stands. No view crashes on the way.
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))
     page.on('console', (m) => {
@@ -529,27 +596,43 @@ for (const back of ['older still', 'newest again'] as const) {
     await expect
       .poll(async () => (await served(page)).filter((s) => s.startsWith('messages:c1')).length)
       .toBeGreaterThan(0)
-    // Out of the project: its reads refused as not found, the list's failing.
+    // A list read under way, the reader still in the project as it is read (held: it answers as it was).
+    const lists = async () => (await served(page)).filter((s) => s === 'conversations:read').length
+    const listed = await lists()
+    await page.evaluate(() => window.fixture?.holdListReads())
+    await page.evaluate(() => window.fixture?.listMore(true))
+    await expect.poll(lists).toBe(listed + 1)
+    // Out of the project: its reads refused (403), the list's failing.
     await page.evaluate((c) => window.fixture?.refuseMessageReads(c), C1)
     await page.evaluate(() => window.fixture?.failConversations(true))
     await page.clock.fastForward(31_000)
     await expect.poll(async () => (await served(page)).includes('messages-refused:c1')).toBe(true)
     await expect(rows(page)).toHaveCount(0)
+    // The list read checked before the refusal answers now: it lifts nothing.
+    await page.evaluate(() => window.fixture?.releaseListReads())
+    await page.waitForTimeout(500)
+    await expect(rows(page)).toHaveCount(0)
     await expect(open(page)).toHaveCount(0)
-    await expect(list(page)).toContainText('A conversation here can’t be found any more.')
-    expect((await kept(page))?.erased[C1]).toBeUndefined()
-    expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-OUT-OF-PROJECT')
+    await expect(list(page)).toContainText('This project refused a read of its conversations.')
+    const refused = await kept(page)
+    expect([refused?.erased[C1], refused?.drafts[C1]]).toEqual([undefined, 'SYNTHETIC-DRAFT-OUT-OF-PROJECT'])
+    expect(typeof refused?.denied[C1]).toBe('number')
     // Given the project back; listed again among the newest, or still left out.
     await page.evaluate(() => window.fixture?.refuseMessageReads(null))
     if (back === 'newest again') await page.evaluate(() => window.fixture?.capPast(null))
     await page.evaluate(() => window.fixture?.failConversations(false))
     await readListAgain(page)
-    await expect.poll(async () => (await kept(page))?.unfound[C1]).toBeUndefined()
     await expect(rows(page)).not.toHaveCount(0)
-    if (back === 'newest again') await expect(list(page)).toContainText(FIRST)
+    if (back === 'newest again') {
+      await rows(page).filter({ hasText: FIRST }).click()
+      await expect(messages(page)).toHaveCount(6)
+      await expect(field(page)).toHaveValue('SYNTHETIC-DRAFT-OUT-OF-PROJECT')
+    }
+    await expect.poll(async () => (await kept(page))?.denied[C1]).toBeUndefined()
     expect((await kept(page))?.erased[C1]).toBeUndefined()
     expect((await kept(page))?.drafts[C1]).toBe('SYNTHETIC-DRAFT-OUT-OF-PROJECT')
     await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
+    await expect(page.getByText('The conversation isn’t here any more.')).toHaveCount(0)
     expect(errors).toEqual([])
   })
 }
@@ -790,12 +873,18 @@ test('removal · the same, from an API that says no order: the row lags, never w
   await expect(list(page)).toContainText(WORDS)
 })
 
-test('removal · an erasure whose reply is lost is said when the feed shows it gone', async ({ page }) => {
+test('removal · an erasure whose reply is lost: when the feed shows it gone, it is said to be gone, not erased', async ({
+  page,
+}) => {
+  // CX-0074: Erase pressed is no receipt, and a list without it can't tell an erasure from any other absence.
   await opened(page, '&erase=lost')
   await erase(page).click()
   await page.getByRole('group', { name: 'Erase this conversation' }).getByRole('button', { name: 'Erase' }).click()
   await expect(list(page)).not.toContainText(FIRST)
-  await expect(list(page).getByRole('status').filter({ hasText: 'The conversation was erased.' })).toBeVisible()
+  await expect(
+    list(page).getByRole('status').filter({ hasText: 'The conversation isn’t here any more.' }),
+  ).toBeVisible()
+  await expect(page.getByText('The conversation was erased.')).toHaveCount(0)
   await expect(rows(page).first()).toBeFocused()
   await noReadOnceGone(page)
 })

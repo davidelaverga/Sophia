@@ -13168,6 +13168,97 @@
         }
       }
     },
+    "/api/v1/projects/{projectId}/conversations/{conversationId}/messages": {
+      "get": {
+        "operationId": "getProjectConversationMessages",
+        "summary": "A page of a conversation's messages read within its project, in one snapshot: the caller's membership first, then the cursor against this conversation, then an open conversation with this id in this project, then the page (the newest 50, or those before `before`). Answers what getConversationMessages does, and also which of a non-member and an absence it is.",
+        "tags": [
+          "conversations"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "conversationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationMessagePage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted: the caller is not a current member of the project, or there is no such project. Said before anything of the conversation or the cursor is read, so a non-member learns nothing of either.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or its cursor is another conversation's (invalid_request); or, to a current member of the project only, no open conversation with this id is in it (not_found: erased, missing or another project's alike, which this read does not tell apart).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "CON-01"
+      }
+    },
     "/api/v1/conversations/{conversationId}/messages/{messageId}/withdrawal": {
       "post": {
         "operationId": "withdrawConversationMessage",

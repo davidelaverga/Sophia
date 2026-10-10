@@ -33,6 +33,18 @@ export function readFromOf(held: ThreadHeld, messageId: string | null): number {
   return page && 'readFrom' in page && typeof page.readFrom === 'number' ? page.readFrom : 0
 }
 
+/**
+ * Whether a thread read may show (CX-0074): nothing of it was refused (`deniedAt`: where in this view's order its read
+ * within the project was refused), or its newest page's read set out after that, so what an older read brought, a late
+ * answer included, never shows until a read since answers.
+ */
+export function shows(held: ThreadHeld, deniedAt: number | undefined): boolean {
+  if (deniedAt === undefined) return true
+  const newest = held?.pages[0]
+  const from = newest && 'readFrom' in newest && typeof newest.readFrom === 'number' ? newest.readFrom : 0
+  return from > deniedAt
+}
+
 /** A feed position as a number, where it is one. */
 const positionOf = (cursor: string | undefined) =>
   cursor !== undefined && POSITION.test(cursor) ? BigInt(cursor) : undefined

@@ -48,7 +48,7 @@ export interface TalkWrites {
   /** The conversations erased here: a read of one is refused as not found (0048 hides it), never answered with words. */
   erasedIds?: Set<string>
   /**
-   * One still listed whose message reads are refused as not found, as the API refuses a reader no longer in the project
+   * One still listed whose message reads are refused (403), as the API refuses a reader no longer in the project
    * (`refuseMessageReads`; null: they answer again). Not erased: given the project back, it reads as before.
    */
   refusedOf?: string | null

@@ -15,6 +15,7 @@ import {
   readConversationList,
   readConversationMessage,
   readConversationPage,
+  readProjectConversationPage,
   sendConversationMessage,
   startConversation,
   withActor,
@@ -108,6 +109,14 @@ const page = (actor: string, conversationId: string, cursor: string | null = nul
   withActor(pool, actor, 'read', (c) => readConversationPage(c, conversationId, cursor))
 const message = (actor: string, messageId: string) =>
   withActor(pool, actor, 'read', (c) => readConversationMessage(c, messageId))
+const scoped = (actor: string, projectId: string, conversationId: string, cursor: string | null = null) =>
+  withActor(pool, actor, 'read', (c) => readProjectConversationPage(c, projectId, conversationId, cursor))
+/** What a read refused with: its code and its words. */
+const refusalOf = (p: Promise<unknown>) =>
+  p.then(
+    () => 'resolved',
+    (err: unknown) => (err instanceof DomainError ? `${err.code}: ${err.message}` : `raw:${String(err)}`),
+  )
 
 /** Rows of everything that would mean work started, for one project. */
 async function workRows(projectId: string): Promise<Record<string, number>> {
@@ -311,6 +320,84 @@ describe('who reads and writes (CON01-A05)', () => {
     assert.equal(await codeOf(list(F, p)), 'forbidden')
     assert.equal(await codeOf(page(F, r.conversationId)), 'not_found')
     assert.equal(await codeOf(send(F, r.conversationId, 'Still here?')), 'not_found')
+  })
+})
+
+describe('a page read within its project (PR #199 CX-0073, CX-0074; CON-01-CC-0072)', () => {
+  it('a member reads it as ever; erased, missing or another project’s are alike not found, nothing of them told', async () => {
+    // V is a member of both projects.
+    const p1 = await project()
+    const p2 = await project()
+    const here = await start(E, p1)
+    const goneHere = await start(E, p1)
+    await erase(A, goneHere.conversationId)
+    const there = await start(E, p2)
+    const goneThere = await start(E, p2)
+    await erase(A, goneThere.conversationId)
+    assert.deepEqual(await scoped(V, p1, here.conversationId), await page(V, here.conversationId))
+    const absent = [goneHere.conversationId, there.conversationId, goneThere.conversationId, randomUUID()]
+    const refusals = await Promise.all(absent.map((id) => refusalOf(scoped(V, p1, id))))
+    assert.deepEqual(
+      refusals,
+      absent.map(() => 'not_found: Conversation not found'),
+    )
+    // In its own project, the other one reads as ever.
+    assert.equal((await scoped(V, p2, there.conversationId)).conversationId, there.conversationId)
+  })
+
+  it('a non-member, or one removed since, is refused before anything of the conversation or its cursor is read', async () => {
+    const p = await project()
+    const r = await start(E, p)
+    for (let i = 0; i < 55; i++) await send(E, r.conversationId, `Message ${i}`)
+    const first = await scoped(V, p, r.conversationId)
+    assert.ok(first.before)
+    const other = await start(E, p)
+    const erased = await start(E, p)
+    await erase(A, erased.conversationId)
+    for (const id of [r.conversationId, erased.conversationId, randomUUID()]) {
+      assert.equal(await refusalOf(scoped(O, p, id)), 'forbidden: Not permitted')
+      assert.equal(await refusalOf(scoped(O, p, id, first.before)), 'forbidden: Not permitted')
+      assert.equal(await refusalOf(scoped(O, p, id, 'made-up')), 'forbidden: Not permitted')
+    }
+    assert.equal(await refusalOf(scoped(V, randomUUID(), r.conversationId)), 'forbidden: Not permitted')
+    // A member: a cursor of another conversation, or a made-up one, is refused as a cursor, never as an absence.
+    assert.equal(await codeOf(scoped(V, p, other.conversationId, first.before)), 'invalid_request')
+    assert.equal(await codeOf(scoped(V, p, r.conversationId, 'made-up')), 'invalid_request')
+    assert.equal((await scoped(V, p, r.conversationId, first.before)).messages.length, 6)
+    // Removed since: refused here, where the global read answers not found.
+    await owner(`UPDATE sophia.project_members SET active = false WHERE project_id = $1 AND actor_id = $2`, [p, F])
+    assert.equal(await codeOf(scoped(F, p, r.conversationId)), 'forbidden')
+    assert.equal(await codeOf(page(F, r.conversationId)), 'not_found')
+  })
+
+  it('membership and the conversation are read in one snapshot; a read set out after a revocation committed is refused', async () => {
+    const p = await project()
+    const r = await start(E, p)
+    // CX-0073's sequence: the list read answers (V a member then); V is removed; the read held until then is refused.
+    assert.deepEqual(
+      (await list(V, p)).conversations.map((x) => x.id),
+      [r.conversationId],
+    )
+    const c = await pool.connect()
+    const revoker = new pg.Client({ connectionString: db.ownerUrl })
+    await revoker.connect()
+    try {
+      // As withActor reads: the snapshot is taken by the first statement.
+      await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY')
+      await c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [V])
+      await revoker.query(`UPDATE sophia.project_members SET active = false WHERE project_id = $1 AND actor_id = $2`, [
+        p,
+        V,
+      ])
+      // In that snapshot V is still a member and the conversation still there: both answers agree.
+      assert.equal((await readProjectConversationPage(c, p, r.conversationId, null)).conversationId, r.conversationId)
+      await c.query('COMMIT')
+    } finally {
+      c.release()
+      await revoker.end()
+    }
+    assert.equal(await codeOf(scoped(V, p, r.conversationId)), 'forbidden')
+    assert.equal(await codeOf(list(V, p)), 'forbidden')
   })
 })
 

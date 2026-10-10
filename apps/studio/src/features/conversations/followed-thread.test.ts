@@ -3,7 +3,7 @@ import { describe, it } from 'node:test'
 import { InfiniteQueryObserver, QueryClient } from '@tanstack/react-query'
 import type { ConversationMessage, ConversationStarted } from '../../api/conversations.ts'
 import { listKey, messagesKey, withMessage, type ThreadHeld } from './conversation-list.ts'
-import { dropUnfollowed, readAtOf, readFromOf } from './followed-thread.ts'
+import { dropUnfollowed, readAtOf, readFromOf, shows } from './followed-thread.ts'
 import { putStarted } from './list-data.ts'
 
 const AT = '2026-10-10T13:55:00.000Z'
@@ -237,5 +237,29 @@ describe('where the read of the page holding a message set out, in this view’s
     assert.equal(readFromOf(held as unknown as ThreadHeld, 'b2'), 0)
     assert.equal(readFromOf(held as unknown as ThreadHeld, null), 0)
     assert.equal(readFromOf(undefined, 'b1'), 0)
+  })
+})
+
+describe('shows: a thread whose read within the project was refused shows only what a read since brought (CX-0074)', () => {
+  const at = (...froms: (number | undefined)[]) =>
+    pagesOf(
+      ...froms.map((f) => ({ ids: ['m1'], extra: f === undefined ? {} : { readFrom: f } })),
+    ) as unknown as ThreadHeld
+
+  it('never refused: shown, cached or not', () => {
+    assert.equal(shows(at(3), undefined), true)
+    assert.equal(shows(undefined, undefined), true)
+  })
+
+  it('refused at 5: a newest page read from before, or when, or not noted, or none, shows nothing', () => {
+    assert.equal(shows(at(4), 5), false)
+    assert.equal(shows(at(5), 5), false)
+    assert.equal(shows(at(undefined), 5), false)
+    assert.equal(shows(undefined, 5), false)
+  })
+
+  it('a newest page read since shows; an older page read since does not stand for the newest', () => {
+    assert.equal(shows(at(6), 5), true)
+    assert.equal(shows(at(4, 9), 5), false)
   })
 })

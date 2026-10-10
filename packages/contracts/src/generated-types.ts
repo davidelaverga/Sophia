@@ -399,6 +399,7 @@ export interface Operations {
   "startConversation": { method: "POST"; path: "/api/v1/projects/{projectId}/conversations"; request: ConversationStart; response: ConversationStarted; };
   "getConversationMessages": { method: "GET"; path: "/api/v1/conversations/{conversationId}/messages"; request: undefined; response: ConversationMessagePage; };
   "sendConversationMessage": { method: "POST"; path: "/api/v1/conversations/{conversationId}/messages"; request: ConversationSend; response: ConversationMessageSent; };
+  "getProjectConversationMessages": { method: "GET"; path: "/api/v1/projects/{projectId}/conversations/{conversationId}/messages"; request: undefined; response: ConversationMessagePage; };
   "withdrawConversationMessage": { method: "POST"; path: "/api/v1/conversations/{conversationId}/messages/{messageId}/withdrawal"; request: undefined; response: ConversationWithdrawal; };
   "eraseConversation": { method: "POST"; path: "/api/v1/conversations/{conversationId}/erasure"; request: undefined; response: ConversationErasure; };
 }
