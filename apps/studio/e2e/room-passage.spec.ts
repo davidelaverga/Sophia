@@ -130,7 +130,7 @@ test('passage · a Keep whose reply is lost says so, and Try again sends the sam
   await page.evaluate(() => window.fixture?.loseNextReply())
   await paragraph(page, 'The fixture holds.').selectText()
   await keep(page).click()
-  await expect(status(page)).toContainText('Not confirmed it was kept.')
+  await expect(status(page)).toContainText('Not confirmed: it may already be kept.')
   // No other Keep while this one is open: a retry must never carry another note's key.
   await paragraph(page, 'Read it once.').selectText()
   await expect(bar(page).getByRole('button')).toHaveText(['Ask Sophia', 'Link', 'Task'])

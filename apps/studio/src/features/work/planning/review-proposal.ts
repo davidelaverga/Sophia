@@ -8,7 +8,6 @@
 // account (accountOf: its token's subject), never their email, which the account can change while one is unanswered
 // (Codex's automatic review of 06bf6229, P2).
 import type { SourceReviewProposalRequest } from '@sophia/contracts'
-import { ApiError } from '../../../api/client.ts'
 import type { AuthState } from '../../../app/auth.ts'
 import { accountOf } from '../../../app/auth-callback.ts'
 
@@ -36,37 +35,6 @@ export type Sent =
 /** What a proposal found again after leaving Tasks or reloading says: Sophia may already have it. */
 export const EARLIER =
   'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.'
-
-/**
- * Sophia's definite refusal: a 4xx it answered, unless it says to ask again under the same key or to sign in again
- * (a session that ended says nothing of the proposal).
- */
-const refusal = (err: unknown): err is ApiError =>
-  err instanceof ApiError &&
-  err.status >= 400 &&
-  err.status < 500 &&
-  err.retry !== 'same_admission_key' &&
-  err.retry !== 'reauthorize'
-
-/**
- * What a failed proposal says. One whose outcome is unknown keeps its key and the request as it was sent: asking again
- * sends exactly that, so Sophia answers it as the same proposal, never as a different body under its key; only a
- * definite refusal lets the form start afresh (Codex on #107). A conflict under its key means Sophia already holds a
- * proposal sent under it: nothing is kept, and the board shows it.
- */
-export function outcomeOf(err: unknown, asked: Asked): Sent {
-  if (err instanceof ApiError && err.code === 'idempotency_conflict') {
-    return { state: 'refused', said: 'Sophia already holds a proposal sent under this key: find it on the board.' }
-  }
-  if (refusal(err)) return { state: 'refused', said: err.message }
-  const said =
-    err instanceof ApiError && err.retry === 'reauthorize'
-      ? 'Sign in again.'
-      : err instanceof ApiError && err.status === 0
-        ? 'No reply from Sophia.'
-        : 'Sophia’s reply was unclear.'
-  return { state: 'unanswered', said: `${said} Propose again to check; it is the same proposal.`, ...asked }
-}
 
 const PREFIX = 'sophia.review.proposal.v1:'
 

@@ -18,7 +18,7 @@ A report Sophia made is read, discussed and shown, but the team has no way to sa
   - Cancel closes the field and keeps the words, and the focus goes back to Request changes.
 - **Each version's latest review** shows to every member who opens it, read again as the feed moves. Viewers see it, but not the buttons.
 - **One key per press** (useAdmission). A recorded review moves the focus to the row's words.
-- **With no reply,** the row says «Not sent. Try again.», and only that same press is offered: «Try again», which resends the same request.
+- **With no reply,** the row says «Not confirmed. Try again.», and only that same press is offered: «Try again», which resends the same request.
   - Its own record arriving with the feed settles it.
   - Another member's review doesn't, because it says nothing of whether mine landed.
 - **A refusal** says the API's words, until a review arrives.

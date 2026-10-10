@@ -78,10 +78,7 @@ function AccessSheet({ title, onClose }: { title: string; onClose: () => void })
           </div>
         ))}
       </dl>
-      <p className="conn-note">
-        No assistant is connected, and none can be from here yet: connecting one is an integration Davide qualifies
-        client by client.
-      </p>
+      <p className="conn-note">No assistant is connected, and none can be connected from here yet.</p>
     </Sheet>
   )
 }

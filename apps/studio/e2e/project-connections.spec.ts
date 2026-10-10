@@ -48,7 +48,7 @@ test('connections · the access sheet says what an assistant could read, what ne
     'Current membership + source eligibility + outbound permission + a grant bound to one assistant',
   )
   await expect(access(page)).toContainText('Stops future access. It can’t erase copies already received elsewhere.')
-  await expect(access(page)).toContainText('No assistant is connected, and none can be from here yet')
+  await expect(access(page)).toContainText('No assistant is connected, and none can be connected from here yet')
   await access(page).getByRole('button', { name: 'Close' }).click()
   await expect(access(page)).toHaveCount(0)
   await expect(open).toBeFocused()

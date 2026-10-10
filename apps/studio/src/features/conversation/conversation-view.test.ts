@@ -38,9 +38,22 @@ describe('conversation view', () => {
     for (const phase of Object.keys(TASK_PHASE) as NativeTask['phase'][]) {
       assert.equal(taskPhase(task('b', phase)), TASK_PHASE[phase])
     }
-    assert.equal(workHeading([task('b', 'running')]), 'Briefs from Sophia’s runtime')
-    assert.equal(workHeading([research]), 'Research from Sophia’s runtime')
-    assert.equal(workHeading([task('b', 'running'), research]), 'Work from Sophia’s runtime')
+    assert.equal(workHeading([task('b', 'running')]), 'Briefs from Sophia')
+    assert.equal(workHeading([research]), 'Research from Sophia')
+    assert.equal(workHeading([task('b', 'running'), research]), 'Work from Sophia')
+  })
+
+  it('says what Sophia does, never what runs her (docs/plans/copy-no-jargon.md)', () => {
+    const design = { ...task('d', 'running'), kind: 'design' as const }
+    const research = { ...task('r', 'running'), kind: 'research' as const }
+    for (const phase of Object.keys(TASK_PHASE) as NativeTask['phase'][]) {
+      for (const t of [task('b', phase), { ...research, phase }, { ...design, phase }]) {
+        const { label, note } = taskPhase(t)
+        assert.doesNotMatch(`${label} ${note}`, /\b(runtime|admitted)\b/i, `${t.kind} ${phase}`)
+      }
+    }
+    assert.equal(taskPhase(task('b', 'queued')).label, 'Queued')
+    assert.equal(taskPhase(task('b', 'running')).note, 'Sophia is drafting. You can keep talking.')
   })
 
   it('names the author as the room knows them, never inventing one', () => {

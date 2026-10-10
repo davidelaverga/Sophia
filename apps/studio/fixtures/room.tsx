@@ -967,7 +967,10 @@ const SERVED: readonly View[] =
 /** Shows or keeps out of sight the project (`window.fixture.away/back`), set once the page renders. */
 const sight: { set: ((inSight: boolean) => void) | null } = { set: null }
 
-/** The project as App.tsx holds it: out of sight while the person is in the places, and taking no keys then. */
+/**
+ * The project as the signed-in Studio holds it (SignedIn.tsx): out of sight while the person is in the places, and
+ * taking no keys then.
+ */
 function Kept({ children }: { children: (background: boolean) => ReactNode }) {
   const [inSight, setInSight] = useState(true)
   useEffect(() => {
@@ -1033,7 +1036,10 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
   }
 }
 
-/** The project as App.tsx shows it: its view moves as the person picks another (ViewNav, the mini dock). */
+/**
+ * The project as the signed-in Studio shows it (SignedIn.tsx): its view moves as the person picks another (ViewNav,
+ * the mini dock).
+ */
 function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
   return (

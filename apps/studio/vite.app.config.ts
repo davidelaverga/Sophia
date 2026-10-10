@@ -28,8 +28,14 @@ const appAddresses: Plugin = {
 }
 
 export default mergeConfig(fixtures, {
-  plugins: [appAddresses, studioPageAs('/app.html', '/app.tsx')],
-  server: { port: 5198 },
+  plugins: [appAddresses, studioPageAs('/app.html', '/app.tsx', true)],
+  // The signed-in Studio's chunk is prepared as the server starts, as a build's is ready on its host: a check that signs
+  // in never waits on its first compile (docs/plans/signed-in-later.md).
+  // Named by its own path: the fixtures' root is not the Studio's.
+  server: {
+    port: 5198,
+    warmup: { clientFiles: [fileURLToPath(new URL('./src/app/SignedIn.tsx', import.meta.url))] },
+  },
   // Its own dependency cache: the two fixture servers start together, and Vite renews a cache whose config differs from
   // its own, so sharing one, either could replace the files the other is serving. The app's page is served, not a file,
   // so its entry is named for the scan: what App imports is prepared before the first page, never during a check.

@@ -27,7 +27,7 @@ function useContinuity({
     try {
       await setNoteConsent(identity.token, projectId, consent)
     } catch {
-      setError('Your choice is unconfirmed. Check the brief before trying again.')
+      setError('Not confirmed: check the brief before trying again.')
     } finally {
       await cache.invalidateQueries({ queryKey: missionKey(projectId) })
       setBusy(false)
