@@ -11,6 +11,7 @@ import type { ConversationSummary } from '../../api/vision.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
+import { Button } from '@sophia/ui'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
@@ -99,9 +100,10 @@ function Frame(props: {
   return (
     <aside id="conv-context" className="conv-context" aria-label="Project context" tabIndex={-1}>
       <div className="conv-context-head">
-        <button
+        <Button
           ref={close}
-          type="button"
+          kind="icon"
+          size="md"
           className="icon-button conv-context-close"
           aria-label="Close the context"
           onClick={props.onClose}
@@ -109,7 +111,7 @@ function Frame(props: {
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
             <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
           </svg>
-        </button>
+        </Button>
       </div>
       {props.conversation && <ThisConversation conversation={props.conversation} />}
       <h3 className="eyebrow">Project context</h3>

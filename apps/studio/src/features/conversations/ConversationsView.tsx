@@ -165,7 +165,7 @@ function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
       ref={start.button}
       kind="icon"
       size="md"
-      className="conv-start"
+      className="icon-button conv-start"
       aria-label="New conversation"
       title="New conversation"
       aria-pressed={start.starting}

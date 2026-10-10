@@ -4,8 +4,11 @@ Goal and attempt: UIKIT-01 (the kit in `packages/ui`, first piece: `Button` and 
 Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-kit`
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/kit-button` from `origin/main` at `0ccc344d`
-Ending commit/tree and changed files: see the PR's commit; 18 files (5 new: `Button.tsx`, `button-class.ts`,
-`button-class.test.ts`, `e2e/control-heights.spec.ts`, `docs/plans/control-heights.md`).
+Ending commit/tree and changed files: `c36c1d6f` (tree `6a02b1f8a887`): 18 files, 6 new (`Button.tsx`,
+`button-class.ts`, `button-class.test.ts`, `e2e/control-heights.spec.ts`, `docs/plans/control-heights.md`, this
+handoff). The commit after it (this PR's second) moves Conversations' three other icon presses (back, Context, its
+Close) onto `Button` too and restores their shared look rule: CI's phone check found them 30×20 once the rule had
+gone with New conversation's; and corrects these numbers.
 
 ## Outcome
 
