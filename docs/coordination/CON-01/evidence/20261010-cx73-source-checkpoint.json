@@ -1,0 +1,27 @@
+{
+  "recordedAt": "2026-10-10T19:45:25.814143+00:00",
+  "main": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+  "pr199": {
+    "head": "e4c8cf8d67b9ff60d854cc6ede17ef178234d5da",
+    "draft": true,
+    "ci": "not queried in this call"
+  },
+  "pr190": {
+    "head": "4801f44785cf24aca0e51d8f76397acb9bbefbd0",
+    "draft": true,
+    "failedChecks": [
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "url": "https://github.com/davidelaverga/Sophia/actions/runs/38075017281/job/114280075215"
+      },
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "url": "https://github.com/davidelaverga/Sophia/actions/runs/38075012443/job/114280062267"
+      }
+    ],
+    "limits": "GitHub check metadata only; raw failing logs not independently qualified here"
+  },
+  "sharedReceipt": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6101479244",
+  "sourceEvidenceCommit": "441e80b2",
+  "operationalAuthority": "unchanged; no approved batch"
+}
