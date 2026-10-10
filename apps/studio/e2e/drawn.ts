@@ -51,8 +51,8 @@ export function coversOnScreen(page: Page) {
 }
 
 /**
- * Every cover on screen has drawn: none waits for its reads, and one at least shows words (covers that couldn't be read,
- * marks alone, would leave the checks nothing to measure).
+ * Every cover on screen has drawn: none waits for its reads, and one at least shows words (covers that couldn't be
+ * read, marks alone, would leave the checks nothing to measure).
  */
 async function coversDrawn(page: Page) {
   await expect

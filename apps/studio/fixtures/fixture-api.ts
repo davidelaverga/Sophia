@@ -780,7 +780,7 @@ function versionsOf(project: Project, path: string): Response | Promise<Response
   return null
 }
 
-/** The library's covers the page holds (`hold=covers`), each waiting to be let through (`window.fixture.releaseCovers`). */
+/** The library's covers the page holds (`hold=covers`), each waiting to be let through (`fixture.releaseCovers`). */
 let coversHeld = DEMO && new URLSearchParams(window.location.search).get('hold') === 'covers'
 const heldCovers: (() => void)[] = []
 
