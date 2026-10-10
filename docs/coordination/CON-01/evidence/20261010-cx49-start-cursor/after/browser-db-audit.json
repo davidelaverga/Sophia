@@ -1,0 +1,108 @@
+{
+  "candidate": "bc651fdbff1deec93615031e0d46d2a4c1b92d99",
+  "tree": "0990c248676ad9b543aa2f87c0721bb52ae35bcc",
+  "observedAt": "2026-10-10T14:21:08.681Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "7d9de4c9-31c5-40ca-889d-3285c45d4000",
+  "messages": [
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "8e50d26e-71de-414f-bab1-9d0128dd5e0a",
+      "conversation_id": "9e1d1069-62ac-4e99-93c1-43cffffa171c",
+      "actor_id": "1a3b0d23-cbe4-4d27-93be-dc30b00a9565",
+      "seq": "1",
+      "body": "SYNTHETIC B first message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "35cb13fe-fee1-4b7c-b3dc-544589d343fc",
+      "conversation_id": "9e1d1069-62ac-4e99-93c1-43cffffa171c",
+      "actor_id": "2317e437-9bfc-4883-af9f-f7fa96241436",
+      "seq": "2",
+      "body": "SYNTHETIC C old second message",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC stale sender regression",
+      "id": "872db7ed-6936-4e46-87b4-4b450f374e11",
+      "conversation_id": "9e1d1069-62ac-4e99-93c1-43cffffa171c",
+      "actor_id": "33f87f85-edf5-4760-842e-78600c11f8c9",
+      "seq": "3",
+      "body": "SYNTHETIC A surviving third",
+      "withdrawn_at": null
+    },
+    {
+      "title": "SYNTHETIC delayed Start cursor",
+      "id": "f48606c5-8250-454e-9afd-3ed389860e55",
+      "conversation_id": "e6f9a034-3636-4ca8-9953-3733c1ef6d34",
+      "actor_id": "2317e437-9bfc-4883-af9f-f7fa96241436",
+      "seq": "1",
+      "body": "SYNTHETIC confirmed first words must remain visible",
+      "withdrawn_at": null
+    }
+  ],
+  "replies": [],
+  "decisions": [],
+  "requests": [
+    {
+      "actor_id": "1a3b0d23-cbe4-4d27-93be-dc30b00a9565",
+      "idempotency_key": "02292b27-6be4-4645-9405-0d6b9e67459e",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "5330ccde42281581f28f37610b9174ef048359dbf751d4b51bb3ed3a950c3b25",
+        "titleSha256": "18737aa98ca1e588aa6a15aedbde45e440c8396987f4904bc602f317eb4624f9"
+      },
+      "message_id": "8e50d26e-71de-414f-bab1-9d0128dd5e0a"
+    },
+    {
+      "actor_id": "2317e437-9bfc-4883-af9f-f7fa96241436",
+      "idempotency_key": "fe0ec111-09de-4171-b26f-5aa7d4db76e6",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "ff2c5f55edf25ae541697c17eb3d60f67921bc88a4e68d4cc3feef8c21208f02",
+        "conversationId": "9e1d1069-62ac-4e99-93c1-43cffffa171c"
+      },
+      "message_id": "35cb13fe-fee1-4b7c-b3dc-544589d343fc"
+    },
+    {
+      "actor_id": "33f87f85-edf5-4760-842e-78600c11f8c9",
+      "idempotency_key": "98757451-2c94-4312-9bf6-6c57ef622aed",
+      "operation": "send",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "send",
+        "textSha256": "de4331acb084b25f6752b3f63bb3d7250c17a3c8f84b2c96125762bc134fe329",
+        "conversationId": "9e1d1069-62ac-4e99-93c1-43cffffa171c"
+      },
+      "message_id": "872db7ed-6936-4e46-87b4-4b450f374e11"
+    },
+    {
+      "actor_id": "2317e437-9bfc-4883-af9f-f7fa96241436",
+      "idempotency_key": "acee9d5b-a8cf-49bc-a4a8-ccb54d754221",
+      "operation": "start",
+      "semantic_request": {
+        "askSophia": false,
+        "operation": "start",
+        "textSha256": "3a35a30d101ca35bbba0a324dc7b2bdcce327f1493fd12fd21f98fd6564cc634",
+        "titleSha256": "b54bfd9c9dacf98eccaea1724c668e28c1935231c5d4ee4dc9d78e0a948557de"
+      },
+      "message_id": "f48606c5-8250-454e-9afd-3ed389860e55"
+    }
+  ],
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  }
+}

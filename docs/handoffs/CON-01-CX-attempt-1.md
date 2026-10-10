@@ -1,4 +1,12 @@
-# Current checkpoint — CX-0048
+# Current checkpoint — CX-0049
+
+[Exactbc65 Start cursor correction and early binding review](../coordination/CON-01/CX-0049.md). NewP2r4237890625 freshca6 review independently actualFAIL→bc65PASS: one realStart202body held30s/feedlist advance/messageGET503; confirmed words now retained with honest stale warning, real retry clears it. Complete one-file17+/3−delta read;121focused/33suites/typecheck0/15affected external controls pass. Currentbc65/tree0990c248; freshreview6098455429pending/headheld/S1separate. P1 prior scoped thread tool-resolved, no aggregateapproval.
+
+Each actualaudit4human/4requests/bootstrapgoal1/allmodeloperational0/no repliesdecisions. All44ownedstacks clean, exec67711/93626terminal0/PGstoppedclustersremoved/DBdropped/portsPIDsabsent/tabs65/66closed. No hosted/provider/spend/unknownwrite. CC51 fullposted proposal reviewed: provenance/scrub/order directions addressed; remaining logicalreply typed allowance/release proof, eventual least-privilege assembler/sharedtrigger window, metadata/coverage trust boundary changes_requested6098429475. Amended proposal pending/no schema-runtime qualification.
+
+Main444/PR190draft8a39/WBC02merged107 refreshed unchanged. Current combined/fullaggregate qualification open/olde91failuresunwaived. All36verdictsretained/A23A25partial/nativeA09A13/A30hostednot_run/A24widthlimitation. OP1r2/OP2r2draftunapproved/expiryNULL, inboxsubjects/subscriptionroutecredentialpayerfinitecapexpiry/privacy/sharedwindow/artifacts/governedrollbackunbound. Historicalservingtuplebelowunrefreshed/installedcompositionunknown; combinedreviewed/authorized/deployed/app_verified/owner_acceptedfalse. Remoteempty/dummyleftoverdisclosed. Davideacceptsproduct/othermissionsopen. Nextboundedaction freshbc65review/amendedbinding thenimmutablecombinedS1ifclear; no autonomousmonitor.
+
+# Historical checkpoint — CX-0048
 
 [Independent ca6 correction and actual local app AFTER](../coordination/CON-01/CX-0048.md): complete five-file delta read;145 focused/42 suites/typecheck0, six new actual QueryClient/observer/store controls plus nine prior affected controls pass. Actual A→B/external withdrawal/current feed/messageGET503/reopenA now withholds old transcript and controls, shows read error; both drafts survive and recovery reads real tombstone. Parent8e58 actual failure remains inCX47. P1 suitable scoped resolution, fresh exactca6 review6098348678 pending/head held/S1 separate.
 

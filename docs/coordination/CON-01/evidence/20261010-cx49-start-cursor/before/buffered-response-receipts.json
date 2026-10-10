@@ -1,0 +1,12 @@
+[
+  {
+    "at": "2026-10-10T14:16:00.782Z",
+    "kind": "start",
+    "path": "/api/v1/projects/b8282047-5d0c-4fe0-a6eb-bf00ff0a92fd/conversations",
+    "actualApiStatus": 202,
+    "delayed": true,
+    "delayMs": 30000,
+    "substituted": false,
+    "evidence": "Complete upstream body buffered before delay; content omitted"
+  }
+]
