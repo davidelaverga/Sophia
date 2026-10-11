@@ -61,9 +61,8 @@
 
 ## Left
 
-- Places (Home · Personal · Work) keeps its `useShortcuts` bindings (`h p w d l t`, Find's `mod+f`): the host is
-  not mounted there yet (the Home fixture renders Welcome alone, so a check there could not see it). Next:
-  `useCommands` in Places and the host in the places' bar.
+- Places (Home · Personal · Work) joined in UIKIT-21 (`places-commands.md`): `h p w d l t` and Find's `mod+f` as
+  commands, the host in the places' bar, «Keyboard shortcuts» in the account menu everywhere, the light on `⌘⇧L`.
 - After the review (Codex on #238): every binding inside a project is a command (Resources' and Tasks' `/` as the
   view's own search, so the project's search keeps its words there and not the key; a report's `F`; a staged report's
   `O`); the index has a visible control, «Keyboard shortcuts» in the account menu with its key, through `askCommands`;

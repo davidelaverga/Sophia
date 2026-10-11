@@ -9,7 +9,8 @@ import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
 import type { Place } from '../../app/route.ts'
-import { modalOnScreen, useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
 import { DataSheet } from './DataSheet.tsx'
 import { epochNow } from './epoch.ts'
@@ -276,19 +277,34 @@ function useHomeKeys(place: Place, active: boolean, account: string, nav: Nav) {
   }, [place, active, account, nav])
 }
 
-/** H, P, W go to the three places; D opens your data; L the padlock; T the notes. Esc closes what opened last. */
+/**
+ * H, P, W go to the three places; D opens your data; L the padlock; T the notes: as commands (docs/plans/commands.md),
+ * so the palette and the index know them. Esc closes what opened last.
+ */
 function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav) {
   const { place } = props
   const free = !layers.unlock && !layers.privacy && !layers.data
-  useShortcuts(
-    {
-      h: () => nav.enter('home'),
-      p: () => nav.enter('personal'),
-      w: () => nav.enter('work'),
-      d: () => layers.setData(true),
-      l: nav.toggleLock,
-      t: () => nav.enter('personal', () => layers.setNotes(place === 'personal' ? !layers.notes : true)),
-    },
+  useCommands(
+    [
+      { id: 'home', words: 'Home', group: 'go', key: 'h', run: () => nav.enter('home') },
+      { id: 'personal', words: 'Personal', group: 'go', key: 'p', run: () => nav.enter('personal') },
+      { id: 'work', words: 'Your projects', group: 'go', key: 'w', run: () => nav.enter('work') },
+      { id: 'data', words: 'Your data', group: 'do', key: 'd', run: () => layers.setData(true) },
+      {
+        id: 'lock',
+        words: props.lock.locked ? 'Unlock your space' : 'Lock your space',
+        group: 'do',
+        key: 'l',
+        run: nav.toggleLock,
+      },
+      {
+        id: 'notes',
+        words: 'Your notes',
+        group: 'do',
+        key: 't',
+        run: () => nav.enter('personal', () => layers.setNotes(place === 'personal' ? !layers.notes : true)),
+      },
+    ],
     free,
   )
   useHomeKeys(place, free, accountOf(props.identity), nav)

@@ -5,6 +5,7 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { Icon, Tip, Segmented, usePopover } from '@sophia/ui'
 import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
+import { CommandsHost } from '../../app/CommandsHost.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
@@ -220,6 +221,8 @@ export function PlacesBar(props: Props) {
         <PrivacyChip place={place} chip={chip} onLock={actions.lockNow} onPrivacy={actions.privacy} />
         <AccountMenu identity={identity} where="places" actions={actions} />
       </div>
+      {/* The palette and the index of keys, here as in a project (docs/plans/places-commands.md). */}
+      <CommandsHost />
     </header>
   )
 }
