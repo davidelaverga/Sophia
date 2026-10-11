@@ -519,6 +519,38 @@
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
+/* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
+   it on the same hairlines as the projects'. */
+.places .hw-side {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.places .hw-side .hw-light {
+  width: 220px;
+  margin: -40px 0 0 -44px;
+  align-self: flex-start;
+}
+.places .hw-side .hw-needs {
+  margin-top: 0;
+}
+.places .hw-kind {
+  display: inline-flex;
+}
+.places .hw-kind svg {
+  width: 14px;
+  height: 14px;
+}
+.places .hw-row[data-tone='late'] .hw-m {
+  color: var(--rose);
+}
+.places .hw-quiet {
+  color: var(--text-3);
+  font-size: 13px;
+  animation: hw-in 520ms var(--ease) var(--d) both;
+}
 .places .sdot {
   width: 8px;
   height: 8px;
@@ -1666,6 +1698,13 @@
     margin: 0;
     opacity: 0.85;
     pointer-events: none;
+  }
+  /* The column follows the words; her light keeps the phone's place, top right of the page. */
+  .places .hw-side {
+    position: static;
+  }
+  .places .hw-side .hw-light {
+    margin: 0;
   }
   /* A row in two lines: its note under its title, its action on the right. */
   .places .hw-row {

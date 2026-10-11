@@ -6,7 +6,8 @@
 // one from yesterday with 3 notes; `voice=none` (no speech on this device), else one that hears "the launch felt rushed" when
 // the check says so (`window.homeFixture.hear()`), if it is still listening. `window.homeFixture.pressed` lists each
 // action taken,
-// as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>".
+// as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
+// needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary } from '@sophia/contracts'
@@ -22,6 +23,8 @@ import {
   youDoor,
 } from '../src/features/personal/places-view.ts'
 import { homeRowFor } from '../src/features/personal/focus.ts'
+import type { Need } from '../src/features/personal/needs-you.ts'
+import { VISION } from '../src/app/vision.ts'
 import { Welcome } from '../src/features/personal/Welcome.tsx'
 import { DEMO, DEMO_LABEL, HOME_PROJECT } from './demo.ts'
 import '../src/app/theme.css'
@@ -89,6 +92,54 @@ const set = query.get('projects') ?? (DEMO ? 'demo' : 'four')
 const projects = SETS[set]
 const inCall = query.get('call')
 const call = inCall ? { title: projects?.find((p) => p.projectId === inCall)?.title ?? '' } : null
+
+/** What needs you, one of each kind, given out of order: the page orders them by urgency. */
+const NEEDS: Record<string, Need[] | undefined> = {
+  some: [
+    {
+      id: 'r1',
+      kind: 'review',
+      title: 'Q3 retention report, v3',
+      project: 'Research notes',
+      expiresAt: null,
+      detail: 'Davide asks',
+    },
+    {
+      id: 'p1',
+      kind: 'permission',
+      title: 'Claude Code asks to run the export tests',
+      project: 'Launch plan',
+      expiresAt: at(130),
+      detail: null,
+    },
+    {
+      id: 'g1',
+      kind: 'guest',
+      title: 'Marco Pereira is in the lobby',
+      project: 'Design review',
+      expiresAt: null,
+      detail: 'Waiting 2 min',
+    },
+    {
+      id: 'd1',
+      kind: 'decision',
+      title: 'Ship the retry with the hotfix?',
+      project: HOME_PROJECT,
+      expiresAt: at(20),
+      detail: null,
+    },
+    {
+      id: 's1',
+      kind: 'reply',
+      title: 'Sophia replied about the launch date',
+      project: null,
+      expiresAt: null,
+      detail: 'Yesterday',
+    },
+  ],
+  none: [],
+}
+const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undefined
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
 // The demo's Personal: its last words minutes ago, as Home's «Continue» says them.
@@ -176,6 +227,7 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           hidden={away}
+          needs={needs}
           actions={{
             personal: () => pressed.push('personal'),
             notes: () => pressed.push('notes'),
@@ -184,6 +236,7 @@ function Home() {
             unlock: () => pressed.push('unlock'),
             room: (projectId, action) => pressed.push(`${action} ${projectId}`),
             say,
+            need: (need) => pressed.push(`need ${need.id}`),
           }}
         />
       </div>

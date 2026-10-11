@@ -1,10 +1,11 @@
 // Home, the Welcome (docs/plans/home-welcome.md): an editorial page that knows you. On the left, the date, the greeting
 // and Sophia's one sentence; then you and Sophia (where you left off, your notes, a line to write or speak to her) and
 // your projects (the ones Work shows first); on the right, alone, her own light behind Umbral, whose rays turn to you as
-// you move and to the line while you write or speak to her.
+// you move and to the line while you write or speak to her. Given what needs you (needs-you.ts, behind the vision
+// flag), the right half is a column: her light smaller at its head, the needs under it.
 import type { ProjectSummary } from '@sophia/contracts'
 import { Button, Icon, Skeleton } from '@sophia/ui'
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
 import type { Point } from '../light/motion.ts'
@@ -12,6 +13,9 @@ import { SophiaLight } from '../light/SophiaLight.tsx'
 import { roomForMark } from '../light/threshold.ts'
 import { followPointer } from '../resources/motion.ts'
 import { useDictation } from './dictation.ts'
+import { moveInIndex } from './index-keys.ts'
+import type { Need } from './needs-you.ts'
+import { NeedsYou } from './NeedsYou.tsx'
 import { homeRows, notesLabel, rowNote, type HomeAction, type HomeRow, type Said, type YouDoor } from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 
@@ -38,6 +42,8 @@ interface Props {
   locked: boolean
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
+  /** What needs you (needs-you.ts): undefined until an API serves it, and the right half is her light alone. */
+  needs?: readonly Need[] | undefined
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -49,6 +55,8 @@ interface Props {
     room: (projectId: string, action: HomeAction) => void
     /** Hands the words to Sophia's conversation, which opens and sends them as its own. */
     say: (text: string) => void
+    /** Opens where a need is. */
+    need?: ((need: Need) => void) | undefined
   }
 }
 
@@ -112,16 +120,6 @@ function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'd
       )}
     </header>
   )
-}
-
-/** ↑ and ↓ move in the index; the first and last hold. */
-function moveInIndex(e: KeyboardEvent<HTMLOListElement>) {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-  const rows = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('.hw-row')]
-  const at = rows.findIndex((r) => r === document.activeElement)
-  if (at < 0) return
-  e.preventDefault()
-  rows[Math.min(Math.max(at + (e.key === 'ArrowDown' ? 1 : -1), 0), rows.length - 1)]?.focus()
 }
 
 const ACTION_WORDS: Record<HomeAction, string> = { open: 'Open', join: 'Join the room', back: 'Back to the room' }
@@ -431,7 +429,14 @@ export function Welcome(props: Props) {
           </section>
         )}
       </div>
-      <Light talk={talk} line={line} hidden={props.hidden} />
+      {props.needs ? (
+        <aside className="hw-side" aria-label="What needs you">
+          <Light talk={talk} line={line} hidden={props.hidden} />
+          <NeedsYou needs={props.needs} now={props.now} onOpen={(need) => props.actions.need?.(need)} />
+        </aside>
+      ) : (
+        <Light talk={talk} line={line} hidden={props.hidden} />
+      )}
     </div>
   )
 }
