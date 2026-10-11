@@ -40,6 +40,9 @@ completed code state of this PR.
 - Blocked is read from the plan (`blocked_by`) against the rows' marks, not from a `dependency` wait: the plan says it
   before any service reports a wait, and a proposed plan shows it too.
 - A candidate review stays Up next: it is sequenced by design and already reads «Reviews …».
+- After the review (Codex on #236, 2026-10-11): five lanes stand three and two under 1221 px (each 220 and up), and
+  the threads are measured again whenever the lanes' boxes change (a lane coming or going, a resize). work.spec holds
+  both.
 
 ## Remaining obligations
 
