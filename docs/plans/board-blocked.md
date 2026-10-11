@@ -15,8 +15,9 @@
 
 ## What changes
 
-- **`laneOf(row, rows)`**: a row Up next whose `blocked_by` names an item in the plan that is not complete or closed
-  stands in **Blocked**. A blocker outside the plan does not block (nothing is known of it: the board already names
+- **`laneOf(row, rows)`**: a row Up next whose `blocked_by` names an item in the plan that is not complete stands in
+  **Blocked**; a blocker stopped, cancelled or failed is terminal and still holds it (the lifecycle contract: a
+  cancelled prerequisite does not satisfy a dependency; Codex on #236). A blocker outside the plan does not block (nothing is known of it: the board already names
   such a plan as not holding together). A candidate review (`candidate_ready`) is not blocked: it is sequenced, and
   reads «Reviews …».
 - **The lane**: Active · Up next · Blocked · Unassigned · Complete, in the order of time; Blocked is shown only when it
@@ -36,8 +37,8 @@
 
 ## Checks (written first)
 
-- `plan.test.ts`: a row blocked by an active item is in `blocked`; by a complete item, `next`; by an item outside the
-  plan, `next`; a candidate review, `next`.
+- `plan.test.ts`: a row blocked by an active item is in `blocked`; by a complete item, `next`; by a cancelled item,
+  `blocked`; by an item outside the plan, `next`; a candidate review, `next`.
 - `work.spec.ts` as above; the mutant with `laneOf` ignoring `rows` fails the lane test and the unit tests.
 - `pnpm check` clean.
 

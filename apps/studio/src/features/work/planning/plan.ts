@@ -394,13 +394,15 @@ export function actionOf(row: PlanRow, kind: ActionKind): ItemAction | null {
 }
 export const allowed = (row: PlanRow, kind: ActionKind) => actionOf(row, kind)?.availability === 'allowed'
 
-const DONE: ReadonlySet<Lane> = new Set(['complete', 'closed'])
-
-/** Whether a row waits on an item of its plan that is not done. One outside the plan is unknown, and doesn't block. */
+/**
+ * Whether a row waits on an item of its plan that is not complete. Only completion satisfies a dependency: a blocker
+ * stopped, cancelled or failed is terminal and still holds it (02_AUTHORITY_AND_LIFECYCLE: a cancelled prerequisite
+ * does not satisfy a dependency). One outside the plan is unknown, and doesn't block.
+ */
 const blockedIn = (row: PlanRow, rows: readonly PlanRow[]) =>
   row.item.blocked_by.some((id) => {
     const blocker = rows.find((r) => r.item.id === id)
-    return blocker !== undefined && !DONE.has(LANE[blocker.status.mark])
+    return blocker !== undefined && LANE[blocker.status.mark] !== 'complete'
   })
 
 /** The lane a row sits in: its mark's; Blocked when it is up next but waits on an item of its plan not done yet. */
