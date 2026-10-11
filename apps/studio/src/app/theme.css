@@ -1529,8 +1529,10 @@ img.avatar {
   font-weight: 500;
   transition: color var(--fast) var(--ease);
 }
-.segmented button:hover {
-  color: var(--text-2);
+/* Under the pointer an option not yet on reads in the ink: a step above wherever its box rests it (Knowledge's filters
+   rest at the second ink already). The one on is on. */
+.segmented button:hover:not([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
+  color: var(--text);
 }
 /* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
 .segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {

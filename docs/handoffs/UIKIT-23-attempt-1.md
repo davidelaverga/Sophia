@@ -101,3 +101,12 @@ Fixed in `ed39e193`: no review kind until a request record exists (A11 keeps ver
 (A13’s wait has none: `detail` says how long it has waited); a seen write that fails reads the list again; both
 operations marked `contract_only`, goal F2. Measured in the page: four rows (decision, permission «Asked 10 min ago»,
 guest, reply), the presses at their work items, the reply leaving (4 → 3).
+
+## Post-review, round 5 (Codex on #245)
+
+Fixed in `06830444`: a poll that fails after a good read kept the rows and said nothing (`readState` saw data). `isError`
+is now read apart from the cached rows: the rows read last stay (the list is still actionable), the note says the read
+failed beside them, with Try again. The fixture's `breakNeeds()` makes every later read fail; the spec breaks it,
+brings the window back (`visibilitychange`, the event the query library hears), sees the note and the four rows
+together, recovers, and Try again clears the note. Run locally (home-needs.spec: 8 passed) with lint and typecheck clean.
+

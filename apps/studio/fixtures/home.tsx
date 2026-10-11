@@ -43,6 +43,8 @@ declare global {
       needsReads: () => number
       /** `needsFail=1`: the route fails until this is called (the service back), so Try again can be seen to work. */
       recover: () => void
+      /** The service goes away after a good read: every read from now on fails, the rows read last are kept. */
+      breakNeeds: () => void
     }
   }
 }
@@ -57,6 +59,9 @@ window.homeFixture = {
   needsReads: () => needsReads,
   recover: () => {
     failing = false
+  },
+  breakNeeds: () => {
+    failing = true
   },
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
