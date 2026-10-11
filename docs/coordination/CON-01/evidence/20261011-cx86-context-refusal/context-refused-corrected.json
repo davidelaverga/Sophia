@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-11T00:58:30.509Z",
+  "refusal": true,
+  "contextText": "Project context\n\nThis may be out of date. Try again\n\nSYNTHETIC private current mission\n\nAccepted decisions\nSYNTHETIC accepted access boundary\nStill open\nSYNTHETIC pending decision restricted\nAccept\nDecline\n\nProposed, not decided.\n\nHow conversation context works",
+  "acceptVisible": true,
+  "acceptEnabled": true,
+  "limitation": "Earlier exact-text visibility locators matched no whole node for longer refusal/pending labels; screenshot and corrected status/context checks establish visibility. No write controls pressed."
+}

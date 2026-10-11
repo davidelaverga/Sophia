@@ -1,0 +1,126 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0086",
+  "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
+  "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "episode": 79,
+  "automatedReview": 5481391126,
+  "finding": 4239772110,
+  "severity": "P1",
+  "verdict": "failed_L1",
+  "level": "Actual local Studio/API/PostgreSQL17.6, synthetic devJWT accounts, no fixtures/native/provider/hosted",
+  "cases": [
+    {
+      "boundary": "list/thread403",
+      "at": "2026-10-11T00:58:30.509Z",
+      "expected": "Project refusal fences all project content and stale controls",
+      "observed": "Rows/thread hidden but current mission, accepted/pending decisions and enabled Accept/Decline visible",
+      "verdict": "FAIL"
+    },
+    {
+      "boundary": "context-own403",
+      "at": "2026-10-11T00:59:14.803Z",
+      "expected": "Context403 fences project synchronously without retry",
+      "observed": "Actual mission403 twice; cached context, thread, Start and Accept remain visible/enabled",
+      "verdict": "FAIL"
+    }
+  ],
+  "audit": {
+    "at": "2026-10-11T00:59:31.777Z",
+    "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
+    "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
+    "projectId": "12f97b09-7c27-4654-a2a8-f53edcbd2056",
+    "messageCount": 5,
+    "nullBodies": 0,
+    "conversationRequests": 5,
+    "replyCount": 0,
+    "decisionStates": [
+      {
+        "kind": "mission",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "kind": "constraint",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "kind": "constraint",
+        "state": "proposed",
+        "revision": "1"
+      }
+    ],
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    }
+  },
+  "cleanup": {
+    "ownedPids": {
+      "44591": false,
+      "44600": false,
+      "44601": false
+    },
+    "ports": {
+      "50999": false,
+      "51000": false
+    },
+    "wrapper": {
+      "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
+      "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 50999,
+      "studioPort": 51000,
+      "pid": 44561,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "cleanup": {
+      "projectId": "12f97b09-7c27-4654-a2a8-f53edcbd2056",
+      "apiStopped": true,
+      "studioStopped": true,
+      "databaseDropped": true
+    },
+    "sourceClean": true,
+    "wrapperPresent": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "nativeProviderEffects": 0,
+    "spend": 0,
+    "unknownEffects": false
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "named scoped prior passes plus current actual P1 failures",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "limitations": [
+    "No frame-zero proof; durable post-response disclosure established",
+    "Snapshot/mission503 are explicitly controlled local transport outages; all403 are original actual API responses",
+    "One human-only feed stimulus did not cause crossing while snapshot blocked; preserved as control",
+    "Earlier two exact-text locators matched no whole node; screenshot and corrected status/context rendered checks establish visibility",
+    "First prelaunch failed before PG/API/Studio due incomplete historical static assets; empty owned directory removed, complete PG17.6 assets privately copied read-only before retry",
+    "No old200 ordering/native/provider/hosted acceptance claimed"
+  ],
+  "next": "Claude smallest immutable ProjectContext/global403-fence correction; independent affected read/freshness/focus/late-success and cleanup checks; fresh actual-head review/CI before merge"
+}

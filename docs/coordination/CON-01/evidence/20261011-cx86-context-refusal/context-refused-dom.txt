@@ -1,0 +1,68 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/studio
+    - link "Conversations" [active]:
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/conversations
+    - link "Goals":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/goals
+    - link "Tasks":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/work
+    - link "Knowledge":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/knowledge
+    - link "Updates":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/updates
+    - link "Resources":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - alert:
+        - text: The conversations can’t be read now.
+        - button "Try again"
+      - status: This project refused a read of its conversations. None is shown until they can be read again.
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - alert:
+        - text: This may be out of date.
+        - button "Try again"
+      - paragraph: SYNTHETIC private current mission
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - list:
+          - listitem: SYNTHETIC accepted access boundary
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - list:
+          - text: SYNTHETIC pending decision restricted
+          - button "Accept"
+          - button "Decline"
+        - paragraph: Proposed, not decided.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

@@ -1,0 +1,111 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/studio
+    - link "Conversations" [active]:
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/conversations
+    - link "Goals":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/goals
+    - link "Tasks":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/work
+    - link "Knowledge":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/knowledge
+    - link "Updates":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/updates
+    - link "Resources":
+      - /url: /p/12f97b09-7c27-4654-a2a8-f53edcbd2056/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC current access check" [pressed]:
+          - generic: SYNTHETIC current access check
+          - generic: 02:57
+          - generic: "You: SYNTHETIC current conversation before revocation"
+          - generic: You. No recorded questions yet. Last moved 02:57.
+        - button "SYNTHETIC stale sender regression":
+          - generic: SYNTHETIC stale sender regression
+          - generic: 02:57
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 02:57.
+    - region "Open conversation":
+      - heading "SYNTHETIC current access check" [level=3]
+      - paragraph:
+        - generic: R
+        - generic: "Contributors:"
+        - text: You
+      - region "Messages":
+        - list:
+          - generic: Oct 11
+          - text: You
+          - text: ·
+          - time: Oct 11, 02:57
+          - paragraph: SYNTHETIC current conversation before revocation
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 02:57
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - paragraph:
+          - generic: Sophia doesn’t answer here yet
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: No summary yet.
+        - paragraph: No recorded questions yet
+        - button "Erase this conversation"
+      - heading "Project context" [level=3]
+      - paragraph: SYNTHETIC private current mission
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - list:
+          - listitem: SYNTHETIC accepted access boundary
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - list:
+          - text: SYNTHETIC pending decision restricted
+          - button "Accept"
+          - button "Decline"
+        - paragraph: Proposed, not decided.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status
