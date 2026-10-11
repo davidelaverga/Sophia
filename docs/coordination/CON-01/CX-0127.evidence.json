@@ -1,0 +1,127 @@
+{
+  "checkpoint": "CON-01-CX-0127",
+  "observedAt": "2026-10-11 20:00:03 UTC",
+  "previousGoalTurn": "verified_wait",
+  "classification": "verified_wait with unchanged required owner/authorization blockers; no product progress",
+  "blockedAudit": {
+    "passed": true,
+    "consecutiveCheckpoints": [
+      "CX-0125",
+      "CX-0126",
+      "CX-0127"
+    ],
+    "lastMeaningfulProgress": "CX-0124: actual target metadata and exact citation correction",
+    "reason": "Required owner decisions and named shared-runtime writer/window are missing. Every remaining runtime part is held. Live setup/deployment/app episode also lacks the concrete bound approved batch.",
+    "notBlockedBecause": "CI is merely queued; browser is usable. Neither slow CI nor difficulty is the basis.",
+    "requiredExternalChange": "Davide answers Q13 and names the authorized runtime owner/window; later a compatible route/cohort/finite-cap/expiry and exact approved batch are required.",
+    "goalTransition": "blocked requested after durable handoff; update_goal result is authoritative"
+  },
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "actualBase": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "boundaryProposal": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
+  "pr": 211,
+  "draft": true,
+  "merged": false,
+  "ci": {
+    "runId": 38168148111,
+    "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "jobs": [
+      {
+        "id": 114554922829,
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 114554922957,
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 114554922973,
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 114554922974,
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 114554923056,
+        "status": "queued",
+        "conclusion": null
+      },
+      {
+        "id": 114554923137,
+        "status": "queued",
+        "conclusion": null
+      }
+    ],
+    "terminal": false,
+    "rerun": false,
+    "cancelled": false
+  },
+  "desktop": {
+    "exactMission": true,
+    "latestMessage": 626,
+    "stoppedAtHandoff": true,
+    "promptBlank": true,
+    "inputSent": false
+  },
+  "browser": {
+    "reachable": true,
+    "actualStudioControls": [
+      "Home",
+      "Work",
+      "Account",
+      "Converse",
+      "Explore",
+      "Build"
+    ],
+    "designatedTwoAccountProviderEpisode": false,
+    "retained": true
+  },
+  "blockers": [
+    "Q13 database-isolation choice; open cross-database P2 r4242913900.",
+    "Q6/Q7/Q10/Q11/Q12 named shared-runtime decisions and window, including owner reconcile correction and descendant/relay settlement.",
+    "Withdrawal policy thread r4241643135 still open.",
+    "No qualified subscription route/topology or actor-bound remaining-cap display.",
+    "Actual cohort/account roles, credential references, payer, finite allowance/expiry, combined artifacts and governed rollback unbound; OP1r2/OP2r3 unapproved."
+  ],
+  "readiness": {
+    "source_ready": "Dormant bounded candidates only; full native/runtime implementation incomplete.",
+    "locally_verified": "Prior scoped L1 evidence retained; no tests rerun.",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "changed": false,
+    "fullVerdicts": "acceptance.independent.json",
+    "fingerprintReceipt": "evidence/20261011-cx124-target-boundary/acceptance-preservation.json"
+  },
+  "operation": {
+    "requests": [
+      "CON-01-OP-0001-r2",
+      "CON-01-OP-0002-r3"
+    ],
+    "status": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "lastObservedServingTuple": "CX100, 2026-10-11T12:02:21.809835+00:00; not refreshed",
+    "fullTupleActionsLimitsCleanupRollback": "evidence/20261011-cx124-target-boundary/operation-handoff.json",
+    "newOperationalEffects": 0,
+    "uncertainNewEffects": 0
+  },
+  "privacySpending": "Private inbox, account/quota values and credential values remain outside Git. Subscription-only, no PAYG/extra-credit fallback, no hidden reset.",
+  "cleanup": "No new process/cluster/target connection or hosted mutation. Browser retained; live CI neither restarted nor cancelled. No autonomous monitor or future task.",
+  "nextBoundedAction": "Davide supplies Q13 choice and the named runtime owner/window. Resume independent review from these exact candidates, then bind and approve any actual live batch. No broader product/other-mission completion."
+}
