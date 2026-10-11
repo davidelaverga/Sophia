@@ -61,5 +61,12 @@
     ],
     "finalHandback": "Normal exact mission message observed after latest488, independently verified37+13 and requested actual gates/N4 owner plan; no interrupt/new task."
   },
-  "rollback": "No live rollback performed. Prior governed uncertain-data preservation/old-schema incompatibility remains; do not erase governed rows to fit old schema."
+  "rollback": "No live rollback performed. Prior governed uncertain-data preservation/old-schema incompatibility remains; do not erase governed rows to fit old schema.",
+  "automaticReview": {
+    "request": 6108716069,
+    "head": "7e84002c36ceefab34cb27b710e554954cd269cc",
+    "delivery": "Exact API body matches request file including trailing newline. Initial local assertion incorrectly stripped only the expected newline; corrected comparison passes.",
+    "result": "pending; earlier36d result not applicable to N2",
+    "additionalUsage": "not reported"
+  }
 }
