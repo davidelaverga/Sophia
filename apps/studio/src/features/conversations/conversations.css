@@ -729,6 +729,13 @@
   align-items: center;
   gap: 6px;
 }
+/* The acts sit at the message's outer corner: one's own at the right, another's at the left. Another's message sits at
+   the pane's left, and three presses anchored to a short bubble's right would run past the pane's edge, on a desktop as
+   on a phone (Codex on #240). */
+.conv-msg:not(.mine) .conv-acts {
+  right: auto;
+  left: -12px;
+}
 .conv-propose {
   display: flex;
   align-items: center;
@@ -785,12 +792,6 @@
   .conv-acts {
     top: -20px;
     right: -12px;
-  }
-  /* Another's message sits at the pane's left: three 40 px presses anchored to a short bubble's right would run past
-     the pane's edge, so they start at the bubble's left and run right. One's own, at the right, keep the right. */
-  .conv-msg:not(.mine) .conv-acts {
-    right: auto;
-    left: -12px;
   }
   .conv-propose-press,
   .conv-act {
@@ -1170,7 +1171,7 @@
     padding: 10px 14px 6px;
   }
   .conv-head h3 {
-    font-size: var(--type-title);
+    font-size: var(--type-head); /* a section head on a phone too (Codex on #248) */
   }
   .conv-head .conv-faces,
   .conv-output-words {
