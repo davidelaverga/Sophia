@@ -344,25 +344,37 @@ function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' |
 /** Her light behind Umbral, formed (docs/plans/home-light-mark.md): your half rises to hers once, on arrival. */
 const FORMED = { from: null }
 
-/** Where her mark rests in the light's box, measured as the box changes: 96 px wherever there is room (threshold.ts). */
+/** The phone's layout (personal.css): her light top right of the page, its mark the 48 px one the greeting keeps clear of. */
+const PHONE = '(max-width: 860px)'
+
+/**
+ * Where her mark rests in the light's box, measured as the box changes: 96 px wherever there is room (threshold.ts),
+ * and at a column's head on a wide screen; on a phone the column is gone and the 48 px rule stands (Codex on #237).
+ */
 function useMarkRest(box: RefObject<HTMLDivElement | null>, large: boolean): LightTarget | null {
   const [rest, setRest] = useState<LightTarget | null>(null)
   useLayoutEffect(() => {
     const b = box.current
     if (!b) return undefined
+    const phone = matchMedia(PHONE)
     const measure = () => {
       const { clientWidth: width, clientHeight: height } = b
       // Out of sight the box has no size: keep where it was, so the mark is never placed at nothing.
       if (width < 1 || height < 1) return
       const at = defaultTarget(width, height)
       // At a column's head the box is small and the mark is still the 96 px emblem: the radius is given, not earned.
-      const next = large ? { ...at, radius: Math.max(at.radius, 160) } : roomForMark(at, width, height)
+      const emblem = large && !phone.matches
+      const next = emblem ? { ...at, radius: Math.max(at.radius, 160) } : roomForMark(at, width, height)
       setRest((was) => (was?.x === next.x && was.y === next.y && was.radius === next.radius ? was : next))
     }
     measure()
     const resized = new ResizeObserver(measure)
     resized.observe(b)
-    return () => resized.disconnect()
+    phone.addEventListener('change', measure)
+    return () => {
+      resized.disconnect()
+      phone.removeEventListener('change', measure)
+    }
   }, [box, large])
   return rest
 }
