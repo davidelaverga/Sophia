@@ -740,6 +740,56 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       })
     })
 
+    it('adopts an existing role only as it leaves it: sophia_api its one parent, no admin option, no member (PR #211 review)', async () => {
+      const graph = async () =>
+        (
+          await onAdmin<{ g: string }>(
+            `SELECT coalesce(string_agg(format('%s>%s admin=%s', b.rolname, u.rolname, m.admin_option), ', '
+                      ORDER BY b.rolname COLLATE "C", u.rolname COLLATE "C"), '') AS g
+               FROM pg_auth_members m JOIN pg_roles b ON b.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+              WHERE b.rolname = '${ROLE}' OR u.rolname = '${ROLE}'`,
+          )
+        )[0]?.g
+      const was = await graph()
+      // Another database to apply S3 to: the role graph is the cluster's, so each case runs in a transaction rolled back.
+      const other = await createTestDatabase()
+      const c = new pg.Client({ connectionString: other.ownerUrl })
+      await c.connect()
+      const apply = async (setup: string) => {
+        await c.query('BEGIN')
+        try {
+          await c.query(setup)
+          await c.query(candidate(CANDIDATES[2] ?? ''))
+          return 'applied'
+        } catch (err) {
+          return err instanceof Error ? err.message : String(err)
+        } finally {
+          await c.query('ROLLBACK')
+        }
+      }
+      const unexpected = 'sophia_conversation_assembler exists with unexpected memberships'
+      const alone = `REVOKE ${ROLE} FROM ${loginRole}`
+      try {
+        await withClusterMigrationLock(async () => {
+          for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
+          // As found now: sophia_api its parent, and this file's test login its member. The member alone refuses.
+          assert.equal(await apply('SELECT 1'), unexpected, 'a member')
+          // Without that member, exactly as the file leaves it: adopted.
+          assert.equal(await apply(alone), 'applied', 'sophia_api its one parent')
+          assert.equal(await apply(`${alone}; GRANT sophia_worker TO ${ROLE}`), unexpected, 'another parent')
+          assert.equal(
+            await apply(`${alone}; GRANT sophia_api TO ${ROLE} WITH ADMIN OPTION`),
+            unexpected,
+            'admin option',
+          )
+        })
+      } finally {
+        await c.end()
+        await other.drop()
+      }
+      assert.equal(await graph(), was, 'nothing revoked, granted or normalized')
+    })
+
     it('lets only the assembler execute the five entry points, and nobody read or write its tables', async () => {
       const grants = await owner<{ role: string; fn: string }>(
         `SELECT g.role, p.oid::regprocedure::text AS fn FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace,

@@ -20,6 +20,7 @@
 --   are not covered.
 
 DO $$
+DECLARE a oid;
 BEGIN
  IF NOT EXISTS(SELECT FROM pg_roles WHERE rolname='sophia_conversation_assembler') THEN
   CREATE ROLE sophia_conversation_assembler NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION INHERIT;
@@ -27,6 +28,14 @@ BEGIN
  IF EXISTS(SELECT FROM pg_roles WHERE rolname='sophia_conversation_assembler'
     AND (rolsuper OR rolbypassrls OR rolcanlogin OR rolcreatedb OR rolcreaterole OR rolreplication)) THEN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with unsafe attributes' USING ERRCODE='42501';
+ END IF;
+ -- A role found is adopted only as this file leaves it (PR #211 review): a member of sophia_api alone, without the
+ -- admin option (this file's own grant, made in another database of the cluster), and with no member of its own, so
+ -- it inherits nothing else and lends the entry points to no one. Anything else is refused; nothing is revoked here.
+ SELECT oid INTO STRICT a FROM pg_roles WHERE rolname='sophia_conversation_assembler';
+ IF EXISTS(SELECT FROM pg_auth_members m WHERE m.member=a AND (m.roleid<>'sophia_api'::regrole OR m.admin_option))
+   OR EXISTS(SELECT FROM pg_auth_members m WHERE m.roleid=a) THEN
+  RAISE EXCEPTION 'sophia_conversation_assembler exists with unexpected memberships' USING ERRCODE='42501';
  END IF;
 END $$;
 -- For the row policies of the tables the compiler reads, as the asker.
