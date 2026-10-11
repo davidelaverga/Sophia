@@ -6,10 +6,13 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/light-fills` from `ui/light-mark` at `fae1df79`
 (stacked on PR #249 → #248 → … → #220; the base retargets as each merges)
-Ending commit/tree: `4a55180b` (tree `2b2ee9d3b0e6`): 5 files: `theme.css` (fill tokens in both themes; the paper's core, hover and channel),
-`artifacts.css` (`.report-tile`, `.report-cover-mark`, `.report-cover-tag` on the tokens), `e2e/light-fills.spec.ts`
-(new, 4), `e2e/light-mode.spec.ts` (the hover pin), `docs/plans/light-fills.md`. The commit after it adds only this
-handoff.
+Ending commit/tree: `29b86ea9` (tree `a94a478e`), the code after the review: 6 files in the PR, `theme.css` (fill
+tokens in both themes; the paper's core, hover and channel; the opaque tints), `artifacts.css` (`.report-tile`,
+`.report-cover-mark`, `.report-cover-tag` on the tokens), `e2e/light-fills.spec.ts` (new, 4; typed in `e8954db1`),
+`e2e/light-mode.spec.ts` (the hover pin), `docs/plans/light-fills.md`, and this handoff. Earlier state: `4a55180b`
+(tree `2b2ee9d3b0e6`, the first five files). The records (`425d3b01`, `26ee4730`, `a19fd016`, this one) follow the
+code; if the PR is squashed at merge, one commit carries all of it under an id this file cannot know before it exists
+(Codex on #250).
 
 ## Outcome
 

@@ -29,18 +29,18 @@ export const typeSizes = (page: Page, selector: string) =>
   }, selector)
 
 /**
- * The words off the leading grid or the three weights, in a part of the page (docs/plans/type-leading.md): every visible
- * word's line-height is 16, 20, 24 or 32 px (or its box's own height: a line centred in a bar), its weight 400, 500 or
- * 600. Left out: a report's page (its own ramp), the greeting (display), glyphs in their circles, a PDF's text layer,
- * tips and hidden words.
+ * The words off their size's leading or the three weights, in a part of the page (docs/plans/type-leading.md): every
+ * visible word's line-height is its size's step on the 4 px grid (up to 12 → 16, 13 to 15 → 20, 16 to 18 → 24, from
+ * 20 → 32; or its box's own height: a line centred in a bar), its weight 400, 500 or 600. Left out: a report's page
+ * and the personal space's turns (reading voices, 17/1.6 and 15/24), the greeting (display), glyphs in their circles,
+ * a PDF's text layer, tips and hidden words.
  */
 export const typeOff = (page: Page, selector: string) =>
   page.evaluate((sel) => {
     const root = document.querySelector(sel)
     if (!root) return []
-    const grid = new Set([16, 20, 24, 32])
     const weights = new Set(['400', '500', '600'])
-    const left = '.sr-only, .tip, .avatar, .hw-hello, .md, .pdot, .tile-initial, .textLayer, .fixture-label'
+    const left = '.sr-only, .tip, .avatar, .hw-hello, .md, .msg .body, .pdot, .tile-initial, .textLayer, .fixture-label'
     const off = new Set<string>()
     const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
@@ -50,7 +50,15 @@ export const typeOff = (page: Page, selector: string) =>
       const lh = parseFloat(cs.lineHeight)
       const name = `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`
       // A leading that is `normal` parses to nothing and is off the grid like any other.
-      const onGrid = grid.has(Math.round(lh * 100) / 100) || Math.abs(lh - el.getBoundingClientRect().height) <= 1
+      const size = parseFloat(cs.fontSize)
+      const step =
+        [16, 20, 24, 32][
+          Math.max(
+            0,
+            [12, 15, 18, Infinity].findIndex((max) => size <= max),
+          )
+        ] ?? 32
+      const onGrid = Math.round(lh * 100) / 100 === step || Math.abs(lh - el.getBoundingClientRect().height) <= 1
       if (!onGrid) off.add(`${name} ${cs.fontSize}/${cs.lineHeight}`)
       if (!weights.has(cs.fontWeight)) off.add(`${name} weight ${cs.fontWeight}`)
     }

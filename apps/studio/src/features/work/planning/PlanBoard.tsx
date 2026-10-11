@@ -508,6 +508,7 @@ function Lanes({
       ref={lanes}
       className="board-lanes"
       style={{ '--lanes': shown.length }}
+      data-lanes={shown.length}
       data-threading={board.waited.length > 0 || undefined}
       onKeyDown={(e) => {
         if (lanes.current && moveOnBoard(lanes.current, e.key)) e.preventDefault()
@@ -516,7 +517,7 @@ function Lanes({
       {shown.map((lane) => (
         <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} all={rows} />
       ))}
-      <Threads box={lanes} to={board.lit} from={board.waited} />
+      <Threads box={lanes} to={board.lit} from={board.waited} lanes={shown.length} />
     </div>
   )
 }
