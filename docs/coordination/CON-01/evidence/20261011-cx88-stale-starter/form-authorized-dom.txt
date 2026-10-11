@@ -1,0 +1,41 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/studio
+    - link "Conversations":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/conversations
+    - link "Goals":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/goals
+    - link "Tasks":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/work
+    - link "Knowledge":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/knowledge
+    - link "Updates":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/updates
+    - link "Resources":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/resources
+  - button "Invite":
+  - button "Account":
+    - generic: R
+- main:
+  - region "Conversations":
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - generic: Question
+      - textbox "Question":
+        - /placeholder: What do you want to figure out?
+        - text: SYNTHETIC episode81 unsent new question
+      - group "Start from what’s still open":
+        - button "SYNTHETIC pending decision restricted"
+      - generic: Context, if it helps
+      - textbox "Context, if it helps" [active]: SYNTHETIC episode81 unsent new context
+      - checkbox "Ask Sophia" [checked]
+      - text: Ask Sophia
+      - button "Start"
+      - button "Cancel"
+- status

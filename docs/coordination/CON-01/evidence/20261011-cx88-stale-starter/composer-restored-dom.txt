@@ -1,0 +1,58 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/studio
+    - link "Conversations":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/conversations
+    - link "Goals":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/goals
+    - link "Tasks":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/work
+    - link "Knowledge":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/knowledge
+    - link "Updates":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/updates
+    - link "Resources":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/resources
+  - button "Invite":
+  - button "Account":
+    - generic: R
+- main:
+  - region "Conversations":
+    - region "Open conversation":
+      - button "All conversations":
+      - heading "SYNTHETIC current access check" [level=3]
+      - paragraph:
+        - generic: "Contributors:"
+        - text: You, Synthetic editor
+      - button "Context":
+      - region "Messages":
+        - list:
+          - generic: Oct 11
+          - text: You
+          - text: ·
+          - time: Oct 11, 03:24
+          - paragraph: SYNTHETIC current conversation before revocation
+          - button "Propose as decision":
+          - button "Withdraw message":
+          - generic: 03:24
+          - text: Synthetic editor
+          - text: ·
+          - time: Oct 11, 03:25
+          - paragraph: SYNTHETIC focus feed stimulus
+          - button "Propose as decision":
+          - button "Remove message":
+          - generic: 03:25
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team": SYNTHETIC episode81 unsent composer draft
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send":
+          - generic: Send
+- status

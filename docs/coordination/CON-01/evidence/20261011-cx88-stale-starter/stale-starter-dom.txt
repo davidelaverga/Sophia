@@ -1,0 +1,82 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/studio
+    - link "Conversations":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/conversations
+    - link "Goals":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/goals
+    - link "Tasks":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/work
+    - link "Knowledge":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/knowledge
+    - link "Updates":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/updates
+    - link "Resources":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation" [pressed]:
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC current access check":
+          - generic: SYNTHETIC current access check
+          - generic: 03:26
+          - generic: "Synthetic editor: SYNTHETIC focus feed stimulus"
+          - generic: You, Synthetic editor. No recorded questions yet. Last moved 03:26.
+        - button "SYNTHETIC stale sender regression":
+          - generic: SYNTHETIC stale sender regression
+          - generic: 03:24
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 03:24.
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - generic: Question
+      - textbox "Question" [active]:
+        - /placeholder: What do you want to figure out?
+        - text: SYNTHETIC episode81 unsent new question
+      - group "Start from what’s still open":
+        - button "SYNTHETIC pending decision restricted"
+      - generic: Context, if it helps
+      - textbox "Context, if it helps": SYNTHETIC episode81 unsent new context
+      - checkbox "Ask Sophia" [checked]
+      - text: Ask Sophia
+      - button "Start"
+      - button "Cancel"
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - alert:
+        - text: The project’s context can’t be read now.
+        - button "Try again"
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

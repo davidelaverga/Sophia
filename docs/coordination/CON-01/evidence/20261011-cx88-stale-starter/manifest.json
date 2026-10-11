@@ -1,0 +1,94 @@
+[
+  {
+    "file": "composer-bump-receipt.json",
+    "sha256": "923712a785f3e0ba9cdb712765cfeda8bc12a75f35a55b2f500a6e1d4afc0afa"
+  },
+  {
+    "file": "composer-revocation-receipt.json",
+    "sha256": "ad7a5871be1593dc627373fddb48d7587d489060c652b159cfa475ddef202ad5"
+  },
+  {
+    "file": "composer-restore-receipt.json",
+    "sha256": "84311607b2a447ce4306d3677e19967c17bd16575beaa311387e244d6d95d69d"
+  },
+  {
+    "file": "composer-fenced.json",
+    "sha256": "3390abdd1b5f8797e4f44173c518370ba1decca037270537632de081da9f6cb4"
+  },
+  {
+    "file": "composer-fenced-dom.txt",
+    "sha256": "4c69617c9f8e33920f101e80e08eb86968e04e5bdbd0dc56b85a4b2f49f54f04"
+  },
+  {
+    "file": "composer-restored-dom.txt",
+    "sha256": "097cb01add017a6a9baa99251ca62196fb43fde4bc6a1dd5303917d67265e96e"
+  },
+  {
+    "file": "form-authorized-dom.txt",
+    "sha256": "bed34db46aa812ddd988b73d74383ae39a0ac3bb74bcd3d0f576233e7c2650b4"
+  },
+  {
+    "file": "form-bump-receipt.json",
+    "sha256": "0f5142b326e0befe9ce9e453fc73b521803963ce041b53d47b9378479378bda1"
+  },
+  {
+    "file": "form-revocation-receipt.json",
+    "sha256": "384b10c1e229f7787283b380f3442a65e9262f9e538fd06527c9756d8dbf32ad"
+  },
+  {
+    "file": "form-restore-receipt.json",
+    "sha256": "f8f9a43afc387e6b0082146f609c996cd4db436a5e214227d0e3debd1282f29b"
+  },
+  {
+    "file": "form-fenced.json",
+    "sha256": "7ac25648f88b5b0fc2256dd7b34051e7faa73a4ebf4fcc5ba59065f0b3998940"
+  },
+  {
+    "file": "form-fenced-dom.txt",
+    "sha256": "4c69617c9f8e33920f101e80e08eb86968e04e5bdbd0dc56b85a4b2f49f54f04"
+  },
+  {
+    "file": "stale-starter.json",
+    "sha256": "a406e3b83d53fd1fc833595271603b1773a3f41ee5a08d062ed6611acf3b9b33"
+  },
+  {
+    "file": "stale-starter-dom.txt",
+    "sha256": "eff1eea8a38cad84b0f36e65749b1857bb71b9f662812c9999a2c319034a9e82"
+  },
+  {
+    "file": "stale-starter.png",
+    "sha256": "4f91cbafd027f603cac3847522ee912353c56c60bfb429d9ce9c688f73e003a3"
+  },
+  {
+    "file": "fresh-context-recovered-dom.txt",
+    "sha256": "5f49aeeb34e900b8c9597e55d6444df554c6b266f12dbc94a63551d4a4e26274"
+  },
+  {
+    "file": "conversation-read-receipts.json",
+    "sha256": "a3de9baa203836c7f2acadb677d8457ab68733785901a84d1f137c16b519e110"
+  },
+  {
+    "file": "read-ceiling.json",
+    "sha256": "914f9c0b2aae6361a4c99f08466a43d489cf2a209c846e63551e633a6de51709"
+  },
+  {
+    "file": "safe-final-audit.json",
+    "sha256": "086911fe1eea975db058ad649f1b15c778330591d52ea7808e34f8bc250ed5ab"
+  },
+  {
+    "file": "final-audit-receipt.json",
+    "sha256": "b5f50b4f4d407c487718caa79d3bc3a1c26343392220572e871e822b30f11d5e"
+  },
+  {
+    "file": "browser-stack-receipt.json",
+    "sha256": "33bc0fdfa9d6723183fb320a87ec80e1c286b8e2c64051ce791452941e80ea33"
+  },
+  {
+    "file": "browser-stack-cleanup.json",
+    "sha256": "d8f649d1ca0f1eaa459e5d553d7a62cd1a10844efbb3920f7e7ae1315b54db54"
+  },
+  {
+    "file": "owned-cleanup-verification.json",
+    "sha256": "48853c07260193b1488de5a2266ae9ec31814150d7bc74b7a847236b5ee9a25c"
+  }
+]

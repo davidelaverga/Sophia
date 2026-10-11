@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-11T01:27:22.096Z",
+  "context": "Project contextThe project’s context can’t be read now. Try againHow conversation context worksA conversation keeps its own messages and summary. Sophia’s answer here reads this conversation’s recent messages and the project’s current mission and decisions, the same for every conversation here. She never reads another conversation, anyone’s personal space or the room.Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+  "newContext": "SYNTHETIC episode81 unsent new context",
+  "question": "SYNTHETIC episode81 unsent new question",
+  "starter": "SYNTHETIC pending decision restricted",
+  "starterDisabled": false
+}

@@ -1,0 +1,122 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0088",
+  "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+  "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "episode": 81,
+  "automatedReview": 5481477213,
+  "finding": 4239851727,
+  "severity": "P1",
+  "verdict": "changes_requested",
+  "level": "L1 actual local signed-in Studio/API/PostgreSQL17.6 synthetic devJWT accounts; no fixtures/native/provider/hosted",
+  "cases": [
+    {
+      "boundary": "phone composer actual list403",
+      "verdict": "PASS_scoped",
+      "observed": "form absent, visible refusal P focused; original draft returns after actual200"
+    },
+    {
+      "boundary": "phone new-form actual list403",
+      "verdict": "PASS_scoped_focus",
+      "observed": "form/starter absent, visible refusal P focused; fields retained"
+    },
+    {
+      "boundary": "new-form post-refusal list200 with mission503",
+      "verdict": "FAIL_P1",
+      "observed": "NewConversation remounts enabled pre-refusal pending-decision starter while ProjectContext hides old context and truthfully offers Retry"
+    }
+  ],
+  "source": "NewConversation.tsx66-67 useStarters reads brief.data.pending without readFrom/refusedAt; all contextQuery consumers need shared freshness policy",
+  "audit": {
+    "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+    "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+    "observedAt": "2026-10-11T01:27:37.702Z",
+    "level": "L1 actual local browser/API/PostgreSQL only",
+    "projectId": "23a57084-774e-4273-bf85-4a4caed52829",
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "humanMessages": 6,
+    "nullHumanBodies": 0,
+    "requests": 6,
+    "replies": 0,
+    "decisionStates": [
+      {
+        "kind": "mission",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "kind": "constraint",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "kind": "constraint",
+        "state": "proposed",
+        "revision": "1"
+      }
+    ]
+  },
+  "cleanup": {
+    "pids": {
+      "48340": "absent",
+      "48366": "absent",
+      "48375": "absent",
+      "48376": "absent"
+    },
+    "ports": {
+      "53591": "closed",
+      "53592": "closed"
+    },
+    "wrapper": {
+      "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+      "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+      "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+      "apiPort": 53591,
+      "studioPort": 53592,
+      "pid": 48340,
+      "exit": 0,
+      "postgresStopped": true,
+      "clusterRemoved": true
+    },
+    "tab104": "closed",
+    "viewportOverride": "reset"
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "nativeProviderEffects": 0,
+    "spend": 0,
+    "unknownLocalEffects": false
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "named scoped passes plus current actual local P1 failure",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "limitations": [
+    "No unauthorized successful write claim: Start/starter/Send/Accept never pressed",
+    "Membership changes are owned local SQL synthetic stimulus; all403/200 original API; mission/snapshot503 explicit local transport controls",
+    "No frame-zero/native/provider/hosted acceptance",
+    "Earlier CX87 passes remain scoped; whole context freshness unaccepted"
+  ],
+  "next": "Claude smallest immutable all-context-consumer freshness correction with fail-before/after and terminal receipts; independent affected browser refusal/recovery/freshness recheck, fresh review/normalCI"
+}

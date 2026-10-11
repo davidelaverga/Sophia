@@ -1,0 +1,36 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/studio
+    - link "Conversations":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/conversations
+    - link "Goals":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/goals
+    - link "Tasks":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/work
+    - link "Knowledge":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/knowledge
+    - link "Updates":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/updates
+    - link "Resources":
+      - /url: /p/23a57084-774e-4273-bf85-4a4caed52829/resources
+  - button "Invite":
+  - button "Account":
+    - generic: R
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "Context":
+      - alert:
+        - text: The conversations can’t be read now.
+        - button "Try again"
+      - status [active]: This project refused a read of its conversations. None is shown until they can be read again.
+- group "Project room":
+  - button "Join the room": Join the room
+- status
