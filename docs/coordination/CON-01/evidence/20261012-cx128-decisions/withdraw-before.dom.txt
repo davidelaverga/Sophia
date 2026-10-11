@@ -1,0 +1,184 @@
+- note: Fixture — no API, no call
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "Fixture project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/studio
+    - link "Conversations":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/conversations
+    - link "Goals":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/goals
+    - link "Tasks":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/work
+    - link "Knowledge":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/knowledge
+    - link "Updates":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/updates
+    - link "Resources":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/resources
+  - status "Up to date":
+    - generic: Up to date
+  - button "Search":
+    - text: Search this project
+    - generic: /
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: F
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation":
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "What makes a report worth reading?" [pressed]:
+          - generic: What makes a report worth reading?
+          - generic: Oct 6
+          - generic: Compared a short brief with a longer report that cites every source. We want the first screen to answer the question before anyone scrolls.
+          - generic: Lucía, You · Sophia. 1 open question. Last moved Oct 6.
+          - generic: "1"
+        - button "Short or long briefs?":
+          - generic: Short or long briefs?
+          - generic: Oct 5
+          - generic: Marco prefers one page; Lucía wants the sources inline. Nothing decided yet.
+          - generic: Marco, Lucía. No open questions. Last moved Oct 5.
+        - button "Test data for the first release":
+          - generic: Test data for the first release
+          - generic: Oct 4
+          - generic: You · Sophia. 2 open questions. Last moved Oct 4.
+          - generic: "2"
+    - region "Open conversation":
+      - heading "What makes a report worth reading?" [level=3]
+      - paragraph:
+        - generic: L
+        - generic: F
+        - generic: "Contributors:"
+        - text: Lucía, You · Sophia
+      - button "Fixture report What it made · v1":
+        - generic: Fixture report
+        - generic: What it made · v1
+      - region "Messages":
+        - paragraph:
+          - button "Earlier messages"
+        - list:
+          - generic: Oct 6
+          - text: Lucía
+          - text: ·
+          - time: Oct 6, 11:09
+          - paragraph: And every claim keeps its source, one click away.
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - generic: 11:09
+          - text: Sophia
+          - text: ·
+          - time: Oct 6, 11:12
+          - paragraph: I can keep both versions apart so we compare them on the same question.
+          - generic: 11:12
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - text: You
+          - text: ·
+          - time: Oct 6, 11:20
+          - paragraph: Please do. Short first.
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message" [expanded]:
+            - generic: Withdraw message
+          - group "Withdraw this message":
+            - paragraph: Withdraw this message? Its words leave this conversation for everyone, and so do Sophia’s answers that read it. This can’t be undone.
+            - button "Withdraw" [active]
+            - button "Keep it"
+          - text: Lucía
+          - text: ·
+          - time: Oct 6, 11:28
+          - paragraph: The short one still needs the March figures.
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - generic: 11:28
+          - text: Sophia
+          - text: ·
+          - time: Oct 6, 11:35
+          - paragraph: Added them, cited. The open question is how long the evidence section may be.
+          - generic: 11:35
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Remove message":
+            - generic: Remove message
+          - text: You
+          - text: ·
+          - time: Oct 6, 11:40
+          - paragraph: Let’s look at it together tomorrow.
+          - button "Propose as decision":
+            - generic: Propose as decision
+          - button "Withdraw message":
+            - generic: Withdraw message
+          - generic: 11:40
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - group "Ask Sophia in one press":
+          - button "Sum it up"
+          - button "What’s still open?"
+          - button "What did we decide?"
+        - paragraph:
+          - generic: Sophia will answer
+          - generic: Enter sends · Shift+Enter, a new line
+    - complementary "Project context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: Compared a short brief with a longer report that cites every source. We want the first screen to answer the question before anyone scrolls.
+        - paragraph: Covers messages 1–9.
+        - paragraph: 1 open question
+        - paragraph: Covers messages 1–9.
+        - button "Erase this conversation"
+      - heading "Project context" [level=3]
+      - paragraph: Fixture direction, revision 1
+      - paragraph: Reports the team can act on in one read.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - list:
+          - listitem: Keep the brief to one page
+          - listitem: Reports open on the answer
+          - listitem: No payments in the first release
+        - button "and 2 more"
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - list:
+          - text: Map first, list second
+          - button "Accept"
+          - button "Decline"
+        - paragraph: Proposed, not decided.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on

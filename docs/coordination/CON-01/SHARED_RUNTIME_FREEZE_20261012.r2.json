@@ -1,0 +1,272 @@
+{
+  "recordId": "CON01-WBC02-SDD01-shared-runtime-window-20261012-r2",
+  "recordedAtUTC": "2026-10-11 23:04:23 UTC",
+  "status": "JOINT_OWNER_FREEZE_ACKNOWLEDGED_START_CONDITIONS_PENDING",
+  "responseScope": "Bounded joint WBC02/SDD01 source coordination only. No inspection/message to CON native session and no cross-thread message sent. CON reviewer may inspect this record read-only.",
+  "authority": "Own implementer acknowledged release/freeze under existing mission coordination authority. Relayed Davide preference for temporary CON sole writer recorded; this lane does not supply CON implementer acknowledgement or broaden operation permissions.",
+  "ownerAcknowledgements": {
+    "jointImplementer": {
+      "session": "session_0155SjcXhv87RErnWEBWxfBM",
+      "status": "ACKNOWLEDGED",
+      "evidence": "shared-runtime-window-owner-ack-final-AX.txt",
+      "evidenceBytes": 15818,
+      "evidenceSHA256": "02d2eb1cca26bc187f1df9915624a2ab1e0a36e8facfbe2e93af03776abc3456",
+      "statement": "No source writes in flight or unpublished proposed-path work; PR190 writeraca33481 idle; own lane freezes proposed shared surfaces until ownership returns. PR255 continues nonoverlapping work.",
+      "qualification": "Current writer state and absence of unpublished cloud work are owner-attested, not independent cloud-filesystem proof."
+    },
+    "CONImplementer": {
+      "session": "session_01KUDtFK9gWthsXSrepcLQz3",
+      "status": "NOT INSPECTED / ACK TO BE RECORDED BY CON REVIEWER",
+      "reviewerThread": "01a1224a-32b4-7222-a017-50a277572d95"
+    },
+    "rootJointLane": {
+      "status": "ACCEPTS bounded freeze, preservation constraints and independent integration order; no shared write GO until start conditions"
+    }
+  },
+  "verifiedBases": {
+    "main": {
+      "commit": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "tree": "8c1232f751df67a5de16779047b21bb5f5ada176"
+    },
+    "PR190": {
+      "commit": "5c10bce3060ca867402cb5ba869146a69af057c6",
+      "tree": "631824e4196c36be99159ab3fbb95c640bf8412f",
+      "state": "draft, unmerged; source preservation required, whole mission completion is not prerequisite"
+    },
+    "PR255": {
+      "commit": "bf6fd711faafef96dbad1b8987c27e3d033f8e93",
+      "tree": "7431792b397ee1a83185ca2ce33c565621ec5f8c",
+      "state": "independent bounded repair, no proposed shared-path overlap; final qualification remains separate"
+    },
+    "PR211": {
+      "commit": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "headRefName": "claude/con01-g2-s2-review",
+      "candidateTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+      "baseRefName": "claude/con01-project-conversations",
+      "embeddedPRBaseSnapshot": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+      "actualFreshBaseRef": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "actualFreshMainRef": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "mainIsAncestorOfCandidate": true,
+      "mainIntoCandidateMergeTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+      "mergeTreeEqualsUnchangedCandidateTree": true,
+      "verifiedAtUTC": "2026-10-11T23:02:39Z",
+      "proof": "Fresh gh pr view verified base/head names, but its embedded baseRefOid remained stale1cd18d. Fresh explicit git ls-remote resolved actual named base d527f385, head7d8f415f and mainfec45. Candidate object was missing locally; inbound git fetch --no-tags --no-write-fetch-head obtained it without changing checkout/ref. Root git merge-base --is-ancestor main candidate returned0. Root git merge-tree --write-tree main candidate returned candidate's exact eef30089 tree. Only graph/tree metadata inspected, no CON behavior."
+    },
+    "phaseA": "Accepted source base remains exact current mainfec45, or fresh main tip reverified/re-censused at start. Excludes unaccepted CON payload; it is not a remedy for missing-main integration, since main is already an ancestor of CON head. Fresh main-only isolated start commit/tree required.",
+    "phaseB": "Exact main-based commit/tree including accepted PhaseA must be sealed before PhaseB writes. Existing unmerged CON candidate supplies no automatic accepted integration base."
+  },
+  "scopes": [
+    {
+      "phase": "A prerequisite",
+      "paths": [
+        "db/migrations/<fresh-census-reserved-number>_runtime_outbox_reconcile.sql",
+        "packages/persistence/src/dispatch.ts",
+        "apps/worker/src/runtime-dispatch.ts",
+        "packages/persistence/src/runtime.db.test.ts",
+        "apps/worker/src/runtime-dispatch.test.ts"
+      ],
+      "functions": [
+        "sophia.reconcile_runtime_outbox(integer)",
+        "reconcileRuntimeOutbox",
+        "dispatchOnce",
+        "RuntimeDispatcher.run"
+      ],
+      "boundary": "Append-only SQL definition repair; honest changed count plus fair selection, real PostgreSQL tests with L+1 atL2/L50 including unchanged older rows. Do not edit applied0012 or earlier migrations. Limit TS edits to necessity supported by tests."
+    },
+    {
+      "phase": "B reply shared branches",
+      "paths": [
+        "packages/persistence/src/runtime.ts",
+        "packages/persistence/src/index.ts",
+        "apps/api/src/routes/runtime.ts",
+        "apps/api/src/app.ts",
+        "packages/contracts/openapi/openapi.json",
+        "packages/contracts/scripts/generate-runtime-wire.ts",
+        "packages/dsh-bundle/src/runtime-wire.generated.ts",
+        "packages/dsh-bundle/src/runtime-wire-types.generated.ts"
+      ],
+      "functions": [
+        "runtimeHello",
+        "runtimePoll",
+        "recordRuntimeReceipts",
+        "recordRuntimeObservations",
+        "recordRuntimeReady",
+        "runtimeRoutes",
+        "SQL runtime binding/claim/receipt/observation/retire branches only"
+      ],
+      "boundary": "Exact new names, SQL functions/amendment/generated companion files must be enumerated and owner acknowledged before writes; no grant to rewrite unrelated goal/research/design/Paperclip branches."
+    },
+    {
+      "phase": "B runtime adapter/artifact",
+      "paths": [
+        "packages/dsh-bundle/src/control-bridge.ts",
+        "packages/dsh-bundle/src/session-events.ts",
+        "packages/dsh-bundle/src/transport.ts",
+        "packages/dsh-bundle/src/protocol.ts",
+        "packages/dsh-bundle/src/retained-queue.ts",
+        "packages/dsh-bundle/src/role-registry.ts",
+        "packages/dsh-bundle/src/index.ts",
+        "apps/execution-host/src/runtime-supervisor.ts",
+        "scripts/runtime-host.mjs",
+        "scripts/lib/runtime.mjs",
+        "config/dsh/profile/cordis.patch.yml",
+        "config/roles.json",
+        "config/specialists.json",
+        "packages/contracts/src/specialists.generated.ts",
+        "packages/dsh-bundle/src/specialists.generated.ts",
+        "config/runtime-unit.json"
+      ],
+      "functions": [
+        "ControlBridge reply branches",
+        "Journal/JournalRecordMap/foldLog reply branches",
+        "reply transport/protocol/retained queue and role registry entries",
+        "RuntimeSupervisor and owned launcher reply/profile handling"
+      ],
+      "boundary": "Exact methods/tests/profile paths still to enumerate in acknowledgement. Preserve combined roles, existing mission behavior and pins; ordinary artifact identities regenerated. No dependency/pin/lock change inferred."
+    }
+  ],
+  "preciseJointOverlapAndPreservation": {
+    "dispatcher": {
+      "path": "apps/worker/src/runtime-dispatch.ts",
+      "functions": [
+        "dispatchOnce",
+        "PassResult",
+        "sweep"
+      ],
+      "PR190Adds": [
+        "voiceEvidenceExpired/liveCallKeysExpired fields",
+        "expireVoiceEvidence and expireLiveCallKeys sweeps, failure logged independently of dispatch"
+      ],
+      "runMethod": "RuntimeDispatcher.run and tail independently verified byte-identical to main; SHA256e0062a2c09b155de44fe20f657cd1b59bcd8c4d4824e9931509797eec352f55a",
+      "preserve": [
+        "Do not replace PR190-only lines",
+        "Do not churn header, existing PassResult fields, import order or pass order",
+        "If necessary new PassResult fields go after reconciled",
+        "Voice sweep counts stay outside run idle condition",
+        "Preserve voice-evidence-expiry.db.test.ts expectations"
+      ]
+    },
+    "phaseB": {
+      "paths": [
+        "apps/api/src/app.ts",
+        "packages/persistence/src/index.ts",
+        "packages/contracts/openapi/openapi.json",
+        "packages/contracts/src/generated-types.ts",
+        "packages/contracts/src/generated/validators.js",
+        "packages/contracts/src/generated/validators.d.ts",
+        "packages/contracts/scripts/generate-validators.ts",
+        "packages/contracts/src/validate.ts"
+      ],
+      "preserve": [
+        "PR190 VOICE_SCHEMA, required-schema list and registerHealth",
+        "Voice persistence exports",
+        "A15/A17 contracts and validation behavior; regenerate through generators"
+      ]
+    },
+    "outbox": [
+      "Keep destination filter including WBC02 control.settle/native.steer and research/design",
+      "Keep state mapping, lease clearing, SECURITY DEFINER, worker-only grant and default/no-argument call",
+      "Change only honest count and fair selection; preserve existing permissions and command/outbox semantics"
+    ],
+    "sourceReview": [
+      "Preserve A13 source-review routes, roles and combined role entries",
+      "control-bridge source-review branches (owner cites main lines483/625), additive role-registry task-kind handling",
+      "Keep specialists generated source-review entry, transport source-review routes, app required-schema source-review entry",
+      "No destructive goal/research/design/Paperclip behavior changes"
+    ],
+    "sourceRegister": "docs/SOURCE_MAP.md shared only for additive CON rows; preserve §2f and current Paperclip rows",
+    "artifactLimit": "G's image receipt qualifies G only, never future PhaseB changed contracts/artifacts."
+  },
+  "numbering": {
+    "status": "UNASSIGNED / FRESH GLOBAL AND LOCAL-OWNER CENSUS REQUIRED",
+    "currentPublishedPathMetadata": {
+      "main": "0001–0045",
+      "PR190": [
+        "0046",
+        "0047",
+        "0051",
+        "0052",
+        "A15",
+        "A17"
+      ],
+      "PR211": [
+        "0048",
+        "A16"
+      ],
+      "observedAtUTC": "2026-10-11T22:49:40Z",
+      "scope": "Non-truncated GitHub tree filename metadata only"
+    },
+    "retainedOwnerReservations": [
+      "0048–0050 CON",
+      "0046/0047/0051/0052 voice",
+      "A13/A15/A17 joint; A16 CON"
+    ],
+    "candidateMinimum": "0053 or later is only a lower bound, not a reservation or proof of freedom.",
+    "required": "Fresh all-published-ref/PR and local-owner reservation census; reserve exact migration/amendment filenames in agreed shared record before writes. Stop on collision."
+  },
+  "acceptedIntegrationOrder": [
+    "Record joint freeze acknowledgement, CON implementer acknowledgement and exact PhaseA scope/base/number reservation before writes.",
+    "PhaseA: same single CON writer makes dispatcher correction from accepted current main; immutable handback, independent acceptance, then source merge. Real PostgreSQL fail-before/pass-after atL2/L50, L+1 older unchanged rows, honest changed count and later actionable-row reachability.",
+    "PR255 can land before or after PhaseA independently once its own qualification is fully audited. No PR190/full unrelated mission wait imposed.",
+    "PhaseB: exact new names/methods/tests/profile/generated files and exact main+acceptedA base acknowledged before writes; immutable handback, independent review and acceptance, then source merge.",
+    "PR190 later merges main by its own writer under root review, preserving both sides including voice sweeps/contracts; regenerate generated contracts with generator."
+  ],
+  "startConditionsPending": [
+    "CON reviewer records exact CON implementer acknowledgement; this lane never reads/messages that native session.",
+    "Fresh complete migration/amendment census and exact atomic number/file reservation.",
+    "Seal start-time main commit/tree and exact PhaseA writable list (new migration only unless justified acknowledged TS/test changes).",
+    "BeforePhaseB, exact names/methods/tests/profiles/generated files and acceptedA-based commit/tree must be recorded and acknowledged.",
+    "Q13 compiler/direct-read/RLS shared-policy source scope, if required by PhaseB, must be precisely enumerated, reviewed and acknowledged before those writes; no implicit scope expansion."
+  ],
+  "stopConditions": [
+    "Any outside-scope path or method required",
+    "Any applied migration, PR255 path or PR190-only line must change",
+    "Any reconcile destination/state/grant/default-call change required",
+    "Any goal/research/design/source-review/Paperclip change beyond agreed additions",
+    "Numbering collision or a second writer",
+    "Need for hosted/provider/deployment/spend/permission effect"
+  ],
+  "handbackBoundary": {
+    "phaseA": "Real PostgreSQL fail-before on existing0012 and pass-after atL2/L50; L+1 with older unchanged rows, exact changed count, fairness, no busy spin; commit/tree/diff/commands/results/limitations and no active source writer. No PhaseB writes until accepted.",
+    "phaseB": "Immutable commit/tree and exact paths/functions/contract/artifact diffs; ordinary checks and affected real integration crossings; preservation review with joint mission source; stop all reserved writes before handback.",
+    "ownershipReturn": "Joint freeze ends on accepted phase merges, Davide ending window, or sole writer handing back early; record return/extension. Unmerged CON branch does not change joint lane production authority."
+  },
+  "remainingConcreteConflicts": [
+    "CON head includes current main; it remains unaccepted as PhaseA source base because it carries unaccepted CON payload. Seal an isolated current-main PhaseA start commit/tree.",
+    "No fresh full census/number reservation or CON implementer acknowledgement is present in this lane.",
+    "PhaseB exact reply names/methods/tests/profiles/generated file list still unsealed; broad file proposal cannot authorize blanket rewrites.",
+    "Q13 narrow read-path proposal additionally needs exact shared compiler/RLS-policy source scope; CON is preparing it. It is not in the current writable window."
+  ],
+  "rawAuthorArtifact": {
+    "path": "scratchpad/shared-runtime-ack/WBC02-SDD01-shared-runtime-freeze-ack-r1.md",
+    "sha256AuthorReported": "92e41acb29772997c1a547ec37fcde1e5bd4f90fa72ffe1fd7c6f501284582c2",
+    "bytesIndependentlyRetrieved": false,
+    "reason": "Native file viewer explicitly denied opening scratch file under session permission settings; no bypass or permission change attempted. Recorded actual authorized chat acknowledgement instead; its local AX bytes independently hashed.",
+    "checksAuthorReported": "Credential scan passed, read-only seal; Prettier flags scratch formatting, not source acceptance."
+  },
+  "effects": "Read-only GitHub/ref/graph/tree verification, inbound Git object fetch without checkout/ref/FETCH_HEAD change, local corrected record and hash only. Local checkout remained clean on Gbf6fd711. No source working-file edits, CON native inspection/message, cross-thread reply, push/merge, CI rerun/cancellation, deployment, hosted DB/migration/test, provider/model/image execution, new spending, account or permission mutation.",
+  "screenshots": [
+    "shared-runtime-window-owner-request-proof.png",
+    "shared-runtime-window-owner-ack-final-proof.png"
+  ],
+  "fullMission": "Original joint Paperclip/design production deployment and app/native/voice E2E mission retained; this record does not qualify completion, waive two billing P1s, turn G7 on, approve r5-r3 hosted draft, or alter current operations.",
+  "supersedes": {
+    "record": "shared-runtime-CON01-WBC02-SDD01-source-window-20261012-r1-response.json",
+    "sha256": "70e932857dce3806eef03ce519b140243932014e3d8bef6cf48bd33f7dc91739",
+    "scope": "Metadata correction and explicit pending Q13 shared-policy scope only. r1 bytes preserved and independently hash-verified unchanged. Conditional freeze, PhaseA main-only prerequisite and PR190/255 preservation unchanged."
+  },
+  "metadataCorrection": {
+    "error": "r1 treated the stale embedded PR base ancestry result as evidence about CON head's inclusion of current main. That inference is withdrawn.",
+    "retainedHistoricalFact": "The old1cd18d object was not an ancestor of main in the earlier check; that narrow snapshot comparison does not establish CON head ancestry or the current named base.",
+    "correctCurrentFact": "CON head7d8f415f already includes mainfec45; combining them yields its unchanged candidate treeeef30089.",
+    "impact": "No missing-main conflict remains. No write authorization, source acceptance or operation gate changes. PhaseA main-only still isolates prerequisite from unaccepted CON payload.",
+    "correctionScope": "Graph/ref/tree metadata only; no CON native inspection/message, no source behavior review."
+  },
+  "pendingAdditionalSharedPolicyScope": {
+    "topic": "Q13 compiler direct reads / RLS TO sophia_api",
+    "source": "Reported by CON independent reviewer in bounded metadata-correction message; not independently inspected by this lane.",
+    "status": "CON preparing exact technical source/policy scope; NOT ADDED to writable window",
+    "required": "Enumerate exact compiler read files/functions, SQL policy objects and tests/preservation boundary; joint source-owner acknowledgement before writes.",
+    "authorityLimit": "Technical scope preparation, not a low-level user-choice gate. No permission mutation, hosted migration or source-policy changes authorized by this record."
+  }
+}

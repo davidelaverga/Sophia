@@ -1,0 +1,97 @@
+- note: Fixture — no API, no call
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "Fixture project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/studio
+    - link "Conversations":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/conversations
+    - link "Goals":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/goals
+    - link "Tasks":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/work
+    - link "Knowledge":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/knowledge
+    - link "Updates":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/updates
+    - link "Resources":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/resources
+  - button "Search":
+  - button "Invite":
+  - button "Account":
+    - generic: F
+- main:
+  - region "Conversations":
+    - region "Open conversation":
+      - button "All conversations":
+      - heading "What makes a report worth reading?" [level=3]
+      - paragraph:
+        - generic: "Contributors:"
+        - text: Lucía, You · Sophia
+      - button "Fixture report"
+      - button "Context":
+      - region "Messages":
+        - paragraph:
+          - button "Earlier messages"
+        - list:
+          - generic: Oct 6
+          - text: Lucía
+          - text: ·
+          - time: Oct 6, 11:09
+          - paragraph: And every claim keeps its source, one click away.
+          - button "Propose as decision":
+          - button "Remove message":
+          - generic: 11:09
+          - text: Sophia
+          - text: ·
+          - time: Oct 6, 11:12
+          - paragraph: I can keep both versions apart so we compare them on the same question.
+          - generic: 11:12
+          - button "Propose as decision":
+          - button "Remove message":
+          - text: You
+          - text: ·
+          - time: Oct 6, 11:20
+          - paragraph: Please do. Short first.
+          - button "Propose as decision":
+          - button "Withdraw message" [expanded]:
+          - group "Withdraw this message":
+            - paragraph: Withdraw this message? Its words leave this conversation for everyone. Sophia’s answers from here on in this conversation go too, even those that didn’t use it, and they aren’t written again. Everyone’s other messages, other conversations and the decisions already recorded for this project stay. This can’t be undone.
+            - button "Withdraw" [active]
+            - button "Keep it"
+          - text: Lucía
+          - text: ·
+          - time: Oct 6, 11:28
+          - paragraph: The short one still needs the March figures.
+          - button "Propose as decision":
+          - button "Remove message":
+          - generic: 11:28
+          - text: Sophia
+          - text: ·
+          - time: Oct 6, 11:35
+          - paragraph: Added them, cited. The open question is how long the evidence section may be.
+          - generic: 11:35
+          - button "Propose as decision":
+          - button "Remove message":
+          - text: You
+          - text: ·
+          - time: Oct 6, 11:40
+          - paragraph: Let’s look at it together tomorrow.
+          - button "Propose as decision":
+          - button "Withdraw message":
+          - generic: 11:40
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - group "Ask Sophia in one press":
+          - button "Sum it up"
+          - button "What’s still open?"
+          - button "What did we decide?"

@@ -1,0 +1,44 @@
+{
+  "kind": "independent actual IAB fixture check, L1 only",
+  "candidate": "635a3ef2fc1f0e9c991484815203dce90aa8a065",
+  "tree": "496fc44883b831e04ca12c079654f1676062ba5b",
+  "parent": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "source_delta": "two files, +15/-3; complete source/regression delta read; diff-check0; dependency/runtime/artifact files unchanged",
+  "toolchain": {
+    "node": "24.21.0",
+    "pnpm": "11.7.0"
+  },
+  "target": "Owned loopback Vite fixture56991, no API/call, synthetic content only",
+  "maximumSeconds": 480,
+  "before": {
+    "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "result": "FAIL accepted disclosure criterion: only answers that read it mentioned. Opened own-message confirmation and Keep it; no withdrawal."
+  },
+  "after": {
+    "result": "PASS scoped disclosure/interaction",
+    "desktop": "1280x720 actual browser viewport; all three panes preserved. Own Withdraw and admin Remove display conservative scope, all-other-human-message/conversation/recorded-decision boundaries and no rewriting removed answers. Keep it dismisses each without withdrawal.",
+    "mobile": "390x844 explicit override. Full confirmation and Withdraw/Keep controls visible, own message remains, Context control present. Keep it dismisses; no tombstone.",
+    "visuals": "Screenshots independently inspected; no layout/style file changed.",
+    "behaviour_limit": "No real withdrawal, provider/native/hosted/DB test; existing conservative server rule and other product acceptance not upgraded."
+  },
+  "cleanup": {
+    "wrapper": {
+      "pid": 86733,
+      "exit": 0,
+      "elapsedSeconds": 217.047,
+      "ownedGroupSettled": true
+    },
+    "processPIDAbsent": true,
+    "ownedPortClosed": true,
+    "fixtureTabClosed": true,
+    "viewportReset": true,
+    "hostedTabRetained": true,
+    "sourceWorktreeClean": true,
+    "sourceWorktreeFinalHEAD": "635a3ef2fc1f0e9c991484815203dce90aa8a065"
+  },
+  "hosted_mutations": 0,
+  "model_or_native_calls": 0,
+  "new_spend": 0,
+  "uncertain_effects": 0,
+  "author_gate_limit": "Author reported focused fail-before42/43 and after43/43; broader conversations/lint/typecheck terminal receipt pending, not independently relabeled here."
+}

@@ -56,7 +56,10 @@
       "merge_tree_result": "eef30089d88be4747e3e34b6bca00329d38b2b7c, unchanged held head tree",
       "effect": "PhaseA main-only base remains required to avoid carrying unaccepted CON payload. Stale embedded base does not prove current main is missing from CON head. Joint operator correction requested; original preserved below."
     },
-    "owner_attestation_limit": "No in-flight/unpublished cloud writes is owner attestation, not reviewer cloud filesystem proof; raw scratch artifact was inaccessible without permission bypass, actual chat ACK was inspected instead."
+    "owner_attestation_limit": "No in-flight/unpublished cloud writes is owner attestation, not reviewer cloud filesystem proof; raw scratch artifact was inaccessible without permission bypass, actual chat ACK was inspected instead.",
+    "corrected_owner_record": "SHARED_RUNTIME_FREEZE_20261012.r2.json",
+    "corrected_owner_record_sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+    "owner_metadata_correction_accepted": true
   },
   "primary_coordination": {
     "exact_session": "session_01KUDtFK9gWthsXSrepcLQz3",
@@ -79,7 +82,9 @@
     "expected": "Explicit later-same-conversation removal even without use, preserve other human messages/conversations/independent decisions, no automatic regeneration.",
     "reproducer": "Open Withdraw/Remove confirmation for eligible synthetic message.",
     "origin": "source inspection; no new browser fixture execution",
-    "implementer": "Claude; no reviewer feature fix"
+    "implementer": "Claude; no reviewer feature fix",
+    "corrected_review_pin": "635a3ef2fc1f0e9c991484815203dce90aa8a065",
+    "correction_scope": "Complete two-file15/-3 source delta read; independent old fail/corrected desktop+mobile disclosure PASS L1. Held PR211 not advanced; affected combined gates still pending."
   },
   "ci": {
     "run": 38168148111,
@@ -146,7 +151,7 @@
   },
   "readiness": {
     "source_ready": "Dormant bounded candidates only; full native/runtime implementation incomplete.",
-    "locally_verified": "Prior scoped L1 evidence retained; only new document/JSON checks this checkpoint.",
+    "locally_verified": "Prior scoped L1 retained; new exact635a disclosure source and actual desktop/mobile fixture scoped PASS. No full G3/native/provider/hosted promotion.",
     "binding_delta_reviewed": "D4/D9 corrections scoped-reviewed; residual setup sentence correction requested.",
     "reviewed": false,
     "authorized": false,
@@ -172,10 +177,12 @@
     "Source inspection found withdrawal confirmation disclosure gap and direct compiler/RLS dependency; no feature change",
     "Purpose-built exact-head CI read: six existing jobs queued, no rerun/cancel",
     "Issue198 owner record6114788738 and first review6114833701 posted and fetched back by exact IDs/commit identities",
-    "Read sealed shared-owner response and actual chat ACK bytes; matched SHA256. Independently reverified current main ancestor of held CON head and unchanged merge-tree; returned stale embedded-base correction to joint operator."
+    "Read sealed shared-owner response and actual chat ACK bytes; matched SHA256. Independently reverified current main ancestor of held CON head and unchanged merge-tree; returned stale embedded-base correction to joint operator.",
+    "Fresh git fetch origin, then all191 actual published branch heads scanned through git ls-tree; max migration52, no reservation. Joint operator r2 accepts exact-base correction and records Q13 shared-policy scope outside writing window.",
+    "Independent actual IAB old disclosure fail at7d8, fetched/complete-reviewed immutable635a source, own detached clean source worktree selected, corrected desktop own/admin and390x844 own confirmation passed; Keep it only. Finite owned fixture217.047s/exit0, PID absent/port closed/tab closed/viewport reset."
   ],
   "resource_use": {
-    "reviewer_source_tests": 0,
+    "reviewer_source_tests": "No new automated code test run; independent actual browser fixture and document/source checks performed.",
     "local_owned_clusters_started": 0,
     "target_database_connections": 0,
     "sophia_provider_calls": 0,
@@ -187,10 +194,65 @@
     "grants_changed": 0,
     "sessions_terminated": 0,
     "new_spend": 0,
-    "coding_agent_coordination_usage": "Unmeasured/private; not Sophia quota qualification."
+    "coding_agent_coordination_usage": "Unmeasured/private; not Sophia quota qualification.",
+    "local_owned_fixture_processes_started": 1,
+    "owned_fixture_duration_seconds": 217.047,
+    "independent_browser_fixture_checks": "before/desktop own+admin/mobile own and cancellation; no write"
   },
   "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
-  "cleanup": "No new reviewer cluster/process/target session. Existing hosted IAB retained. No uncertain hosted/provider effect introduced; last native coordination is visible queued, not a duplicated send. Author owned test execution/cleanup remains author evidence until returned.",
+  "cleanup": "Owned fixture wrapper terminal0, PID86733 absent/port56991 closed, fixture tab closed and viewport reset; hosted tab retained. No new reviewer cluster/target session or uncertain hosted/provider effect. Source harness detached clean at635a3ef2. Author broader gates/census/cleanup remain pending author receipt.",
   "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
-  "next_bounded_action": "Review immutable narrow Q13 proposal/test evidence and sealed conditional owner reservation; require complete one-writer start conditions, then independently recheck smallest source/Studio correction. No broader mission or product completion."
+  "next_bounded_action": "Obtain exact CON acknowledgement/global+local census/PhaseA starting tuple and narrow Q13 proposal/owned tests; independently review before scoped source GO. Confirm author disclosure regression terminal result; integrate only through exact reviewed combined candidate.",
+  "published_head_census": {
+    "at": "2026-10-11T23:05:28.111951+00:00",
+    "heads": 191,
+    "maximum_published_migration_prefix": 52,
+    "reference": "evidence/20261012-cx128-decisions/published-heads-census.json",
+    "reservation_made": false,
+    "limits": "Branch-head metadata only; local-owner reservations and any outside-head fork PR require census before atomic reservation."
+  },
+  "independent_browser_fixture": {
+    "kind": "independent actual IAB fixture check, L1 only",
+    "candidate": "635a3ef2fc1f0e9c991484815203dce90aa8a065",
+    "tree": "496fc44883b831e04ca12c079654f1676062ba5b",
+    "parent": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "source_delta": "two files, +15/-3; complete source/regression delta read; diff-check0; dependency/runtime/artifact files unchanged",
+    "toolchain": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0"
+    },
+    "target": "Owned loopback Vite fixture56991, no API/call, synthetic content only",
+    "maximumSeconds": 480,
+    "before": {
+      "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "result": "FAIL accepted disclosure criterion: only answers that read it mentioned. Opened own-message confirmation and Keep it; no withdrawal."
+    },
+    "after": {
+      "result": "PASS scoped disclosure/interaction",
+      "desktop": "1280x720 actual browser viewport; all three panes preserved. Own Withdraw and admin Remove display conservative scope, all-other-human-message/conversation/recorded-decision boundaries and no rewriting removed answers. Keep it dismisses each without withdrawal.",
+      "mobile": "390x844 explicit override. Full confirmation and Withdraw/Keep controls visible, own message remains, Context control present. Keep it dismisses; no tombstone.",
+      "visuals": "Screenshots independently inspected; no layout/style file changed.",
+      "behaviour_limit": "No real withdrawal, provider/native/hosted/DB test; existing conservative server rule and other product acceptance not upgraded."
+    },
+    "cleanup": {
+      "wrapper": {
+        "pid": 86733,
+        "exit": 0,
+        "elapsedSeconds": 217.047,
+        "ownedGroupSettled": true
+      },
+      "processPIDAbsent": true,
+      "ownedPortClosed": true,
+      "fixtureTabClosed": true,
+      "viewportReset": true,
+      "hostedTabRetained": true,
+      "sourceWorktreeClean": true,
+      "sourceWorktreeFinalHEAD": "635a3ef2fc1f0e9c991484815203dce90aa8a065"
+    },
+    "hosted_mutations": 0,
+    "model_or_native_calls": 0,
+    "new_spend": 0,
+    "uncertain_effects": 0,
+    "author_gate_limit": "Author reported focused fail-before42/43 and after43/43; broader conversations/lint/typecheck terminal receipt pending, not independently relabeled here."
+  }
 }

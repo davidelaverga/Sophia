@@ -1,3 +1,7 @@
+# Current operation drafts — CX-0128
+
+Owner decisions are recorded in [OWNER_DECISIONS_20261012.md](OWNER_DECISIONS_20261012.md). [OP0002-r4 setup/human-chat](CON-01-OP-0002-r4.json) and [OP0001-r3 Ask qualification](CON-01-OP-0001-r3.json) supersede prior current drafts while preserving them as history. Both remain draft_not_authorized/not approval-ready; exact execution candidates/artifacts/commands, approval and expiry are unbound. Shared owner freeze is conditional, not an active source/operational window. [Latest review/actions/limits/cleanup handoff](CX-0128.md). No serving tuple or target database refresh this checkpoint; dated observations below remain explicitly dated.
+
 # CON-01 live preflight — read-only, 2026-10-09
 
 ## Actual database metadata refresh — CX-0115, 2026-10-11, 16:41 UTC

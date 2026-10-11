@@ -1,0 +1,1548 @@
+{
+  "observedAtUTC": "2026-10-11T23:05:28.111951+00:00",
+  "scope": "Fresh all published repository branch heads; read-only fetch and git ls-tree; not a local-owner reservation or open-fork-PR census.",
+  "headCount": 191,
+  "headsSHA256": "28f80e18e54d5f7188b3eafca8fbf14309a322c872cd4b70c885d54689650628",
+  "maximumPublishedMigrationPrefix": 52,
+  "publishedMigrationPaths": [
+    "db/migrations/0001_core.sql",
+    "db/migrations/0002_roles_rls.sql",
+    "db/migrations/0003_atomic_commands.sql",
+    "db/migrations/0004_queue_ownership.sql",
+    "db/migrations/0005_event_notify.sql",
+    "db/migrations/0006_idempotent_project_creation.sql",
+    "db/migrations/0007_dispatch_fencing.sql",
+    "db/migrations/0008_dispatch_result_idempotent.sql",
+    "db/migrations/0009_project_room.sql",
+    "db/migrations/0010_room_access.sql",
+    "db/migrations/0011_lobby_decline_block.sql",
+    "db/migrations/0012_runtime_service.sql",
+    "db/migrations/0013_room_exchange.sql",
+    "db/migrations/0014_room_removals.sql",
+    "db/migrations/0015_guest_joining.sql",
+    "db/migrations/0016_review_fences.sql",
+    "db/migrations/0017_empty_room.sql",
+    "db/migrations/0018_mission_ledger.sql",
+    "db/migrations/0019_default_mission_capture.sql",
+    "db/migrations/0020_typed_mission_turns.sql",
+    "db/migrations/0021_personal_space.sql",
+    "db/migrations/0022_research_readers.sql",
+    "db/migrations/0023_usage_cache.sql",
+    "db/migrations/0024_research_allowance.sql",
+    "db/migrations/0025_research_admission.sql",
+    "db/migrations/0026_research_submission.sql",
+    "db/migrations/0027_report_facts.sql",
+    "db/migrations/0028_research_revocation.sql",
+    "db/migrations/0029_research_spend_bounds.sql",
+    "db/migrations/0030_render_jobs.sql",
+    "db/migrations/0031_research_pdf.sql",
+    "db/migrations/0032_research_rendition.sql",
+    "db/migrations/0033_research_withdrawal_closure.sql",
+    "db/migrations/0034_render_judgement.sql",
+    "db/migrations/0035_announcement_delivery.sql",
+    "db/migrations/0036_section_facts.sql",
+    "db/migrations/0037_amendment_preservation.sql",
+    "db/migrations/0038_design_records.sql",
+    "db/migrations/0039_design_runtime.sql",
+    "db/migrations/0040_design_flow.sql",
+    "db/migrations/0041_design_lifecycle.sql",
+    "db/migrations/0042_source_review_coordination.sql",
+    "db/migrations/0043_design_delivery.sql",
+    "db/migrations/0044_object_write_once.sql",
+    "db/migrations/0045_render_requeue_output.sql",
+    "db/migrations/0046_voice_qualification.sql",
+    "db/migrations/0047_live_call_keys.sql",
+    "db/migrations/0048_project_conversations.sql",
+    "db/migrations/0051_voice_evidence_numbering.sql",
+    "db/migrations/0052_presence_order.sql"
+  ],
+  "rows": [
+    {
+      "ref": "refs/heads/brand/umbral",
+      "sha": "4accd5ac766241992a0e13feee33c429ac1f7982",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/claude/affectionate-cannon-496z9m",
+      "sha": "86d35ad8211c1405ec6d98ed5438f8a9e5bc3466",
+      "pathSetSHA256": "fb8cfdccd368ba49074698eeab94342ec44209a884b3973b85e9a581e1bff00f"
+    },
+    {
+      "ref": "refs/heads/claude/con01-all-context-review",
+      "sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-binding-state-docs",
+      "sha": "0a91caa0e7f5177ebffd3551acafdf0bd5900d64",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-combined-cx80-review",
+      "sha": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-combined-cx84-review",
+      "sha": "342288a2360843e84593aaed95c1d6423b7c8681",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-combined-review",
+      "sha": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-db-boundary-review",
+      "sha": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-decisions-review",
+      "sha": "3b1af9b94413a409214b05203d5fbdf5088435c1",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-docs-review",
+      "sha": "cfaf12958989b5c7bf1d8f7308696a9c485a3905",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-f0-receipt-review",
+      "sha": "ca7a5b9c4ba6cf9197223ca0f3515d18ec9e59e3",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-harness-review",
+      "sha": "f06bd0997a7da2133fe133d0babb5fe43ec98c10",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-integration-review",
+      "sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-route-qual-review",
+      "sha": "154f09f037b8d5b85357ba151219cda703bc60f3",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-runtime-plan-review",
+      "sha": "46ddd769b7182e968da20219a9f6852757419805",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-s1-review",
+      "sha": "32b0c22eecb2210b6dcaff298c5d0d3db39c2406",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-s2-review",
+      "sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-s3-acl-review",
+      "sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-s4-review",
+      "sha": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-stepa-review",
+      "sha": "ae1a12349c84d6ed489d1150ebc9ca0885bdea13",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-g2-stepb-review",
+      "sha": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-list-refusal-review",
+      "sha": "a704469050a38002cad7d595b9f9af58295b48e9",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/con01-project-conversations",
+      "sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/claude/mission-1-repo-setup-yjjjn2",
+      "sha": "f8f7b3d2bd2816b4b3b09dab88173c50fa38b8f5",
+      "pathSetSHA256": "94d441f94d67f68353fc4dfd5ebb1683c71451133754f88940efaec5bf066945"
+    },
+    {
+      "ref": "refs/heads/claude/sdd01-cx0019-corrections",
+      "sha": "59f9881b0db9813d6a7155ccd87164d7e2ebb903",
+      "pathSetSHA256": "9d9d98631f62d43d8396c8c263bd38390fc9af3fcceeadaf5ee3b327a77f036b"
+    },
+    {
+      "ref": "refs/heads/claude/sdd01-native-html-design",
+      "sha": "8136ef4d21c7d8afafd3b5a073b4a35219c0f0ed",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/claude/smc-m02-dsh-upgrade",
+      "sha": "98be792b7f000cf160dba19d227f8087e286d1b7",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/claude/smc-m03-report-v2",
+      "sha": "6284e77acdda1ae2e72ae693294b06fd6ff4f39c",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/claude/smc-m03-research",
+      "sha": "c15dd1c2f292e3f84cb6c3d6187b530cef334635",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/claude/upbeat-feynman-d7jskb",
+      "sha": "c8ae09ead8295db258b86a133ac47d76684657f2",
+      "pathSetSHA256": "f8ac0757f096a8b26f9d055bde60a297061a85bc4062e5d3fa5247b49fa66327"
+    },
+    {
+      "ref": "refs/heads/codex/con01-review-attempt-1",
+      "sha": "6a3ea5c5167815af9317f976a116837a51a97676",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/codex/living-brief-text",
+      "sha": "7d0fd9079e9b24c61669e6f7f8487dd10fa81e35",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/codex/luis-reconciliation",
+      "sha": "aa1434684b1b3b67a1c82c3599885a22471dfcca",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/codex/main-production-reconciliation",
+      "sha": "a2883594beee30398d69a821cccabd518b591eba",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/codex/render-uml-qualification",
+      "sha": "9f3331553eefd5011f6c672e607c1fbc3e10f02b",
+      "pathSetSHA256": "9d9d98631f62d43d8396c8c263bd38390fc9af3fcceeadaf5ee3b327a77f036b"
+    },
+    {
+      "ref": "refs/heads/contributing/before-ready",
+      "sha": "faa1ac0dc47fd0e0113ab9c59b685b2acbdeedff",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/conversations/answers",
+      "sha": "d651931c28a8b8e4de0f5cd8d4c610948fd52e37",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/conversations/decide",
+      "sha": "775a1f3e95d31fe70b0845a8afaa042ec70c786a",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/conversations/start",
+      "sha": "066ea215fbf7bba74eab15c89a98dd4c604412d7",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/deploy/render-vercel",
+      "sha": "ff22a249c5d0ec75ab72f62d775bba347a28a40a",
+      "pathSetSHA256": "1f12ade2a32845db8c18e955d20ee52e88e08e1d0ee9040690a0ef9e87794784"
+    },
+    {
+      "ref": "refs/heads/docs/pack-v0.4",
+      "sha": "459744a1fee941d19f9d2ac3f2bbcc70ce142f33",
+      "pathSetSHA256": "94d441f94d67f68353fc4dfd5ebb1683c71451133754f88940efaec5bf066945"
+    },
+    {
+      "ref": "refs/heads/entry/opening",
+      "sha": "b038447f91b26bdfa8ddb42f12072831798e2aa6",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/fix/address-at-open",
+      "sha": "09a9078c488733ead41551b016b561ef64eddf42",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/fix/studio-browser-account-stores",
+      "sha": "2144bb0231b4d684eb19091161579cb490528920",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/fix/tasks-holds",
+      "sha": "9cf0ab1692be555680ec951875e5cf1be85869ed",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/33-34",
+      "sha": "e83b3c70c78cceca8e846bb7ea23316347fdb28c",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/capacity-validity",
+      "sha": "0d29d66c9bdc4b4056316230c5adb50945f3af38",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/explore-and-base03",
+      "sha": "098b745abd613716ca09a5098acc8c7a5856cfea",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/per-asset-refresh",
+      "sha": "f50c6669feda4afb436ca5887b5f966fe0550117",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/resources-p2s",
+      "sha": "99bbf929ccbdb43d838f2105dec98c6c7bbd216d",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/tasks-p2s",
+      "sha": "a41bc2d69fd499386490e6ae4a3fb1ccb217562e",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/follow-ups/tile-after-retry",
+      "sha": "9cc82eb22e98506340ac9f60e37af198ba26f936",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/goals/personal-space",
+      "sha": "394c28af7b038b613bd144cfa8891296ca08962e",
+      "pathSetSHA256": "fb8cfdccd368ba49074698eeab94342ec44209a884b3973b85e9a581e1bff00f"
+    },
+    {
+      "ref": "refs/heads/home/first-visit",
+      "sha": "8d346233caf5eda11afa7f22124307cc9d48a248",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-00/drop-in-panel",
+      "sha": "df1d5a06a33d37b3979a112b134045000a855722",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-00/preservation-checks",
+      "sha": "55d029996b1c818170385db7aac1063a14ba770a",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-00/real-controller",
+      "sha": "1f76a8f04316300cfc9716449e306b6c26852b2f",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-00/unified-continuation",
+      "sha": "521642b94bf655ac5bc19f2b3106f6bee33ef96e",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-03/direction-gallery",
+      "sha": "62f75f96a50a411b9d0e02e8e6d02cbc2bd1049e",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/act-and-warn",
+      "sha": "96b564a49faf90f8ef73e060cd78f6638dab7e5c",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/arrange",
+      "sha": "226da58508c025135cfbd1a43e1dcc36aec0e9ae",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/capacity-balances",
+      "sha": "f61060671702210648aba6dfe7dd3992e9934526",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/capacity-line",
+      "sha": "1888e3b88e4c529cf741ec349f405e2346ffff62",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/codex-p2s",
+      "sha": "368b75bc3d3bf0813c453bed8d9171ed9becc43c",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/declutter",
+      "sha": "feca723e2cc1b1d8f0a55ae201b8408a08dbc70f",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/effort",
+      "sha": "1326ee3486405de16aa9fc8b4d1f914580feb0c0",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/effort-picker",
+      "sha": "ea0494a6188adc83dcc5daecf2087f1ac0ad24e9",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/history-models",
+      "sha": "0190ab83336c0fab8780d37c23c9b786c0fd18be",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/identity-qol",
+      "sha": "3997fd0712abcf3b367eaf57f31d5a80bcf27e85",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/live",
+      "sha": "e16ad0f77776fb3f884a5ce1449176fcb5f15654",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/live-bridge",
+      "sha": "fcadb3fc03eda27f92e03c89ff6d455a112fecaa",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/panel-ux",
+      "sha": "a14164cdcc5840eef44584980c824924c3dae7aa",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/polish",
+      "sha": "a9d089ae7b535c6d1b0bbc8a020fb9b776a86e5c",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/resource-panel",
+      "sha": "94500c546e742e21a0f879e3d4580c738f359668",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/scan-pace",
+      "sha": "8a34a09200c139b55df823017455f8e12ce21964",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/while-away",
+      "sha": "ef7aa259ddd283def8b297cae926730e10bfe662",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-06/windows-once",
+      "sha": "bf52c4e8d35038c383d9d04890cea9f83110ed73",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/card-p2s",
+      "sha": "2910461a73e3dc49daf6ac5ac6a0ea87ad576d38",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/live-receipts",
+      "sha": "d348bf8f09c394f65e3d7e17374668d31008388f",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/plan",
+      "sha": "df4b6f0068fe187bd6e9870b6e029338beafffea",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/review-ask",
+      "sha": "b7caf587a0874f2aba8cafdde04d609649f0d3e1",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/review-challenge",
+      "sha": "2a78bd123b2a1289e998c9db1c70012071406a9e",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/review-result",
+      "sha": "a767e3c710ac5864ba895b2d7e4640ab0765adbd",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/lfe-07/workboard-readiness",
+      "sha": "7303af9d3e5febad9d38d8db10162b763761043b",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/main",
+      "sha": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/personal/carried-in",
+      "sha": "3f085cdfd07c16679084280e3c2655b2a4c5012a",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/personal/carry-follow-ups",
+      "sha": "26f1787482d5c80d3a07f49524f1ed8b3e5f101d",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/personal/carry-follow-ups-2",
+      "sha": "3b4337e9d575c8f7c3c997536ded38c96dcf36e9",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/personal/carry-package",
+      "sha": "47590490c08fca1dbdeba7a9723f0c5de49a4fd3",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/personal/data",
+      "sha": "b4cbc9eba3d927481c99bdd9c91d043ca1623d05",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/personal/follow-ups",
+      "sha": "091c41a9b23db8583524ca375e18699dfba90097",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/polish/time-words",
+      "sha": "b48ce0fa2b53adb7d8ae67e6a4ecaf56df418b14",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/polish/time-words-2",
+      "sha": "87ebd6aa7dd747501cc6c7ce07d587c06a69b4a4",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/polish/time-words-3",
+      "sha": "20040fb1831bbfc8ac6b94f49de39ddfe904c50d",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/polish/type-fields",
+      "sha": "cc1d49ae430ca5681e7e088ae5fd9b19f4a63e70",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/polish/type-scale",
+      "sha": "9925abe3eb9983de6a0f97ab73ad2998a13598c2",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/project/connections",
+      "sha": "3e96c203b49bed413ac3be57ed1cecb150619ebc",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/project/conversation-follow-ups",
+      "sha": "1190282d850a870f91086cf2926630e2483c3663",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/project/conversation-follow-ups-2",
+      "sha": "3ee0e640a9018d1b2d00080610e477e3b0bf06ef",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/project/conversation-writes",
+      "sha": "c27dc64f5d868e9a40ba0b49b9e2924c22d70a6f",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/project/conversations",
+      "sha": "692a0ef83eabf4995238f794843b367065e1d935",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/alive",
+      "sha": "f83bb86c5a893e78ad4a7ffabfe8d218315fd8e2",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/chat-replies",
+      "sha": "0110b66eea746f57997ba35ec9000177ff529aa3",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/discussion",
+      "sha": "39e440c1e6e2dfa4bef92c164dfda69992102c2c",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/fixture-people",
+      "sha": "fd4d87740a659c4d4a323867514ec14026540a18",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/follow-ups",
+      "sha": "0f193e56603baea50b669cf545f9af7efe3e1674",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/follow-ups-2",
+      "sha": "a634e64ccddedcfdbcae89ec3a8b60712b43a34f",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/follow-ups-3",
+      "sha": "a3a06760bc3a32a837f8a749b3cd17b87f8d3b36",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/follow-ups-4",
+      "sha": "1665bd953404c9ba563f1bf2539e9864d384b413",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/follow-ups-5",
+      "sha": "2e1a821672ffd3a894697836628ea2ad78d847a8",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/follow-ups-6",
+      "sha": "30ab8a24fd370d5866819d5122b222cbee4e4a81",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/following",
+      "sha": "5a3feb7875beb76bc502479bad680c889a05a93f",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/followups-130-fixes",
+      "sha": "5bd4aedcfec075fa2a8f7c002dc595eb31e10f5e",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/honest",
+      "sha": "f527bdfd29e177cb4d645cc712ac34ea1a20b9ba",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/live-version",
+      "sha": "912936e9dc09a326e26c66cf4c9cc929a509ee27",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/made-object",
+      "sha": "9f10f2a11d05bd05d9e03d873dd552c02c3f2737",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/passage",
+      "sha": "7706ed3b3fee44202e6076065e8492450bfc2e65",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/passage-link",
+      "sha": "9d0d8d78f76a3a380095c583985776e86602dd48",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/passage-task",
+      "sha": "79a4a7203c4cf94fac4cd021e6be995f275aa4fd",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/present",
+      "sha": "7915e4704398f7791d7841acb9280fc1af47b8ba",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/recap",
+      "sha": "196acad26c6855dd1dda4d52ff6b54a9ab5abedb",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/return",
+      "sha": "75ea9fa15e88f9a5757f52dddf4b496670dbcfc9",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/review",
+      "sha": "52d5c0aba5083b4f858a8ee4b4d95fe8261aceaf",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/search",
+      "sha": "c36307031259ee305c93a20c663fda5494419ea9",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/so-far",
+      "sha": "2c9e7986dc8f9ed9758d50c9b779349816a7e140",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/stage-captions",
+      "sha": "845e081c6b79d14b651c57fea1f3e5715f968544",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/tiles-overflow",
+      "sha": "815f0dbb196fe14a1d122dd8d5ae20b6a695c542",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/tiles-replies-follow-ups",
+      "sha": "84a33e7af7bc89c20d1197cfca8fba2daf738cdd",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/updates",
+      "sha": "7e6c20312bc1fb52c422d7a5b4c582efd540d798",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/voice-trail",
+      "sha": "b7e70bbc9a8e13097dd12bf905380a0290040bca",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/room/walk",
+      "sha": "32e30df696f38f24b884a14c3187eb67143d563e",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/room/work-line",
+      "sha": "6c89a2594971157c37bc138a10bbca0fb8c4fe44",
+      "pathSetSHA256": "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6"
+    },
+    {
+      "ref": "refs/heads/rooms/access",
+      "sha": "39929967b8c1f3d2d480a3d83245ba5947ed7d02",
+      "pathSetSHA256": "f31e7c555b7a6617335d7437c667ab7a6430e943564f9735dab89d55f050497d"
+    },
+    {
+      "ref": "refs/heads/s1-02/admit-command",
+      "sha": "e85db976efc618d24f220600ddbda5705b8fc091",
+      "pathSetSHA256": "1f12ade2a32845db8c18e955d20ee52e88e08e1d0ee9040690a0ef9e87794784"
+    },
+    {
+      "ref": "refs/heads/s1-02/response-validators",
+      "sha": "66b8ca849a91d1f13253ad13a6f45f93c5861095",
+      "pathSetSHA256": "1f12ade2a32845db8c18e955d20ee52e88e08e1d0ee9040690a0ef9e87794784"
+    },
+    {
+      "ref": "refs/heads/s1-04/studio-shell",
+      "sha": "4bd8cb10a70147254280f52a17c9c65dd10f05ec",
+      "pathSetSHA256": "7ed6b6d50514c25843df647a58cee9304cba7b7cc6db3c1535e71ee5b977750a"
+    },
+    {
+      "ref": "refs/heads/scm-01/paperclip-image-ci",
+      "sha": "ad749f1b527fdbc11af2e21abe35a52bccb173b2",
+      "pathSetSHA256": "95e02364841ede7ecf8d88e77837107e75a7e594f1dd883662e2f60c5c927ab6"
+    },
+    {
+      "ref": "refs/heads/scm-01/workboard-source-review",
+      "sha": "953a4ca2ecd53b85826e405d6aac40233dd6481e",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/sdd-01/voice-qualification-g7",
+      "sha": "5c10bce3060ca867402cb5ba869146a69af057c6",
+      "pathSetSHA256": "4ae0cf283c1d8f38f257ead9226081e14d7a614004f28afbcee95305ed751830"
+    },
+    {
+      "ref": "refs/heads/signin/frictions",
+      "sha": "829892aafaafb3049cba44ec7ffc4f6f480af5e3",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/signin/resend-p2s",
+      "sha": "755b5fccd76b3c35c01ea0b65a1119f51f1eebf5",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/signin/umbral",
+      "sha": "5f612cd49a26b0492b84daf9599ea33ea98565c2",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/spaces/honest",
+      "sha": "b4f38428437c51b8d84698d443afccfe216132e5",
+      "pathSetSHA256": "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654"
+    },
+    {
+      "ref": "refs/heads/studio/after-23",
+      "sha": "38a878b9b5faf149ead1d266342997a61031dfb0",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/studio/audit",
+      "sha": "c0e0a3644b4f21f40a70c1c1fc072effb30cebff",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/studio/combined-23-24-28",
+      "sha": "6e5a12fe512782d3e2d4484bf8bca36bfb57788a",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/studio/personal-space",
+      "sha": "84a7c76bd6996bdf0734ade798dd9a52a54e00a2",
+      "pathSetSHA256": "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1"
+    },
+    {
+      "ref": "refs/heads/studio/precise",
+      "sha": "0554dd69870b50650fd89670677b35a445bf921d",
+      "pathSetSHA256": "f31e7c555b7a6617335d7437c667ab7a6430e943564f9735dab89d55f050497d"
+    },
+    {
+      "ref": "refs/heads/studio/qol",
+      "sha": "0484daa91bf05b64487e048507d664d20721963d",
+      "pathSetSHA256": "82496a421f1f8183874a6ebbcf86745384dc4a4572fa3ce8c7334613173a2039"
+    },
+    {
+      "ref": "refs/heads/studio/quiet-console",
+      "sha": "ce2679f0d22ed7a34f135435354b0f1ec3fa06c0",
+      "pathSetSHA256": "fb8cfdccd368ba49074698eeab94342ec44209a884b3973b85e9a581e1bff00f"
+    },
+    {
+      "ref": "refs/heads/studio/security-headers",
+      "sha": "0a2cc3ed718b714ab358d68c49ba9b48bd847b24",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/studio/side-chat",
+      "sha": "498cd20cdcf85c3c6d4b6555b689224d970f9c9c",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/studio/sign-in",
+      "sha": "1bd786f69a0701a69787f0ffa56c861ebc1473ff",
+      "pathSetSHA256": "fb8cfdccd368ba49074698eeab94342ec44209a884b3973b85e9a581e1bff00f"
+    },
+    {
+      "ref": "refs/heads/studio/vision",
+      "sha": "e5a7b756982f0169a0d4155c81ea37b4935e5b51",
+      "pathSetSHA256": "7ed6b6d50514c25843df647a58cee9304cba7b7cc6db3c1535e71ee5b977750a"
+    },
+    {
+      "ref": "refs/heads/test/room-token-lifetime",
+      "sha": "820ee328efe6c96241c0356839bf340d86fda4ca",
+      "pathSetSHA256": "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c"
+    },
+    {
+      "ref": "refs/heads/tooling/clean-code",
+      "sha": "e9aa9d4ff595a51ffe9a95ba92e42c70af773f7b",
+      "pathSetSHA256": "1f12ade2a32845db8c18e955d20ee52e88e08e1d0ee9040690a0ef9e87794784"
+    },
+    {
+      "ref": "refs/heads/ui/board-blocked",
+      "sha": "96530d9a5101b07203d175f439f98f6f93a43083",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/board-why",
+      "sha": "62be08b3808ff254558d25432047302e28822e9e",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/commands",
+      "sha": "126b79d5d1e7d52974cd3b14a5a2818a5ec2678f",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/conversation-acts",
+      "sha": "e9e6853944a6f6271f5f2a47ffaa4ef7b629bab0",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/dock-header",
+      "sha": "efc76f640df7672fc7d528c2b9d056ed418f99fd",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/hold-stop-text",
+      "sha": "56b1f5b523633619c922be801f2728ada62dba8a",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/home-needs",
+      "sha": "3048ab6b06d196907d3d1f98efa556db72248e59",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-button",
+      "sha": "25d03d3ce8f4e788d3f379d2816eee069b3e1e86",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-card",
+      "sha": "2aff51d12991dd52e1898fa055886e39bbf304fd",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-chip",
+      "sha": "5d5e4989030f9dcb36172310c94acc0fd60a9b6b",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-input",
+      "sha": "3a7debdd3177093efac6781d06e7cd63a33b8e96",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-menu",
+      "sha": "74954afa6e08d3d6c1886c0e3630289ff1bb33f4",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-segmented",
+      "sha": "d740797d80e5c5377189f8a134b482646b931db2",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-sheet",
+      "sha": "172f2746026cebb2215191453b3c3af0ef2e66c1",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-skeleton",
+      "sha": "0a8cb076caf89b4a96c5df8b1a297961b7932a2c",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-tabs",
+      "sha": "70e42bc8c67a38471d8329f8b9c560acfc89dfc7",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/kit-with-con01",
+      "sha": "27524af9b0180bf351d8d2ed5012638bf5b08ed2",
+      "pathSetSHA256": "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1"
+    },
+    {
+      "ref": "refs/heads/ui/lens-address",
+      "sha": "9f787bd53e1d1fe7b89c26512096cc03a1ec2422",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/light-breath",
+      "sha": "d1ea99ad0c96774cf65cce0754a588f9b44c29c6",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/light-fills",
+      "sha": "72f0a4d79661cae7ecaea1f86a9f21a32f91f0d2",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/light-mark",
+      "sha": "ea15b6cb4186236fb616faf73053a1fd2aa688e3",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/light-mode",
+      "sha": "05a678594bc92ff4778f06b5933077a0f694569a",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/light-stage",
+      "sha": "824d0bcb4f23b625b2688bcb9ab145a6e250820c",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/needs-api",
+      "sha": "89b5546de82cc4d709346a6feaca3cc21f89435d",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/places-commands",
+      "sha": "1ebfa238161550a20b15ce1c3a734421b6bc734a",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/press-answers",
+      "sha": "a718d100de8597abff00524a0cacf87be4b84eea",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/section-heads",
+      "sha": "9821142035c07bedac8ec2f49e838512a5b33664",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/shadow",
+      "sha": "52febac4d6a610815591423e1dae4f18b023728c",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/sign-in-lede",
+      "sha": "8cb192a8c0ac0e6ebf82c9d5f60b31a78f1e7de3",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/task-keys",
+      "sha": "b339a8e7732965a6814bc75dfd627e9305cd4570",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/type-leading",
+      "sha": "f846db2f235b837945cab02e687678a26bde9a5e",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/updates-narrow",
+      "sha": "a78222fbc70bf0e0be200f91e309d9185d6d099e",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/view-titles",
+      "sha": "539a4b53c4fc6876cd857d2bb951c1d5ad232656",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/ui/widths",
+      "sha": "76ffd524eaf3971a541457ae46fa314bc45ebb67",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    },
+    {
+      "ref": "refs/heads/wbc-02/reviewer-provisioning-claim",
+      "sha": "bf6fd711faafef96dbad1b8987c27e3d033f8e93",
+      "pathSetSHA256": "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26"
+    }
+  ],
+  "reservationMade": false,
+  "limit": "Unpublished local-owner reservations and any PR head outside these branch heads require acknowledgement/recensus before atomic reservation.",
+  "pathSets": {
+    "0868f23cbe389cae2f741a5cf703b30203e4907021afd1691a1635ce0cdf79a1": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "fb8cfdccd368ba49074698eeab94342ec44209a884b3973b85e9a581e1bff00f": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "ed15b4a1eef5e1882a73e46a30e73a3804eca236cf647629fe686daeb346e1e1": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql",
+        "db/migrations/0038_design_records.sql",
+        "db/migrations/0039_design_runtime.sql",
+        "db/migrations/0040_design_flow.sql",
+        "db/migrations/0041_design_lifecycle.sql",
+        "db/migrations/0042_source_review_coordination.sql",
+        "db/migrations/0043_design_delivery.sql",
+        "db/migrations/0044_object_write_once.sql",
+        "db/migrations/0045_render_requeue_output.sql",
+        "db/migrations/0048_project_conversations.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "94d441f94d67f68353fc4dfd5ebb1683c71451133754f88940efaec5bf066945": {
+      "migrations": [],
+      "contract_paths": []
+    },
+    "9d9d98631f62d43d8396c8c263bd38390fc9af3fcceeadaf5ee3b327a77f036b": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql",
+        "db/migrations/0038_design_records.sql",
+        "db/migrations/0039_design_runtime.sql",
+        "db/migrations/0040_design_flow.sql",
+        "db/migrations/0041_design_lifecycle.sql",
+        "db/migrations/0042_source_review_coordination.sql",
+        "db/migrations/0043_design_delivery.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "a69a5696a8ca50023d4ea3cd56189afc9d1819a08fa17c6c9217ed05380e3654": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql",
+        "db/migrations/0038_design_records.sql",
+        "db/migrations/0039_design_runtime.sql",
+        "db/migrations/0040_design_flow.sql",
+        "db/migrations/0041_design_lifecycle.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "ab7445058c33ff2c6494c2aca38a6e56eb7f778fa2af8a89cd8de147283bd24c": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "56f31290088ee4464c5939563a52aa077f52f12951dddd8ccf72ae69277b8fb6": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "f8ac0757f096a8b26f9d055bde60a297061a85bc4062e5d3fa5247b49fa66327": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "a5ca51b67dbc0b769ef4359de13074457b29b85dede8f3c53b31aba4601d4d26": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql",
+        "db/migrations/0038_design_records.sql",
+        "db/migrations/0039_design_runtime.sql",
+        "db/migrations/0040_design_flow.sql",
+        "db/migrations/0041_design_lifecycle.sql",
+        "db/migrations/0042_source_review_coordination.sql",
+        "db/migrations/0043_design_delivery.sql",
+        "db/migrations/0044_object_write_once.sql",
+        "db/migrations/0045_render_requeue_output.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "1f12ade2a32845db8c18e955d20ee52e88e08e1d0ee9040690a0ef9e87794784": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "f31e7c555b7a6617335d7437c667ab7a6430e943564f9735dab89d55f050497d": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "7ed6b6d50514c25843df647a58cee9304cba7b7cc6db3c1535e71ee5b977750a": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "95e02364841ede7ecf8d88e77837107e75a7e594f1dd883662e2f60c5c927ab6": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql",
+        "db/migrations/0038_design_records.sql",
+        "db/migrations/0039_design_runtime.sql",
+        "db/migrations/0040_design_flow.sql",
+        "db/migrations/0041_design_lifecycle.sql",
+        "db/migrations/0042_source_review_coordination.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "4ae0cf283c1d8f38f257ead9226081e14d7a614004f28afbcee95305ed751830": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql",
+        "db/migrations/0012_runtime_service.sql",
+        "db/migrations/0013_room_exchange.sql",
+        "db/migrations/0014_room_removals.sql",
+        "db/migrations/0015_guest_joining.sql",
+        "db/migrations/0016_review_fences.sql",
+        "db/migrations/0017_empty_room.sql",
+        "db/migrations/0018_mission_ledger.sql",
+        "db/migrations/0019_default_mission_capture.sql",
+        "db/migrations/0020_typed_mission_turns.sql",
+        "db/migrations/0021_personal_space.sql",
+        "db/migrations/0022_research_readers.sql",
+        "db/migrations/0023_usage_cache.sql",
+        "db/migrations/0024_research_allowance.sql",
+        "db/migrations/0025_research_admission.sql",
+        "db/migrations/0026_research_submission.sql",
+        "db/migrations/0027_report_facts.sql",
+        "db/migrations/0028_research_revocation.sql",
+        "db/migrations/0029_research_spend_bounds.sql",
+        "db/migrations/0030_render_jobs.sql",
+        "db/migrations/0031_research_pdf.sql",
+        "db/migrations/0032_research_rendition.sql",
+        "db/migrations/0033_research_withdrawal_closure.sql",
+        "db/migrations/0034_render_judgement.sql",
+        "db/migrations/0035_announcement_delivery.sql",
+        "db/migrations/0036_section_facts.sql",
+        "db/migrations/0037_amendment_preservation.sql",
+        "db/migrations/0038_design_records.sql",
+        "db/migrations/0039_design_runtime.sql",
+        "db/migrations/0040_design_flow.sql",
+        "db/migrations/0041_design_lifecycle.sql",
+        "db/migrations/0042_source_review_coordination.sql",
+        "db/migrations/0043_design_delivery.sql",
+        "db/migrations/0044_object_write_once.sql",
+        "db/migrations/0045_render_requeue_output.sql",
+        "db/migrations/0046_voice_qualification.sql",
+        "db/migrations/0047_live_call_keys.sql",
+        "db/migrations/0051_voice_evidence_numbering.sql",
+        "db/migrations/0052_presence_order.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    },
+    "82496a421f1f8183874a6ebbcf86745384dc4a4572fa3ce8c7334613173a2039": {
+      "migrations": [
+        "db/migrations/0001_core.sql",
+        "db/migrations/0002_roles_rls.sql",
+        "db/migrations/0003_atomic_commands.sql",
+        "db/migrations/0004_queue_ownership.sql",
+        "db/migrations/0005_event_notify.sql",
+        "db/migrations/0006_idempotent_project_creation.sql",
+        "db/migrations/0007_dispatch_fencing.sql",
+        "db/migrations/0008_dispatch_result_idempotent.sql",
+        "db/migrations/0009_project_room.sql",
+        "db/migrations/0010_room_access.sql",
+        "db/migrations/0011_lobby_decline_block.sql"
+      ],
+      "contract_paths": [
+        "packages/contracts/openapi/openapi.json"
+      ]
+    }
+  },
+  "fullRawSHA256": "97651e46e88c0d5ae7fed05e1e34b814857fb20f8f5b205e5bc13ceebd34eac7",
+  "fullRawBytes": 368832
+}

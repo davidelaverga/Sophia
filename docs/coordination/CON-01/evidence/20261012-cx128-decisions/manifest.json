@@ -1,0 +1,38 @@
+{
+  "fixture-cleanup.json": {
+    "bytes": 89,
+    "sha256": "2dca3da65fed6401add88d03c5896b88f070b80e57077aabf34ea75238e83255"
+  },
+  "independent-fixture-receipt.json": {
+    "bytes": 2217,
+    "sha256": "8b74367e666f30756ab354b9c1c57208e968266a5c9cd6a6f1d8521d6f687ce4"
+  },
+  "published-heads-census.json": {
+    "bytes": 66923,
+    "sha256": "0bc85213d679e27a77f0dc7cb2422b91bf196a458403dd62e66059918f8db2cf"
+  },
+  "withdraw-after-desktop.dom.txt": {
+    "bytes": 7213,
+    "sha256": "c8c7891c8d3620e8699f63066a272a28ff772653b0e344a4895b4be3b9369b08"
+  },
+  "withdraw-after-desktop.png": {
+    "bytes": 90696,
+    "sha256": "77c50ad12bbe9314b63824fe2f9aa3d1bedae8c8a6783aeba03196ef61d305d5"
+  },
+  "withdraw-after-mobile.dom.txt": {
+    "bytes": 3731,
+    "sha256": "11e9b2d679b98cac7796d44e3e8aefdb732c74a5b15823c363ef3a755c9cbb98"
+  },
+  "withdraw-after-mobile.png": {
+    "bytes": 43793,
+    "sha256": "0704c1d49377a6eb73b36d744abf6cc3e801816f71ddfba17f9ddcda8d7bec38"
+  },
+  "withdraw-before.dom.txt": {
+    "bytes": 7022,
+    "sha256": "d08827f5a514ae79e65c71cd7f0394bfcb7fea617f156b1a53c5e81c4b5ffa2f"
+  },
+  "withdraw-before.png": {
+    "bytes": 89127,
+    "sha256": "94efd767b77a3b24c677a339c7c4896362f6c0eabbff50fb89fced47822c1301"
+  }
+}
