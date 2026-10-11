@@ -794,9 +794,13 @@
       "required_evidence": "Long-context fixture + request/accounting inspection",
       "gate": "G2/G4",
       "status": "not_run",
-      "evidence_refs": [],
+      "evidence_refs": [
+        "CX-0093.md"
+      ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
-      "baseline_evidence": []
+      "baseline_evidence": [],
+      "current_checkpoint": "CX-0093.md",
+      "latest_checkpoint": "N1 L0 scoped missing-fact failure on3c independently reproduced and corrected36d independently verified17committed+7ownpass. Native/accounting/actual-app full evidence remains unqualified."
     },
     {
       "id": "CON01-A29",
@@ -955,19 +959,28 @@
       "review_refs": [
         "CX-0092.md"
       ]
+    },
+    {
+      "candidate_sha": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+      "candidate_tree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
+      "parent": "3c0e19b4da9cc77ecb54b3fc5b3226439617fe91",
+      "level": "N1 pure renderer L0 only; independent affected failure-before/pass-after; no DB/app/native/provider",
+      "review_refs": [
+        "CX-0093.md"
+      ]
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0092.md",
+    "record": "CX-0093.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
-    "supplementalCandidate": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
-    "supplementalTree": "492cbabfe1a3efe1b3720124cf7f3b81e64486a4",
+    "supplementalCandidate": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+    "supplementalTree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "progress: immutable N3 source and actual PostgreSQL independently qualified within named scope; all36 full status values retained",
+    "statement": "progress: concrete N1 contract and complete immutable source reviewed; independent missing-fact failure corrected by Claude and independently rechecked; all36 full statuses retained",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "N3 exact source and named real-PG17.6 scopes pass; earlier held scopes retained",
+      "locally_verified": "corrected N1 L0 renderer/tests only; independent before6pass1fail, after7pass; committed17pass",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -975,9 +988,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/spend0",
-    "cleanup": "Both owned PG-only clusters stopped/removed and databases dropped, wrapper exits0. All82 previous actual-app stacks settled per CX90. Worktrees retained.",
-    "next": "Independently review concrete N1 contract then immutable renderer/test candidate; shared/live holds remain"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; Sophia hosted/native/provider/missionSpend0; one GitHub review request usage unreported",
+    "cleanup": "All current commands terminal; reviewer worktrees clean. All82 previous actual-app stacks and CX92 both PG-only clusters remain settled. No new server/native/DB/browser. Immutable worktrees retained.",
+    "next": "Inspect concrete N2 assembly/recording proposal and exact36d automatic review at next actual execution checkpoint before shared contract finalized"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1125,24 +1138,26 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0091.md",
+    "record": "CX-0092.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+    "supplementalCandidate": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
+    "supplementalTree": "492cbabfe1a3efe1b3720124cf7f3b81e64486a4",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "progress: remaining G2 proposal independently reviewed, subscription adapter compatibility obligations established; N3 source preparation selected",
+    "statement": "progress: immutable N3 source and actual PostgreSQL independently qualified within named scope; all36 full status values retained",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "earlier named scopes retained; this checkpoint static only",
-      "scoped_delta_reviewed": "proposal/interface only; N3 not yet returned",
+      "locally_verified": "N3 exact source and named real-PG17.6 scopes pass; earlier held scopes retained",
+      "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no hosted/native/provider/spend effect",
-    "cleanup": "no new local stack; CX90 records all82 prior owned stacks settled. Candidate worktrees retained. No live rollback performed or qualified.",
-    "next": "independently review immutable N3 candidate and affected real-PG tests before N1/shared work"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/spend0",
+    "cleanup": "Both owned PG-only clusters stopped/removed and databases dropped, wrapper exits0. All82 previous actual-app stacks settled per CX90. Worktrees retained.",
+    "next": "Independently review concrete N1 contract then immutable renderer/test candidate; shared/live holds remain"
   },
   "checkpoint_history": [
     {
@@ -1311,6 +1326,28 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no hosted/native/provider/spend effect",
       "cleanup": "no new local stack; CX90 records all82 prior owned stacks settled. Candidate worktrees retained. No live rollback performed or qualified.",
       "next": "independently review immutable N3 candidate and affected real-PG tests before N1/shared work"
+    },
+    {
+      "record": "CX-0092.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
+      "supplementalTree": "492cbabfe1a3efe1b3720124cf7f3b81e64486a4",
+      "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "statement": "progress: immutable N3 source and actual PostgreSQL independently qualified within named scope; all36 full status values retained",
+      "readiness": {
+        "source_ready": true,
+        "locally_verified": "N3 exact source and named real-PG17.6 scopes pass; earlier held scopes retained",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/spend0",
+      "cleanup": "Both owned PG-only clusters stopped/removed and databases dropped, wrapper exits0. All82 previous actual-app stacks settled per CX90. Worktrees retained.",
+      "next": "Independently review concrete N1 contract then immutable renderer/test candidate; shared/live holds remain"
     }
   ]
 }

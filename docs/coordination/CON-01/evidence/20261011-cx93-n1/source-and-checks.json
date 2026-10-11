@@ -1,0 +1,65 @@
+{
+  "old": {
+    "commit": "3c0e19b4da9cc77ecb54b3fc5b3226439617fe91",
+    "tree": "647330756757b07c3c0bbcaa1e9a6ade367d85a7",
+    "parent": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
+    "diff": {
+      "files": 2,
+      "added": 1017,
+      "removed": 0
+    }
+  },
+  "corrected": {
+    "commit": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+    "tree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
+    "parent": "3c0e19b4da9cc77ecb54b3fc5b3226439617fe91",
+    "diff": {
+      "files": 2,
+      "added": 89,
+      "removed": 11
+    },
+    "sha256": {
+      "packages/persistence/src/conversation-context.ts": "f0eed3990674cf5000a000437cf2dbe2d6fbb09b58c8bd80da00f70be4c2a724",
+      "packages/persistence/src/conversation-context.test.ts": "06266f252ee100fa19d825cd42bbd48b75eac5599db1bdfee1b03be3e3d69a4e",
+      "db/candidates/con01-s1-reply-states.sql": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "packages/persistence/src/conversation-reply-states.db.test.ts": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0",
+      "db/migrations/0048_project_conversations.sql": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35"
+    }
+  },
+  "toolchain": {
+    "node": "24.21.0",
+    "pnpm": "11.7.0"
+  },
+  "checks": {
+    "bothFrozenOfflineInstalls": 0,
+    "oldCommittedTests": {
+      "exit": 0,
+      "passed": 16,
+      "failed": 0,
+      "skipped": 0
+    },
+    "correctedCommittedTests": {
+      "exit": 0,
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ownExactBefore": {
+      "exit": 1,
+      "passed": 6,
+      "failed": 1,
+      "skipped": 0
+    },
+    "ownExactAfter": {
+      "exit": 0,
+      "passed": 7,
+      "failed": 0,
+      "skipped": 0
+    },
+    "bothPersistenceTypechecks": 0,
+    "bothChangedFileTypeAwareLintDenyWarnings": 0,
+    "bothChangedFileFormats": 0,
+    "bothDiffChecks": 0
+  },
+  "scope": "L0 only; source and local pure renderer tests, not actual compiler/database/app/native/provider"
+}

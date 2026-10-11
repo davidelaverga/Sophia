@@ -1,0 +1,124 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0093",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "classification": "progress: concrete N1 contract and complete immutable source reviewed; independent missing-fact failure corrected by Claude and independently rechecked",
+  "verdict": "P2 scoped resolved; corrected N1 scoped-qualified L0 only, no whole G2/G4/native/live qualification",
+  "N1": {
+    "old": {
+      "commit": "3c0e19b4da9cc77ecb54b3fc5b3226439617fe91",
+      "tree": "647330756757b07c3c0bbcaa1e9a6ade367d85a7",
+      "parent": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
+      "diff": {
+        "files": 2,
+        "added": 1017,
+        "removed": 0
+      }
+    },
+    "corrected": {
+      "commit": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+      "tree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
+      "parent": "3c0e19b4da9cc77ecb54b3fc5b3226439617fe91",
+      "diff": {
+        "files": 2,
+        "added": 89,
+        "removed": 11
+      },
+      "sha256": {
+        "packages/persistence/src/conversation-context.ts": "f0eed3990674cf5000a000437cf2dbe2d6fbb09b58c8bd80da00f70be4c2a724",
+        "packages/persistence/src/conversation-context.test.ts": "06266f252ee100fa19d825cd42bbd48b75eac5599db1bdfee1b03be3e3d69a4e",
+        "db/candidates/con01-s1-reply-states.sql": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+        "packages/persistence/src/conversation-reply-states.db.test.ts": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0",
+        "db/migrations/0048_project_conversations.sql": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35"
+      }
+    },
+    "toolchain": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0"
+    },
+    "checks": {
+      "bothFrozenOfflineInstalls": 0,
+      "oldCommittedTests": {
+        "exit": 0,
+        "passed": 16,
+        "failed": 0,
+        "skipped": 0
+      },
+      "correctedCommittedTests": {
+        "exit": 0,
+        "passed": 17,
+        "failed": 0,
+        "skipped": 0
+      },
+      "ownExactBefore": {
+        "exit": 1,
+        "passed": 6,
+        "failed": 1,
+        "skipped": 0
+      },
+      "ownExactAfter": {
+        "exit": 0,
+        "passed": 7,
+        "failed": 0,
+        "skipped": 0
+      },
+      "bothPersistenceTypechecks": 0,
+      "bothChangedFileTypeAwareLintDenyWarnings": 0,
+      "bothChangedFileFormats": 0,
+      "bothDiffChecks": 0
+    },
+    "scope": "L0 only; source and local pure renderer tests, not actual compiler/database/app/native/provider"
+  },
+  "authorEvidence": [
+    6104664458,
+    6104670928,
+    6104713921
+  ],
+  "finding": {
+    "severity": "P2",
+    "expected": "BINDING_MAP8.7.2 missing stated as-is",
+    "observedOld": "Missing notes/work facts discarded, same rendered bytes; actual generated parser accepts both L0 synthetic shapes",
+    "corrected": "Each supplied fact explicit canonical-order template; notes/work contents excluded; unknown/duplicate facts refused",
+    "status": "scoped_resolved_on36d"
+  },
+  "coordination": {
+    "exactMission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "messages": [
+      458,
+      460
+    ],
+    "automaticReviewRequest": 6104723372,
+    "automaticReviewResult": null,
+    "nextSelection": "N2 concrete assembly/recording/ownership proposal only, no code/shared changes yet; N4 still proposal"
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "corrected N1 L0 renderer/tests only; independent before6pass1fail, after7pass; committed17pass",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "sophiaRuntimeProviderCalls": 0,
+    "missionSpend": 0,
+    "githubReviewRequests": 1,
+    "githubReviewUsage": "not reported; no remaining subscription-capacity claim",
+    "newActualAppStacks": 0,
+    "newPgClusters": 0,
+    "unresolvedNewEffects": false
+  },
+  "acceptance": "all36 full case status values retained",
+  "cleanup": "All current commands terminal; reviewer worktrees clean. All82 previous actual-app stacks and CX92 both PG-only clusters remain settled. No new server/native/DB/browser. Immutable worktrees retained.",
+  "rollback": "CX92 old-schema incompatibility after terminal uncertain data remains; no live rollback qualification or action",
+  "next": "Inspect concrete N2 assembly/recording proposal and exact36d automatic review at next actual execution checkpoint before shared contract finalized"
+}

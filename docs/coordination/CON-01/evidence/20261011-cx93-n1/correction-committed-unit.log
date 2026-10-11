@@ -1,0 +1,27 @@
+▶ CON-01 N1: the conversation context renderer (L0)
+  ✔ renders the pinned bytes for a small project, in its order, the fragments concatenating to the text (1.222458ms)
+  ✔ renders only the compiler it knows: another identity is refused (0.11925ms)
+  ✔ says why there is no mission, and never fills one in (0.379125ms)
+  ✔ orders decisions newest first as the compiler selects them, ties by id descending, whatever order they came in (0.385ms)
+  ✔ counts what it leaves out only as far as the compiler counted: 21 says one more, 50 says there may be older ones (0.418125ms)
+  ✔ keeps each list within its byte ceiling, labels and markers counted, whole items, and never skips past a long one (1.115209ms)
+  ✔ labels proposals as not decided, a stale one as proposed against an earlier mission, a proposed mission with its fields (0.235833ms)
+  ✔ reads earlier messages as the newest contiguous run within 40 and 32 KiB, shown oldest first, withdrawn ones not read (1.408ms)
+  ✔ shows Sophia as Sophia and a member by the name shown, quoted, never as who they are (0.223041ms)
+  ✔ quotes every record value on one line: no value opens a section, poses as a label or ends its line (0.522417ms)
+  ✔ says who accepted the mission by its actor id (0.150792ms)
+  ✔ states each missing fact as the compiler supplies it, in its order, and never the contents of notes or work (0.316334ms)
+  ✔ renders none of what it excludes: the title, decided, notes, history, work, policy, capabilities and actor ids (0.135375ms)
+  ✔ reads the asking message whole and last; without it there is nothing to render (0.2785ms)
+  ✔ refuses input it can’t render truthfully: another conversation, past the cutoff, a seq twice, a time or a length off (1.429333ms)
+  ✔ gives the same bytes for the same records, whatever order they came in (0.636625ms)
+  ✔ stays within each ceiling and the whole one, every section at its schema limits with the costliest escaping (13.361208ms)
+✔ CON-01 N1: the conversation context renderer (L0) (23.302959ms)
+ℹ tests 17
+ℹ suites 1
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 108.010208

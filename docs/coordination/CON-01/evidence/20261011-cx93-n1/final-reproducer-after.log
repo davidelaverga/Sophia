@@ -1,0 +1,15 @@
+✔ Unicode codepoint asking/name ceilings preserve whole values, plus1 refuses (3.063792ms)
+✔ Frozen reordered canonical arrays give exact fragments/bytes and whole capped newest prefixes (7.584166ms)
+✔ Recent over-budget Sophia answer cannot be skipped for older text; tombstone content never read (0.871375ms)
+✔ Foreign conversation, post-cutoff, duplicate IDs/seqs and unsafe cutoffs refuse (0.3375ms)
+✔ Excluded fields are not read; compiler change and withdrawn ask fail with bound codes (0.338834ms)
+✔ Canonical accepted actor and hostile raw content remain separate and explicitly labelled (0.302542ms)
+✔ Standing binding8.7.2 requires missing[] facts stated as supplied, not silently discarded (8.3975ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 128.158958

@@ -1,0 +1,26 @@
+▶ CON-01 N1: the conversation context renderer (L0)
+  ✔ renders the pinned bytes for a small project, in its order, the fragments concatenating to the text (1.433042ms)
+  ✔ renders only the compiler it knows: another identity is refused (0.119625ms)
+  ✔ says why there is no mission, and never fills one in (0.382708ms)
+  ✔ orders decisions newest first as the compiler selects them, ties by id descending, whatever order they came in (0.27975ms)
+  ✔ counts what it leaves out only as far as the compiler counted: 21 says one more, 50 says there may be older ones (0.392667ms)
+  ✔ keeps each list within its byte ceiling, labels and markers counted, whole items, and never skips past a long one (0.699291ms)
+  ✔ labels proposals as not decided, a stale one as proposed against an earlier mission, a proposed mission with its fields (0.099458ms)
+  ✔ reads earlier messages as the newest contiguous run within 40 and 32 KiB, shown oldest first, withdrawn ones not read (0.440834ms)
+  ✔ shows Sophia as Sophia and a member by the name shown, quoted, never as who they are (0.275292ms)
+  ✔ quotes every record value on one line: no value opens a section, poses as a label or ends its line (0.241625ms)
+  ✔ says who accepted the mission by its actor id, and whether notes or work exist never changes a byte (0.104541ms)
+  ✔ renders none of what it excludes: the title, decided, notes, history, work, policy, capabilities and actor ids (0.059584ms)
+  ✔ reads the asking message whole and last; without it there is nothing to render (0.1525ms)
+  ✔ refuses input it can’t render truthfully: another conversation, past the cutoff, a seq twice, a time or a length off (0.945875ms)
+  ✔ gives the same bytes for the same records, whatever order they came in (0.274459ms)
+  ✔ stays within each ceiling and the whole one, every section at its schema limits with the costliest escaping (9.11075ms)
+✔ CON-01 N1: the conversation context renderer (L0) (15.675167ms)
+ℹ tests 16
+ℹ suites 1
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 118.556583
