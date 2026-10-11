@@ -377,6 +377,10 @@ select option {
   background: var(--core);
   border-color: transparent;
 }
+/* On, it still answers: a press would turn it off. */
+.round[aria-pressed='true']:hover {
+  background: var(--core-hover);
+}
 .round.leave:hover {
   color: var(--rose);
   border-color: rgba(238, 159, 176, 0.4);
