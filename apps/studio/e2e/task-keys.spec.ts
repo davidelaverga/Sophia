@@ -15,6 +15,12 @@ test('keys · H holds, then resumes; S asks to stop and the safe answer takes th
   await expect(sheet.locator('.task-sheet-plan')).toContainText('S stop')
   await page.keyboard.press('h')
   await expect(sheet.locator('.act-steps')).toContainText('Held.')
+  // The key held down repeats: a repeat is not a press, so the Resume the hold brought is not pressed by it.
+  await page.evaluate(() =>
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'h', repeat: true, bubbles: true })),
+  )
+  await expect(sheet.locator('.act-steps')).not.toContainText('Resumed.')
+  await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Held')
   await expect(page.locator('[data-task="work-2"] .task-chip')).toHaveText('Held')
   await page.keyboard.press('h')
   await expect(sheet.locator('.act-steps')).toContainText('Resumed.')
