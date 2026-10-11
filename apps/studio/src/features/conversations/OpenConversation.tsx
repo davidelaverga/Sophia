@@ -462,15 +462,16 @@ function MessageItem(props: {
           <Mark />
         </span>
       )}
-      {/* The turn (the name, the bubble, the acts, the clock) is the acts' box: the thread's width, from the name's line. */}
-      <div className="conv-turn">
-        <span className="conv-msg-by">
-          {messageBy(m, me)}
-          <span className="sr-only">
-            {' · '}
-            <time dateTime={m.at}>{when(m.at, now)}</time>
-          </span>
+      <span className="conv-msg-by">
+        {messageBy(m, me)}
+        <span className="sr-only">
+          {' · '}
+          <time dateTime={m.at}>{when(m.at, now)}</time>
         </span>
+      </span>
+      {/* The turn (the bubble, the acts, the clock) is the acts' box: the thread's width, from the bubble's top line;
+          the name stays before it, so the acts never share its coordinates. */}
+      <div className="conv-turn">
         <div className="conv-msg-body">
           {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
           {sophia && at}
