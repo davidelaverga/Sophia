@@ -361,6 +361,18 @@ test('five lanes under 1221 px stand three and two, each 220 and up; a thread fo
   expect(lanes).toHaveLength(5)
   for (const l of lanes) expect(l.width).toBeGreaterThanOrEqual(220)
   expect(new Set(lanes.map((l) => l.top)).size).toBe(2) // three in the first row, two in the second
+  // Narrower, the board's own rows win over the five-lane rule: two columns at 800, one at 390.
+  const rows = async () =>
+    new Set(
+      await page.evaluate(() =>
+        [...document.querySelectorAll('.lane')].map((l) => Math.round(l.getBoundingClientRect().top)),
+      ),
+    ).size
+  await page.setViewportSize({ width: 800, height: 800 })
+  expect(await rows()).toBe(3)
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await rows()).toBe(5)
+  await page.setViewportSize({ width: 1100, height: 800 })
   // The thread is measured again as the tiles move (the pointer stays on the same tile): its end meets the waiting
   // tile's own edge in the new layout, not where the tile stood before.
   await tile(page, 'work-3').hover()
