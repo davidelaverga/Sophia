@@ -71,3 +71,7 @@
   is scrolled into the list's view, and the rows' ids are the list's own.
 - The palette does not hand its query to Search: it opens Search. `ProjectSearch` would take an initial query.
 - Records (a report, a task) in the palette: that is Search's (`/`), under the flag.
+- **After the review (Codex on #238, 2026-10-11)**: in a call the palette has three children (the call's row, the
+  field, the list) and named two rows, so the list fell into an implicit row and grew past the 480 px cap. With the
+  call's row the palette names three rows, the list still the one that shrinks and scrolls. commands.spec: in a call
+  the dialog keeps to 480, the list within it and scrolling.
