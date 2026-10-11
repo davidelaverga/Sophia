@@ -6,7 +6,7 @@ import { useSlidingThumb } from '@sophia/ui'
 import { routePath, viewsShown, type View } from '../../app/route.ts'
 import { VISION } from '../../app/vision.ts'
 
-const LABEL: Record<View, string> = {
+export const VIEW_LABEL: Record<View, string> = {
   studio: 'Studio',
   conversations: 'Conversations',
   goals: 'Goals',
@@ -91,7 +91,7 @@ export function ViewNav({ projectId, view, onShow }: Props) {
           aria-current={v === view ? 'page' : undefined}
           onClick={(e) => follow(e, v)}
         >
-          {LABEL[v]}
+          {VIEW_LABEL[v]}
         </a>
       ))}
     </nav>
