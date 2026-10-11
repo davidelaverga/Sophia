@@ -519,6 +519,77 @@
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
+/* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
+   it on the same hairlines as the projects'. */
+.places .hw-side {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.places .hw-side .hw-light {
+  width: 220px;
+  margin: -40px 0 0 -44px;
+  align-self: flex-start;
+}
+.places .hw-side .hw-needs {
+  margin-top: 0;
+}
+.places .hw-kind {
+  display: inline-flex;
+}
+.places .hw-kind svg {
+  width: 14px;
+  height: 14px;
+}
+.places .hw-row[data-tone='late'] .hw-m {
+  color: var(--rose);
+}
+.places .hw-quiet {
+  color: var(--text-3);
+  font-size: 13px;
+  animation: hw-in 520ms var(--ease) var(--d) both;
+}
+/* The side's rows by the side's own width: under 440 px a row takes two lines (its note under its title), as on a
+   phone. Under 1100 px of page the page is one column, the side under the words, rather than a side too narrow for a
+   row (Codex on #237). */
+.places .hw-side {
+  container: hw-side / inline-size;
+}
+@container hw-side (max-width: 440px) {
+  .places .hw-side .hw-row {
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'n t go'
+      'n m go';
+    row-gap: 2px;
+    height: auto;
+    min-height: 58px;
+    padding: 10px 0;
+  }
+  .places .hw-side .hw-n {
+    grid-area: n;
+  }
+  .places .hw-side .hw-t {
+    grid-area: t;
+  }
+  .places .hw-side .hw-m {
+    grid-area: m;
+    white-space: normal;
+  }
+  .places .hw-side .hw-go {
+    grid-area: go;
+  }
+}
+@media (min-width: 861px) and (max-width: 1100px) {
+  .places .hw:has(.hw-side) {
+    grid-template-columns: minmax(0, 560px);
+  }
+  .places .hw-side .hw-light {
+    margin: 0 0 0 -44px;
+  }
+}
 .places .sdot {
   width: 8px;
   height: 8px;
@@ -1666,6 +1737,13 @@
     margin: 0;
     opacity: 0.85;
     pointer-events: none;
+  }
+  /* The column follows the words; her light keeps the phone's place, top right of the page. */
+  .places .hw-side {
+    position: static;
+  }
+  .places .hw-side .hw-light {
+    margin: 0;
   }
   /* A row in two lines: its note under its title, its action on the right. */
   .places .hw-row {
