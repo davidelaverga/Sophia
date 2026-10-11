@@ -216,7 +216,8 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
 export function StudioShell(props: Props) {
   const { projectId, identity, room, snapshot, panel, looking, captions: held, made, catchUp = null } = props
   const background = props.background ?? false
-  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId)
+  // Out of sight for its call, the shell is not the page's: the address is another view's, left alone.
+  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId, !background)
   const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
