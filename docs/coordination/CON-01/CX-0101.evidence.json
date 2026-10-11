@@ -1,0 +1,35 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0101.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "supplementalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "N4 binding reviewed before immutable candidate; required whole-context digest erasure correction returned.20 independent cases prepared_not_run. Setup and PR190 read-only discovery advanced. All36 full acceptance statuses unchanged.",
+  "readiness": {
+    "source_ready": true,
+    "N2_source_ready": true,
+    "locally_verified": "Previous named N2 actual37+independent16PASS retained; no N4 execution or useful native/provider/hosted proof this checkpoint",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false,
+    "N4_source_ready": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Inbox privately bound; actual second subject/role/cohort, subscription route and finite allowance unbound. No hosted/provider/native/spend effects.",
+  "cleanup": "No new PG or app stack. Temporary tabs8/9 closed; existing signed-in Studio preserved. Private logs/files0600. Previous CX99/100 PG cleanup remains dated evidence.",
+  "next": "Read primary response, inspect returned immutable amended N4 candidate, adapt and execute own real-PG cases and affected N2 composition; resolve concrete setup batch inputs before approval/effects.",
+  "evidence": "evidence/20261011-cx101-n4-binding/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 0,
+    "sophiaProviderCalls": 0,
+    "hostedMutations": 0,
+    "missionSpend": 0
+  },
+  "rollback": "No live rollback. Governed data/uncertainty must remain; compatible artifact and rehearsal unbound."
+}

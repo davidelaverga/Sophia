@@ -1,5 +1,10 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Setup discovery — CX-0101, 2026-10-11
+
+Actual Supabase main Production `ikigawvpaxnvdjzzzhws` healthy; included Auth headroom visible with delayed usage. No Sophia ledger refresh: dashboard No migrations is Supabase's own list. Resend invitation source inspected, live mailer cost/configuration unbound. Studio has no sophia-build meta; asset filename does not resolve sourceSHA. Account quota telemetry available through Codex tool and Claude desktop, private values retained outside Git; no Sophia monitoring/connection proof. [Safe discovery](evidence/20261011-cx101-n4-binding/setup-discovery.json). No setup effects; OP1r2/OP2r3 still draft_not_authorized. Latest CX100 service tuple below remains the dated observation, not a refreshed execution window.
+
+
 ## Read-only dashboard refresh — CX-0100, 2026-10-11
 
 Actual authenticated Render/Vercel dashboard reads refreshed all four services and Studio production. API `dep-db0h6jad0e5s73bkine0` / `1e912b7e`; native host `dep-db02hcou01pc738k4atg` / `6ec64f36`; bridge `dep-db0h7rc9v7es73bed57g` / `1e912b7e`; Studio Ready manual production `dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1`, source SHA still unknown. **Worker now serves `dep-db5dos8473hc73apq6b0`, same source `0391bc66`, trigger Compute plan updated.** Earlier `dep-dasrio7` worker observations below are historical. [Exact safe tuple](evidence/20261011-cx100-precision-n4/live-dashboard.json). Dashboard labels do not prove installed native composition, live-work settlement or schema state; no DB/runtime/provider query or configuration/deploy effect this refresh. Current signed-in Invite/Members sheet inspected then closed without inputs/effects; test inbox privately bound, actual second subject/cohort not established. OP1r2/OP2r3 remain draft_not_authorized. Temporary tabs6/7 closed, existing hosted session preserved.

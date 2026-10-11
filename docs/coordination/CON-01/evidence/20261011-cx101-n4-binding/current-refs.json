@@ -1,0 +1,24 @@
+{
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "pr211": {
+    "head": "7e84002c36ceefab34cb27b710e554954cd269cc",
+    "base": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+    "draft": true
+  },
+  "n4Ref": "claude/con01-g2-s4-review",
+  "n4RefObserved": "GitHub GET404 at checkpoint, no immutable candidate returned; primary draft is not source_ready",
+  "pr190": {
+    "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "tree": "631824e4196c36be99159ab3fbb95c640bf8412f",
+    "automaticReviewComment": 6107811725,
+    "newReview": "No major issues reported; author/automatic-review statement, not complete combined independent qualification",
+    "queuedChecks": 13,
+    "existingOpenBillingP1": [
+      4235198833,
+      4232295959
+    ],
+    "delta": "ceed13d8..5c10bce3 three files+67, one e2e test/two docs; previously independently read CX100; no shared runtime/migration/contract delta",
+    "bodyReadLimit": "Full230-line body saved privately; focused96\u2013164 refreshed; full combined PR review not claimed",
+    "operationLimit": "body census is historical, not a current authorized execution window"
+  }
+}

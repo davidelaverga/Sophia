@@ -991,27 +991,28 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0100.md",
+    "record": "CX-0101.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
     "supplementalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Fresh exact7e840 automatic P2 independently not reproduced: actual PG committed37+own16PASS. N4 proposal reviewed/conditionally selected before shared edits; actual dashboard tuple refreshed, new worker deployment preserved. All36 full statuses unchanged. Primary rejects bot finding with traced evidence; fresh GraphQL confirms resolved thread and unchanged head.",
+    "statement": "N4 binding reviewed before immutable candidate; required whole-context digest erasure correction returned.20 independent cases prepared_not_run. Setup and PR190 read-only discovery advanced. All36 full acceptance statuses unchanged.",
     "readiness": {
       "source_ready": true,
       "N2_source_ready": true,
-      "locally_verified": "N2 named dormant scopes only, actual37+independent16PGPASS incl bot microsecond cases; previous local scopes retained",
+      "locally_verified": "Previous named N2 actual37+independent16PASS retained; no N4 execution or useful native/provider/hosted proof this checkpoint",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
-      "owner_accepted": false
+      "owner_accepted": false,
+      "N4_source_ready": false
     },
-    "operation": "OP1r2 and OP2r3 draft_not_authorized; approval/expiry null. Private owner inbox bound, actual second subject/role/cohort and subscription route/cap/expiry unbound. No hosted/provider/native/spend effects.",
-    "cleanup": "Fifth CX99/100 owned PG cluster stopped/PID absent/removed, own fixtures absent/0clients. Temporary dashboard tabs6/7 closed; hosted session preserved/Invite closed. Prior dated cleanup retained; primary cleanup claim remains attributed.",
-    "next": "Review amended N4 contract and returned immutable source/real PG evidence; no shared/live effect. Resolve actual setup batch identity/cost/role/approval before effects."
+    "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Inbox privately bound; actual second subject/role/cohort, subscription route and finite allowance unbound. No hosted/provider/native/spend effects.",
+    "cleanup": "No new PG or app stack. Temporary tabs8/9 closed; existing signed-in Studio preserved. Private logs/files0600. Previous CX99/100 PG cleanup remains dated evidence.",
+    "next": "Read primary response, inspect returned immutable amended N4 candidate, adapt and execute own real-PG cases and affected N2 composition; resolve concrete setup batch inputs before approval/effects."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1159,17 +1160,17 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0099.md",
+    "record": "CX-0100.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
     "supplementalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Independent complete N2 review and actual PG found malformed-fragment P1 plus fresh-cluster census defect; primary fixes independently pass final37+13. Full36 acceptance statuses unchanged.",
+    "statement": "Fresh exact7e840 automatic P2 independently not reproduced: actual PG committed37+own16PASS. N4 proposal reviewed/conditionally selected before shared edits; actual dashboard tuple refreshed, new worker deployment preserved. All36 full statuses unchanged. Primary rejects bot finding with traced evidence; fresh GraphQL confirms resolved thread and unchanged head.",
     "readiness": {
       "source_ready": true,
       "N2_source_ready": true,
-      "locally_verified": "N2 dormant assembly only: full source/delta review; actual real-role PG final committed37 + independent13 PASS. Primary-only fixes independently rechecked. Prior named scopes retained.",
+      "locally_verified": "N2 named dormant scopes only, actual37+independent16PGPASS incl bot microsecond cases; previous local scopes retained",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1177,9 +1178,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/deploy/spend0. Private owner test inbox supplied/distinct visible existing email; second actual subject/role/cohort not established.",
-    "cleanup": "All4 CX99 owned PG clusters stopped/PID absent/removed; own fixture DB/roles absent. Prior82 app stacks and CX92 PG settled as dated receipts. Immutable worktrees retained. No hosted mutation.",
-    "next": "Inspect fresh exact7e840 automatic review and primary terminal handback; review bounded N4 shared-owner proposal/current-main/PR190 integration before source changes or any live batch."
+    "operation": "OP1r2 and OP2r3 draft_not_authorized; approval/expiry null. Private owner inbox bound, actual second subject/role/cohort and subscription route/cap/expiry unbound. No hosted/provider/native/spend effects.",
+    "cleanup": "Fifth CX99/100 owned PG cluster stopped/PID absent/removed, own fixtures absent/0clients. Temporary dashboard tabs6/7 closed; hosted session preserved/Invite closed. Prior dated cleanup retained; primary cleanup claim remains attributed.",
+    "next": "Review amended N4 contract and returned immutable source/real PG evidence; no shared/live effect. Resolve actual setup batch identity/cost/role/approval before effects."
   },
   "checkpoint_history": [
     {
@@ -1536,6 +1537,29 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/deploy/spend0. Private owner test inbox supplied/distinct visible existing email; second actual subject/role/cohort not established.",
       "cleanup": "All4 CX99 owned PG clusters stopped/PID absent/removed; own fixture DB/roles absent. Prior82 app stacks and CX92 PG settled as dated receipts. Immutable worktrees retained. No hosted mutation.",
       "next": "Inspect fresh exact7e840 automatic review and primary terminal handback; review bounded N4 shared-owner proposal/current-main/PR190 integration before source changes or any live batch."
+    },
+    {
+      "record": "CX-0100.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
+      "supplementalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
+      "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "statement": "Fresh exact7e840 automatic P2 independently not reproduced: actual PG committed37+own16PASS. N4 proposal reviewed/conditionally selected before shared edits; actual dashboard tuple refreshed, new worker deployment preserved. All36 full statuses unchanged. Primary rejects bot finding with traced evidence; fresh GraphQL confirms resolved thread and unchanged head.",
+      "readiness": {
+        "source_ready": true,
+        "N2_source_ready": true,
+        "locally_verified": "N2 named dormant scopes only, actual37+independent16PGPASS incl bot microsecond cases; previous local scopes retained",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2 and OP2r3 draft_not_authorized; approval/expiry null. Private owner inbox bound, actual second subject/role/cohort and subscription route/cap/expiry unbound. No hosted/provider/native/spend effects.",
+      "cleanup": "Fifth CX99/100 owned PG cluster stopped/PID absent/removed, own fixtures absent/0clients. Temporary dashboard tabs6/7 closed; hosted session preserved/Invite closed. Prior dated cleanup retained; primary cleanup claim remains attributed.",
+      "next": "Review amended N4 contract and returned immutable source/real PG evidence; no shared/live effect. Resolve actual setup batch identity/cost/role/approval before effects."
     }
   ]
 }

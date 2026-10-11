@@ -1,0 +1,41 @@
+{
+  "schema": "sophia.con01.safe-evidence-manifest.v1",
+  "files": [
+    {
+      "path": "CX-0101.md",
+      "sha256": "97e2836e2012458159b65ca5583a46d9188bae3bad380dacafc3f16430587423"
+    },
+    {
+      "path": "CX-0101.evidence.json",
+      "sha256": "11bd99c7ef5c63b2af5396c29135387b20a1db651ae4d489bb7ba281965ccefc"
+    },
+    {
+      "path": "acceptance.independent.json",
+      "sha256": "c05a1854fe9f1b160dccd98dd970570ddacad132bc675cf3d6f9d0759af9eaa4"
+    },
+    {
+      "path": "LIVE_PREFLIGHT.md",
+      "sha256": "9be3dfcd5e93b06296a57c37a4a29b2a81c5a752eb746ff4f91c2d3311cae10d"
+    },
+    {
+      "path": "evidence/20261011-cx101-n4-binding/acceptance-status-comparison.json",
+      "sha256": "63eb2aee21763f9d2afe320d86143b944576a37f9da6a180853ad924e3100ba6"
+    },
+    {
+      "path": "evidence/20261011-cx101-n4-binding/current-refs.json",
+      "sha256": "c4cb5000afbf908c76d7f206da9a19e21933eedbab6dd9a4efb1dfe448e86e9b"
+    },
+    {
+      "path": "evidence/20261011-cx101-n4-binding/n4-binding-review.json",
+      "sha256": "327442c8c0a10b52e00611d4fd6587ccf0ba749962347a1c394ad9e330494f85"
+    },
+    {
+      "path": "evidence/20261011-cx101-n4-binding/n4-independent-plan.json",
+      "sha256": "8d436dff6ad041e13c1f20e093399e28fb4155490dc3d90d85acb609c696cf80"
+    },
+    {
+      "path": "evidence/20261011-cx101-n4-binding/setup-discovery.json",
+      "sha256": "a9ba809c689adfa22a04bfb48c881b6c517b2a7cc1190491b53be3155e594fc8"
+    }
+  ]
+}

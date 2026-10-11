@@ -1,0 +1,32 @@
+{
+  "comment": 6108892266,
+  "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6108892266",
+  "bodySha256": "cc81732f7a3758784445f35d692d5892eaf94513980807a4585d0de5a4c379fd",
+  "read": "all140lines in three bounded reads; previous oversized GraphQL output truncated and not counted",
+  "sourceInput": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "state": "contract reviewed; source draft is primary-only and not returned immutable",
+  "footprint": "two closed CON tables, check/publish/source_out internal functions, CON message trigger and explicit replacement of N2 context_kept; no grant/caller/shared-source hook/numbered migration",
+  "bindings": [
+    "reply+recorded assembly attempt+eventual trusted native result reference; supplied text L1",
+    "answers-row replay survives N2 terminal context-body scrub; withdrawn answer cannot be restored",
+    "READ COMMITTED; project/conversation/messages/reply/member/claims/context/source locks, two real connection ordering tests",
+    "source dependency suppression permanent; terminal answers withdrawn; cumulative uncertain reservation untouched",
+    "ordinary contextChanged stays internal; shared A16/runtime/source/membership owners held"
+  ],
+  "earlyFinding": {
+    "severity": "privacy release blocker; dormant contract correction",
+    "expected": "0018 no digest that can confirm an erased-text guess; pack03 derived operational copies governed",
+    "observed": "N2 context_hash retains SHA256 of exact rendered text after context scrub. CC0100 section4(5) explicitly leaves its erasure open and unchanged. Source-hash-only tombstones leave a remaining confirmation oracle when other context is known.",
+    "reproducer": "record bounded context; end reply (body scrubbed); erase a contributing source or withdraw a read message; inspect retained conversation_reply_contexts.context_hash against the pre-erasure rendered-text digest. Source inspection established; N4 runtime reproduction not_run.",
+    "correction": "extend separately pinned N4 guard/helper/trigger amendment minimally to govern whole-context digest erasure for all affected recorded/superseded and terminal attempts; preserve identity, permanent suppression and ledger uncertainty; rerun N2 composition",
+    "returned": "Exact Claude CON mission message499, normal queue; no interrupt/Send now",
+    "primaryResponse": "Actual current streaming message acknowledges full-context digest tombstone requirement; plans third immutable tombstone table, helper/merged CON trigger and context_hash guard rule. Draft amendment only; no immutable source or execution evidence yet."
+  },
+  "unqualified": [
+    "actual N4 SQL/source/test",
+    "trusted native capture/provider useful answer",
+    "B1 host copies and restart recovery",
+    "source hook and membership audience producer owner protocols",
+    "whole G4/current-main combined integration"
+  ]
+}

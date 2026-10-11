@@ -1,0 +1,129 @@
+{
+  "record": "CX-0101 preparation",
+  "at": "2026-10-11T12:08:06.747345+00:00",
+  "candidate": "N4 not returned;7e840 is immutable input only",
+  "status": "prepared_not_run",
+  "cases": [
+    {
+      "id": "N4-I01",
+      "name": "Saved identity",
+      "expected": "Caller-selected wrong project/actor/reply/attempt/result refused; server derives saved ask identity",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I02",
+      "name": "Role denial",
+      "expected": "Actual API/worker/assembler callers cannot execute dormant check/publish/source-out",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I03",
+      "name": "Successful publication",
+      "expected": "Running saved reply and current recorded context publish exactly one Sophia message, correct own conversation",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I04",
+      "name": "Lost commit response replay",
+      "expected": "Same text/correlation after committed publication returns same receipt, event/message count unchanged, body already scrubbed",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I05",
+      "name": "Changed text conflict",
+      "expected": "Same logical request with changed bytes/correlation refused; original answer and accounting preserved",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I06",
+      "name": "Terminal refusal",
+      "expected": "cancelled/failed/blocked/outcome_unknown cannot publish or reset allowance",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I07",
+      "name": "Simultaneous publication",
+      "expected": "Two actual connections same request publish once; divergent text conflict; stable receipt",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I08",
+      "name": "Ordinary mission update",
+      "expected": "Eligible replacement produces contextChanged, current disclosure and preserved source/request identity",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I09",
+      "name": "Withdrawal before publication",
+      "expected": "Actual author/message/admin/erasure withdrawal fences publish, body/hash scrub verified",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I10",
+      "name": "Source full predicate",
+      "expected": "Scope/private, eligiblefalse, nonready, changedhash/revision, missingrow each exact refusal scope",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I11",
+      "name": "Publication/source race",
+      "expected": "Writer commits before/after check under actual lock protocol; independent waiter proof; no stale publication",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I12",
+      "name": "Trigger lock inversion",
+      "expected": "Sourcewriter\u2192project vs publisherproject\u2192source explicit order; current shared unintegrated scope stated",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I13",
+      "name": "Published dependency withdrawal",
+      "expected": "Postterminal source/message withdrawal finds retained dependency; null answer/context/native-copies pending",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I14",
+      "name": "Tombstone hash governance",
+      "expected": "0018 erasure and message withdrawal erase/tombstone affected source and whole-context hashes, including terminal and superseded attempts; irreversible suppression prevents resurrection",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I15",
+      "name": "Reeligibility",
+      "expected": "Repeatedsource_out or laterready/eligibility cannot restore old answer or same-key delivery",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I16",
+      "name": "Audience fencing",
+      "expected": "Olderrecordedaudience request cancelled; wrongactor/project cannot query; publishedcurrentmembershipscope preserved",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I17",
+      "name": "Unknown execution accounting",
+      "expected": "Privacy suppression never marks uncertain native call/accounting reconciled or startsfreshlogicalallowance",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I18",
+      "name": "Collateral no operations",
+      "expected": "No commands/jobs/work_attempts/runtime/outbox/allowance new rows; events exactly as qualified",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I19",
+      "name": "N2 composition",
+      "expected": "ApplyN4 then N2committed37+independent16; guard replacement affects earlier review; hashes/footprint pinned",
+      "result": "not_run"
+    },
+    {
+      "id": "N4-I20",
+      "name": "Governed rollback",
+      "expected": "Disableadmission retains readers/withdrawal/uncertainty data; no drop/delete/old-schema falsecompatibility",
+      "result": "not_run"
+    }
+  ],
+  "limits": "No test success claimed; adapt exact APIs to independently inspected immutable primary source before execution. Real native/provider/hosted/B1 remain separate."
+}

@@ -1,0 +1,50 @@
+{
+  "source": "actual read-only CUA dashboard/DOM and source reads, CX101",
+  "database": {
+    "project": "sophia-next",
+    "ref": "ikigawvpaxnvdjzzzhws",
+    "branch": "main Production",
+    "healthy": true,
+    "limitation": "Dashboard No migrations refers to Supabase-managed migrations, not Sophia custom ledger; no SQL query or ledger refresh"
+  },
+  "authHeadroom": "included Auth headroom visible; usage delayed up to24h; no claim about invitation mailer cost or approval",
+  "mailSource": {
+    "files": [
+      "apps/api/src/mail.ts",
+      "apps/api/src/server.ts"
+    ],
+    "provider": "Resend",
+    "references": [
+      "RESEND_API_KEY",
+      "INVITE_FROM",
+      "SOPHIA_MAIL_DIR development"
+    ],
+    "idempotency": "invitation-${record.id}-v${tokenVersion}",
+    "limitation": "source only; live configuration, credential reference and provider finite allowance unverified"
+  },
+  "studio": {
+    "url": "https://studio.sophia-ei.com",
+    "buildMeta": "meta[name=sophia-build] absent",
+    "module": "/assets/index-Co8mKwC4.js",
+    "sourceSha": null,
+    "limitation": "asset filename is not source identity"
+  },
+  "vercelCli": "command -v vercel returned no path; no install/token read",
+  "quota": {
+    "codex": "actual read-only account usage available; private values stored outside Git",
+    "claude": "hosted settings redirects to sign-in; exact mission desktop Usage control later supplies account telemetry, stored privately",
+    "limitation": "neither proves Sophia monitor, subscription connection or request admission; no account/financial values published"
+  },
+  "effects": {
+    "project": 0,
+    "invite": 0,
+    "otp": 0,
+    "authSwitch": 0,
+    "provider": 0,
+    "migration": 0,
+    "deploy": 0,
+    "configuration": 0,
+    "spend": 0
+  },
+  "cleanup": "temporary Claude usage tab8 and Supabase tab9 closed; existing signed-in Studio session and user tabs preserved"
+}
