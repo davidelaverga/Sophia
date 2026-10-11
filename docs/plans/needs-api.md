@@ -55,3 +55,19 @@
 ## Left
 
 - Marking a need read; a push or a mail when one arrives (F2's second half).
+
+## After the review (Codex on #245)
+
+- **The padlock reaches the read** (P1). The read mixes Sophia's replies with the projects' needs, so while the
+  personal padlock is shut nothing is read (`useNeeds(…, { locked })` from Places' lock) and the answer already in
+  memory goes with the personal reads (`forgetPersonalReads` removes `['vision', 'needs']` too). Home is then as it was,
+  her light alone; the fixture counts the route's reads and `home-needs.spec` finds none behind `locked=1`. Redacting
+  only the replies was the other way; it would keep a personal record in memory to redact it, which the padlock forbids.
+- **The service's clock** (P2). `readAt` was dropped at the boundary. The hook keeps the browser's time when the answer
+  arrived beside it; `clockSkew(readAt, receivedAt)` is what to add to now, and Welcome hands `NeedsYou` now on the
+  service's clock. An unreadable `readAt` adds nothing.
+- **The record a ref names** (P2). `whereOf` carries `at`: a `work_item` is named in Tasks' fragment (`#task-`, as
+  Updates' arrivals do); an `artifact_version` opens in Knowledge's viewer, for which A15's `ref` now carries the
+  version's report (`artifactId`, null for every other kind), since the viewer's address names the report first.
+  A decision, a lobby entry and a personal turn have no address of their own yet: their view, until one exists.
+  `useProjectRoute.openAt(projectId, view, at)` pushes the route with the viewer's search, then names the task.

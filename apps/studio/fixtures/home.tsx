@@ -36,15 +36,18 @@ import { needsAnswer } from './fixture-api.ts'
 
 declare global {
   interface Window {
-    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null }
+    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null; needsReads: () => number }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 const pressed: string[] = []
+/** How many times the needs' route was read (`needs=api`): none behind a shut padlock. */
+let needsReads = 0
 window.homeFixture = {
   pressed,
+  needsReads: () => needsReads,
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
@@ -150,6 +153,7 @@ if (viaApi) {
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
     if (new URL(url, window.location.href).pathname === '/api/v1/me/needs') {
+      needsReads += 1
       const body = JSON.stringify(needsAnswer())
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
     }
@@ -224,10 +228,14 @@ function Home() {
   const fromApi = useNeeds(
     'fixture-token',
     {
-      project: (projectId, view) => pressed.push(`open ${view} ${projectId}`),
+      project: (projectId, view, where) => {
+        const task = where.taskId ? ` #task-${where.taskId}` : ''
+        const report = where.report ? ` report ${where.report.artifactId} ${where.report.versionId}` : ''
+        pressed.push(`open ${view} ${projectId}${task}${report}`)
+      },
       personal: () => pressed.push('personal'),
     },
-    viaApi,
+    { enabled: viaApi, locked },
   )
   return (
     <div className="places" data-place="home">
