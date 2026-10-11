@@ -53,3 +53,7 @@
 - The API: a `GET /me/needs` (or each source's own read) proposed in issue #105's line; the badge in the bar, email and
   push are out of this scope.
 - Marking a need read, or dismissing it, needs the API too: a row only opens where the need is.
+- **After the review (Codex on #237, 2026-10-11)**: at a column's head the mark is the 96 px emblem on a wide screen
+  only; on a phone (≤ 860) the column is gone, the light sits top right as before and the 48 px rule stands (the
+  greeting keeps 56 px clear of it). `useMarkRest` hears the phone query. home-needs.spec @phone: the mark at 48, the
+  greeting's words ending before it.

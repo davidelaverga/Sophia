@@ -277,6 +277,13 @@
 .lane-why .text-button {
   font-size: var(--type-small);
 }
+/* On a coarse pointer each press's target reaches 7 px above and below its words (theme.css): rows of blockers keep
+   14 px between them, so no two targets meet (Codex on #244). */
+@media (pointer: coarse) {
+  .lane-why {
+    row-gap: 14px;
+  }
+}
 .lane-head .count {
   margin-left: auto;
   padding: 1px 7px;
@@ -1395,6 +1402,13 @@
   margin-top: 40px;
 }
 
+/* Five lanes need 1221 px (each 220 and up, as the four do at 270): under it they stand three and two, before the two
+   columns every board takes at 1000 (Codex on #236). */
+@media (max-width: 1220px) {
+  .board-lanes[data-lanes='5'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
 @media (max-width: 1000px) {
   .board-lanes {
     grid-template-columns: repeat(2, minmax(0, 1fr));

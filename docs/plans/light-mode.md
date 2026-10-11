@@ -65,3 +65,6 @@
   account menu's shadow in light.
 - Informe-30 §2 is in with this: the kit (§2.1), the type scale (§2.2), the answers (§2.3), the widths (§2.4), the
   light page (§2.5).
+- **After the review (Codex on #234, 2026-10-11)**: the invalid field's boundary was the room's rose at 0.55 in both
+  themes, 1.5:1 against the paper; on paper it is the rose ink itself (6:1). The rule reads the rose channels in the
+  room too. light-mode.spec checks the sign-in's invalid state at 3:1 or more.

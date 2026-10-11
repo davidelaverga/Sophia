@@ -17,3 +17,20 @@ export const RADII = [4, 6, 8, 12] as const
 export function chipClass(kind: ChipKind = 'state', tone?: Tone, className = ''): string {
   return ['chip', kind === 'state' ? 'tag' : `chip-${kind}`, tone ?? '', className.trim()].filter(Boolean).join(' ')
 }
+
+/**
+ * The chip's element and the props React gets, so a node test can hold the forwarding: a key is a `kbd` with the
+ * caller's own props and ref passed whole and its class as given (the tips draw it); the rest are a `span` in the
+ * chip's class (Codex on #230).
+ */
+export function chipElement(
+  kind: ChipKind,
+  tone: Tone | undefined,
+  className: string | undefined,
+  rest: Readonly<Record<string, unknown>>,
+): { tag: 'kbd' | 'span'; props: Record<string, unknown> } {
+  return {
+    tag: kind === 'key' ? 'kbd' : 'span',
+    props: { ...rest, className: kind === 'key' ? className : chipClass(kind, tone, className) },
+  }
+}
