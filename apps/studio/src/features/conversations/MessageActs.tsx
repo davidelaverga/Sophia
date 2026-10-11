@@ -1,7 +1,7 @@
 // A message's acts at its corner (docs/plans/conversation-acts.md): copy its words; quote them in the message being
 // written, where one can write here; and propose them as a decision (ProposeHere), as before. Shown under the pointer
 // or the focus; on a phone, on the message pressed (conversations.css, `.conv-acts`).
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { clipOf, quoteOf } from './message-acts.ts'
 
@@ -52,7 +52,14 @@ async function toClipboard(text: string): Promise<boolean> {
 
 export function MessageActs({ message, who, now, onQuote, propose }: Props) {
   const { said, say } = useSaid()
-  const copy = async () => say((await toClipboard(clipOf(message, who, now))) ? 'copied' : 'failed')
+  // Only the latest press's outcome is said: an earlier write that settles late (slow, then refused) changes nothing,
+  // the clipboard holds what the last press put there (Codex on #240).
+  const presses = useRef(0)
+  const copy = async () => {
+    const press = ++presses.current
+    const ok = await toClipboard(clipOf(message, who, now))
+    if (press === presses.current) say(ok ? 'copied' : 'failed')
+  }
   return (
     <span className="conv-acts" onClick={own}>
       {said && (

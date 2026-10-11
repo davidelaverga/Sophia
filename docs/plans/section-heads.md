@@ -42,3 +42,7 @@
   replaces 14 in `knowledge-library` and `knowledge-quiet` instead of joining it; the filters' scope has no head, so it
   keeps the four text sizes; the sources' scope (`knowledge-origins`) opens a sheet whose title is 15 and whose body
   keeps 14, so it lists both.
+- **After the review (Codex on #248, 2026-10-11)**: the list's head at 15 made Conversations' sixth size beside the
+  open conversation's 18 px title, and the spec's allowlist had grown to six. The open conversation's title and the
+  new conversation's heading are section heads too: 15 (`--type-head`), the view back to five sizes, the allowlist
+  back to five.

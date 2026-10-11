@@ -78,6 +78,8 @@ export const served: string[] = []
 interface Project {
   revision: number
   exchange: boolean
+  /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
+  doorShut?: boolean
   messages: (string | Said)[]
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
@@ -303,14 +305,17 @@ function admitted(project: Project, init: RequestInit | undefined): Response | n
   return json(receipt)
 }
 
+/** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
+function snapshotAnswer(project: Project) {
+  served.push(`snapshot:${project.revision}`)
+  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project))
+}
+
 function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  if (method === 'GET' && path === `${base}/snapshot`) {
-    served.push(`snapshot:${project.revision}`)
-    return json(snapshotOf(project))
-  }
+  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project)
   const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)

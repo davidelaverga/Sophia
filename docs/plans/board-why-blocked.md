@@ -36,3 +36,6 @@
 
 - A blocker outside the plan is not named (nothing is known of it; the board already says the plan does not hold
   together).
+- **After the review (Codex on #244, 2026-10-11)**: on a coarse pointer each text press's target reaches 7 px above
+  and below its words, and the blockers' rows were 2 px apart: a tap near one row's edge could take the next. The rows
+  keep 14 px between them on a coarse pointer, so no two targets meet. board-why.spec @phone reads both numbers.
