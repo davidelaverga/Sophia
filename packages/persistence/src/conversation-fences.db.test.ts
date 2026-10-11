@@ -1067,6 +1067,30 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
       assert.equal((await messageOf(v.answerId))?.body, null)
     })
 
+    // The suppression alone: no answer was withdrawn, so no erasure revision moved, and the source comes back exactly as
+    // the context read it. Only the permanent rows stand between it and a context that would pass.
+    it('in flight, suppressed, then its source eligible again at the very recorded revision: the check still refuses', async () => {
+      const s = await running()
+      const dep = await must(dependency(s.replyId, s.constraint), 'dependency')
+      await ineligible(dep.source_id)
+      assert.equal((await must(sourceOut(s.projectId, dep.source_id), 'source_out')).cancelled, 1)
+      await owner(`UPDATE sophia.source_objects SET eligible=true, eligibility_revision=$2 WHERE id=$1`, [
+        dep.source_id,
+        dep.eligibility_revision,
+      ])
+      const source = await must(sourceRow(dep.source_id), 'source')
+      assert.deepEqual(
+        [source.eligible, source.state, source.sha256, source.eligibility_revision],
+        [true, 'ready', dep.sha256, dep.eligibility_revision],
+        'the source is exactly as the context read it',
+      )
+      assert.deepEqual(
+        { ...(await check(s.replyId)), contextChanged: null },
+        { verdict: 'privacy', reason: 'source_withdrawn', contextChanged: null, state: 'cancelled' },
+      )
+      assert.deepEqual(await publish(s.replyId, 1, randomUUID(), 'x'), { verdict: 'not_running', state: 'cancelled' })
+    })
+
     it('a source made private: source_out_of_scope; a source still within its predicate: nothing', async () => {
       const s = await running()
       const dep = await dependency(s.replyId, s.constraint)
