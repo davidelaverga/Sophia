@@ -62,5 +62,16 @@
       "Use supporting preview-limitations page for unsupported max_output_tokens; models-and-inference has no such field.",
       "No bound qualified here rather than proof flow has no bound."
     ]
+  },
+  "finalAttributionCorrection": {
+    "commit": "154f09f037b8d5b85357ba151219cda703bc60f3",
+    "tree": "dfc7b56514e64cb50da1eb524f63bbc76180ab27",
+    "parent": "485b33a9246238c17afcfa7dc0a8d7f14093f32f",
+    "receipt": 6112332613,
+    "fileSha256": "3caf99dd0d4e64d1a59e0aef99561f250b2c41cfe41bd0a7770bfb54530c5ea5",
+    "deltaSha256": "040f2048309237de9bbfeef581b53dabe3ba98e7de76e39b3c4d61b79ce429e1",
+    "complete23LineDeltaRead": true,
+    "oneFileOnly": true,
+    "result": "Both exact attribution/qualified-bound corrections independently rechecked; scoped resolved. Route/runtime/provider/remaining-cap display remain unqualified."
   }
 }

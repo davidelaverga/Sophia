@@ -4,7 +4,7 @@
   "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
   "combinedCandidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
   "combinedTree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
-  "routeProposalCandidate": "e4f8d4ab4102f2be21fe279784ccd8509228cbb6",
+  "routeProposalCandidate": "154f09f037b8d5b85357ba151219cda703bc60f3",
   "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
   "statement": "Exact combined f0 independently passes138 conversation and10API tests on fresh owned PG; first census failure retained, corrected census/cleanup pass. Route proposal P1/P2 corrections rechecked; fake installed-parser uncertainty and official telemetry lead remain scoped. No native/provider/live app qualification.",
   "readiness": {
@@ -19,7 +19,7 @@
   },
   "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null",
   "cleanup": "Both owned PG clusters stopped/PIDs absent/removed; detached source clean. Fake probe settled. Existing author gate still running, not reviewer-owned cleanup. No uncertain hosted effects.",
-  "next": "Independently review the separate telemetry/docs delta and existing f0 gate terminal/source/census; then require named Q7/Q12 runtime ownership before shared implementation. No restart or new live effects.",
+  "next": "Independently read existing exactf0 gate terminal/source/census without restart/duplicate; require named Q7/Q12 runtime owner/window before shared implementation. Route qualification and live setup batch remain open.",
   "evidence": "evidence/20261011-cx119-combined-route/",
   "operationApproval": null,
   "expiry": null,
