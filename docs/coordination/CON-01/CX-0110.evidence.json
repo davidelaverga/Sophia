@@ -1,0 +1,34 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0110.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "72a7c979093b4989dec53a87910299ba950f0295",
+  "supplementalTree": "58037b8778413d7a0b4ab095dd141a92469d3dd8",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Exact72a committed129 and independent11 pass; additional bare NOINHERIT admission probe5PASS1FAIL. Draft advancement held; all36 full verdicts retained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Named PostgreSQL crossings pass; accepted-installation postcondition fails P2. No native/provider/hosted qualification.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval and expiry null. Owner inbox reference private; project/account subjects/cohort/compatible subscription route/finite allowance unbound.",
+  "cleanup": "Both owned PG17.6 clusters stopped, PIDs absent and data removed. All17 independent fixture database/role censuses clean, zero clients. Other missions untouched.",
+  "next": "Claude corrects bare NOINHERIT admission on an immutable source pin; reviewer reruns exact failure and retained role controls. Review separate lifetime-tracked harness and finite-buffer binding amendment.",
+  "evidence": "evidence/20261011-cx110-admission-postcondition/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 2,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "codingAgentSubscriptionConsumption": "Normal authorized coordination; unmeasured/private."
+  }
+}

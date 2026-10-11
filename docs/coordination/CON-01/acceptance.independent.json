@@ -1085,17 +1085,17 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0109.md",
+    "record": "CX-0110.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
-    "supplementalCandidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
-    "supplementalTree": "0d3f53f47838ff6df5f606c300bec0a27115bb3a",
+    "supplementalCandidate": "72a7c979093b4989dec53a87910299ba950f0295",
+    "supplementalTree": "58037b8778413d7a0b4ab095dd141a92469d3dd8",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Fresh5e7INHERITfalseP2actual2FAIL2PASS; ae567testclosureorderingactual1FAIL1PASS. Primaryseparatecorrectionpreparation;36fullverdictsretained.",
+    "statement": "Exact72a committed129 and independent11 pass; additional bare NOINHERIT admission probe5PASS1FAIL. Draft advancement held; all36 full verdicts retained.",
     "readiness": {
       "source_ready": true,
       "N4_source_ready": true,
-      "locally_verified": "Priornamed5e7rolegraph128+6PASS retained; newinheritpreflight2FAIL2PASS andharnessclosure1FAIL1PASS, bothactualPG. Wholechangesrequested; no native/provider/app proof.",
+      "locally_verified": "Named PostgreSQL crossings pass; accepted-installation postcondition fails P2. No native/provider/hosted qualification.",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1103,9 +1103,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
-    "cleanup": "TwofreshownedPGclusters settled/PIDabsent/removed;allfixturesDBrolesabsent0clients. Nohosted/native/provider/spendingeffects.",
-    "next": "Review earlyimmutableprimaryinherit-edge correction and correctedharness barrier; independentlyrerun negative+trueSETfalse controls andclosureordering/composedsuite evidence. Reviewfinite-bufferdoc amendment whileowner/windowidentitypending."
+    "operation": "OP1r2/OP2r3 draft_not_authorized; approval and expiry null. Owner inbox reference private; project/account subjects/cohort/compatible subscription route/finite allowance unbound.",
+    "cleanup": "Both owned PG17.6 clusters stopped, PIDs absent and data removed. All17 independent fixture database/role censuses clean, zero clients. Other missions untouched.",
+    "next": "Claude corrects bare NOINHERIT admission on an immutable source pin; reviewer reruns exact failure and retained role controls. Review separate lifetime-tracked harness and finite-buffer binding amendment."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1253,17 +1253,17 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0108.md",
+    "record": "CX-0109.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
     "supplementalTree": "0d3f53f47838ff6df5f606c300bec0a27115bb3a",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Exact5e7role-adoptioncorrection128concurrent+6independentPASS; draft-onlyadvancementpermitted. Revisedbindingstillrequiresfiniteparentqueue/line andpersist-beforecleanup. All36fullverdictsretained.",
+    "statement": "Fresh5e7INHERITfalseP2actual2FAIL2PASS; ae567testclosureorderingactual1FAIL1PASS. Primaryseparatecorrectionpreparation;36fullverdictsretained.",
     "readiness": {
       "source_ready": true,
       "N4_source_ready": true,
-      "locally_verified": "Named5e7S3preflight/rolegraph128+6PASS; earlierscopedledger/privacy evidence retained. No native/provider/app proof.",
+      "locally_verified": "Priornamed5e7rolegraph128+6PASS retained; newinheritpreflight2FAIL2PASS andharnessclosure1FAIL1PASS, bothactualPG. Wholechangesrequested; no native/provider/app proof.",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1272,8 +1272,8 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
-    "cleanup": "OnefreshownedPG17.6stopped/PIDabsent/removed;6fixtureDBrolecensusesclean0clients. Allpriorreviewerresources settled. Primarysessionclusterpreserved.",
-    "next": "Verify actualdraft5e7/freshautomaticreview, inspect narrowlyscopedprimaryharnesstest-onlypin and finite-queue doc amendment; independentlyrecheck affected evidence. Resolve source/runtime owner/window before shared integration."
+    "cleanup": "TwofreshownedPGclusters settled/PIDabsent/removed;allfixturesDBrolesabsent0clients. Nohosted/native/provider/spendingeffects.",
+    "next": "Review earlyimmutableprimaryinherit-edge correction and correctedharness barrier; independentlyrerun negative+trueSETfalse controls andclosureordering/composedsuite evidence. Reviewfinite-bufferdoc amendment whileowner/windowidentitypending."
   },
   "checkpoint_history": [
     {
@@ -1838,6 +1838,29 @@
       "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
       "cleanup": "OnefreshownedPG17.6stopped/PIDabsent/removed;6fixtureDBrolecensusesclean0clients. Allpriorreviewerresources settled. Primarysessionclusterpreserved.",
       "next": "Verify actualdraft5e7/freshautomaticreview, inspect narrowlyscopedprimaryharnesstest-onlypin and finite-queue doc amendment; independentlyrecheck affected evidence. Resolve source/runtime owner/window before shared integration."
+    },
+    {
+      "record": "CX-0109.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+      "supplementalTree": "0d3f53f47838ff6df5f606c300bec0a27115bb3a",
+      "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "statement": "Fresh5e7INHERITfalseP2actual2FAIL2PASS; ae567testclosureorderingactual1FAIL1PASS. Primaryseparatecorrectionpreparation;36fullverdictsretained.",
+      "readiness": {
+        "source_ready": true,
+        "N4_source_ready": true,
+        "locally_verified": "Priornamed5e7rolegraph128+6PASS retained; newinheritpreflight2FAIL2PASS andharnessclosure1FAIL1PASS, bothactualPG. Wholechangesrequested; no native/provider/app proof.",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+      "cleanup": "TwofreshownedPGclusters settled/PIDabsent/removed;allfixturesDBrolesabsent0clients. Nohosted/native/provider/spendingeffects.",
+      "next": "Review earlyimmutableprimaryinherit-edge correction and correctedharness barrier; independentlyrerun negative+trueSETfalse controls andclosureordering/composedsuite evidence. Reviewfinite-bufferdoc amendment whileowner/windowidentitypending."
     }
   ]
 }

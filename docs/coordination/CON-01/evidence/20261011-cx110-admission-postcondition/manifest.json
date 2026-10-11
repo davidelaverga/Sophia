@@ -1,0 +1,14 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0110.md",
+  "artifacts": {
+    "evidence/20261011-cx110-admission-postcondition/acceptance-status-comparison.json": "e4552570df19085a74d8feed79dc350bcae2a184c123f4db326e9a050fc3e540",
+    "evidence/20261011-cx110-admission-postcondition/bare-independent-evidence.json": "8f3059ea921e98e2c4f8271e593807fdf5adab1ac4ed0d9bd52888c29aba526f",
+    "evidence/20261011-cx110-admission-postcondition/bare-owned-receipt.json": "e926bc0c3841f2de3ea08dda6d15c5d4af9f96d7e1349fd8b147b82aa925b052",
+    "evidence/20261011-cx110-admission-postcondition/inherit-independent-evidence.json": "e31abdaef3ecbab8c912b12a33874dc4c20b05c48061ed51916bcddcd3d30f9b",
+    "evidence/20261011-cx110-admission-postcondition/operation-handoff.json": "7cfa2d19bb92b3e4170ccc220c5d97a9210fd96040597a6520a8961a82cbf781",
+    "evidence/20261011-cx110-admission-postcondition/qualification-owned-receipt.json": "6e1156a7871824901af49a3707a57471713b5af6e94e0ac0c71da29a4c5173f0",
+    "evidence/20261011-cx110-admission-postcondition/role-graph-evidence.json": "92a2c20c87faed42d34861a29554e74895caa103ab1061a5e79bc701e1fd9a9c",
+    "evidence/20261011-cx110-admission-postcondition/source-review.json": "f5999cbef251cb7b4d5d8026be288014d4b338dac2d48ee1bb3c083f02504f14"
+  }
+}

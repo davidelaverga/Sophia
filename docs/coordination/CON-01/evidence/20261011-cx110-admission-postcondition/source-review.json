@@ -1,0 +1,52 @@
+{
+  "candidate": "72a7c979093b4989dec53a87910299ba950f0295",
+  "tree": "58037b8778413d7a0b4ab095dd141a92469d3dd8",
+  "parent": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+  "draft211Observed": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+  "mainObserved": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "fullDelta": {
+    "files": 2,
+    "additions": 67,
+    "deletions": 4,
+    "sqlSHA256": "4837d8870773fe0925174ec16ca8f13da1f689902c7970578c54623b134c0454",
+    "testSHA256": "012a10aa0af7b5ce8ee5eeaa090e1dc46dfdf682cfa1195c1936238162b36d93"
+  },
+  "committedSuite": {
+    "tests": 129,
+    "pass": 129,
+    "fail": 0,
+    "cancelled": 0,
+    "exit": 0,
+    "concurrency": 4
+  },
+  "independentInitial": {
+    "inheritCases": 5,
+    "roleGraphCases": 6,
+    "allPass": true
+  },
+  "additionalPostcondition": {
+    "cases": 6,
+    "pass": 5,
+    "fail": 1,
+    "exit": 1,
+    "severity": "P2",
+    "expected": "Accepted S3 installation yields a usable sophia_api inheritance edge for the compiler.",
+    "observed": "Existing safe NOINHERIT role with no API edge passes preflight; bare GRANT creates INHERIT FALSE. Actual assembleReply retries at claim with null attempt; claims and contexts remain zero; project SELECT is 42501.",
+    "reproducer": [
+      "Create safe NOLOGIN NOINHERIT assembler role without memberships in owned PG17.6.",
+      "Apply all migrations, S1, S2, then exact72a S3.",
+      "Observe installation succeeds and new API edge inherit_option=false.",
+      "Run legitimate caller using actual assembleReply; observe retry at claim and no durable claim/context."
+    ],
+    "requestedCorrection": "Primary implementer chooses rejection or safe creation of intended new inheritable edge; preserve existing unexpected graph refusal and true-edge/SET FALSE controls."
+  },
+  "primaryReceipt": {
+    "comment": 6110644831,
+    "origin": "author evidence, fully read; independent results above are separate",
+    "before": "Meaningful final38/39 failure with both false-edge forms checked; two earlier void runs retained.",
+    "after": "39/39 on C and ICU; broad gates still running at receipt."
+  },
+  "harnessRef": "ae5673fe35a9f3292b34776784e3aed95f1212ad remains rejected for count-only closure barrier; correction pending",
+  "runtimeBoundary": "Finite per-reply queue, pre-parse fd3 line bound, persist-before-cleanup, withdrawal and outage/restart canaries remain unqualified; owner/window pending.",
+  "decision": "Hold draft advancement to72a. No merge, shared runtime, hosted effects or release acceptance."
+}
