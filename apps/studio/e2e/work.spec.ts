@@ -47,25 +47,26 @@ test('the goal reads in two lines: its title and actions, then where its plan go
   await expect(page.locator('.view-head .count')).toHaveCount(0) // it counted goals; a plan counts its tasks
 })
 
-test('four lanes, each task in the one its state says; the words only where the lane doesn’t say them', async ({
+test('five lanes, each task in the one its state says; the words only where the lane doesn’t say them', async ({
   page,
 }) => {
   await page.goto(PAGE)
-  // WBC-01: Active, Up next, Unassigned, Complete. A finished run waiting for its check is Active, not done.
+  // WBC-01: Active, Up next, Blocked (while something is), Unassigned, Complete. A finished run waiting for its check
+  // is Active, not done; a task after one not done is Blocked, not next.
   expect(await titles(lane(page, 'Active'))).toEqual([
     'Implement the PDF retry',
     'Write the retry’s failing test',
     'Review the report pane',
   ])
-  expect(await titles(lane(page, 'Up next'))).toEqual([
-    'Review the retry’s candidate',
-    'Write the export’s release note',
-  ])
+  expect(await titles(lane(page, 'Up next'))).toEqual(['Review the retry’s candidate'])
+  expect(await titles(lane(page, 'Blocked'))).toEqual(['Write the export’s release note'])
   expect(await titles(lane(page, 'Unassigned'))).toEqual(['Measure render time on large reports'])
   expect(await titles(lane(page, 'Complete'))).toEqual(['Reproduce the failed render'])
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
   await expect(lane(page, 'Up next').locator('.task-chip')).toHaveCount(0)
+  await expect(lane(page, 'Blocked').locator('.task-chip')).toHaveCount(0) // the lane says it; the foot says on what
+  await expect(tile(page, 'work-3').locator('.task-tile-hangs')).toContainText('After Implement the PDF retry')
   await expect(tile(page, 'work-0b').locator('.task-chip')).toHaveText('Ready for review') // finished isn't accepted
   await expect(lane(page, 'Complete').locator('.task-chip')).toHaveCount(0) // the lane says it
   await expect(tile(page, 'work-1-review')).toContainText('Reviews Implement the PDF retry')
@@ -334,13 +335,23 @@ test('the board by keys: the arrows across lanes, Enter opens', async ({ page })
 })
 
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
-  await page.goto(`${PAGE}?many=1`)
-  const next = lane(page, 'Up next')
-  await expect(next.locator('.task-tile')).toHaveCount(5)
-  await next.getByRole('button', { name: 'Show 3 more' }).click()
-  await expect(next.locator('.task-tile')).toHaveCount(8)
-  await next.getByRole('button', { name: 'Show fewer' }).click()
-  await expect(next.locator('.task-tile')).toHaveCount(5)
+  await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
+  const held = lane(page, 'Blocked')
+  await expect(held.locator('.task-tile')).toHaveCount(5)
+  await held.getByRole('button', { name: 'Show 2 more' }).click()
+  await expect(held.locator('.task-tile')).toHaveCount(7)
+  await held.getByRole('button', { name: 'Show fewer' }).click()
+  await expect(held.locator('.task-tile')).toHaveCount(5)
+})
+
+test('Blocked stands only while something is: a plan with nothing blocked keeps four lanes', async ({ page }) => {
+  await page.goto(`${PAGE}?goals=6`)
+  await expect(board(page).locator('.lane')).toHaveCount(5)
+  await expect(board(page).locator('.board-lanes')).toHaveCSS('grid-template-columns', /^(\S+ ){4}\S+$/)
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(board(page).locator('.lane')).toHaveCount(4)
+  await expect(lane(page, 'Blocked')).toHaveCount(0)
+  await expect(board(page).locator('.board-lanes')).toHaveCSS('grid-template-columns', /^(\S+ ){3}\S+$/)
 })
 
 test('a proposed plan says so; a superseded one leaves the goal as it is without one', async ({ page }) => {
@@ -638,11 +649,8 @@ test('wbc · UI-01 · loops of parents or blockers show each task once and say t
   await expect(notice).toContainText('Some tasks wait on each other in a loop')
   for (const id of ['loop-a', 'loop-b', 'wait-a', 'wait-b']) await expect(tile(page, id)).toHaveCount(1)
   await page.goto(`${PAGE}?case=deep`) // three levels: the retry, its review, the review's notes
-  expect(await titles(lane(page, 'Up next'))).toEqual([
-    'Review the retry’s candidate',
-    'Note what the review found',
-    'Write the export’s release note',
-  ])
+  expect(await titles(lane(page, 'Up next'))).toEqual(['Review the retry’s candidate', 'Note what the review found'])
+  expect(await titles(lane(page, 'Blocked'))).toEqual(['Write the export’s release note'])
   await page.goto(`${PAGE}?case=orphan`) // its parent isn't in the plan: it stands alone, once
   await expect(tile(page, 'stray')).toHaveCount(1)
   await expect(board(page).locator('.board-notice')).toHaveCount(0)
