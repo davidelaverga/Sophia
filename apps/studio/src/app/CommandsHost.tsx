@@ -1,11 +1,11 @@
 // The commands' host (docs/plans/commands.md): the palette on ⌘K, the index of keys on ⌘/ (and on ? where no field
 // takes stray typing), each a modal dialog over the page; and the light by a key. Mounted by the project shell and by
 // the places' bar; the one in scope answers a control's ask.
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useState, useSyncExternalStore } from 'react'
 import { Palette } from './Palette.tsx'
 import { ShortcutScope, useShortcuts } from './shortcuts.ts'
 import { ShortcutIndex } from './ShortcutIndex.tsx'
-import { resolveTheme, useTheme } from './theme.ts'
+import { setTheme } from './theme.ts'
 import { useCommands } from './useCommands.ts'
 
 type Open = 'palette' | 'index'
@@ -23,16 +23,26 @@ interface Props {
   onSearch?: (() => void) | undefined
 }
 
-/** The light by a key (docs/plans/places-commands.md): the page's other appearance, set as the menu's radios set it. */
+/** What the page shows now: the root's own mark, which «Follow the system» moves without a choice changing. */
+const lightShown = () => document.documentElement.dataset['theme'] === 'light'
+const onRoot = (tell: () => void) => {
+  const watch = new MutationObserver(tell)
+  watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  return () => watch.disconnect()
+}
+
+/**
+ * The light by a key (docs/plans/places-commands.md): the page's other appearance, read from the root as it is shown
+ * (so a system change under «Follow the system» is seen) and set as the menu's radios set it (Codex on #243).
+ */
 function useLightCommand() {
-  const [theme, setTheme] = useTheme()
-  const light = resolveTheme(theme) === 'light'
+  const light = useSyncExternalStore(onRoot, lightShown, () => false)
   return {
     id: 'theme',
     words: light ? 'Switch to the dark room' : 'Switch to the light page',
     group: 'do' as const,
     key: 'mod+shift+l',
-    run: () => setTheme(light ? 'dark' : 'light'),
+    run: () => setTheme(lightShown() ? 'dark' : 'light'),
   }
 }
 

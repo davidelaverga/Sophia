@@ -8,6 +8,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/places-
 Ending commit/tree: `224c065c` (tree `cef31d8bb5c5`): 9 files, 1 new (`docs/plans/places-commands.md`); `Places.tsx`,
 `Find.tsx`, `PlacesBar.tsx`, `CommandsHost.tsx`, `AccountMenu.tsx`, `commands.spec.ts`, `app-auth.spec.ts`,
 `docs/plans/commands.md`. The commit after it adds only this handoff.
+After the review (Codex on #243, P2): `6cd2928a` reads the appearance from the root as shown (a `MutationObserver`),
+so «Follow the system» is followed by the key and its words; the spec emulates the system turning light. That is the
+completed code state of this PR.
 
 ## Outcome
 

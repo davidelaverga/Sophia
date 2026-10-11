@@ -30,6 +30,8 @@
 - A sheet open over the places (`free` false): the places' commands are off, as their keys were; the host's own keys
   (`⌘K`, `⌘/`) still act from a field but not inside a dialog (`shortcutKey`).
 - The lock's words follow the lock; a locked space still offers Home, Work and the unlock.
+- After the review (Codex on #243): the key and its words read the root as it is shown (a `MutationObserver` on
+  `data-theme`), so under «Follow the system» a system change is seen and the key toggles what is on the page.
 
 ## Checks (written first)
 
