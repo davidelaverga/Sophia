@@ -118,6 +118,25 @@ test('home · needs you when the read fails: Home says so, Try again reads it', 
   expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(failed + 1)
 })
 
+test('home · needs you when a later read fails: the rows read last stay, and the note says so beside them', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await page.evaluate(() => window.homeFixture?.breakNeeds())
+  // The window coming back reads again (the query is stale at once; the query library hears `visibilitychange`):
+  // this read fails.
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  const note = page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })
+  await expect(note).toBeVisible()
+  await expect(rows).toHaveCount(4)
+  await page.evaluate(() => window.homeFixture?.recover())
+  await note.getByRole('button', { name: 'Try again' }).click()
+  await expect(note).toHaveCount(0)
+  await expect(rows).toHaveCount(4)
+})
+
 test('home · needs you behind a shut padlock: nothing is read, nothing is shown', async ({ page }) => {
   await page.goto(`${PAGE}?needs=api&locked=1`)
   await expect(page.getByText('Product launch').first()).toBeVisible()

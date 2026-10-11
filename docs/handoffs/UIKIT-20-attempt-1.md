@@ -40,6 +40,9 @@ inAddress)`, false for a shell kept out of sight) and names a task only when it 
 - The address carries the lens only while the Studio view shows it: the route's own moves carry the report's
   parameters alone, and the Studio view regains the lens from storage. A link to the Studio view says what it shows.
 - One task working names itself; several go to Tasks as a whole: naming one of many would be a guess.
+- Another subject at the same page (app-auth.spec's «resets for another subject», red in CI): the address kept the
+  last one's lens; the tab remembers whose (`sessionStorage`), and a lens written for another key is not read as this
+  viewer's (`addressLensFor`, unit-tested). History state was not enough: the route's own `pushState` drops it.
 
 ## Remaining obligations
 
