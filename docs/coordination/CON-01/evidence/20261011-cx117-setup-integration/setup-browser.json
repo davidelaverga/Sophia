@@ -1,0 +1,18 @@
+{
+  "origin": "Actual native CUA Chrome UI and read-only connected Gmail profile",
+  "at": "2026-10-11T17:33Z onward",
+  "hostedSignup": {
+    "url": "https://studio.sophia-ei.com/",
+    "state": "Sign in to Sophia; Continue with Google/GitHub; Email me a link; New here? The same link creates your account",
+    "emailEntered": false,
+    "submitted": false,
+    "limit": "Unsigned-in surface only; not the OP2r3 invited-member path or designated subject/session proof"
+  },
+  "accountAbsence": "Exact private owner-designated inbox had0auth.users matches at17:33:22.519Z; not a guarantee at future execution",
+  "connectedGmailProfileMatchesDesignatedInbox": false,
+  "mailboxContentRead": false,
+  "supabaseDashboard": "Exact target Auth/users direct visit in this Chrome profile redirected to sign-in; no credential entry, OAuth or agreement acceptance. This does not deny existing private DB access or all possible dashboard access.",
+  "batch": "OP2r3 member invitation and invited OTP remain binding; no alternate public-signup/admin path adopted",
+  "effects": "No email input/request/invitation/account/project/role/auth-switch/model/native/config/deploy effects",
+  "cleanup": "Both agent-created Chrome inspection tabs closed with URL/heading guards; original New Tab and signed-in IAB preserved"
+}

@@ -1,0 +1,72 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "CX100 servingtuple12:02UTC and CX115 custom-ledger/runtime metadata16:41UTC remain dated. CX117 refreshed exact designated-account metadata only17:33UTC; no servingtuple/ledger/runtime refresh.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Bounded exact owner-designated inbox SELECT from auth.users (no values/subjects published), repeatableREADONLY/5sstatement/2slock/7sconnectionquery;ROLLBACK/end.",
+    "CUA actual Chrome unsigned-in Studio signup and exact-target Supabase Auth dashboard access; no fields submitted. Connected Gmail profile equality check only; no mailbox content. Both temporary Chrome tabs closed.",
+    "Read completeCC0130 author terminal receipt; independently hash exactae nine source/test blobs and compare all claimed prefixes; prior own130not rerun.",
+    "Read currentPR199/211/190, exact3bCI38158321772 stillqueued, PR19013successfulchecks and two billingthreads unresolved. Read datedSDD103/WBC107publiccoordination without new externalmessages oroldbatchreplay.",
+    "Four git merge-tree object-only discoveries; inspect both exact mapconflicthunks; no source/commit/ref/checkout change.",
+    "Guarded exact CON desktop request for review-only integration proposal after existingStepBterminal/census, without PRmove/sharededit/liveauthority."
+  ],
+  "results": "Exact-inbox read-only absence/closed transaction; actual unsigned-in setup surface and Gmail-profile mismatch; StepA terminal author gate read/hash-matched; independent only-map-history integration conflict and clean pairwise discovery. No app/provider/combined acceptance.36fullverdicts unchanged.",
+  "unresolvedEffects": "No uncertain hosted operation: no setup email/project/account/role/auth-switch/provider/deploy effect. Shared dispatcher P2s unfixed; Q7/Q12 writer/window, final integration/native qualification/provider route/finite allowance/policy/cohort/setup delivery and exact approval unresolved.",
+  "rollback": "No CON deployment or setup write thischeckpoint. Read-only account connection and temporary tabs settled. Existing dated serving tuple is not a qualified compatible rollback; preserve governed data.",
+  "nextBoundedAction": "Read actual StepB terminal receipt/census; primary then supplies immutable review-only G1/G2/main/latestdocs integration proposal for independent combined source review before scheduling its gate. Q7/Q12 owner/window and setup/live holds remain.",
+  "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
+  "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
+  "resourceUse": {
+    "newLocalPg": 0,
+    "readOnlyProductionAccountConnections": 1,
+    "gmailProfileReads": 1,
+    "mailboxMessagesRead": 0,
+    "sophiaProviderCalls": 0,
+    "realNativeProcesses": 0,
+    "hostedAppMutations": 0,
+    "emailsSent": 0,
+    "reviewerHostedEffectSpend": 0,
+    "codingAgentSubscriptionConsumption": "Routine authorized coordination, unmeasured/private"
+  },
+  "cleanup": "Read-only production account transaction rolled back/connection closed. Two temporary Chrome inspection tabs closed; original unsigned Chrome NewTab and signed-in IAB preserved. Product checkout unchanged; no local native/PG fixture started."
+}

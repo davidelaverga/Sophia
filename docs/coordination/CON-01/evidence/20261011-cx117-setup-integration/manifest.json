@@ -1,0 +1,13 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0117.md",
+  "artifacts": {
+    "evidence/20261011-cx117-setup-integration/acceptance-status-comparison.json": "82b2f332a9093cd3bca7098d849b06db811090eb39fc2d1097cc2b18e281093c",
+    "evidence/20261011-cx117-setup-integration/account-readonly.json": "aea342d78ce0b19da5550f5ef4a8ed868d014b0f89052bea75d9be1598fd7af3",
+    "evidence/20261011-cx117-setup-integration/operation-handoff.json": "9fb266cfd85f12e22fe4729b86a4682e09c425bd8c29c4c5c438e095ada116af",
+    "evidence/20261011-cx117-setup-integration/pr-checkpoint.json": "8d0a427ce74261314e352ab2adc0e788f60cf079bbe90f12bfcd94c6c50e6004",
+    "evidence/20261011-cx117-setup-integration/setup-browser.json": "0509dfbce611bf9578b7fa88ecb68e05ce998bb855f64b6054ab730df3d4dabc",
+    "evidence/20261011-cx117-setup-integration/source-composition-discovery.json": "c34a22c586c7ead4a1d521fd0fa3093cab4fe05535b7bf2fcba9b2c9ae1d64dd",
+    "evidence/20261011-cx117-setup-integration/stepA-author-gate.json": "31225f8d631f6f19d1d0ec26446f7422ada336f44c65491cc74b90b5ca9cd394"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "origin": "Author terminal log receipt, fully read; not reviewer execution. Prior CX115 independent130 plus parent negative/restored control retained separately.",
+  "receipt": 6111786775,
+  "receiptBodySha256": "64e619c431baa765c207320d5973d74d09286334e5b6b072175f1a5ae0368922",
+  "candidate": "ae1a12349c84d6ed489d1150ebc9ca0885bdea13",
+  "tree": "2f6d3c11a40197af9029dce4896c90c9fc2c585a",
+  "sourceHashesIndependentlyChecked": {
+    "db/candidates/con01-s1-reply-states.sql": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+    "db/candidates/con01-s3-conversation-reply-context.sql": "27c25b112efcdb1767790ac3b3790f62fd524e820d514b04c35fa7e0335ea498",
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995",
+    "packages/persistence/src/conversation-assembly.db.test.ts": "153d0c2683774d3f01c4992490c88bca6e4e38c271155ec0af5969abb82f7232",
+    "packages/persistence/src/conversation-fences.db.test.ts": "8e42fcb40f6027d778a83b00537ed019c9a6b8b7e1a0cea37ecd2887e12ba693",
+    "packages/persistence/src/conversation-ledger.db.test.ts": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+    "packages/persistence/src/conversation-reply-states.db.test.ts": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0",
+    "db/migrations/0048_project_conversations.sql": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35"
+  },
+  "run": "n4i-final.sh hashprefix74ce5b3a undertimeout12000; waited3bclosingcensus",
+  "from": "2026-10-11T17:06:42Z",
+  "to": "2026-10-11T17:36:34Z",
+  "wrapperExit": 0,
+  "cleanBeforeAfter": true,
+  "locales": [
+    "C.UTF-8",
+    "ICU en-US"
+  ],
+  "both": {
+    "N4": "41/41 exit0",
+    "composedN2": "36/39 exit1; exact10N4function footprint and two byte_length/context_hash scrubs; restored clean",
+    "fiveConversation": "130/130 exit0",
+    "dbAll": "739/739 exit0; noasync error",
+    "closingCensus": "defaultroles/dbs only;0otherclients/testprocesses"
+  },
+  "sql": "exit0;46migrations5files",
+  "check": "exit0;2256units(2255pass1skip);88integration(86pass2skip)",
+  "stepB": "Existing ordered run started17:36:48Z exactf36/tree369b clean; terminal receipt pending, no inferred pass"
+}

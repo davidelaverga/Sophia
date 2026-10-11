@@ -1,0 +1,48 @@
+{
+  "kind": "Read-only Git merge-tree object discovery; no commit/ref/checkout change, candidate or accepted base/window",
+  "comparisons": [
+    {
+      "label": "pr211",
+      "base": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "head": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+      "exit": 1,
+      "provisionalTree": "8e04aa6ed49d47dbed98d952df6a36a1a1493aea",
+      "conflicts": [
+        "CONFLICT (content): Merge conflict in docs/coordination/CON-01/BINDING_MAP.md"
+      ],
+      "rawSha256": "c46533fb8aaa7fdcd15a2f7bf1c323fedf03ac70d5a556a0593e65d7d4c0514b"
+    },
+    {
+      "label": "stepB",
+      "base": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "head": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+      "exit": 1,
+      "provisionalTree": "e05be8a37ae50b2d8b11e4b51e15b10ebd151839",
+      "conflicts": [
+        "CONFLICT (content): Merge conflict in docs/coordination/CON-01/BINDING_MAP.md"
+      ],
+      "rawSha256": "a71ba259c176247ef023de426ae473595baac7dbf2a8e690a95583d51ba954a4"
+    },
+    {
+      "label": "main-plus-G1",
+      "left": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "right": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "exit": 0,
+      "provisionalTree": "ba7f9d46638f0bccf1294cba1f9955f9e160463b",
+      "conflicts": [],
+      "rawSha256": "d0a630779d173579a566107ed560b6ef09d5f22495ba38549ae571758143d014"
+    },
+    {
+      "label": "runtime-docs-plus-stepB",
+      "left": "46ddd769b7182e968da20219a9f6852757419805",
+      "right": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+      "exit": 0,
+      "provisionalTree": "d8724f75fc3a837c251bdd87bbb4789619720448",
+      "conflicts": [],
+      "rawSha256": "692f8be5872c42e0c93d2c9a13c3cd92364c145b0438064d6a170fb820c1b2d0"
+    }
+  ],
+  "conflictInspection": "Both d527+3b and d527+f36 have one conflict block, BINDING_MAP history table only. Three G1 history rows versus four G2 history rows; both must survive. No code-file conflict. Provisional conflict trees contain markers and are not review/deploy candidates.",
+  "runtimeDocs": "Latest46ddd map lacks the three G1 history rows; integration must retain them along with reviewed Q7/Q12 constraints.",
+  "requestToPrimary": "After existing StepB terminal gate/census, prepare immutable review-only integration proposal for current mainfec/G1d527/StepBf36/latestdocs46ddd; exact parents/tree/full delta/minimal conflict resolution, no PR advancement/shared runtime edit/combined gate until independent source review."
+}

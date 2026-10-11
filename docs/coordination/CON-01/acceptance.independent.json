@@ -1085,7 +1085,7 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0116.md",
+    "record": "CX-0117.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
@@ -1093,21 +1093,20 @@
     "documentationCandidate": "46ddd769b7182e968da20219a9f6852757419805",
     "documentationTree": "270153577cf1add46a01c177f17fea1ef22b4c02",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Independent actual PG/worker reproductions of pre-existing shared dispatcher spin and bounded-window starvation on current-main-identical code. Named runtime-plan cleanup/attempt/stub/fairness constraints corrected and independently rechecked; no shared implementation/runtime/provider/app acceptance. All36 full verdicts unchanged.",
+    "statement": "Exact-inbox read-only absence/closed transaction; actual unsigned-in setup surface and Gmail-profile mismatch; StepA terminal author gate read/hash-matched; independent only-map-history integration conflict and clean pairwise discovery. No app/provider/combined acceptance.36fullverdicts unchanged.",
     "readiness": {
-      "source_ready": true,
-      "locally_verified": "Prior CON ae130/f36135 retained. New actualPG/worker spin+starvation reproductions and controls pass; shared defects not fixed.",
+      "source_ready": "Scoped prior source only; final combined candidate not prepared",
+      "locally_verified": "Prior independentae130/f36135 and meaningful negatives retained, no new localtest run. StepA broadgate author evidence hash-matched only.",
       "scoped_delta_reviewed": true,
-      "runtime_plan_reviewed": "Early plan and complete immutable docs corrections read; named constraints resolved only, Q7/Q12/owner/base/window/route/native probes remain held.",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft advancement observed under existingcondition; no merge/live authority.",
-    "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed; five disposable DBs/roles removed and pools ended, including initial invalid wrong-session fixture. Product checkout clean.",
-    "next": "Read the actual StepA terminal gate receipt and subsequent StepB receipt against exact source/exit/census; obtain named shared runtime owner acknowledgment for Q7/Q12 and bounded correction/window before shared runtime work."
+    "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null; setup path unchanged",
+    "cleanup": "Read-only production account transaction rolled back/connection closed. Two temporary Chrome inspection tabs closed; original unsigned Chrome NewTab and signed-in IAB preserved. Product checkout unchanged; no local native/PG fixture started.",
+    "next": "Read actual StepB terminal receipt/census; primary then supplies immutable review-only G1/G2/main/latestdocs integration proposal for independent combined source review before scheduling its gate. Q7/Q12 owner/window and setup/live holds remain."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1255,27 +1254,29 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0115.md",
+    "record": "CX-0116.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
     "supplementalTree": "369b060dfc02e96634f5e596907855041d390a7a",
+    "documentationCandidate": "46ddd769b7182e968da20219a9f6852757419805",
+    "documentationTree": "270153577cf1add46a01c177f17fea1ef22b4c02",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Independent StepA130 and StepB135 actualPG17.6 PASS, meaningful parent negatives and restored controls; fresh per-source main composition discovery and production READ ONLY metadata. No native/provider/hosted acceptance;36full verdicts unchanged.",
+    "statement": "Independent actual PG/worker reproductions of pre-existing shared dispatcher spin and bounded-window starvation on current-main-identical code. Named runtime-plan cleanup/attempt/stub/fairness constraints corrected and independently rechecked; no shared implementation/runtime/provider/app acceptance. All36 full verdicts unchanged.",
     "readiness": {
       "source_ready": true,
-      "N4_source_ready": true,
-      "locally_verified": "StepA130/130;StepB135/135; negatives/restoredcontrols. Scoped dormant database changes only.",
+      "locally_verified": "Prior CON ae130/f36135 retained. New actualPG/worker spin+starvation reproductions and controls pass; shared defects not fixed.",
       "scoped_delta_reviewed": true,
+      "runtime_plan_reviewed": "Early plan and complete immutable docs corrections read; named constraints resolved only, Q7/Q12/owner/base/window/route/native probes remain held.",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft-only progression remains conditional on every ordinary gate and fresh review, no merge/live authority.",
-    "cleanup": "Two new owned localPG17.6 clusters stopped/PIDs absent/data removed; exact source restored/checkout clean. Read-only production transaction rolled back/connection ended.",
-    "next": "Primary returns actual terminal combined3b ordinary gate receipt, then StepA/StepB receipts in order; reviewer checks exact candidate, each exit/census and any fresh automatic review before draft-only progression. Shared runtime writer/window and compatible subscription route/finite allowance/cohort/effect batch remain separate prerequisites."
+    "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft advancement observed under existingcondition; no merge/live authority.",
+    "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed; five disposable DBs/roles removed and pools ended, including initial invalid wrong-session fixture. Product checkout clean.",
+    "next": "Read the actual StepA terminal gate receipt and subsequent StepB receipt against exact source/exit/census; obtain named shared runtime owner acknowledgment for Q7/Q12 and bounded correction/window before shared runtime work."
   },
   "checkpoint_history": [
     {
@@ -2003,6 +2004,31 @@
       "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft-only progression remains conditional on every ordinary gate and fresh review, no merge/live authority.",
       "cleanup": "Two new owned localPG17.6 clusters stopped/PIDs absent/data removed; exact source restored/checkout clean. Read-only production transaction rolled back/connection ended.",
       "next": "Primary returns actual terminal combined3b ordinary gate receipt, then StepA/StepB receipts in order; reviewer checks exact candidate, each exit/census and any fresh automatic review before draft-only progression. Shared runtime writer/window and compatible subscription route/finite allowance/cohort/effect batch remain separate prerequisites."
+    },
+    {
+      "record": "CX-0116.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+      "supplementalTree": "369b060dfc02e96634f5e596907855041d390a7a",
+      "documentationCandidate": "46ddd769b7182e968da20219a9f6852757419805",
+      "documentationTree": "270153577cf1add46a01c177f17fea1ef22b4c02",
+      "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "statement": "Independent actual PG/worker reproductions of pre-existing shared dispatcher spin and bounded-window starvation on current-main-identical code. Named runtime-plan cleanup/attempt/stub/fairness constraints corrected and independently rechecked; no shared implementation/runtime/provider/app acceptance. All36 full verdicts unchanged.",
+      "readiness": {
+        "source_ready": true,
+        "locally_verified": "Prior CON ae130/f36135 retained. New actualPG/worker spin+starvation reproductions and controls pass; shared defects not fixed.",
+        "scoped_delta_reviewed": true,
+        "runtime_plan_reviewed": "Early plan and complete immutable docs corrections read; named constraints resolved only, Q7/Q12/owner/base/window/route/native probes remain held.",
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft advancement observed under existingcondition; no merge/live authority.",
+      "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed; five disposable DBs/roles removed and pools ended, including initial invalid wrong-session fixture. Product checkout clean.",
+      "next": "Read the actual StepA terminal gate receipt and subsequent StepB receipt against exact source/exit/census; obtain named shared runtime owner acknowledgment for Q7/Q12 and bounded correction/window before shared runtime work."
     }
   ]
 }

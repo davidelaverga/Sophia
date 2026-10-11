@@ -1,0 +1,16 @@
+{
+  "observedAt": "2026-10-11T17:33:19.891Z",
+  "scope": "Exact owner-designated inbox only; account metadata; no sign-in, account creation, email, invite, project or membership effect",
+  "mode": "REPEATABLE READ READ ONLY",
+  "credentialRef": "~/.config/sophia/smc-m01-owner-db-url",
+  "targetReferenceMatched": true,
+  "server": {
+    "version": "17.6",
+    "read_only": "on"
+  },
+  "matchingAccounts": 0,
+  "confirmedAccounts": 0,
+  "serverObservedAt": "2026-10-11T17:33:22.519Z",
+  "rollbackConfirmed": true,
+  "connectionEnded": true
+}

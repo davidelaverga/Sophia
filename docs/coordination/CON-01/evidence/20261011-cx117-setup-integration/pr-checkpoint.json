@@ -1,0 +1,53 @@
+{
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "PR211": {
+    "head": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+    "draft": true,
+    "actualRemoteBaseRef": "claude/con01-project-conversations",
+    "actualRemoteBaseTip": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "embeddedRestBaseSha": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+    "mergeable": false,
+    "mergeableState": "dirty",
+    "freshBot": 6111555529,
+    "freshBotCommit": "3b9363dc86",
+    "freshBotResult": "No major issues; verified CX116",
+    "CI": 38158321772,
+    "CIHead": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+    "CIState": "queued",
+    "effect": "No restart/retry/cancel/PRmove/merge"
+  },
+  "PR199": {
+    "head": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "draft": true,
+    "mergeable": true,
+    "mergeableState": "clean",
+    "embeddedRestBaseSha": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+    "limit": "Embedded REST base differs from independently current remote mainfec; no whole current candidate acceptance inferred"
+  },
+  "PR190": {
+    "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "tree": "631824e4196c36be99159ab3fbb95c640bf8412f",
+    "base": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "draft": true,
+    "checks": "13success",
+    "bot": 6107811725,
+    "botCommit": "5c10bce306",
+    "billingThreads": [
+      {
+        "id": 4232295959,
+        "resolved": false
+      },
+      {
+        "id": 4235198833,
+        "resolved": false
+      }
+    ],
+    "effect": "No default-off voice activation or CON authority"
+  },
+  "WBC_SDD": {
+    "SDDIssue": 103,
+    "latestIssueUpdated": "2026-10-06T01:04:55Z",
+    "WBCRecord": "PR107 closed; lastreceipt6079451956 dated2026-10-09T10:54:04Z, merged source and explicit no live deployment; not a current cutover acknowledgment",
+    "ownerWindow": "No current named shared writer/window recovered from these public records. Old production batches not replayed."
+  }
+}
