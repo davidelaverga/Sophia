@@ -627,44 +627,58 @@ function MessageItem(props: {
       data-pressed={props.pressed || undefined}
       onClick={props.onPress}
     >
-      <MessageByline message={m} before={before} me={me} now={now} />
-      <div className="conv-msg-body">
-        <MessageWords words={words} sophia={sophia} />
-        {sophia && at}
-        {ended && <p className="conv-ask-ended">{ended}</p>}
+      <MessageLead message={m} before={before} now={now} />
+      {/* The turn (the name, the bubble, the acts, the clock) is the acts' box: the thread's width, from the name's line. */}
+      <div className="conv-turn">
+        <MessageBy message={m} me={me} now={now} />
+        <div className="conv-msg-body">
+          <MessageWords words={words} sophia={sophia} />
+          {sophia && at}
+          {ended && <p className="conv-ask-ended">{ended}</p>}
+        </div>
+        {m.text !== null && (
+          <MessageActs
+            message={{ text: m.text, at: m.at }}
+            who={messageBy(m, me)}
+            now={now}
+            onQuote={props.onQuote}
+            propose={
+              <>
+                {here.press}
+                {away.press}
+              </>
+            }
+          />
+        )}
+        {!sophia && at}
       </div>
-      {/* Beside the bubble: the message's box is the acts' box, so they stand at its right edge whatever the bubble's width. */}
-      {m.text !== null && (
-        <MessageActs
-          message={{ text: m.text, at: m.at }}
-          who={messageBy(m, me)}
-          now={now}
-          onQuote={props.onQuote}
-          propose={
-            <>
-              {here.press}
-              {away.press}
-            </>
-          }
-        />
-      )}
-      {!sophia && at}
       {here.form}
       {away.form}
     </li>
   )
 }
 
-/** Before a message's words: its day when it starts one, her glyph, who wrote it (with the time for a screen reader). */
-function MessageByline({
+/** Who wrote the message, with its time for a screen reader (the clock beside the bubble is for the eye). */
+function MessageBy({ message: m, me, now }: { message: ConversationMessage; me: string; now: number }) {
+  return (
+    <span className="conv-msg-by">
+      {messageBy(m, me)}
+      <span className="sr-only">
+        {' · '}
+        <time dateTime={m.at}>{when(m.at, now)}</time>
+      </span>
+    </span>
+  )
+}
+
+/** Before a message's turn: its day when it starts one, and her glyph. */
+function MessageLead({
   message: m,
   before,
-  me,
   now,
 }: {
   message: ConversationMessage
   before: ConversationMessage | undefined
-  me: string
   now: number
 }) {
   return (
@@ -679,13 +693,6 @@ function MessageByline({
           <Mark />
         </span>
       )}
-      <span className="conv-msg-by">
-        {messageBy(m, me)}
-        <span className="sr-only">
-          {' · '}
-          <time dateTime={m.at}>{when(m.at, now)}</time>
-        </span>
-      </span>
     </>
   )
 }
