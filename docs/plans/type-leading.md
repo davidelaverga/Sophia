@@ -58,3 +58,6 @@
   at its 13 px, 16 at a lane's 12). The checker (`typeOff`) now enforces the size's own step (up to 12 → 16, 13 to 15
   → 20, 16 to 18 → 24, from 20 → 32) rather than any grid value; the two reading voices are left out of it (a
   report's page at 17/1.6, the personal space's turns at 15/24).
+- **Correction (local full run, 2026-10-11)**: `.text-button` keeps its 20 px leading at every size: it is a control, its
+  words centred in the 24 px box the controls' grid names (control-heights.spec found 12 px text presses at 20 px tall
+  with the formula). The checker accepts a control's leading when its box stands on the controls' grid (24 to 36).
