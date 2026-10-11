@@ -44,6 +44,8 @@
   --base: 220ms;
   --gutter: max(16px, 3vw);
   --topbar: 48px;
+  /* The widest a page's column goes (docs/plans/widths.md): a wide screen is used, not left bare at the sides. */
+  --content: 1280px;
   /* The room's floor: the dock, the panel toggles, the chat's message bar and the mini dock of the other views all
      rest this far above the bottom. */
   --floor: calc(env(safe-area-inset-bottom, 0px) + 18px);
@@ -676,6 +678,17 @@ button.mark:hover {
 }
 .view-nav::-webkit-scrollbar {
   display: none;
+}
+/* Where the views don't fit (a 1024 screen, a report beside the page) the row scrolls: an edge fades only where more
+   views hide (ViewNav marks it), and the current view is scrolled into sight, never cut at a hard edge. */
+.view-nav[data-more-end] {
+  mask-image: linear-gradient(90deg, #000 82%, transparent);
+}
+.view-nav[data-more-start] {
+  mask-image: linear-gradient(90deg, transparent, #000 18%);
+}
+.view-nav[data-more-start][data-more-end] {
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
 }
 .view-nav a {
   display: flex;
@@ -3132,7 +3145,7 @@ button.contribution-quote:hover {
 /* Pages: goals, work and what is coming. Rows separated by hairlines, data in mono. */
 .page {
   width: 100%;
-  max-width: 1040px;
+  max-width: var(--content);
   margin: 0 auto;
   padding: 32px var(--gutter) 120px;
 }
@@ -3657,17 +3670,7 @@ button.contribution-quote:hover {
     margin: 0 calc(-1 * var(--gutter));
     padding: 0 calc(var(--gutter) - 10px);
   }
-  /* An edge fades only where more views hide (ViewNav marks it): the row says it scrolls, and the current view,
-     scrolled into sight, is never left under the fade. */
-  .view-nav[data-more-end] {
-    mask-image: linear-gradient(90deg, #000 82%, transparent);
-  }
-  .view-nav[data-more-start] {
-    mask-image: linear-gradient(90deg, transparent, #000 18%);
-  }
-  .view-nav[data-more-start][data-more-end] {
-    mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  }
+  /* The fades where more views hide are the row's at any width (above). */
   .presence {
     gap: 8px;
   }
@@ -4531,7 +4534,7 @@ button.contribution-quote:hover {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
   gap: 28px 56px;
   align-items: start;
-  max-width: 1040px;
+  max-width: var(--content);
 }
 .updates > h2 {
   grid-column: 1 / -1;
