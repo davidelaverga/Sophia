@@ -9,8 +9,9 @@ import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
-import { routePath, type View } from '../../app/route.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { routePath, type View, viewsShown } from '../../app/route.ts'
+import { CommandsHost } from '../../app/CommandsHost.tsx'
+import { useCommands } from '../../app/useCommands.ts'
 import { VISION } from '../../app/vision.ts'
 import { ProjectGoProvider } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -28,6 +29,7 @@ import { useHeldCaptions } from '../voice/StageCaptions.tsx'
 import { useStageMade } from '../voice/StageMade.tsx'
 import { showRenderOf } from '../voice/StagePresent.tsx'
 import { ProjectSearch, SearchButton } from '../search/SearchSheet.tsx'
+import { VIEW_LABEL } from './ViewNav.tsx'
 import { useCatchUp } from '../voice/CatchUp.tsx'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
@@ -226,17 +228,59 @@ function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: Pr
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
 }
 
-/** H goes home and W to the projects, from a project as from every place; I invites, where the viewer may. */
+/** The views a person can go to from here, each a command without a key (docs/plans/commands.md). */
+const viewCommands = (view: View, onShow: (view: View) => void) =>
+  viewsShown(VISION)
+    .filter((v) => v !== view)
+    .map((v) => ({ id: `view-${v}`, words: `Go to ${VIEW_LABEL[v]}`, group: 'go' as const, run: () => onShow(v) }))
+
+/**
+ * H goes home and W to the projects, from a project as from every place; I invites, where the viewer may; `/`
+ * searches the project (A13, behind the vision flag); and every other view by its words. All as commands: the keys
+ * bound, and the palette and the index told.
+ */
 function useProjectKeys(
-  go: { onLeave: () => void; onWork: () => void; invite: () => void; search: () => void },
-  inviting: boolean,
-  mayInvite: boolean,
-  shown: boolean,
+  go: { onLeave: () => void; onWork: () => void; invite: () => void; search: () => void; show: (view: View) => void },
+  at: { view: View; inviting: boolean; mayInvite: boolean; shown: boolean },
 ) {
-  useShortcuts({ h: go.onLeave, w: go.onWork }, !inviting)
-  useShortcuts({ i: go.invite }, mayInvite && !inviting)
-  // `/` searches the project (A13, behind the vision flag).
-  useShortcuts({ '/': go.search }, VISION && shown && !inviting)
+  useCommands(
+    [
+      { id: 'home', words: 'Home', group: 'go', key: 'h', run: go.onLeave },
+      { id: 'work', words: 'Your projects', group: 'go', key: 'w', run: go.onWork },
+      ...viewCommands(at.view, go.show),
+      { id: 'invite', words: 'Invite someone', group: 'do', key: 'i', run: at.mayInvite ? go.invite : undefined },
+      {
+        id: 'search',
+        words: 'Search this project',
+        group: 'do',
+        key: '/',
+        run: VISION && at.shown ? go.search : undefined,
+      },
+    ],
+    !at.inviting,
+  )
+}
+
+/** What the shell reads of the project: its feed, its room and the viewer's membership. */
+function useProject(projectId: string, identity: Props['identity']) {
+  const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
+  const room = useProjectRoom(projectId, identity.token, snapshot.data)
+  const membership = useMembership(projectId, identity.name, identity.token).data
+  return { snapshot, feed, connection, room, membership }
+}
+
+/** The two sheets the shell opens itself: inviting, and the project's search. */
+function useShellSheets() {
+  const [inviting, setInviting] = useState(false)
+  const [searching, setSearching] = useState(false)
+  return {
+    inviting,
+    setInviting,
+    searching,
+    setSearching,
+    invite: () => setInviting(true),
+    search: () => setSearching(true),
+  }
 }
 
 /** While a call is live in view, a sheet that covers the room's own switches shows them (SheetCall). */
@@ -281,17 +325,13 @@ function doorOf(snapshot: ReturnType<typeof useProjectFeed>['snapshot']) {
 
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
-  const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
-  const room = useProjectRoom(projectId, identity.token, snapshot.data)
-  const membership = useMembership(projectId, identity.name, identity.token).data
-  const [inviting, setInviting] = useState(false)
-  const [searching, setSearching] = useState(false)
-  const search = () => setSearching(true)
+  const { snapshot, feed, connection, room, membership } = useProject(projectId, identity)
+  const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
   const { loaded, blocked, shown } = doorOf(snapshot)
   const work = useTasksWork(props, feed, membership, blocked)
-  const invite = () => setInviting(true)
   useBeyondTheView(props, snapshot.data, room, blocked)
-  useProjectKeys({ onLeave, onWork, invite, search }, inviting, !!shown && canInvite(membership), !!shown)
+  const mayInvite = !!shown && canInvite(membership)
+  useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, { view, inviting, mayInvite, shown: !!shown })
   return (
     <CallKeptInReach room={room} background={!!props.background}>
       <div className="shell" data-view={view}>
@@ -305,6 +345,7 @@ export function ProjectShell(props: Props) {
           onWork={onWork}
         />
         <OpeningNote loaded={loaded} blocked={blocked} />
+        <CommandsHost onSearch={VISION && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite
             context={{ projectId, identity, membership, sessions: shown.sessions, lobby: shown.lobby }}
