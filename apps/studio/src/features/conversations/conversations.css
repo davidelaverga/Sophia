@@ -1171,7 +1171,7 @@
     padding: 10px 14px 6px;
   }
   .conv-head h3 {
-    font-size: var(--type-title);
+    font-size: var(--type-head); /* a section head on a phone too (Codex on #248) */
   }
   .conv-head .conv-faces,
   .conv-output-words {
