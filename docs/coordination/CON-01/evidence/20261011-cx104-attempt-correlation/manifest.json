@@ -1,0 +1,11 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0104.md",
+  "artifacts": {
+    "evidence/20261011-cx104-attempt-correlation/acceptance-status-comparison.json": "138fa7c37fcd085a9f55d8e0675cae7ebf9d8c81f079e05fb9f792fc01acc9d9",
+    "evidence/20261011-cx104-attempt-correlation/independent-cases.json": "951e4e6a9aa2aa63ca9a14c2ce1ec91bce46f0fd35c328bb1de612facebe5e31",
+    "evidence/20261011-cx104-attempt-correlation/operation-handoff.json": "404251e31f8f40423d1f8bb789039988c435d7ac2001ca41903c1fc17d06f577",
+    "evidence/20261011-cx104-attempt-correlation/owned-pg.json": "3dd89f7e906a29b544f09f1b222c99048d8ea19d68ebdbf04fa76f9e22a8a2a8",
+    "evidence/20261011-cx104-attempt-correlation/review-and-scope.json": "1980de364afbd05098bc3bec2332e4c48b9fa01cccfe5ba684d1cea28612566a"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0104.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+  "supplementalTree": "407118d0041b3ce2ea207459060cb2a08c23ce11",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Fresh exact923automaticreview: independentactualPG4cases2PASS2attempt-correlationFAIL. Boundedcutoffmatchesexistingpolicy; primaryseparatecorrectionpending. EarlierCX103passes retained; full36statusesunchanged.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": "immutable923available; newattemptcorrelationP1changes_requested",
+    "locally_verified": "EarlierCX103namedprivacyPASS retained; fresh923answered/pendingattemptcorrelation2FAIL, conservativecutoff/nooperations2PASS; no native/provider/hosted proof.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+  "cleanup": "One new ownedPG17.6 stopped/PIDabsent/removed; ownDB/rolesabsent0clients; earlierthreeclustersalsosettled. No newbrowser/app/hosted/native/provider/spendeffect.",
+  "next": "Review separate immutable primary attemptcorrelation correction, independently rerun answered/pending/running plus relevant-sourcecontrols and affected priorprivacytests; inspect exactterminalgates/automaticadjudication before any draftadvance.",
+  "evidence": "evidence/20261011-cx104-attempt-correlation/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 1,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "missionSpend": 0
+  }
+}

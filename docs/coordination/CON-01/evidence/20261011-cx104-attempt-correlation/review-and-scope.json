@@ -1,0 +1,34 @@
+{
+  "candidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+  "tree": "407118d0041b3ce2ea207459060cb2a08c23ce11",
+  "automaticReview": 5483374481,
+  "automaticCommit": "923336e23d",
+  "findings": [
+    {
+      "id": 4241643132,
+      "priority": "P1",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "line": 428,
+      "verdict": "independently reproduced: answered and pending currentattempt2 omittedoldsource, yetsource_outwithdraws/cancels",
+      "status": "changes_requested"
+    },
+    {
+      "id": 4241643135,
+      "priority": "P1 as reported by automaticreview",
+      "line": 431,
+      "verdict": "bounded43newmessages omission reproduced, but matches existing conservative0048/N3/BINDING_MAP6cutoff policy; no silent narrowing",
+      "status": "contract adjudication pending primary rationale"
+    }
+  ],
+  "privateScriptHashes": {
+    "n4-review-probes.mjs": "982387c920af951567ea3a16bafa61fa16d583921674c3a491feb22e0270d447",
+    "run-review-probes.py": "2bf722347569c48f2ac70cfb39e981a1f2f5512e94de1e0652fc2b4d48c9008f"
+  },
+  "primaryFeedback": "ExactCONmessage513 received/visible; earlier511 ack512 confirms separatecorrection, pending/runningcontrols, no narrowing ofshared0048policy. No corrected immutablepin atthischeckpoint.",
+  "otherHeads": {
+    "PR190": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "PR199": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "at": "2026-10-11 approx13:00UTC actualGHread"
+  },
+  "limits": "Review findings do not erase earlier named CX103passes. Wholeacceptance andlive remain open."
+}

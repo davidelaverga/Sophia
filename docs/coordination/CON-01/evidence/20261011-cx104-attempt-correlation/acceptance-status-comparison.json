@@ -1,0 +1,296 @@
+{
+  "before": [
+    {
+      "id": "CON-01-T01",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T02",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T03",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T04",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T05",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A01",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A02",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A03",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A04",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A05",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A06",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A07",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A08",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A09",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A10",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A11",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A12",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A13",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A14",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A15",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A16",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A17",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A18",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A19",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A20",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A21",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A22",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A23",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A24",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A25",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A26",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A27",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A28",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A29",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A30",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A31",
+      "status": "not_run"
+    }
+  ],
+  "after": [
+    {
+      "id": "CON-01-T01",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T02",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T03",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T04",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T05",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A01",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A02",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A03",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A04",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A05",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A06",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A07",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A08",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A09",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A10",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A11",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A12",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A13",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A14",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A15",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A16",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A17",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A18",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A19",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A20",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A21",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A22",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A23",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A24",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A25",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A26",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A27",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A28",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A29",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A30",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A31",
+      "status": "not_run"
+    }
+  ],
+  "unchanged": true,
+  "history103exactlyOnce": true
+}

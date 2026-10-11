@@ -1,0 +1,34 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+  "tree": "407118d0041b3ce2ea207459060cb2a08c23ce11",
+  "at": "2026-10-11T13:00:23.520682+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-fences.db.test.ts": "f1fb9eb165176dc72e5ffc6c66117c5752ee354536c23f79876fdcfea769902f",
+    "db/candidates/con01-s4-reply-fences.sql": "adc90f226b2ca6e147d00545fb34e4b66ce618e510087c6d2055882bcd314d50"
+  },
+  "independentScriptHash": "982387c920af951567ea3a16bafa61fa16d583921674c3a491feb22e0270d447",
+  "commands": [
+    {
+      "label": "independent-cases",
+      "command": [
+        "node",
+        "n4-review-probes.mjs"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 1
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  }
+}
