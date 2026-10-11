@@ -1,0 +1,150 @@
+{
+  "candidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+  "scope": "actual owned localPG/public database paths; synthetic reported receipts; no real native/provider/hosted execution",
+  "results": [
+    {
+      "stage": "failed",
+      "before": {
+        "state": "outcome_unknown",
+        "answered_stage": "failed",
+        "queued": 1
+      },
+      "passes": [
+        {
+          "expired": 0,
+          "reconciled": 1,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "outcome_unknown",
+            "answered_stage": "failed",
+            "queued": 1
+          }
+        },
+        {
+          "expired": 0,
+          "reconciled": 1,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "outcome_unknown",
+            "answered_stage": "failed",
+            "queued": 1
+          }
+        },
+        {
+          "expired": 0,
+          "reconciled": 1,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "outcome_unknown",
+            "answered_stage": "failed",
+            "queued": 1
+          }
+        }
+      ],
+      "observed": "same terminal row remains; no new queued command or native execution",
+      "actualLoop": {
+        "passes": 5,
+        "elapsedMs": 4.943417000000011,
+        "idleMs": 1000,
+        "stopped": true
+      }
+    },
+    {
+      "stage": "outcome_unknown",
+      "before": {
+        "state": "outcome_unknown",
+        "answered_stage": "outcome_unknown",
+        "queued": 1
+      },
+      "passes": [
+        {
+          "expired": 0,
+          "reconciled": 1,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "outcome_unknown",
+            "answered_stage": "outcome_unknown",
+            "queued": 1
+          }
+        },
+        {
+          "expired": 0,
+          "reconciled": 1,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "outcome_unknown",
+            "answered_stage": "outcome_unknown",
+            "queued": 1
+          }
+        },
+        {
+          "expired": 0,
+          "reconciled": 1,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "outcome_unknown",
+            "answered_stage": "outcome_unknown",
+            "queued": 1
+          }
+        }
+      ],
+      "observed": "same terminal row remains; no new queued command or native execution"
+    },
+    {
+      "stage": "delivered",
+      "before": {
+        "state": "settled",
+        "answered_stage": "delivered",
+        "queued": 1
+      },
+      "passes": [
+        {
+          "expired": 0,
+          "reconciled": 0,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "settled",
+            "answered_stage": "delivered",
+            "queued": 1
+          }
+        },
+        {
+          "expired": 0,
+          "reconciled": 0,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "settled",
+            "answered_stage": "delivered",
+            "queued": 1
+          }
+        },
+        {
+          "expired": 0,
+          "reconciled": 0,
+          "outcomes": [],
+          "lost": 0,
+          "after": {
+            "state": "settled",
+            "answered_stage": "delivered",
+            "queued": 1
+          }
+        }
+      ],
+      "observed": "same terminal row remains; no new queued command or native execution"
+    }
+  ],
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "sharedFilesIdenticalToMain": true,
+  "severity": "P2, pre-existing shared dispatcher, not introduced by CON",
+  "expected": "Stable uncertain rows retain state/accounting but do not perpetually count as new progress or bypass idle. No fresh dispatch/provider use or reset.",
+  "cause": "0012_runtime_service.sql:786-796 updates/counts each selected unknown row even unchanged; runtime-dispatch.ts:98 continues on any positive reconciled count.",
+  "limitations": "A synthetic reported receipt exercises actual persistence/worker source in localPG. No real native result, provider/hosted app proof or fix. SameUID/reaper issue is a separate proposed-plan source finding, not exercised by this probe."
+}

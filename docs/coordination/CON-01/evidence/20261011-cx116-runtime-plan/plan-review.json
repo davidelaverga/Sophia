@@ -1,0 +1,56 @@
+{
+  "candidate": "46ddd769b7182e968da20219a9f6852757419805",
+  "tree": "270153577cf1add46a01c177f17fea1ef22b4c02",
+  "parent": "5d728d4d66a9399b197c62da773d942d17d086d0",
+  "file": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+  "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+  "read": "All269 lines, one docs-only added file; line references independently checked against actual source.",
+  "acceptedScope": "Useful existing-code inventory/explicit unknown relay owner/base/window/route/nativeAPI values, held runtime boundaries, L1 stub-only qualification. No whole runtime design or implementation approval.",
+  "findings": [
+    {
+      "severity": "P2",
+      "line": 50,
+      "expected": "B-1 identity-bound signals, unrelated missions/processes untouched.",
+      "observed": "Unqualified proposed reuse of PDF signalGroup/reap/groupAlive. Actual source signalGroup354/groupAlive428 use numeric process/group IDs; reap400-417 selects matching pgrp OR uid, then signals negativegroup and numericpids. Shared-UID CON children cannot inherit renderer-specific UID cleanup guarantees.",
+      "requested": "Remove unqualified reuse; explicitly forbid UID-wide sweeps and numeric PID/PGID fallback forCON; owner selects identity-safe descendant settlement and qualifies unrelated sameUID, stale/reused identity and restart/descendant cases. No renderer/shared code change.",
+      "evidenceLevel": "Direct source contradiction in a proposal; no kill/fault injection executed, no claim renderer broken in its own environment."
+    },
+    {
+      "severity": "P3",
+      "line": 93,
+      "requested": "Distinguish one native execution attempt from S3 bounded context-assembly attempts, same logical Ask/cumulative allowance."
+    },
+    {
+      "severity": "P3",
+      "line": 23,
+      "requested": "Correct nonexistent section6 order to section5."
+    },
+    {
+      "severity": "P3",
+      "line": 248,
+      "requested": "Clarify no external/provider route; a named loopback stub route may be needed for actual native probes, L1 only."
+    }
+  ],
+  "result": "Named docs corrections independently rechecked. Pre-existing shared spin/starvation source defects remain open for the named runtime owner; Q7/Q12/base/window/route/native qualification unresolved.",
+  "originalCandidate": "66cc4a3c0e1c64b333704242ae201b21bff80c74",
+  "originalTree": "ea28804d637bb0b6efa6ee816f33c13d942939c3",
+  "originalSha256": "cc22d6bb39bca6f19fb0b5ed4a5db93cbb279ab68a9cc499c8daad769bd8bd65",
+  "bindingMapSha256": "1254dfb3495ce921421481e6e9f2f71d35441a96bb698fd441d1a6f0d0e46082",
+  "corrections": [
+    {
+      "candidate": "84a94e25552968cd4e93692aef48510bb4af2385",
+      "result": "Actual shared busyloop source/reproducer and shared-owner Q12 dependency added; count-only correction insufficient because selection starvation remains."
+    },
+    {
+      "candidate": "5d728d4d66a9399b197c62da773d942d17d086d0",
+      "receipt": 6111610490,
+      "result": "Complete one-file +13/-4 delta read; named P2 proposed-reaper and three P3 constraints resolved. UID-wide/numeric fallback prohibited; actual descendant-settlement choice and qualification remain held."
+    },
+    {
+      "candidate": "46ddd769b7182e968da20219a9f6852757419805",
+      "receipt": 6111656273,
+      "result": "Complete two-file +37/-10 delta read; selection or bounded fair traversal REQUIRED with honest count, L+1 backlog controls at2/50, all recoverable mappings, no uncertain-state/accounting reset/duplicatecommand. Named count-only proposal defect resolved; no shared implementation fix or whole runtime acceptance."
+    }
+  ],
+  "originalParent": "cfaf12958989b5c7bf1d8f7308696a9c485a3905"
+}

@@ -1,0 +1,51 @@
+{
+  "pr211Head": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "draft": true,
+  "gateReceipt": 6111521362,
+  "gateEvidenceOrigin": "Author terminal log report, fully read, not reviewer execution",
+  "gate": {
+    "source": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+    "tree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+    "from": "2026-10-11T16:36:35Z",
+    "to": "2026-10-11T17:06:41Z",
+    "wrapperExit": 0,
+    "N4Both": "40/40 exit0",
+    "composedN2Both": "36/39 exit1, exactly three intended diffs; restored clean",
+    "fiveBoth": "129/129 exit0",
+    "dbAllBoth": "738/738 exit0",
+    "testSql": "exit0;46migrations5files",
+    "check": "exit0;units2256(2255pass1skip),integration88(86pass2skip)",
+    "census": "Both defaults only,0otherclients/testprocesses,cleanheadbefore/after"
+  },
+  "draftAdvance": "Allowed existing exact3b conditional draft advancement observed; no merge/shared/number/runtime/provider/live authority.",
+  "freshReviewRequest": 6111517002,
+  "freshAutomaticReview": {
+    "id": 6111555529,
+    "user": "chatgpt-codex-connector[bot]",
+    "createdAt": "2026-10-11T17:11:42Z",
+    "reviewedCommit": "3b9363dc86",
+    "result": "Did not find any major issues",
+    "verifiedBy": "Independent exact REST comment GET; empty author review5484171066 is not this evidence"
+  },
+  "newCI": {
+    "id": 38158321772,
+    "source": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+    "status": "queued"
+  },
+  "old5e7CI": {
+    "id": 38150511775,
+    "browserJob": 114502812472,
+    "status": "completed",
+    "conclusion": "success",
+    "completedAt": "2026-10-11T17:17:05Z",
+    "browserJobConclusion": "success",
+    "browserJobCompletedAt": "2026-10-11T17:17:04Z"
+  },
+  "stepA": "Author CC0129: both db-all and SQL done; pnpm check running, terminal receipt pending. Not inferred pass.",
+  "stepB": "Queued afterStepA; terminal receipt pending",
+  "planReceipt": 6111548800,
+  "planCorrections": [
+    6111610490,
+    6111656273
+  ]
+}

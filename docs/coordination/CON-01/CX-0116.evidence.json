@@ -1,0 +1,39 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0116.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+  "supplementalTree": "369b060dfc02e96634f5e596907855041d390a7a",
+  "documentationCandidate": "46ddd769b7182e968da20219a9f6852757419805",
+  "documentationTree": "270153577cf1add46a01c177f17fea1ef22b4c02",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Independent actual PG/worker reproductions of pre-existing shared dispatcher spin and bounded-window starvation on current-main-identical code. Named runtime-plan cleanup/attempt/stub/fairness constraints corrected and independently rechecked; no shared implementation/runtime/provider/app acceptance. All36 full verdicts unchanged.",
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "Prior CON ae130/f36135 retained. New actualPG/worker spin+starvation reproductions and controls pass; shared defects not fixed.",
+    "scoped_delta_reviewed": true,
+    "runtime_plan_reviewed": "Early plan and complete immutable docs corrections read; named constraints resolved only, Q7/Q12/owner/base/window/route/native probes remain held.",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft advancement observed under existingcondition; no merge/live authority.",
+  "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed; five disposable DBs/roles removed and pools ended, including initial invalid wrong-session fixture. Product checkout clean.",
+  "next": "Read the actual StepA terminal gate receipt and subsequent StepB receipt against exact source/exit/census; obtain named shared runtime owner acknowledgment for Q7/Q12 and bounded correction/window before shared runtime work.",
+  "evidence": "evidence/20261011-cx116-runtime-plan/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 3,
+    "readOnlyProductionMetadataConnections": 0,
+    "sophiaProviderCalls": 0,
+    "realNativeProcesses": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "localWorkFixtures": "Five disposable DBs: one invalid wrong-session fixture, three valid legacy draft_brief receipt scenarios, one three-project fairness scenario; no actual model/native execution.",
+    "codingAgentSubscriptionConsumption": "Routine authorized coordination, unmeasured/private."
+  }
+}

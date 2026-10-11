@@ -1,0 +1,73 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "CX100 dashboard tuple remains dated12:02UTC; actual DB metadata refreshed16:41UTC separately. No CON deployment. Studio sourceSHA/installed runtime combined artifacts/current safe window remain unbound.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Read all269line runtime plan66cc and full CC0125/126; verify its one-file docs-only delta/hash/parent/tree.",
+    "Inspect supervisor environment/spawn/output, bridge startup/credential/session journal and proposed native/copy boundaries; no source edit.",
+    "Verify0012/runtime-dispatch/persistence-dispatch source hashes are byte-identical at f36 and currentmainfec45.",
+    "Run one ownedPG17.6 initial probe: wrong synthetic nativeSessionId denied42501 before loop; retain failedattempt, close/dropDB/logins/stop/removecluster.",
+    "Run corrected bound-session probe on fresh ownedPG17.6: real public seed/admit/queue/reportedreceipt paths; three passes each failed/unknown/delivered, plus actual worker loop5passes before1idleinterval. All3DBs/logins/pools closed/dropped; cluster stopped/PIDabsent/dataremoved; product checkout clean.",
+    "Read PDF signalling/reaper source against B-1 pidfd/lease contract; return P2 proposed-reuse correction and three small docs clarifications to exact guardedCON session. No destructive signalling, shared fix or source change.",
+    "Read PR211 exact3b draft advancement/CC0125 terminal gate and fresh review request; new CI38158321772 queued, older5e7 browser job114502812472 confirmedinprogress; no restart or merge.",
+    "Run third owned PG17.6 probe through actual public admission/queue/receipt/claim/lease-expiry/reconcile: failed+unknown head, recoverable no-command tail; limit2 fails to reach tail across3passes, limit3 control reaches pending with0commands. No production source fix or count-only mutant executed.",
+    "Read complete CC0128/0129 and immutable5d/46ddd docs deltas and hashes; independently accept named constraints only, shared defects/runtime qualifications remain open.",
+    "Independent REST verifies exact bot6111555529 at3b, PR211 stilldraft3b, newCIqueued, old5e7run/browserjob terminalSUCCESS. No rerun/restart/cancel/merge."
+  ],
+  "results": "Independent actual PG/worker reproductions of pre-existing shared dispatcher spin and bounded-window starvation on current-main-identical code. Named runtime-plan cleanup/attempt/stub/fairness constraints corrected and independently rechecked; no shared implementation/runtime/provider/app acceptance. All36 full verdicts unchanged.",
+  "unresolvedEffects": "No uncertain hosted app/provider effect. All three local probes settled, including denied first fixture. Shared spin/starvation fixes and Q7/Q12 acknowledgment, owner/window/base/numbers/route/finiteallowance/cohort/exact batch approval and actual native/provider/app acceptance remain open.",
+  "rollback": "Three new local PG17.6 clusters stopped/PIDs absent/data removed; five disposable DBs/roles removed and pools ended, including initial invalid wrong-session fixture. Product checkout clean. No CON live effect; dated serving tuple/DB metadata are observations, not compatible rollback qualification. Governed data must survive eventual rollback.",
+  "nextBoundedAction": "Read the actual StepA terminal gate receipt and subsequent StepB receipt against exact source/exit/census; obtain named shared runtime owner acknowledgment for Q7/Q12 and bounded correction/window before shared runtime work.",
+  "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
+  "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
+  "resourceUse": {
+    "newLocalPg": 3,
+    "readOnlyProductionMetadataConnections": 0,
+    "sophiaProviderCalls": 0,
+    "realNativeProcesses": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "localWorkFixtures": "Five disposable DBs: one invalid wrong-session fixture, three valid legacy draft_brief receipt scenarios, one three-project fairness scenario; no actual model/native execution.",
+    "codingAgentSubscriptionConsumption": "Routine authorized coordination, unmeasured/private."
+  }
+}

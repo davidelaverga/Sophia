@@ -1,0 +1,36 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+  "tree": "369b060dfc02e96634f5e596907855041d390a7a",
+  "at": "2026-10-11T17:19:17.312520+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/migrations/0012_runtime_service.sql": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+    "apps/worker/src/runtime-dispatch.ts": "f6e0e92edfc75d724e226189ddc7d531314e7179f3fa29ba07aba9e62905c8e8",
+    "packages/persistence/src/dispatch.ts": "e004d398ded2b42f78b5fc83bccf88f164fa774e9654c289f3e3ada72e991de2"
+  },
+  "operatorHarnessHash": "c19a0cb76a43c382e2f8fc6be0c55556b445c2e1624330ae9a0c247d0e679f5e",
+  "probeHash": "33bd9329a40b65326740add6c0a467ad0f40a85c0ff365273415df09869d4303",
+  "commands": [
+    {
+      "label": "dispatch-probe",
+      "command": [
+        "node",
+        "<private-review-probe>/dispatch-probe.mjs"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "expectedExit": 0,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "checkoutCleanAfter": true
+}

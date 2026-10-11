@@ -1,0 +1,43 @@
+{
+  "candidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+  "scope": "Actual owned localPG/public admission/receipt/claim/expire/reconcile; synthetic terminal receipts and owned clock fixture; no native/provider/hosted execution",
+  "before": {
+    "state": "outcome_unknown",
+    "queued": 0
+  },
+  "passes": [
+    {
+      "limit": 2,
+      "reconciled": 2,
+      "recoverableTail": {
+        "state": "outcome_unknown",
+        "queued": 0
+      }
+    },
+    {
+      "limit": 2,
+      "reconciled": 2,
+      "recoverableTail": {
+        "state": "outcome_unknown",
+        "queued": 0
+      }
+    },
+    {
+      "limit": 2,
+      "reconciled": 2,
+      "recoverableTail": {
+        "state": "outcome_unknown",
+        "queued": 0
+      }
+    }
+  ],
+  "control": {
+    "limit": 3,
+    "reconciled": 3,
+    "recoverableTail": {
+      "state": "pending",
+      "queued": 0
+    }
+  },
+  "conclusion": "Two older unchangeable unknown rows occupy a limit2 window forever, excluding a newer recoverable no-command row. Changing count alone leaves this selection starvation; select actionable rows or guarantee bounded fair traversal."
+}

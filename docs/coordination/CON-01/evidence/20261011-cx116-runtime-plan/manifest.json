@@ -1,0 +1,15 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0116.md",
+  "artifacts": {
+    "evidence/20261011-cx116-runtime-plan/acceptance-status-comparison.json": "6a8423c91f3aa92e554832eed7453eefe5ce49bb38445027502d3773eaf8950b",
+    "evidence/20261011-cx116-runtime-plan/dispatch-fairness-receipt.json": "4903b639ddefe8e0ad3daeb6ed4ee496adfa4cabddb32e3e4d2624d11becd350",
+    "evidence/20261011-cx116-runtime-plan/dispatch-fairness-results.json": "2442dc8c7baa173f1f1ae0e87634572a4f6af51716a76ae2d4edc321078f1544",
+    "evidence/20261011-cx116-runtime-plan/dispatch-probe-receipt.json": "e3f5c7168f43878ab52e16520eaf976d948a73a5efb0a0d93d644b6c09aed0ed",
+    "evidence/20261011-cx116-runtime-plan/dispatch-results.json": "c0b21a6d04c30b703bdf86f27a0011f9cea2ad1f31cfa545fc9e59465289f79f",
+    "evidence/20261011-cx116-runtime-plan/first-probe-receipt.json": "62ecdc665bc0401bd6045f6e816c620837e66613409a3d1d901d9b18f873f86b",
+    "evidence/20261011-cx116-runtime-plan/gate-and-pr-discovery.json": "b8cb3213f5839ffe66ab13284dd5b2a13ac14594c380f51caef26dec20adab5a",
+    "evidence/20261011-cx116-runtime-plan/operation-handoff.json": "f5a17f238d5ef0cd06571a78c27d8eabbc0a4cb328a843db6390c033201cbc03",
+    "evidence/20261011-cx116-runtime-plan/plan-review.json": "522e91642074c7020c31068fc726798bbc69247373a1bd3145f2eed3014cac58"
+  }
+}
