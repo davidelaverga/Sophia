@@ -1,0 +1,82 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0089",
+  "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+  "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "classification": "progress: independent dependency proof and prepublication source correction supplied; no new actual-app acceptance",
+  "publishedVerdict": "CX88P1changes_requested unchanged",
+  "proposedCorrection": {
+    "immutableCandidate": null,
+    "origin": "Existing edit receipts in exact Claude desktop CON mission session_01KUDtFK9gWthsXSrepcLQz3; uncommitted source on a01",
+    "sharedGate": "ContextRead/readSince/briefNow checked by all cache consumers; useAlreadyOpen checks latest store after await",
+    "finding": "held-decision proposed fresh expression reports true for missing cache/data; 409 can wrongly imply someone decided first",
+    "severity": "prepublication source truthfulness correction; no independently executed UI failure claimed",
+    "feedbackMessage": 436,
+    "authorAcknowledgmentMessage": 437,
+    "authorAction": "Shared pure decision truth function requiring actual eligible data; author says no-read/pending/error/fenced/pre-refusal/current tests27/27",
+    "authorQualification": "In-flight regression/consumer tests observed at exact task Run after tests and consumer specs; no terminal acceptance/immutable publication yet"
+  },
+  "independentDependencyProof": {
+    "at": "2026-10-11T01:34:22.814Z",
+    "dependency": "@tanstack/query-core5.103.2 via installed @tanstack/react-query",
+    "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+    "level": "L0 local dependency semantics, no API/model/UI",
+    "oldCalls": 1,
+    "newCalls": 0,
+    "result": [
+      {
+        "readFrom": 1
+      },
+      {
+        "readFrom": 1
+      }
+    ],
+    "expected": "A staleTime0 fetchQuery may join preexisting in-flight read; caller must reject old readFrom before current-data decisions",
+    "pass": true
+  },
+  "nextActualEpisode": {
+    "episode": 82,
+    "candidate": null,
+    "tree": null,
+    "launched": false,
+    "guard": "g3-browser-stack.py refuses missing candidate/tree or dirty/mismatchedworktree",
+    "effects": 0,
+    "preparedCases": "New-form post-refusal failure, held oldmission200 and current synthetic decision retirement/fresh context; no native/provider/hosted"
+  },
+  "normalCI": {
+    "run": 38101066533,
+    "head": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+    "observed": "queued; six exact job IDs inspected; no rerun",
+    "jobs": [
+      114356926336,
+      114356926414,
+      114356926440,
+      114356926465,
+      114356926469,
+      114356926498
+    ]
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "nativeProviderEffects": 0,
+    "spend": 0,
+    "newActualStacks": 0,
+    "unresolvedLocalEffects": false
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "CX87/88named exacta01scopes plus L0dependencyproof, currentP1unresolved",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Receive immutable all-consumer correction with terminal evidence; independently read exactdiff and bind/execute prepared episode82 before fresh review/normalCI merge recommendation"
+}

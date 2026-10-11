@@ -1,0 +1,20 @@
+{
+  "candidate": null,
+  "tree": null,
+  "episode": 82,
+  "state": "prepared_not_launched_unbound_candidate",
+  "scope": "Owned disposable local actual Studio/API/PG synthetic devJWT only; no provider/native/hosted; no user conversation write",
+  "ceiling": {
+    "innerSeconds": 480,
+    "outerSeconds": 600,
+    "reads": 200
+  },
+  "cases": [
+    "New form cached context, original list403, restore/list200 while mission503: all old starters absent, drafts survive, truthful contextRetry",
+    "Hold original authorized mission200 across original403; release after refusal; list recovery/newmissionheld: old starter/metadata remain absent",
+    "While mission unavailable settle the synthetic pending A08 seed once as editor through real persistence; fresh mission200 must show latest decision state, no retired starter",
+    "Assess source disabled proposal observer/held-decision truthfulness/in-flight pre-propose read sharing; require targeted fixture/source evidence where no independently executed app case"
+  ],
+  "writeBound": "At most two human-only editor feed stimuli and one decline of existing synthetic proposed constraint under stable helper key; no Ask/Start or generated reply",
+  "cleanup": "Restore exact owned membership; stop UI/API; final SQL accounting before DBdrop/PGstop/clusterremove; tabclose/viewportreset/ownPIDports audit"
+}

@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-11T01:34:22.814Z",
+  "dependency": "@tanstack/query-core5.103.2 via installed @tanstack/react-query",
+  "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+  "level": "L0 local dependency semantics, no API/model/UI",
+  "oldCalls": 1,
+  "newCalls": 0,
+  "result": [
+    {
+      "readFrom": 1
+    },
+    {
+      "readFrom": 1
+    }
+  ],
+  "expected": "A staleTime0 fetchQuery may join preexisting in-flight read; caller must reject old readFrom before current-data decisions",
+  "pass": true
+}
