@@ -888,6 +888,65 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       assert.equal((await onAdmin<{ s: string }>(edge))[0]?.s, was, 'nothing revoked, granted or normalized')
     })
 
+    it('adopts a found role only with nothing of its own here: a grant, an object or a default privilege is refused (PR #211 review r4242793043)', async () => {
+      // A login added at activation would inherit whatever the role holds in the database or on a shared object, beside
+      // the five entry points. The grants S3 made in this suite's own database are that database's, not the other's.
+      const other = await createTestDatabase()
+      const c = new pg.Client({ connectionString: other.ownerUrl })
+      await c.connect()
+      const apply = async (setup: string) => {
+        await c.query('BEGIN')
+        try {
+          await c.query(setup)
+          await c.query(candidate(CANDIDATES[2] ?? ''))
+          return 'applied'
+        } catch (err) {
+          return err instanceof Error ? err.message : String(err)
+        } finally {
+          await c.query('ROLLBACK')
+        }
+      }
+      const alone = `REVOKE ${ROLE} FROM ${loginRole}`
+      const own = 'sophia_conversation_assembler exists with privileges or objects of its own'
+      try {
+        await withClusterMigrationLock(async () => {
+          for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
+          // Every case runs, and all are compared at once.
+          const cases: [string, string][] = [
+            ['nothing of its own here', 'SELECT 1'],
+            ['a table privilege', `GRANT SELECT ON sophia.projects TO ${ROLE}`],
+            ['a column privilege', `GRANT SELECT (id) ON sophia.projects TO ${ROLE}`],
+            ['a function privilege', `GRANT EXECUTE ON FUNCTION sophia.reconcile_runtime_outbox(integer) TO ${ROLE}`],
+            ['a schema privilege', `GRANT CREATE ON SCHEMA sophia TO ${ROLE}`],
+            [
+              'an object it owns',
+              `CREATE TABLE public.con01_owned (); ALTER TABLE public.con01_owned OWNER TO ${ROLE}`,
+            ],
+            ['a default privilege', `ALTER DEFAULT PRIVILEGES IN SCHEMA sophia GRANT SELECT ON TABLES TO ${ROLE}`],
+            [
+              'a privilege on the database',
+              `DO $$ BEGIN EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO ${ROLE}', current_database()); END $$`,
+            ],
+          ]
+          const outcomes: string[] = []
+          for (const [name, setup] of cases) outcomes.push(`${name}: ${await apply(`${alone}; ${setup}`)}`)
+          assert.deepEqual(outcomes, [
+            'nothing of its own here: applied',
+            `a table privilege: ${own}`,
+            `a column privilege: ${own}`,
+            `a function privilege: ${own}`,
+            `a schema privilege: ${own}`,
+            `an object it owns: ${own}`,
+            `a default privilege: ${own}`,
+            `a privilege on the database: ${own}`,
+          ])
+        })
+      } finally {
+        await c.end()
+        await other.drop()
+      }
+    })
+
     it('lets only the assembler execute the five entry points, and nobody read or write its tables', async () => {
       const grants = await owner<{ role: string; fn: string }>(
         `SELECT g.role, p.oid::regprocedure::text AS fn FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace,

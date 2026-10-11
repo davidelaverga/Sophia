@@ -40,6 +40,14 @@ BEGIN
    OR EXISTS(SELECT FROM pg_auth_members m WHERE m.roleid=a) THEN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with unexpected memberships' USING ERRCODE='42501';
  END IF;
+ -- Nor anything of its own in this database or on a shared object (PR #211 review r4242793043): a login added at
+ -- activation would inherit it beside the five entry points. pg_shdepend names the role for every object it owns and
+ -- every privilege granted to it, default privileges included. What this file grants it in another database is that
+ -- database's. Nothing is revoked.
+ IF EXISTS(SELECT FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass AND d.refobjid=a
+     AND d.dbid IN (0,(SELECT oid FROM pg_database WHERE datname=current_database()))) THEN
+  RAISE EXCEPTION 'sophia_conversation_assembler exists with privileges or objects of its own' USING ERRCODE='42501';
+ END IF;
 END $$;
 -- For the row policies of the tables the compiler reads, as the asker. INHERIT TRUE whatever the role's own INHERIT, which
 -- sets only a new grant's default: a found NOINHERIT role with no edge would otherwise get one it can't read through
