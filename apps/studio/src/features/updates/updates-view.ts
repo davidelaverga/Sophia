@@ -2,6 +2,7 @@
 // the dates' own formats come from the page (Intl), as the reader's locale says them.
 import type { Digest, MeetingSummary } from '../../api/vision.ts'
 import { lasted } from '../../app/time-words.ts'
+import type { Records } from '../voice/recap-view.ts'
 
 /** The lead over the digest's sections: never looked, or nothing new; null when the sections say it all. */
 export function digestLead(digest: Digest): string | null {
@@ -39,4 +40,62 @@ export function meetingRow(meeting: Pick<MeetingSummary, 'startedAt' | 'endedAt'
   }
   const length = lasted(Date.parse(meeting.endedAt) - start.getTime())
   return `${words.day(start)}, ${words.time(start)} · ${length}`
+}
+
+// The digest narrowed (docs/plans/updates-narrow.md): by kind, by person, both.
+export type Kind = 'all' | 'decided' | 'made' | 'kept' | 'open' | 'work'
+
+/** The presses over the digest, in the sections' order. */
+export const KINDS: readonly { id: Kind; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'decided', label: 'Decided' },
+  { id: 'made', label: 'Made' },
+  { id: 'kept', label: 'Kept' },
+  { id: 'open', label: 'Still open' },
+  { id: 'work', label: 'Work' },
+]
+
+export interface Narrowing {
+  kind: Kind
+  /** An actor id, or null for everyone. */
+  person: string | null
+}
+
+/**
+ * The records narrowed: a line stays when its kind is asked and the person proposed, decided, asked or kept it; what
+ * names nobody (an open proposal, work) stays only for everyone.
+ */
+export function narrowRecords(r: Records, by: Narrowing): Records {
+  const of = (kind: Kind) => by.kind === 'all' || by.kind === kind
+  const named = (...ids: string[]) => by.person === null || ids.includes(by.person)
+  return {
+    decided: of('decided') ? r.decided.filter((d) => named(d.proposedBy, d.decidedBy)) : [],
+    made: of('made') ? r.made.filter((m) => named(m.askedBy)) : [],
+    noted: of('kept') ? r.noted.filter((n) => named(n.actorId)) : [],
+    open: of('open') && by.person === null ? [...r.open] : [],
+    work: of('work') && by.person === null ? [...r.work] : [],
+  }
+}
+
+/** How many lines each kind holds, for the presses. */
+export const kindCounts = (r: Records): Record<Exclude<Kind, 'all'>, number> => ({
+  decided: r.decided.length,
+  made: r.made.length,
+  kept: r.noted.length,
+  open: r.open.length,
+  work: r.work.length,
+})
+
+/** Who appears in the records, in the order they first do, once each, by the digest's names; the viewer as You. */
+export function peopleOf(
+  r: Records,
+  names: Readonly<Record<string, string>>,
+  me: string,
+): { id: string; name: string }[] {
+  const ids = [
+    ...r.decided.flatMap((d) => [d.proposedBy, d.decidedBy]),
+    ...r.made.map((m) => m.askedBy),
+    ...r.noted.map((n) => n.actorId),
+  ]
+  return [...new Set(ids)].map((id) => ({ id, name: id === me ? 'You' : (names[id] ?? 'Someone') }))
 }

@@ -4,16 +4,28 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
+import { Button, Icon, Menu, MenuItem, Segmented, usePopover, type SegmentedItem } from '@sophia/ui'
 import { ApiError } from '../../api/client.ts'
 import { getSince, listMeetings, markSeen, type Digest, type MeetingSummary } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { canInvite } from '../access/useAccess.ts'
 import { Waiting } from '../../app/Waiting.tsx'
-import { RecapPart, RecapSheet } from '../voice/MeetingRecap.tsx'
+import { RecapPart, RecapSheet, type LineGo } from '../voice/MeetingRecap.tsx'
 import { namers, recapSections } from '../voice/recap-view.ts'
-import { digestLead, lengthShares, meetingRow, type DateWords } from './updates-view.ts'
+import {
+  digestLead,
+  kindCounts,
+  KINDS,
+  lengthShares,
+  meetingRow,
+  narrowRecords,
+  peopleOf,
+  type DateWords,
+  type Kind,
+  type Narrowing,
+} from './updates-view.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
-import { useArrival } from '../studio/project-go.tsx'
+import { useArrival, useProjectGo } from '../studio/project-go.tsx'
 
 interface Props {
   projectId: string
@@ -87,17 +99,34 @@ function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
   )
 }
 
+/** Where a line goes: the brief in the Studio view, or the task in Tasks (project-go.tsx); none outside a shell. */
+function useLineGo(): LineGo | undefined {
+  const go = useProjectGo()
+  return go
+    ? { brief: () => go({ view: 'studio', brief: true }), task: (taskId) => go({ view: 'work', taskId }) }
+    : undefined
+}
+
 function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'cursor'> & { digest: Digest }) {
-  const sections = recapSections(digest, namers(me, NO_NAMES, digest.names).shown)
+  const nameOf = namers(me, NO_NAMES, digest.names).shown
+  const [by, setBy] = useState<Narrowing>({ kind: 'all', person: null })
+  const shown = narrowRecords(digest, by)
+  const sections = recapSections(shown, nameOf)
+  const any = recapSections(digest, nameOf).length > 0
   const lead = digestLead(digest)
   const seen = useMarkSeen(projectId, identity)
+  const go = useLineGo()
   return (
     <>
       {lead && <p className="sheet-lead">{lead}</p>}
+      {any && <Narrow digest={digest} me={me} by={by} onChange={setBy} />}
       {sections.map((s) => (
-        <RecapPart key={s.title} section={s} records={digest} level={4} />
+        <RecapPart key={s.title} section={s} records={shown} level={4} go={go} />
       ))}
-      {sections.length > 0 && (
+      {any && sections.length === 0 && (
+        <p className="sheet-lead">Nothing of that kind, or by them, since you last looked.</p>
+      )}
+      {any && (
         <div className="recap-acts">
           <button
             type="button"
@@ -113,6 +142,85 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
         </div>
       )}
     </>
+  )
+}
+
+interface NarrowProps {
+  digest: Digest
+  me: string
+  by: Narrowing
+  onChange: (by: Narrowing) => void
+}
+
+/** The row over the digest: its kinds with their counts (only the kinds with lines), and who. */
+function Narrow({ digest, me, by, onChange }: NarrowProps) {
+  const counts = kindCounts(digest)
+  const countOf = (id: Kind) => (id === 'all' ? 0 : counts[id])
+  const items: SegmentedItem<Kind>[] = KINDS.filter((k) => k.id === 'all' || countOf(k.id) > 0).map((k) =>
+    k.id === 'all' ? { id: k.id, label: k.label } : { id: k.id, label: k.label, count: countOf(k.id) },
+  )
+  return (
+    <div className="updates-narrow">
+      <Segmented
+        role="radiogroup"
+        label="Kind"
+        size="sm"
+        items={items}
+        value={by.kind}
+        onChange={(kind) => onChange({ ...by, kind })}
+      />
+      <PersonMenu
+        people={peopleOf(digest, digest.names, me)}
+        value={by.person}
+        onChange={(person) => onChange({ ...by, person })}
+      />
+    </div>
+  )
+}
+
+interface PersonProps {
+  people: readonly { id: string; name: string }[]
+  value: string | null
+  onChange: (id: string | null) => void
+}
+
+/** «By everyone», or by one of those who appear: a small press, a menu of radio items. */
+function PersonMenu({ people, value, onChange }: PersonProps) {
+  const [open, setOpen] = useState(false)
+  const menu = usePopover(open, () => setOpen(false))
+  const pick = (id: string | null) => () => {
+    menu.opener.current?.focus()
+    setOpen(false)
+    onChange(id)
+  }
+  if (people.length === 0) return null
+  const current = people.find((p) => p.id === value)?.name ?? 'everyone'
+  return (
+    <div ref={menu.wrap} className="updates-person">
+      <Button
+        ref={menu.opener}
+        kind="pill"
+        size="sm"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        By {current}
+        <Icon name="chevron" />
+      </Button>
+      {open && (
+        <Menu popover={menu} label="By whom" align="start">
+          <MenuItem checked={value === null} onClick={pick(null)}>
+            Everyone
+          </MenuItem>
+          {people.map((p) => (
+            <MenuItem key={p.id} checked={value === p.id} onClick={pick(p.id)}>
+              {p.name}
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
+    </div>
   )
 }
 

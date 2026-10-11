@@ -13,7 +13,7 @@ import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands } from '../../app/useCommands.ts'
 import { VISION } from '../../app/vision.ts'
-import { ProjectGoProvider } from './project-go.tsx'
+import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
@@ -556,6 +556,10 @@ function ProjectBody(props: BodyProps) {
  */
 function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.ReactNode }) {
   const { projectId, identity, room, snapshot, membership, panel, onShow } = props
+  // From Updates, a line that lives in the brief: the Studio view with the brief open (project-go.tsx).
+  useArrival('studio', () => {
+    if (panel.panel !== 'brief') panel.toggle('brief')
+  })
   if (!VISION) return null
   return (
     <>

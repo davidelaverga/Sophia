@@ -4720,6 +4720,23 @@ button.contribution-quote:hover {
   align-content: start;
   gap: 16px;
 }
+/* The row over the digest (docs/plans/updates-narrow.md): the kinds as a small segmented box, who as a small press
+   with a menu. */
+.updates-narrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.updates-person {
+  position: relative;
+}
+.updates-person .pill svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+  color: var(--text-3);
+}
 .updates-part > h3,
 .updates-part > .recap-section h4 {
   margin: 0;

@@ -300,9 +300,17 @@ function useCloseMeeting(close: CloseTarget, meetingId: string) {
   })
 }
 
+/** Where a line goes from Updates (docs/plans/updates-narrow.md): the brief, or a task in Tasks. */
+export interface LineGo {
+  brief: () => void
+  task: (taskId: string) => void
+}
+
 interface PartProps {
   section: RecapSection
   records: Records
+  /** From Updates: every line has a destination; a sheet gives none, and only what was made opens. */
+  go?: LineGo | undefined
   /** From a sheet: it goes away for what Open opens. */
   onOpen?: () => void
   /** Its heading's level: 3 in the sheet, 4 under Updates' own headings. */
@@ -313,7 +321,7 @@ interface PartProps {
  * One section of a recap or a digest. What Sophia made opens in the viewer. From a sheet (`onOpen`), the sheet goes
  * away for it, and the focus goes to Join first, so the viewer gives it back there: the Open pressed is gone by then.
  */
-export function RecapPart({ section, records, onOpen, level = 3 }: PartProps) {
+export function RecapPart({ section, records, onOpen, go, level = 3 }: PartProps) {
   const viewer = useDocumentViewer()
   const id = useId()
   const Heading = level === 3 ? 'h3' : 'h4'
@@ -345,6 +353,15 @@ export function RecapPart({ section, records, onOpen, level = 3 }: PartProps) {
               {made && (
                 <button type="button" className="text-button" onClick={() => open(made)}>
                   Open
+                </button>
+              )}
+              {!made && go && line.to && (
+                <button
+                  type="button"
+                  className="text-button"
+                  onClick={() => (line.to === 'task' ? go.task(line.key) : go.brief())}
+                >
+                  {line.to === 'task' ? 'Open the task' : 'In the brief'}
                 </button>
               )}
             </li>
