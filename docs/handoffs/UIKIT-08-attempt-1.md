@@ -49,6 +49,9 @@ handoff.
 - Hairlines and round things are not tokens and need none; the spec names them so (a bar no taller than 4 px; a
   radius of half the side or more).
 - A person's line (a face and a name) is a row with a live ring and a status, not a chip: it stays as it is.
+- After the review (Codex on #230, 2026-10-11): the key chip's forwarding (its props and ref whole onto the `kbd`) is
+  held by a node test now: `chipElement` in the pure module chooses the element and builds the props, `Chip` renders
+  what it gives, and `chip-class.test.ts` asserts a key's attributes, handler and ref arrive whole.
 
 ## Remaining obligations
 
