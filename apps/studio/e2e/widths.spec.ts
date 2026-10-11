@@ -91,4 +91,29 @@ test.describe('narrow', () => {
       )
       .toEqual({ scrolls: true, fades: true, currentInSight: true, clearOfTheEnd: true })
   })
+
+  test('widths · at 1024 with Updates open, the current view stands clear of the fade before Resources', async ({
+    page,
+  }) => {
+    await page.goto('/room.html?demo=1&place=updates')
+    await drawn(page, DRAWN.updates)
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const nav = document.querySelector<HTMLElement>('.view-nav')
+          const current = nav?.querySelector('[aria-current="page"]')
+          if (!nav || !current) return null
+          const box = nav.getBoundingClientRect()
+          const cur = current.getBoundingClientRect()
+          const fade = box.width * 0.18
+          return {
+            inSight: cur.left >= box.left - 1 && cur.right <= box.right + 1,
+            clearOfTheFades:
+              (!nav.hasAttribute('data-more-end') || cur.right <= box.right - fade + 1) &&
+              (!nav.hasAttribute('data-more-start') || cur.left >= box.left + fade - 1),
+          }
+        }),
+      )
+      .toEqual({ inSight: true, clearOfTheFades: true })
+  })
 })
