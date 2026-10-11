@@ -10,7 +10,8 @@ const channel = (c: number) => {
   const v = c / 255
   return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4
 }
-const lum = ([r, g, b]: number[]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+const lum = ([r, g, b]: readonly [number, number, number]) =>
+  0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 /** The contrast of an ink over a fill laid on a paper: the fill's alpha is composited first. */
 function contrast(ink: string, fill: string, paper: string): number {
   const i = rgb(ink),
@@ -18,9 +19,9 @@ function contrast(ink: string, fill: string, paper: string): number {
     p = rgb(paper)
   if (!i || !f || !p) return 0
   const a = f[4] === undefined ? 1 : Number(f[4])
-  const bg = [1, 2, 3].map((k) => Number(f[k]) * a + Number(p[k]) * (1 - a))
-  const l1 = lum([Number(i[1]), Number(i[2]), Number(i[3])]),
-    l2 = lum(bg)
+  const mix = (k: number) => Number(f[k]) * a + Number(p[k]) * (1 - a)
+  const l1 = lum([Number(i[1]), Number(i[2]), Number(i[3])])
+  const l2 = lum([mix(1), mix(2), mix(3)])
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
 }
 
