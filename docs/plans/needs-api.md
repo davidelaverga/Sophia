@@ -97,3 +97,7 @@
   is the truth, and the next press writes again.
 - **Contract-only** (P2, round 4): both operations carry `x-sophia-implementation: contract_only` and
   `x-sophia-release-goal: F2`, as the other proposed operations do.
+- **A poll that fails after a good read** (P2, round 5): the rows read last are kept (the list stays actionable) and
+  the note says the read failed beside them, with Try again: `isError` is read apart from the cached rows. The fixture's
+  `breakNeeds()` makes every later read fail; the spec breaks it, brings the window back (a refetch), sees the note
+  and the four rows together, recovers, and Try again clears the note.
