@@ -46,3 +46,16 @@ The commit after it adds only this handoff.
 
 From the UI report's queue, what needs Luis's eye before code: the light's trace in the project views (the calibration
 in informe-ui-premium §7), Hold/Stop as text buttons, the dock to the header.
+
+## Post-review (Codex on #248)
+
+- **The record** (P2): the change's commit is `5f12c15b` (tree `f0dac626fb59`, 21 files). After it, on this branch:
+  `5fda16f7` (this handoff), `ace796b3` (its file count), then the base stack merged forward (`64f29ec1`, `06233b26`:
+  #245's second review round and #247's copy fix), then the fix below and its note. The branch head at each push is
+  what the PR shows; this file names the commits so the tree it describes can be found.
+- **Five sizes on Tasks** (P2): the board held six with the heads at 15 (10.5 · 12 · 13 · 14 · 15 · 28). Fixed in
+  `3c69e9f8`: a task tile's title and the plan's next step take the body's size (the tile keeps 500), and the decision's
+  question takes the heads' step at 400; `work.spec` pins `10.5 · 12 · 13 · 15 · 28` again, `section-heads.spec`
+  reads the tile at 13/500, CONTRIBUTING's scale line names the heads' 15 and the view's 28. Measured on both Tasks
+  fixtures (`room.html?demo=1&place=work`, `work.html?viewer=davide&tight=1&unplanned=1`): five sizes; the tile 13/500;
+  the question 15/20 at 400.
