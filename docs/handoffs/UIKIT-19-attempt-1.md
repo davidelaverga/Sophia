@@ -8,6 +8,8 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/task-ke
 Ending commit/tree: `8c4a9898` (tree `5720dec9fbd1`): 11 files, 3 new (`e2e/task-keys.spec.ts`, `e2e/micro-type.spec.ts`,
 `docs/plans/task-keys-micro-type.md`); `TaskSheet.tsx` and seven sheets (`theme.css`, `conversations.css`,
 `personal.css`, `resources.css`, `board.css`, `plan.css`). The commit after it adds only this handoff.
+After the review (Codex on #241, P2): `4db26c20` rejects a repeated keydown (`e.repeat`), so a Hold held down never meets
+the Resume it brings; the spec sends a repeat after the hold. That is the completed code state of this PR.
 
 ## Outcome
 
