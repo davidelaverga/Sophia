@@ -1,0 +1,15 @@
+{
+  "pids": {
+    "46706": "absent",
+    "46719": "absent",
+    "46720": "absent",
+    "46679": "absent"
+  },
+  "ports": {
+    "52287": "closed",
+    "52288": "closed"
+  },
+  "at": "2026-10-11T01:21Z",
+  "tab103": "closed",
+  "viewportOverride": "reset"
+}

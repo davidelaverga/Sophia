@@ -1,0 +1,147 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0087",
+  "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+  "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "episode": 80,
+  "level": "L1 actual local Studio/API/PostgreSQL17.6, synthetic devJWT accounts; no fixtures/native/provider/hosted",
+  "verdict": "PASS_named_context_refusal_recovery_phone_cases",
+  "cases": [
+    {
+      "boundary": "ordinary503 retains truthful stale context",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "boundary": "actual list403 hides project context and controls",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "boundary": "post-list200/context503 keeps old context hidden with retry; fresh200 restores",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "boundary": "context-own403 raises global fence, exactly one request in observed11s window",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "boundary": "late originalmission200 after actual403 leaves context hidden; transport completion observed, browser consumption not separately proven",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "boundary": "390x844 open context panel closes and focus leaves Accept for visible refusal note",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "boundary": "draft preserved after each authorization recovery",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "independentChecks": {
+    "frozenOfflineInstall": 0,
+    "studioTypecheck": 0,
+    "sourceClean": true,
+    "featureEdits": 0
+  },
+  "authorReceipts": {
+    "source": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6104107746",
+    "terminal": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6104144709",
+    "format": 0,
+    "lint": 0,
+    "typecheck": 0,
+    "contracts": 0,
+    "studioUnit": "1217/1217 exit0",
+    "focusedFixtureBrowser": "181/181 exit0",
+    "postgres16Persistence": "22/22 exit0",
+    "postgres16Api": "10/10 exit0",
+    "failBefore": "6/6 failed on342 source",
+    "after": "18/18 fixture pass"
+  },
+  "automaticReview": {
+    "request": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6104145917",
+    "result": "pending at01:23; not adopted"
+  },
+  "audit": {
+    "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+    "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+    "observedAt": "2026-10-11T01:20:43.375Z",
+    "level": "L1 actual local browser/API/PostgreSQL only",
+    "projectId": "e8eaf781-7b93-4a58-836d-89cf3895e5d8",
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "humanMessages": 5,
+    "nullHumanBodies": 0,
+    "requests": 5,
+    "replies": 0,
+    "decisionStates": [
+      {
+        "kind": "mission",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "kind": "constraint",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "kind": "constraint",
+        "state": "proposed",
+        "revision": "1"
+      }
+    ]
+  },
+  "cleanup": {
+    "pids": {
+      "46706": "absent",
+      "46719": "absent",
+      "46720": "absent",
+      "46679": "absent"
+    },
+    "ports": {
+      "52287": "closed",
+      "52288": "closed"
+    },
+    "at": "2026-10-11T01:21Z",
+    "tab103": "closed",
+    "viewportOverride": "reset"
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "nativeProviderEffects": 0,
+    "spend": 0,
+    "unknownLocalEffects": false
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "named scoped passes only",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "limitations": [
+    "No frame-zero claim",
+    "Late bytes original200/finished/client-open are transport proof; browser consumption is not separately instrumented",
+    "Unknown held-A08 key crossing independently source-reviewed; new fixture author-only this round, prior actual key evidence not transferred",
+    "Phone new-form/composer focus source changed and require affected recheck before whole G3 acceptance",
+    "Fresh automatic review/normal CI pending; baseline C9 and old CI failures unwaived",
+    "No G2 native subscription route/quota/home isolation or hosted two-account acceptance"
+  ],
+  "next": "Inspect fresh exact-head review/normal CI, rerun affected composer/new-form focus if no new source; bind G2 and actual-account operation inputs before any live batch"
+}

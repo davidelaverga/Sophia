@@ -1,0 +1,53 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/studio
+    - link "Conversations":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/conversations
+    - link "Goals":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/goals
+    - link "Tasks":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/work
+    - link "Knowledge":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/knowledge
+    - link "Updates":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/updates
+    - link "Resources":
+      - /url: /p/e8eaf781-7b93-4a58-836d-89cf3895e5d8/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - alert:
+        - text: The conversations can’t be read now.
+        - button "Try again"
+      - status [active]: This project refused a read of its conversations. None is shown until they can be read again.
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - status: The project’s context isn’t shown until its conversations can be read again.
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

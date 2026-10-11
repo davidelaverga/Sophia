@@ -720,9 +720,10 @@
         "CX-0082.md",
         "CX-0083.md",
         "CX-0084.md",
-        "CX-0086.md"
+        "CX-0086.md",
+        "CX-0087.md"
       ],
-      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Actual cap false-erasure claim corrected; target words NULL after one same-key actual erase, other thread/draft/accepted A08 retained. Native/hosted privacy remains open. Required G2/native/provider/hosted arms remain open. CurrentCX20: L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending. CX26: Exact715 actual local capped timer200/older draft return and identical-list externalerase scheduled422 pass; placeholder and ambiguous tie L0 safe correction pass. Original equal-time usefulness P2 remains open; G2/native/hosted/full combined gates unqualified. CX27: P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof. CX28 exact7969: originallateSendpassesbounded, newactualdelayed-list P1 resurrectsknownwithdrawnpreview; actualstale-warningP2 and L0fallbackorderP2 open. All19stacks cleaned.715fullgate1151/1154/3fail/exit1 authorreport, notwaiver/newcandidategate. No hosted/provider/nativeacceptance oroperationalauthorization. CX46: exact8e58 correction has bounded Start/cache retirement probes,139focused and actual local Start warning preservation at production-identical6226. Hidden held state remains L0; no mounted late-A08/native/hosted erasure claim. Full acceptance status unchanged. CX47: fresh exact8e58 review P1r4237833438 independently actual-app FAIL: inactive thread reopens withdrawn text/controls after feed advancement while its GET fails. Read recovery passes; immutable correction pending. Earlier observed-tombstone and Start passes remain scoped; aggregate privacy qualification withheld. CX48 exactca6 scoped correction passes actual inactive-thread withdrawal/failed-read return and draft recovery, with15 external controls and145 focused tests. CX47 parent failure corrected within this scope; full native/provider/hosted privacy acceptance remains open. Fresh exact-source review pending. CX49 actual delayed-Start/feed-advance/messageGET503 crossing independently fails atca6 and passes atbc65 with confirmed words/stale warning/recovery.121 focused/typecheck/15 affected controls pass; fresh exact review pending, no full native/hosted acceptance. CX50 freshbc65 review P1r4237924424 independently actual FAIL: first message withdrawn while realStart202response delayed; current feed/list updates, stale receipt restores withdrawn body/controls under messageGET503. DBbodyNULL, actual read recovery gives tombstone. Correction unpublished/unqualified; privacy release withheld. CX51:7ff actual Studio boot fails before identity selection (node:fs root import); delayed app cases not run. Active-thread late receipt L0 residual1fail/3controls. New617 correction unqualified; no status upgrade. CX52:617 boot/eligible/withdrawn-active thread gates pass in real local browser. New actual P1 stale receipt restores withdrawn list preview/author and header when both reads fail; correction pending. Native/hosted scope open, status unchanged. CX53:1cd corrected list/header actual case passes; failed-read late erasure restores body in real local app. Exact404 arm L0only fails; source correction pending. All statuses unchanged/native-hosted open. CX55:af failed-read correction scopedqualified in real local app (422 not_found before delayedreceipt, feedcut proven beforeerase); eligibleavailability and recovery pass. Old failures historical; native/hosted and combinedscope still open/status unchanged. CX59 exact859 pending/unknown initial fence passes locally, but same-key403 after prior unknown committed erasure wrongly releases Start/clears draft; definitive-first503 discard independently L0 fails. Native/hosted acceptance remains unqualified. CX61: exact35d actual native503 recovery and prior-unknown\u2192403-before-Start pass bounded locally; current capped-list/direct200 clearsdraft but makes created conversation unreachable (P2r4238533084). Stale deferred replywait P2r4238533090 source-valid, actual wait/native/hosted notrun. Combined status unchanged. CX62 exact35d actualblockedAsk has false answering wait after deferredlanding/currentlist200 with messageGET503; actualreadrecovery clearsit. Native/usefulprovider/hosted acceptance unqualified. CX63 exactdfeb actualblockedwait correctionPASS bounded; cappedtarget temporaryrow lostonownrefetch/UIwrongdestination actualFAIL. Combined/native/hosted statusunchanged. CX65 exactbfc: capped target survives current refetch and remains reachable on return; own explicit erasure202 removes fallback/text without resurrection. Previous reply failures pass L0 only. Fresh P1r4238633930 definitive open-thread not_found retains reached row/cached erased text, P2r4238633935 matching older-page freshness, and actual fallback contributor/coverage labels remain unresolved. External-erasure mounted/native/hosted and combined acceptance unqualified; status unchanged. CX66 exactbfc/tree88994573: P1r4238633930 independently reproduced in actual local app. External erasure18:05:18.644; live transcript422 twice/list503; browser18:05:23.392 retains3 erased bodies/authors/row/propose controls, SQL3/3NULL. Ordinary selected rows affected too. Immutable correction pending; all60 stacks clean, no hosted/provider/spend. Native/hosted/combined acceptance unqualified; status unchanged. CX67 exacte27/treee5f07c2e:178focused/typecheck and7olderpageL0controlsPASS; actual external open-thread erasure/list503/real422 purge/recovery/returnPASS bounded. DeferredStart cap reachability, honest partialmetadata and count200PASS; residualP3 older-cannot-open wording inaccurate. Native/hosted/fullcombined unqualified/status unchanged.",
+      "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. a247 focus crossing passes; persistent membership-only outage retries without bound (CX14), so recovery remains unaccepted. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. CX19 supersedes affected CX18 failures within exact82f local scope: Actual cap false-erasure claim corrected; target words NULL after one same-key actual erase, other thread/draft/accepted A08 retained. Native/hosted privacy remains open. Required G2/native/provider/hosted arms remain open. CurrentCX20: L0 proposal-derived text retained after erase; external-client cleanup P1 source-confirmed only, privacy changes_requested. CX23 exactd130 independently passes CX22 actual local withdrawn-preview falsifier plus whole-erasure/other-draft late-success and normal Send control. Earlier failure is superseded only within those crossings; full combined/native/provider/live arms remain open. CX24 exactd130 fresh formal review5476614195 P1r4235629899/P2r4235629903 independently confirmed L0/source; no mounted browser-memory/equal-time proof claimed; author correction unpublished and unqualified. CX25 exact653: P1 StrictMode scheduler closed permanently; actual capped UI/API no targeted reads67.336s after external erase with identical200/more=true list. P2 ambiguous same-actor/time/text projection overwrites unseen newer row, independently confirmed L0. No mounted-cache/equal-time browser claim; immutable correction pending. CX26: Exact715 actual local capped timer200/older draft return and identical-list externalerase scheduled422 pass; placeholder and ambiguous tie L0 safe correction pass. Original equal-time usefulness P2 remains open; G2/native/hosted/full combined gates unqualified. CX27: P1 actual715 list-only postwithdraw revalidation is overwritten by lateSend, then message-only tombstone read leaves stale listpreview; fullread recovery passes. Exactf127 productionhelper composition also restoreswithdrawnpreview L0. Immutable highwatermark/privacy correction pending; no mountedf127 browser/native/hosted proof. CX28 exact7969: originallateSendpassesbounded, newactualdelayed-list P1 resurrectsknownwithdrawnpreview; actualstale-warningP2 and L0fallbackorderP2 open. All19stacks cleaned.715fullgate1151/1154/3fail/exit1 authorreport, notwaiver/newcandidategate. No hosted/provider/nativeacceptance oroperationalauthorization. CX46: exact8e58 correction has bounded Start/cache retirement probes,139focused and actual local Start warning preservation at production-identical6226. Hidden held state remains L0; no mounted late-A08/native/hosted erasure claim. Full acceptance status unchanged. CX47: fresh exact8e58 review P1r4237833438 independently actual-app FAIL: inactive thread reopens withdrawn text/controls after feed advancement while its GET fails. Read recovery passes; immutable correction pending. Earlier observed-tombstone and Start passes remain scoped; aggregate privacy qualification withheld. CX48 exactca6 scoped correction passes actual inactive-thread withdrawal/failed-read return and draft recovery, with15 external controls and145 focused tests. CX47 parent failure corrected within this scope; full native/provider/hosted privacy acceptance remains open. Fresh exact-source review pending. CX49 actual delayed-Start/feed-advance/messageGET503 crossing independently fails atca6 and passes atbc65 with confirmed words/stale warning/recovery.121 focused/typecheck/15 affected controls pass; fresh exact review pending, no full native/hosted acceptance. CX50 freshbc65 review P1r4237924424 independently actual FAIL: first message withdrawn while realStart202response delayed; current feed/list updates, stale receipt restores withdrawn body/controls under messageGET503. DBbodyNULL, actual read recovery gives tombstone. Correction unpublished/unqualified; privacy release withheld. CX51:7ff actual Studio boot fails before identity selection (node:fs root import); delayed app cases not run. Active-thread late receipt L0 residual1fail/3controls. New617 correction unqualified; no status upgrade. CX52:617 boot/eligible/withdrawn-active thread gates pass in real local browser. New actual P1 stale receipt restores withdrawn list preview/author and header when both reads fail; correction pending. Native/hosted scope open, status unchanged. CX53:1cd corrected list/header actual case passes; failed-read late erasure restores body in real local app. Exact404 arm L0only fails; source correction pending. All statuses unchanged/native-hosted open. CX55:af failed-read correction scopedqualified in real local app (422 not_found before delayedreceipt, feedcut proven beforeerase); eligibleavailability and recovery pass. Old failures historical; native/hosted and combinedscope still open/status unchanged. CX59 exact859 pending/unknown initial fence passes locally, but same-key403 after prior unknown committed erasure wrongly releases Start/clears draft; definitive-first503 discard independently L0 fails. Native/hosted acceptance remains unqualified. CX61: exact35d actual native503 recovery and prior-unknown\u2192403-before-Start pass bounded locally; current capped-list/direct200 clearsdraft but makes created conversation unreachable (P2r4238533084). Stale deferred replywait P2r4238533090 source-valid, actual wait/native/hosted notrun. Combined status unchanged. CX62 exact35d actualblockedAsk has false answering wait after deferredlanding/currentlist200 with messageGET503; actualreadrecovery clearsit. Native/usefulprovider/hosted acceptance unqualified. CX63 exactdfeb actualblockedwait correctionPASS bounded; cappedtarget temporaryrow lostonownrefetch/UIwrongdestination actualFAIL. Combined/native/hosted statusunchanged. CX65 exactbfc: capped target survives current refetch and remains reachable on return; own explicit erasure202 removes fallback/text without resurrection. Previous reply failures pass L0 only. Fresh P1r4238633930 definitive open-thread not_found retains reached row/cached erased text, P2r4238633935 matching older-page freshness, and actual fallback contributor/coverage labels remain unresolved. External-erasure mounted/native/hosted and combined acceptance unqualified; status unchanged. CX66 exactbfc/tree88994573: P1r4238633930 independently reproduced in actual local app. External erasure18:05:18.644; live transcript422 twice/list503; browser18:05:23.392 retains3 erased bodies/authors/row/propose controls, SQL3/3NULL. Ordinary selected rows affected too. Immutable correction pending; all60 stacks clean, no hosted/provider/spend. Native/hosted/combined acceptance unqualified; status unchanged. CX67 exacte27/treee5f07c2e:178focused/typecheck and7olderpageL0controlsPASS; actual external open-thread erasure/list503/real422 purge/recovery/returnPASS bounded. DeferredStart cap reachability, honest partialmetadata and count200PASS; residualP3 older-cannot-open wording inaccurate. Native/hosted/fullcombined unqualified/status unchanged. CX87 correction a01bda0d independently passes named actual local context list403, context-own403/no retry, fresh-context recovery and phone open-panel/focus crossings. Late original200 bytes finish after refusal with client open and subsequent UI remains fenced; browser consumption not separately instrumented. Historical342P1 remains exact-candidate evidence, superseded only in these named correction crossings. Whole privacy/native/provider/hosted case remains partial; no frame-zero or full acceptance claim.",
       "live_blockers": [
         "No designated project/two authorized account subjects",
         "No selected compatible route/credential reference/payer/finite allowance/expiry",
@@ -882,8 +883,8 @@
   ],
   "reviewer_session": "01a1224a-32b4-7222-a017-50a277572d95",
   "attempt": "CON-01-CX-attempt-1",
-  "candidate_sha": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
-  "candidate_tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
+  "candidate_sha": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+  "candidate_tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
   "review_ref": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
   "current_main_observed": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
   "supplemental_candidates": [
@@ -946,14 +947,14 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0086.md",
-    "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
-    "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
+    "record": "CX-0087.md",
+    "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+    "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "Fresh automatic342review P1 independently reproduced actual local context disclosure after list/thread403 and context-own403; correction requested; all36 fullcase statuses retained with explicit current scopedFAIL. No merge/release acceptance.",
+    "statement": "Scoped actual local context refusal/recovery/phone recheck passes on correction a01; full36 statuses retained. Historical342P1 failure retained; no whole G3/G4/hosted acceptance.",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "named scoped prior passes plus current actual P1 failures",
+      "locally_verified": "named scoped passes only",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -961,9 +962,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no hosted/provider/native/spend effects",
-    "cleanup": "all79actual owned stacks clean;94369terminal0/PGstopclusterremoved/ownPIDsabsent/ports50999-51000closed/tab102closed; first prelaunch never started PG/API/Studio",
-    "next": "Claude smallest immutable ProjectContext/global403-fence correction; independent affected read/freshness/focus/late-success and cleanup checks; fresh actual-head review/CI before merge"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/provider/native/spend0",
+    "cleanup": "all80 owned actual stacks clean;65167exit0;API/Studio stopped,DBdrop,PGstopclusterremoved;fourPIDsabsent;ports52287/52288closed;tab103closed;viewportreset",
+    "next": "Inspect fresh exact-head review/normal CI, rerun affected composer/new-form focus if no new source; bind G2 and actual-account operation inputs before any live batch"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1111,14 +1112,14 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0082.md",
-    "candidate": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
-    "tree": "2718e6dd93748b520cf218a39674bfba7ac7ed3d",
-    "currentMain": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
-    "statement": "Actual list-first403disclosure independentlyFAILP1 r4239350130; transient503control/restorationdraftPASS. G3changes_requested/combinedG4held, all36statusesretained.",
+    "record": "CX-0086.md",
+    "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
+    "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
+    "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+    "statement": "Fresh automatic342review P1 independently reproduced actual local context disclosure after list/thread403 and context-own403; correction requested; all36 fullcase statuses retained with explicit current scopedFAIL. No merge/release acceptance.",
     "readiness": {
-      "source_ready": "frozencombinedauthorcandidate;correctionunpublished",
-      "locally_verified": "namedscopedpassesandcurrentactualP1failure",
+      "source_ready": true,
+      "locally_verified": "named scoped prior passes plus current actual P1 failures",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1126,9 +1127,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized, approval/expiryNULL; nohosted/provider/native/deployeffects",
-    "cleanup": "all74ownedstacks clean/60376exit0/quiescedaudit0/DBdrop/PGstop+clusterremoved/PIDsabsent/ports55197-98closed/tab97closed",
-    "next": "Immutable author list403fence correction; independent first403/transient503/restoration/draft-intent/old-success-order and cleanup beforecombinedG4"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no hosted/provider/native/spend effects",
+    "cleanup": "all79actual owned stacks clean;94369terminal0/PGstopclusterremoved/ownPIDsabsent/ports50999-51000closed/tab102closed; first prelaunch never started PG/API/Studio",
+    "next": "Claude smallest immutable ProjectContext/global403-fence correction; independent affected read/freshness/focus/late-success and cleanup checks; fresh actual-head review/CI before merge"
   },
   "checkpoint_history": [
     {
@@ -1177,6 +1178,26 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized;approvalexpiryNULL; no hosted/provider/native/spend effects",
       "cleanup": "all78actualstacks clean; both independentCLI fixture runs terminal0/PIDsabsent/portsclosed/sourceclean",
       "next": "Read actual342 automatic review and normal CI at next execution checkpoint; independently reproduce material findings; preserve baselineC9/unexplainedolderCI and all native/hosted/liveholds before any merge"
+    },
+    {
+      "record": "CX-0086.md",
+      "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
+      "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
+      "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "statement": "Fresh automatic342review P1 independently reproduced actual local context disclosure after list/thread403 and context-own403; correction requested; all36 fullcase statuses retained with explicit current scopedFAIL. No merge/release acceptance.",
+      "readiness": {
+        "source_ready": true,
+        "locally_verified": "named scoped prior passes plus current actual P1 failures",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no hosted/provider/native/spend effects",
+      "cleanup": "all79actual owned stacks clean;94369terminal0/PGstopclusterremoved/ownPIDsabsent/ports50999-51000closed/tab102closed; first prelaunch never started PG/API/Studio",
+      "next": "Claude smallest immutable ProjectContext/global403-fence correction; independent affected read/freshness/focus/late-success and cleanup checks; fresh actual-head review/CI before merge"
     }
   ]
 }
