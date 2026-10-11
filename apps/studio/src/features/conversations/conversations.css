@@ -742,6 +742,11 @@
   flex: 1;
   align-items: flex-start;
 }
+/* Her words keep the measure they had of the whole row (84 % of it, 620 px at most): the turn stands beside her glyph,
+   36 px narrower, so its share is a step larger. */
+.conv-msg.sophia .conv-turn .conv-msg-body {
+  max-width: min(89%, 620px);
+}
 .conv-propose {
   display: flex;
   align-items: center;
