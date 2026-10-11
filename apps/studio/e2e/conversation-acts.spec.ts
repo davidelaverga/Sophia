@@ -150,14 +150,12 @@ test('acts · another’s acts start at the bubble’s left: a short message kee
   page,
 }) => {
   await page.goto(PAGE)
-  const first = messages(page)
-    .filter({ has: page.locator('.conv-msg:not(.mine)') })
-    .first()
+  const first = open(page).locator('li.conv-msg:not(.mine):not(.sophia)').first() // a message of another member
   await first.hover()
   const copy = first.getByRole('button', { name: 'Copy' })
   await expect(copy).toBeVisible()
   const pane = await page.locator('.conv-scroll').boundingBox()
-  const bubble = await first.locator('.conv-msg').boundingBox()
+  const bubble = await first.boundingBox()
   const press = await copy.boundingBox()
   expect(press?.x ?? -1).toBeGreaterThanOrEqual((pane?.x ?? 0) - 0.5)
   expect(press?.x ?? -1).toBeLessThan((bubble?.x ?? 0) + 40)
