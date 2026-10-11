@@ -321,7 +321,7 @@
   white-space: nowrap;
 }
 .places .hw-row[data-tone='soon'] .hw-m {
-  color: #e8c48d;
+  color: var(--soon);
 }
 .places .hw-row[data-tone='live'] .hw-m {
   color: color-mix(in srgb, var(--teal) 80%, var(--text));
@@ -1453,7 +1453,7 @@
   padding: 2px 6px;
   border-radius: var(--r-1);
   background: var(--warm);
-  color: #1a1512;
+  color: var(--on-warm);
   font: 600 var(--type-label) / var(--lh-small) var(--sans);
 }
 .places .c3-edge.pulse .c2-lock {
@@ -1645,7 +1645,7 @@
     padding: 1px 5px;
     border-radius: var(--r-1);
     background: var(--warm);
-    color: #1a1512;
+    color: var(--on-warm);
     font: 600 var(--type-label) / var(--lh-small) var(--sans);
   }
   .places .c3-notes {
