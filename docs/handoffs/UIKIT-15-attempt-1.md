@@ -8,6 +8,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/home-ne
 Ending commit/tree: `c2862085` (tree `9156e53cd1f5`): 9 files, 6 new (`needs-you.ts`, `needs-you.test.ts`, `NeedsYou.tsx`,
 `index-keys.ts`, `e2e/home-needs.spec.ts`, `docs/plans/home-needs-you.md`); `Welcome.tsx`, `personal.css`,
 `fixtures/home.tsx`. The commit after it adds only this handoff.
+After the review (Codex on #237, four P2): `75c2dd1b` gives `needs` its opener (`{ items, open }`), keeps the 96 px mark
+at the column's head, folds the side's rows by its width and the page to one column under 1100 px, and reads the time
+words from `time-words.ts`; `home-needs.spec.ts` measures them. That is the completed code state of this PR.
 
 ## Outcome
 
