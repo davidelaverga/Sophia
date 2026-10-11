@@ -28502,12 +28502,12 @@
                 "type": "string",
                 "enum": [
                   "work_decision",
-                  "work_item",
+                  "work_wait",
                   "artifact_version",
                   "lobby_entry",
                   "personal_turn"
                 ],
-                "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait, an artifact version, a lobby entry, a personal turn."
+                "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait (WorkWait, by its own reference: one work item may hold several), an artifact version, a lobby entry, a personal turn."
               },
               "id": {
                 "type": "string",
@@ -28524,7 +28524,7 @@
                     "type": "null"
                   }
                 ],
-                "description": "The record that holds it, when the Studio's address needs it: a version's report (artifact_version), a decision's work item (work_decision). Null otherwise."
+                "description": "The record that holds it, when the Studio's address needs it: a version's report (artifact_version), a decision's or a wait's work item (work_decision, work_wait). Null otherwise."
               }
             },
             "required": [

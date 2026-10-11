@@ -48,13 +48,13 @@ export interface NeedAt {
 export type Where = { place: 'personal' } | { projectId: string; view: View; at: NeedAt }
 
 /**
- * The address a ref gives (Codex on #245): a work item, and a decision through the work item that holds it, are named
- * in Tasks' fragment (`#task-`); a version opens in the viewer through the report that holds it. A lobby entry and a
+ * The address a ref gives (Codex on #245): a wait and a decision are named through the work item that holds them in
+ * Tasks' fragment (`#task-`); a version opens in the viewer through the report that holds it. A lobby entry and a
  * personal turn have no address of their own: their view.
  */
 export function atOf(ref: WireNeed['ref']): NeedAt {
-  if (ref.kind === 'work_item') return { taskId: ref.id }
-  if (ref.kind === 'work_decision' && ref.within) return { taskId: ref.within }
+  // A wait and a decision are their own records; the work item that holds them is the address (Codex on #245).
+  if ((ref.kind === 'work_wait' || ref.kind === 'work_decision') && ref.within) return { taskId: ref.within }
   if (ref.kind === 'artifact_version' && ref.within) {
     return { report: { artifactId: ref.within, versionId: ref.id, size: 'side', format: 'markdown' } }
   }
