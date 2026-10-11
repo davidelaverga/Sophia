@@ -11,14 +11,16 @@
   border-radius: var(--r-2);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
-  color: var(--void);
-  background: var(--teal);
+  color: var(--on-teal);
+  background: var(--teal-fill);
 }
 .report-tile[data-format='pdf'] {
-  background: var(--rose);
+  color: var(--on-rose);
+  background: var(--rose-fill);
 }
 .report-tile[data-format='html'] {
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
 }
 .report-meta {
   color: var(--text-2);
@@ -844,16 +846,18 @@
   width: 44px;
   height: 44px;
   border-radius: var(--r-2);
-  color: var(--void);
-  background: var(--teal);
+  color: var(--on-teal);
+  background: var(--teal-fill);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
 }
 .report-cover-mark[data-format='pdf'] {
-  background: var(--rose);
+  color: var(--on-rose);
+  background: var(--rose-fill);
 }
 .report-cover-mark[data-format='html'] {
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
 }
 .report-cover-open {
   position: absolute;
@@ -881,8 +885,8 @@
 .report-cover-tag {
   padding: 3px 6px;
   border-radius: var(--r-1);
-  color: var(--void);
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
 }

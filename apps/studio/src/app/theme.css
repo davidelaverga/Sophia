@@ -65,6 +65,14 @@
      ink and halo-deep, the favicon's (docs/plans/light-paper-mark.md). */
   --mark-you: var(--warm);
   --mark-sophia: var(--core);
+  /* A box with words painted in an accent (a report's tile, a cover's tag): the accent itself in the room, with the
+     void as its ink; on paper a tint of it with the accent as the ink, as the chips do (docs/plans/light-fills.md). */
+  --teal-fill: var(--teal);
+  --on-teal: var(--void);
+  --amber-fill: var(--amber);
+  --on-amber: var(--void);
+  --rose-fill: var(--rose);
+  --on-rose: var(--void);
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -101,7 +109,8 @@
   --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
   --halo: #6d5bd0;
   --halo-text: #5546b8;
-  --core: #2f2566;
+  /* The primary press and Sophia's deepest fill on paper: the brand's violet (7.0:1 under the paper's ink), not a navy. */
+  --core: #5546b8;
   --warm: #965328;
   --teal: #0f6b5b;
   --amber: #8f5717;
@@ -110,11 +119,11 @@
   --void-rgb: 251 248 243;
   --halo-rgb: 109 91 208;
   --halo-text-rgb: 85 70 184;
-  --core-rgb: 47 37 102;
+  --core-rgb: 85 70 184;
   --warm-rgb: 150 83 40;
   --teal-rgb: 15 107 91;
   --amber-rgb: 143 87 23;
-  --core-hover: #1a1340;
+  --core-hover: #4a3ca6;
   --on-core: #fbf8f3;
   --warm-hover: #7a4220;
   --on-warm: #fbf8f3;
@@ -125,6 +134,12 @@
   --shadow-k: 0.35;
   --mark-you: #16151b;
   --mark-sophia: #8468ee;
+  --teal-fill: rgb(var(--teal-rgb) / 0.14);
+  --on-teal: var(--teal);
+  --amber-fill: rgb(var(--amber-rgb) / 0.14);
+  --on-amber: var(--amber);
+  --rose-fill: rgb(var(--rose-rgb) / 0.14);
+  --on-rose: var(--rose);
 }
 :root[data-theme='light'] body::after {
   display: none;
