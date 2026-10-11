@@ -43,6 +43,12 @@ Ending commit/tree: `4e83c6dc` (tree `1e767c148902`): 3 files, 2 new (`e2e/press
 - The spec hovers with the pointer and reads what changed, rather than matching rules: a rule that reaches a press is
   not yet an answer a person sees. It reads the press and its children, so a row whose words brighten counts.
 - Each press takes a quarter of a second (the kit's 140 ms and a step more); the thirteen pages are marked slow.
+- After a local run of the whole suite (2026-10-11): a segmented option under the pointer reads in the ink unless it
+  is the one on (Knowledge's filters rest at the second ink already, so the hover had nothing to add); the one on is
+  excluded from the presses measured, with the checked and selected ones. A link the views' nav clips (past the edge
+  of a box that scrolls) is not on screen, so it is not measured. The sink test's square is the header's Search (the
+  account press is its own kind), and each press that opens a sheet on release is seen open, then shut, before the
+  next.
 
 ## Remaining obligations
 
