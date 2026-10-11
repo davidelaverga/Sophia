@@ -37,6 +37,10 @@
   not read as this viewer's, so their own stored state stands. A link opened fresh (nothing remembered) is read as
   before: what it names shows. (`addressLensFor`, with its unit test; 2026-10-11, after a local run.)
 
+- The door shut under the Studio view (a snapshot read refused: AccessNotice, no move of the route): the address
+  stops naming a lens nothing shows, the rest kept (an unmount effect; Codex on #242). The fixture's `shutDoor()`
+  refuses every snapshot read from then on. (2026-10-11)
+
 ## Checks (written first)
 
 - `e2e/studio-lens-address.spec.ts`: `?lens=explore` opens Explore; Build chosen → `lens=build` in the address;
