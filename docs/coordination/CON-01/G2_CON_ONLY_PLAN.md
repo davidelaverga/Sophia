@@ -50,14 +50,16 @@ sophia.conversation_refuse_answer(p_reply uuid, p_attempt integer, p_reason text
 - **Reasons:** only `answer_empty`, `answer_too_long` and `answer_invalid_text`; anything else raises `invalid_input`.
 - **Locks:** publication's own, under READ COMMITTED: `conversation_fences_locked(p_reply, p_attempt, true)` (s4:174), so it serializes with publication, the check, the claim and a withdrawal exactly as publication does.
 - **Attempt:** it acts only through the reply's live attempt, the rule `b5c47582` bound for `source_out`.
-- **A running request** at that attempt ends `failed` with the reason and `settled_at`. No message, answer row, context change or receipt is written. Usage is not its business: it was recorded when the item was stored.
+- **A running request** at that attempt ends `failed` with the reason and `settled_at`. The function itself writes no message, answer row, suppression or receipt. Usage is not its business: it was recorded when the item was stored.
+- **The governed cleanup that move triggers is required, not avoided** (CX-0114). Like every move into a terminal state, the move to `failed` fires S3's `conversation_context_reply_scrub` (s3:400-409). Through `conversation_context_scrub` (s3:374-381), it takes each context of the reply to body NULL, with `scrubbed_at` and `scrubbed_by = 'reply_ended'`, and nulls its recorded messages' text hashes. Ids, seqs, revisions, source hashes and the context hash stay, as S3's governed metadata. No trigger is disabled, bypassed or reordered to change that.
 - **Anything else** returns its current state unchanged, with no error. That covers a request already terminal (`cancelled` by a withdrawal stays `cancelled`), a stale attempt, and a replay.
 - **Privileges:** publication's pattern, SECURITY DEFINER with `search_path=pg_catalog,sophia`. It joins N4's revocation list, so EXECUTE is revoked from PUBLIC, `sophia_api`, `sophia_worker` and `sophia_conversation_assembler` (s4:455-469), and only its owner can execute it. It stays dormant like N4's other entry points.
 
 **Its call site:** held. Capture's reply branch, in the shared `capture_native_result` (0049). It runs at `turn/end` (0023:45-46), finds the run's last `assistant/message` (the query at 0042:1747-1749), and calls this function when that item is `oversize`, `invalidText` or empty, or when there is none. There is nothing to publish then: the item carries no text. Until that branch exists, only the tests call it.
 
 **Tests (L1, N4's suite):**
-- A running reply refused with each of the three reasons: `failed`, the reason, `settled_at` set; no message, answer, suppression or context change.
+- A running reply refused with each of the three reasons: `failed`, the reason, `settled_at` set; no message, answer or suppression.
+- **In the same cases, S3's cleanup:** every context of the reply has body NULL and `scrubbed_by = 'reply_ended'`, its recorded message hashes are NULL, and its context hash, ids and source hashes are kept, exactly as after any other terminal move. `conversation_context_reply_scrub` is enabled before and after (`pg_trigger.tgenabled = 'O'`). A replay changes nothing further: `scrubbed_at` is unchanged.
 - A reason outside the three: `invalid_input`, and nothing changed.
 - Publication's own bounds, pinned beside it (no change to it): 1 and 16,000 characters publish, as 16,000 U+0001 and as 16,000 characters outside the BMP (32,000 UTF-16 units); 0 and 16,001 raise `invalid_input`. These are the cases the refusal exists for.
 - Replayed: the same state returned, with nothing changed.
