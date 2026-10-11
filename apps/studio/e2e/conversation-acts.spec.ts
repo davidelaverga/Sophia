@@ -146,17 +146,23 @@ test('@phone · acts · on another’s message the presses start at its left and
   expect(acts && pane && acts.x >= pane.x && acts.x + acts.width <= pane.x + pane.width).toBe(true)
 })
 
-test('acts · another’s acts start at the bubble’s left: a short message keeps its Copy inside the pane, on a desktop', async ({
+test('acts · another’s acts stand at the row’s right on a desktop: inside the pane, over no byline, aligned with one’s own', async ({
   page,
 }) => {
   await page.goto(PAGE)
-  const first = open(page).locator('li.conv-msg:not(.mine):not(.sophia)').first() // a message of another member
-  await first.hover()
-  const copy = first.getByRole('button', { name: 'Copy' })
+  const other = open(page).locator('li.conv-msg:not(.mine):not(.sophia)').first() // a message of another member
+  await other.hover()
+  const copy = other.getByRole('button', { name: 'Copy' })
   await expect(copy).toBeVisible()
+  const read = await other.evaluate((li) => {
+    const r = (sel: string) => li.querySelector(sel)?.getBoundingClientRect() ?? null
+    return { row: r('.conv-acts'), by: r('.conv-msg-by'), li: li.getBoundingClientRect() }
+  })
   const pane = await page.locator('.conv-scroll').boundingBox()
-  const bubble = await first.boundingBox()
-  const press = await copy.boundingBox()
-  expect(press?.x ?? -1).toBeGreaterThanOrEqual((pane?.x ?? 0) - 0.5)
-  expect(press?.x ?? -1).toBeLessThan((bubble?.x ?? 0) + 40)
+  expect(read.row && pane && read.row.left >= pane.x - 0.5 && read.row.right <= pane.x + pane.width + 0.5).toBe(true)
+  // Over no byline: the row's box and the name's box do not meet.
+  const apart = read.row && read.by ? read.row.bottom <= read.by.top || read.row.left >= read.by.right : false
+  expect(apart, JSON.stringify(read)).toBe(true)
+  // At the row's right, where one's own message keeps its acts.
+  expect(Math.abs((read.row?.right ?? 0) - (read.li.right + 12))).toBeLessThan(1.5)
 })
