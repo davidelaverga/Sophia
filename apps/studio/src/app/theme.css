@@ -2798,6 +2798,7 @@ button.contribution-quote:hover {
 @media (min-width: 721px) {
   .topbar .mini-dock {
     position: relative; /* its notes keep it as their box (below, not above the header: Codex on #254) */
+    inset: auto; /* the floating dock's offsets mean nothing here */
     gap: 2px;
     padding: 0 8px 0 0;
     margin-right: 2px;

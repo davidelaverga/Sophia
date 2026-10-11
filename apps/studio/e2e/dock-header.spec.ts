@@ -73,7 +73,7 @@ test('dock · in a call, Tasks: the switches and Leave are in the header too', a
 test('dock · what the dock says hangs under the header, on the page: Sophia looking, from Tasks in a call', async ({
   page,
 }) => {
-  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&video=screen&looking=screen&place=work')
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&video=screen&looking=screen&place=work')
   await drawn(page, DRAWN.tasks)
   const looking = dock(page).locator('.sophia-looking')
   await expect(looking).toBeVisible()
