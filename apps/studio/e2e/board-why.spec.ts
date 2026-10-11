@@ -9,7 +9,7 @@ test('why · the Blocked lane says what it waits on; the press opens the blocker
   await page.goto(PAGE)
   const blocked = lane(page, 'Blocked')
   await expect(blocked.locator('.lane-why')).toHaveText(/^Waiting on\s*Implement the PDF retry$/)
-  await blocked.getByRole('button', { name: 'Implement the PDF retry' }).click()
+  await blocked.getByRole('button', { name: 'Implement the PDF retry', exact: true }).click() // the waiting tile names it too
   await expect(page.getByRole('dialog', { name: 'Implement the PDF retry' })).toBeVisible()
 })
 
