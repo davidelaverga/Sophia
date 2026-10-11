@@ -151,7 +151,8 @@ test('the goals’ rail moves: an arrow where more waits, a drag that chooses no
   await expect(page.getByRole('button', { name: 'Earlier goals' })).toHaveCount(0)
   await expect(page.getByRole('tab', { name: /Reports export to PDF/ })).toContainText('for you')
   await page.getByRole('button', { name: 'More goals' }).click()
-  await expect.poll(left).toBeGreaterThan(100)
+  // One step along the rail: past the first goal (the rail is wider at 1280, so a step is a smaller share of it).
+  await expect.poll(left).toBeGreaterThan(60)
   await expect(page.getByRole('button', { name: 'Earlier goals' })).toBeVisible()
   // A short drag that starts and ends over one goal doesn't choose it: the release is the drag's.
   const third = await rect(page.getByRole('tab').nth(3))
