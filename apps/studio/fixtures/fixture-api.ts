@@ -337,7 +337,8 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
   })
 }
 
-const needRef = (kind: string, id: string) => ({ kind, id })
+/** A need's ref; a version's names its report too (A15 after Codex on #245), so the Studio opens that version. */
+const needRef = (kind: string, id: string, artifactId: string | null = null) => ({ kind, id, artifactId })
 
 /** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
 export function needsAnswer(now = Date.now()) {
@@ -358,7 +359,11 @@ export function needsAnswer(now = Date.now()) {
       need('review:v3', 'review', 'Q3 retention report, v3', {
         detail: 'Davide asks',
         at: at(-120),
-        ref: needRef('artifact_version', 'v3'),
+        ref: needRef(
+          'artifact_version',
+          '00000000-0000-4000-8000-0000000000b2',
+          '00000000-0000-4000-8000-0000000000b1',
+        ),
       }),
       need('permission:w1', 'permission', 'Claude Code asks to run the export tests', {
         expiresAt: at(130),

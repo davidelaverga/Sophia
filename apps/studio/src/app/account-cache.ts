@@ -17,6 +17,10 @@ export const cacheFor = (cache: AccountCache, account: string | null): AccountCa
 
 /**
  * Nothing personal stays in memory while the padlock is shut: every personal read goes, under whichever address it was
- * read (an email change reads it again under the new one), and the reads on their way stop with their queries.
+ * read (an email change reads it again under the new one), and the reads on their way stop with their queries. So does
+ * what needs the person (A15): its replies are Sophia's words to them (Codex on #245).
  */
-export const forgetPersonalReads = (client: QueryClient): void => client.removeQueries({ queryKey: ['personal'] })
+export const forgetPersonalReads = (client: QueryClient): void => {
+  client.removeQueries({ queryKey: ['personal'] })
+  client.removeQueries({ queryKey: ['vision', 'needs'] })
+}

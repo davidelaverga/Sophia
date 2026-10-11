@@ -28447,11 +28447,24 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 200
+              },
+              "artifactId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "For an artifact_version: the report the version belongs to, so the Studio opens that version in Knowledge. Null for every other kind."
               }
             },
             "required": [
               "kind",
-              "id"
+              "id",
+              "artifactId"
             ]
           }
         },

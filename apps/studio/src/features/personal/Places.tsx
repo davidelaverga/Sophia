@@ -28,6 +28,7 @@ import { PlaceDialogs } from './PlaceDialogs.tsx'
 import { PlacesBar, type InCall } from './PlacesBar.tsx'
 import { PersonalSpace } from './PersonalSpace.tsx'
 import { useNeeds } from './useNeeds.ts'
+import type { NeedAt } from '../../api/needs.ts'
 import { usePresses, type Presses } from './presses.ts'
 import {
   dateLine,
@@ -78,7 +79,7 @@ export interface PlacesProps {
   onGo: (place: Place, replace?: boolean) => void
   onOpenProject: (projectId: string, join: boolean) => void
   /** A project at one of its views: where a need lives (docs/plans/needs-api.md). */
-  onOpenView: (projectId: string, view: ProjectView) => void
+  onOpenView: (projectId: string, view: ProjectView, at: NeedAt) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
 }
@@ -380,7 +381,11 @@ function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
   // What needs the person (A15, the vision flag): undefined without the flag or the read, and Home is as it was.
-  const needs = useNeeds(props.identity.token, { project: props.onOpenView, personal: () => nav.enter('personal') })
+  const needs = useNeeds(
+    props.identity.token,
+    { project: props.onOpenView, personal: () => nav.enter('personal') },
+    { locked: props.lock.locked },
+  )
   const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
