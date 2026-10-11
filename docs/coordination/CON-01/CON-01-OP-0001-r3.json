@@ -1,0 +1,163 @@
+{
+  "schema": "sophia.part2.operation-request.v1",
+  "template": false,
+  "mission_id": "CON-01",
+  "repository": "davidelaverga/Sophia",
+  "status": "draft_not_authorized",
+  "approval_ready": false,
+  "approval_ref": null,
+  "approved_by": null,
+  "expires_at": null,
+  "operator_session": "01a1224a-32b4-7222-a017-50a277572d95",
+  "owner_decisions_ref": "OWNER_DECISIONS_20261012.md",
+  "candidate_sha": null,
+  "candidate_tree": null,
+  "accepted_integration_base": null,
+  "artifacts": [],
+  "review_reference_pins": {
+    "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "PR211": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "db_proposal": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
+    "meaning": "Source-review references only, not the selected deployment candidate."
+  },
+  "target_identity": {
+    "database": "Supabase ikigawvpaxnvdjzzzhws",
+    "api": "Render srv-daqrn08473hc73flhi8g",
+    "runtime": "Render srv-darvmse0tbcc73d8kh3g",
+    "worker": "Render srv-darv7snpn0mc73e6c240",
+    "bridge": "Render srv-darvcigu01pc73e24o4g",
+    "studio": "Vercel sophia-30911edf/sophia-studio / https://studio.sophia-ei.com",
+    "fresh_for_execution": false,
+    "dated_observation": "CX100 at 2026-10-11T12:02:21.809835+00:00; see LIVE_PREFLIGHT.md; installed composition unqualified"
+  },
+  "credential_references": {
+    "database": "~/.config/sophia/smc-m01-owner-db-url; existing discovery reference, no write authorization",
+    "hosting": null,
+    "test_mailbox": "CON-01 private operator-store owner-test-inbox reference (CX99); never publish value"
+  },
+  "migrations": [],
+  "commands": [],
+  "concurrent_live_work": {
+    "owner_ack": null,
+    "window": null,
+    "preserve": "Preserve WBC-02/SDD-01/other missions and current accepted combined runtime; no drain, stop or replacement inferred. A changed serving tuple invalidates execution preflight."
+  },
+  "recovery": {
+    "qualified_artifacts": [],
+    "rehearsal": null,
+    "preserve": [
+      "human messages and conversation IDs",
+      "privacy withdrawal/tombstone/eligibility fences",
+      "reply request, dispatch, delivery and uncertainty lineage",
+      "cumulative allowance and reservation accounting",
+      "independently governed decisions"
+    ],
+    "method": "Stop new admissions under the approved batch, reconcile/fence outstanding effects, retain compatible read/erase/control paths and governed data. No table drop or old-code-only restore; exact artifact and rehearsal remain unbound."
+  },
+  "execution": {
+    "started": false,
+    "effects": [],
+    "uncertain_effects": [],
+    "actual_spend": 0,
+    "provider_calls": 0,
+    "note": "Draft preparation only; no execution authorization."
+  },
+  "next": "Complete exact source/artifact/target/command/recovery binding, independently review, then return this concrete batch to Davide for approval. Do not execute this draft.",
+  "request_id": "CON-01-OP-0001",
+  "revision": 3,
+  "supersedes": "CON-01-OP-0001-r2.json (historical unchanged)",
+  "purpose": "One qualified subscription-only Ask route and bounded actual-app provider episode; depends on separately completed setup/human-chat batch.",
+  "setup_dependency": "CON-01-OP-0002-r4.json; exact completed receipt required",
+  "proposed_validity": null,
+  "cohort": {
+    "project_id": null,
+    "requesting_subject_ref": null,
+    "second_subject_ref": null,
+    "roles": [],
+    "provider_eligible_subjects": [],
+    "personal_subscription_serves_other_actor": false
+  },
+  "route": {
+    "provider": null,
+    "model": null,
+    "adapter": null,
+    "application_topology": null,
+    "credential_ref": null,
+    "credential_lifecycle": null,
+    "quota_source": null,
+    "eligibility_evidence": null,
+    "switching_allowed": false
+  },
+  "allowance": {
+    "payer_ref": null,
+    "maximum_new_spend": 0,
+    "currency": "USD",
+    "subscription_capacity_limit": null,
+    "per_reply_limit": null,
+    "max_calls": null,
+    "expiry": null,
+    "cumulative_request_accounting_required": true,
+    "payg": false,
+    "extra_credits": false,
+    "account_rotation": false,
+    "hidden_reset": false,
+    "missing_values_block_provider_execution": true
+  },
+  "database_isolation": {
+    "policy": "Q13 A",
+    "identity_ref": null,
+    "admission_proof": null,
+    "inherited_and_assumable_role_proof": null,
+    "operational_writer_denial": null,
+    "preexisting_out_of_scope_connection_settlement": null,
+    "cluster_wide_permission_mutation_authorized": false,
+    "connection_termination_authorized": false
+  },
+  "ordered_effects": [
+    {
+      "order": 1,
+      "effect": "Read-only recensus exact accepted integrated candidate, artifacts, serving tuple, migration/config identity, live work, cohort and cumulative remaining allowance. Stop if outside approved envelope."
+    },
+    {
+      "order": 2,
+      "effect": "Apply only named reviewed Ask prerequisites and least-privilege configuration under their exact separately listed effects. No cluster-wide permission change or connection termination is implied; actual incompatibility must be resolved before approval."
+    },
+    {
+      "order": 3,
+      "effect": "Deploy only required exact combined artifacts under acknowledged live-work conditions; verify serving API/runtime/bridge/worker/Studio/schema tuple and assembled native context, role/tools/profile/unit."
+    },
+    {
+      "order": 4,
+      "effect": "Enroll only the qualified requesting-account subscription route with governed credential lifecycle, quota provenance and cumulative bounds. Verify per-attempt writable home isolation and cleanup/recovery. No provider switch or different payer."
+    },
+    {
+      "order": 5,
+      "effect": "Enable expiring Ask admission only for designated eligible subject/project after all gates. Execute pack08 actual signed-in episode, real native/provider answer, return/current decision context/correct destination/privacy withdrawal/denied access; lost-Send-response simulation only under an exact approved client-local condition."
+    },
+    {
+      "order": 6,
+      "effect": "Fence and reconcile all attempts including uncertain dispatch/late answers, preserve durable accounting before cleanup, verify host-copy deletion receipts and retain unresolved cleanup honestly. Disable expiring admissions and record actual use."
+    }
+  ],
+  "preconditions": [
+    "G1-G4 affected evidence independently qualified at exact integrated candidate; source changes invalidate affected prior review.",
+    "Dispatcher honest count and fair selection prerequisite implemented/tested under acknowledged one-writer window.",
+    "Actual least-privilege DB admission plus inherited/assumable roles, operational denial and preexisting-session settlement qualified.",
+    "One supported subscription route qualified for actual topology/requesting actor, adapter, credential lifecycle and quota source; do not assume personal subscription covers another account.",
+    "Exact finite subscription allowance/per-reply bound/max calls/expiry and payer reference accepted; unknown quota is unavailable, not zero or unlimited.",
+    "Disposable home copy inventory/settlement/cleanup/withdrawal/crash recovery and durable idempotency/correlation/uncertain-dispatch semantics qualified.",
+    "Real signed-in two-account application available; no fixtures constitute app acceptance.",
+    "Concrete batch approved under WORKING_PROTOCOL section3; destructive live fault effects separately named or kept local/staging."
+  ],
+  "unbound": [
+    "Exact integrated candidate/tree and assembled artifacts",
+    "Shared owner acknowledgements/window/integration order/handback",
+    "Exact migration/config effects and commands",
+    "Qualified identity and database admission/role/connection settlement proof",
+    "One eligible subscription route/topology/requesting subject/credential reference/quota source",
+    "Payer, finite subscription capacity, per-reply/max-call bounds and expiry",
+    "Completed actual account/project setup receipt",
+    "Governed rollback artifact and rehearsal",
+    "Approval and exact expiry"
+  ]
+}
