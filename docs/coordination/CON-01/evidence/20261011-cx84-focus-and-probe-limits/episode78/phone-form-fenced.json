@@ -1,0 +1,30 @@
+{
+  "active": {
+    "tag": "P",
+    "text": "This project refused a read of its conversations. None is shown until they can be read again."
+  },
+  "at": "2026-10-11T00:35:09.664Z",
+  "forms": 0,
+  "height": 844,
+  "main": "Conversations\n\nThe conversations can’t be read now. Try again\n\nThis project refused a read of its conversations. None is shown until they can be read again.",
+  "note": [
+    {
+      "height": 24,
+      "left": 10,
+      "text": "The conversations can’t be read now. Try again",
+      "top": 152,
+      "visible": true,
+      "width": 370
+    },
+    {
+      "height": 36,
+      "left": 10,
+      "text": "This project refused a read of its conversations. None is shown until they can be read again.",
+      "top": 184,
+      "visible": true,
+      "width": 370
+    }
+  ],
+  "screen": "list",
+  "width": 390
+}

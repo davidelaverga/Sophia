@@ -1,0 +1,39 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/studio
+    - link "Conversations":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/conversations
+    - link "Goals":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/goals
+    - link "Tasks":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/work
+    - link "Knowledge":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/knowledge
+    - link "Updates":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/updates
+    - link "Resources":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/resources
+  - button "Invite":
+  - button "Account":
+    - generic: R
+- main:
+  - region "Conversations":
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - generic: Question
+      - textbox "Question" [active]:
+        - /placeholder: What do you want to figure out?
+        - text: SYNTHETIC phone form question
+      - generic: Context, if it helps
+      - textbox "Context, if it helps": SYNTHETIC phone form context
+      - checkbox "Ask Sophia" [checked]
+      - text: Ask Sophia
+      - button "Start"
+      - button "Cancel"
+- status

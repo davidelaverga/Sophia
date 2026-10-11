@@ -1,0 +1,53 @@
+{
+  "active": {
+    "tag": "TEXTAREA",
+    "text": "SYNTHETIC phone focus draft"
+  },
+  "at": "2026-10-11T00:33:33.641Z",
+  "composer": true,
+  "height": 844,
+  "notes": [
+    {
+      "height": 18,
+      "left": 22,
+      "text": "No recorded questions yet",
+      "top": 960.2421875,
+      "visible": true,
+      "width": 346
+    },
+    {
+      "height": 18,
+      "left": 22,
+      "text": "No mission accepted yet.",
+      "top": 1076.0390625,
+      "visible": true,
+      "width": 346
+    },
+    {
+      "height": 18,
+      "left": 22,
+      "text": "None accepted yet.",
+      "top": 1143.8359375,
+      "visible": true,
+      "width": 346
+    },
+    {
+      "height": 18,
+      "left": 22,
+      "text": "Nothing waits for a decision.",
+      "top": 1211.6328125,
+      "visible": true,
+      "width": 346
+    },
+    {
+      "height": 0,
+      "left": 22,
+      "text": "",
+      "top": 1238.6328125,
+      "visible": false,
+      "width": 346
+    }
+  ],
+  "screen": "thread",
+  "width": 390
+}

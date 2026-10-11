@@ -1,0 +1,27 @@
+{
+  "candidate": "d92323b0a15f867c2ff4d5d620c123307299aa96",
+  "tree": "d530d04eda59d4e1afda240cd5ce598deffd78e8",
+  "observedAt": "2026-10-11T00:35:34.957Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "84a27af4-bc9c-426e-a9a7-da56bffaa8ea",
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "humanMessages": 7,
+  "nullBodies": 0,
+  "requests": 7,
+  "operations": {
+    "start": 2,
+    "send": 5
+  },
+  "replies": 0,
+  "decisions": 0
+}

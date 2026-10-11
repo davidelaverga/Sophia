@@ -1,0 +1,13 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - button "Account":
+    - generic: R
+- main:
+  - heading "No access to this project" [level=2]
+  - paragraph: Review admin isn’t a member. Ask a project admin to add you, or open another project.
+  - button "Back to projects"
+- status

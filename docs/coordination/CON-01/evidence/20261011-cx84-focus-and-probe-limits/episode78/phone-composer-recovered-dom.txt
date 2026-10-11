@@ -1,0 +1,65 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/studio
+    - link "Conversations":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/conversations
+    - link "Goals":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/goals
+    - link "Tasks":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/work
+    - link "Knowledge":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/knowledge
+    - link "Updates":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/updates
+    - link "Resources":
+      - /url: /p/84a27af4-bc9c-426e-a9a7-da56bffaa8ea/resources
+  - button "Invite":
+  - button "Account":
+    - generic: R
+- main:
+  - region "Conversations":
+    - region "Open conversation":
+      - button "All conversations":
+      - heading "SYNTHETIC current access check" [active] [level=3]
+      - paragraph:
+        - generic: "Contributors:"
+        - text: You, Synthetic editor
+      - button "Context":
+      - region "Messages":
+        - list:
+          - generic: Oct 11
+          - text: You
+          - text: ·
+          - time: Oct 11, 02:32
+          - paragraph: SYNTHETIC current conversation before revocation
+          - button "Propose as decision":
+          - button "Withdraw message":
+          - generic: 02:32
+          - text: Synthetic editor
+          - text: ·
+          - time: Oct 11, 02:33
+          - paragraph: SYNTHETIC focus feed stimulus
+          - button "Propose as decision":
+          - button "Remove message":
+          - generic: 02:33
+          - text: Synthetic editor
+          - text: ·
+          - time: Oct 11, 02:33
+          - paragraph: SYNTHETIC focus feed stimulus
+          - button "Propose as decision":
+          - button "Remove message":
+          - generic: 02:33
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team": SYNTHETIC phone focus draft
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send":
+          - generic: Send
+- status

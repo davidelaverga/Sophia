@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-11T00:36:09.465621+00:00",
+  "pids": {
+    "pid": {
+      "pid": 28952,
+      "present": false
+    },
+    "apiPid": {
+      "pid": 28961,
+      "present": false
+    },
+    "studioPid": {
+      "pid": 28962,
+      "present": false
+    },
+    "wrapper": {
+      "pid": 28924,
+      "present": false
+    }
+  },
+  "ports": {
+    "apiPort": {
+      "port": 57444,
+      "open": false
+    },
+    "studioPort": {
+      "port": 57445,
+      "open": false
+    }
+  },
+  "wrapperExit": 0,
+  "postgresStopped": true,
+  "clusterRemoved": true,
+  "databaseDropped": true
+}

@@ -1,0 +1,261 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0084",
+  "candidate": "d92323b0a15f867c2ff4d5d620c123307299aa96",
+  "tree": "d530d04eda59d4e1afda240cd5ce598deffd78e8",
+  "parent": "a704469050a38002cad7d595b9f9af58295b48e9",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "sourceDelta": {
+    "files": 2,
+    "insertions": 57,
+    "deletions": 2,
+    "completeRead": true,
+    "reviewerFeatureFix": false
+  },
+  "checks": {
+    "independentFrozenOfflineInstall": 0,
+    "independentStudioTypecheck": 0,
+    "actualPhoneComposerRefusal": "scopedPASS",
+    "actualPhoneNewFormRefusal": "scopedPASS",
+    "actualPhoneDraftRecovery": "scopedPASS",
+    "mobileFinding4239578617": "not reproduced independently at390x844; allNONE=>openundefined=>screenlist and visible focused note",
+    "lateSuccess76": "INCONCLUSIVE: own-thread refetch cancelled; newer403 not crossed by a consumed late200",
+    "lateSuccess77": "INCONCLUSIVE: actual probe200 relayed client-open, but no newer403/revocation occurred",
+    "combined3b1aFullGate": "author terminal FAILED e2e-all-studio C9/report-page134; rest0; not waived",
+    "combined3422": "author local/unpublished full gate active; no independent whole-source or gate verdict"
+  },
+  "episodes": [
+    {
+      "episode": 76,
+      "audit": {
+        "candidate": "a704469050a38002cad7d595b9f9af58295b48e9",
+        "tree": "523bb5864e49ae88b469243b4d77b54d49a6b385",
+        "observedAt": "2026-10-10T22:24:46.751Z",
+        "level": "L1 actual local browser/API/PostgreSQL only",
+        "projectId": "4a063dcf-bd32-4870-aac5-602c212587b2",
+        "counts": {
+          "goals": 1,
+          "jobs": 0,
+          "work_attempts": 0,
+          "execution_bindings": 0,
+          "commands": 0,
+          "outbox": 0,
+          "runtime_commands": 0,
+          "usage_records": 0,
+          "conversation_replies": 0
+        },
+        "humanMessages": 207,
+        "nullBodies": 0,
+        "requests": 207,
+        "operations": {
+          "start": 203,
+          "send": 4
+        },
+        "replies": 0,
+        "decisions": 0
+      },
+      "cleanup": {
+        "at": "2026-10-11T00:36:09.463359+00:00",
+        "pids": {
+          "pid": {
+            "pid": 28692,
+            "present": false
+          },
+          "apiPid": {
+            "pid": 28701,
+            "present": false
+          },
+          "studioPid": {
+            "pid": 28702,
+            "present": false
+          },
+          "wrapper": {
+            "pid": 28663,
+            "present": false
+          }
+        },
+        "ports": {
+          "apiPort": {
+            "port": 57142,
+            "open": false
+          },
+          "studioPort": {
+            "port": 57143,
+            "open": false
+          }
+        },
+        "wrapperExit": 0,
+        "postgresStopped": true,
+        "clusterRemoved": true,
+        "databaseDropped": true
+      },
+      "readLimit": {
+        "count": 15,
+        "limit": 200,
+        "armedAt": "2026-10-10T22:23:31.911Z",
+        "contained": false
+      }
+    },
+    {
+      "episode": 77,
+      "audit": {
+        "candidate": "a704469050a38002cad7d595b9f9af58295b48e9",
+        "tree": "523bb5864e49ae88b469243b4d77b54d49a6b385",
+        "observedAt": "2026-10-10T22:33:13.440Z",
+        "level": "L1 actual local browser/API/PostgreSQL only",
+        "projectId": "5be0f39a-c2f5-4ae5-b7a4-ca5cb3e457ee",
+        "counts": {
+          "goals": 1,
+          "jobs": 0,
+          "work_attempts": 0,
+          "execution_bindings": 0,
+          "commands": 0,
+          "outbox": 0,
+          "runtime_commands": 0,
+          "usage_records": 0,
+          "conversation_replies": 0
+        },
+        "humanMessages": 207,
+        "nullBodies": 0,
+        "requests": 207,
+        "operations": {
+          "start": 203,
+          "send": 4
+        },
+        "replies": 0,
+        "decisions": 0
+      },
+      "cleanup": {
+        "at": "2026-10-11T00:36:09.465621+00:00",
+        "pids": {
+          "pid": {
+            "pid": 28952,
+            "present": false
+          },
+          "apiPid": {
+            "pid": 28961,
+            "present": false
+          },
+          "studioPid": {
+            "pid": 28962,
+            "present": false
+          },
+          "wrapper": {
+            "pid": 28924,
+            "present": false
+          }
+        },
+        "ports": {
+          "apiPort": {
+            "port": 57444,
+            "open": false
+          },
+          "studioPort": {
+            "port": 57445,
+            "open": false
+          }
+        },
+        "wrapperExit": 0,
+        "postgresStopped": true,
+        "clusterRemoved": true,
+        "databaseDropped": true
+      },
+      "readLimit": {
+        "count": 17,
+        "limit": 200,
+        "armedAt": "2026-10-10T22:25:24.941Z",
+        "contained": false
+      }
+    },
+    {
+      "episode": 78,
+      "audit": {
+        "candidate": "d92323b0a15f867c2ff4d5d620c123307299aa96",
+        "tree": "d530d04eda59d4e1afda240cd5ce598deffd78e8",
+        "observedAt": "2026-10-11T00:35:34.957Z",
+        "level": "L1 actual local browser/API/PostgreSQL only",
+        "projectId": "84a27af4-bc9c-426e-a9a7-da56bffaa8ea",
+        "counts": {
+          "goals": 1,
+          "jobs": 0,
+          "work_attempts": 0,
+          "execution_bindings": 0,
+          "commands": 0,
+          "outbox": 0,
+          "runtime_commands": 0,
+          "usage_records": 0,
+          "conversation_replies": 0
+        },
+        "humanMessages": 7,
+        "nullBodies": 0,
+        "requests": 7,
+        "operations": {
+          "start": 2,
+          "send": 5
+        },
+        "replies": 0,
+        "decisions": 0
+      },
+      "cleanup": {
+        "at": "2026-10-11T00:36:09.466037+00:00",
+        "pids": {
+          "pid": {
+            "pid": 41220,
+            "present": false
+          },
+          "apiPid": {
+            "pid": 41230,
+            "present": false
+          },
+          "studioPid": {
+            "pid": 41231,
+            "present": false
+          },
+          "wrapper": {
+            "pid": 41184,
+            "present": false
+          }
+        },
+        "ports": {
+          "apiPort": {
+            "port": 65510,
+            "open": false
+          },
+          "studioPort": {
+            "port": 65511,
+            "open": false
+          }
+        },
+        "wrapperExit": 0,
+        "postgresStopped": true,
+        "clusterRemoved": true,
+        "databaseDropped": true
+      },
+      "readLimit": {
+        "count": 12,
+        "limit": 200,
+        "armedAt": "2026-10-11T00:33:08.866Z",
+        "contained": false
+      }
+    }
+  ],
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "named actual local phone crossings only",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operations": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "providerNativeSpend": 0,
+    "hostedEffects": 0
+  },
+  "next": "Immutable combined342288a2 handback/terminal receipt; independent full combined delta/current-main qualification before any merge; live inputs still required"
+}

@@ -1,0 +1,9 @@
+{
+  "episode": 77,
+  "candidate": "a704469050a38002cad7d595b9f9af58295b48e9",
+  "tree": "523bb5864e49ae88b469243b4d77b54d49a6b385",
+  "scope": "Actual owned bounded late C1 probe success after new list403;201capsetup+2humanbumps; no fixtures/native/provider/hosted",
+  "limits": "8min/600souter/200reads armedbeforelaunch",
+  "launched": false,
+  "change": "Allow first original C1 own-thread refetch200 through; hold subsequent C1 reconciliation probe200; one bounded attempt, no priorfailedattempt promoted"
+}
