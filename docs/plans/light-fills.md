@@ -30,8 +30,8 @@
 
 ## Checks
 
-- `e2e/light-fills.spec.ts`: on Tasks and Knowledge in light the tiles and the tag are tints (an alpha under 0.2 of the
-  accent) with the accent as ink, at 4.5:1 or more; on sign-in in light the primary press is `rgb(85, 70, 184)` and
+- `e2e/light-fills.spec.ts`: on Tasks and Knowledge in light the tiles and the tag are the opaque paper tints (no
+  alpha; the mixed values `#dae4de`, `#ece1d4`, `#efddde`, pinned) with the accent as ink, at 4.5:1 or more; on sign-in in light the primary press is `rgb(85, 70, 184)` and
   hovers to `rgb(74, 60, 166)`, its ink at 4.5:1 or more; in the room the tile keeps the pastel fill and the void's ink.
 - `light-mode.spec` pins the new hover; `pnpm format`, `lint`, `typecheck`; measured in the pane before the push.
 

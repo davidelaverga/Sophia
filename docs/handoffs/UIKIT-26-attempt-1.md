@@ -39,6 +39,8 @@ The commit after it adds only this handoff.
   the grid.
 - After the review (Codex on #248, 2026-10-11): the open conversation's title and the new conversation's heading are
   section heads too (15), so Conversations keeps to five sizes and the spec's allowlist is five again.
+- After the review (Codex on #248, round 2): the open conversation's title keeps 15 on a phone (the ≤ 760 rule said
+  14), and the writes spec's allowlist is five too; project-conversations.spec @phone reads the title.
 
 ## Remaining obligations
 

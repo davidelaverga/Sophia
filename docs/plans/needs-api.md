@@ -106,3 +106,5 @@
   records, the rest standing where they live; no cursor (what needs a person is a list they act on, and 200 is far
   past one). The seen mark: a reply opens the personal space, where every turn since the last seen is shown, so seeing
   one is seeing those before it; the mark only moves forward, and replies after the one named stay listed.
+- **`within` is the holder's own id** (P2, round 7): a work item's id is any string of 1 to 160 characters (A13's
+  `work_id`, a slug such as `build` among them), so `within` takes that shape, not a uuid; a uuid still fits.

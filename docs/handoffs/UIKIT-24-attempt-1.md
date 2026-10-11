@@ -34,6 +34,8 @@ two rules), `e2e/view-titles.spec.ts` (new, 12 tests), `type-scale.spec.ts`, `wo
   project is a step down, not a fall, and a phone keeps it under the greeting's 38.
 - Tokens and not a literal: `--type-view` / `--lh-view` beside the scale, so the next view (or the Places head, if
   Luis wants it) takes the same step.
+- After the review (Codex on #246): CONTRIBUTING's Studio UI section names the view title's 28 (`--type-view`) where
+  it said 20.
 
 ## Remaining obligations
 
