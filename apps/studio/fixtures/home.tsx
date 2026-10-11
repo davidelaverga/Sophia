@@ -26,6 +26,7 @@ import { Welcome } from '../src/features/personal/Welcome.tsx'
 import { DEMO, DEMO_LABEL, HOME_PROJECT } from './demo.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -34,6 +35,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const pressed: string[] = []
 window.homeFixture = {
   pressed,

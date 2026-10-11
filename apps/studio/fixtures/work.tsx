@@ -95,6 +95,7 @@ import {
 import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
 import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -163,6 +164,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'

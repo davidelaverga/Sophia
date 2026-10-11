@@ -19,6 +19,7 @@ import { installFixtureApi, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { goal } from './work-data.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -83,6 +84,7 @@ const sentBefore = (): { key: string; body: unknown }[] =>
 // headless shell CI runs has none, and asked (Home's dictation, signed in) it ends the page's renderer.
 Reflect.set(globalThis, 'SpeechRecognition', undefined)
 
+bootTheme(new URLSearchParams(window.location.search).get('theme'))
 if (new URLSearchParams(window.location.search).get('work') === 'lost') sessionStorage.setItem(WORK_KEY, 'lost')
 if (sessionStorage.getItem(WORK_KEY) === 'lost') {
   const proposals = { lose: 1, how: 'lost' as const, sent: sentBefore(), held: [] }

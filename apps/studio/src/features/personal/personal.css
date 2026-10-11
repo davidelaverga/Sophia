@@ -5,9 +5,9 @@
    project's page. */
 .places {
   /* What the places add to the Studio's tokens; nothing of theirs is redefined. */
-  --warm-soft: rgba(241, 220, 199, 0.1);
+  --warm-soft: rgb(var(--warm-rgb) / 0.1);
   /* Secondary text that keeps 4.5:1 on a door's surface. */
-  --text-sec: rgba(236, 235, 241, 0.62);
+  --text-sec: rgb(var(--ink-rgb) / 0.62);
   position: fixed;
   inset: 0;
   overflow: clip;
@@ -51,7 +51,7 @@
   height: 28px;
   padding: 0 10px;
   border-radius: var(--r-2);
-  border: 1px solid rgba(241, 220, 199, 0.28);
+  border: 1px solid rgb(var(--warm-rgb) / 0.28);
   background: none;
   color: var(--warm);
   font-size: 12px;
@@ -60,7 +60,7 @@
 }
 .places .chip-private:hover,
 .places .chip-private[aria-expanded='true'] {
-  border-color: rgba(241, 220, 199, 0.55);
+  border-color: rgb(var(--warm-rgb) / 0.55);
 }
 .places .chip-private.team {
   border-color: var(--line-2);
@@ -108,8 +108,8 @@
   height: 32px;
   padding: 0 3px 0 10px;
   border-radius: var(--r-3);
-  border: 1px solid rgba(241, 220, 199, 0.35);
-  background: rgba(241, 220, 199, 0.06);
+  border: 1px solid rgb(var(--warm-rgb) / 0.35);
+  background: rgb(var(--warm-rgb) / 0.06);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -372,7 +372,7 @@
     border-radius: var(--r-3);
     background: radial-gradient(
       240px circle at var(--mx, 50%) var(--my, 50%),
-      rgba(156, 130, 245, 0.07),
+      rgb(var(--halo-rgb) / 0.07),
       transparent 70%
     );
     opacity: 0;
@@ -409,7 +409,7 @@
   margin-left: 3px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 10px 2px rgba(156, 130, 245, 0.55);
+  box-shadow: 0 0 10px 2px rgb(var(--halo-rgb) / 0.55);
 }
 .places .hw-her.locked {
   width: auto;
@@ -438,7 +438,7 @@
   margin-top: 14px;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgb(var(--sheen-rgb) / 0.12);
   background: none;
   color: var(--text-3);
   text-align: left;
@@ -461,19 +461,19 @@
 }
 .places .hw-mic[aria-pressed='true'] {
   color: var(--halo-text);
-  background: rgba(156, 130, 245, 0.12);
+  background: rgb(var(--halo-rgb) / 0.12);
   animation: hw-listen 1.6s ease-in-out infinite;
 }
 @keyframes hw-listen {
   50% {
-    box-shadow: 0 0 0 6px rgba(156, 130, 245, 0.08);
+    box-shadow: 0 0 0 6px rgb(var(--halo-rgb) / 0.08);
   }
 }
 .places .hw-say[data-listening] {
-  border-bottom-color: rgba(185, 168, 255, 0.7);
+  border-bottom-color: rgb(var(--halo-text-rgb) / 0.7);
 }
 .places .hw-say:focus-within {
-  border-bottom-color: rgba(185, 168, 255, 0.55);
+  border-bottom-color: rgb(var(--halo-text-rgb) / 0.55);
 }
 /* The Studio's fields are boxes; this one is a line: none of their edge, ring or fill, focused or not. */
 .places .hw-say input,
@@ -526,7 +526,7 @@
   flex: none;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 2px rgba(156, 130, 245, 0.5);
+  box-shadow: 0 0 8px 2px rgb(var(--halo-rgb) / 0.5);
 }
 .places .pdot {
   width: 20px;
@@ -534,7 +534,7 @@
   display: grid;
   place-items: center;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.4);
+  border: 1px solid rgb(var(--warm-rgb) / 0.4);
   background: var(--plane);
   color: var(--warm);
   font-size: 9.5px; /* an initial: a glyph sized to its circle, not text on the scale */
@@ -686,8 +686,8 @@
   pointer-events: none;
   background: radial-gradient(
     ellipse 55% 75% at 50% 0%,
-    rgba(156, 130, 245, 0.14),
-    rgba(156, 130, 245, 0.045) 50%,
+    rgb(var(--halo-rgb) / 0.14),
+    rgb(var(--halo-rgb) / 0.045) 50%,
     transparent 78%
   );
   animation: ps-ambient 7s ease-in-out infinite;
@@ -714,8 +714,8 @@
     circle,
     rgba(250, 248, 255, 0.95) 0 9%,
     rgba(214, 204, 255, 0.55) 16%,
-    rgba(156, 130, 245, 0.22) 38%,
-    rgba(156, 130, 245, 0) 70%
+    rgb(var(--halo-rgb) / 0.22) 38%,
+    rgb(var(--halo-rgb) / 0) 70%
   );
 }
 
@@ -805,7 +805,7 @@
   width: 5.5px;
   height: 8.6px;
   fill: var(--core);
-  filter: drop-shadow(0 0 5px rgba(156, 130, 245, 0.7));
+  filter: drop-shadow(0 0 5px rgb(var(--halo-rgb) / 0.7));
 }
 /* Her turns' first line is taller (17 px at 1.55): her half sits a pixel lower to stay centred on it. */
 .places .msg.sophia:not(.typing) .c3-who {
@@ -1109,17 +1109,17 @@
   gap: 10px;
   padding: 6px 0 0;
   border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgb(var(--sheen-rgb) / 0.12);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 .places .ps-composer .message-bar:focus-within {
-  border-top-color: rgba(185, 168, 255, 0.55);
-  box-shadow: 0 -1px 0 rgba(185, 168, 255, 0.55);
+  border-top-color: rgb(var(--halo-text-rgb) / 0.55);
+  box-shadow: 0 -1px 0 rgb(var(--halo-text-rgb) / 0.55);
 }
 .places .ps-composer .message-bar.listening {
-  border-top-color: rgba(185, 168, 255, 0.7);
+  border-top-color: rgb(var(--halo-text-rgb) / 0.7);
 }
 .places .ps-composer .c3-private {
   display: grid;
@@ -1143,11 +1143,11 @@
   opacity: 1;
 }
 .places .ps-composer .send:not(:disabled) {
-  background: rgba(156, 130, 245, 0.16);
+  background: rgb(var(--halo-rgb) / 0.16);
   color: var(--core);
 }
 .places .ps-composer .send:hover:not(:disabled) {
-  background: rgba(156, 130, 245, 0.26);
+  background: rgb(var(--halo-rgb) / 0.26);
 }
 .places .ps-composer .message-bar .round {
   border-color: transparent;
@@ -1155,7 +1155,7 @@
 }
 .places .ps-composer .message-bar .round[aria-pressed='true'] {
   color: var(--core);
-  background: rgba(156, 130, 245, 0.18);
+  background: rgb(var(--halo-rgb) / 0.18);
 }
 /* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
 .places .message-bar.listening textarea {
@@ -1276,7 +1276,7 @@
     opacity 460ms var(--ease);
 }
 .places .c2-t:hover {
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 .places .c2-t p {
   font-size: 13px;
@@ -1299,7 +1299,7 @@
   height: 5px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 6px 1px rgba(156, 130, 245, 0.6);
+  box-shadow: 0 0 6px 1px rgb(var(--halo-rgb) / 0.6);
 }
 .places .c2-to {
   grid-column: 1 / -1;
@@ -1338,7 +1338,7 @@
 }
 .places .c3-carry:hover,
 .places .c3-carry:focus-visible {
-  border-color: rgba(241, 220, 199, 0.45);
+  border-color: rgb(var(--warm-rgb) / 0.45);
   background: var(--warm-soft);
 }
 /* The edge crosses; it shows a padlock only when the side behind it is locked. */
@@ -1373,12 +1373,12 @@
   background: linear-gradient(transparent, var(--line-3) 20%, var(--line-3) 80%, transparent);
 }
 .places .c3-edge:hover {
-  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.025), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--ink-rgb) / 0.025), transparent);
 }
 .places .c3-edge:hover .c2-lock,
 .places .c3-edge:focus-visible .c2-lock {
   color: var(--warm);
-  border-color: rgba(241, 220, 199, 0.45);
+  border-color: rgb(var(--warm-rgb) / 0.45);
 }
 .places .c3-edge:focus-visible {
   outline-offset: -4px;
@@ -1429,11 +1429,11 @@
 }
 @keyframes ps-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(241, 220, 199, 0.5);
+    box-shadow: 0 0 0 0 rgb(var(--warm-rgb) / 0.5);
     color: var(--warm);
   }
   100% {
-    box-shadow: 0 0 0 14px rgba(241, 220, 199, 0);
+    box-shadow: 0 0 0 14px rgb(var(--warm-rgb) / 0);
   }
 }
 
@@ -1486,11 +1486,11 @@
   align-items: center;
   padding: 9px 12px;
   border-radius: var(--r-2);
-  border: 1px solid rgba(241, 220, 199, 0.2);
+  border: 1px solid rgb(var(--warm-rgb) / 0.2);
   background: var(--warm-soft);
 }
 .places .c3-from.new {
-  border-color: rgba(241, 220, 199, 0.5);
+  border-color: rgb(var(--warm-rgb) / 0.5);
 }
 .places .c3-from p {
   font-size: 13px;
@@ -1554,8 +1554,8 @@
   gap: 8px;
   padding: 12px;
   border-radius: var(--r-3);
-  border: 1px solid rgba(238, 159, 176, 0.3);
-  background: rgba(238, 159, 176, 0.06);
+  border: 1px solid rgb(var(--rose-rgb) / 0.3);
+  background: rgb(var(--rose-rgb) / 0.06);
 }
 .places .danger-zone p {
   color: var(--text-2);
@@ -1973,7 +1973,7 @@
 
 /* Finishing: text you select in Personal takes her light. */
 .places .c3-space.you ::selection {
-  background: rgba(156, 130, 245, 0.32);
+  background: rgb(var(--halo-rgb) / 0.32);
   color: var(--text);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2000,17 +2000,17 @@
   gap: 8px;
   height: 28px;
   padding: 0 12px;
-  border: 1px solid rgba(185, 168, 255, 0.35);
+  border: 1px solid rgb(var(--halo-text-rgb) / 0.35);
   border-radius: var(--r-2);
   /* Near opaque: it sits over words, which must not read through it. */
-  background: color-mix(in srgb, var(--void) 94%, rgb(156, 130, 245));
+  background: color-mix(in srgb, var(--void) 94%, var(--halo));
   color: var(--text);
   font: var(--type-body) / var(--lh-body) var(--sans);
   cursor: pointer;
   animation: ps-arrive 220ms var(--ease);
 }
 .places .c3-answered:hover {
-  border-color: rgba(185, 168, 255, 0.6);
+  border-color: rgb(var(--halo-text-rgb) / 0.6);
 }
 /* Over the field's line: its note (a draft kept, the voice) at the left, its count at the right once it nears the most
    one message holds, warm once it is reached; on a phone they take two lines if they must. */
@@ -2037,7 +2037,7 @@
   height: 10px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle, rgba(250, 248, 255, 0.95) 0 25%, rgba(156, 130, 245, 0.5) 60%, transparent 75%);
+  background: radial-gradient(circle, rgba(250, 248, 255, 0.95) 0 25%, rgb(var(--halo-rgb) / 0.5) 60%, transparent 75%);
   transform: translate(-50%, -50%);
 }
 .places .c3-notes-toggle {
@@ -2047,7 +2047,7 @@
 }
 .places .c3-notes-toggle.ticked {
   color: var(--text);
-  text-shadow: 0 0 12px rgba(185, 168, 255, 0.8);
+  text-shadow: 0 0 12px rgb(var(--halo-text-rgb) / 0.8);
 }
 
 /* ---------- Moments (docs/plans/personal-moments.md §2) ---------- */
@@ -2113,13 +2113,13 @@
 }
 .places .msgs mark {
   border-radius: var(--r-1);
-  background: rgba(185, 168, 255, 0.22);
+  background: rgb(var(--halo-text-rgb) / 0.22);
   color: inherit;
 }
 .places .msgs mark.current {
-  background: rgba(185, 168, 255, 0.55);
+  background: rgb(var(--halo-text-rgb) / 0.55);
   color: var(--text);
-  box-shadow: 0 0 0 2px rgba(185, 168, 255, 0.3);
+  box-shadow: 0 0 0 2px rgb(var(--halo-text-rgb) / 0.3);
 }
 /* Where colours are forced, the current match keeps a mark of its own. */
 @media (forced-colors: active) {
@@ -2153,7 +2153,7 @@
   padding: 12px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
 }
 .places .c3-pack h3 {
   font-size: 13px;
