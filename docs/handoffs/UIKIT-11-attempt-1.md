@@ -50,6 +50,8 @@ it under an id this file cannot know before it exists (Codex on #233).
 - Not done, named: a fifth «Blocked» lane (no lane exists), Home's right half (the feature F2).
 - `resources.spec` (arrow keys, 2026-10-11): ArrowDown from the first tile stays when no tile stands below it (the
   row below is shorter); the earlier expectation named the last tile, which the keys never chose.
+- After the review (Codex on #233, round 2): a link the keyboard reaches is scrolled clear of the fade as the current
+  one is (`clear(el)` on `focusin`); widths.spec at 1024 focuses Updates and reads its clearance.
 
 ## Remaining obligations
 
