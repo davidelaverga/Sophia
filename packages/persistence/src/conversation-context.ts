@@ -61,6 +61,12 @@ export interface ContextInput {
   /** The asking message's seq: nothing after it is read. */
   cutoffSeq: number
   messages: readonly ContextMessage[]
+  /**
+   * How many earlier messages with text there are, counted in the same snapshot as `messages` (before `cutoffSeq`, not
+   * withdrawn, this conversation). The read may supply only the newest of them, at least as many as the window offers
+   * (40): the count says how many the window leaves out, so none is invented from a bounded read.
+   */
+  earlierCount: number
 }
 
 export type TemplateId =
@@ -102,7 +108,10 @@ export interface ListCoverage {
   mayBeMore: boolean
 }
 
-/** Earlier messages: those with text before the asking one, what is included (the newest, contiguous), from which seq. */
+/**
+ * Earlier messages: `read` is how many with text there are before the asking one (`earlierCount`), then what is
+ * included (the newest, contiguous) and from which seq.
+ */
 export interface MessageCoverage {
   read: number
   included: number
@@ -316,16 +325,15 @@ function missionSection(context: MissionContext): Fragment[] {
 }
 
 /** Earlier messages with text, the newest contiguous run within the ceilings, shown oldest first. */
-function messageSection(earlier: readonly ContextMessage[], cutoffSeq: number) {
+function messageSection(earlier: readonly ContextMessage[], cutoffSeq: number, read: number) {
   const head = template('messages.head')
-  const read = earlier.length
   if (read === 0) {
     return {
       fragments: [head, template('messages.none')],
       coverage: { read, included: 0, omitted: 0, fromSeq: null, cutoffSeq },
     }
   }
-  // Every earlier message with text is checked, then the newest 40 are offered, as the compiled lists are.
+  // Every earlier message supplied is checked, then the newest 40 are offered, as the compiled lists are.
   const newest = earlier.toSorted((a, b) => b.seq - a.seq)
   const items = newest.map((m) => messageItem(m, 'message')).slice(0, BUDGETS.messages.items)
   const markers = (k: number) => (read - k > 0 ? [template('messages.omitted', [read - k])] : [])
@@ -335,6 +343,18 @@ function messageSection(earlier: readonly ContextMessage[], cutoffSeq: number) {
     fragments: [head, ...markers(k), ...items.slice(0, k).toReversed()],
     coverage: { read, included: k, omitted: read - k, fromSeq, cutoffSeq },
   }
+}
+
+/**
+ * The count of earlier messages with text, checked against what was supplied: a non-negative safe integer, never fewer
+ * than those supplied, and those supplied at least as many as the window may offer (the newest 40, or all if fewer).
+ */
+function checkedCount(earlierCount: number, supplied: number): number {
+  if (!Number.isSafeInteger(earlierCount) || earlierCount < 0) invalid('earlierCount is not a count')
+  if (earlierCount < supplied) invalid('earlierCount is fewer than the earlier messages supplied')
+  if (supplied < Math.min(BUDGETS.messages.items, earlierCount))
+    invalid('fewer earlier messages than the window offers')
+  return earlierCount
 }
 
 /** This conversation's messages, checked: none of another, none after the asking one, each seq once. */
@@ -404,10 +424,8 @@ export function renderConversationContext(input: ContextInput): RenderedContext 
   const ask = askingMessage(messages, cutoffSeq)
   const constraints = listSection('constraints', context.constraints, constraintItem)
   const pending = listSection('pending', context.pending, pendingItem)
-  const earlier = messageSection(
-    messages.filter((m) => m.seq < cutoffSeq && m.body !== null),
-    cutoffSeq,
-  )
+  const withText = messages.filter((m) => m.seq < cutoffSeq && m.body !== null)
+  const earlier = messageSection(withText, cutoffSeq, checkedCount(input.earlierCount, withText.length))
   const fragments = [
     template('head'),
     ...missingSection(context),

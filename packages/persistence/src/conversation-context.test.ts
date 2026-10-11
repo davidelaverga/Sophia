@@ -151,14 +151,17 @@ function message(seq: number, over: Partial<ContextMessage> = {}): ContextMessag
   }
 }
 
+/** The renderer's input; unless given, `earlierCount` is the earlier messages with text supplied, all of them. */
 function input(over: Partial<ContextInput> = {}): ContextInput {
-  return {
+  const base = {
     context: context(),
     conversationId: CONVERSATION,
     cutoffSeq: 3,
     messages: [message(1), message(2), message(3, { body: 'What should we decide?' })],
     ...over,
   }
+  const supplied = base.messages.filter((m) => m.seq < base.cutoffSeq && m.body !== null).length
+  return { ...base, earlierCount: over.earlierCount ?? supplied }
 }
 
 /** The error code a render ends with. */
@@ -431,6 +434,54 @@ describe('CON-01 N1: the conversation context renderer (L0)', () => {
       }),
     )
     assert.deepEqual(run.coverage.messages, { read: 6, included: 2, omitted: 4, fromSeq: 5, cutoffSeq: 7 })
+  })
+
+  it('counts the earlier messages it is not given from earlierCount: a read of the newest 40 renders as a read of all', () => {
+    // CX-0094: 100 earlier messages with text, two withdrawn among them; the bounded read gives the newest 40 only.
+    const all = Array.from({ length: 102 }, (_, i) =>
+      message(i + 1, i === 9 || i === 49 ? { body: null, name: null } : {}),
+    )
+    const ask = message(103, { body: 'Ask' })
+    const bounded = renderConversationContext(
+      input({ cutoffSeq: 103, messages: [ask, ...all.slice(-40)], earlierCount: 100 }),
+    )
+    assert.deepEqual(bounded.coverage.messages, { read: 100, included: 40, omitted: 60, fromSeq: 63, cutoffSeq: 103 })
+    assert.equal(section(bounded, 'messages.head')[1]?.text, '60 earlier messages not included.\n')
+    // The same records read whole give the same bytes, fragments and coverage.
+    const whole = renderConversationContext(input({ cutoffSeq: 103, messages: [ask, ...all] }))
+    assert.equal(whole.coverage.messages.read, 100)
+    assert.equal(bounded.text, whole.text)
+    assert.deepEqual(bounded.fragments, whole.fragments)
+    assert.deepEqual(bounded.coverage, whole.coverage)
+    // A withdrawn message supplied is neither counted nor read: the count is of messages with text.
+    const withGap = renderConversationContext(
+      input({ cutoffSeq: 103, messages: [ask, all[49] as ContextMessage, ...all.slice(-40)], earlierCount: 100 }),
+    )
+    assert.equal(withGap.text, whole.text)
+  })
+
+  it('refuses a count it can’t render truthfully: not a count, fewer than supplied, or fewer supplied than the window offers', () => {
+    const ask = message(50, { body: 'Ask' })
+    const forty = Array.from({ length: 40 }, (_, i) => message(i + 10))
+    const cases: ContextInput[] = [
+      input({ earlierCount: -1 }),
+      input({ earlierCount: 2.5 }),
+      input({ earlierCount: Number.NaN }),
+      input({ earlierCount: Number.POSITIVE_INFINITY }),
+      input({ earlierCount: 2 ** 53 }),
+      input({ earlierCount: 1 }),
+      input({ earlierCount: 0 }),
+      input({ earlierCount: 3 }),
+      input({ cutoffSeq: 50, messages: [ask, ...forty.slice(1)], earlierCount: 41 }),
+      input({ cutoffSeq: 50, messages: [ask, ...forty.slice(1)], earlierCount: 49 }),
+    ]
+    assert.deepEqual(
+      cases.map(refusal),
+      cases.map(() => 'invalid_input'),
+    )
+    // Exactly the window, and more counted than given: rendered, the rest counted as left out.
+    const r = renderConversationContext(input({ cutoffSeq: 50, messages: [ask, ...forty], earlierCount: 49 }))
+    assert.deepEqual(r.coverage.messages, { read: 49, included: 40, omitted: 9, fromSeq: 10, cutoffSeq: 50 })
   })
 
   it('shows Sophia as Sophia and a member by the name shown, quoted, never as who they are', () => {
