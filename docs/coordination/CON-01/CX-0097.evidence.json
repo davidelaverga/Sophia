@@ -6,7 +6,7 @@
   "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
   "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
   "main": "fec45a0e96c4679a09da02be979503910a623c5c",
-  "classification": "progress: corrected private receipt actually written and probe cleanup terminal observed; verified wait on first actual N2 test process",
+  "classification": "Progress: actual receipt corrections, probe/run1 cleanup and terminal first124/second1/third0 observed. Subsequent N2 edits/tests ongoing; immutable full-source/independent PG qualification pending.",
   "readiness": {
     "source_ready": true,
     "locally_verified": "Prior named N1/earlierCount L0 and S2/N3 PG scopes retained. CX97 observes actual author probe cleanup only; N2 source/test result unqualified.",
@@ -19,9 +19,12 @@
   },
   "coordination": {
     "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
-    "message": 474,
     "normalQueue": true,
-    "interruption": false
+    "interruption": false,
+    "messages": [
+      474,
+      476
+    ]
   },
   "CI": {
     "run": 38107154878,
@@ -35,7 +38,7 @@
     "newAutomaticReviewCommentsSince0300": 0,
     "newReviewRequest": false
   },
-  "source": "N2 draft only, no immutable handback and no complete current source review. No feature fix by reviewer.",
+  "source": "N2 draft corrections by Claude only: author-diagnosed NULL render section, leaked test sessions, supersede-before-scrub CHECK and aborted-transaction test. No immutable source or independent full review.",
   "operation": {
     "OP1r2": "draft_not_authorized",
     "OP2r2": "draft_not_authorized",
@@ -48,7 +51,51 @@
     "reviewAgentUsage": "unreported; not Sophia remaining subscription capacity proof"
   },
   "acceptance": "All36 full case status pairs unchanged",
-  "cleanup": "No new reviewer app/PG/browser/native process. Prior82 reviewer app stacks and CX92 PG clusters remain settled. Author exact probe DB/global assembler role drop observed; first N2 test process live and cluster retained/unsettled; earlier fixture pre-drop census permanently unavailable.",
+  "cleanup": "No new reviewer app/PG/browser/native process. Actual probe and run1 exact named DB/role cleanup and absence observed. Current author test cluster and later-run cleanup unsettled; earlier fixture pre-drop census unavailable.",
   "rollback": "No live rollback. CX92 governed uncertain-data/old-schema incompatibility retained.",
-  "next": "Receive exact immutable N2 source/test/terminal cleanup handback, independently review complete SQL/module/tests and run affected actual-PG/adversarial cases before any shared integration or activation."
+  "next": "Receive exact immutable N2 source/test/terminal cleanup handback, independently review complete SQL/module/tests and run affected actual-PG/adversarial cases before any shared integration or activation.",
+  "sharedReceipt": {
+    "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6105122273",
+    "exactReadback": true,
+    "docsCommit": "56ec9314"
+  },
+  "operatorPreparation": {
+    "schema": "sophia.con01.operator-preparation.v1",
+    "status": "prepared_not_executed",
+    "purpose": "Independent immutable N2 tests and own adversarial script on a freshly owned local synthetic PG-only cluster after full source review",
+    "privateScript": "attempt-1/cx97/run-n2-owned.py",
+    "sha256": "f4c3b896df23364d6700ff8567ad01aed77ded6e2e1de1a8bc5f6d9aef650bfb",
+    "bytes": 6818,
+    "verification": "Python AST syntax parse only; no backend tests or harness execution",
+    "gates": [
+      "Exact40character clean candidate/worktree pin",
+      "Node24.21.0/pnpm11.7.0",
+      "Required immutable SQL/module/test files",
+      "Fresh private0700 cluster and local ephemeral port",
+      "Bounded independent process group with terminal exits",
+      "Own postmaster binding, stop/status/PID checks before removal",
+      "Failed or uncertain cleanup retained and never successful",
+      "Private logs/URL; no live/provider/app execution"
+    ],
+    "pgVersionScope": "Existing owned PG17.6 binary, distinct from author PG16/prod; qualification claims must preserve that distinction",
+    "newClusters": 0,
+    "newExecutedTests": 0
+  },
+  "firstN2Run": {
+    "exit": 124,
+    "kind": "outer600s timeout",
+    "terminal": true
+  },
+  "secondN2Run": {
+    "exit": 1,
+    "terminal": true,
+    "counts": "not independently read; author reports2 failures"
+  },
+  "thirdN2Run": {
+    "exit": 0,
+    "terminal": true,
+    "countsAndCensus": "truncated; author full-pass/cleanup claims attributed",
+    "independentlyQualified": false,
+    "subsequentDraftChanges": true
+  }
 }

@@ -1,0 +1,22 @@
+{
+  "schema": "sophia.con01.operator-preparation.v1",
+  "status": "prepared_not_executed",
+  "purpose": "Independent immutable N2 tests and own adversarial script on a freshly owned local synthetic PG-only cluster after full source review",
+  "privateScript": "attempt-1/cx97/run-n2-owned.py",
+  "sha256": "f4c3b896df23364d6700ff8567ad01aed77ded6e2e1de1a8bc5f6d9aef650bfb",
+  "bytes": 6818,
+  "verification": "Python AST syntax parse only; no backend tests or harness execution",
+  "gates": [
+    "Exact40character clean candidate/worktree pin",
+    "Node24.21.0/pnpm11.7.0",
+    "Required immutable SQL/module/test files",
+    "Fresh private0700 cluster and local ephemeral port",
+    "Bounded independent process group with terminal exits",
+    "Own postmaster binding, stop/status/PID checks before removal",
+    "Failed or uncertain cleanup retained and never successful",
+    "Private logs/URL; no live/provider/app execution"
+  ],
+  "pgVersionScope": "Existing owned PG17.6 binary, distinct from author PG16/prod; qualification claims must preserve that distinction",
+  "newClusters": 0,
+  "newExecutedTests": 0
+}

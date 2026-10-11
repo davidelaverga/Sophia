@@ -10,8 +10,8 @@
     },
     {
       "path": "author-local-observation.json",
-      "sha256": "f856250682033e751518b7e7c5308979c1cdbb51321191e96780a3e7f76203a3",
-      "bytes": 2921
+      "sha256": "0990ecb21d4613c6e0c23f8b444845b28aa57dd8c8f9578175f86e7d515c378c",
+      "bytes": 5753
     },
     {
       "path": "ci-jobs.json",
@@ -22,6 +22,11 @@
       "path": "new-pr-comments.json",
       "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
       "bytes": 3
+    },
+    {
+      "path": "operator-preparation.json",
+      "sha256": "d24231767708c0973c04103836af66ec82992e8eb366ab43f8e2d4f5fec8ec26",
+      "bytes": 1120
     },
     {
       "path": "pr211.json",

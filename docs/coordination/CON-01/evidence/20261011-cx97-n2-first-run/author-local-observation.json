@@ -39,11 +39,59 @@
   "liveHandle": {
     "kind": "exact mission CUA running tool",
     "name": "Running the N2 disposable-PostgreSQL tests (first run)",
-    "observed": "Actual expanded running tool shows2m29s, with outer600-second and Node300000ms bounds; same background task is Running",
-    "terminal": false,
+    "observed": "Same first-run tool terminal exit124 at600s; visible pass output truncated, not suite pass",
+    "terminal": true,
     "action": "Rechecked same session; no Stop/Send now/restart",
-    "command": "timeout600 node --test --test-concurrency=1 --test-timeout=300000 packages/persistence/src/conversation-assembly.db.test.ts; local disposable URL by private reference; stdout/stderr to private attempt log"
+    "command": "timeout600 node --test --test-concurrency=1 --test-timeout=300000 packages/persistence/src/conversation-assembly.db.test.ts; local disposable URL by private reference; stdout/stderr to private attempt log",
+    "terminalExit": 124
   },
   "message": 474,
-  "authority": "Existing dormant CON-only local source/test scope; no live/shared activation"
+  "authority": "Existing dormant CON-only local source/test scope; no live/shared activation",
+  "terminalFollowup": {
+    "firstRun": {
+      "exit": 124,
+      "classification": "outer timeout; no suite qualification",
+      "actualErrorRead": "Later failure-reading stdout includes assertion actual retry; expected/result list truncated",
+      "authorDiagnosis": "Initial head template NULL section caused null-key error misclassified retry; failed-assertion checked-out sessions caused pool.end hang; tests reportedly finished16s then after hook timed out315s; these detailed causes/timings remain attributed"
+    },
+    "exposureCorrection": {
+      "actualCommandAndOutputRead": true,
+      "wording": "No deliberate copying into Git/PR/issues/shared receipt; other transcript/tool/log/fixture copies not exhaustively audited; no harmlessness claim"
+    },
+    "run1Settlement": {
+      "at": "2026-10-11T03:50:16Z",
+      "actualCommandAndFullRelevantOutputRead": true,
+      "observed": [
+        "Specific test-process command match count0",
+        "Only maintenance psql current client backend",
+        "One exact named database DROP and four exact named ROLE drops succeeded",
+        "After: postgres/sophia_api/sophia_worker and maintenance/template DBs; named run1 resources absent"
+      ],
+      "scope": "Exact deletions and post-drop absence observed; ownership attribution from author run receipt not fully independently matched; not final cluster settlement"
+    },
+    "secondRun": {
+      "exit": 1,
+      "actualTerminalOutputRead": true,
+      "outputLimitation": "Pass list truncated; full counts not independently read",
+      "authorReportedFailures": [
+        "Stale-token test reused aborted transaction, causing25P02; needs fresh transaction",
+        "Candidate sets superseded before scrubbing body, violating CHECK; must scrub first"
+      ],
+      "corrections": "Claude primary implements; new draft changes not independently reviewed"
+    },
+    "reviewerMessage": 476,
+    "lastState": "Primary implementation adds lease-expiry/parallel assertion/mutation coverage and lint fixes after third exit0; no immutable N2 handback",
+    "thirdRun": {
+      "exit": 0,
+      "actualCompletedCommandAndOutputRead": true,
+      "outputLimitation": "Full suite counts/final census truncated; not independently read",
+      "visibleAuthorMetrics": [
+        "Inherited142 API functions/137 SECURITY DEFINER, dormant only pending least-privilege proof",
+        "300001 earlier messages author assembly286ms",
+        "Observed author test diagnostics mention writer/claim lock waits and backend ending after deadline"
+      ],
+      "claims": "Author says passed/no leftovers; full terminal handback pending",
+      "subsequentSource": "Claude adding lease-expiry case, changing parallel-role assertion and running mutation checks; observed draft exit0 is not final-candidate qualification"
+    }
+  }
 }
