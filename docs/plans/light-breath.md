@@ -46,3 +46,6 @@
   the halo sits at `z-index: -1` inside it, behind every child (the formed mark, the trace); the trace's own lift goes.
   `light-breath.spec` reads the halo's layer and, on Home, that the formed mark is a positioned child above it (a hit
   test cannot say so: the light takes no pointer events).
+- Without WebGL the engine marks `data-fallback` and the room paints its radial on `.light` itself; with the halo on the
+  pseudo-element both painted together on paper. On paper the element's own background is `none`; the spec sets the
+  mark and reads both layers.

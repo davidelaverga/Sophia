@@ -39,6 +39,23 @@ for (const [name, url, parts] of [
   })
 }
 
+test('light · without WebGL the paper halo stands alone: no dark fallback radial under it', async ({ page }) => {
+  await page.goto('/signin.html?theme=light')
+  await drawn(page, DRAWN.signin)
+  // The engine marks the fallback itself when WebGL fails; here the mark is set as it would be.
+  const read = await page.evaluate(() => {
+    const light = document.querySelector<HTMLElement>('.light')
+    if (!light) return null
+    light.dataset['fallback'] = ''
+    return {
+      own: getComputedStyle(light).backgroundImage,
+      halo: getComputedStyle(light, '::after').backgroundImage.slice(0, 40),
+    }
+  })
+  expect(read?.own).toBe('none')
+  expect(read?.halo).toMatch(/^radial-gradient/)
+})
+
 test('light · under reduced motion the light on paper stands still', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/signin.html?theme=light')

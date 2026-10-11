@@ -155,6 +155,9 @@
    the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
 :root[data-theme='light'] .light {
   isolation: isolate;
+  /* Without WebGL the engine marks a fallback and the room paints its radial on the element; on paper the halo is the
+     pseudo-element's alone (Codex on #251). */
+  background: none;
 }
 :root[data-theme='light'] .light::after {
   content: '';

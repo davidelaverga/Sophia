@@ -14,7 +14,8 @@ handoff.
 ## Outcome
 
 - Six tokens, `--teal-fill` / `--on-teal`, `--amber-fill` / `--on-amber`, `--rose-fill` / `--on-rose`: the accent
-  and the void in the room (as before); on paper the accent at 0.14 with the accent as the ink, the chips' pattern.
+  and the void in the room (as before); on paper an opaque tint, the accent at 14 % over the paper mixed once
+  (`#dae4de`, `#ece1d4`, `#efddde`), with the accent as the ink: the chips' pattern, with a backing of its own.
   The report tiles, the cover's mark and the cover's format tag take them: the boxes with words the headless audit
   found painted in an accent on the light pages (`light-mode/fills.json`). Dots and bars keep the solid accent.
 - On paper `--core` is the brand's violet `#5546b8` (hover `#4a3ca6`, channel `85 70 184`): the primary press, the
@@ -25,8 +26,8 @@ handoff.
 ## Evidence
 
 - `pnpm format`, `pnpm lint` (type-aware), `pnpm --filter @sophia/studio typecheck`: clean.
-- Measured in the page: Tasks in light, `.report-tile` `rgba(15, 107, 91, 0.14)` with ink `rgb(15, 107, 91)`, the
-  HTML tile `rgba(143, 87, 23, 0.14)` / `rgb(143, 87, 23)`, `.pill.primary` `rgb(85, 70, 184)` with the paper's ink;
+- Measured in the page: Tasks in light, `.report-tile` `rgb(218, 228, 222)` with ink `rgb(15, 107, 91)`, the HTML
+  tile `rgb(236, 225, 212)` / `rgb(143, 87, 23)`, `.pill.primary` `rgb(85, 70, 184)` with the paper's ink;
   Knowledge in light, `.report-cover-tag` the same amber tint and ink; the room, `.report-tile` `rgb(127, 214, 196)`
   with the void's ink and the primary `rgb(244, 240, 255)`, as before.
 
@@ -45,3 +46,11 @@ handoff.
 
 Informe-ui-premium §8 move 2: her light breathes on paper and the trace canvas is put away in light (UIKIT-29); then
 move 3, the room as lit paper and «has the floor» at 4.5:1 (UIKIT-30).
+
+## Post-review (Codex on #250)
+
+- `29b86ea9`: the tints were alpha fills (`rgb(var(--x-rgb) / 0.14)`) and took the colour of whatever was under them
+  (the card's plane while a report loads: 4.3:1). They are the mixed values now, opaque; `light-fills.spec` asserts the
+  fill it has. (`color-mix()` was tried first; Chromium computes it as `color(srgb …)`, which the spec's reader could
+  not parse.) Also `e8954db1`: the spec's luminance typed. The outcome and evidence above are the post-review state.
+- `4240828592`: this record itself updated to say so.
