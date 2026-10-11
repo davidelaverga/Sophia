@@ -4,8 +4,6 @@ import type { Need } from '@sophia/contracts'
 import { atOf, clockSkew, needsOf, whereOf } from './needs.ts'
 
 const P = '00000000-0000-4000-8000-000000000004'
-const REPORT = '00000000-0000-4000-8000-0000000000b1'
-const VERSION = '00000000-0000-4000-8000-0000000000b2'
 
 const wire = (over: Partial<Need> = {}): Need => ({
   id: 'decision:d1',
@@ -40,14 +38,6 @@ describe('what needs the person, from the wire', () => {
       view: 'work',
       at: { taskId: 'w1' },
     })
-    assert.deepEqual(
-      whereOf(wire({ kind: 'review', ref: { kind: 'artifact_version', id: VERSION, within: REPORT } })),
-      {
-        projectId: P,
-        view: 'knowledge',
-        at: { report: { artifactId: REPORT, versionId: VERSION, size: 'side', format: 'markdown' } },
-      },
-    )
     assert.deepEqual(whereOf(wire({ kind: 'guest', ref: { kind: 'lobby_entry', id: 'g1', within: null } })), {
       projectId: P,
       view: 'studio',
@@ -56,10 +46,9 @@ describe('what needs the person, from the wire', () => {
     assert.deepEqual(whereOf(wire({ kind: 'reply', projectId: null, projectTitle: null })), { place: 'personal' })
     assert.deepEqual(whereOf(wire({ projectId: null })), { place: 'personal' })
   })
-  it('opens the record its ref names when the Studio has an address for it; a version without its report, a decision without its task, only their view', () => {
+  it('opens the record its ref names when the Studio has an address for it; a decision without its task, only its view', () => {
     assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: 'w1' }), { taskId: 'w1' })
     assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: null }), {})
-    assert.deepEqual(atOf({ kind: 'artifact_version', id: VERSION, within: null }), {})
     assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: null }), {})
     assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: 'w3' }), { taskId: 'w3' })
     assert.deepEqual(atOf({ kind: 'personal_turn', id: 't9', within: null }), {})

@@ -5,7 +5,6 @@
 import type { Need as WireNeed, NeedList } from '@sophia/contracts'
 import { parseNeedList } from '@sophia/contracts/validate'
 import type { View } from '../app/route.ts'
-import type { ReportLink } from '../features/artifacts/report-link.ts'
 import type { Need } from '../features/personal/needs-you.ts'
 import { callApi } from './client.ts'
 
@@ -30,34 +29,28 @@ export const needsOf = (list: Pick<NeedList, 'needs'>): Need[] =>
     detail: n.detail,
   }))
 
-/** The view a need lives in, by its kind: a decision or a permission in Tasks, a review in Knowledge, a guest at the room. */
+/** The view a need lives in, by its kind: a decision or a permission in Tasks, a guest at the room (a reply lives in the personal space). */
 const VIEW_OF: Readonly<Record<WireNeed['kind'], View>> = {
   decision: 'work',
   permission: 'work',
-  review: 'knowledge',
   guest: 'studio',
   reply: 'work',
 }
 
-/** The record a need names, when the Studio has an address for it: a task in Tasks' fragment, a report's version in the viewer. */
+/** The record a need names, when the Studio has an address for it: a task in Tasks' fragment. */
 export interface NeedAt {
   taskId?: string
-  report?: ReportLink
 }
 
 export type Where = { place: 'personal' } | { projectId: string; view: View; at: NeedAt }
 
 /**
- * The address a ref gives (Codex on #245): a wait and a decision are named through the work item that holds them in
- * Tasks' fragment (`#task-`); a version opens in the viewer through the report that holds it. A lobby entry and a
- * personal turn have no address of their own: their view.
+ * The address a ref gives (Codex on #245): a wait and a decision are their own records, named through the work item
+ * that holds them in Tasks' fragment (`#task-`). A lobby entry and a personal turn have no address of their own: their
+ * view.
  */
 export function atOf(ref: WireNeed['ref']): NeedAt {
-  // A wait and a decision are their own records; the work item that holds them is the address (Codex on #245).
   if ((ref.kind === 'work_wait' || ref.kind === 'work_decision') && ref.within) return { taskId: ref.within }
-  if (ref.kind === 'artifact_version' && ref.within) {
-    return { report: { artifactId: ref.within, versionId: ref.id, size: 'side', format: 'markdown' } }
-  }
   return {}
 }
 
