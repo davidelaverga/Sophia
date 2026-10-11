@@ -1,0 +1,12 @@
+{
+  "fullCasesUnchanged": true,
+  "caseCount": 36,
+  "counts": {
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15
+  },
+  "prior": "CX-0119.md",
+  "current": "CX-0120.md",
+  "verdict": "No new app/native/provider acceptance; full case content retained."
+}

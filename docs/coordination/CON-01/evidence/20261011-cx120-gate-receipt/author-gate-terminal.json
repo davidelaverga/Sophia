@@ -1,0 +1,26 @@
+{
+  "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "receipt": 6112417689,
+  "receiptArtifact": 6112458502,
+  "script": "n4k-final.sh",
+  "scriptSha256": "e4946ca906ac8bcff49cdd26cebbf6314719f87e4163b47e1bf61edc2ef06c7d",
+  "wrapperSeconds": 12000,
+  "start": "2026-10-11T18:15:42Z",
+  "end": "2026-10-11T18:45:08Z",
+  "authorWrapperExit": 0,
+  "authorClusters": "PostgreSQL16.15 C.UTF-8/55432 and ICU en-US/55435",
+  "eachCluster": {
+    "N4": "46/46 exit0",
+    "composedN2N4": "36/39 exit1, intended three differences; restored clean",
+    "fiveConversationSuites": "138/138 exit0",
+    "allDbTests": "748/748 exit0; no async errors",
+    "testSql": "exit0,46 migrations/5 files",
+    "pnpmCheck": "exit0; unit2331pass1skip; integration86pass2skip"
+  },
+  "closingCensus": "Author reports only postgres/template0/template1; roles postgres/sophia_api/sophia_worker;0otherclients/testprocesses; sourceclean",
+  "independentScope": "Entire terminal receipt read;19 source hashes/3 blobs/seven expected artifact identities and report/built-line reconstruction match. No raw author gate execution/log/archive reproduction claimed. Prior CX119 independent exactf0 PG17.6 138/138+API10/10 retained.",
+  "composedS3LfN4Sha256": "1c28b369a560d7d1d904b712f388354414dec39f25a7fd2094f29a76bc735bf2",
+  "nativeQualification": false,
+  "observedBeforeTerminal": "Same existing Running task independently seen at start; read-only task command/redirect inspected, Stop unused, panel restored. No restart or duplicate."
+}

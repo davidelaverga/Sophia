@@ -1,0 +1,158 @@
+{
+  "observedAt": "2026-10-11T19:00Z",
+  "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "baseRef": "claude/con01-project-conversations",
+  "embeddedBaseSha": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+  "actualBaseRef": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "draft": true,
+  "merged": false,
+  "mergeable": true,
+  "mergeableState": "unstable",
+  "title": "CON-01 G2 review-only: reply states, ledger, context and fences on current G1 and main (do not merge)",
+  "bodySha256": "a25caa9094b01d978a135f2dc7baa7041dabdc037ced699ac3c48ad2ef867def",
+  "reviewRequest": 6112485156,
+  "priorBotReceipt": 6111555529,
+  "priorBotCommit": "3b9363dc86",
+  "freshBotResults": [
+    {
+      "review": 5484511312,
+      "comment": 4242793043,
+      "commit": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "submittedAt": "2026-10-11T18:57:42Z",
+      "finding": "P2 Reject assembler roles with direct privileges",
+      "independentVerdict": "Confirmed actualPG control plus directgrant/ownershipnegative crossings; affected review reopened."
+    }
+  ],
+  "checks": [
+    {
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165646061/job/114547530857"
+    },
+    {
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165646061/job/114547530813"
+    },
+    {
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165646061/job/114547530794"
+    },
+    {
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165646061/job/114547530781"
+    },
+    {
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165646061/job/114547530775"
+    },
+    {
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165646061/job/114547530598"
+    },
+    {
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165642584/job/114547520191"
+    },
+    {
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165642584/job/114547520180"
+    },
+    {
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165642584/job/114547520168"
+    },
+    {
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165642584/job/114547520167"
+    },
+    {
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165642584/job/114547520144"
+    },
+    {
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38165642584/job/114547520009"
+    },
+    {
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38162905331/job/114539376353"
+    },
+    {
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38162905331/job/114539376340"
+    },
+    {
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38162905331/job/114539376328"
+    },
+    {
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38162905331/job/114539376327"
+    },
+    {
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38162905331/job/114539376318"
+    },
+    {
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null,
+      "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38162905331/job/114539376100"
+    }
+  ],
+  "boundedSourceAction": "Primary authorized FFONLY3b\u2192f0 after exact prior head/ancestry, preservebase/draft; rewrite title/body and request exactf0 review. Independently read request/CC0141/PR fields and ls-remote. No merge/force/basechange/restart/rerun.",
+  "actualBaseDelta": "18files,+9859/-25",
+  "receiptCorrection": "CC0141 states9858, one-line attributable correction requested; likely olderba8inventorybeforef0docs+1. Not a product-source defect."
+}

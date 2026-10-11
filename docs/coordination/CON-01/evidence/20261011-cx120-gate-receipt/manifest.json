@@ -1,0 +1,34 @@
+{
+  "schema": "sophia.con01.evidence-manifest.v1",
+  "files": [
+    {
+      "path": "acceptance-status-comparison.json",
+      "sha256": "471178f08366496ed4150b967d99f5298d77b8725e1acca0d602038364d0b81f"
+    },
+    {
+      "path": "artifact-recheck.json",
+      "sha256": "ab62d0efb18affed9eb98205b0d66f94e5b76ead987440f63359fb031969782c"
+    },
+    {
+      "path": "author-gate-terminal.json",
+      "sha256": "ac5da1069ae37073bef72b40f7af6b84fb541be7ef91ab7f9ce1570ff6cc5769"
+    },
+    {
+      "path": "independent-assembler-acl.json",
+      "sha256": "a5f516ab208f1240e4a84379486442e919c2e736316e4658dff46423b708b339"
+    },
+    {
+      "path": "official-claude-subscription-lead.json",
+      "sha256": "9e6532b4a8462db847a2925589824835b0667a047e55abdaca0b97fb81b7d033"
+    },
+    {
+      "path": "operation-handoff.json",
+      "sha256": "61fa108874b8ecdb8a37b913e60335387c8a57e99e1cd813f2327aee7c585801"
+    },
+    {
+      "path": "pr-checkpoint.json",
+      "sha256": "979413d94de330f66105eb85c21bf466d5175a798aec47a3eb2ca70684e0990f"
+    }
+  ],
+  "privacy": "Safe source/test/operation summaries only; no private inbox, quota, credentials or raw authored logs."
+}

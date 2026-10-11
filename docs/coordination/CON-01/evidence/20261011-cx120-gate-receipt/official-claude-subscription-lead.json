@@ -1,0 +1,32 @@
+{
+  "retrievedAt": "2026-10-11 CX120",
+  "classification": "Official-source discovery only; no route/telemetry/native qualification",
+  "sources": [
+    {
+      "url": "https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan",
+      "scope": "Oct7,2026 notice: SDK/-p/thirdparty use of subscription limits continues; Max/Team included monthly API credits also described. This does not bind selected bucket, cap or Sophia eligibility."
+    },
+    {
+      "url": "https://code.claude.com/docs/en/legal-and-compliance",
+      "scope": "Authentication/credential use and hosted unmodified Code binary sections read; native end-user flow differs from thirdparty claude.ai login/raw credential routing. Exact topology/eligibility must be qualified; no blanket legal conclusion."
+    },
+    {
+      "url": "https://code.claude.com/docs/en/agent-sdk/overview",
+      "scope": "Code binary/agent loop distinct from direct API SDK. Thirdparty login/rate-limit offering approval conditions; no new SDK or harness authorized."
+    },
+    {
+      "url": "https://code.claude.com/docs/en/statusline",
+      "scope": "rate_limits.five_hour/seven_day.used_percentage and resets_at candidate fields; Pro/Max or apps gateway, after first API response; independent absence/expiry possible. Missing is unavailable, never zero. Context/cost estimate differs from subscription remaining cap."
+    }
+  ],
+  "installedSource": {
+    "version": "@earendil-works/pi-ai@0.87.1",
+    "anthropicMessagesSha256": "97de17d406264322ff7927fa0c20e1c61b46386b5e14f9c6e0012599c01664f7",
+    "anthropicOauthSha256": "40774366201c90c9d59e0ecd1ed385ccd9c9cbd479bae1f485a3f56c90febaba",
+    "observed": "Direct client.beta.messages.create with OAuth authToken and api.anthropic.com base; this is not unmodified Claude Code binary authentication. Source read only, no import or invocation.",
+    "limits": "No supported route, finite cap, vendor eligibility, actor-bound quota capture or telemetry projection established."
+  },
+  "failedRetrieval": "Three direct .md HTTPError fetches; successful web sections read instead. No full-document hashes obtained or invented.",
+  "privacy": "No private quota/contact/credential value included.",
+  "effects": "No connection/login/credential access/install/native/provider call/route switch/new executor."
+}

@@ -1,0 +1,178 @@
+{
+  "receiptCommit": "ca7a5b9c4ba6cf9197223ca0f3515d18ec9e59e3",
+  "receiptTree": "7b142aab5ffd43edf4183ecaf32aea1a95b50d0d",
+  "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "sourceHashes": [
+    {
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "blob": null
+    },
+    {
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "blob": null
+    },
+    {
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "27c25b112efcdb1767790ac3b3790f62fd524e820d514b04c35fa7e0335ea498",
+      "blob": null
+    },
+    {
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "blob": null
+    },
+    {
+      "path": "db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-assembly.db.test.ts",
+      "sha256": "153d0c2683774d3f01c4992490c88bca6e4e38c271155ec0af5969abb82f7232",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-assembly.ts",
+      "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-context.test.ts",
+      "sha256": "9123b01de94f790b6277e58113e6c2c786a8b74248decfc71903ee6a6e6815e7",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-context.ts",
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-fences.db.test.ts",
+      "sha256": "fe9e536f1e1e35063b22e97683799d059527e410da6e3c6fa10559e2d5298ed3",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-ledger.db.test.ts",
+      "sha256": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversation-reply-states.db.test.ts",
+      "sha256": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0",
+      "blob": null
+    },
+    {
+      "path": "packages/persistence/src/conversations.db.test.ts",
+      "sha256": "6032835399ac4328788a5a966a8a278fc241245f950dcbf368e3658d463e763b",
+      "blob": null
+    },
+    {
+      "path": "apps/api/src/conversations.db.test.ts",
+      "sha256": "64bd5458ed198915cdca4ca55db90a769b2d17366c86209373ddb4bcff894dd4",
+      "blob": null
+    },
+    {
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "blob": "0e85b4120468c8700ecb25c48cb0e0b6468ef941"
+    },
+    {
+      "path": "config/dsh/profile/pnpm-lock.yaml",
+      "sha256": "4a552801d5ee1fe0c9c32f9e6b5750f0a9f8c4c5e70977e3c759ebc8029fead4",
+      "blob": "ba196d5d5337171046a2dfbfa1d105fcaf3db2a8"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "fef64ddaf4c3445fd3e83d8c27bb9f731b4378c846f86e093f543c69e6676ff8",
+      "blob": "b7f61bf00d8e53523fe80ea891b0006f293ccc71"
+    },
+    {
+      "path": "scripts/build-artifacts.mjs",
+      "sha256": "7d27eaceca5cd53f9ad8b08f0e21bd9a8d8d2e58ba8f8506fe100e0ff0867279",
+      "blob": null
+    },
+    {
+      "path": "scripts/lib/artifacts.mjs",
+      "sha256": "7df38a1f0a69b429973335424e33ccea8dda1cacdf1925c177684c799a5c0ba6",
+      "blob": null
+    }
+  ],
+  "artifactIdentities": [
+    {
+      "number": 1,
+      "key": "dsh.artifacts_by_platform.linux-x64",
+      "expected": {
+        "digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+        "entries": 27747
+      },
+      "reportedBuilt": {
+        "digest": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+        "entries": 27747
+      },
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    },
+    {
+      "number": 2,
+      "key": "dsh.release_integrity",
+      "expected": {
+        "@deepseek-ai/dsh@0.2.0-rc.2": "sha512-EAJ3gPNcVt/uv8X19PMm9NkVhWgT7xXNMk0UKCVm+IQ5rpSQOcsMUa0HWlnYYVybKMsccjcRB21vVVsaXQ6IdA==",
+        "@deepseek-ai/dsh-base@0.2.0-rc.2": "sha512-AclHClefnPmUe2qoPrKMUvauA/KelYevYlxFdHLZGcPRqrDH+D21HyrwJmj4f7Iu5OO0IqfjB4zBOkwMp5h1ug=="
+      },
+      "reportedBuilt": {
+        "@deepseek-ai/dsh@0.2.0-rc.2": "sha512-EAJ3gPNcVt/uv8X19PMm9NkVhWgT7xXNMk0UKCVm+IQ5rpSQOcsMUa0HWlnYYVybKMsccjcRB21vVVsaXQ6IdA==",
+        "@deepseek-ai/dsh-base@0.2.0-rc.2": "sha512-AclHClefnPmUe2qoPrKMUvauA/KelYevYlxFdHLZGcPRqrDH+D21HyrwJmj4f7Iu5OO0IqfjB4zBOkwMp5h1ug=="
+      },
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    },
+    {
+      "number": 3,
+      "key": "workspace_lock_sha256",
+      "expected": "fef64ddaf4c3445fd3e83d8c27bb9f731b4378c846f86e093f543c69e6676ff8",
+      "reportedBuilt": "fef64ddaf4c3445fd3e83d8c27bb9f731b4378c846f86e093f543c69e6676ff8",
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    },
+    {
+      "number": 4,
+      "key": "dsh.artifact_digest",
+      "expected": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+      "reportedBuilt": "sophia-tree-v2:sha256:4552d08f78b47b7d0f16e79a92c487cffdfc5bb0a05eaef867c89ba837479a12",
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    },
+    {
+      "number": 5,
+      "key": "sophia_bundle.archive_sha256",
+      "expected": "b423d27eb70ef345137ee748a680a8664bb346786dbfb1ce6e7e6bb2193a8d19",
+      "reportedBuilt": "b423d27eb70ef345137ee748a680a8664bb346786dbfb1ce6e7e6bb2193a8d19",
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    },
+    {
+      "number": 6,
+      "key": "sophia_bundle.archive_integrity",
+      "expected": "sha512-3GH/FKrctU3Uw6953WUHxUA0/GTA4/AYzsgXn00otZ9XRAl977nov/DNBjfiJhCWwEq9FtBo7Ham7DFx6p5lRA==",
+      "reportedBuilt": "sha512-3GH/FKrctU3Uw6953WUHxUA0/GTA4/AYzsgXn00otZ9XRAl977nov/DNBjfiJhCWwEq9FtBo7Ham7DFx6p5lRA==",
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    },
+    {
+      "number": 7,
+      "key": "sophia_bundle.artifact_digest",
+      "expected": "sha256:b423d27eb70ef345137ee748a680a8664bb346786dbfb1ce6e7e6bb2193a8d19",
+      "reportedBuilt": "sha256:b423d27eb70ef345137ee748a680a8664bb346786dbfb1ce6e7e6bb2193a8d19",
+      "independentComparison": "source expected matches reported built; author execution not reviewer rebuild"
+    }
+  ],
+  "profileLockSourceSha256": "4a552801d5ee1fe0c9c32f9e6b5750f0a9f8c4c5e70977e3c759ebc8029fead4",
+  "scope": "Independent exactsource/receipt comparison, not independent nativebuild/provider/app proof. Author rawlogs/actualarchives remain external, hashes are attestations unless reconstructed/inspected separately.",
+  "independentReconstruction": {
+    "structuredReportBytes": 1040,
+    "structuredReportSha256": "0977953d66ba428d07dcd4475f097fe775e8e85697e6e4c9def38e8f7110380b",
+    "builtLinesSha256": "5bc8ecbfe54d7e57e09b6cca003a7adb24816a33458bae0892fa8d889d369fe9",
+    "bothMatchAuthorFullHashes": true,
+    "limits": "Reconstructed from reported values and inspected source serializer; no raw author log/archive access or independent native build claimed."
+  },
+  "probeCorrections": [
+    "Initial guessed S1 filename absent; actual reply-states path located and hashed before acceptance.",
+    "Initial nonexistent profile-lock pathspec established no equality; actual config/dsh/profile/pnpm-lock.yaml explicitly hashed and compared."
+  ]
+}

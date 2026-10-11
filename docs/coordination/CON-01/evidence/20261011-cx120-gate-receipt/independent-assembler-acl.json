@@ -1,0 +1,77 @@
+{
+  "finding": 4242793043,
+  "review": 5484511312,
+  "severity": "P2",
+  "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "scope": "Independent actualPG17.6 full S1/S2/S3 after all migrations, synthetic activation LOGIN only, isolated ownedlocal cluster. No deployed activation/native/provider.",
+  "expected": "Existing assembler with unexpected direct grants/ownership refused42501 before object/grant mutation; cleanroleaccepted and unrelatedtableunreadable.",
+  "cases": [
+    {
+      "scenario": "clean_control",
+      "expected": "accepted; unrelated table unreadable",
+      "actualS3Accepted": true,
+      "code": null,
+      "activationLoginCanReadOutOfScope": false,
+      "readCode": "42501"
+    },
+    {
+      "scenario": "direct_table_grant",
+      "expected": "42501 before adoption",
+      "actualS3Accepted": true,
+      "code": null,
+      "activationLoginCanReadOutOfScope": true,
+      "readCode": null
+    },
+    {
+      "scenario": "table_ownership",
+      "expected": "42501 before adoption",
+      "actualS3Accepted": true,
+      "code": null,
+      "activationLoginCanReadOutOfScope": true,
+      "readCode": null
+    }
+  ],
+  "independentVerdict": "CONFIRMED: two negative cases fail intended boundary; control passes. Product feature fix remains primary authored and pending independent recheck.",
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "otherClients": 0
+  },
+  "firstOperatorRun": {
+    "exit": 1,
+    "failure": "ERR_MODULE_NOT_FOUND @sophia/test-support from root eval; no test began. Direct source module import used for repeat.",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    }
+  },
+  "repeat": {
+    "exit": 0,
+    "commands": [
+      {
+        "label": "independent-actual-s3-acl-adoption",
+        "exit": 0,
+        "outerSeconds": 180,
+        "expectedExit": 0,
+        "timedOut": false
+      }
+    ],
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "checkoutCleanAfter": true
+  },
+  "probeSha256": "f77b2542032ce3bce6015f21db2146cd70a7038ab46e2108971a748505d3ce04",
+  "wrapperSha256": "3ef119bb54781a0fe77a8f93f5d6d488b73f0ec0dcbdc233bdcc36f4efbd6610",
+  "rawLogSha256": "97c6dd09204191e55cea08c5faca79e9b85b8fc5928f63a21316e8ce334a0bbf",
+  "feedback": "Expected/observed/severity/reproducer sent and visibly delivered to exactCONdesktop; separate immutable primaryfix requested/PR211 held."
+}

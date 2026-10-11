@@ -778,3 +778,10 @@ Operation request CON-01-OP-0001-r1 remains draft_not_authorized, approval null.
 ### CX-0119 — current independent checkpoint
 
 Starting reviewer80927e9c; product test source exactf0/treef240. [Full durable handoff](../coordination/CON-01/CX-0119.md) and [operation tuple/actions/limits/cleanup](../coordination/CON-01/evidence/20261011-cx119-combined-route/operation-handoff.json). Independent local138conversation+10API pass; first census failure retained, fresh audited repeat clean. Proposal-only P1/P2 corrections e4f8d4ab rechecked; documented telemetry candidate remains unqualified for pinned dsh. Reviewer changed evidence only. No live batch approval/deployment/app acceptance;36verdicts unchanged. Existing primary f0 gate running, no duplicate/restart. Next: its terminal/source/census and separate route-docs delta, then named Q7/Q12 ownership.
+
+
+## CX-0120 exactf0 gate and review checkpoint
+
+See [CX-0120](../coordination/CON-01/CX-0120.md). Author exactf0 gate terminal0; independent19source/3blob/artifact receipt consistency verified, no native rebuild claimed. DraftPR211 bounded FF→f0/freshreview pending and CIqueued. Official Claude subscription/statusline candidates unqualified. Full36cases unchanged18partial/3L1/15notrun; operationapproval/expiryNULL, no live effect. Next: independently read exactf0 bot/CI and require named Q7/Q12 owner/window.
+
+CX120 fresh review update: exactf0 P2r4242793043 confirmed independently in fullS3/PG17.6 with two failed directgrant/ownership boundary cases andcleancontrol. Firstaliasfailure beforetest retained; correctedrepeat0/censusclean/bothclusterscleaned. Affectedreviewreopened; primaryseparatefixpending. Next bounded action immutablefixreview/affectedPGrechecks, PR211held.
