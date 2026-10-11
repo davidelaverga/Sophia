@@ -20,7 +20,7 @@ None of these is a design fact. Each is either an owner's answer or something a 
 
 ## 1. What CON-01 may write now
 
-Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` and their tests, and `docs/coordination/CON-01/*` (G2_CON_ONLY_PLAN §1). Steps A and B are those. **Every runtime part below lands in a held file**, so none of it is CON-only, and none is proposed for writing before §6's order is unblocked.
+Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` and their tests, and `docs/coordination/CON-01/*` (G2_CON_ONLY_PLAN §1). Steps A and B are those. **Every runtime part below lands in a held file**, so none of it is CON-only, and none is proposed for writing before §5's order is unblocked.
 
 ## 2. Each part, today and as B-1 needs it
 
@@ -47,12 +47,20 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
   - `restrict_self`, :141;
   - descriptor closing like :195, but keeping 0–3;
   - `pidfd` as in `namespace-launch.py:76` and `test_owned_exec.py:12, :46, :54`.
-- **Process groups and reaping:** the Node side can reuse `renderers/web/pdf/supervisor.mjs` `signalGroup`/`reap`/`groupAlive` (:351-432) and its bounded output (:65, :596-601).
+- **Settling a reply child's descendants: identity-bound only** (CX-0116).
+  - **Not reused:** the PDF renderer's `signalGroup`/`reap`/`groupAlive` (`renderers/web/pdf/supervisor.mjs:351-432`) target numeric ids. `reap` selects by process group or by a shared uid (:400-417) and signals `-pgid` and numeric pids, and `signalGroup` (:354) and `groupAlive` (:428) use numeric ids too. Reply children run as the host user that every mission shares, so a uid-wide selection could reach unrelated missions. That fits the renderer's own environment; it does not give B-1's guarantee.
+  - **Prohibited for CON's reply children:** any uid-wide sweep, any signal to a numeric pid or process group, and any numeric fallback when a `pidfd` is unavailable. In that case nothing is signalled and the home stays unresolved, as §8.5 says.
+  - **Required:** a descendant-settlement mechanism the runtime owner approves (Q7), whose every target is identity-bound to the reply child that owns it. One option to evaluate is the child as init of its own PID namespace, held by a `pidfd`, as `namespace-launch.py:60` and `:76` do. This plan does not choose it.
 
 **Tests** (held, written with the code):
 - **Extended from `tests/integration/supervisor.test.mjs`** (today :60-141, the goal path only): two concurrent replies, with each child's `/proc/<pid>/environ` inside its own home, and the parent's and supervisor's environments unchanged.
 - **Containment:** a write outside the home fails `EACCES`, and so does one into `runtimeDir`. `/proc/self/fd` just before `exec` is exactly four. Every later descriptor is accounted for by provenance.
 - **Failure modes:** no `core*` file after a crash. ABI below 4, or no `pidfd`, gives `containment_unavailable` and no child.
+- **Identity controls for descendant settlement:**
+  - an unrelated process of the same uid, and another mission's child, survive every stop, reap and sweep;
+  - a lease rewritten to name another live process (same command line, a different start time or nonce) kills nothing and leaves the home unresolved;
+  - a pid reused between the check and the signal is never signalled;
+  - every descendant a reply child started is gone before its home is cleaned.
 
 ### 2.2 Correlation: request, attempt, session, epoch
 
@@ -90,7 +98,8 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 **B-1 adds** (held: 0049, the route set):
 - **`conversation_executions`** with `conversation_execution_claim`, consulted before any spawn. Only `first` spawns; a lost answer or `already_claimed` spawns nothing (§8.5).
 - **Its route** `/v1/runtime/conversation/claim` joins `RUNTIME_ROUTES` (`apps/api/src/routes/runtime.ts:43-58`).
-- **The resulting chain:** one request → one attempt → one outbox row → at most one runtime command → at most one claim → at most one spawn. Observations, usage and receipts are each recorded once. Reservations are keyed by the request (S2), and there is one answer per reply (N4's answers row).
+- **"Attempt" names two things here.** S3's context-assembly attempts (1–3 per reply, `conversation_assembly_claims.attempt`) are bounded re-assemblies of the same request. The native execution attempt (one `work_attempts` row per request, under option C) is what dispatch, the claim and the spawn act on. Both belong to the same logical request and its one cumulative allowance (S2).
+- **The resulting chain:** one request → one native execution attempt → one outbox row → at most one runtime command → at most one claim → at most one spawn. Observations, usage and receipts are each recorded once. Reservations are keyed by the request (S2), and there is one answer per reply (N4's answers row).
 
 **Tests** (held), each counting spawns (the launcher's counter) and the stub's call log: the same `create` redelivered during execution, after each terminal state, after `retire`, after a lost `retire` acknowledgment, and from a restarted bridge.
 
@@ -281,7 +290,7 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 
 ### 4.1 The probes, before design depends on them
 
-These are on the pinned runtime, in a disposable root, with no route and no network beyond loopback.
+These are on the pinned runtime, in a disposable root, with no external or provider route and no network beyond loopback. Where a probe needs a model route for dsh to boot or answer, it uses only a labelled loopback stub route (`tests/support/mock-llm.mjs`, `mockRouteOverlay`), named as such in its record.
 1. A copied installed profile in an empty `DSH_HOME`: does dsh boot offline? If not, `installInto`'s offline install per child: its time and its files.
 2. Every file one stub reply writes, traced (`strace -f`, the `open*`, `creat`, `rename*`, `unlink*`, `mkdir*` and `link*` families): all under the child's home?
 3. dsh's stdout and stderr on a canary reply, and on a crash: any message text?
