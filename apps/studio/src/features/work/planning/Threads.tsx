@@ -10,6 +10,8 @@ interface Props {
   /** The hovered task, and the tasks it waits on. */
   to: string | null
   from: readonly string[]
+  /** How many lanes stand: the layout's revision, so a lane coming or going re-measures the threads. */
+  lanes: number
 }
 
 /** An element's box, measured from the lanes' own corner. */
@@ -31,9 +33,20 @@ function bandOf(root: HTMLElement, origin: DOMRect): number {
   return (within(head, origin).bottom + within(tile, origin).top) / 2
 }
 
-export function Threads({ box, to, from }: Props) {
+export function Threads({ box, to, from, lanes }: Props) {
   const [paths, setPaths] = useState<string[]>([])
   const key = from.join()
+  // The tiles move without the hover changing (a lane comes or goes, the window is resized): the threads are measured
+  // again whenever the lanes' boxes change (Codex on #236).
+  const [moved, setMoved] = useState(0)
+  useLayoutEffect(() => {
+    const root = box.current
+    if (!root) return undefined
+    const watch = new ResizeObserver(() => setMoved((n) => n + 1))
+    watch.observe(root)
+    for (const lane of root.querySelectorAll('.lane')) watch.observe(lane)
+    return () => watch.disconnect()
+  }, [box, lanes])
   useLayoutEffect(() => {
     const root = box.current
     if (!root || !to) {
@@ -44,7 +57,7 @@ export function Threads({ box, to, from }: Props) {
     const tile = (id: string) => root.querySelector(`[data-task="${CSS.escape(id)}"]`)
     const target = tile(to)
     if (!target) return
-    const lanes = [...root.querySelectorAll('.lane')].map((l) => within(l, origin))
+    const boxes = [...root.querySelectorAll('.lane')].map((l) => within(l, origin))
     const band = bandOf(root, origin)
     setPaths(
       key
@@ -52,10 +65,10 @@ export function Threads({ box, to, from }: Props) {
         .filter(Boolean)
         .flatMap((id) => {
           const source = tile(id)
-          return source ? [rounded(route(within(source, origin), within(target, origin), lanes, band))] : []
+          return source ? [rounded(route(within(source, origin), within(target, origin), boxes, band))] : []
         }),
     )
-  }, [box, to, key])
+  }, [box, to, key, lanes, moved])
   if (paths.length === 0) return null
   return (
     <svg className="threads" aria-hidden>
