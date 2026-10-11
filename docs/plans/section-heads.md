@@ -38,3 +38,7 @@
 - The pinned scales that hold a head: `work` (`.goals`: 14 stays for the task tiles, 15 joins), `resources`
   (`.resources`: measured after the change), the knowledge and conversations lists gain 15.
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`; measured in the pane before the push.
+- **The allowlists say what is there** (Codex on #248): in the tiles' scope the title was the only 14 px word, so 15
+  replaces 14 in `knowledge-library` and `knowledge-quiet` instead of joining it; the filters' scope has no head, so it
+  keeps the four text sizes; the sources' scope (`knowledge-origins`) opens a sheet whose title is 15 and whose body
+  keeps 14, so it lists both.
