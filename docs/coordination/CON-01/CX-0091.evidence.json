@@ -1,0 +1,54 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0091",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "classification": "progress: remaining G2 proposal independently reviewed, subscription adapter compatibility obligations established; N3 source preparation selected",
+  "verdict": "static proposal and interface review only; no new full acceptance qualification",
+  "sourceCheckpoint": "evidence/20261011-cx91-g2-proposal/01-source-checkpoint.json",
+  "proposal": 6104472394,
+  "selection": {
+    "item": "N3 only",
+    "branch": "claude/con01-g2-s2-review",
+    "base": "0dc3be79f068d01244a0736e440fa9bb5798f53f",
+    "candidate": null,
+    "files": [
+      "db/candidates/con01-s1-reply-states.sql",
+      "packages/persistence/src/conversation-reply-states.db.test.ts"
+    ],
+    "scope": "separate immutable source-preparation commit; candidate outside migration chain; no grants/callers/shared edits/runtime regeneration",
+    "correction": "Open partial index is non-unique. Original instruction corrected before implementation; author acknowledged."
+  },
+  "staticFinding": {
+    "severity": "G2 activation blocker/compatibility obligation",
+    "builtinProvider": "installed openai-codex targets backend-api, not current documented public Responses plan flow",
+    "responseFields": "storefalse/streamtrue already; configured request must omit unsupported fields and explicit system role",
+    "credentialSeam": "scoped record and refresh/authorization seams actually exist; no blanket OAuth-impossible claim",
+    "route": "unbound; no credential or topology invented"
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "runtimeProviderCalls": 0,
+    "spend": 0,
+    "newActualStacks": 0,
+    "unresolvedNewEffects": false
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "earlier named scopes retained; this checkpoint static only",
+    "scoped_delta_reviewed": "proposal/interface only; N3 not yet returned",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptance": "all36 full case status values retained",
+  "cleanup": "no new local stack; CX90 records all82 prior owned stacks settled. Candidate worktrees retained. No live rollback performed or qualified.",
+  "next": "independently review immutable N3 candidate and affected real-PG tests before N1/shared work"
+}

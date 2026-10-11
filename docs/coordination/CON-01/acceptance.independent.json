@@ -949,24 +949,24 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0090.md",
+    "record": "CX-0091.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "Independent complete delta/unit/TSC and actual local episode82 correct CX88 starter failure; currentA08decline reflected in freshread; phoneDOMonly. Fresh exactbotreview no major issues/scoped P1threadsresolved; CI queued, broadernative/hostedholds remain.",
+    "statement": "progress: remaining G2 proposal independently reviewed, subscription adapter compatibility obligations established; N3 source preparation selected",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "CX90 named all-context source/unit/actual-local crossings pass; broader gates open",
-      "scoped_delta_reviewed": true,
+      "locally_verified": "earlier named scopes retained; this checkpoint static only",
+      "scoped_delta_reviewed": "proposal/interface only; N3 not yet returned",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/spend0",
-    "cleanup": "All82owned actual stacks settled;51595exit0/quiescedaudit0/DBdropPGstopclusterremove/4PIDsabsent/ports55463-64closed/tab105closed/viewportreset",
-    "next": "Recover current remaining G2 implementation/ownership proposal against accepted D6/B1, retaining exactd527 queued-CI hold; no shared edit or live effect without actual bound authority"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; no hosted/native/provider/spend effect",
+    "cleanup": "no new local stack; CX90 records all82 prior owned stacks settled. Candidate worktrees retained. No live rollback performed or qualified.",
+    "next": "independently review immutable N3 candidate and affected real-PG tests before N1/shared work"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1114,14 +1114,14 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0089.md",
-    "candidate": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
-    "tree": "dc8d8d0115a6d166dbc12b1d939a1c7c892e592a",
+    "record": "CX-0090.md",
+    "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "Publisheda01 remains blocked at CX88P1. Early shared-gate source review caught absent-cache falsefresh receipt; Claude accepted correction. Independent installed dependency proves fetchQuery can join old in-flight read. Prepared82 remains unbound/unlaunched; no new actual-app acceptance.",
+    "statement": "Independent complete delta/unit/TSC and actual local episode82 correct CX88 starter failure; currentA08decline reflected in freshread; phoneDOMonly. Fresh exactbotreview no major issues/scoped P1threadsresolved; CI queued, broadernative/hostedholds remain.",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "CX87/88named exacta01scopes plus L0dependencyproof, currentP1unresolved",
+      "locally_verified": "CX90 named all-context source/unit/actual-local crossings pass; broader gates open",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1129,9 +1129,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/provider/native/spend0",
-    "cleanup": "No new actual stack/effects; all81 prior actual owned stacks cleaned as CX88datedreceipt; preparation only",
-    "next": "Receive immutable all-consumer correction with terminal evidence; independently read exactdiff and bind/execute prepared episode82 before fresh review/normalCI merge recommendation"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/spend0",
+    "cleanup": "All82owned actual stacks settled;51595exit0/quiescedaudit0/DBdropPGstopclusterremove/4PIDsabsent/ports55463-64closed/tab105closed/viewportreset",
+    "next": "Recover current remaining G2 implementation/ownership proposal against accepted D6/B1, retaining exactd527 queued-CI hold; no shared edit or live effect without actual bound authority"
   },
   "checkpoint_history": [
     {
@@ -1260,6 +1260,26 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/provider/native/spend0",
       "cleanup": "No new actual stack/effects; all81 prior actual owned stacks cleaned as CX88datedreceipt; preparation only",
       "next": "Receive immutable all-consumer correction with terminal evidence; independently read exactdiff and bind/execute prepared episode82 before fresh review/normalCI merge recommendation"
+    },
+    {
+      "record": "CX-0090.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "statement": "Independent complete delta/unit/TSC and actual local episode82 correct CX88 starter failure; currentA08decline reflected in freshread; phoneDOMonly. Fresh exactbotreview no major issues/scoped P1threadsresolved; CI queued, broadernative/hostedholds remain.",
+      "readiness": {
+        "source_ready": true,
+        "locally_verified": "CX90 named all-context source/unit/actual-local crossings pass; broader gates open",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/spend0",
+      "cleanup": "All82owned actual stacks settled;51595exit0/quiescedaudit0/DBdropPGstopclusterremove/4PIDsabsent/ports55463-64closed/tab105closed/viewportreset",
+      "next": "Recover current remaining G2 implementation/ownership proposal against accepted D6/B1, retaining exactd527 queued-CI hold; no shared edit or live effect without actual bound authority"
     }
   ]
 }

@@ -1,0 +1,94 @@
+{
+  "observedAt": "2026-10-11T02:07:00.996893+00:00",
+  "prs": {
+    "199": {
+      "number": 199,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "updated_at": "2026-10-11T01:58:42Z",
+      "head": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "base": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "branch": "claude/con01-project-conversations"
+    },
+    "190": {
+      "number": 190,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "updated_at": "2026-10-11T01:49:10Z",
+      "head": "ceed13d8199166935a8a26cc47e98d21b2bc4d53",
+      "base": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "branch": "sdd-01/voice-qualification-g7"
+    },
+    "209": {
+      "number": 209,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "updated_at": "2026-10-10T12:58:08Z",
+      "head": "32b0c22eecb2210b6dcaff298c5d0d3db39c2406",
+      "base": "457e65dcd260be84bed61221874583ec5fb2ba77",
+      "branch": "claude/con01-g2-s1-review"
+    },
+    "211": {
+      "number": 211,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "updated_at": "2026-10-10T15:26:33Z",
+      "head": "0dc3be79f068d01244a0736e440fa9bb5798f53f",
+      "base": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+      "branch": "claude/con01-g2-s2-review"
+    },
+    "226": {
+      "number": 226,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "updated_at": "2026-10-10T23:07:36Z",
+      "head": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+      "base": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+      "branch": "claude/con01-combined-cx80-review"
+    }
+  },
+  "runs": [
+    {
+      "id": 38103277135,
+      "name": "ci",
+      "status": "queued",
+      "conclusion": null,
+      "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "event": "pull_request",
+      "updated_at": "2026-10-11T01:52:15Z"
+    },
+    {
+      "id": 38103277223,
+      "name": "paperclip-image",
+      "status": "pending",
+      "conclusion": null,
+      "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "event": "pull_request",
+      "updated_at": "2026-10-11T01:52:16Z"
+    },
+    {
+      "id": 38103272790,
+      "name": "ci",
+      "status": "queued",
+      "conclusion": null,
+      "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "event": "push",
+      "updated_at": "2026-10-11T01:52:10Z"
+    },
+    {
+      "id": 38102842903,
+      "name": "ci",
+      "status": "queued",
+      "conclusion": null,
+      "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "event": "push",
+      "updated_at": "2026-10-11T01:44:34Z"
+    }
+  ],
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9"
+}

@@ -1,0 +1,22 @@
+[
+  {
+    "path": "evidence/20261011-cx91-g2-proposal/01-source-checkpoint.json",
+    "sha256": "6a7414f80ad6bef3056ef22ca9da7eb3ba58121440628359bc3d50b56108d133",
+    "bytes": 2703
+  },
+  {
+    "path": "evidence/20261011-cx91-g2-proposal/02-subscription-interface-inspection.json",
+    "sha256": "ce80027deeb402fde69eab6dd23e12abcf3f09e22a6b2fc5f020aeefe15b9d1a",
+    "bytes": 3999
+  },
+  {
+    "path": "evidence/20261011-cx91-g2-proposal/03-author-proposal.json",
+    "sha256": "f36c60134979171716a9ce5e1f0dfab0f638034927601198c7b527d1ca06b591",
+    "bytes": 10101
+  },
+  {
+    "path": "evidence/20261011-cx91-g2-proposal/04-coordination.json",
+    "sha256": "9d7f7f803c9acf90e683f0f7a7578e2266bcba3854803fcd42c26bb1e5bf4a7c",
+    "bytes": 1346
+  }
+]

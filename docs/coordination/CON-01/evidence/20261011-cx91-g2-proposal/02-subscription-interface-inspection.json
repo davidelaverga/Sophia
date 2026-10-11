@@ -1,0 +1,87 @@
+{
+  "mode": "read-only static installed dependency inspection; no launch, imports, OAuth, token/store reads, network model calls or artifact changes",
+  "dshVersion": "0.2.0-rc.2",
+  "piAiVersion": "0.87.1",
+  "files": [
+    {
+      "path": "@deepseek-ai+dsh-llm-pi-ai@0.2.0-rc.2_aa3a1d4e1c0e33f4b491de686c56eef2/node_modules/@deepseek-ai/dsh-llm-pi-ai/lib/index.js",
+      "sha256": "d46dbc30aeb3414190000e6f8aeaaf994246b5e5c651de07639f4a7e92de37ef"
+    },
+    {
+      "path": "@earendil-works+pi-ai@0.87.1_ws@8.21.3_zod@4.6.5/node_modules/@earendil-works/pi-ai/dist/providers/openai-codex.js",
+      "sha256": "769490a94a5bcb062c22e768cf0621c91fb1c5d6be3565e6a6fa765eeeabe674"
+    },
+    {
+      "path": "@earendil-works+pi-ai@0.87.1_ws@8.21.3_zod@4.6.5/node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js",
+      "sha256": "6e69310d77278231cfc87d7f03ee815d4a0f2ff273e6c43fcee6835e7df2b0c7"
+    },
+    {
+      "path": "@earendil-works+pi-ai@0.87.1_ws@8.21.3_zod@4.6.5/node_modules/@earendil-works/pi-ai/dist/api/openai-responses.js",
+      "sha256": "3e95145f94ac2a255d1adc0ae65cf02c2e6d479f7a2dbf5c466db21885c29ec6"
+    },
+    {
+      "path": "@earendil-works+pi-ai@0.87.1_ws@8.21.3_zod@4.6.5/node_modules/@earendil-works/pi-ai/dist/api/openai-responses-shared.js",
+      "sha256": "7846279b34c2a569bda2b0753c8b083f8b976204b4fdd7586095ebbb6a643410"
+    },
+    {
+      "path": "@earendil-works+pi-ai@0.87.1_ws@8.21.3_zod@4.6.5/node_modules/@earendil-works/pi-ai/dist/auth/oauth/openai-codex.js",
+      "sha256": "41432753ef2ec7ef21c577fdc8f83b731c78be90c10ed8e7e1df7010f84d198f"
+    }
+  ],
+  "observations": [
+    {
+      "file": "dsh-llm-pi-ai/lib/index.js",
+      "lines": [
+        802,
+        805,
+        861,
+        867,
+        1674,
+        1685,
+        1881,
+        1888,
+        2038,
+        2063,
+        2453,
+        2485,
+        2563,
+        2586
+      ],
+      "fact": "Named routes can select openai-responses. Adapter has scoped credential records, exclusive modify/refresh bridge and native authorization-flow registration. maxRetries0; passes optional temperature and maxTokens. No onPayload override passed in stream call."
+    },
+    {
+      "file": "pi-ai/providers/openai-codex.js",
+      "lines": [
+        10
+      ],
+      "fact": "Installed built-in openai-codex base URL is https://chatgpt.com/backend-api. This is not the public endpoint documented for the current ChatGPT plan usage flow; built-in OAuth presence does not qualify that flow."
+    },
+    {
+      "file": "pi-ai/api/openai-responses.js",
+      "lines": [
+        221,
+        234
+      ],
+      "fact": "Public Responses request emits stream:true/store:false. max_output_tokens emitted only when maxTokens set and supportsMaxOutputTokens true; temperature emitted whenever provided. Prompt cache retention emitted per compatibility/profile policy."
+    },
+    {
+      "file": "pi-ai/api/openai-responses-shared.js",
+      "lines": [
+        123,
+        136
+      ],
+      "fact": "Leading system prompt becomes developer only for reasoning model with supportsDeveloperRole notfalse; otherwise system. Must pin/qualify actual model/compat and assembled role."
+    }
+  ],
+  "officialSources": [
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference",
+      "finding": "OAuth-authorized public api.openai.com/v1/responses only; not backend-api. Account catalog, storefalse/streamtrue, response.completed required."
+    },
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations",
+      "finding": "inputarray and instructions/developer; explicit system and max_output_tokens/temperature/prompt_cache_retention unsupported. No persistent provider history."
+    }
+  ],
+  "verdict": "Compatibility gap requiring a supported selected route and recorded request-shape qualification; not proof subscriptions impossible, not source implementation or permission to use a built-in OAuth flow."
+}
