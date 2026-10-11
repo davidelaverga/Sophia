@@ -3,7 +3,8 @@
 // short confirmation under the message says what goes, and only its own press withdraws. One intent, one key: with no
 // reply, the press sends it again under the same key, kept by the view (talk-store.ts) so another conversation opened
 // meanwhile and this one again still finds it (PR #199 r4235397321). Withdrawn, the message keeps its place and says so, and the
-// conversation and the list are read again (her answers that read it go too, on the server). Its press and its
+// conversation and the list are read again (her answers from it on go too, on the server, whether or not they used
+// it, and are never written again: §6, D-9; its confirmation says so). Its press and its
 // confirmation go with its words: the focus lands on what the message says now, unless the person moved it elsewhere
 // while the withdrawal was on its way (focusLater).
 import { useQueryClient } from '@tanstack/react-query'
@@ -171,8 +172,10 @@ function WithdrawConfirm(props: {
       }}
     >
       <p className="conv-note">
-        {props.own ? 'Withdraw this message?' : 'Remove this message?'} Its words leave this conversation for everyone,
-        and so do Sophia’s answers that read it. This can’t be undone.
+        {props.own ? 'Withdraw this message?' : 'Remove this message?'} Its words leave this conversation for everyone.
+        Sophia’s answers from here on in this conversation go too, even those that didn’t use it, and they aren’t
+        written again. Everyone’s other messages, other conversations and the decisions already recorded for this
+        project stay. This can’t be undone.
       </p>
       <div className="conv-compose-acts">
         <button

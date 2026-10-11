@@ -75,6 +75,15 @@ test('removal · an admin removes another member’s message: it says so, and th
   await message.hover()
   await message.getByRole('button', { name: 'Remove message' }).click()
   const confirm = page.getByRole('group', { name: 'Remove this message' })
+  // What goes, said before it goes (binding map §6, D-9): Sophia's later answers here, even those that didn't use it,
+  // never written again; everyone's other messages, other conversations and recorded decisions stay.
+  await expect(confirm).toContainText('Its words leave this conversation for everyone.')
+  await expect(confirm).toContainText(
+    'Sophia’s answers from here on in this conversation go too, even those that didn’t use it, and they aren’t written again.',
+  )
+  await expect(confirm).toContainText(
+    'Everyone’s other messages, other conversations and the decisions already recorded for this project stay.',
+  )
   await confirm.getByRole('button', { name: 'Remove' }).click()
   await expect(message.getByText('This message was withdrawn.')).toBeFocused()
   await expect(message).not.toContainText('March figures')
