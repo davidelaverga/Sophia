@@ -3510,6 +3510,10 @@ button.contribution-quote:hover {
   height: 28px;
   padding: 0 10px;
 }
+/* The quieter acts (Hold, Stop) stand a step further from the one filled press than from each other. */
+.control-row .pill + .text-button {
+  margin-left: 6px;
+}
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
   display: inline-flex;
