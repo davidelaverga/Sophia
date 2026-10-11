@@ -76,7 +76,7 @@
     "independentBoundaryFailuresAtParent": 2,
     "independentCorrectedRefusalsAtFix": 2
   },
-  "cleanup": "Allthree newlyowned PGclusters stopped/PIDsabsent/removed; both executedprobe censuses onlypostgres/0otherclients, sourceclean. Initialaliasfailure retained. Authorgatef0 terminalreportedclean; new7d8 finiteordinarybatch permitted, start/results not yet observed. IABhandoffretained; no uncertainhostedeffect.",
+  "cleanup": "Allthree newlyowned PGclusters stopped/PIDsabsent/removed; both executedprobe censuses onlypostgres/0otherclients, sourceclean. Initialaliasfailure retained. Authorgatef0 terminalreportedclean; new7d8 finiteordinarybatch permitted, start19:08:16Z/oneRunningtask observed; terminal pending. IABhandoffretained; no uncertainhostedeffect.",
   "combinedLocalGate": {
     "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
     "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
@@ -102,5 +102,22 @@
     "composedS3LfN4Sha256": "1c28b369a560d7d1d904b712f388354414dec39f25a7fd2094f29a76bc735bf2",
     "nativeQualification": false,
     "observedBeforeTerminal": "Same existing Running task independently seen at start; read-only task command/redirect inspected, Stop unused, panel restored. No restart or duplicate."
+  },
+  "ordinaryCheckBatch": {
+    "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+    "start": "2026-10-11T19:08:16Z",
+    "script": "n4l-check.sh",
+    "scriptShaPrefix": "a6232e68",
+    "fullScriptSha256": null,
+    "wrapperSeconds": 12000,
+    "commands": [
+      "pnpm test:sql",
+      "pnpm check"
+    ],
+    "state": "running_not_terminal_pass",
+    "observation": "ExactCONdesktop Message608 startreceipt read; one Running task independentlyvisible. No restart/duplicate.",
+    "preconditions": "Author reports cleanexacthead/tree, nooverlappingtest/gateprocess, allthreeclustersdefaultDBs/0otherclients/locks, configandbothlockfiles unchangedfromf0. Not independently queried author clusters.",
+    "holds": "PR211remainsf0; no merge/shared/native/provider/auth/live."
   }
 }

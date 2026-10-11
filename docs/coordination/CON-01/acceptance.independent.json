@@ -1109,7 +1109,7 @@
     "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null",
     "operationApproval": null,
     "expiry": null,
-    "cleanup": "Allthree newlyowned PGclusters stopped/PIDsabsent/removed; both executedprobe censuses onlypostgres/0otherclients, sourceclean. Initialaliasfailure retained. Authorgatef0 terminalreportedclean; new7d8 finiteordinarybatch permitted, start/results not yet observed. IABhandoffretained; no uncertainhostedeffect.",
+    "cleanup": "Allthree newlyowned PGclusters stopped/PIDsabsent/removed; both executedprobe censuses onlypostgres/0otherclients, sourceclean. Initialaliasfailure retained. Authorgatef0 terminalreportedclean; new7d8 finiteordinarybatch permitted, start19:08:16Z/oneRunningtask observed; terminal pending. IABhandoffretained; no uncertainhostedeffect.",
     "next": "Read terminal/source/artifact/census of primary single bounded ordinary-check batch at exact7d8, then decide bounded draftPR advance/freshreview; retain sharedowner/native/live authorization holds.",
     "evidence": "evidence/20261011-cx120-gate-receipt/",
     "resourceUse": {
@@ -1132,7 +1132,24 @@
       "independentCorrectedRefusalsAtFix": 2
     },
     "fixCandidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
-    "fixTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c"
+    "fixTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+    "ordinaryCheckBatch": {
+      "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+      "start": "2026-10-11T19:08:16Z",
+      "script": "n4l-check.sh",
+      "scriptShaPrefix": "a6232e68",
+      "fullScriptSha256": null,
+      "wrapperSeconds": 12000,
+      "commands": [
+        "pnpm test:sql",
+        "pnpm check"
+      ],
+      "state": "running_not_terminal_pass",
+      "observation": "ExactCONdesktop Message608 startreceipt read; one Running task independentlyvisible. No restart/duplicate.",
+      "preconditions": "Author reports cleanexacthead/tree, nooverlappingtest/gateprocess, allthreeclustersdefaultDBs/0otherclients/locks, configandbothlockfiles unchangedfromf0. Not independently queried author clusters.",
+      "holds": "PR211remainsf0; no merge/shared/native/provider/auth/live."
+    }
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
