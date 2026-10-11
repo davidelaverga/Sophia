@@ -1,0 +1,1415 @@
+{
+  "id": "A16",
+  "goal": "CON-01",
+  "title": "Saved project conversations: named text conversations in a project, their members' messages, reply requests, withdrawal and erasure",
+  "why": [
+    "The Studio's conversations (Luis's C1-C9) run against the UI proposal its vision.ts names A18 (issue #105), answered only by fixtures. A18 is a proposal label, not a backend number: this amendment is the real contract, A16, after PR #190's A15 (CON-01 binding map §1, §3).",
+    "The four proposed operations keep their paths and meanings. Added: an order (seq) and a cursor bound to its conversation; a reply request on the message that asked, and the request an answer settles (never 'any later Sophia message'); the saved-text policy and the reader's capability; coverage for the summary and the recorded open questions; withdrawal and erasure (CON-01 binding map §3-§7).",
+    "The actor, the author's name and the project are the server's: a body naming them is refused (additionalProperties false).",
+    "Added after PR #199's review (CON-01-CC-0072, CX-0074): getConversationMessages answers not_found alike to a member reading an erased conversation and to a reader no longer in the project, so the Studio can't tell them apart. getProjectConversationMessages reads within the project in one snapshot: a non-member is refused (403) before anything of the conversation is read; to a current member, not_found means none open in that project. The earlier path keeps its meaning."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationMember",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": ["actorId", "name"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationOpening",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "type": "string",
+            "enum": ["member", "sophia"]
+          },
+          "actorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 140,
+            "description": "The message's opening as written, up to 140 characters, line breaks kept."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "The opening message's own place in its conversation (the newest message not withdrawn). Optional: an API that doesn't say it leaves a reader to match the row by writer, actor and time."
+          }
+        },
+        "required": ["author", "actorId", "name", "text", "at"],
+        "description": "A conversation's newest message that is not withdrawn: who, when and how it opens."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectionCoverage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["not_assessed", "current", "stale", "unavailable"],
+            "description": "not_assessed: none exists (never produced, or removed for privacy). current: it read through the newest eligible message at the project's current ledger revision. stale: still eligible, with newer messages or a moved ledger since. unavailable: the last attempt failed; an earlier eligible projection, if any, stays with its own range."
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "Every eligible message from the first through throughSeq was read; false means partial (a truncated window)."
+          },
+          "fromSeq": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "throughSeq": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "newer": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Eligible messages after throughSeq."
+          },
+          "generatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replyId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "eligibilityRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ledgerRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "complete",
+          "fromSeq",
+          "throughSeq",
+          "newer",
+          "generatedAt",
+          "replyId",
+          "eligibilityRevision",
+          "ledgerRevision"
+        ],
+        "description": "What a conversation's summary or recorded open questions cover (CON-01 binding map §3.1). A projection that read withdrawn or ineligible text is removed (not_assessed), never shown as stale."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationOutput",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": ["artifactId", "versionId", "versionNumber", "title"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationSummary",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summaryCoverage": {
+            "$ref": "#/components/schemas/ProjectionCoverage"
+          },
+          "lastAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contributors": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ConversationMember"
+            },
+            "description": "Members who wrote here (messages not withdrawn), in order of their first message; never everyone who can read. At most 200: the first to write, except that the reader, whenever they wrote here, is always among them (in the last place kept when they first wrote later). 200 names means there may be more."
+          },
+          "sophia": {
+            "type": "boolean",
+            "description": "Sophia's answer is published here (one not withdrawn)."
+          },
+          "openQuestions": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "questionsCoverage": {
+            "$ref": "#/components/schemas/ProjectionCoverage"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lastMessage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationOpening"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "messageSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "The highest place any message of this conversation has ever taken, withdrawn ones included, read with the rest of this row. It is an order a reader has observed, not proof that a message is still eligible. Optional: an API that doesn't say it leaves a reader to order a receipt by lastAt."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "revision",
+          "summary",
+          "summaryCoverage",
+          "lastAt",
+          "contributors",
+          "sophia",
+          "openQuestions",
+          "questionsCoverage",
+          "output",
+          "lastMessage"
+        ],
+        "description": "One of the project's text conversations as listed: its own history, the project's context."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationReply",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["pending", "running", "answered", "failed", "cancelled", "blocked", "outcome_unknown"]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{0,62}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answerId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "askedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settledAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "messageId", "state", "reason", "answerId", "askedAt", "settledAt"],
+        "description": "Sophia asked about one member's message: its own state and, answered, the message that answers it. Only this request's answer settles it."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationMessage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "author": {
+            "type": "string",
+            "enum": ["member", "sophia"]
+          },
+          "actorId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "withdrawn": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "at": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "required": ["at"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationReply"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "replyTo": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "messageId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "replyId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                },
+                "required": ["messageId", "replyId"]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["id", "seq", "author", "actorId", "name", "text", "at", "withdrawn", "ask", "replyTo"],
+        "description": "A message, a member's or Sophia's, in the conversation's own order (seq). Withdrawn, it keeps its place and author kind and nothing of its text or name. A member's message that asked Sophia carries its request (ask); Sophia's names the request it answers (replyTo)."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationPolicy",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": ["conversation-text-v1"]
+          },
+          "notice": {
+            "type": "string"
+          },
+          "retention": {
+            "type": "string",
+            "enum": ["until_withdrawn_or_erased"]
+          },
+          "audience": {
+            "type": "string",
+            "enum": ["project_members"]
+          }
+        },
+        "required": ["id", "notice", "retention", "audience"],
+        "description": "The saved-text policy the project's conversations are under, with the notice shown before a first message."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationCapability",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["off", "enabled", "read_only"]
+          },
+          "write": {
+            "type": "boolean"
+          },
+          "moderate": {
+            "type": "boolean"
+          },
+          "ask": {
+            "type": "string",
+            "enum": ["available", "unavailable"]
+          },
+          "askReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{0,62}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["state", "write", "moderate", "ask", "askReason"],
+        "description": "What the reader may do here now. Advisory: every write is checked again when made."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversations": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/ConversationSummary"
+            }
+          },
+          "more": {
+            "type": "boolean",
+            "description": "More conversations exist than are listed (the newest 200 are)."
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "capability": {
+            "$ref": "#/components/schemas/ConversationCapability"
+          }
+        },
+        "required": ["projectId", "conversations", "more", "policy", "capability"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationMessagePage",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "messages": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessage"
+            }
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "description": "Reads the page before this one; bound to this conversation."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["conversationId", "messages", "before"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationStart",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "askSophia": {
+            "type": "boolean"
+          }
+        },
+        "required": ["title", "text", "askSophia"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationSend",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "askSophia": {
+            "type": "boolean"
+          }
+        },
+        "required": ["text", "askSophia"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationStarted",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationSummary"
+          },
+          "message": {
+            "$ref": "#/components/schemas/ConversationMessage"
+          },
+          "sophia": {
+            "type": "string",
+            "enum": ["asked", "not_asked"]
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationReply"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$",
+            "description": "The project's feed position this receipt is current at: read in the start's own transaction, after its write and its read-back, under the project lock it holds. Every later event has a higher position."
+          }
+        },
+        "required": ["conversation", "message", "sophia", "reply", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationMessageSent",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/ConversationMessage"
+          },
+          "sophia": {
+            "type": "string",
+            "enum": ["asked", "not_asked"]
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationReply"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["message", "sophia", "reply"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationWithdrawal",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "message": {
+            "$ref": "#/components/schemas/ConversationMessage"
+          }
+        },
+        "required": ["conversationId", "message"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ConversationErasure",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "erased": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        },
+        "required": ["conversationId", "erased"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1conversations",
+      "value": {
+        "get": {
+          "operationId": "listConversations",
+          "summary": "The project's conversations, newest activity first (at most 200), with the saved-text policy and what the reader may do. Members read, viewers included; nobody else. Erased conversations are not listed. Without the project's setting the list is empty and nothing may be written.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints; a conversation or message the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01"
+        },
+        "post": {
+          "operationId": "startConversation",
+          "summary": "Start a conversation with its first message, Sophia asked or not, in one write: both, or neither. Writers (admins and editors) only, in a project whose conversations are on. Once per Idempotency-Key: a retry returns the same conversation and message.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "Accepted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationStarted"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, or a request whose text was since withdrawn (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints; a conversation or message the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationStart"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1conversations~1{conversationId}~1messages",
+      "value": {
+        "get": {
+          "operationId": "getConversationMessages",
+          "summary": "A page of a conversation's messages in its order, oldest first: the newest 50, or those before `before`. A cursor from another conversation is refused.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "before",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationMessagePage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints; a conversation or message the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01"
+        },
+        "post": {
+          "operationId": "sendConversationMessage",
+          "summary": "A message in a conversation, Sophia asked or not. Writers only, in a project whose conversations are on. Once per Idempotency-Key. Asking Sophia records a reply request with the message; it says its own state, and only her answer to it settles it.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "Accepted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationMessageSent"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, or a request whose text was since withdrawn (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints; a conversation or message the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationSend"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1conversations~1{conversationId}~1messages",
+      "value": {
+        "get": {
+          "operationId": "getProjectConversationMessages",
+          "summary": "A page of a conversation's messages read within its project, in one snapshot: the caller's membership first, then the cursor against this conversation, then an open conversation with this id in this project, then the page (the newest 50, or those before `before`). Answers what getConversationMessages does, and also which of a non-member and an absence it is.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "before",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationMessagePage"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted: the caller is not a current member of the project, or there is no such project. Said before anything of the conversation or the cursor is read, so a non-member learns nothing of either.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or its cursor is another conversation's (invalid_request); or, to a current member of the project only, no open conversation with this id is in it (not_found: erased, missing or another project's alike, which this read does not tell apart).",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1conversations~1{conversationId}~1messages~1{messageId}~1withdrawal",
+      "value": {
+        "post": {
+          "operationId": "withdrawConversationMessage",
+          "summary": "Withdraw a message: its author their own (whatever their role now), an admin any. Its text and name go; so do Sophia's answers whose context reached it, and open requests that would read it are cancelled. Works while conversations are read-only. Once per Idempotency-Key.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "messageId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "Accepted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationWithdrawal"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, or a request whose text was since withdrawn (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints; a conversation or message the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1conversations~1{conversationId}~1erasure",
+      "value": {
+        "post": {
+          "operationId": "eraseConversation",
+          "summary": "Erase a whole conversation (admins): every text in it and its title. It leaves every list and read. Once per Idempotency-Key.",
+          "tags": ["conversations"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "conversationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "responses": {
+            "202": {
+              "description": "Accepted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ConversationErasure"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (not a member; not a writer; conversations not turned on or read-only: conversations_closed)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency key reused with a different request, or a request whose text was since withdrawn (request_erased)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema or semantic field constraints; a conversation or message the caller cannot see is not_found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable, or the write's outcome is unknown: retry with the same Idempotency-Key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "CON-01"
+        }
+      }
+    }
+  ]
+}

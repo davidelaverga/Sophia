@@ -4,3 +4,10 @@
 const env = (import.meta as { env?: Partial<ImportMetaEnv> }).env
 
 export const VISION = env?.VITE_SOPHIA_VISION === '1'
+
+/**
+ * Saved project conversations (CON-01, amendment A16), real now: their tab shows where the build sets
+ * VITE_SOPHIA_CONVERSATIONS=1 (a Studio built against an API that serves them), or under the vision flag (the fixture
+ * pages). Separate from VISION, which production never sets: turning conversations on turns on nothing else proposed.
+ */
+export const CONVERSATIONS = VISION || env?.VITE_SOPHIA_CONVERSATIONS === '1'

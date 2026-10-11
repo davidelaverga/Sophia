@@ -79,6 +79,12 @@ const RULES: readonly Rule[] = [
   { sqlstate: '55000', when: (m) => m === 'Research gate closed', code: 'research_gate_closed' },
   // WBC-02 (0042): the pilot gate says why it is closed; nothing about a project the caller cannot read.
   { sqlstate: '55000', when: (m) => m.startsWith('Source review is not enabled'), code: 'coordination_closed' },
+  // CON-01 (0048): a project's conversations are off or read-only; the words say which, and nothing else.
+  {
+    sqlstate: '55000',
+    when: (m) => m.startsWith('Conversations are not turned on') || m.startsWith('Conversations are read-only'),
+    code: 'conversations_closed',
+  },
   { sqlstate: '55000', when: (m) => LIMITS.some((p) => m.startsWith(p)), code: 'research_limit_reached' },
   // The mission ledger (0018): the note policy's refusals say what would allow the write, so their words are kept.
   {
