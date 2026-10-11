@@ -255,6 +255,9 @@ Reflect.set(globalThis, 'SpeechRecognition', HeardRecognition)
 
 /** Words handed to Sophia's conversation, as Places hands them (it opens Personal and its composer sends them). */
 const say = (text: string) => pressed.push(`say ${text}`)
+/** A need opened in a project: the view, the project, and the record's address (a decision's own, or its task's). */
+const openPress = (view: string, projectId: string, where: { taskId?: string; decisionId?: string }) =>
+  `open ${view} ${projectId}${where.decisionId ? ` #decision-${where.decisionId}` : where.taskId ? ` #task-${where.taskId}` : ''}`
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
@@ -262,11 +265,11 @@ function Home() {
   const fromApi = useNeeds(
     'fixture-token',
     {
-      project: (projectId, view, where) => {
-        const task = where.taskId ? ` #task-${where.taskId}` : ''
-        pressed.push(`open ${view} ${projectId}${task}`)
+      project: (projectId, view, where) => pressed.push(openPress(view, projectId, where)),
+      personal: () => {
+        pressed.push('personal')
+        return Promise.resolve(true) // the fixture's personal space shows every turn it names
       },
-      personal: () => pressed.push('personal'),
     },
     { enabled: viaApi, locked },
   )
