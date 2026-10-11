@@ -1,0 +1,14 @@
+{
+  "schema": "sophia.con01.owner-decisions.v1",
+  "authority": "Direct Davide message in reviewer thread 01a1224a-32b4-7222-a017-50a277572d95",
+  "dateLocal": "2026-10-12",
+  "timezone": "Europe/Rome",
+  "Q13": {"choice": "A_per_identity_database_isolation", "sourcePolicyAccepted": true, "actualQualification": false, "broadApiInheritanceSufficient": false, "requiredTests": ["actual_database_admission", "inherited_roles", "assumable_roles", "operational_writer_denial", "preexisting_out_of_scope_connection_settlement"]},
+  "withdrawal": {"choice": "conservative_initial_release", "explicitDisclosureRequired": true, "scope": "later Sophia answers in the same conversation, including answers that did not use withdrawn content", "preserve": ["other_human_messages", "other_conversations", "independently_governed_decisions"], "automaticRegeneration": false},
+  "runtime": {"directOwnerCoordinationAuthorized": true, "preferredSoleImplementer": "Claude CON-01 session_01KUDtFK9gWthsXSrepcLQz3", "independentReviewerOperator": "Codex CON-01", "ownerAcknowledgements": null, "writeWindow": null, "beforeWrites": ["affected_files_functions", "accepted_base", "owner_acknowledgements", "integration_order", "handback_boundary"], "dispatcherPrerequisite": "honest changed count and no starvation; one writer"},
+  "retained": {"replyOwnership": "option_C", "hostCopyPolicy": "throwaway_isolated_harness_home_per_reply"},
+  "subscription": {"routeCount": 1, "subscriptionOnly": true, "qualifiedRoute": null, "crossAccountUseAssumed": false, "requiredQualification": ["application_topology", "requesting_account", "adapter", "execution_bounds", "credential_lifecycle", "quota_source"], "prohibited": ["PAYG", "extra_credits", "provider_switching", "account_rotation", "hidden_allowance_reset"], "askEnabled": false},
+  "operations": {"separateDraftBatches": ["setup_human_chat", "ask_qualification"], "approval": null, "expiry": null, "deploymentAuthorized": false, "hostedMigrationAuthorized": false, "accountCreationAuthorized": false, "grantsAuthorized": false, "providerExecutionAuthorized": false, "clusterWidePermissionMutationAuthorized": false, "connectionTerminationAuthorized": false},
+  "permitted": ["source_within_agreed_scope", "owned_local_stub_runtime", "owned_local_synthetic_database_tests", "browser_fixtures", "direct_shared_owner_coordination", "draft_batch_preparation"],
+  "escalation": "Specific product/authority choice or demonstrated technical incompatibility; do not delegate low-level implementation choices back to Davide"
+}
