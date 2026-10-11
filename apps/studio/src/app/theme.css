@@ -3902,6 +3902,9 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: 12px;
 }
+.mission-more > summary:hover {
+  color: var(--text);
+}
 .mission-more[open] {
   display: grid;
   gap: 8px;
