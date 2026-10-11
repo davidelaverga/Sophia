@@ -36,3 +36,11 @@
   then Tasks) the switches and Leave are in the header too; at 375 the dock is fixed at the bottom right. The four
   specs that reach it by class or name keep passing.
 - `pnpm format`, `lint`, `typecheck`; measured in the pane before the push.
+- **After the review (Codex on #254, 2026-10-11)**: the header's slot took the dock on every view, so the Studio view
+  had it beside the room's own controls and a shut door kept room controls; the dock is nowhere on the Studio view or
+  behind a shut door (as `ProjectBody` had it). Mounted anew across the breakpoint, a control that had the focus lost
+  it to the page and the Conversations' cover (`inert`) did not reach the new dock: the control of the same name takes
+  the focus back, and the cover hears the breakpoint. In the header the dock is `relative`, not static, so its notes
+  (Sophia looking, an error) keep it as their box and hang under the header, on the page, not above the viewport.
+  dock-header.spec: the looking note under the header; no dock on the Studio view and behind a shut door; the focus
+  across the breakpoint both ways.

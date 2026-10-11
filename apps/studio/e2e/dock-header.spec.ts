@@ -43,7 +43,7 @@ for (const [name, url, parts] of VIEWS) {
     await drawn(page, parts)
     await expect(dock(page).getByRole('button', { name: /^Join the room/ })).toBeVisible()
     const read = await dockRead(page)
-    expect(read?.position).toBe('static')
+    expect(read?.position).toBe('relative') // in the flow of the cluster; its notes' box
     expect(read?.inEnd).toBe(true)
     expect(read?.first).toBe(true)
     expect(read?.withinTopbar).toBe(true)
@@ -68,6 +68,52 @@ test('dock · in a call, Tasks: the switches and Leave are in the header too', a
     return el ? { scroll: el.scrollWidth, client: el.clientWidth } : null
   })
   expect(nav?.scroll).toBeLessThanOrEqual(nav?.client ?? 0)
+})
+
+test('dock · what the dock says hangs under the header, on the page: Sophia looking, from Tasks in a call', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&video=screen&looking=screen&place=work')
+  await drawn(page, DRAWN.tasks)
+  const looking = dock(page).locator('.sophia-looking')
+  await expect(looking).toBeVisible()
+  const read = await page.evaluate(() => {
+    const el = document.querySelector('.mini-dock .sophia-looking')
+    const topbar = document.querySelector('.topbar')
+    if (!el || !topbar) return null
+    const r = el.getBoundingClientRect()
+    const t = topbar.getBoundingClientRect()
+    return { top: r.top, underHeader: r.top >= t.bottom, within: r.right <= innerWidth }
+  })
+  expect(read?.top).toBeGreaterThanOrEqual(0)
+  expect(read?.underHeader).toBe(true)
+  expect(read?.within).toBe(true)
+})
+
+test('dock · nowhere on the Studio view (the room is the view) and behind a shut door', async ({ page }) => {
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
+  await expect(page.locator('.mini-dock')).toHaveCount(0)
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  await expect(page.locator('.mini-dock')).toHaveCount(1)
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  await expect(page.locator('.mini-dock')).toHaveCount(0)
+})
+
+test('dock · across the breakpoint the focused control keeps the focus', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const join = () => dock(page).getByRole('button', { name: /^Join the room/ })
+  await join().focus()
+  await expect(join()).toBeFocused()
+  await page.setViewportSize({ width: 600, height: 844 })
+  await expect.poll(() => page.locator('.mini-dock').evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
+  await expect(join()).toBeFocused()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect.poll(() => page.locator('.mini-dock').evaluate((el) => getComputedStyle(el).position)).toBe('relative')
+  await expect(join()).toBeFocused()
 })
 
 test('dock @phone · on a narrow screen the dock floats at the bottom right as before', async ({ page }) => {

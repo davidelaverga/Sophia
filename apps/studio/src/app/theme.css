@@ -2797,7 +2797,7 @@ button.contribution-quote:hover {
    a hairline before the connection pill. */
 @media (min-width: 721px) {
   .topbar .mini-dock {
-    position: static;
+    position: relative; /* its notes keep it as their box (below, not above the header: Codex on #254) */
     gap: 2px;
     padding: 0 8px 0 0;
     margin-right: 2px;
@@ -2820,6 +2820,12 @@ button.contribution-quote:hover {
   }
   .topbar .mini-dock .mini-note {
     max-width: 240px;
+  }
+  /* What the dock says (Sophia looking, a join or device error) hangs under the header, where there is page. */
+  .topbar .mini-dock .mini-note,
+  .topbar .mini-dock .sophia-looking {
+    top: calc(100% + 10px);
+    bottom: auto;
   }
   /* Live, the dock says the room's state itself: the connection pill yields its room, so the views' nav keeps standing
      at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more). */

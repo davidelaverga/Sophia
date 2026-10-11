@@ -18,6 +18,7 @@ import {
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
+import { WIDE } from '../../app/useMedia.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, listKey, messagesKey } from './conversation-list.ts'
 import { Rows } from './ConversationRows.tsx'
@@ -244,11 +245,16 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen() || t?.closest('[role="dialog"]')) return
       close()
     }
-    const behind = [
-      ...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? []),
-      ...document.querySelectorAll<HTMLElement>('.mini-dock'),
-    ]
-    for (const el of behind) el.inert = true
+    const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
+    const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')]
+    const cover = () => {
+      for (const el of [...behind, ...docks()]) el.inert = true
+    }
+    cover()
+    // The room's dock is mounted anew when the width crosses the header's breakpoint: covered again (Codex on #254).
+    const wide = matchMedia(WIDE)
+    const coverAgain = () => requestAnimationFrame(cover)
+    wide.addEventListener('change', coverAgain)
     const width = new ResizeObserver(([entry]) => {
       if (!entry || entry.contentRect.width <= PANEL) return
       const at = document.activeElement
@@ -263,8 +269,9 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
+      wide.removeEventListener('change', coverAgain)
       width.disconnect()
-      for (const el of behind) el.inert = false
+      for (const el of [...behind, ...docks()]) el.inert = false
     }
   }, [view, open, close, drop])
 }

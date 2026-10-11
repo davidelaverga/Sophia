@@ -4,7 +4,7 @@
 // project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
 // and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
 import { taskPeople } from '../artifacts/task-view.ts'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -330,10 +330,43 @@ function headerDock(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: (
   return <MiniDock room={room} looking={lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))} onOpen={onOpen} />
 }
 
-/** The room's dock where the width puts it: in the header on a wide screen, floating (outside the header) on a narrow one. */
-function useDockPlace(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: () => void) {
+/** A dock control's name, the same in both places the dock is mounted: its label, else its words. */
+const dockName = (el: Element) => el.getAttribute('aria-label') ?? el.textContent.trim()
+
+/** The views that have the room's dock: not the Studio (the room is the view), not behind a shut door. */
+const dockShown = (view: View, blocked: Blocked | null) => view !== 'studio' && !blocked
+
+/**
+ * The dock moving across the breakpoint is mounted anew under another parent: a control of it that had the focus would
+ * lose it to the page. Its name is kept as the focus moves, and the control of the same name takes it back (Codex on
+ * #254).
+ */
+function useDockFocus(wide: boolean) {
+  const named = useRef<string | null>(null)
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target instanceof HTMLElement ? e.target : null
+      named.current = el?.closest('.mini-dock') ? dockName(el) : null
+    }
+    document.addEventListener('focusin', onFocus)
+    return () => document.removeEventListener('focusin', onFocus)
+  }, [])
+  useLayoutEffect(() => {
+    const name = named.current
+    if (!name || document.activeElement !== document.body) return
+    const again = [...document.querySelectorAll<HTMLElement>('.mini-dock button')].find((b) => dockName(b) === name)
+    again?.focus({ preventScroll: true })
+  }, [wide])
+}
+
+/**
+ * The room's dock where the width puts it: in the header on a wide screen, floating (outside the header) on a narrow
+ * one; nowhere on the Studio view (the room is the view) or behind a shut door (a closed door shows no project action).
+ */
+function useDockPlace(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: () => void, shown: boolean) {
   const wide = useMedia(WIDE)
-  const dock = headerDock(room, snapshot, onOpen)
+  useDockFocus(wide)
+  const dock = shown ? headerDock(room, snapshot, onOpen) : null
   return wide ? { inHeader: dock, floating: null } : { inHeader: null, floating: dock }
 }
 
@@ -344,7 +377,7 @@ export function ProjectShell(props: Props) {
   const { loaded, blocked, shown } = doorOf(snapshot)
   // The room's dock: in the header on a wide screen; on a narrow one it floats, mounted outside the header (a sticky
   // header with a backdrop filter would hold a fixed child inside its own box).
-  const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'))
+  const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked)
   useBeyondTheView(props, snapshot.data, room, blocked)
   const mayInvite = !!shown && canInvite(membership)
