@@ -1,0 +1,43 @@
+{
+  "candidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+  "tree": "0d3f53f47838ff6df5f606c300bec0a27115bb3a",
+  "parent": "dc88c6ef2d3e1fc7f32c5a4a6e9296d602085b62",
+  "completeDelta": "Two files +59/-0; complete88-line delta read. S3 preflight rejects unexpected incoming/outgoing memberships and API parent admin_option before candidate objects/grants; no normalization. New transaction-rolled-back role-graph test. All other source/runtime unchanged.",
+  "sourceHashes": {
+    "db/candidates/con01-s3-conversation-reply-context.sql": "16ee9dea1567b289ce9d0688d4fbc9c97080ee6dffeaf671b544768ef500e5cf",
+    "packages/persistence/src/conversation-assembly.db.test.ts": "a7f34620af7681b652580cd5f468cb37eaca4653c472e13fff0bc968f04e3cd4"
+  },
+  "scriptHashes": {
+    "run-owned.py": "37972d3af337a41cec10755578ce92f8e34e9872c6a7e43baa1287d8d8dcb25f",
+    "role-graph-independent.mjs": "e0917787d2fc63e20dfaab0c431df65c6788c6dad8c9dc756a37a86697774f5a"
+  },
+  "commands": {
+    "install": "pnpm install --frozen-lockfile exit0; Node24.21.0/pnpm11.7.0",
+    "syntax": "node --check private role harness exit0",
+    "parallel": "node --test --test-concurrency=4 five conversation suites:128tests128pass0fail0cancel exit0",
+    "independent": "six role cases PASS exit0; wrapper0; PG17.6"
+  },
+  "negativeCases": "Unexpected parent/member/APIadmin-option and unsafeLOGIN return42501; no candidate objects; complete role graph unchanged.",
+  "positiveCases": "API-only parent and safe bare role accepted.",
+  "scope": "L1 actual ownedPG; no native/provider/app or feature fix by reviewer. Historicaldc88 twoFAIL retainedCX107.",
+  "authorReceiptsFullyRead": [
+    6109791463,
+    6109796580,
+    6109875968,
+    6110147325
+  ],
+  "authorTerminal": "b5/dc88/5e7 broad terminal receipts read;5e7C+ICU128/128,db-all737/737,testsql0,pnpmcheck0. ComposedN2/N4exit1=3intendedassertiondiffs,35/38 at5e7. Author evidence only.",
+  "historicalAuthorFailures": "b5ICU composed uncaught40001; first5e7ICUN2all38pass but teardownexit1 administrator termination; repeats retained, not silentlygreen. Separate test-only correction requested with errors scoped, assertions preserved.",
+  "authorCleanup": "CC0112 ownedICUstop0 then PIDrace rechecked absent/portclosed/dataremoved; sessionCcluster remainsbaseline perprimary. Reviewer never touched those resources.",
+  "coordination": "ExactCON531actualdc88role failures;533CC0110finite-buffer requirement;535scoped5e7pass and existingdraft-advancepermission. No Sendnow/Stop/restart. One transient URL guard refusal caused no message; fresh exactCONstate reobserved before successful send.",
+  "githubCheckpoint": {
+    "observedAt": "2026-10-11T15:17:51.180162+00:00",
+    "draft211Head": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "draft": true,
+    "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "freshReviewRequest": 6110479264,
+    "freshRequestFullyRead": true,
+    "freshReviewState": "Pending, no actual5e7 review returned at checkpoint"
+  },
+  "threadDiscovery": "One list_threads100 rejected max50; corrected50 returned only CON relevant active mission, no named WBC/SDD runtime owner. No other task messaged/spawned. GH issue search identifies103 SDD coordination; current ownership remains unbound."
+}

@@ -1,0 +1,12 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0108.md",
+  "artifacts": {
+    "evidence/20261011-cx108-role-correction/acceptance-status-comparison.json": "53a91d8c200541a6ac4acda8fe0346a44fba9c2de23102c45898af39781e8170",
+    "evidence/20261011-cx108-role-correction/binding-review.json": "17371733696f11431c1787342bf1d4acf0de7edc1ca543d11dadf544c7c195a4",
+    "evidence/20261011-cx108-role-correction/n4-independent-evidence.json": "a1150a365bd3a365960c95338123831d6958f025f6051f423a15668fb8b89d7c",
+    "evidence/20261011-cx108-role-correction/n4-owned-receipt.json": "20dd00a14a872787a28b7e0184cef30f2859b5c32acf3fc439d630eff6cbefa2",
+    "evidence/20261011-cx108-role-correction/operation-handoff.json": "82b0f96d02f70bfa1cfa3c1c8a353862f4856825d89b6363e96cceb6069b8346",
+    "evidence/20261011-cx108-role-correction/source-review.json": "4bc23d67f70bc249c42974e5114060a680c5a0efca0f5292402253cca542cb5b"
+  }
+}

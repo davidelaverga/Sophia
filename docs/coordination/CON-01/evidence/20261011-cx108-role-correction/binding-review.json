@@ -1,0 +1,17 @@
+{
+  "proposal": 6109813784,
+  "fullyRead": true,
+  "sha256": "3875a332430220c6935cec36fd1b9c99bfa7b97bd75957d6552ae2787fcc0a0a",
+  "addressed": [
+    "Named CON source-key index; author EXPLAIN measurement disclosed asauthor evidence, not independentlyexecuted",
+    "NOWAIT conditional on conflicting holder; no-cycle conclusion scoped to CON conforming paths",
+    "Keep joins/audience revision without new ownerprerequisite",
+    "add-member excluded from CON operations",
+    "Parent copy owners/lifetimes and fixed-token errors now enumerated"
+  ],
+  "remainingMaterialGap": "RetainedQueue.items is unbounded;500items/4MiB limits per request only. The proposed bounded-transient table admits uncapped outage retention. fd3 line must be limited incrementally before newline/JSON parse.",
+  "independentEvidence": "retained-queue.ts push appends withoutcap; headBatch onlycapsoutboundbatch; drain retainsitemsuntilack and retries; transport/queue targetedsource fullread.",
+  "requested": "Finite per-reply bytes/items, incremental fd3 bound, overflow/backpressure settlement oruncertainwithoutduplicate/budgetreset; persist authorized result/usage/delivery beforehomecleanup; fencequeuedandin-flightfutureevents; no checked deletion/retirement withunsanitizedparentcopies/unpersistedrequiredstate. Actualoutage+withdrawal/restartcanary tests.",
+  "allowedPreparation": "Separate CON-only documentation amendment may proceed with gap visiblyopen/corrected. Shared source/runtime/hook activation remains unacknowledged. Q1\u2013Q11 owner/window questions preserved.",
+  "notProof": "No native/provider/isolation/crash/cleanup execution; currentlivecomposition unknown."
+}
