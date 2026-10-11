@@ -10,6 +10,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
 import type { Held } from './held-write.ts'
 import { plainOf } from './sophia-text.ts'
+import { orderNow } from './withdrawn-purge.ts'
 
 /** The longest statement a message gives a proposal to start from: a sentence or two. */
 const MOST = 200
@@ -101,8 +102,13 @@ export const contextKey = (projectId: string, identity: Pick<Identity, 'name' | 
  */
 export const contextQuery = (projectId: string, identity: Identity) => ({
   queryKey: contextKey(projectId, identity),
-  queryFn: () => getMission(identity.token, projectId),
-  retry: 1,
+  // Where in this view's order the read set out: one from before a refusal never shows as current (PR #199 r4239772110).
+  queryFn: () => {
+    const readFrom = orderNow()
+    return getMission(identity.token, projectId).then((ctx) => ({ ...ctx, readFrom }))
+  },
+  // Refused, it is not asked again: the reader isn't a current member of the project.
+  retry: (failures: number, err: unknown) => failures < 1 && !(err instanceof ApiError && err.code === 'forbidden'),
 })
 
 /**

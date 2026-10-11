@@ -97,6 +97,12 @@ export interface Kept {
    * the view is fenced again. Its thread shows nothing it held from before until such a read answers.
    */
   denied: Readonly<Record<string, number>>
+  /**
+   * The latest refusal's order (the fence's `at`), kept after the fence lifts: what the project's context held from a
+   * read set out before it never shows as current, nor its controls, until a read set out since answers (PR #199
+   * r4239772110). Null: never refused here.
+   */
+  refusedAt: number | null
 }
 
 /**
@@ -143,6 +149,7 @@ const EMPTY: Kept = {
   reached: {},
   fence: null,
   denied: {},
+  refusedAt: null,
 }
 
 const kept = new Map<string, Kept>()
@@ -347,7 +354,8 @@ export function goneFrom(k: Kept, now: readonly string[]): string[] {
 }
 
 /** Fenced (`fence`) by a read refused at `at` (403): until a list read set out after the latest such. */
-export const withFence = (k: Kept, at: number): Kept => (k.fence && k.fence.at >= at ? k : { ...k, fence: { at } })
+export const withFence = (k: Kept, at: number): Kept =>
+  k.fence && k.fence.at >= at ? k : { ...k, fence: { at }, refusedAt: Math.max(k.refusedAt ?? 0, at) }
 
 /** Whether a list read set out at `readFrom` (this view's order) is since the fence, and so lifts it (`liftFence`). */
 export const fenceLifts = (k: Kept, readFrom: number): boolean => k.fence !== null && readFrom > k.fence.at

@@ -199,6 +199,8 @@ interface Fixture {
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
   holdMission: (on: boolean) => void
+  /** The brief's reads are refused (403), as to a reader no longer in the project; or answer again. */
+  refuseMission: (on: boolean) => void
   /** The running meeting closes (another member closed it), and the feed moves (chapter 7's update). */
   endMeeting: () => void
   /** The project list's reads fail, or read again (chapter 1). */
@@ -487,6 +489,7 @@ const project = {
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
   missionFails: false,
+  missionRefused: false,
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
@@ -704,6 +707,9 @@ window.fixture = {
     queryClient.getQueryData(messagesKey(conversationId, accountOf(identity))) !== undefined,
   failMission: (on) => {
     project.missionFails = on
+  },
+  refuseMission: (on) => {
+    project.missionRefused = on
   },
   endMeeting: () => {
     project.meeting.closedAt = new Date().toISOString()

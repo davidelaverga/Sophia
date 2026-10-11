@@ -225,9 +225,8 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         settle={erased.gone}
       />
       <ProjectContext
-        {...{ projectId, identity, cursor }}
+        {...{ projectId, identity, cursor, notice, ...useContextFence(projectId, identity, talk, panes, fenced) }}
         conversation={shown}
-        notice={notice}
         erase={reader.moderate ? eraseOf(projectId, identity, erased, talk) : null}
         opened={panes.context}
         onClose={panes.closeContext}
@@ -324,7 +323,11 @@ function useFenceFocus(fenced: boolean) {
   useLayoutEffect(() => {
     const view = pane.current?.parentElement
     const here = document.activeElement !== null && view?.contains(document.activeElement) === true
-    if (fenced && !was.current && inside.current && !here) note.current?.focus()
+    if (fenced && !was.current && inside.current && !here) {
+      note.current?.focus()
+      // A panel put away in this same commit leaves what was behind it inert until it is gone: once more, then.
+      if (document.activeElement !== note.current) requestAnimationFrame(() => note.current?.focus())
+    }
     was.current = fenced
   })
   return { pane, note }
@@ -460,7 +463,35 @@ function usePanes() {
     context,
     toggleContext: () => setContext((on) => !on),
     closeContext,
+    dropContext,
   }
+}
+
+/**
+ * The project's context and the fence (PR #199 r4239772110). Fenced, a context open as a panel is put away, with no
+ * focus of its own, so the list and its note are in sight; the context's own read refused fences the view at this
+ * view's order, as any other refusal does, and the list is read again. Only a list read set out since lifts it.
+ */
+function useContextFence(
+  projectId: string,
+  identity: Identity,
+  talk: ReturnType<typeof useTalk>,
+  panes: ReturnType<typeof usePanes>,
+  fenced: boolean,
+) {
+  const queryClient = useQueryClient()
+  const account = accountOf(identity)
+  const { change } = talk
+  const { dropContext } = panes
+  useLayoutEffect(() => {
+    if (fenced) dropContext()
+  }, [fenced, dropContext])
+  const onRefused = useCallback(() => {
+    const at = orderNow()
+    change((k) => withFence(k, at))
+    void queryClient.invalidateQueries({ queryKey: listKey(projectId, account) })
+  }, [change, queryClient, projectId, account])
+  return { fenced, refusedAt: talk.kept.refusedAt, onRefused }
 }
 
 /** Over 1180 px of the view (not of the window: a report beside it narrows it) the context is a pane, not a panel. */

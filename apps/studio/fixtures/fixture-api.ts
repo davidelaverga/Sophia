@@ -213,6 +213,8 @@ interface Project {
   missionPlus?: ReturnType<typeof conversationMission>
   /** The brief's reads fail (`window.fixture.failMission`). */
   missionFails?: boolean
+  /** The brief's reads refused (403), as to a reader no longer in the project (`refuseMission`). */
+  missionRefused?: boolean
   /** While set, the brief's reads wait for these (`mission=hold`, `window.fixture.holdMission`). */
   missionHeld?: (() => void)[] | null
 }
@@ -986,6 +988,11 @@ function missionAnswer(project: Project, method: string, path: string, init: Req
 /** The brief as read: refused while notes are unread or reads fail (`failMission`), else with the conversations' part. */
 function missionRead(project: Project): Response {
   if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
+  // As to a reader no longer in the project: refused (403), nothing of the brief read (`refuseMission`).
+  if (project.missionRefused) {
+    served.push('mission-refused')
+    return projectRefused()
+  }
   served.push(`mission:${project.revision}`)
   return json(withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus))
 }
