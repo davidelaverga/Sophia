@@ -103,7 +103,8 @@
                 "anyOf": [
                   {
                     "type": "string",
-                    "format": "uuid"
+                    "minLength": 1,
+                    "maxLength": 160
                   },
                   {
                     "type": "null"

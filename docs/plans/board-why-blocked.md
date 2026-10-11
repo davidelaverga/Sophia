@@ -39,3 +39,6 @@
 - **After the review (Codex on #244, 2026-10-11)**: on a coarse pointer each text press's target reaches 7 px above
   and below its words, and the blockers' rows were 2 px apart: a tap near one row's edge could take the next. The rows
   keep 14 px between them on a coarse pointer, so no two targets meet. board-why.spec @phone reads both numbers.
+- **After the review (Codex on #244, round 2)**: a lane names three blockers, the rest behind «and N more» (as a lane
+  keeps its tiles): a plan with many prerequisites no longer pushes the tiles out of reach. No fixture has more than
+  three; the cap is read in the code.
