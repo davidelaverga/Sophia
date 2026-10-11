@@ -894,7 +894,7 @@
   border: 0;
   background: none;
   color: var(--text);
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
   text-align: left;
   -webkit-box-orient: vertical;

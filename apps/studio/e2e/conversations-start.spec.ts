@@ -55,7 +55,7 @@ test('start · quiet labels in the app’s sans, on its sizes, reading at 4.5:1'
   expect(await lowContrast(page, '.conv-new', '[aria-disabled="true"]')).toEqual([])
   const sizes = await typeSizes(page, '.conv-new')
   // The form's own heading is the view's 18 px, as the other conversation checks allow.
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '18px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px', '18px'], sizes.join(' ')).toContain(s)
   // The question is set at the title size, larger than the context under it.
   await expect(question(page)).toHaveCSS('font-size', '14px')
 })

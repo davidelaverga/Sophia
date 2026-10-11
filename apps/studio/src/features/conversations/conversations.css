@@ -162,7 +162,7 @@
 }
 .conv-list-head h2 {
   margin: 0;
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
 }
 /* The title filter: the kit's search (36 px, its magnifier), as wide as the list. */

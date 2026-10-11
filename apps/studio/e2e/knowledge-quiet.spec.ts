@@ -73,7 +73,7 @@ test('quiet · the tiles keep to the four type sizes', async ({ page }) => {
   await page.goto('/room.html?place=knowledge&designed=on')
   await expect(tile(page, 'Fixture report').locator('.report-cover iframe')).toBeAttached()
   const sizes = await typeSizes(page, '.report-cards')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
 })
 
 test('quiet · every word on the tiles reads: no contrast under 4.5:1', async ({ page }) => {

@@ -100,7 +100,7 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
   letter-spacing: -0.01em;
   text-overflow: ellipsis;
@@ -1344,7 +1344,7 @@
 }
 /* A goal's own card (one without a plan, or the list before plans): its title and outcome on the scale too. */
 .goals .goal-title {
-  font-size: var(--type-title);
+  font-size: var(--type-head);
 }
 .goals .goal-outcome {
   font-size: var(--type-body);

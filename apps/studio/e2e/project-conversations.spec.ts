@@ -194,7 +194,7 @@ test('conversations · controls are at least 24 px tall, and the text keeps to t
   expect(short).toEqual([])
   const sizes = await typeSizes(page, '.conversations')
   expect(
-    sizes.filter((s) => !['10.5px', '12px', '13px', '14px', '18px'].includes(s)),
+    sizes.filter((s) => !['10.5px', '12px', '13px', '14px', '15px', '18px'].includes(s)),
     sizes.join(' '),
   ).toEqual([])
 })

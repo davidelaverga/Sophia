@@ -120,5 +120,5 @@ test('thread · every word reads at 4.5:1, on the app’s type sizes', async ({ 
   // A control that can't be used yet (Send, with nothing written) is exempt (WCAG 1.4.3).
   expect(await lowContrast(page, '.conv-open', '[aria-disabled="true"]')).toEqual([])
   const sizes = await typeSizes(page, '.conv-open')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '18px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px', '18px'], sizes.join(' ')).toContain(s)
 })

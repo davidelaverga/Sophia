@@ -1364,7 +1364,7 @@
   border-bottom: 0;
 }
 .goal.compact .goal-title {
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   letter-spacing: -0.02em;
 }
 .goal.compact > :not(.controls) {

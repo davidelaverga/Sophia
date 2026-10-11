@@ -6,6 +6,8 @@
      Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
      title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). */
   --type-view: 28px;
+  /* The heads of a view's sections and tiles: one step above the body's title, under the view's (docs/plans/section-heads.md). */
+  --type-head: 15px;
   --type-title: 14px;
   --type-body: 13px;
   --type-small: 12px;
@@ -2112,7 +2114,7 @@ button.contribution-quote:hover {
 }
 .view-subhead {
   margin-top: 16px;
-  font-size: 14px;
+  font-size: var(--type-head);
   color: var(--text-2);
 }
 .coming {

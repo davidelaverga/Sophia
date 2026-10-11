@@ -47,7 +47,7 @@ test('filters · only the app’s type sizes in the filters', async ({ page }) =
   await page.goto('/room.html?place=knowledge')
   await page.getByRole('button', { name: 'All projects' }).click()
   const sizes = await typeSizes(page, '.knowledge-filters')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
 })
 
 test('filters · every word in the filters reads: no contrast under 4.5:1, pressed or not', async ({ page }) => {

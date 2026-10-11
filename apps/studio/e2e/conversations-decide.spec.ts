@@ -400,5 +400,5 @@ test('decide · the presses keep to the app’s sizes and read at 4.5:1', async 
   await enter(page)
   expect(await lowContrast(page, '.conv-decisions.open')).toEqual([])
   const sizes = await typeSizes(page, '.conv-context')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
 })
