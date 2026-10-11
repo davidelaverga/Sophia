@@ -1,0 +1,32 @@
+{
+  "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+  "tree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
+  "sourceHashes": {
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "9ec206fb9935a0a07c6dad4f78c9dce35d5629dc0d0adfd42e7f76f9ed9a7a2a",
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995",
+    "apps/execution-host/src/runtime-supervisor.ts": "a3c3b88f9ba874d173faa5ccb4e7e31ce0325df6b71fcdd187e3f63b5207f87a",
+    "packages/dsh-bundle/src/session-events.ts": "b7d04bc84f34210fd4ec758097850879cda0150e4206f8d32b5fa5007ccab083",
+    "packages/dsh-bundle/src/index.ts": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62"
+  },
+  "scriptHashes": {
+    "lock-order-independent.mjs": "10bb147ac2c31d50a014a1a9ec6fb328c2f16f184efbb83551e01b36e3c49f39",
+    "run-lock-order-owned.py": "2bf722347569c48f2ac70cfb39e981a1f2f5512e94de1e0652fc2b4d48c9008f",
+    "ledger/ledger-truncate-independent.mjs": "fe5df9709bf3241008213654814145a4b4cd5fd5a5606ac592bbbf4ec32a5548",
+    "ledger/run-ledger-owned.py": "2bf722347569c48f2ac70cfb39e981a1f2f5512e94de1e0652fc2b4d48c9008f"
+  },
+  "automaticReview": {
+    "id": 5483431415,
+    "reviewedCommit": "b5c475824a",
+    "submittedAt": "2026-10-11T13:14:35Z",
+    "newFinding": 4241698744,
+    "priority": "P2",
+    "scope": "Operator accidental TRUNCATE bypass, not API privilege escalation"
+  },
+  "ledgerVerdict": "Independentactual2FAIL2controlsPASS; all4tables TRUNCATECASCADEaccepted, uncertain1call/100tokens erased, sameapprovalmintsfreshlineage/allcounters0. APIworker8denials42501.",
+  "sourceHook": "ActualL1 directheldhookbodyafterrowfirstwrite deadlocksagainstpublisher40P01; publisherwaitobservedinpg_stat_activity. Hooknotinstalled; evidence supports existinghold, not deployedbug.",
+  "nativeStatic": "CurrentRuntimeSupervisor.environment usesexplicitchildHOME/TMPDIR/DSH_HOME, butsingleprojectroot; collect210 appendsbothstdout/stderrto parentthis.output. Bundleindex255journalsunderDSH_HOME/sophia-bridge. Staticcopyaccountinggap for B1 before implementation, no native/provider/isolation/cleanup execution.",
+  "readLimits": "Targetednative/sourcewriterreads only; some initial broadsearch output truncated. No fullnative/dependency audit claimed. Pinnedinstalleddsh/session/settings0.2.0-rc.2 package metadata inspected; no newruntimeinstall/spawn.",
+  "primaryFeedback": "CONmessages519read-onlyN5requestack520;521newledger/lock/copyfindingsack522;523exactledgerreprosent. Primary prepares separateS2correction andreadonlyN5census, no shared/liveauthority.",
+  "gates": "Primary currentUIhaslive923pnpmcheck integrationstage; exactterminalrecordstillpending. b5broadgateswait. No restart or terminalfromtimeoutinferred.",
+  "policy": "Ownerconservativecutoffvsrecordeddependencies questionpending, no silentnarrowing or savedtext/liveapproval."
+}

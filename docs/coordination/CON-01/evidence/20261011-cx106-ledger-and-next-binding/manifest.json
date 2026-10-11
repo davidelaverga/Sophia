@@ -1,0 +1,13 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0106.md",
+  "artifacts": {
+    "evidence/20261011-cx106-ledger-and-next-binding/acceptance-status-comparison.json": "91688299f9888d0d33d9321b7c8374269fbae212df1340b67400999eb69a9741",
+    "evidence/20261011-cx106-ledger-and-next-binding/ledger-truncate-n4-independent-evidence.json": "a1f7589d6de9daa2f15df3c9311d4808f9a47546a3c842a0bb610d71306cd72a",
+    "evidence/20261011-cx106-ledger-and-next-binding/ledger-truncate-n4-owned-receipt.json": "c17ed76afce1033f2359fed6e3af2a84abc6b3e058deca67aab43726b8e30908",
+    "evidence/20261011-cx106-ledger-and-next-binding/operation-handoff.json": "498b8cbcd029c393cbb7f8d890e5deedc37c2e1b785b20c37d517ec532d8ce7e",
+    "evidence/20261011-cx106-ledger-and-next-binding/source-lock-n4-independent-evidence.json": "11b717029b97a7b2a217cc373515dded2a4777eb35651cd48e0046349597b53d",
+    "evidence/20261011-cx106-ledger-and-next-binding/source-lock-n4-owned-receipt.json": "7efb31bd0a2df30036dd27d915a31fe95c25cd95e73428690d7ed3de1c63899d",
+    "evidence/20261011-cx106-ledger-and-next-binding/source-review.json": "eecc8260e152b657f59acc4b84579cdfb0848d31dbd6b12b31d297799da7ec5c"
+  }
+}

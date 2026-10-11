@@ -1,0 +1,33 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0106.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+  "supplementalTree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Freshb5automaticP2operatorTRUNCATE independentlyreproduced2FAIL2controlsPASS; sourcehook40P01lockinversionproven, nativeparentstdoutcopyidentifiedbeforeB1. Primaryseparatecorrection/readonlyN5proposalinprogress. All36fullstatusesretained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": "Exactb5N4namedcorrectionsqualified; combineddormantG2candidatehasnewS2P2changes_requested",
+    "locally_verified": "Earlierb5N4parallel77+own11PASS retained. NewS2operatorTRUNCATE2FAIL/2PASS; sourcehookdeadlockqualifiedhold; staticnativecopyinventorynotruntimeproof.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+  "cleanup": "Two newownedPG17.6clusters stopped/PIDabsent/removed; bothfixturesDBrolesabsent0clients. No newbrowser/app/native/provider/hostedeffects; priorclusterssettled.",
+  "next": "ReviewearlyimmutableprimaryS2truncatecorrection andindependentlyrerun fourtable/uncertainhistory/rolecontrols; inspectreadonlyN5writer/nativecopy proposal and terminal923/b5gates before shared/nativeintegration.",
+  "evidence": "evidence/20261011-cx106-ledger-and-next-binding/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 2,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "missionSpend": 0
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+  "level": "L1 local PG17.6; supplied answers; no native/provider/hosted",
+  "cases": [
+    {
+      "name": "All four permanent ledger tables refuse operator TRUNCATE including CASCADE",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "permanent ledger TRUNCATE bypasses row guards: {\"conversation_grants\":null,\"conversation_grant_approvals\":null,\"conversation_reply_allowances\":null,\"conversation_reservations\":null}"
+      }
+    },
+    {
+      "name": "Owner CASCADE truncate cannot reset uncertainty and permit old approval to mint a fresh lineage",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "operator TRUNCATE accepted, old approval can reset allowance\n\nnull !== '55000'\n"
+      }
+    },
+    {
+      "name": "Actual API and worker cannot TRUNCATE any permanent ledger table",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "No model or operational work from ledger probes",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "truncateCodes": {
+      "conversation_grants": null,
+      "conversation_grant_approvals": null,
+      "conversation_reply_allowances": null,
+      "conversation_reservations": null
+    },
+    "reset": {
+      "before": {
+        "uncertainCalls": 1,
+        "uncertainTokens": 100
+      },
+      "truncateCode": null,
+      "oldApprovalMintedFreshLineage": true,
+      "countersReset": true
+    },
+    "apiWorkerDenials": 8,
+    "collateral": {
+      "commands": 0,
+      "jobs": 0,
+      "work_attempts": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0
+    }
+  },
+  "cleanup": {
+    "databaseDropped": true,
+    "rolesAbsent": true,
+    "remainingDatabases": [],
+    "otherClients": 0
+  },
+  "finishedAt": "2026-10-11T13:18:11.730Z"
+}

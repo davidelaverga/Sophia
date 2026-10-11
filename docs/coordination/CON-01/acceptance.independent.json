@@ -83,7 +83,8 @@
         "CX-0018.md",
         "CX-0029.md",
         "CX-0076.md",
-        "CX-0077.md"
+        "CX-0077.md",
+        "CX-0106.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. Actual local browser arm exercised at839fb45b, including lost Send response body, API replacement and durable PostgreSQL records. CX8 focus and CX10 membership-retry failures remain open. Native/provider and hosted acceptance remain unqualified. Independent338 actual local browser read-failure crossing FAILED: withdrawn message body NULL but cached list still displayed its words; bot r4234938133 remains open. Latest447 checkpoint: startup Try again and bounded membership retries pass; withdrawn human words clear despite failed refetch; desktop erase passes. New mobile feed-first erase focus failure, retained contributor metadata under failed refetch and actual201-contributor contract failure remain open (CX15). Historical failures above describe earlier candidates, not unresolved repetitions. Native/provider/hosted acceptance remains open. Current7660 bounded recheck in CX16 supersedes the affected CX15 failures: human contributor metadata,201-writer contract and original mobile focus pass; late erase navigation fails. New4575 source is not yet qualified. Native/provider/hosted acceptance remains open. Exact0f affected erasure navigation/retry/feed cases pass locally (CX17); current-main/A08 correction is newer unqualified source. G2/native/provider/hosted acceptance remains open. CX18 independently reproduces P1 false erasure/draft loss under capped-list churn on0f; source unchanged5c, automatic review confirms. Overall erasure/privacy release qualification is withheld pending correction.",
       "live_blockers": [
@@ -395,12 +396,22 @@
       "evidence_refs": [
         "CX-0043.md",
         "CX-0054.md",
-        "CX-0056.md"
+        "CX-0056.md",
+        "CX-0106.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing. CX54:isolatedS2source realPG18tests17pass1fail finds historical approval cycling resets new lineage; correction required. No native dispatch/provider/host-copy or live allowance qualification; status unchanged.",
       "baseline_evidence": [],
       "current_checkpoint": "CX-0056.md",
-      "latest_checkpoint": "S2 0dc scoped source-preparation PG24PASS; no native proof. Fresh af successful-erasure/cache-removal P1 L0FAIL1/controls2; correction f4 pending source/app review. No live approval/acceptance."
+      "latest_checkpoint": "S2 0dc scoped source-preparation PG24PASS; no native proof. Fresh af successful-erasure/cache-removal P1 L0FAIL1/controls2; correction f4 pending source/app review. No live approval/acceptance.",
+      "latest_scope_findings": {
+        "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+        "level": "DormantS2L1 actualoperatorTRUNCATEFAIL; APIworkerdenied, no native/liveeffect",
+        "refs": [
+          "r4241698744 independentlyFAIL",
+          "CX106sourcehook40P01qualifiedhold"
+        ],
+        "limitation": "Fullcase status unchanged; operatorguards pending correction; native/provider/app androllbackqualificationopen."
+      }
     },
     {
       "id": "CON01-A14",
@@ -827,12 +838,22 @@
       "evidence_refs": [
         "CX-0093.md",
         "CX-0094.md",
-        "CX-0095.md"
+        "CX-0095.md",
+        "CX-0106.md"
       ],
       "limitation": "G1 intermediate exists at95ea5126; this case has not yet been independently qualified on its full required native/browser/app crossing.",
       "baseline_evidence": [],
       "current_checkpoint": "CX-0093.md",
-      "latest_checkpoint": "EarlierCount amendment cb05645e independently L0 scoped-qualified19committed+12ownpass; same script parent8pass4fail; entire under40 rendered result unchanged. Actual native/accounting/app evidence still unqualified."
+      "latest_checkpoint": "EarlierCount amendment cb05645e independently L0 scoped-qualified19committed+12ownpass; same script parent8pass4fail; entire under40 rendered result unchanged. Actual native/accounting/app evidence still unqualified.",
+      "latest_scope_findings": {
+        "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+        "level": "DormantS2L1 actualoperatorTRUNCATEFAIL; APIworkerdenied, no native/liveeffect",
+        "refs": [
+          "r4241698744 independentlyFAIL",
+          "CX106sourcehook40P01qualifiedhold"
+        ],
+        "limitation": "Fullcase status unchanged; operatorguards pending correction; native/provider/app androllbackqualificationopen."
+      }
     },
     {
       "id": "CON01-A29",
@@ -851,7 +872,8 @@
         "CX-0077.md",
         "CX-0102.md",
         "CX-0103.md",
-        "CX-0105.md"
+        "CX-0105.md",
+        "CX-0106.md"
       ],
       "limitation": "G1 database/API arm independently passed on95ea5126, including corrected membership race. Required native/browser/policy/release/app arms remain open. CX19 supersedes affected CX18 failures within exact82f local scope: Local erasure continuity bounded pass; no hosted rollback executed or qualified. Required G2/native/provider/hosted arms remain open. CurrentCX20: External-client local state and message-level derived state cleanup unqualified; hosted governed rollback still not run.",
       "live_blockers": [
@@ -872,14 +894,12 @@
       },
       "latest_scope_findings": {
         "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
-        "level": "DormantN4L1 scopedPASS correction; original16fe/923FAIL retained",
+        "level": "DormantS2L1 actualoperatorTRUNCATEFAIL; APIworkerdenied, no native/liveeffect",
         "refs": [
-          "r4241643132 scoped_resolved",
-          "CX102-P1-01 scoped_resolved",
-          "CX102-P1-02 scoped_resolved",
-          "r4241643135 ownerpolicychoicepending"
+          "r4241698744 independentlyFAIL",
+          "CX106sourcehook40P01qualifiedhold"
         ],
-        "limitation": "Fullcase unchanged, no native/provider/hosted/releaseapproval."
+        "limitation": "Fullcase status unchanged; operatorguards pending correction; native/provider/app androllbackqualificationopen."
       }
     },
     {
@@ -1062,17 +1082,17 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0105.md",
+    "record": "CX-0106.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
     "supplementalTree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Completeb5attemptcorrelationcorrection independentlyrechecked:77parallel+11ownPASS; firstharness5stimeout/SyntaxErrorexits1retained. r3132scopedresolved, conservativewithdrawalpolicyownerchoicepending;36fullstatusesretained.",
+    "statement": "Freshb5automaticP2operatorTRUNCATE independentlyreproduced2FAIL2controlsPASS; sourcehook40P01lockinversionproven, nativeparentstdoutcopyidentifiedbeforeB1. Primaryseparatecorrection/readonlyN5proposalinprogress. All36fullstatusesretained.",
     "readiness": {
       "source_ready": true,
-      "N4_source_ready": true,
-      "locally_verified": "Namedb5attemptcorrelation/current-source/priorprivacy/accounting/replay/denialscopesPASS77+11; firstharnessfailuresretained. No native/provider/hostedproof.",
+      "N4_source_ready": "Exactb5N4namedcorrectionsqualified; combineddormantG2candidatehasnewS2P2changes_requested",
+      "locally_verified": "Earlierb5N4parallel77+own11PASS retained. NewS2operatorTRUNCATE2FAIL/2PASS; sourcehookdeadlockqualifiedhold; staticnativecopyinventorynotruntimeproof.",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1081,8 +1101,8 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
-    "cleanup": "Two newownedPGclusters stopped/PIDabsent/removed; finalfixtureDB/rolesabsent0clients. Allpreviousownedclusterssettled. No newbrowser/app/hosted/native/provider/spend.",
-    "next": "Verify actualdraft211head/reviewrequest and terminalauthorC/ICU/mutantreceipts; assess exactb5automaticreview/ownerpolicyanswer before next source integration. Keepmerge/liveheld."
+    "cleanup": "Two newownedPG17.6clusters stopped/PIDabsent/removed; bothfixturesDBrolesabsent0clients. No newbrowser/app/native/provider/hostedeffects; priorclusterssettled.",
+    "next": "ReviewearlyimmutableprimaryS2truncatecorrection andindependentlyrerun fourtable/uncertainhistory/rolecontrols; inspectreadonlyN5writer/nativecopy proposal and terminal923/b5gates before shared/nativeintegration."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1230,17 +1250,17 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0104.md",
+    "record": "CX-0105.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
-    "supplementalCandidate": "923336e23d6f47a9138f329186c788217ae11b1e",
-    "supplementalTree": "407118d0041b3ce2ea207459060cb2a08c23ce11",
+    "supplementalCandidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+    "supplementalTree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Fresh exact923automaticreview: independentactualPG4cases2PASS2attempt-correlationFAIL. Boundedcutoffmatchesexistingpolicy; primaryseparatecorrectionpending. EarlierCX103passes retained; full36statusesunchanged.",
+    "statement": "Completeb5attemptcorrelationcorrection independentlyrechecked:77parallel+11ownPASS; firstharness5stimeout/SyntaxErrorexits1retained. r3132scopedresolved, conservativewithdrawalpolicyownerchoicepending;36fullstatusesretained.",
     "readiness": {
       "source_ready": true,
-      "N4_source_ready": "immutable923available; newattemptcorrelationP1changes_requested",
-      "locally_verified": "EarlierCX103namedprivacyPASS retained; fresh923answered/pendingattemptcorrelation2FAIL, conservativecutoff/nooperations2PASS; no native/provider/hosted proof.",
+      "N4_source_ready": true,
+      "locally_verified": "Namedb5attemptcorrelation/current-source/priorprivacy/accounting/replay/denialscopesPASS77+11; firstharnessfailuresretained. No native/provider/hostedproof.",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1249,8 +1269,8 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
-    "cleanup": "One new ownedPG17.6 stopped/PIDabsent/removed; ownDB/rolesabsent0clients; earlierthreeclustersalsosettled. No newbrowser/app/hosted/native/provider/spendeffect.",
-    "next": "Review separate immutable primary attemptcorrelation correction, independently rerun answered/pending/running plus relevant-sourcecontrols and affected priorprivacytests; inspect exactterminalgates/automaticadjudication before any draftadvance."
+    "cleanup": "Two newownedPGclusters stopped/PIDabsent/removed; finalfixtureDB/rolesabsent0clients. Allpreviousownedclusterssettled. No newbrowser/app/hosted/native/provider/spend.",
+    "next": "Verify actualdraft211head/reviewrequest and terminalauthorC/ICU/mutantreceipts; assess exactb5automaticreview/ownerpolicyanswer before next source integration. Keepmerge/liveheld."
   },
   "checkpoint_history": [
     {
@@ -1723,6 +1743,29 @@
       "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
       "cleanup": "One new ownedPG17.6 stopped/PIDabsent/removed; ownDB/rolesabsent0clients; earlierthreeclustersalsosettled. No newbrowser/app/hosted/native/provider/spendeffect.",
       "next": "Review separate immutable primary attemptcorrelation correction, independently rerun answered/pending/running plus relevant-sourcecontrols and affected priorprivacytests; inspect exactterminalgates/automaticadjudication before any draftadvance."
+    },
+    {
+      "record": "CX-0105.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+      "supplementalTree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
+      "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "statement": "Completeb5attemptcorrelationcorrection independentlyrechecked:77parallel+11ownPASS; firstharness5stimeout/SyntaxErrorexits1retained. r3132scopedresolved, conservativewithdrawalpolicyownerchoicepending;36fullstatusesretained.",
+      "readiness": {
+        "source_ready": true,
+        "N4_source_ready": true,
+        "locally_verified": "Namedb5attemptcorrelation/current-source/priorprivacy/accounting/replay/denialscopesPASS77+11; firstharnessfailuresretained. No native/provider/hostedproof.",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+      "cleanup": "Two newownedPGclusters stopped/PIDabsent/removed; finalfixtureDB/rolesabsent0clients. Allpreviousownedclusterssettled. No newbrowser/app/hosted/native/provider/spend.",
+      "next": "Verify actualdraft211head/reviewrequest and terminalauthorC/ICU/mutantreceipts; assess exactb5automaticreview/ownerpolicyanswer before next source integration. Keepmerge/liveheld."
     }
   ]
 }

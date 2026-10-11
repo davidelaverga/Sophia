@@ -1,0 +1,45 @@
+{
+  "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+  "level": "L1 local PG17.6; supplied answers; no native/provider/hosted",
+  "cases": [
+    {
+      "name": "Held source-hook body has source-to-project inversion against publication",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "No operational model or allowance work from lock-order proof",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "lockOrder": {
+      "publicationWaitObserved": true,
+      "writer": {
+        "outcome": "source_out"
+      },
+      "publisher": {
+        "code": "40P01"
+      },
+      "deadlockObserved": true,
+      "sourceHookInstalled": false,
+      "scope": "Directly calling held hook body after a source-row-first write, no actual trigger installed"
+    },
+    "collateral": {
+      "commands": 0,
+      "jobs": 0,
+      "work_attempts": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_grants": 0,
+      "conversation_reservations": 0
+    }
+  },
+  "cleanup": {
+    "databaseDropped": true,
+    "rolesAbsent": true,
+    "remainingDatabases": [],
+    "otherClients": 0
+  },
+  "finishedAt": "2026-10-11T13:16:28.270Z"
+}
