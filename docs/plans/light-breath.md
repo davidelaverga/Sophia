@@ -44,4 +44,5 @@
 - The halo's pseudo-element painted after the light's children, and only the trace had been lifted: on Home and after
   the sign-in's threshold forms, the white heart painted over the formed mark. The light now isolates its stacking and
   the halo sits at `z-index: -1` inside it, behind every child (the formed mark, the trace); the trace's own lift goes.
-  `light-breath.spec` reads the halo's layer and hits the mark through its centre on Home.
+  `light-breath.spec` reads the halo's layer and, on Home, that the formed mark is a positioned child above it (a hit
+  test cannot say so: the light takes no pointer events).

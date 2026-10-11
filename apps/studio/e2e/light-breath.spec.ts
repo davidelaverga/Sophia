@@ -56,15 +56,14 @@ test('light · on Home her light blends as ink on the page, and the formed mark 
   const read = await lightRead(page)
   expect(read?.blend).toBe('multiply')
   expect(read?.haloZ).toBe('-1')
-  // The mark is a child of the light, after the halo in paint order: it is what the point under its centre hits.
-  const over = await page.evaluate(() => {
-    const mark = document.querySelector<SVGSVGElement>('svg.threshold')
-    if (!mark) return null
-    const r = mark.getBoundingClientRect()
-    const hit = document.elementFromPoint(r.left + r.width * 0.3, r.top + r.height * 0.55)
-    return hit ? hit.closest('svg.threshold') !== null : null
+  // The mark is a positioned child of the light, which isolates its stacking: with the halo at -1 the mark paints over
+  // it (a hit test cannot say so: the light takes no pointer events).
+  const mark = await page.evaluate(() => {
+    const svg = document.querySelector<SVGSVGElement>('.light > svg.threshold')
+    return svg ? { position: getComputedStyle(svg).position, z: getComputedStyle(svg).zIndex } : null
   })
-  expect(over).toBe(true)
+  expect(mark?.position).toBe('absolute')
+  expect(['auto', '0', '1']).toContain(mark?.z)
 })
 
 test('the room: the light carries no CSS animation (its canvas breathes), and no halo pseudo-element', async ({
