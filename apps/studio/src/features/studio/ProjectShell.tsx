@@ -241,13 +241,14 @@ const viewCommands = (view: View, onShow: (view: View) => void) =>
  */
 function useProjectKeys(
   go: { onLeave: () => void; onWork: () => void; invite: () => void; search: () => void; show: (view: View) => void },
-  at: { view: View; inviting: boolean; mayInvite: boolean; shown: boolean },
+  at: { view: View; inviting: boolean; mayInvite: boolean; shown: boolean; blocked: boolean },
 ) {
   useCommands(
     [
       { id: 'home', words: 'Home', group: 'go', key: 'h', run: go.onLeave },
       { id: 'work', words: 'Your projects', group: 'go', key: 'w', run: go.onWork },
-      ...viewCommands(at.view, go.show),
+      // Behind a shut door there are no views to go to: Home and Your projects stay (Codex on #238).
+      ...(at.blocked ? [] : viewCommands(at.view, go.show)),
       { id: 'invite', words: 'Invite someone', group: 'do', key: 'i', run: at.mayInvite ? go.invite : undefined },
       {
         id: 'search',
@@ -332,7 +333,10 @@ export function ProjectShell(props: Props) {
   const work = useTasksWork(props, feed, membership, blocked)
   useBeyondTheView(props, snapshot.data, room, blocked)
   const mayInvite = !!shown && canInvite(membership)
-  useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, { view, inviting, mayInvite, shown: !!shown })
+  useProjectKeys(
+    { onLeave, onWork, invite, search, show: onShow },
+    { view, inviting, mayInvite, shown: !!shown, blocked: !!blocked },
+  )
   return (
     <CallKeptInReach room={room} background={!!props.background}>
       <div className="shell" data-view={view}>

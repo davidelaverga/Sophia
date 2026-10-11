@@ -58,6 +58,8 @@ this handoff.
 - After the review (Codex on #231, 2026-10-11): the controls' `font: inherit` inherited the parent's leading, so a
   small control kept 20 instead of 16; the controls' rule and `.text-button` name the formula after the shorthand, and
   `typeOff` enforces each size's own step (the two reading voices left out). Measured locally: type-scale.spec green.
+- Correction after the local full run (2026-10-11): `.text-button` keeps 20 px at every size (a control's box is 24);
+  `typeOff` accepts a control's leading when its box stands on the controls' grid.
 
 ## Remaining obligations
 

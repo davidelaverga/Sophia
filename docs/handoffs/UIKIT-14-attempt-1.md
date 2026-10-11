@@ -43,6 +43,8 @@ completed code state of this PR.
 - After the review (Codex on #236, 2026-10-11): five lanes stand three and two under 1221 px (each 220 and up), and
   the threads are measured again whenever the lanes' boxes change (a lane coming or going, a resize). work.spec holds
   both.
+- After the review (Codex on #236, round 2): the narrower rows name `[data-lanes]` too, so two columns at 1000 and
+  one at 760 win over the five-lane rule; work.spec reads the rows at 800 and 390.
 
 ## Remaining obligations
 
