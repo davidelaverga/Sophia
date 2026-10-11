@@ -9,6 +9,11 @@ Ending commit/tree: `4ac5d6f2` (tree `459363137df0`): 8 files, 5 new (`message-a
 `MessageActs.tsx`, `e2e/conversation-acts.spec.ts`, `docs/plans/conversation-acts.md`); `OpenConversation.tsx`,
 `conversations.css`, `packages/ui/src/Icon.tsx` (two icons: `copy`, `quote`). The commit after it adds only this
 handoff.
+After the review (Codex on #240, four P2): `d6e2af38` says «Not copied: select the words to copy them.» when the
+clipboard refuses or is absent (measured in the pane, whose clipboard refuses: rose, `data-kind="failed"`), says
+«Copied» anew on each success, sends the quote to the composer's own field past an open proposal form, and on a
+coarse pointer starts another's presses at the bubble's left (measured at 375: presses 2–134 in a pane 0–375; one's
+own 241–373). That is the completed code state of this PR.
 
 ## Outcome
 
