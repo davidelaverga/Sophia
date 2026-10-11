@@ -146,15 +146,28 @@ const NEEDS: Record<string, Need[] | undefined> = {
   none: [],
 }
 const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undefined
-/** `needs=api`: the Studio's own read of GET /api/v1/me/needs (api/needs.ts), answered here as the fixture's API would. */
+/**
+ * `needs=api`: the Studio's own read of GET /api/v1/me/needs (api/needs.ts), answered here as the fixture's API would;
+ * its seen write (POST …/needs/<id>/seen) is recorded as "seen <id>" and that need leaves the next answer.
+ */
 const viaApi = query.get('needs') === 'api'
 if (viaApi) {
   const real = window.fetch.bind(window)
+  const seen = new Set<string>()
   window.fetch = (input, init) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-    if (new URL(url, window.location.href).pathname === '/api/v1/me/needs') {
+    const { pathname } = new URL(url, window.location.href)
+    const marked = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(pathname)
+    if (marked && init?.method === 'POST') {
+      const needId = decodeURIComponent(marked[1] ?? '')
+      seen.add(needId)
+      pressed.push(`seen ${needId}`)
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    if (pathname === '/api/v1/me/needs') {
       needsReads += 1
-      const body = JSON.stringify(needsAnswer())
+      const answer = needsAnswer()
+      const body = JSON.stringify({ ...answer, needs: answer.needs.filter((n) => !seen.has(n.id)) })
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
     }
     return real(input, init)

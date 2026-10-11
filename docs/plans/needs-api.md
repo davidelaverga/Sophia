@@ -67,7 +67,16 @@
   arrived beside it; `clockSkew(readAt, receivedAt)` is what to add to now, and Welcome hands `NeedsYou` now on the
   service's clock. An unreadable `readAt` adds nothing.
 - **The record a ref names** (P2). `whereOf` carries `at`: a `work_item` is named in Tasks' fragment (`#task-`, as
-  Updates' arrivals do); an `artifact_version` opens in Knowledge's viewer, for which A15's `ref` now carries the
-  version's report (`artifactId`, null for every other kind), since the viewer's address names the report first.
-  A decision, a lobby entry and a personal turn have no address of their own yet: their view, until one exists.
-  `useProjectRoute.openAt(projectId, view, at)` pushes the route with the viewer's search, then names the task.
+  Updates' arrivals do); a decision through the work item that holds it; an `artifact_version` opens in Knowledge's
+  viewer through the report that holds it. For both, A15's `ref` carries `within`: the record that holds the named one
+  (a version's report, a decision's work item), null otherwise. A lobby entry and a personal turn have no address of
+  their own: their view. `useProjectRoute.openAt(projectId, view, at)` pushes the route with the viewer's search, then
+  names the task.
+- **A decision is the work board's** (P2, round 2). The mission ledger's decisions have neither a respondent nor an
+  expiry; `WorkDecision` has a decider, an expiry and is what Tasks renders. `ref.kind` says `work_decision`, and the
+  service selects the open ones whose decider is the person.
+- **A reply leaves through a seen mark** (P2, round 2). A10 keeps no read cursor, so a reply would stay forever. A15
+  adds `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204): for a reply it advances the person's last seen
+  personal turn to the one named (a mark A10 keeps beside the space); for any other kind it changes nothing. The Studio
+  posts it when a reply is opened from Home and reads the list again; the fixture records `seen <id>` and drops the need
+  from its next answer, which `home-needs.spec` checks (the row leaves).

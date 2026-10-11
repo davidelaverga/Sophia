@@ -4,8 +4,8 @@
   "title": "What needs the calling person, across their projects and their personal space, in one read (Needs you)",
   "why": [
     "Informe-30 F2 and informe-pasada-3 (2026-10-10/11): what needs a person today is spread over a project's Tasks (a decision waiting on them, with an expiry), a task's sheet (a native permission an agent asks for), Knowledge (a review asked of them), a room's lobby (a guest waiting) and their personal space (Sophia's reply they have not read). A power user starting the day visits each to learn nothing is waiting. Home's right half shows the list already (Studio PR #237, behind the vision flag, on fixture data); this names the read that fills it.",
-    "One route for the calling person, owner-only as the personal space is (A10): nothing of another person is in it, and a project is in it only through the person's membership. Each need says what it is, where it lives and, for a decision or a permission, when it stops waiting; the reader opens it where it lives (the Studio names the view by its kind). The service builds it from what it already keeps: the mission ledger's proposed decisions whose respondent is the person (A08), the work board's waits of kind native_permission naming them (A13), the artifact reviews asked of them (A11), the lobby entries waiting in rooms of projects they admit to (A02, A03), and the personal turns Sophia answered after the person's last read (A10). Each is identified by its own record (ref), so the Studio never guesses, and the list is sorted by urgency on the Studio's side (the expiring first).",
-    "Not in this amendment: marking a need read, or dismissing it; a badge count is the list's length. A need leaves the list when its record is answered where it lives (the decision decided, the permission granted or refused, the review done, the guest let in or declined, the turn read)."
+    "One route for the calling person, owner-only as the personal space is (A10): nothing of another person is in it, and a project is in it only through the person's membership. Each need says what it is, where it lives and, for a decision or a permission, when it stops waiting; the reader opens it where it lives (the Studio names the view by its kind). The service builds it from what it already keeps: the work board's decisions whose decider is the person and that are still open (WorkDecision, with its expiry: the decision Tasks renders; the mission ledger's decisions have neither a respondent nor an expiry), the work board's waits of kind native_permission naming them (A13), the artifact reviews asked of them (A11), the lobby entries waiting in rooms of projects they admit to (A02, A03), and the personal turns Sophia answered after the person's last seen turn (A10, with the seen mark this amendment adds). Each is identified by its own record (ref), so the Studio never guesses, and the list is sorted by urgency on the Studio's side (the expiring first).",
+    "A need leaves the list when its record is answered where it lives (the decision decided, the permission granted or refused, the review done, the guest let in or declined). A reply has no answer of its own, so this amendment adds the one transition it needs: POST /api/v1/me/needs/{id}/seen, owner-only, idempotent, which advances the person's last seen personal turn to the one the need names (A10 keeps that mark beside the space; the Studio posts it when the person opens the reply from Home, and the service may advance it too when the space itself is read). For any other kind the write answers 204 and changes nothing: those leave when answered. Not in this amendment: dismissing a need; a badge count is the list's length."
   ],
   "patch": [
     {
@@ -90,14 +90,15 @@
             "properties": {
               "kind": {
                 "type": "string",
-                "enum": ["mission_decision", "work_item", "artifact_version", "lobby_entry", "personal_turn"]
+                "enum": ["work_decision", "work_item", "artifact_version", "lobby_entry", "personal_turn"],
+                "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait, an artifact version, a lobby entry, a personal turn."
               },
               "id": {
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 200
               },
-              "artifactId": {
+              "within": {
                 "anyOf": [
                   {
                     "type": "string",
@@ -107,10 +108,10 @@
                     "type": "null"
                   }
                 ],
-                "description": "For an artifact_version: the report the version belongs to, so the Studio opens that version in Knowledge. Null for every other kind."
+                "description": "The record that holds it, when the Studio's address needs it: a version's report (artifact_version), a decision's work item (work_decision). Null otherwise."
               }
             },
-            "required": ["kind", "id", "artifactId"]
+            "required": ["kind", "id", "within"]
           }
         },
         "required": ["id", "kind", "title", "projectId", "projectTitle", "expiresAt", "detail", "at", "ref"]
@@ -169,6 +170,73 @@
             },
             "403": {
               "description": "Not permitted (a guest has no needs of their own)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1needs~1{id}~1seen",
+      "value": {
+        "post": {
+          "operationId": "markNeedSeen",
+          "tags": ["personal"],
+          "summary": "The calling person has seen this need. For a reply (ref.kind personal_turn) it advances their last seen personal turn to the one named, so the reply leaves the list; for any other kind it answers 204 and changes nothing (those leave when their record is answered). Owner-only and idempotent.",
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": "The need's id (`<kind>:<ref.id>`)."
+            }
+          ],
+          "responses": {
+            "204": {
+              "description": "Seen (or nothing to mark for this kind)"
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no needs of their own)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "404": {
+              "description": "No such need for this person",
               "content": {
                 "application/json": {
                   "schema": {

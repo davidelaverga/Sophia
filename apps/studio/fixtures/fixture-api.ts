@@ -337,8 +337,8 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
   })
 }
 
-/** A need's ref; a version's names its report too (A15 after Codex on #245), so the Studio opens that version. */
-const needRef = (kind: string, id: string, artifactId: string | null = null) => ({ kind, id, artifactId })
+/** A need's ref, with the record that holds it when the address needs it: a version's report, a decision's work item. */
+const needRef = (kind: string, id: string, within: string | null = null) => ({ kind, id, within })
 
 /** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
 export function needsAnswer(now = Date.now()) {
@@ -378,7 +378,7 @@ export function needsAnswer(now = Date.now()) {
       need('decision:d1', 'decision', 'Ship the retry with the hotfix?', {
         expiresAt: at(20),
         at: at(-60),
-        ref: needRef('mission_decision', 'd1'),
+        ref: needRef('work_decision', 'd1', '00000000-0000-4000-8000-0000000000c3'), // the work item that holds it
       }),
       need('reply:t9', 'reply', 'Sophia replied about the launch date', {
         projectId: null,
