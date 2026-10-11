@@ -106,11 +106,16 @@ type LaneView = { key: Exclude<Lane, 'closed'>; label: string; mark: Mark; empty
 const LANES: LaneView[] = [
   { key: 'active', label: 'Active', mark: 'working', empty: 'Nothing active' },
   { key: 'next', label: 'Up next', mark: 'later', empty: 'Nothing waiting to start' },
+  { key: 'blocked', label: 'Blocked', mark: 'held', empty: 'Nothing blocked' },
   { key: 'unassigned', label: 'Unassigned', mark: 'free', empty: 'Nothing unassigned' },
   { key: 'complete', label: 'Complete', mark: 'complete', empty: 'Nothing complete yet' },
 ]
 
-const inLane = (rows: readonly PlanRow[], lane: Lane) => rows.filter((r) => laneOf(r) === lane)
+const inLane = (rows: readonly PlanRow[], lane: Lane) => rows.filter((r) => laneOf(r, rows) === lane)
+
+/** The lanes the board shows: Blocked only while something is. */
+const shownLanes = (rows: readonly PlanRow[]) =>
+  LANES.filter((l) => l.key !== 'blocked' || inLane(rows, 'blocked').length > 0)
 
 /** How many tiles a lane shows before it keeps the rest one press away. */
 const SHOWN = 5
@@ -458,7 +463,7 @@ function useBoard(rows: readonly PlanRow[], viewerId: string | null, changed: Re
   return { lit, setLit, open, setOpen, lens, setLens, waited, flags, step }
 }
 
-/** The four lanes side by side, moved through by the arrows, with the threads drawn over them. */
+/** The lanes side by side (four; five while something is blocked), moved through by the arrows, with the threads drawn over them. */
 function Lanes({
   rows,
   board,
@@ -469,16 +474,18 @@ function Lanes({
   tile: Omit<LaneProps, 'lane' | 'rows'>
 }) {
   const lanes = useRef<HTMLDivElement>(null)
+  const shown = shownLanes(rows)
   return (
     <div
       ref={lanes}
       className="board-lanes"
+      style={{ '--lanes': shown.length }}
       data-threading={board.waited.length > 0 || undefined}
       onKeyDown={(e) => {
         if (lanes.current && moveOnBoard(lanes.current, e.key)) e.preventDefault()
       }}
     >
-      {LANES.map((lane) => (
+      {shown.map((lane) => (
         <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} />
       ))}
       <Threads box={lanes} to={board.lit} from={board.waited} />

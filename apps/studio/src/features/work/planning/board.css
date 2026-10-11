@@ -230,7 +230,8 @@
 .board-lanes {
   display: grid;
   position: relative;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Four lanes; five while something is blocked (PlanBoard sets --lanes). */
+  grid-template-columns: repeat(var(--lanes, 4), minmax(0, 1fr));
   gap: 12px;
   align-items: start;
 }
@@ -247,6 +248,9 @@
 }
 .lane:nth-child(4) {
   --lane-delay: 240ms;
+}
+.lane:nth-child(5) {
+  --lane-delay: 320ms;
 }
 .lane-head {
   display: flex;

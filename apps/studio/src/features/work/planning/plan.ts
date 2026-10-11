@@ -147,7 +147,7 @@ export type Mark =
   | 'free'
   | 'complete'
   | 'closed'
-export type Lane = 'active' | 'next' | 'unassigned' | 'complete' | 'closed'
+export type Lane = 'active' | 'next' | 'blocked' | 'unassigned' | 'complete' | 'closed'
 
 export interface Status {
   mark: Mark
@@ -394,8 +394,20 @@ export function actionOf(row: PlanRow, kind: ActionKind): ItemAction | null {
 }
 export const allowed = (row: PlanRow, kind: ActionKind) => actionOf(row, kind)?.availability === 'allowed'
 
-/** The lane a row sits in. */
-export const laneOf = (row: PlanRow): Lane => LANE[row.status.mark]
+const DONE: ReadonlySet<Lane> = new Set(['complete', 'closed'])
+
+/** Whether a row waits on an item of its plan that is not done. One outside the plan is unknown, and doesn't block. */
+const blockedIn = (row: PlanRow, rows: readonly PlanRow[]) =>
+  row.item.blocked_by.some((id) => {
+    const blocker = rows.find((r) => r.item.id === id)
+    return blocker !== undefined && !DONE.has(LANE[blocker.status.mark])
+  })
+
+/** The lane a row sits in: its mark's; Blocked when it is up next but waits on an item of its plan not done yet. */
+export const laneOf = (row: PlanRow, rows: readonly PlanRow[]): Lane => {
+  const lane = LANE[row.status.mark]
+  return lane === 'next' && blockedIn(row, rows) ? 'blocked' : lane
+}
 
 /** Whether a row is for the viewer: a pending request names them, or they do it by hand. Owning an account is not. */
 export const forViewer = (row: PlanRow, viewerId: string | null) =>

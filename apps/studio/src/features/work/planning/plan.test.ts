@@ -11,6 +11,7 @@ import {
   forViewer,
   forYou,
   LANE,
+  laneOf,
   latestDecisions,
   outsideOf,
   relation,
@@ -608,5 +609,42 @@ describe('decisions and a session’s last report', () => {
     assert.equal(freshness('2026-10-02T12:00:00Z', now), 1)
     assert.equal(freshness('2026-10-02T11:59:00Z', now), 0.5)
     assert.equal(freshness('2026-10-02T11:50:00Z', now), 0)
+  })
+})
+
+describe('the Blocked lane', () => {
+  const lanes = (items: Parameters<typeof plan>[0], views: Parameters<typeof goal>[1]) => {
+    const rows = rowsOf(goal(plan(items), views))
+    return Object.fromEntries(rows.map((r) => [r.item.id, laneOf(r, rows)]))
+  }
+  const after = item('b', {
+    blocked_by: ['a'],
+    activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+  })
+
+  it('holds a row up next whose blocker is still active', () => {
+    const got = lanes([item('a'), after], [view('a', { lifecycle: 'running' }), view('b')])
+    assert.deepEqual(got, { a: 'active', b: 'blocked' })
+  })
+
+  it('lets the row go up next once its blocker is complete', () => {
+    const got = lanes(
+      [item('a'), after],
+      [
+        view('a', {
+          lifecycle: 'complete',
+          completion: { policy_ref: 'policy-a', status: 'satisfied', evidence_refs: ['e-a'] },
+        }),
+        view('b'),
+      ],
+    )
+    assert.equal(got.b, 'next')
+  })
+
+  it('does not hold a row for a blocker outside the plan, nor a review waiting for its candidate', () => {
+    const review = item('c', { activation: { kind: 'candidate_ready', producer_work_id: 'a' } })
+    const stray = item('d', { blocked_by: ['not-in-plan'] })
+    const got = lanes([item('a'), review, stray], [view('a', { lifecycle: 'running' }), view('c'), view('d')])
+    assert.deepEqual([got.c, got.d], ['next', 'next'])
   })
 })
