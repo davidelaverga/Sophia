@@ -26,6 +26,7 @@ const PAGES = [
  * one that is already on (the page's own link, the chosen tab or option), which a press would not change.
  */
 const PRESSES = [
+  'summary', // a native disclosure (the mission's «Settings and history») is a press too (Codex on #232)
   'button:not([aria-checked="true"]):not([aria-selected="true"]):not(.segmented [aria-pressed="true"])',
   'a[href]:not([aria-current])',
   '[role="button"]',
