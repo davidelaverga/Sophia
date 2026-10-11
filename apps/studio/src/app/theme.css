@@ -345,6 +345,12 @@ select option {
   color: var(--text);
   background: rgba(236, 235, 241, 0.06);
 }
+/* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
+.ghost:active:not(:disabled, [aria-disabled='true']),
+.round:active:not(:disabled, [aria-disabled='true']),
+.text-button:active:not([aria-disabled='true']) {
+  transform: translateY(0.5px);
+}
 /* Icon controls: squares with a small radius (the class name predates the shape). */
 .round {
   display: inline-grid;
@@ -386,6 +392,11 @@ select option {
   text-decoration: underline;
   text-decoration-color: rgba(185, 168, 255, 0.35);
   text-underline-offset: 3px;
+  transition: text-decoration-color var(--fast) var(--ease);
+}
+/* Under the pointer the underline wakes from a third of its ink to the ink. */
+.text-button:hover:not([aria-disabled='true']) {
+  text-decoration-color: var(--halo-text);
 }
 /* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
    class alone (a pill 32, a ghost 28, a square 36, an inline action 24); a modifier takes it one step down or up
@@ -748,6 +759,10 @@ button.mark:hover {
   border: 0;
   border-radius: 50%;
   background: none;
+}
+/* Under the pointer the avatar's edge lights, as a square's does; open, it is the warm. */
+.account-btn:hover .avatar {
+  border-color: var(--line-3);
 }
 .account-btn[aria-expanded='true'] .avatar {
   border-color: var(--warm);
