@@ -729,12 +729,9 @@
   align-items: center;
   gap: 6px;
 }
-/* The acts stand at the message's right edge (its box, which wraps its bubble): one's own at the bubble's corner, and
-   another's at a box never narrower than the acts' row, so a short bubble's acts stand to its right inside the pane,
-   never over the byline at its left. */
-.conv-msg:not(.mine) {
-  min-width: 154px; /* four presses of 28 with their gaps, and the 12 px the row reaches past the edge on each side */
-}
+/* The acts stand at the message's right edge (the message's box, the thread's whole width, is theirs: they are mounted
+   beside the bubble, not in it): one's own at its bubble's corner, another's across the row from its bubble, in the
+   same column; never over the byline at the left, never past the pane, whatever the bubble's width. */
 .conv-propose {
   display: flex;
   align-items: center;
