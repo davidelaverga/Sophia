@@ -51,7 +51,8 @@ test('goal controls · a text button that is disabled shows no hover and the ste
     probe.className = 'control-row'
     probe.innerHTML = '<button class="pill">a</button><button class="text-button">b</button>'
     document.body.append(probe)
-    const stray = getComputedStyle(probe.lastElementChild as Element).marginLeft
+    const strayEl = probe.lastElementChild
+    const stray = strayEl ? getComputedStyle(strayEl).marginLeft : null
     probe.remove()
     return { rest, disabled, stray, step: getComputedStyle(hold).marginLeft }
   })
