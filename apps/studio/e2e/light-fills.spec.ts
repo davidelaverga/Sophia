@@ -36,23 +36,26 @@ const box = (page: Page, selector: string) =>
 
 const PAPER = 'rgb(251, 248, 243)'
 
-test('light · Tasks: a report tile is a tint with the accent as ink, at 4.5:1 or more', async ({ page }) => {
+test('light · Tasks: a report tile is an opaque tint with the accent as ink, at 4.5:1 or more', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=work&theme=light')
   await drawn(page, DRAWN.tasks)
   const tile = await box(page, '.report-tile')
   expect(tile).not.toBeNull()
-  const alpha = Number(rgb(tile?.fill ?? '')?.[4] ?? 1)
-  expect(alpha).toBeLessThan(0.2)
+  // Opaque: the tint is mixed with the paper, so it reads the same over a plane or a cover (Codex on #250).
+  expect(rgb(tile?.fill ?? '')?.[4]).toBeUndefined()
+  expect(tile?.fill).toBe('rgb(218, 228, 222)')
   expect(tile?.ink).not.toBe(PAPER)
   expect(contrast(tile?.ink ?? '', tile?.fill ?? '', PAPER)).toBeGreaterThanOrEqual(4.5)
 })
 
-test('light · Knowledge: the cover’s format tag is a tint of the amber with the amber as ink', async ({ page }) => {
+test('light · Knowledge: the cover’s format tag is an opaque tint of the amber with the amber as ink, over whatever cover', async ({
+  page,
+}) => {
   await page.goto('/room.html?demo=1&place=knowledge&theme=light')
   await drawn(page, DRAWN.knowledge)
   const tag = await box(page, '.report-cover-tag')
   expect(tag).not.toBeNull()
-  expect(tag?.fill).toBe('rgba(143, 87, 23, 0.14)')
+  expect(tag?.fill).toBe('rgb(236, 225, 212)')
   expect(tag?.ink).toBe('rgb(143, 87, 23)')
   expect(contrast(tag?.ink ?? '', tag?.fill ?? '', PAPER)).toBeGreaterThanOrEqual(4.5)
 })

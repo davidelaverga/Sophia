@@ -36,7 +36,14 @@ import { needsAnswer } from './fixture-api.ts'
 
 declare global {
   interface Window {
-    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null; needsReads: () => number }
+    homeFixture?: {
+      pressed: string[]
+      hear: () => void
+      landing: () => string | null
+      needsReads: () => number
+      /** `needsFail=1`: the route fails until this is called (the service back), so Try again can be seen to work. */
+      recover: () => void
+    }
   }
 }
 
@@ -48,6 +55,9 @@ let needsReads = 0
 window.homeFixture = {
   pressed,
   needsReads: () => needsReads,
+  recover: () => {
+    failing = false
+  },
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
@@ -151,6 +161,8 @@ const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undef
  * its seen write (POST …/needs/<id>/seen) is recorded as "seen <id>" and that need leaves the next answer.
  */
 const viaApi = query.get('needs') === 'api'
+/** `needsFail=1`: every read of the route fails (503) until `homeFixture.recover()`, so Home's note and its Try again can be checked. */
+let failing = query.get('needsFail') === '1'
 if (viaApi) {
   const real = window.fetch.bind(window)
   const seen = new Set<string>()
@@ -166,6 +178,10 @@ if (viaApi) {
     }
     if (pathname === '/api/v1/me/needs') {
       needsReads += 1
+      if (failing) {
+        const body = JSON.stringify({ error: { code: 'dependency_unavailable', message: 'The service is away' } })
+        return Promise.resolve(new Response(body, { status: 503, headers: { 'content-type': 'application/json' } }))
+      }
       const answer = needsAnswer()
       const body = JSON.stringify({ ...answer, needs: answer.needs.filter((n) => !seen.has(n.id)) })
       return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
@@ -265,7 +281,13 @@ function Home() {
           date={dateLine(NOW)}
           says={sophiaSays(projects, NOW, call)}
           you={you}
-          reads={set === 'failed' ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }] : []}
+          reads={
+            set === 'failed'
+              ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }]
+              : fromApi.read
+                ? [fromApi.read]
+                : []
+          }
           projects={projects}
           loadingProjects={set === 'loading'}
           now={NOW}
@@ -273,7 +295,9 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           hidden={away}
-          needs={fromApi ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)}
+          needs={
+            fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
+          }
           actions={{
             personal: () => pressed.push('personal'),
             notes: () => pressed.push('notes'),

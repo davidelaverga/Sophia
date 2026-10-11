@@ -34,3 +34,10 @@
   accent) with the accent as ink, at 4.5:1 or more; on sign-in in light the primary press is `rgb(85, 70, 184)` and
   hovers to `rgb(74, 60, 166)`, its ink at 4.5:1 or more; in the room the tile keeps the pastel fill and the void's ink.
 - `light-mode.spec` pins the new hover; `pnpm format`, `lint`, `typecheck`; measured in the pane before the push.
+
+## After the review (Codex on #250)
+
+- An alpha tint takes the colour of whatever is under it: the cover's format tag sits over the card's plane while a
+  report loads (4.3:1 there) and over the page's own first screen after. The tints are now mixed with the paper
+  (the accent at 14 % over `#fbf8f3`, mixed once: `#dae4de`, `#ece1d4`, `#efddde`), opaque, so the tag carries its own backing wherever it sits and
+  the spec measures the fill it has, not a paper it assumes.
