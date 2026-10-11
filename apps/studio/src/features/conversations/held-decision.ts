@@ -3,28 +3,34 @@
 // another view and back finds the same decision, and «Try again» sends it under its key, never a second.
 import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
-import type { MissionContext, MissionReceipt } from '@sophia/contracts'
+import type { MissionReceipt } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { contextKey, decideRefusal, refusalWords, stateOf, useDecideSend, type DecisionAsk } from './decide.ts'
+import {
+  briefSays,
+  contextKey,
+  decideRefusal,
+  refusalWords,
+  stateOf,
+  useDecideSend,
+  type ContextRead,
+  type DecisionAsk,
+} from './decide.ts'
 import { useHeldWrite } from './held-write.ts'
-import { currentGeneration, useKept } from './talk-store.ts'
+import { currentGeneration, useKept, type Kept } from './talk-store.ts'
 
-/** What the brief as last read says of a proposal: whether that read came back, and whether it still waits there. */
-function useBriefRead(projectId: string, identity: Identity) {
+/** What the brief as last read says of a proposal, as kept now (`briefSays`): only a current read says anything. */
+function useBriefRead(projectId: string, identity: Identity, latest: () => Kept) {
   const client = useQueryClient()
-  return (id: string) => {
-    const read = client.getQueryState<MissionContext>(contextKey(projectId, identity))
-    return { fresh: read?.status !== 'error', stillWaiting: read?.data?.pending.some((d) => d.id === id) === true }
-  }
+  return (id: string) => briefSays(client.getQueryState<ContextRead>(contextKey(projectId, identity)), latest(), id)
 }
 
 /** The one decision Still open asks at a time, held by the view; what it said once answered, by the pane that saw it. */
 export function useHeldDecision(projectId: string, identity: Identity) {
-  const { kept, change } = useKept(projectId, accountOf(identity))
+  const { kept, change, latest } = useKept(projectId, accountOf(identity))
   const send = useDecideSend(projectId, identity)
-  const briefOf = useBriefRead(projectId, identity)
+  const briefOf = useBriefRead(projectId, identity, latest)
   /** A refusal's words, chosen as it comes from the brief read again (the send waits for that read on a refusal). */
   const refusal = useRef<string | null>(null)
   const [done, setDone] = useState<DecisionAsk | null>(null)

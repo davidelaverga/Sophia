@@ -1,0 +1,59 @@
+{
+  "schema": "sophia.con01.synthetic-episode.v1",
+  "synthetic": true,
+  "not_an_api_response": true,
+  "project": "TEST-PROJECT",
+  "members": {
+    "member_a": "AUTHOR-A",
+    "member_b": "AUTHOR-B",
+    "viewer": "VIEWER-C"
+  },
+  "accepted_constraint": "Keep registration behavior unchanged.",
+  "undecided_proposal": "Lead with a map rather than a list.",
+  "conversations": [
+    {
+      "local_label": "onboarding",
+      "title": "Onboarding direction",
+      "messages": [
+        {
+          "actor": "AUTHOR-A",
+          "text": "Make the workshop list easier to explore. This thread-only marker is TEAL-CEDAR-47.",
+          "askSophia": false
+        },
+        {
+          "actor": "AUTHOR-B",
+          "text": "The map is useful, but let us compare a list-first option.",
+          "askSophia": false
+        }
+      ]
+    },
+    {
+      "local_label": "narrative",
+      "title": "Presentation narrative",
+      "messages": [
+        {
+          "actor": "AUTHOR-A",
+          "text": "Help us structure a short presentation about the current project direction. Separate accepted constraints from suggestions.",
+          "askSophia": true
+        }
+      ]
+    }
+  ],
+  "quick_asks": [
+    "Sum it up",
+    "What's still open?",
+    "What did we decide?"
+  ],
+  "privacy_assertions": [
+    "TEAL-CEDAR-47 does not enter the narrative response context by default.",
+    "The undecided proposal is not reported as an accepted project decision.",
+    "After withdrawing its source message, TEAL-CEDAR-47 is not served from derived projections or reused native history."
+  ],
+  "adverse_cases": [
+    "Lose response after committed create/send; retry same key.",
+    "Navigate while reply runs; preserve other draft.",
+    "Update accepted constraint via normal authorized A08 flow.",
+    "Restart locally; rehydrate without duplicate reply."
+  ],
+  "execution_results": []
+}

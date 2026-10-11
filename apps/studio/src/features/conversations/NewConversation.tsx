@@ -5,15 +5,17 @@
 // Start sends the same intent again under its key, never a second conversation. Cancel puts the form away.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
-import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
+import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/conversations.ts'
+import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
-import { contextQuery } from './decide.ts'
+import { briefNow, contextQuery } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 import { askOf, startable, startersOf } from './new-conversation.ts'
+import { useKept } from './talk-store.ts'
 
 /** How long a conversation's question may be. */
 export const QUESTION_MAX = 120
@@ -31,6 +33,8 @@ interface Props {
   onRefused: (words: string | null) => void
   onStarted: (started: ConversationStarted, ask: ConversationAsk) => void
   onCancel: () => void
+  /** The saved-text notice, before the reader's first message in the project; null after it. */
+  notice: string | null
 }
 
 /** The start's write: the held intent again, or the form's words as a new one. */
@@ -58,11 +62,15 @@ function useStartWrite(props: Props) {
   return { busy: write.busy, fixed: write.busy || write.unknown !== null, shown, ready, go, words }
 }
 
-/** The proposals waiting to start from: the brief's pending, the same read as the context beside the conversations. */
+/**
+ * The proposals waiting to start from: the brief's pending, the same read as the context beside the conversations, and
+ * only as it may show now (`briefNow`): none from a read set out before the latest refusal (PR #199 r4239851727).
+ */
 function useStarters(props: Props): string[] {
   const { projectId, identity } = props
   const brief = useQuery(contextQuery(projectId, identity))
-  return startersOf(brief.data?.pending, props.fields.title, QUESTION_MAX)
+  const { kept } = useKept(projectId, accountOf(identity))
+  return startersOf(briefNow(brief.data, kept)?.pending, props.fields.title, QUESTION_MAX)
 }
 
 export function NewConversation(props: Props) {
@@ -84,6 +92,7 @@ export function NewConversation(props: Props) {
       }}
     >
       <h3>New conversation</h3>
+      {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <Fields
         question={question}
         shown={shown}

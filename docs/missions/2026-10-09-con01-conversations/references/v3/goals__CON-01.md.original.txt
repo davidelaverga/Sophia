@@ -1,0 +1,52 @@
+# CON-01 — Saved project conversations with current context
+
+**Human owner:** Davide; Luis owns existing conversation UI. **Dependencies for full activation:** BASE.
+**State:** proposed work, not implemented or run by pack authoring. Source/fixture preparation may proceed before external activation. No migration/API number or live allowance is reserved.
+
+## Outcome
+
+Complete the existing conversation experience rather than importing another session product. People can open different named discussions, see who contributed, and continue from relevant project context.
+
+## Required context
+
+- [02_CURRENT_BASELINE.md](../02_CURRENT_BASELINE.md)
+- [architecture/01_SYSTEM_AND_AUTHORITY.md](../architecture/01_SYSTEM_AND_AUTHORITY.md)
+- [architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md](../architecture/07_CONVERSATIONS_AND_TASK_CONTEXT.md)
+
+## Goal sessions
+
+### CON-01-G1 — Bind and declare retention
+
+Read A18 and current vision.ts/CONTRACT ownership. Define explicitly which text is saved, retention controls and how old ephemeral content remains absent. Bind subject identities and source eligibility.
+
+**Handback:** exact changed scope, actual contract or qualification evidence, limitations and next eligible action.
+
+### CON-01-G2 — Persist and compile
+
+Add conversation-local ordering, actual writers, bounded summary coverage and open-question/decision/output references. Reuse the project context compiler; no transcript flattening.
+
+**Handback:** exact changed scope, actual contract or qualification evidence, limitations and next eligible action.
+
+### CON-01-G3 — Connect existing views
+
+Complete existing read/write fixture seams; create/select/reopen without replacing local drafts or active work routing. Test same-subject renamed email and different-subject same email.
+
+**Handback:** exact changed scope, actual contract or qualification evidence, limitations and next eligible action.
+
+## Acceptance
+
+| ID | Scenario | Required outcome |
+|---|---|---|
+| CON-01-T01 | Separate conversations | Two conversations share accepted project decisions but retain separate history and origin; no automatic new computer. |
+| CON-01-T02 | Correct authorship | Contributor list reflects actual writers, not project membership or attendance. |
+| CON-01-T03 | Retention boundary | Previously unsaved room/voice content is absent; saved text requires the accepted policy. |
+| CON-01-T04 | Current eligibility | Withdrawal removes affected searchable/summary content and prevents stale cached recall. |
+| CON-01-T05 | Account isolation | Different subjects sharing a display email cannot read each other's browser state. |
+
+## Evidence and operations
+
+Run existing checks and the specific changed crossing. Fixtures and design rehearsals remain labeled. Product/provider/native/deployment outcomes require actual evidence on the exact candidate; planning does not grant accounts, effects, spending or a schedule. Preserve old active attempts and their control/allowance lineage.
+
+## Launch and handoff
+
+Use [implementation](../launch/CON-01_IMPLEMENT.md) or [independent review / operations](../launch/CON-01_CODEX.md). Stop at a useful tested boundary and return the [handoff](../operations/HANDOFF_TEMPLATE.md). A failed integration must name adopt/narrow/fix/stop and what it replaces; it may not create a second controller by default.

@@ -6,44 +6,106 @@
 // (MissionContext, the same read as the room's mission panel), the same for every conversation. One query, read again
 // as the feed moves: a later read that fails keeps what was read, and says it may be out of date.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
-import type { ConversationSummary } from '../../api/vision.ts'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { ApiError } from '../../api/client.ts'
+import type { ConversationSummary } from '../../api/conversations.ts'
 import type { MissionContext, MissionDecision } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { acceptedOf, openWords, pendingOf } from './conversation-list.ts'
+import { acceptedOf, coverageWords, pendingOf, questionWords, type Unnamed } from './conversation-list.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import {
   contextQuery,
   decidableHere,
   pressesWait,
+  readSince,
   type DecideArgs,
   type DecideState,
   type DecisionAsk,
 } from './decide.ts'
 import { useHeldDecision } from './held-decision.ts'
+import { useEraseHere, type Erase } from './EraseHere.tsx'
 
 interface Props {
   projectId: string
   identity: Identity
   cursor: string | undefined
   /** The conversation open beside it, whose summary comes first. */
-  conversation: ConversationSummary | undefined
+  conversation: (ConversationSummary & Unnamed) | undefined
   /** Opened as a panel (under 1180 px): its Close takes the focus. */
   opened: boolean
   onClose: () => void
+  /** The saved-text policy's notice (A16), reachable here after a first message: null where none applies. */
+  notice: string | null
+  /** Where the reader erases the open conversation (an admin: the list's `capability.moderate`); null for others. */
+  erase: Erase | null
+  /** The view fenced by a refusal (talk-store `fence`): nothing of the context shows, nor its controls. */
+  fenced: boolean
+  /** The latest refusal's order, kept after the fence lifts (talk-store `refusedAt`); null: never refused here. */
+  refusedAt: number | null
+  /** The context's own read refused (403): the view is fenced, as by any other refusal (PR #199 r4239772110). */
+  onRefused: () => void
 }
 
-export function ProjectContext({ projectId, identity, cursor, conversation, opened, onClose }: Props) {
-  const read = useQuery(contextQuery(projectId, identity))
-  useReadAgain(cursor, read.refetch)
+/** The project's refusal (403): the reader isn't a current member of it. */
+const isRefusal = (err: unknown) => err instanceof ApiError && err.code === 'forbidden'
+
+/**
+ * The context's read and what of it may show (PR #199 r4239772110). Refused (its own read, or the view fenced by
+ * another's), nothing: its own refusal fences the view before the browser paints. Read from before the latest refusal,
+ * not as current: it is read again once the fence lifts, and only that read's answer shows, controls and all.
+ */
+function useContextRead(props: Props) {
+  const read = useQuery(contextQuery(props.projectId, props.identity))
+  useReadAgain(props.cursor, read.refetch)
+  const refused = read.isError && isRefusal(read.error)
+  // Each refused answer anew (its time): one after the fence lifted fences again.
+  const refusal = refused ? read.errorUpdatedAt : 0
+  const { onRefused, fenced, refusedAt } = props
+  useLayoutEffect(() => {
+    if (refusal) onRefused()
+  }, [refusal, onRefused])
+  const stale = read.data !== undefined && !readSince(read.data, refusedAt)
+  // Not an answer since the refusal: one from before it, or the refusal itself.
+  const behind = stale || refused
+  const { refetch, isFetching } = read
+  // Read again once: an answer from before the refusal, at once; the refusal itself, only once a fence it raised has
+  // lifted (never in the render it comes in, before the fence lands). Its answer, or its failure, says what is so.
+  const asked = useRef(false)
+  const lifted = useRef(false)
+  useEffect(() => {
+    if (fenced) {
+      lifted.current = true
+      asked.current = false
+      return
+    }
+    if (!(stale || (refused && lifted.current))) {
+      asked.current = false
+      return
+    }
+    if (asked.current || isFetching) return
+    asked.current = true
+    lifted.current = false
+    void refetch()
+  }, [fenced, stale, refused, isFetching, refetch])
+  return { read, hidden: fenced || refused, behind }
+}
+
+export function ProjectContext(props: Props) {
+  const { projectId, identity, conversation, opened, onClose, notice, erase } = props
+  const { read, hidden, behind } = useContextRead(props)
   const ctx = read.data
   const frame = (body: ReactNode) => (
-    <Frame opened={opened} onClose={onClose} conversation={conversation}>
+    <Frame
+      {...{ opened, onClose, notice }}
+      conversation={hidden ? undefined : conversation}
+      erase={hidden ? null : erase}
+    >
       {body}
     </Frame>
   )
+  if (hidden || behind) return frame(<NotCurrent fenced={props.fenced} read={read} />)
   if (!ctx) {
     return frame(
       <>
@@ -83,13 +145,43 @@ export function ProjectContext({ projectId, identity, cursor, conversation, open
 }
 
 /**
+ * What shows of the context while none of it may (PR #199 r4239772110): fenced, that it isn't shown; else what it holds
+ * is not an answer since the refusal: that it is being read again, or, that read failed, that it can't be read now,
+ * with Try again.
+ */
+function NotCurrent(props: {
+  fenced: boolean
+  read: { isError: boolean; isFetching: boolean; refetch: () => Promise<unknown> }
+}) {
+  const { fenced, read } = props
+  if (fenced) {
+    return (
+      <p className="conv-note" role="status">
+        The project’s context isn’t shown until its conversations can be read again.
+      </p>
+    )
+  }
+  if (!read.isError || read.isFetching) return <Waiting words="Reading the project’s context again…" waiting />
+  return (
+    <p className="conv-note" role="alert">
+      The project’s context can’t be read now.{' '}
+      <button type="button" className="text-button" onClick={() => void read.refetch()}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
+/**
  * The pane around the context: its name and Close (a panel's), this conversation first, the project's context, then how
  * it works. Close takes the focus as the panel opens.
  */
 function Frame(props: {
   opened: boolean
   onClose: () => void
-  conversation: ConversationSummary | undefined
+  conversation: (ConversationSummary & Unnamed) | undefined
+  notice: string | null
+  erase: Erase | null
   children: ReactNode
 }) {
   const close = useRef<HTMLButtonElement>(null)
@@ -111,33 +203,58 @@ function Frame(props: {
           </svg>
         </button>
       </div>
-      {props.conversation && <ThisConversation conversation={props.conversation} />}
+      {/* Keyed: a confirmation asked for one conversation never stays for the next one opened. */}
+      {props.conversation && (
+        <ThisConversation key={props.conversation.id} conversation={props.conversation} erase={props.erase} />
+      )}
       <h3 className="eyebrow">Project context</h3>
       {props.children}
       <details className="conv-help">
         <summary>How conversation context works</summary>
         <p>
-          A conversation keeps its own messages and summary. Sophia’s next answer here can also read the project’s
-          current mission, decisions and eligible sources. Other conversations are read only when asked, never merged.
-          This context is the same for every conversation here.
+          A conversation keeps its own messages and summary. Sophia’s answer here reads this conversation’s recent
+          messages and the project’s current mission and decisions, the same for every conversation here. She never
+          reads another conversation, anyone’s personal space or the room.
         </p>
+        {props.notice && <p>{props.notice}</p>}
       </details>
     </aside>
   )
 }
 
-/** The open conversation, first: Sophia's summary of it, and how many questions are open there. */
-function ThisConversation({ conversation: c }: { conversation: ConversationSummary }) {
+/**
+ * The open conversation, first: Sophia's summary of it, and how many questions are open there; at its foot, an admin's
+ * Erase this conversation. Known here by its title only (`partial`), neither is known, and it says so: never «No
+ * summary yet» or «No recorded questions yet» (PR #199 r4238709220).
+ */
+function ThisConversation(props: { conversation: ConversationSummary & Unnamed; erase: Erase | null }) {
+  const { conversation: c } = props
   const id = useId()
+  const away = useEraseHere(props.erase, c.id)
   return (
     <section className="conv-this" aria-labelledby={id}>
       <h4 id={id} className="eyebrow">
         This conversation
       </h4>
-      <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
-      <p className="conv-note">{openWords(c.openQuestions)}</p>
+      {c.partial ? (
+        <p className="conv-this-summary">Its summary and open questions aren’t known here yet.</p>
+      ) : (
+        <>
+          <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
+          <Covers words={coverageWords(c.summaryCoverage)} />
+          <p className="conv-note">{questionWords(c)}</p>
+          <Covers words={coverageWords(c.questionsCoverage)} />
+        </>
+      )}
+      {away.press}
+      {away.form}
     </section>
   )
+}
+
+/** What a summary or a question list covers, where one exists. */
+function Covers({ words }: { words: string | null }) {
+  return words ? <p className="conv-note conv-covers">{words}</p> : null
 }
 
 /** The accepted decisions, newest first, and what is proposed and not decided, kept apart. */
