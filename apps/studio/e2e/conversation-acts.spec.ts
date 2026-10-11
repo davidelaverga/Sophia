@@ -98,9 +98,11 @@ test('acts · two presses overlapping: the latest one’s outcome is said, an ea
   await first.hover()
   await first.getByRole('button', { name: 'Copy' }).click()
   await first.getByRole('button', { name: 'Copy' }).click()
-  await expect(first.getByRole('status')).toHaveText('Copied')
-  await page.evaluate(() => window.settleFirstCopy?.())
+  // The second write waits its turn behind the first (one clipboard for the page): nothing is said yet.
   await page.waitForTimeout(150)
+  await expect(first.getByRole('status')).toHaveCount(0)
+  await page.evaluate(() => window.settleFirstCopy?.())
+  // The first, refused late, says nothing; the second goes through and is the one said.
   await expect(first.getByRole('status')).toHaveText('Copied')
   await expect(first.getByRole('status')).toHaveCount(1)
 })
@@ -148,10 +150,9 @@ test('acts · another’s acts start at the bubble’s left: a short message kee
   page,
 }) => {
   await page.goto(PAGE)
-  const others = messages(page)
-    .filter({ hasNot: page.locator('.mine') })
+  const first = messages(page)
     .filter({ has: page.locator('.conv-msg:not(.mine)') })
-  const first = others.first()
+    .first()
   await first.hover()
   const copy = first.getByRole('button', { name: 'Copy' })
   await expect(copy).toBeVisible()
