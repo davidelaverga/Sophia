@@ -102,5 +102,13 @@
     "countsAndCensus": "truncated; author full-pass/cleanup claims attributed",
     "independentlyQualified": false,
     "subsequentDraftChanges": true
+  },
+  "finalNativeCheckpoint": {
+    "PR211Head": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "authorRun4": "Reports37pass and unchanged census, not independently opened here",
+    "laterEdits": "Two additional window-size/begin-in-transaction assertions after run4",
+    "liveHandle": "Running nine candidate mutants through the suite",
+    "sourceQualification": "No immutable handback; author restoring SQL/hash per mutant is claimed, terminal restoration pending",
+    "UI": "Agent-created file filter cleared; no Stop/Send now/restart"
   }
 }
