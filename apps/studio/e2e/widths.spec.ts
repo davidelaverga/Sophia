@@ -18,8 +18,9 @@ test.describe('wide', () => {
       lanes: [...document.querySelectorAll('.lane')].map((l) => Math.round(l.getBoundingClientRect().width)),
     }))
     expect(read.page).toBe(1280)
-    expect(read.lanes).toHaveLength(4)
-    for (const w of read.lanes) expect(w).toBeGreaterThanOrEqual(270)
+    // Four lanes, or five while something is blocked (docs/plans/board-blocked.md): four stand at 270 and up, five at 220.
+    expect([4, 5]).toContain(read.lanes.length)
+    for (const w of read.lanes) expect(w).toBeGreaterThanOrEqual(read.lanes.length === 5 ? 220 : 270)
   })
 
   test('widths · at 1920 Knowledge shows four cards a row', async ({ page }) => {
