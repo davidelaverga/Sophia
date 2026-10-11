@@ -420,7 +420,7 @@
 .conv-earlier .text-button {
   padding: 0 10px;
   color: var(--text-2);
-  font: var(--type-label) / 24px var(--mono);
+  font: var(--type-small) / 24px var(--mono);
   text-decoration: none;
 }
 .conv-messages {
@@ -458,7 +458,7 @@
   text-align: center;
   margin: 10px 0 16px;
   color: var(--text-2);
-  font: var(--type-label) / var(--lh-small) var(--mono);
+  font: var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }

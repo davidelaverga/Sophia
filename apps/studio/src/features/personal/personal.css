@@ -180,7 +180,7 @@
   flex-direction: column;
 }
 .places .hw-date {
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -241,7 +241,7 @@
 }
 .places .hw-label {
   margin-bottom: 12px;
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -684,7 +684,7 @@
   border-bottom: 1px solid var(--line);
 }
 .places .c3-space.you .c3-head h2 {
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
@@ -692,7 +692,7 @@
 /* A section's quiet label, as Home's: warm mono capitals. */
 .places .c3-label {
   margin: 0 0 10px;
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
@@ -1049,7 +1049,7 @@
   border-radius: 0;
   background: none;
   color: var(--text-sec);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   scroll-margin-top: 44px;
@@ -1099,7 +1099,7 @@
   animation: ps-arrive 260ms var(--ease);
 }
 .places .c3-suggest .field-label {
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
@@ -1153,7 +1153,7 @@
 /* The session about to start, said as Home says it: amber, quiet, mono. */
 .places .c3-way-note {
   color: color-mix(in srgb, #e8c48d 85%, transparent);
-  font: var(--type-label) / var(--lh-small) var(--mono);
+  font: var(--type-small) / var(--lh-small) var(--mono);
 }
 .places .c3-starters button:focus-visible {
   outline-offset: -2px;
@@ -1321,7 +1321,7 @@
   background: none;
 }
 .places #c-notes-h {
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
@@ -1469,7 +1469,7 @@
   writing-mode: vertical-rl;
   padding: 8px 3px;
   background: var(--void);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-sec);
@@ -2005,7 +2005,7 @@
 .places .c3-talk-who {
   min-height: 12px;
   color: var(--text-sec);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2284,7 +2284,7 @@
   border-left: 2px solid var(--halo);
 }
 .places .c3-pack-receive h4 {
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);

@@ -947,7 +947,7 @@
 .task-sheet-activity .muted {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-small);
 }
 
 /* ---- While you were away: one sentence from Sophia's light, over the board. ---- */

@@ -254,7 +254,7 @@ kbd {
 .eyebrow,
 .field-label {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -817,7 +817,7 @@ button.mark:hover {
   margin-right: 6px;
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1184,7 +1184,7 @@ img.avatar {
   gap: 10px;
   width: 100%;
   color: var(--text-3);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -2975,7 +2975,7 @@ button.contribution-quote:hover {
   flex: none;
   width: 72px;
   color: var(--text-3);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -3166,7 +3166,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: var(--type-label) / var(--lh-small) var(--mono);
+  font: var(--type-small) / var(--lh-small) var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -3186,7 +3186,7 @@ button.contribution-quote:hover {
 }
 .link-limits {
   color: var(--text-3);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.02em;
 }
 .sheet-form {
@@ -3566,7 +3566,7 @@ button.contribution-quote:hover {
 .pulse-head h4 {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -4448,7 +4448,7 @@ button.contribution-quote:hover {
 }
 .report-main-meta {
   color: var(--text-3);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -4741,7 +4741,7 @@ button.contribution-quote:hover {
 .updates-part > .recap-section h4 {
   margin: 0;
   color: var(--text-2);
-  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }

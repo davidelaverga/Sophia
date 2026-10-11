@@ -243,7 +243,7 @@
 }
 .resource-sort-label {
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -346,7 +346,7 @@
 .capacity-history figcaption {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-small);
 }
 .capacity-windows dd .capacity-history {
   flex-basis: 100%;
@@ -706,7 +706,7 @@
 .capacity-windows dt,
 .sheet-section h3 {
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -1526,7 +1526,7 @@
   padding-top: 10px;
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-small);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   transition: color var(--base) var(--ease);

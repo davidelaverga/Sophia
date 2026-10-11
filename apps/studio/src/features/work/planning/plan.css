@@ -29,7 +29,7 @@
 .plan-ask-due {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-small);
 }
 /* Its decider's choices: two equal buttons, neither chosen for them; the one pressed keeps a ring while it is sent. */
 .plan-choices {

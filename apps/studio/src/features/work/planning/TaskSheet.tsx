@@ -135,21 +135,44 @@ function Waits({ waits, viewerId }: { waits: readonly WaitRow[]; viewerId: strin
   )
 }
 
-/** J and K turn the sheet to the next task or the one before, unless a field has the keys. */
+/** The press in «Act on it» whose words (its name, which carries its tip, else its text) say `is`, if offered now. */
+const pressOf = (sheet: HTMLElement, is: (words: string) => boolean) =>
+  [...sheet.querySelectorAll<HTMLButtonElement>('.task-actions button')].find((b) =>
+    is((b.getAttribute('aria-label') ?? b.textContent).trim()),
+  )
+
+/**
+ * The sheet's keys (docs/plans/task-keys-micro-type.md): J and K turn to the next task or the one before; H presses
+ * Hold, or Resume when that is what is offered; S presses Stop, which asks first with the focus on the safe answer, and
+ * asks nothing more while it asks. None while a field has the keys.
+ */
+const KEYS: Readonly<Record<string, (sheet: HTMLElement, onStep: Props['onStep']) => void>> = {
+  j: (_, onStep) => onStep(1),
+  k: (_, onStep) => onStep(-1),
+  h: (sheet) => pressOf(sheet, (words) => /^(Hold|Resume)\b/.test(words))?.click(),
+  s: (sheet) => {
+    if (sheet.querySelector('[role="group"][aria-label="Stop"]')) return
+    pressOf(sheet, (words) => words === 'Stop')?.click()
+  },
+}
+
 function useSteps(onStep: Props['onStep']) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A key held down repeats: one press is one act (a Hold must not meet the Resume it brings; shortcuts.ts does the same).
       if (
+        e.repeat ||
         e.metaKey ||
         e.ctrlKey ||
         e.altKey ||
         (e.target instanceof HTMLElement && e.target.closest('input, textarea'))
       )
         return
-      if (e.key === 'j' || e.key === 'k') {
-        e.preventDefault()
-        onStep(e.key === 'j' ? 1 : -1)
-      }
+      const act = KEYS[e.key]
+      const sheet = document.querySelector<HTMLElement>('.task-sheet')
+      if (!act || !sheet) return
+      e.preventDefault()
+      act(sheet, onStep)
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -268,6 +291,12 @@ export function TaskSheet(props: Props) {
         <p className="task-sheet-plan muted">
           Plan r{plan.revision} · {props.operable ? 'accepted' : 'proposed, not accepted yet'} · <kbd>J</kbd>{' '}
           <kbd>K</kbd> the next and the one before
+          {props.operable && (
+            <>
+              {' '}
+              · <kbd>H</kbd> hold or resume · <kbd>S</kbd> stop
+            </>
+          )}
         </p>
       </div>
     </Sheet>,
