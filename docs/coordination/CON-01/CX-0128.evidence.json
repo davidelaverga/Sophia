@@ -25,13 +25,20 @@
       "parent": "f47128a1036a120129fb02d8961101aa95810862",
       "scope": "complete correction delta read; D4 account eligibility and D9 all-other-human-message wording corrected; current operation links corrected. Residual section8.6 incorrectly describes new setup/human-chat draft as allowing no deploy/schema; correct that sentence before docs closure. No feature qualification.",
       "diff_check": 0
+    },
+    {
+      "sha": "2c4ffeb2c8908c29e94ef35fb5714c43eaed416a",
+      "tree": "c13956d0f3369a23e4ece59f571dfe09d1c49f18",
+      "parent": "3b1af9b94413a409214b05203d5fbdf5088435c1",
+      "scope": "Complete +2/-1 binding correction read; setup/human-chat draft rollout scope accurate, no authority inferred.",
+      "diff_check": 0
     }
   ],
   "shared_runtime": {
     "operator_thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
     "authorized_request_sent": true,
     "owner_ack_observed": "Actual joint implementer chat acknowledgement inspected; local AX SHA256 matches sealed response. Conditional freeze only; CON acknowledgement/census/exact start tuple pending.",
-    "window_active": false,
+    "window_active": "Source-only PhaseA ready for recorded GO delivery; no operational permission; PhaseB/Q13 held",
     "remaining_start_conditions": [
       "exact ack record and CON acknowledgement",
       "fresh migration number reservation",
@@ -59,7 +66,10 @@
     "owner_attestation_limit": "No in-flight/unpublished cloud writes is owner attestation, not reviewer cloud filesystem proof; raw scratch artifact was inaccessible without permission bypass, actual chat ACK was inspected instead.",
     "corrected_owner_record": "SHARED_RUNTIME_FREEZE_20261012.r2.json",
     "corrected_owner_record_sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
-    "owner_metadata_correction_accepted": true
+    "owner_metadata_correction_accepted": true,
+    "CON_ack": "CC0152 issue6114937632; complete actual acknowledgement read",
+    "source_phase_A_record": "SOURCE_PHASE_A_20261012.r1.json",
+    "reservation": "0053_runtime_outbox_reconcile.sql"
   },
   "primary_coordination": {
     "exact_session": "session_01KUDtFK9gWthsXSrepcLQz3",
@@ -179,7 +189,8 @@
     "Issue198 owner record6114788738 and first review6114833701 posted and fetched back by exact IDs/commit identities",
     "Read sealed shared-owner response and actual chat ACK bytes; matched SHA256. Independently reverified current main ancestor of held CON head and unchanged merge-tree; returned stale embedded-base correction to joint operator.",
     "Fresh git fetch origin, then all191 actual published branch heads scanned through git ls-tree; max migration52, no reservation. Joint operator r2 accepts exact-base correction and records Q13 shared-policy scope outside writing window.",
-    "Independent actual IAB old disclosure fail at7d8, fetched/complete-reviewed immutable635a source, own detached clean source worktree selected, corrected desktop own/admin and390x844 own confirmation passed; Keep it only. Finite owned fixture217.047s/exit0, PID absent/port closed/tab closed/viewport reset."
+    "Independent actual IAB old disclosure fail at7d8, fetched/complete-reviewed immutable635a source, own detached clean source worktree selected, corrected desktop own/admin and390x844 own confirmation passed; Keep it only. Finite owned fixture217.047s/exit0, PID absent/port closed/tab closed/viewport reset.",
+    "Complete CC0152 CON ACK/source plan read. Independently fetched all247 published PR heads and scanned439 actual branch+PR refs; max0052, no0053; A15 duplicate filename confirmed, outside PhaseA. Recorded exact0053 source-only reservation/base/paths/function/60min write boundary; PhaseB/Q13/live held."
   ],
   "resource_use": {
     "reviewer_source_tests": "No new automated code test run; independent actual browser fixture and document/source checks performed.",
@@ -202,7 +213,7 @@
   "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
   "cleanup": "Owned fixture wrapper terminal0, PID86733 absent/port56991 closed, fixture tab closed and viewport reset; hosted tab retained. No new reviewer cluster/target session or uncertain hosted/provider effect. Source harness detached clean at635a3ef2. Author broader gates/census/cleanup remain pending author receipt.",
   "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
-  "next_bounded_action": "Obtain exact CON acknowledgement/global+local census/PhaseA starting tuple and narrow Q13 proposal/owned tests; independently review before scoped source GO. Confirm author disclosure regression terminal result; integrate only through exact reviewed combined candidate.",
+  "next_bounded_action": "Deliver recorded PhaseA source-only GO/reservation to sole CON writer and notify joint owner; review immutable dispatcher prerequisite with independent real PG tests. Continue narrow Q13/subscription proposals separately; no live effects.",
   "published_head_census": {
     "at": "2026-10-11T23:05:28.111951+00:00",
     "heads": 191,

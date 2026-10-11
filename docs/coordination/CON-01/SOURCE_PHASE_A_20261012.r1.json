@@ -1,0 +1,68 @@
+{
+  "record_id": "CON-01-SOURCE-PHASE-A-20261012-r1",
+  "status": "source_scope_reviewed_reservation_recorded_pending_delivery",
+  "authority": "Davide direct source-resumption and shared coordination instruction, OWNER_DECISIONS_20261012.md; joint actual freeze ACK/r2 and exact CON implementer ACK CC0152. This is not an operational approval.",
+  "sole_writer": "Claude CON session_01KUDtFK9gWthsXSrepcLQz3",
+  "independent_reviewer_operator": "Codex thread01a1224a-32b4-7222-a017-50a277572d95",
+  "start_utc": "2026-10-11T23:15:24Z",
+  "source_write_expires_utc": "2026-10-12T00:15:24Z",
+  "earlier_end": "Immutable handback or writer relinquishment/owner ending window; stop writing at boundary. Extension requires a new recorded source review, not an invented operational approval.",
+  "base_commit": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "base_tree": "8c1232f751df67a5de16779047b21bb5f5ada176",
+  "base_rule": "Exact main-only base. Recheck before first write; if main moved, stop and return exact new base/census for review. No reset of existing CON branches.",
+  "branch": "claude/con01-runtime-phase-a-review",
+  "reservation": "db/migrations/0053_runtime_outbox_reconcile.sql",
+  "reservation_scope": "0053 reserved to this sole writer for dispatcher prerequisite only; CON0048-50 and voice0046/47/51/52 preserved. No amendment reservation.",
+  "writable_paths": [
+    "db/migrations/0053_runtime_outbox_reconcile.sql",
+    "packages/persistence/src/runtime.db.test.ts",
+    "apps/worker/src/runtime-dispatch.test.ts (only necessary focused regression additions)"
+  ],
+  "function_changed": "sophia.reconcile_runtime_outbox(integer)",
+  "read_unchanged": [
+    "packages/persistence/src/dispatch.ts:reconcileRuntimeOutbox",
+    "apps/worker/src/runtime-dispatch.ts:dispatchOnce/RuntimeDispatcher.run",
+    "all applied migrations including0012"
+  ],
+  "allowed_change": "Append-only BEGIN/COMMIT migration, CREATE OR REPLACE exact function signature/default/security/search_path/permissions. Select only recoverable rows or otherwise prove bounded fairness; count actual changed rows. No destination/state/accounting/lease-meaning changes, runtime dispatch or provider changes.",
+  "owner_acks": {
+    "joint": "SHARED_RUNTIME_FREEZE_20261012.r2.json; actual chat bytes independently hashed02d2eb1cca26bc187f1df9915624a2ab1e0a36e8facfbe2e93af03776abc3456",
+    "CON": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6114937632; exact author acknowledgement/file-function-test list before writes"
+  },
+  "census": {
+    "independent": "evidence/20261012-cx128-decisions/published-heads-and-pr-census.json",
+    "at": "2026-10-11T23:15:19.556523+00:00",
+    "actual_branch_heads": 192,
+    "actual_PR_heads": 247,
+    "maximum_migration": 52,
+    "no_0053": true,
+    "local_owner": "CC0152 all23 CON worktrees/refs and joint freeze owner attestation; reviewer cannot independently inspect cloud filesystem",
+    "A15_collision": "A15-needs-you.json/A15-voice-qualification.json independently confirmed; outside migration-only PhaseA, untouched and reported to joint owner. No A15/source/contract GO."
+  },
+  "preservation": [
+    "PR190 voice-evidence/live-call-key sweeps, PassResult fields/header/import/pass order/idle semantics",
+    "WBC source-review A13 and roles/transport; research/design/native.steer/control.settle destinations",
+    "exact existing grants/default/no-argument call/SECURITY DEFINER/search_path/state mapping/available_at/lease semantics",
+    "A08/other mission source and governed accounting"
+  ],
+  "tests": [
+    "Real PostgreSQL fail-before existing0012 then pass-after0053, L+1 older unchanged rows atL2/L50; tail reached first pass, count1 then0, unchanged unknown/failed commands/accounting",
+    "Recoverable tails no command/unanswered/delivered/checked/rejected with original state mapping and exactly counted updates",
+    "No duplicate runtime command; no busy spin and idleMs respected by dispatcher test",
+    "Focused persistence/worker regressions, test:sql and pnpm check, bounded owned disposable environments only; preserve all failures/terminal/cleanup receipts"
+  ],
+  "handback": "Immutable commit/tree/full diff, exact tests/commands/results/failures/limits/cleanup, no active writer. Independently review and accept prerequisite before source merge. Draft PR may be created for exact immutable prerequisite candidate after handback for automatic review; no merge GO implied.",
+  "phase_B": "Not authorized; exact methods/policies/generated/profile/identity/test scope and accepted-A base require separate acknowledgements. Q13 narrow read policy is explicitly outside this window.",
+  "stop_conditions": [
+    "Out-of-scope file/function, applied migration edit, second writer or number collision",
+    "Any destination/state/grant/default-call change or PR190-only/PR255 line change",
+    "Main changes before first write or source window expiry",
+    "Any hosted migration/grant/session termination/deployment/account/provider/spending effect required"
+  ],
+  "operational_authorization": false,
+  "provider_calls_allowed": 0,
+  "hosted_mutations_allowed": 0,
+  "deployment_allowed": false,
+  "merge_authorization": false,
+  "rollback": "Source-only review branch can be abandoned; do not deploy it or alter governed data. Hosted rollback remains separately unqualified."
+}
