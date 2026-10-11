@@ -92,7 +92,8 @@ const ratio = async (page: Page, selector: string, ground: string) => {
       el.getAnimations().forEach((a) => a.finish())
       return [getComputedStyle(el).color, getComputedStyle(el).backgroundColor] as const
     })
-  return contrastOf({ words: selector, size: 13, ink, opacity: 1, grounds: [ground, bg] })
+  // Grounds are named nearest first (as lowContrast collects them): the press's own plane, then the page's.
+  return contrastOf({ words: selector, size: 13, ink, opacity: 1, grounds: [bg, ground] })
 }
 
 test('light · the states the at-rest scan does not see read on paper: a note that is soon, the send ready, a primary press hovered', async ({
