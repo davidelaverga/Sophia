@@ -88,3 +88,12 @@
   hands the read to its notes beside the personal space's and the projects' (`ReadNotes`): a 403, a 503 or a timeout
   says «Couldn’t read what needs you.» with Try again, instead of the light alone. The fixture's `needsFail=1` fails
   the first read; the spec sees the note, presses Try again, and the five rows arrive.
+- **No review kind until a request exists** (P2, round 4). A11 keeps verdicts (who reviewed), not requests (who must):
+  the service has nothing to select a review need from. The kind leaves A15 (and `artifact_version` with it); Home's
+  own type keeps the word for the day a request record exists. The fixture's list is four.
+- **A permission does not expire** (P2, round 4). A13's `WorkWait` has no expiry; `expiresAt` is a decision's only,
+  and a permission says how long it has waited (`detail`). The fixture's permission reads «Asked 10 min ago».
+- **A seen write that fails** (P2, round 4) reads the list again as a kept one does: the row stays where it was, which
+  is the truth, and the next press writes again.
+- **Contract-only** (P2, round 4): both operations carry `x-sophia-implementation: contract_only` and
+  `x-sophia-release-goal: F2`, as the other proposed operations do.

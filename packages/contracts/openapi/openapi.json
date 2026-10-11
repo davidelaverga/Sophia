@@ -12820,7 +12820,7 @@
         "tags": [
           "personal"
         ],
-        "summary": "What needs the calling person now, across the projects they belong to and their personal space: decisions waiting on them (with their expiry), native permissions agents ask of them, reviews asked of them, guests waiting in lobbies they admit to, Sophia's replies they have not read. Owner-only: built from the person's own memberships and space; nothing of another person is in it. A need leaves the list when its record is answered where it lives.",
+        "summary": "What needs the calling person now, across the projects they belong to and their personal space: decisions waiting on them (with their expiry), native permissions agents ask of them, guests waiting in lobbies they admit to, Sophia's replies they have not read. Owner-only: built from the person's own memberships and space; nothing of another person is in it. A need leaves the list when its record is answered where it lives.",
         "security": [
           {
             "supabaseBearer": []
@@ -12860,7 +12860,9 @@
               }
             }
           }
-        }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "F2"
       }
     },
     "/api/v1/me/needs/{id}/seen": {
@@ -12925,7 +12927,9 @@
               }
             }
           }
-        }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "F2"
       }
     }
   },
@@ -28431,10 +28435,10 @@
             "enum": [
               "decision",
               "permission",
-              "review",
               "guest",
               "reply"
-            ]
+            ],
+            "description": "What it is. A review asked of a person is not in this amendment: A11 keeps verdicts, not requests; the kind joins when a request record exists."
           },
           "title": {
             "type": "string",
@@ -28474,7 +28478,7 @@
                 "type": "null"
               }
             ],
-            "description": "When it stops waiting (a decision's or a permission's expiry); null when it does not expire."
+            "description": "When it stops waiting: a decision's expiry (WorkDecision.expires_at); null for the rest (a wait, a guest and a reply have none)."
           },
           "detail": {
             "anyOf": [
@@ -28486,7 +28490,7 @@
                 "type": "null"
               }
             ],
-            "description": "A word on it when nothing expires: who asks (`Davide asks`), how long a guest has waited."
+            "description": "A word on it when nothing expires: how long a permission or a guest has waited (`Asked 10 min ago`, `Waiting 2 min`)."
           },
           "at": {
             "type": "string",
@@ -28503,11 +28507,10 @@
                 "enum": [
                   "work_decision",
                   "work_wait",
-                  "artifact_version",
                   "lobby_entry",
                   "personal_turn"
                 ],
-                "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait (WorkWait, by its own reference: one work item may hold several), an artifact version, a lobby entry, a personal turn."
+                "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait (WorkWait, by its own reference: one work item may hold several), a lobby entry, a personal turn."
               },
               "id": {
                 "type": "string",
@@ -28524,7 +28527,7 @@
                     "type": "null"
                   }
                 ],
-                "description": "The record that holds it, when the Studio's address needs it: a version's report (artifact_version), a decision's or a wait's work item (work_decision, work_wait). Null otherwise."
+                "description": "The record that holds it, when the Studio's address needs it: a decision's or a wait's work item (work_decision, work_wait). Null otherwise."
               }
             },
             "required": [

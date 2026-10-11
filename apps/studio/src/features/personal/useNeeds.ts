@@ -60,12 +60,12 @@ export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {})
   if (!got || locked) return { seen: undefined, read: note }
   const wire = got.list.needs
   // A reply has no answer of its own: opening it is its seen mark (A15), and the list is read again once it is kept.
+  // A write that fails is read again too: the row stays where it was, which is the truth, and the next press writes
+  // again (nothing that failed may look done: Codex on #245).
   const seen = (need: Need) => {
     if (need.kind !== 'reply') return
-    void markNeedSeen(token, need.id).then(
-      () => client.invalidateQueries({ queryKey }),
-      () => undefined,
-    )
+    const again = () => client.invalidateQueries({ queryKey })
+    void markNeedSeen(token, need.id).then(again, again)
   }
   return {
     seen: {
