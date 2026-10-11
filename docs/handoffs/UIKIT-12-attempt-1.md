@@ -9,6 +9,10 @@ as each merges)
 Ending commit/tree: `e98f6987` (tree `e4b6bed68980`): 22 files, 3 new (`app/theme.ts`, `e2e/light-mode.spec.ts`,
 `docs/plans/light-mode.md`); the rest are the seven sheets (the channel swap), `AccountMenu.tsx`, `main.tsx` and ten
 fixture pages (`bootTheme`). The commit after it adds only this handoff.
+After the review (Codex on #234, two P2): `3242af7d` adds the kept theme before the first paint (`public/entry.js`,
+`entry.css`) and six state tokens with a paper value (`--core-hover`, `--on-core`, `--warm-hover`, `--on-warm`,
+`--soon`, `--claude-ink`) replacing dark-only literals in four sheets, with two more checks in `light-mode.spec.ts`.
+That is the completed code state of this PR.
 
 ## Outcome
 
