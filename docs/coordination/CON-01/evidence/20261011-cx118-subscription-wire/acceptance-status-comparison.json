@@ -1,0 +1,192 @@
+{
+  "previous": "CX-0117.md",
+  "current": "CX-0118.md",
+  "caseCount": 36,
+  "fullCasesUnchanged": true,
+  "canonicalFullCasesSha256Before": "50bdbf7d40739dfe979a036b3bca3047e54d563c4d4fe3ea732d76fa5aab6eb7",
+  "canonicalFullCasesSha256After": "50bdbf7d40739dfe979a036b3bca3047e54d563c4d4fe3ea732d76fa5aab6eb7",
+  "hashEncoding": "UTF8 sorted-key compact JSON",
+  "history117ExactlyOnce": true,
+  "cases": [
+    {
+      "id": "CON-01-T01",
+      "status": "partial_L1",
+      "fullVerdictSha256": "3a9399943e3fac9239a43ba1feba4dbd550d06fc601e414d5fafd5d0b17c94b0"
+    },
+    {
+      "id": "CON-01-T02",
+      "status": "partial_L1",
+      "fullVerdictSha256": "22e4dbc9ed40be9844a2c9ef1e11da5dc130157337bf6d7bf8dffe3268aa38f2"
+    },
+    {
+      "id": "CON-01-T03",
+      "status": "partial_L1",
+      "fullVerdictSha256": "6803056c3f1216e3857c5b9d702dc86cc51e06cf40fad1785b96cbbeff3d629f"
+    },
+    {
+      "id": "CON-01-T04",
+      "status": "partial_L1",
+      "fullVerdictSha256": "4fee6da5b4bd1b714cdf3d90e4739b38ac4b7a0683e68f823848843158d28b0c"
+    },
+    {
+      "id": "CON-01-T05",
+      "status": "partial_L1",
+      "fullVerdictSha256": "4427ef3815c7db65f89df863cbf1595e5cfe7433f1f2c68d1c695ddb920bef9e"
+    },
+    {
+      "id": "CON01-A01",
+      "status": "passed_L1",
+      "fullVerdictSha256": "57354c28d6e3bd435e3b0872528b67e993c4f7bebd6849a44a0596f34858cc26"
+    },
+    {
+      "id": "CON01-A02",
+      "status": "partial_L1",
+      "fullVerdictSha256": "799ea8bf29675dc357bb476d990093f71ba38c1ed30f89d22310541ac13bd6f8"
+    },
+    {
+      "id": "CON01-A03",
+      "status": "partial_L1",
+      "fullVerdictSha256": "d67176d6f1cebfd7652e79db6de2030fb29004615c0265b727714c1b15b105e7"
+    },
+    {
+      "id": "CON01-A04",
+      "status": "passed_L1",
+      "fullVerdictSha256": "cd2c006c2530a375d413f7c0d12390cc7677f0330a48361eb4400c0056979274"
+    },
+    {
+      "id": "CON01-A05",
+      "status": "partial_L1",
+      "fullVerdictSha256": "bc2d3da9bdf62c199db4c3fbe0ec0082924763487743ff485356e3d62bccab24"
+    },
+    {
+      "id": "CON01-A06",
+      "status": "passed_L1",
+      "fullVerdictSha256": "593f34eb4ba1d801af6c65c1081eacc7dc1d85ba283e7790b11d26f65045e456"
+    },
+    {
+      "id": "CON01-A07",
+      "status": "partial_L1",
+      "fullVerdictSha256": "9965031cedc0305b13296123778dfeb52a75ec6dc2074bc500bbe8d423d5145e"
+    },
+    {
+      "id": "CON01-A08",
+      "status": "partial_L1",
+      "fullVerdictSha256": "c3cd6d7a75537a409b49ad2fb728528895687c2c127b90cfce5240305f8d8cc6"
+    },
+    {
+      "id": "CON01-A09",
+      "status": "not_run",
+      "fullVerdictSha256": "41b77e44806afbbfca2884e7c8caebab911509fbc4825185ae87009ae1d8252e"
+    },
+    {
+      "id": "CON01-A10",
+      "status": "partial_L1",
+      "fullVerdictSha256": "2d264016f3a18d104bccf6e35d9ca8cdaaef29133f79d7a93cf37f0b4c3ca6fa"
+    },
+    {
+      "id": "CON01-A11",
+      "status": "not_run",
+      "fullVerdictSha256": "09d32eb5bf5b2cffd081546d97942354a9afcf36dd831a45bd5553ba285d0434"
+    },
+    {
+      "id": "CON01-A12",
+      "status": "partial_L1",
+      "fullVerdictSha256": "f526156fcb439b08f04c1541b61cf6a8898d91d69935278240fd8b16415257c5"
+    },
+    {
+      "id": "CON01-A13",
+      "status": "not_run",
+      "fullVerdictSha256": "3307ef7b198ea22ef279591d0f193929289787deee35323387ed24fb581133f5"
+    },
+    {
+      "id": "CON01-A14",
+      "status": "not_run",
+      "fullVerdictSha256": "6406cfa398dbd396f9b3619fcea50f178fc4090ef30fe60f928f91350ac1781e"
+    },
+    {
+      "id": "CON01-A15",
+      "status": "not_run",
+      "fullVerdictSha256": "a1d152dd26e0ac52abced0321b0ce12f090168492bef8322bbbdafc6cf7f23cc"
+    },
+    {
+      "id": "CON01-A16",
+      "status": "not_run",
+      "fullVerdictSha256": "72ef23a5ec326947e8e73698a5ea918140f6f7ec68e0ea9783785696f7e3ac0a"
+    },
+    {
+      "id": "CON01-A17",
+      "status": "not_run",
+      "fullVerdictSha256": "32ec914984177e4ed7644e3a05b07cece094e0f85e8bea2135eb26609fb6a760"
+    },
+    {
+      "id": "CON01-A18",
+      "status": "not_run",
+      "fullVerdictSha256": "49119ec4ab1d9ba30f513fdbcd1658a768c77318ba839c0b89e416769c47ad4c"
+    },
+    {
+      "id": "CON01-A19",
+      "status": "not_run",
+      "fullVerdictSha256": "f0dd6e35a11886a75da60eeb4779851aa955a9b55fad95d26ebdbf46f189c75d"
+    },
+    {
+      "id": "CON01-A20",
+      "status": "partial_L1",
+      "fullVerdictSha256": "b6e80fc60ab0ec041fa40922b68352264be57e326c66434a23637438e50fd68c"
+    },
+    {
+      "id": "CON01-A21",
+      "status": "not_run",
+      "fullVerdictSha256": "32b9d946620282cc42536206a0f12efc1a89e4e2220903ff108ee4c9d103b1de"
+    },
+    {
+      "id": "CON01-A22",
+      "status": "partial_L1",
+      "fullVerdictSha256": "8562ce0ae3e7224f0825056ede4bb312e181c3f12be5cecde18a7b35294553ef"
+    },
+    {
+      "id": "CON01-A23",
+      "status": "partial_L1",
+      "fullVerdictSha256": "e659829a757ebb855d8d416c328deb5cd9d30081b9c255193494a7ac3bcbed82"
+    },
+    {
+      "id": "CON01-A24",
+      "status": "partial_L1",
+      "fullVerdictSha256": "6dda7ddabd3d294230af3bda46a696b18e4c1c5648845cb3ba1144530ebb68bb"
+    },
+    {
+      "id": "CON01-A25",
+      "status": "partial_L1",
+      "fullVerdictSha256": "942897dfd5ac3923d9fe62123cd5711e6e6195a4be7d4926899043e7601db9db"
+    },
+    {
+      "id": "CON01-A26",
+      "status": "not_run",
+      "fullVerdictSha256": "5c07545b0022f0162a47ab71d866dc143db7944c51451f4d7a72650f670f2c19"
+    },
+    {
+      "id": "CON01-A27",
+      "status": "not_run",
+      "fullVerdictSha256": "a2bd5b7d5ec866bf6adc941876fc9fea72dc86f0f759aad0ad67832e1feb5272"
+    },
+    {
+      "id": "CON01-A28",
+      "status": "not_run",
+      "fullVerdictSha256": "eb2c75f54c3c8e4c0bcd928ea2d29559882f5344944be6b0aee2f3621f3f4cef"
+    },
+    {
+      "id": "CON01-A29",
+      "status": "partial_L1",
+      "fullVerdictSha256": "853077a8ff18f373f30493588f612c961245432f7f7ea05a6abe95ea2e42e4e8"
+    },
+    {
+      "id": "CON01-A30",
+      "status": "not_run",
+      "fullVerdictSha256": "18249a03fbea6f8ef3dc3d634244b7b3120f0927b4b06cb687956254e5274d7a"
+    },
+    {
+      "id": "CON01-A31",
+      "status": "not_run",
+      "fullVerdictSha256": "abc1d56856c607e78f5249db721cf84f5e7335301bed664482129700e589cd49"
+    }
+  ]
+}

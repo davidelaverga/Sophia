@@ -1,0 +1,230 @@
+{
+  "classification": "L0_offline_transport_request_capture_only",
+  "actualInstalledProvider": true,
+  "credential": "synthetic_unusable_JWT_no_real_secret",
+  "realProviderCalls": 0,
+  "nativeHarnessExecutions": 0,
+  "blockedNetworkCalls": 0,
+  "cases": [
+    {
+      "entryPoint": "stream",
+      "offeredMaxTokens": 1,
+      "body": {
+        "model": "synthetic-offline-model",
+        "store": false,
+        "stream": true,
+        "instructions": "You are a helpful assistant.",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "Synthetic offline request"
+              }
+            ]
+          }
+        ],
+        "text": {
+          "verbosity": "low"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": true
+      },
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OFFLINE_CAPTURE_COMPLETE"
+        }
+      ]
+    },
+    {
+      "entryPoint": "stream",
+      "offeredMaxTokens": 23,
+      "body": {
+        "model": "synthetic-offline-model",
+        "store": false,
+        "stream": true,
+        "instructions": "You are a helpful assistant.",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "Synthetic offline request"
+              }
+            ]
+          }
+        ],
+        "text": {
+          "verbosity": "low"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": true
+      },
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OFFLINE_CAPTURE_COMPLETE"
+        }
+      ]
+    },
+    {
+      "entryPoint": "stream",
+      "offeredMaxTokens": 4096,
+      "body": {
+        "model": "synthetic-offline-model",
+        "store": false,
+        "stream": true,
+        "instructions": "You are a helpful assistant.",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "Synthetic offline request"
+              }
+            ]
+          }
+        ],
+        "text": {
+          "verbosity": "low"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": true
+      },
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OFFLINE_CAPTURE_COMPLETE"
+        }
+      ]
+    },
+    {
+      "entryPoint": "streamSimple",
+      "offeredMaxTokens": 1,
+      "body": {
+        "model": "synthetic-offline-model",
+        "store": false,
+        "stream": true,
+        "instructions": "You are a helpful assistant.",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "Synthetic offline request"
+              }
+            ]
+          }
+        ],
+        "text": {
+          "verbosity": "low"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": true
+      },
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OFFLINE_CAPTURE_COMPLETE"
+        }
+      ]
+    },
+    {
+      "entryPoint": "streamSimple",
+      "offeredMaxTokens": 23,
+      "body": {
+        "model": "synthetic-offline-model",
+        "store": false,
+        "stream": true,
+        "instructions": "You are a helpful assistant.",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "Synthetic offline request"
+              }
+            ]
+          }
+        ],
+        "text": {
+          "verbosity": "low"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": true
+      },
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OFFLINE_CAPTURE_COMPLETE"
+        }
+      ]
+    },
+    {
+      "entryPoint": "streamSimple",
+      "offeredMaxTokens": 4096,
+      "body": {
+        "model": "synthetic-offline-model",
+        "store": false,
+        "stream": true,
+        "instructions": "You are a helpful assistant.",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "Synthetic offline request"
+              }
+            ]
+          }
+        ],
+        "text": {
+          "verbosity": "low"
+        },
+        "include": [
+          "reasoning.encrypted_content"
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": true
+      },
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OFFLINE_CAPTURE_COMPLETE"
+        }
+      ]
+    }
+  ],
+  "verdict": "PASS: offered maxTokens does not alter this pinned Codex wire body; not a provider cap or answer qualification",
+  "probeSha256": "f3af4b1b7f3d50e2164d937193eed9e3fa0442a519a0e4db9b78fe12c8bd3f80",
+  "privateRawSha256": "9c997e157e5e78cde97fa08e450b56bdfff117ccb812941a5ede56debdfcdc99",
+  "executionHistory": "Initial3 stream cases then final6(stream+streamSimple);9 captures total,6 distinct cases;0network/native/provider."
+}

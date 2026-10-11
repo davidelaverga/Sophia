@@ -1,0 +1,14 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0118.md",
+  "artifacts": {
+    "evidence/20261011-cx118-subscription-wire/acceptance-status-comparison.json": "0c84816e307aa590ade339f88c544053b81f0001130e94f141dca5c20a952b4a",
+    "evidence/20261011-cx118-subscription-wire/combined-source-review.json": "0215c8b44f5ced24ac22b00789d2d3cb52df88da2abe0371b1aca18d8352c13d",
+    "evidence/20261011-cx118-subscription-wire/installed-source.json": "dbce8ea7e95bf9a6224ad408e954d8356425d033702cffc9610dd5b0709f2b7f",
+    "evidence/20261011-cx118-subscription-wire/official-docs.json": "b12386fd626448604a1866d3b5f8434dfb67270cddd606da96aa72d0e065afdd",
+    "evidence/20261011-cx118-subscription-wire/offline-wire.json": "45f108e8dc45c039b0753fe4d0f5f18f938e8291773b713485630cb6e8876862",
+    "evidence/20261011-cx118-subscription-wire/operation-handoff.json": "f0645c9202f9b755e5a99ec6fb001e895109cb901823c0687f817b8af1a65507",
+    "evidence/20261011-cx118-subscription-wire/pr-checkpoint.json": "a1961a937742a0659cc25227be1bf501b3be5d622fc580d0d8d7bad0632da375",
+    "evidence/20261011-cx118-subscription-wire/stepB-author-gate.json": "35602e9203ee01d0edaef14e0828e50ee08639e669e6022dc784f0d9dc56dffd"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "sources": [
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source",
+      "retrievedAt": "2026-10-11T18:00Z\u201318:03Z",
+      "markdownSha256": "7c916a3136973625481fe21673c2f342e97fe5a70153bc71e068d5b11be83ebd",
+      "readScope": "complete"
+    },
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference",
+      "retrievedAt": "2026-10-11T18:00Z\u201318:03Z",
+      "markdownSha256": "4cd568e57168de134717e5ed611d15d3505b88d30d6a45bd234b2a0a1ea96370",
+      "readScope": "complete"
+    },
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions",
+      "retrievedAt": "2026-10-11T18:00Z\u201318:03Z",
+      "markdownSha256": "ab3eb6b64956e7ca22edbe4eb70f67ab2245cf9aea197902b16c639a6cf8dfc1",
+      "readScope": "complete"
+    },
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations",
+      "retrievedAt": "2026-10-11T18:00Z\u201318:03Z",
+      "markdownSha256": "051ee06d537d746de9a5f1aa5019a44400fd9856b27ec37b4a9c9fec5874fa0c",
+      "readScope": "complete"
+    },
+    {
+      "url": "https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery",
+      "retrievedAt": "2026-10-11T18:00Z\u201318:03Z",
+      "markdownSha256": "0b7f6d6a7a07ba4d81967858ca9f64264e2be017dfaed1e25297969a57a2c005",
+      "readScope": "Structured Responses errors through end; preceding sections not reviewed"
+    }
+  ],
+  "summaries": {
+    "overview": "Documents user-operated OSS/local/self-hosted plan sharing; remotely hosted/paid service goes through interest process. Stable opaque host identifier and account/workspace client mapping; fresh reply homes must not manufacture new logical hosts.",
+    "models": "This SIWC flow uses public Responses, not backend-api. Current account catalog and terminal completed event matter; failure may arrive after stream begins.",
+    "accounts": "Registrations and credentials stay separate even for same email; serialize rotating refresh. Usage page links to ChatGPT Settings Usage; account/app-wide limits are shared. No numerical quota feed is established by that documentation.",
+    "limitations": "storefalse/streamtrue/stateless bounded HTTP inputs required; max_output_tokens unsupported. This is a cap-qualification constraint, not permission to change routes or billing.",
+    "errors": "App-specific usage-limit errors do not prove entire subscription empty or reset time. Preserve machine codes, current credential/uncertain outcome and bounded recovery."
+  },
+  "inference": "Installed fixed-client backend route cannot be called the documented app-specific SIWC route without separate qualification. Missing cap field is observed offline; effective provider hard limit/topology/entitlement/remaining-cap telemetry are unqualified."
+}

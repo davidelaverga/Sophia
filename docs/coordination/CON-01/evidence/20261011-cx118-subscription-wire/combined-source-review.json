@@ -1,0 +1,47 @@
+{
+  "candidate": "ba8c0b35eb65de35059b77aa843e9b533e486668",
+  "tree": "ad8961bab9cf47a2b3b0e50f9db24d1243a0e36a",
+  "parents": [
+    "236aecc76347fff6ad470fa040f2e62cfe643979",
+    "f3ab0b29b52aabc0110640c4699f6432e1eb1de9"
+  ],
+  "automaticAandBMatchPriorTrees": true,
+  "CautoMergeExit": 1,
+  "autoMergeTree": "9f53cd710d5dcc37d38017a07da508a29aa45d66",
+  "onlyResolvedFile": [
+    "docs/coordination/CON-01/BINDING_MAP.md"
+  ],
+  "history": {
+    "A": 15,
+    "B": 22,
+    "C": 25,
+    "exactUniqueUnion": true
+  },
+  "blobsDifferentFromBothParents": [
+    "docs/coordination/CON-01/BINDING_MAP.md",
+    "docs/coordination/CON-01/G2_IMPACT_INVENTORY.md"
+  ],
+  "deltaHashes": {
+    "fec45a0e96c4679a09da02be979503910a623c5c": "58864adaa65eccad8a31962a5cc10adaaa3ed377652232fe356fbc8a50c4a585",
+    "d527f385": "570656ef7d6be4a441020dc18e24c2225d071ce0990ed6adac7ac55facc68643",
+    "f36a8fa0": "2c8adf90322daa99858e46825749e01bec87a06c684ce841134f9e378b961d62",
+    "46ddd769": "bc04c4c4abad8cae30323358820f187514358cf7d1ecb2ded88f344889518d40"
+  },
+  "remergeSha256": "2f64be65ea67f8b0f2bb631cd73b8e0d9249de6bd8c768459551968e2cb47562",
+  "remergeLines": 54,
+  "reviewStatus": "Source composition scoped verified; setup current revision/private-inbox wording correction requested before gate; no code changes invented. Whole/runtime/app acceptance false.",
+  "conflictFiles": 1,
+  "resolvedHunks": 3,
+  "fullMapIndependentlyReconstructed": true,
+  "noMarkersAnywhere": true,
+  "probeCorrection": "Initial full-map regex let DOTALL label consume whole file; label constrained to non-newline, all3hunks then reconstructed exactly. No source changes or hidden gate failure.",
+  "authorReceipt": 6112075853,
+  "finding": {
+    "severity": "P2_coordination_documentation",
+    "location": "BINDING_MAP8.6and13D7",
+    "expected": "Current OP2r3 draft linked; private mailbox reference provided; actual distinct subjects/role/project/approval/expiry still unbound. No email published.",
+    "observed": "Current merged text names OP2r2 and says mailbox unbound. Historical rows should remain historical.",
+    "reproducer": "git show ba8c0b35:docs/coordination/CON-01/BINDING_MAP.md; compare CX117 and reviewer OP2r3 at05bc6fbf.",
+    "request": "Primary makes smallest docs-only correction on review-only branch and returns exact pin/delta; no gate until independent recheck; no PRadvance/shared/runtime/live effect."
+  }
+}

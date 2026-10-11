@@ -1,0 +1,36 @@
+{
+  "at": "2026-10-11T18:03Z",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "PR211": {
+    "head": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+    "draft": true,
+    "mergeable": false,
+    "state": "dirty",
+    "actualRemoteBase": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "embeddedRESTBase": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+    "run": 38158321772,
+    "CIstatus": "queued",
+    "conclusion": null
+  },
+  "PR190": {
+    "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "draft": true,
+    "base": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "mergeable": true,
+    "state": "clean"
+  },
+  "StepB": {
+    "terminalReceipt": 6112056297,
+    "end": "18:06:27Z",
+    "wrapperExit": 0,
+    "bothLocales": "46N4/135five/744db",
+    "closingCensus": "clean/default/0otherclients0processes",
+    "authorEvidenceOnly": true
+  },
+  "integration": {
+    "candidate": "ba8c0b35eb65de35059b77aa843e9b533e486668",
+    "tree": "ad8961bab9cf47a2b3b0e50f9db24d1243a0e36a",
+    "receipt": 6112075853,
+    "status": "composition_reviewed_scoped_docs_correction_required_before_gate"
+  }
+}

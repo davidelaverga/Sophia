@@ -1,0 +1,81 @@
+{
+  "receipt": 6112056297,
+  "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6112056297",
+  "createdAt": "2026-10-11T18:06:56Z",
+  "classification": "author_terminal_log_evidence_source_hashes_independently_rechecked",
+  "candidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+  "tree": "369b060dfc02e96634f5e596907855041d390a7a",
+  "scriptShaPrefix": "dd3dd781",
+  "start": "2026-10-11T17:36:48Z",
+  "end": "2026-10-11T18:06:27Z",
+  "wrapperExit": 0,
+  "cleanBeforeAfter": true,
+  "bothLocales": {
+    "N4": {
+      "pass": 46,
+      "exit": 0
+    },
+    "fiveSuites": {
+      "pass": 135,
+      "exit": 0
+    },
+    "dbAll": {
+      "pass": 744,
+      "exit": 0,
+      "asyncError": false
+    },
+    "composedN2": {
+      "pass": 36,
+      "total": 39,
+      "exit": 1,
+      "expectedDifferences": [
+        "11N4functions includes conversation_refuse_answer(uuid,integer,text)",
+        "byte_length1518to0",
+        "context_hashscrub"
+      ],
+      "restoredClean": true
+    }
+  },
+  "sql": {
+    "exit": 0,
+    "migrations": 46,
+    "files": 5
+  },
+  "check": {
+    "exit": 0,
+    "unitPass": 2255,
+    "unitSkip": 1,
+    "integrationPass": 86,
+    "integrationSkip": 2
+  },
+  "closingCensusBothLocales": {
+    "roles": [
+      "postgres",
+      "sophia_api",
+      "sophia_worker"
+    ],
+    "databases": [
+      "postgres",
+      "template0",
+      "template1"
+    ],
+    "otherClients": 0,
+    "testProcesses": 0
+  },
+  "independentGitBlobSha256": {
+    "db/candidates/con01-s1-reply-states.sql": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+    "db/candidates/con01-s3-conversation-reply-context.sql": "27c25b112efcdb1767790ac3b3790f62fd524e820d514b04c35fa7e0335ea498",
+    "db/candidates/con01-s4-reply-fences.sql": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+    "packages/persistence/src/conversation-assembly.db.test.ts": "153d0c2683774d3f01c4992490c88bca6e4e38c271155ec0af5969abb82f7232",
+    "packages/persistence/src/conversation-fences.db.test.ts": "fe9e536f1e1e35063b22e97683799d059527e410da6e3c6fa10559e2d5298ed3",
+    "packages/persistence/src/conversation-ledger.db.test.ts": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+    "packages/persistence/src/conversation-reply-states.db.test.ts": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0",
+    "db/migrations/0048_project_conversations.sql": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35"
+  },
+  "allNineClaimedPrefixesMatch": true,
+  "composedSqlSha256": "1c28b369a560d7d1d904b712f388354414dec39f25a7fd2094f29a76bc735bf2",
+  "composition": "S3 bytes + one LF + N4 bytes",
+  "initialProbe": "Direct S3+N4 concatenation asserted wrong hash before any record mutation; corrected explicit one-LF composition matches author prefix. Not an author gate failure.",
+  "limits": "Author broadgate not reviewer execution. Prior independent135/meaningful negative/restoredcontrol remains separate; no combined/native/provider/app acceptance."
+}

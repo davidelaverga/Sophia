@@ -1,0 +1,24 @@
+{
+  "candidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+  "tree": "369b060dfc02e96634f5e596907855041d390a7a",
+  "nativePin": "deepseek-ai/deepseek-harness@639ed015397290b3745d163aafe02ffee4aa3f84",
+  "packages": {
+    "@deepseek-ai/dsh-llm-pi-ai": "0.2.0-rc.2",
+    "@earendil-works/pi-ai": "0.87.1"
+  },
+  "files": {
+    "lib/index.js": "d46dbc30aeb3414190000e6f8aeaaf994246b5e5c651de07639f4a7e92de37ef",
+    "dist/providers/openai-codex.js": "769490a94a5bcb062c22e768cf0621c91fb1c5d6be3565e6a6fa765eeeabe674",
+    "dist/auth/oauth/openai-codex.js": "41432753ef2ec7ef21c577fdc8f83b731c78be90c10ed8e7e1df7010f84d198f",
+    "dist/api/openai-codex-responses.js": "6e69310d77278231cfc87d7f03ee815d4a0f2ff273e6c43fcee6835e7df2b0c7",
+    "dist/api/simple-options.js": "1caf860e028e22639578aba3ec8b79e5be9650c27bd3f19471c78502976555f3"
+  },
+  "observations": [
+    "dsh profileOptions1684 sets maxRetries0; upstream default retries are not effective here.",
+    "dsh registers OAuth authorization flows and supplies credentialStoreFrom(ctx); stale no-OAuth-store comment does not describe effective implementation. Service composition and actual identity/topology still require qualification.",
+    "Installed Codex provider default is ChatGPT backend-api; fixed OAuth client and /oauth/token; distinct from current app-specific SIWC flow. No route selected/auth flow executed.",
+    "buildBaseOptions passes maxTokens, but Codex buildRequestBody omits max_output_tokens; actual offline wire capture confirms it.",
+    "Scoped JS search of installed pi-ai finds rate-limit error formatting, not a remaining-cap query. This is not proof that no external/vendor telemetry exists."
+  ],
+  "limits": "Installed source/request builder evidence only. No artifact assembled, credential-store read, token copied, subscription connected, native execution or provider answer."
+}
