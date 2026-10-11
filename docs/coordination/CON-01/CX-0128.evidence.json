@@ -38,7 +38,7 @@
     "operator_thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
     "authorized_request_sent": true,
     "owner_ack_observed": "Actual joint implementer chat acknowledgement inspected; local AX SHA256 matches sealed response. Conditional freeze only; CON acknowledgement/census/exact start tuple pending.",
-    "window_active": "Source-only PhaseA ready for recorded GO delivery; no operational permission; PhaseB/Q13 held",
+    "window_active": "Source-only PhaseA GO delivered in exact CON session; starting recheck/first write/immutable handback not yet observed. PhaseB/Q13/live held.",
     "remaining_start_conditions": [
       "exact ack record and CON acknowledgement",
       "fresh migration number reservation",
@@ -69,7 +69,10 @@
     "owner_metadata_correction_accepted": true,
     "CON_ack": "CC0152 issue6114937632; complete actual acknowledgement read",
     "source_phase_A_record": "SOURCE_PHASE_A_20261012.r1.json",
-    "reservation": "0053_runtime_outbox_reconcile.sql"
+    "reservation": "0053_runtime_outbox_reconcile.sql",
+    "source_GO_receipt": "CX-0128.delivery.json",
+    "source_GO_issue": 6115008881,
+    "source_GO_issue_exact_readback": true
   },
   "primary_coordination": {
     "exact_session": "session_01KUDtFK9gWthsXSrepcLQz3",

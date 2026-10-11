@@ -7,6 +7,10 @@
     "bytes": 2217,
     "sha256": "8b74367e666f30756ab354b9c1c57208e968266a5c9cd6a6f1d8521d6f687ce4"
   },
+  "published-heads-and-pr-census.json": {
+    "bytes": 126057,
+    "sha256": "25c31fb62407f25b8bf69bffa80c732e834ad6c989a3f7406e18ad4aec1030e5"
+  },
   "published-heads-census.json": {
     "bytes": 66923,
     "sha256": "0bc85213d679e27a77f0dc7cb2422b91bf196a458403dd62e66059918f8db2cf"
