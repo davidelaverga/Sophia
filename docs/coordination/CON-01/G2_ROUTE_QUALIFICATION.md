@@ -54,9 +54,10 @@ Files were read only; nothing was run against a network.
   - A stream with no terminal event is an error (SHARED:656-658; CODEX:1094-1096).
   - dsh's `mapStopReason` (DSH:1402-1456) has no default case.
   - dsh's `classifyPiAiError` (DSH:1380-1391) works by regex on the message and has no unknown class. By inference only, untested: the usage-limit message (CODEX:1233-1239) would fall to `PI_AI_ERROR`.
-- **Limit telemetry: none read.**
-  - No rate-limit or usage header is read anywhere in pi-ai or dsh.
-  - The only hook is `onResponse` on SSE (CODEX:283), and dsh doesn't pass it.
+- **Limit telemetry, in the audited seam only.** That seam is the Codex provider (CODEX, SHARED) and dsh-llm-pi-ai (DSH).
+  - It reads no rate-limit or usage header. A search of pi-ai's `dist` and the installed `@deepseek-ai/*` libraries for `x-codex`, `x-ratelimit` and `ratelimit-remaining` found none.
+  - Its only hook is `onResponse` on SSE (CODEX:283), and dsh doesn't pass it.
+  - Nothing beyond that seam was audited.
 - **Refresh.**
   - Refresh tokens rotate: a refresh must return a new `refresh_token` (OAUTH:103-110), and the new grant is persisted through the store's `modify` (RESOLVE:64-108).
   - dsh's lock is a `.lock` file holding the owner's pid. It does not hold across hosts or PID namespaces (ATOMIC:180-181), and nothing coordinates it with another client's store.
@@ -88,58 +89,93 @@ Each one names the documentation that must state it, the installed code that mus
 
 ### 2.2 A cumulative cap that is enforced, not declared
 
-- **What is needed.** A reservation (S2) can be honest only if each call's worst case is bounded before the call leaves. So two things must hold:
-  - **(a)** the request carries a cap the endpoint documents and honours, set from the reserved amount;
-  - **(b)** every request on the wire is reserved first, including transport resends (CODEX:220-227) and any recovery dsh composes, within `max_calls_per_reply` (at most 2, §8.4).
-- **Not a cap:** `maxTokens` metadata.
+- **What is needed.** A reservation (S2) can be honest only if each call's worst case is finite and known before the call leaves. So two things must hold:
+  - **(a) A hard bound** on each call, of one of two kinds:
+    - a cap the request carries, which the eligible flow documents and honours, set from the reserved amount;
+    - or, if that documented flow forbids or omits such a field, another hard bound the flow documents, qualified the same way.
+
+    A wire cap is not a universal prerequisite. The bound plus the reservation and its accounting are.
+  - **(b) Every request on the wire reserved first,** including transport resends (CODEX:220-227) and any recovery dsh composes, within `max_calls_per_reply` (at most 2, §8.4).
+- **Not a bound:**
+  - `maxTokens` metadata;
+  - cancelling a stream part-way;
+  - a guess from earlier usage.
+- **Without a documented, qualified bound,** the route stays unsupported and unbound. No other provider is chosen to get one.
 - **Overruns:** an overrun is recorded at what it used, and the next reservation is refused at the total.
 - **Tests:**
-  - **The offline capture:** the body's cap equals the reservation for each of several values. Today's identical bodies are the fail-before.
-  - **A stub (L1) answering past the cap:** the reply records the overrun and the next ask is refused (`limit_reached`).
+  - **The offline capture:** the documented bound is in force for each of several reserved values. For a wire cap, the body's cap equals the reservation. Today's identical bodies are the fail-before for that form.
+  - **A stub (L1) answering past the bound:** the reply records the overrun and the next ask is refused (`limit_reached`).
   - **A forced WebSocket resend:** it is reserved, or it never leaves.
-- **Today:** **unmet.** The Codex path sends no cap, and its WebSocket resends bypass `maxRetries`.
+- **Today:** **unmet.**
+  - The Codex path sends no cap, and its WebSocket resends bypass `maxRetries`.
+  - Whether the documented flow allows a wire cap, or documents another bound, is not established here.
 
 ### 2.3 Terminal and unknown outcomes
 
-- **Documentation:** the flow's own terminal events and statuses.
+- **Documentation:** the flow's own terminal events and statuses, and the usage each reports.
+- **Two separate decisions.** Each outcome decides:
+  - the reply's label: its state and reason;
+  - how its reservation ends.
+
+  A failure label never settles a reservation by itself. Only a known terminal with known usage does.
 - **Required mapping:**
-  - **completed:** the answer, as today, and only a documented completed status counts.
-  - **incomplete for the output cap:** `failed`/`max_tokens`.
-  - **any other incomplete, failed, cancelled, or an error event:** `failed`, with usage recorded.
-  - **anything else:** `outcome_unknown`, with the open reservation `uncertain` and never re-run (§8.2.1, §8.4). That covers an unknown status, a stream or WebSocket ending without a terminal event, an idle timeout, an abort after the request left, and an unclassified error.
-  - **a request shown never to have left** (no response began): `failed`, with its reservation `released`.
-  - **the usage-limit error:** its own class, `failed`, with no retry and no reset.
-- **Tests (stub, L1):** one case per event shape above, each checking the reply's state, the reason, and the reservation's end.
+  - **A documented terminal event, received for this request:**
+    - **completed:** the answer, as today. Only a documented completed status counts.
+    - **incomplete for the output bound:** `failed`/`max_tokens`.
+    - **any other incomplete, failed or cancelled status:** `failed` with its reason.
+    - **The reservation in each of these cases:** `settled` from the usage that event reports. If it reports none, `uncertain`.
+  - **Everything else:** `outcome_unknown`, with the open reservation `uncertain`, the same durable request and allowance, and no automatic re-run (§8.2.1, §8.4). That covers:
+    - an unknown status;
+    - a stream or WebSocket ending without a terminal event;
+    - an idle timeout;
+    - an abort;
+    - an unclassified error;
+    - the generic error, auth and usage-limit failures whenever this request's non-execution is unproven.
+
+    The reason may name the class (for example the usage limit, which is never retried or reset). The state and the reservation stay unknown.
+  - **`released` only with positive proof.** That means proof, correlated to this request, that it was never dispatched **and** can no longer be dispatched. "No response began" is not that proof. With the installed pi SSE path (a fake fetch, `maxRetries` 0), Codex's offline run showed two cases return identical error shapes with no response: a rejection before dispatch, and a request accepted whose headers were then lost. What counts as such proof is part of this qualification. None is identified in the installed code.
+- **Tests (stub, L1):**
+  - **One case per shape above.** Each checks the reply's state and reason and the reservation's end, separately.
+  - **The two indistinguishable shapes:** a rejection before dispatch, and an accepted request with lost headers. Each ends `outcome_unknown` with the reservation `uncertain` unless the proof above exists.
 - **Today:** **unmet.**
-  - An unrecognized status maps to `stop` (CODEX:558-562; SHARED:660-662).
+  - An unrecognized status maps to `stop` (CODEX:558-562; SHARED:660-662). **Codex corroborated this at L0** with non-empty synthetic text, a future status ending done or stop and a missing terminal ending in an error, with 0 real network, provider or native calls.
   - dsh has no unknown class.
   - The usage-limit message is unclassified.
 
 ### 2.4 Rotating tokens under concurrency
 
 - **What is needed.**
-  - One owner refreshes each account's grant, and its refresh token is used at most once.
-  - A reply home never holds the refresh token. Copying it would be intermediation and is not authorized (§8.4).
-  - How a reply child gets a short-lived access token without it is the runtime owner's design (Q7). It is not proposed here.
+  - One owner refreshes each account's grant, and a rotated refresh token is used at most once.
+  - **How a reply child authenticates is pending Q7, with the vendor's documentation.** The candidates include:
+    - a copy in its B-1 home;
+    - a short-lived token;
+    - a single owner that calls for it.
+
+    None is an authorized solution here, and this file draws no legal conclusion about any of them.
+  - No credential is copied or transferred now (§8.4).
 - **Tests:**
   - **Two concurrent refreshes against a stub token endpoint that rotates:** exactly one refresh request is sent, and the other caller reads the new grant.
   - **A stale refresh token** is never sent twice.
-  - **A refresh failure** ends the reply `failed` (auth) and starts no retry loop.
+  - **A refresh failure** gives the reply the auth reason, with its state and reservation decided as in §2.3, and starts no retry loop.
   - **A second store or host sharing the grant:** shown unsupported, or coordinated.
 - **Today:** **unmet.**
   - dsh's lock holds within one host and PID namespace only (ATOMIC:180-181).
-  - A per-reply home would need its own copy of the grant.
   - What the vendor does when a rotated refresh token is reused is **unknown** here.
 
 ### 2.5 Trusted remaining-limit telemetry
 
 - **Documentation:** a documented endpoint or header that reports the remaining limit to an app.
-- **Today:** Codex's reading finds only the user's ChatGPT Settings, Usage, and shared limits, and no app quota endpoint. **Unavailable.**
-- **The rule until one exists:**
-  - Sophia's allowance is its own ledger's count (S2), shown as Sophia's;
+- **Today:** **not established and not qualified.**
+  - The bounded reading so far found the user's ChatGPT Settings, Usage, and shared limits.
+  - That is not a finding that no app-facing source exists.
+- **Davide's requirement stays unmet:** showing the remaining subscription cap.
+  - Sophia's own counters (S2) do not meet it.
+  - Neither does a link to ChatGPT Settings.
+- **Until a source is established:**
+  - Sophia's allowance is its own ledger's count, shown as Sophia's;
   - no vendor remaining limit is displayed or inferred;
-  - the usage-limit error is the only signal (§2.3).
-- **Installed code, if a source is ever documented:** dsh would have to pass a hook. Today `onResponse` exists on SSE only (CODEX:283) and is unused.
+  - the usage-limit error is read as a class only (§2.3).
+- **Installed code, in the audited seam only (§1):** a documented source would need dsh to pass a hook. Today `onResponse` exists on SSE only (CODEX:283) and is unused.
 
 ## 3. The order, once D-4 is askable
 
