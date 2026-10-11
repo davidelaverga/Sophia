@@ -4,7 +4,7 @@
 // by its own ink (`--chip-ink`). A key (`kind="key"`) is a `kbd`, as the tips draw them, with the same props and ref (a
 // `kbd` is an element like a `span`: its ref is typed as one).
 import type { ComponentPropsWithRef, ElementType, ReactNode } from 'react'
-import { chipClass, type ChipKind, type Tone } from './chip-class.ts'
+import { chipElement, type ChipKind, type Tone } from './chip-class.ts'
 
 export interface ChipProps extends Omit<ComponentPropsWithRef<'span'>, 'children'> {
   kind?: ChipKind
@@ -16,12 +16,10 @@ export interface ChipProps extends Omit<ComponentPropsWithRef<'span'>, 'children
 }
 
 export function Chip({ kind = 'state', tone, dot = false, className, children, ...rest }: ChipProps) {
-  // The element is chosen at run time (a `kbd` for a key, a `span` otherwise), with the same props on either.
-  const Tag = (kind === 'key' ? 'kbd' : 'span') as ElementType<Record<string, unknown>>
-  const props: Record<string, unknown> = {
-    ...rest,
-    className: kind === 'key' ? className : chipClass(kind, tone, className),
-  }
+  // The element is chosen at run time (a `kbd` for a key, a `span` otherwise), with the same props on either
+  // (chipElement, which the node test holds).
+  const { tag, props } = chipElement(kind, tone, className, rest)
+  const Tag = tag as ElementType<Record<string, unknown>>
   return (
     <Tag {...props}>
       {dot && kind !== 'key' && <span className="dot" aria-hidden />}
