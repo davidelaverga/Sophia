@@ -253,7 +253,7 @@ async function onAdmin<T extends pg.QueryResultRow>(sql: string): Promise<T[]> {
 }
 
 const roleNames = async () =>
-  (await onAdmin<{ r: string }>('SELECT rolname AS r FROM pg_roles ORDER BY 1')).map((x) => x.r)
+  (await onAdmin<{ r: string }>('SELECT rolname AS r FROM pg_roles ORDER BY rolname COLLATE "C"')).map((x) => x.r)
 
 /** The message (or `resolved`) a promise ends with: a database refusal's message, else its code or text. */
 async function refusal(p: Promise<unknown>): Promise<string> {
@@ -516,30 +516,33 @@ interface Catalog {
   rows: { relname: string; n: string }[]
 }
 
+// Every text ordering in this file is byte order (COLLATE "C"), as its expected lists are. A database's default collation
+// may not be: CI's postgres:16 (en_US) and an ICU en-US sort `message_scrubbed()` before `message(…)`.
 async function catalog(): Promise<Catalog> {
   const [functions, relations, triggers, policies, rows] = await Promise.all([
     owner<Catalog['functions'][number]>(
       `SELECT p.oid::regprocedure::text AS sig, md5(p.prosrc) AS src, p.prosecdef AS secdef, coalesce(p.proacl::text, '') AS acl
-         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'sophia' ORDER BY 1`,
+         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'sophia'
+        ORDER BY p.oid::regprocedure::text COLLATE "C"`,
     ),
     owner<Catalog['relations'][number]>(
       `SELECT c.relname AS name, c.relkind::text AS kind, coalesce(c.relacl::text, '') AS acl, c.relrowsecurity AS rls
-         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'sophia' ORDER BY 1`,
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'sophia' ORDER BY c.relname COLLATE "C"`,
     ),
     owner<Catalog['triggers'][number]>(
       `SELECT t.tgname || ' on ' || c.relname AS name, pg_get_triggerdef(t.oid) AS def FROM pg_trigger t
          JOIN pg_class c ON c.oid = t.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'sophia' AND NOT t.tgisinternal ORDER BY 1`,
+        WHERE n.nspname = 'sophia' AND NOT t.tgisinternal ORDER BY (t.tgname || ' on ' || c.relname) COLLATE "C"`,
     ),
     owner<Catalog['policies'][number]>(
       `SELECT polname || ' on ' || polrelid::regclass::text AS name, pg_get_expr(polqual, polrelid) AS qual
-         FROM pg_policy ORDER BY 1`,
+         FROM pg_policy ORDER BY (polname || ' on ' || polrelid::regclass::text) COLLATE "C"`,
     ),
     owner<Catalog['rows'][number]>(
       `SELECT c.relname, (xpath('/row/n/text()',
                 query_to_xml(format('SELECT count(*) AS n FROM sophia.%I', c.relname), false, true, '')))[1]::text AS n
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'sophia' AND c.relkind IN ('r', 'p') ORDER BY 1`,
+        WHERE n.nspname = 'sophia' AND c.relkind IN ('r', 'p') ORDER BY c.relname COLLATE "C"`,
     ),
   ])
   return { functions, relations, triggers, policies, rows }
@@ -727,7 +730,8 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
                 unnest(ARRAY['public', 'sophia_api', 'sophia_worker', $1]) g(role)
           WHERE n.nspname = 'sophia' AND p.oid::regprocedure::text = ANY($2)
             AND (CASE WHEN g.role = 'public' THEN has_function_privilege('public', p.oid, 'EXECUTE')
-                 ELSE has_function_privilege(g.role, p.oid, 'EXECUTE') END) ORDER BY 1, 2`,
+                 ELSE has_function_privilege(g.role, p.oid, 'EXECUTE') END)
+          ORDER BY g.role COLLATE "C", p.oid::regprocedure::text COLLATE "C"`,
         [ROLE, ADDED_FUNCTIONS],
       )
       assert.deepEqual(
@@ -773,7 +777,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
         `WITH f AS (SELECT p.oid, p.oid::regprocedure::text AS sig, p.prosecdef FROM pg_proc p
                       JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'sophia')
          SELECT ARRAY(SELECT sig FROM f WHERE has_function_privilege($1, oid, 'EXECUTE')
-                        AND NOT has_function_privilege('sophia_api', oid, 'EXECUTE') ORDER BY 1)::text[] AS own,
+                        AND NOT has_function_privilege('sophia_api', oid, 'EXECUTE') ORDER BY sig COLLATE "C")::text[] AS own,
                 (SELECT count(*) FROM f WHERE has_function_privilege($1, oid, 'EXECUTE')
                    AND has_function_privilege('sophia_api', oid, 'EXECUTE'))::int AS inherited,
                 (SELECT count(*) FROM f WHERE has_function_privilege('sophia_api', oid, 'EXECUTE'))::int AS api,
@@ -938,7 +942,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       const sources = await owner<{ kind: string; ref_id: string; ok: boolean }>(
         `SELECT s.kind, s.ref_id, (o.sha256 = s.sha256 AND o.eligibility_revision = s.eligibility_revision) AS ok
            FROM sophia.conversation_reply_sources s JOIN sophia.source_objects o ON o.project_id = s.project_id AND o.id = s.source_id
-          WHERE s.reply_id = $1 ORDER BY s.kind, s.ref_id`,
+          WHERE s.reply_id = $1 ORDER BY s.kind COLLATE "C", s.ref_id`,
         [s.replyId],
       )
       assert.deepEqual(
