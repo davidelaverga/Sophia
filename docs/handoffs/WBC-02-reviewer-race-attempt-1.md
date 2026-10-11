@@ -132,8 +132,9 @@ included. The environment was PostgreSQL 16.14, throwaway, on 127.0.0.1:55497, w
 - **Integration.** Integration review and the merge to main are Luis's. #190 then merges main as it does, and its own
   image CI covers the combined head.
 - **The sealed hosted r4 plan.** The sealed one-commission r4 plan (`6490274f`) is unchanged and unapproved. It is
-  bound to the image before this repair, which has the race. Any hosted run needs a revised plan bound to the repaired
-  image's digest, and Davide's approval.
+  bound to the source and built distribution before this repair, which has the race. It runs the pinned host and built
+  plugin directly, without a container image. Any hosted run needs a revised plan bound to the repaired candidate and
+  build hashes (and the image digest if an image is used), and Davide's approval.
 - **An unanswered reconcile** that never lands needs an operator fence before that company can provision again.
 - **Rollback.** An image from before 002 runs only with coordination stopped and drained.
 - **Unchanged.** The two billing P1s on #190 stay open, G7 stays off, and #190 stays a draft.
