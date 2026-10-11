@@ -277,6 +277,13 @@
 .lane-why .text-button {
   font-size: var(--type-small);
 }
+/* On a coarse pointer each press's target reaches 7 px above and below its words (theme.css): rows of blockers keep
+   14 px between them, so no two targets meet (Codex on #244). */
+@media (pointer: coarse) {
+  .lane-why {
+    row-gap: 14px;
+  }
+}
 .lane-head .count {
   margin-left: auto;
   padding: 1px 7px;
