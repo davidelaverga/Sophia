@@ -9,6 +9,7 @@ import {
   presenceSlots,
   roomLine,
   runningWork,
+  soleWorkingTask,
   screenCaption,
   shortName,
   stageMode,
@@ -259,5 +260,17 @@ describe('work in progress', () => {
       runningWork({ goals: [goal('g1', 'held')], work: [task('g1', 'held'), task('g2', 'result_ready')] }),
       0,
     )
+  })
+})
+
+describe('the one task that is all the work', () => {
+  it('names the task when it is the whole count, nothing beside a goal running on its own', () => {
+    assert.equal(soleWorkingTask({ goals: [goal('g1', 'running')], work: [task('g1', 'running')] }), 'task-g1')
+    assert.equal(
+      soleWorkingTask({ goals: [goal('g1', 'running'), goal('g2', 'running')], work: [task('g1', 'running')] }),
+      null,
+    )
+    assert.equal(soleWorkingTask({ goals: [], work: [task('g1', 'running'), task('g2', 'running')] }), null)
+    assert.equal(soleWorkingTask(undefined), null)
   })
 })

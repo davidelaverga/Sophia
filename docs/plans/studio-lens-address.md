@@ -29,6 +29,9 @@
 
 - Address without a lens: the stored one, else Converse. A lens the address names that is not a lens: ignored.
 - No work running: the note is not there (as before).
+- After the review (Codex on #242): a shell kept out of sight for its call neither reads nor writes the address (it is
+  another view's); the task is named only when it is the whole count the line says (`soleWorkingTask`), never one of
+  several.
 
 ## Checks (written first)
 

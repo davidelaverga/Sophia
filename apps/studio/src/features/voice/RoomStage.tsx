@@ -32,7 +32,7 @@ import {
   shortName,
   stageMode,
   type StageMode,
-  workingTaskIds,
+  soleWorkingTask,
 } from './room-view.ts'
 import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
@@ -129,8 +129,8 @@ function useFloorHandoff(
 function useWorkGo(snapshot: Snapshot | undefined): (() => void) | null {
   const go = useProjectGo()
   if (!go) return null
-  const [only, ...rest] = workingTaskIds(snapshot)
-  return () => go(only !== undefined && rest.length === 0 ? { view: 'work', taskId: only } : { view: 'work' })
+  const only = soleWorkingTask(snapshot)
+  return () => go(only === null ? { view: 'work' } : { view: 'work', taskId: only })
 }
 
 function SophiaLine({

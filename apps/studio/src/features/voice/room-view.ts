@@ -239,6 +239,15 @@ function lineOf(status: DockStatus, floor: FloorView, work: string | null, sophi
 const aboutWork = (line: RoomLine, work: string | null): RoomLine =>
   work !== null && line.note === work ? { ...line, goes: 'work' } : line
 
-/** The tasks working now, by id: one of them is named in the address when the work's note is pressed. */
-export const workingTaskIds = (snapshot: Pick<Snapshot, 'work'> | undefined): string[] =>
+/** The tasks working now, by id. */
+const workingTaskIds = (snapshot: Pick<Snapshot, 'work'> | undefined): string[] =>
   (snapshot?.work ?? []).filter((t) => WORKING_PHASES.has(t.phase)).map((t) => t.id)
+
+/**
+ * The one task that is all the work in the background, or null: named in the address when the work's note is pressed.
+ * One task beside a goal running on its own is not alone (the line says two): nothing is named, Tasks as a whole.
+ */
+export function soleWorkingTask(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefined): string | null {
+  const ids = workingTaskIds(snapshot)
+  return ids.length === 1 && runningWork(snapshot) === 1 ? (ids[0] ?? null) : null
+}
