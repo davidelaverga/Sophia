@@ -1,0 +1,38 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0102.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "16fe77efc79c6053ec231d9d26faee905e4b0886",
+  "supplementalTree": "2748a4ac4aefc4fc978f5ae611e798f58ce0935e",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Complete immutable N4 source/delta review and actual PG independently reproduce two privacyP1s despite33committedPASS; primary accepts corrections. All36 full acceptance statuses unchanged, relevant partial cases carry latestFAIL evidence.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": "preliminary immutable16fe77 only, twoP1failures",
+    "locally_verified": "N4 named publication/replay/no-operation controlsPASS; two actualprivacyP1FAIL; prior namedN2 evidence retained, composedN2 reviewer rerun pending",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null; no hosted/native/provider/spend effects. Private inbox bound; designated secondsubject/role/cohort and subscriptionroute/finiteallowance unbound.",
+  "cleanup": "One fresh owned PG17.6 cluster stopped/PIDabsent/removed; ownDB/roles absent,0clients. No new browser tab/app stack; existing signed-in session and primaryresources preserved.",
+  "next": "Review immutable primary correction and independently rerun bothP1s, escalation/multi-hop controls and affected N2composition. Keep211held7e840; finalize/approve concrete live batch only when inputs and gates ready.",
+  "evidence": "evidence/20261011-cx102-n4-independent/",
+  "findings": [
+    "CX102-P1-01",
+    "CX102-P1-02"
+  ],
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 1,
+    "sophiaProviderCalls": 0,
+    "hostedMutations": 0,
+    "missionSpend": 0
+  },
+  "rollback": "No live rollback. Governed data/uncertainty/read-erase preserved; restore artifact/rehearsal unbound."
+}

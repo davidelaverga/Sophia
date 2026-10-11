@@ -1,0 +1,56 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "CX100 actual dashboard observation retained, not refreshed this checkpoint; installed composition/custom ledger/current work/rollback and Studio sourceSHA unbound. No CON deployment.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "git fetch separate N4 ref; new detached worktree at16fe77; complete two-file source review",
+    "pnpm install --frozen-lockfile",
+    "owned PG17.6 init/start; Node committed N4 suite, then private four-case script, each600souter bound",
+    "fixture DB/role drop and client census; owned PGfaststop/status/PIDabsence/data removal",
+    "normal queued/direct exact Claude mission messages503/505; no interruption"
+  ],
+  "results": "committed33PASS exit0; independent2PASS2FAIL exit1, no timeout; cluster cleanupsuccessful. No app/native/provider effects.",
+  "unresolvedEffects": "No uncertain hosted effect introduced. Both privacyP1s need primary correction; broader native/shared/live requirements remain open.",
+  "rollback": "No live rollback performed. Retain governed records/uncertainty/read-erase paths; compatible deployment restore and rehearsal still unbound.",
+  "nextBoundedAction": "Review separate immutable correction, rerun own P1probes plus multi-hop/escalation controls and affected composedN2 suite; no merge or activation before review/required batch approval."
+}

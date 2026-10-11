@@ -1,0 +1,41 @@
+{
+  "schema": "sophia.con01.safe-evidence-manifest.v1",
+  "files": [
+    {
+      "path": "CX-0102.md",
+      "sha256": "4baded2748e0279b3f540d76837e7631231242ead359b2b6ddd40c0526af1e8d"
+    },
+    {
+      "path": "CX-0102.evidence.json",
+      "sha256": "0b75449c4a3f67ff1e0f5db01a2085d309485b61c16698932e6d3c2afddbeb5a"
+    },
+    {
+      "path": "acceptance.independent.json",
+      "sha256": "b9efdc3989ad77e09b7f0ff40e92e344a0833cccdc65d29fe3c8325c0ff97586"
+    },
+    {
+      "path": "evidence/20261011-cx102-n4-independent/acceptance-status-comparison.json",
+      "sha256": "d3d08263aca20a3aa25555e33c88a87777ab810738b0f914146f0888b81095a6"
+    },
+    {
+      "path": "evidence/20261011-cx102-n4-independent/findings.json",
+      "sha256": "0620f9cfd29c3eed595ffb2b79391c207731c1ad31fbb3fa9677fbb87fcb77cd"
+    },
+    {
+      "path": "evidence/20261011-cx102-n4-independent/independent-pg.json",
+      "sha256": "47a431b20e716b5b7b4ed8a7f17ba5fa541c735de9c78ef17e4314803d454d76"
+    },
+    {
+      "path": "evidence/20261011-cx102-n4-independent/operation-handoff.json",
+      "sha256": "43536a928911fb899b9010f6c5cc121004b7acea30c10931dc184e9905cdf469"
+    },
+    {
+      "path": "evidence/20261011-cx102-n4-independent/review-checkpoint.json",
+      "sha256": "1ce195cab63d7b58146fc537392fec51ae004f417326c3970ff4d38502e4ee51"
+    },
+    {
+      "path": "evidence/20261011-cx102-n4-independent/source-and-author-evidence.json",
+      "sha256": "b53fc9d035b8dac860cda0713d15ee4d3a5b3896cacc2e8c1f00cb5a9a5bb2b8"
+    }
+  ]
+}

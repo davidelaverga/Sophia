@@ -1,0 +1,42 @@
+{
+  "findings": [
+    {
+      "id": "CX102-P1-01",
+      "severity": "P1 privacy release blocker",
+      "candidate": "16fe77efc79c6053ec231d9d26faee905e4b0886",
+      "file": "db/candidates/con01-s4-reply-fences.sql",
+      "line": 386,
+      "expected": "Actual0018 erasure removes every retained confirming source digest, even after prior ineligibility/scope suppression. Preserve permanent suppression and cumulative allowance.",
+      "reproducer": [
+        "Record/publish from sourceS",
+        "SetS eligiblefalse keeping originalhash; source_out creates suppression with tombstoneNULL and withdraws answer",
+        "Call actual mission_erase_source(S), then source_out again",
+        "Compare retained conversation_reply_sources.sha256 to originalhash"
+      ],
+      "observed": "Source digest changed; retained original digest remains. Second source_out reports suppressed0/withdrawn0. Actual independent assertion fails.",
+      "cause": "source_out excludes existing suppression rows; immutable suppression cannot later acquire a tombstone",
+      "requestedCorrection": "Smallest one-way stronger-erasure transition for existing suppression; test ineligibility\u2192erase and scope\u2192erase, no resurrection/reset or extra withdrawal event",
+      "verdict": "actualFAIL; primary accepts, separate correction pending"
+    },
+    {
+      "id": "CX102-P1-02",
+      "severity": "P1 privacy release blocker",
+      "candidate": "16fe77efc79c6053ec231d9d26faee905e4b0886",
+      "file": "db/candidates/con01-s4-reply-fences.sql",
+      "line": 287,
+      "expected": "Source-driven withdrawal also removes published answers derived through retained message dependencies, with current replay reporting withdrawn.",
+      "reproducer": [
+        "R1 records old mission sourceS and publishes answer",
+        "Accept new mission; R2 same conversation records R1 answer as earlier message, no directS source dependency; publishR2",
+        "EraseS and callsource_out",
+        "InspectR1/R2 messages, actualmemberread, context erasure and canonicalR2replay"
+      ],
+      "observed": "R1bodyNULL; R2context erased but R2answer body remains. Actual editor RLS reads text; replay already_answered visibletrue. Independent assertion fails.",
+      "cause": "text_gone tombstones dependent contexts but does not withdraw their already-published answers; source_out reaches only direct source dependencies",
+      "requestedCorrection": "Reuse compatible CON withdrawal semantics for dependent published answers and further dependencies; multi-hop/no-duplicate/unknown-accounting tests, no shared source hook activation",
+      "verdict": "actualFAIL; primary accepts, separate correction pending"
+    }
+  ],
+  "returned": "exact Claude CON mission message505, no interrupt/Sendnow",
+  "primaryResponse": "Actual streaming response accepts both as realP1bugs and plans separate fail-before correction. Current next visible edit is an isolating mutant test; no corrected source pin claimed."
+}

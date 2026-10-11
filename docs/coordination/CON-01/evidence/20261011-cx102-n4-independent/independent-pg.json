@@ -1,0 +1,128 @@
+{
+  "candidate": "16fe77efc79c6053ec231d9d26faee905e4b0886",
+  "tree": "2748a4ac4aefc4fc978f5ae611e798f58ce0935e",
+  "level": "L1 local PG17.6; supplied answers; no native/provider/hosted",
+  "sourceReview": "complete437-line SQL and1374-line test; exact two-file+1811 delta vs7e840; no existing source edited",
+  "sourceHashes": {
+    "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-fences.db.test.ts": "35a4e4eacb2fc85d0936fb55663e4ba3daa3d1b026cc9c9a90afd3891ac959e2",
+    "db/candidates/con01-s4-reply-fences.sql": "b2a4ddb1ebd62cbc78749c2b0e92c672aedd55559f9f91a8b6a1342616e20b40"
+  },
+  "runnerHash": "f90821db4728e8d8f8f31c911bdfd770df5ee9ec35e2a8bc9077e986e59c8520",
+  "independentScriptHash": "2b9f7396c49b4f3a9658f3d491b7a51203d79d15f4c2541e23bbbc573ae162f2",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "commands": [
+    {
+      "label": "committed-tests",
+      "exit": 0,
+      "timedOut": false,
+      "outerSeconds": 600
+    },
+    {
+      "label": "independent-cases",
+      "exit": 1,
+      "timedOut": false,
+      "outerSeconds": 600
+    }
+  ],
+  "committedSuite": {
+    "tests": 33,
+    "pass": 33,
+    "fail": 0,
+    "exit": 0
+  },
+  "independentCases": [
+    {
+      "name": "Independent current publication and canonical replay control",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Later erasure removes retained source digest after prior ineligibility suppression",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "original source digest survives actual0018 erasure after prior suppression"
+      }
+    },
+    {
+      "name": "Source withdrawal hides a later answer derived from its withdrawn answer",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "derived published answer still contains withdrawn-source content"
+      }
+    },
+    {
+      "name": "No collateral model or operational writes",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "control": {
+      "first": "published",
+      "replay": "already_answered",
+      "sameAnswer": true
+    },
+    "laterErasure": {
+      "first": {
+        "reason": "source_withdrawn",
+        "verdict": "source_out",
+        "cancelled": 0,
+        "withdrawn": 1,
+        "suppressed": 1
+      },
+      "again": {
+        "reason": "source_withdrawn",
+        "verdict": "source_out",
+        "cancelled": 0,
+        "withdrawn": 0,
+        "suppressed": 0
+      },
+      "sourceDigestChanged": true,
+      "retainedOriginalDigest": true
+    },
+    "transitive": {
+      "directOldSource": 0,
+      "readPriorAnswer": 1,
+      "withdrawal": {
+        "reason": "source_withdrawn",
+        "verdict": "source_out",
+        "cancelled": 0,
+        "withdrawn": 1,
+        "suppressed": 1
+      },
+      "firstBodyGone": true,
+      "secondBodyGone": false,
+      "memberStillReads": true,
+      "replay": "already_answered",
+      "replayVisible": true,
+      "dependentContextErased": true
+    },
+    "collateral": {
+      "commands": 0,
+      "jobs": 0,
+      "work_attempts": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_grants": 0,
+      "conversation_reservations": 0
+    }
+  },
+  "fixtureCleanup": {
+    "databaseDropped": true,
+    "rolesAbsent": true,
+    "remainingDatabases": [],
+    "otherClients": 0
+  },
+  "clusterCleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "finishedAt": "2026-10-11T12:36:24.047Z",
+  "scope": "N4 entrypoints called as owner because deliberately ungranted; context assembled through real NOINHERIT test login SET LOCAL ROLE assembler and saved asker; transitive answer read via real editor RLS. No trusted native result/provider/app proof."
+}

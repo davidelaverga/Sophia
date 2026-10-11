@@ -1,0 +1,30 @@
+{
+  "candidate": "16fe77efc79c6053ec231d9d26faee905e4b0886",
+  "tree": "2748a4ac4aefc4fc978f5ae611e798f58ce0935e",
+  "parent": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "ref": "claude/con01-g2-s4-review",
+  "footprint": "three closed RLStables, fiveindexes, tenfunctions, seventriggers, CON-only N2 keep-guard and length-check replacements; no role/grant/caller/numbered migration/shared source hook",
+  "primaryComment": 6109068231,
+  "primaryCommentRead": "complete actual6965-characterCC0102 body",
+  "primaryCommentHash": "20a87c7b3f87b69f3311649b6c033509d1305a7cb0a3e119b43004c65d9bcdeb",
+  "authorOnly": {
+    "preCommitFirstRun": "exit1,31/33, two reported setup defects; fixes precede pin",
+    "pinnedRun": "PG16.15 exit0,33/33; own PG17.6 separately verifies33/33",
+    "N2composed": "author exit1,34/37; three intended failures: footprint and two scrub tests differing context_hash/byte_length. Not reviewer execution yet.",
+    "pendingAtCC0102": [
+      "ICU",
+      "mutants",
+      "db-all",
+      "test:sql",
+      "pnpm check",
+      "ICU composition"
+    ]
+  },
+  "N2unchangedHashes": {
+    "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-assembly.db.test.ts": "536c6bda088efa3b7e17eaab92f50902df6d0282d543a9f19f81c7740ed3ff22"
+  },
+  "N2hashNote": "All three actual source hashes verified at immutable16fe77; two-file diff confirms original source unchanged",
+  "readiness": "preliminary source_ready; named controls pass, two independentP1FAIL; whole release review false"
+}
