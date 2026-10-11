@@ -37,6 +37,8 @@ The commit after it adds only this handoff.
   in the room.
 - 15 and not 16: 16 is the personal space's voice; the ramp already holds 15 (the sheets' titles) and 15 on 20 is on
   the grid.
+- After the review (Codex on #248, 2026-10-11): the open conversation's title and the new conversation's heading are
+  section heads too (15), so Conversations keeps to five sizes and the spec's allowlist is five again.
 
 ## Remaining obligations
 
