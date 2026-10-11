@@ -53,6 +53,12 @@ async function toClipboard(text: string): Promise<boolean> {
 /** One clipboard for the page: writes go one after another, and the presses count across every message (Codex on #240). */
 let presses = 0
 let writes: Promise<unknown> = Promise.resolve()
+/** How long a write may take before it is given up as not copied, so one stuck browser operation frees the queue. */
+export const COPY_WAIT_MS = 4000
+
+/** The write, or false once it has taken too long (a permission request left pending in a webview never settles). */
+const bounded = (write: Promise<boolean>) =>
+  Promise.race([write, new Promise<boolean>((resolve) => setTimeout(() => resolve(false), COPY_WAIT_MS))])
 
 export function MessageActs({ message, who, now, onQuote, propose }: Props) {
   const { said, say } = useSaid()
@@ -60,7 +66,7 @@ export function MessageActs({ message, who, now, onQuote, propose }: Props) {
   // changes nothing, and the writes queue so the clipboard holds what the last press put there.
   const copy = async () => {
     const press = ++presses
-    const write = writes.then(() => toClipboard(clipOf(message, who, now)))
+    const write = writes.then(() => bounded(toClipboard(clipOf(message, who, now))))
     writes = write
     const ok = await write
     if (press === presses) say(ok ? 'copied' : 'failed')

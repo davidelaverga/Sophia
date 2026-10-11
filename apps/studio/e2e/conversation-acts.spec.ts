@@ -107,6 +107,28 @@ test('acts · two presses overlapping: the latest one’s outcome is said, an ea
   await expect(first.getByRole('status')).toHaveCount(1)
 })
 
+test('acts · a write that never settles is given up after its wait: the next copy is said, the page keeps its Copy', async ({
+  page,
+}) => {
+  test.slow() // the wait is four seconds by design
+  await page.addInitScript(() => {
+    let presses = 0
+    // The first write never settles (a permission request left pending); the ones after go through at once.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => (presses++ === 0 ? new Promise<void>(() => undefined) : Promise.resolve()) },
+    })
+  })
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveCount(0)
+  // Past the wait, the stuck write is given up (it was not the latest press, so it says nothing) and the queue moves on.
+  await expect(first.getByRole('status')).toHaveText('Copied', { timeout: 8000 })
+  await expect(first.getByRole('status')).toHaveCount(1)
+})
+
 declare global {
   interface Window {
     settleFirstCopy?: () => void
