@@ -846,6 +846,24 @@ The context record keeps each section's coverage (included, omitted, and "may be
     - Enabling a caller (making any login a member) is blocked until a least-privilege `SELECT` and RLS path is agreed with the affected owners in the shared window.
     - At that point a test shows the final execution identity can call no operational writer.
     - No owner or superuser read stands in for it, and no one else's policy is edited silently.
+  - **The cluster and database boundary: owner-held (PR #211 r4242913900; CX-0123).**
+    - **What the roles reach.** `sophia_conversation_assembler` and `sophia_api` are cluster roles. A login made a member of the assembler inherits its grants, and through it `sophia_api`'s, in every database of the cluster where those roles hold grants and the login can connect. S3's preflight (`7d8f415f`) refuses only a role with something of its own in its own database or on a shared object.
+    - **Reproduced** by the independent reviewer (CX-0123, PostgreSQL 17.6, L1):
+      - S3 applied in Y, with an extra `SELECT` grant there; S3 in X then accepted the role.
+      - A fresh login activated for X connected to Y through `PUBLIC`'s default `CONNECT` and read Y's out-of-scope data.
+      - **Control:** with Y's `CONNECT` revoked from `PUBLIC`, a fresh connection to Y was refused (42501) while X's still worked. That proves fresh admission only, not that sessions already open in Y are ended.
+    - **Not waived by dormancy.** Neither the schema nor activation can be qualified until this boundary is bound and proven on the actual deployment.
+    - **The activation precondition.** It adds to the hold above. Before any login becomes a member, or any execution identity is activated:
+      1. **The boundary, chosen by its owner (Q13).** The candidates, none chosen here:
+         - a documented rule of one Sophia database per cluster, proven by a census of the actual cluster's databases;
+         - per-identity isolation, so that the execution identity has rights and admission in one database only: for example a database-specific identity, or `CONNECT` revoked from `PUBLIC` and granted per login;
+         - S3's preflight refusing a role with any dependency in any database. That is possible. It would make S3 installable once per cluster and refuse the documented adoption across databases.
+      2. **An inventory, for every database on the cluster:** the assembler's and `sophia_api`'s grants, which is what a member inherits; each database's actual `CONNECT` grants, `PUBLIC`'s included; and the identity's own grants.
+      3. **Existing connections settled.** Revoking `CONNECT` refuses new admissions only. Before activation, no session of the identity or of any member may be open in a database outside its boundary, as shown by `pg_stat_activity` across the cluster. How such a session is ended is the owner's procedure.
+      4. **The least-privilege final identity, qualified on the actual deployment:**
+         - **negative, X to Y:** a fresh connection to every other database is refused (42501), no session is open there, and nothing in another database can be read or executed;
+         - **positive, X:** in its own database it does exactly its intended work and nothing more, which is the test above that it can call no operational writer.
+    - **Not chosen here:** the owner's policy, a new role, a harness, and any shared runtime or deployment change.
 - **The transaction:** `BEGIN ISOLATION LEVEL REPEATABLE READ`, read-write, then `SET LOCAL ROLE sophia_conversation_assembler`. It is one snapshot, as the compiler assumes ("one connection, one REPEATABLE READ snapshot").
   - `conversation-context.ts` opens it itself. `tx.ts`'s `withActor` can't: its read mode is read-only, and it sets the actor before the first statement. `tx.ts` is unchanged.
   - Its first snapshot-taking statement is `conversation_assembly_begin`.
@@ -1023,6 +1041,7 @@ Each answer is needed before the matching write. None is answered here, no owner
 | Q10 | #190's owner (SDD-01 G7) | 0049 and the wire: can the window be named once #190's chain settles? |
 | Q11 | The census | Which migration numbers, for the hook and index, 0049, and the kind CHECK? |
 | Q12 | The runtime's owner (WBC-02/SDD-01), once named | Will you correct `reconcile_runtime_outbox` (0012:782-797; the worker's immediate re-pass at `apps/worker/src/runtime-dispatch.ts:98`) by a new migration, before 0049 or ahead of it in the same window? The correction needs both parts. **No starvation (required):** select only rows a pass can change, or prove a bounded fair traversal, so that no recoverable row waits behind older rows that can't change. **An honest count:** count only rows whose state changes. A count-only correction ends the spin but leaves the starvation. Its backlog recheck (L + 1 rows, at L = 2 and at the default 50) and CON's own reply cases are in G2_RUNTIME_PLAN §2.4.1. The spin and the starvation are pre-existing P2s that Codex reproduced (CX-0116 and its recheck); CON does not fix them |
+| Q13 | Davide, with the runtime's owner once named | Which database boundary does the reply execution identity get: one Sophia database per cluster, per-identity isolation, or S3 refusing every other-database dependency? Activation waits on the answer and on §8.7's precondition proven on the actual deployment (PR #211 r4242913900; CX-0123) |
 
 ## 9. Studio binding (G3)
 
@@ -1139,6 +1158,7 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-11 | CC-0149, proposed, docs only: §8.7 binds the cluster and database boundary as an owner-held activation precondition. The assembler and `sophia_api` are cluster roles, so a member inherits their rights in every database it can reach; the independent reviewer reproduced X to Y through `PUBLIC`'s default `CONNECT`. Before activation: the owner's boundary (Q13; three candidates, none chosen), an inventory of every database's inherited rights and actual `CONNECT` grants, existing connections settled, and the final identity qualified negative X to Y and positive X on the actual deployment. Not waived by dormancy. §8.8 gains Q13. No source, role, harness or runtime change | PR #211 r4242913900 (review 5484636886), confirmed by Codex (CX-0123) |
 | 2026-10-11 | CC-0134: §8.6 and D-7 name the current setup draft, CON-01-OP-0002-r3 (Codex's `05bc6fbf`, `draft_not_authorized`), which supersedes r2; r2 and the rows that name it stay as history. The test mailbox is now an owner-provided private reference, held in a private operator store and never published. The actual subjects, the role, the project, the approval and its expiry remain unbound | CX-0118's review of the integration candidate `ba8c0b35` |
 | 2026-10-11 | CC-0129: Q12 corrected. The selection fix is required, not optional. Older rows the reconcile pass can't change fill its `ORDER BY created_at LIMIT p_limit` window on every pass, so a recoverable row behind them is never reached. A count-only correction ends the spin but keeps that starvation. Q12 now asks for both parts, with G2_RUNTIME_PLAN §2.4.1's L + 1 backlog recheck: the uncertain rows keep their state, their one command and their accounting, and no command is ever sent twice. Still the owner's new migration in its window; no CON fix and no shared change | CX-0116 recheck: Codex's third probe (`p_limit` 2, two answered rows ahead of one with no command) |
 | 2026-10-11 | CC-0127: §8.8 gains Q12, the shared dispatcher's reconcile spin (a pre-existing P2 in 0012 and the worker), as an owner dependency ahead of 0049. The exact boundary, the smallest owner correction, its recheck, and CON's own binding rules are in G2_RUNTIME_PLAN §2.4.1. No CON fix and no shared change | CX-0116 |
