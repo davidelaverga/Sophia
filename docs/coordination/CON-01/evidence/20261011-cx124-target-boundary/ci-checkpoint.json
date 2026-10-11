@@ -1,0 +1,59 @@
+{
+  "observedAt": "2026-10-11 19:53:39 UTC",
+  "tool": "purpose-built Code Review pull_requests_checks",
+  "runId": 38168148111,
+  "headRevision": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "checks": [],
+  "statuses": [],
+  "annotations": [],
+  "hasMore": false,
+  "job": null,
+  "jobs": [
+    {
+      "id": 114554922829,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554922957,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554922973,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554922974,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554923056,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554923137,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null
+    }
+  ],
+  "log": null,
+  "logTruncated": false,
+  "providerGuidance": "GitHub guidance for this response only: use checkRunId for output and annotations, runId from a GitHub Actions /runs/<id> link to list jobs, or jobId from a /jobs/<id> link for logs. page paginates checks, jobs or annotations. Keep the supplied account and returned headRevision on follow-up reads. Third-party CI exposes only the output reported to GitHub.",
+  "limits": "No CI rerun/cancellation, no pass or failure cause inferred. Queued jobs are the existing run."
+}

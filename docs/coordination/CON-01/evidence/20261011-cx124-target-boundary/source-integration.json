@@ -1,0 +1,16 @@
+{
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "mainTree": "8c1232f751df67a5de16779047b21bb5f5ada176",
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "candidateTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "mainIsAncestor": true,
+  "mergeBase": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "mergeTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "mainOnlyPaths": [],
+  "pr": 211,
+  "draft": true,
+  "merged": false,
+  "actualBase": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "embeddedConnectorBase": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+  "limits": "Textual compatibility and ancestry only. Exact current main already included; no integration edit, build or native/deployment qualification."
+}

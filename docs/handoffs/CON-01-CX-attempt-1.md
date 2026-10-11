@@ -808,3 +808,8 @@ CX123 freshreviewupdate: exact7d8botP2crossDBr4242913900 independentlyconfirmed 
 CX123 heldproposal82ce9f60/18cc2cb1 full45linedelta/hash/historyreviewed, directiononly; Q13newarchitecturalchoice askedDavide/pending, all commonactualrights/CONNECT/sessionproof mandatory. Seven safeartifacts; crossDBP2open/PR2117d8unchanged/operationapprovalNULL. Nextowneranswer+actualCIcheckpoint.
 
 CX123 closing receipt: evidence commit `3c16bafc2adb31d47ae38625d90b1b411b0237ce` is pushed. [Issue 198 handoff](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6112975673) was posted and read back with an exact body match. The 19:47:14 UTC CI read still shows all six jobs in run `38168148111` queued for exact head `7d8f415f45d51d3f536443060f5acbfd3bea9455`; no rerun or cancellation. Cross-database P2 and Q13 remain open. No approved live batch, deployment, or designated two-account/provider app verification. Next: the owner's isolation choice and the existing CI result.
+
+
+## CX-0124 target boundary discovery
+
+[CX-0124](../coordination/CON-01/CX-0124.md) records current-main ancestry, the unchanged candidate tree, six queued jobs, and the exact review-comment citation correction. One read-only target PostgreSQL 17.6 connection found one non-template database but PUBLIC CONNECT privilege on all three listed databases (two allow connections); the assembler role is absent. This is deployment inventory, not final-identity isolation or session settlement. Transaction rolled back and connection ended. All 36 verdicts and operation approvals are unchanged. Next: Davide’s Q13 choice and the existing CI result; no shared runtime or live effects are approved.

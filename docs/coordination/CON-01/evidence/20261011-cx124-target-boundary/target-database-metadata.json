@@ -1,0 +1,72 @@
+{
+  "observedAt": "2026-10-11T19:51:26.116Z",
+  "serverObservedAt": "2026-10-11T19:51:29.823Z",
+  "mode": "READ ONLY; bounded database/role/session metadata only",
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "targetReferenceMatched": true,
+  "serverVersion": "17.6",
+  "readOnly": "on",
+  "roles": [
+    {
+      "rolname": "sophia_api",
+      "rolsuper": false,
+      "rolinherit": true,
+      "rolcreaterole": false,
+      "rolcreatedb": false,
+      "rolcanlogin": false,
+      "rolreplication": false,
+      "rolbypassrls": false
+    }
+  ],
+  "databaseCount": 3,
+  "connectableDatabaseCount": 2,
+  "nonTemplateDatabaseCount": 1,
+  "apiConnectDatabaseCount": 3,
+  "publicConnectDatabaseCount": 3,
+  "inheritedRoleCount": 1,
+  "incomingOrOutgoingRoleEdgeCount": 2,
+  "dependencyGroups": [
+    {
+      "role": "sophia_api",
+      "scope": "current_database",
+      "type": "a",
+      "objectClass": "pg_proc",
+      "count": 94
+    },
+    {
+      "role": "sophia_api",
+      "scope": "current_database",
+      "type": "a",
+      "objectClass": "pg_class",
+      "count": 60
+    },
+    {
+      "role": "sophia_api",
+      "scope": "current_database",
+      "type": "a",
+      "objectClass": "pg_namespace",
+      "count": 1
+    },
+    {
+      "role": "sophia_api",
+      "scope": "current_database",
+      "type": "r",
+      "objectClass": "pg_policy",
+      "count": 59
+    }
+  ],
+  "existingClientSessionCount": 15,
+  "targetRoleClientSessionCount": 0,
+  "truncated": false,
+  "rollbackConfirmed": true,
+  "connectionEnded": true,
+  "limits": "No application content, no credential values, no other-database connection, no final dispatch identity or effective-role qualification. Metadata snapshot is not session settlement or an activation approval.",
+  "scriptSha256": "d2e9bce071e853d1107fed94072b5e57d12170ec1a55c24d5fd2f4b8f0780d1f",
+  "executedCommand": "node <private operator journal>/cx124/database-boundary-readonly.mjs",
+  "queryCount": {
+    "metadataSelects": 8,
+    "transactions": 1,
+    "commits": 0
+  },
+  "sessionCountLimit": "The NOLOGIN role-name count is not descendant-login settlement evidence; no final execution identity was tested."
+}

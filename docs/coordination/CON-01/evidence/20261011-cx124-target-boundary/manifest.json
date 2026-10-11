@@ -1,0 +1,30 @@
+{
+  "checkpoint": "CON-01-CX-0124",
+  "artifacts": [
+    {
+      "path": "acceptance-preservation.json",
+      "sha256": "59f97cfd0f9a5cc50a1e66c7e5222dd38aec7854c195e3d4cc83350f8118de23"
+    },
+    {
+      "path": "ci-checkpoint.json",
+      "sha256": "5a03ea554f4154d9ce5172bd8bf25fe28f0cc802acd80e8ea567b2d18aecfcf1"
+    },
+    {
+      "path": "comment-correction.json",
+      "sha256": "6d728ea5508d0b6856e6fa1d99cf293b7d0b0b2ed4f8dcb822625e9bc13e37ff"
+    },
+    {
+      "path": "operation-handoff.json",
+      "sha256": "ceb01e0a26693c32fcebebcd347e3cfaa3fdc11d87cec43cab12adb839598141"
+    },
+    {
+      "path": "source-integration.json",
+      "sha256": "47cda7879e530a18bde732fb788c67f152c76fe01a716e489dd7dbebb152a10e"
+    },
+    {
+      "path": "target-database-metadata.json",
+      "sha256": "525e028559a4974e2a4e29929b9a97ade145cc8a75306c808fec4cdcde12cbbb"
+    }
+  ],
+  "privacy": "Safe aggregates/reference identifiers only. Credential values, private inbox, raw database/session names and subscription values remain outside Git."
+}

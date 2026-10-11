@@ -1,0 +1,21 @@
+{
+  "tool": "GitHub update_review_comment, then list_pull_request_review_threads",
+  "id": 4242905545,
+  "updatedAt": "2026-10-11T19:52:11Z",
+  "bodyMatch": true,
+  "openThreads": [
+    {
+      "id": "PRRT_kwDOUqJnR86rNsHb",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "firstId": 4241643135
+    },
+    {
+      "id": "PRRT_kwDOUqJnR86rQxz8",
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "firstId": 4242913900
+    }
+  ],
+  "change": "Only (CX-0123) replaced with (CX-0120) in reply r4242905545.",
+  "sourceChange": false,
+  "claudeToolLimitation": "Exact desktop thread reported no inline-review-comment edit capability. Reviewer used its available purpose-built connector."
+}

@@ -1,0 +1,13 @@
+{
+  "caseCount": 36,
+  "verdicts": {
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15
+  },
+  "acceptanceFileSha256": "689fe686ebe535868665b98cc5fb6aae56e740a9ff46e8ad9c32ac9c10608b22",
+  "allCasesCanonicalSha256": "50bdbf7d40739dfe979a036b3bca3047e54d563c4d4fe3ea732d76fa5aab6eb7",
+  "fileChanged": false,
+  "upgradedCases": [],
+  "limits": "Metadata/ancestry/citation only; no new acceptance test or global readiness upgrade."
+}
