@@ -140,18 +140,30 @@ function LaneWhy({
   onOpen: (id: string) => void
 }) {
   const blockers = blockersOf(rows, all)
+  const [all5, setAll] = useState(false)
   if (blockers.length === 0) return null
+  // The first few, named; the rest one press away, as a lane keeps its tiles (a plan may have many: Codex on #244).
+  const shown = all5 ? blockers : blockers.slice(0, WHY_SHOWN)
+  const kept = blockers.length - shown.length
   return (
     <p className="lane-why">
       <span className="lane-why-word">Waiting on</span>
-      {blockers.map((b) => (
+      {shown.map((b) => (
         <button key={b.item.id} type="button" className="text-button" onClick={() => onOpen(b.item.id)}>
           {b.item.purpose}
         </button>
       ))}
+      {kept > 0 && (
+        <button type="button" className="text-button lane-why-more" onClick={() => setAll(true)}>
+          and {kept} more
+        </button>
+      )}
     </p>
   )
 }
+
+/** How many blockers a lane names before «and N more». */
+const WHY_SHOWN = 3
 
 /** A lane: its head and count, its first tiles, and the rest one press away. */
 function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
