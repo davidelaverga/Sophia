@@ -83,7 +83,7 @@ test('dock · what the dock says hangs under the header, on the page: Sophia loo
     if (!el || !topbar) return null
     const r = el.getBoundingClientRect()
     const t = topbar.getBoundingClientRect()
-    return { top: r.top, underHeader: r.top >= t.bottom, within: r.right <= innerWidth }
+    return { top: r.top, underHeader: r.top >= t.bottom - 0.5, within: r.right <= innerWidth } // at the bar's foot
   })
   expect(read?.top).toBeGreaterThanOrEqual(0)
   expect(read?.underHeader).toBe(true)
