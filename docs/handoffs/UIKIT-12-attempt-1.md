@@ -59,6 +59,8 @@ That is the completed code state of this PR.
   option, not the first.
 - Fixture pages ask for a theme in the address (`theme=light`) without keeping it (`asked`, not `localStorage`), so a
   spec's run leaves nothing behind.
+- The spec's `ratio()` named its grounds page first, so the paper covered the press's own plane and a paper ink read
+  as 1:1 (CI's «send ready» failure); grounds are nearest first, as `lowContrast` collects them (2026-10-11).
 
 ## Remaining obligations
 
