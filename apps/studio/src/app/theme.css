@@ -134,11 +134,13 @@
   --shadow-k: 0.35;
   --mark-you: #16151b;
   --mark-sophia: #8468ee;
-  --teal-fill: rgb(var(--teal-rgb) / 0.14);
+  /* The tints are the accent at 14 % over the paper, mixed once and opaque: a tag over a cover or a plane keeps the
+     same backing and the same contrast wherever it sits (Codex on #250). */
+  --teal-fill: #dae4de;
   --on-teal: var(--teal);
-  --amber-fill: rgb(var(--amber-rgb) / 0.14);
+  --amber-fill: #ece1d4;
   --on-amber: var(--amber);
-  --rose-fill: rgb(var(--rose-rgb) / 0.14);
+  --rose-fill: #efddde;
   --on-rose: var(--rose);
 }
 :root[data-theme='light'] body::after {
