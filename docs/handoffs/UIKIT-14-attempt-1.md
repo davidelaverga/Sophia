@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/board-b
 (stacked on PR #235 → #234 → … → #220; the base retargets as each merges)
 Ending commit/tree: `3ff86c5c` (tree `bcc06fb746b9`): 7 files, 1 new (`docs/plans/board-blocked.md`); `plan.ts`,
 `PlanBoard.tsx`, `board.css`, `plan.test.ts`, `served-board.test.ts`, `e2e/work.spec.ts`. The commit after it adds
-only this handoff.
+only this handoff. After the review (Codex on #236, P2): `84d8b4c2` keeps a dependent blocked while its blocker is
+anything but complete (a cancelled prerequisite satisfies nothing), with the case in `plan.test.ts`. That is the
+completed code state of this PR.
 
 ## Outcome
 
