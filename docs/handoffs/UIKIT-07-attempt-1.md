@@ -64,6 +64,9 @@ after it adds only this handoff.
 - The read notes keep their words («Loading the report…»: the specs name them) and gain `role="status"`.
 - `ProjectContext`'s `Waiting` and the sending lines («Sending…», «Asking for the PDF…») stay: a wait of its own, and
   an action's progress, not a read.
+- After the review (Codex on #229, 2026-10-11): a `status` live region is read when its words change, not at birth, and
+  every caller mounts `ReadNote` with its words already there; the note is now mounted empty and takes its words a
+  moment later (an effect), so «Loading…» is heard too. The look is the same: one frame without words.
 
 ## Remaining obligations
 

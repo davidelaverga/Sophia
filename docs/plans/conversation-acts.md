@@ -47,3 +47,7 @@
 - Editing a message needs the API (and a record of the edit for the room's truth); then `↑` edits the last own one.
 - «To the brief» as a note (not a decision) from a message: the brief's notes take words today only from their own
   field.
+- **After the review (Codex on #240, 2026-10-11)**: two Copy presses overlapping, the first slow and refused after
+  the second went through, said «Not copied» over a clipboard that held the words. Each press takes a number; only the
+  latest press's outcome is said. The spec hangs the first write, presses twice, settles the first as refused: «Copied»
+  stands.

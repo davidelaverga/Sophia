@@ -22,3 +22,17 @@ test('why · the goal’s chip counts what is blocked; a goal with nothing block
   const fonts = page.getByRole('tab', { name: /Exports keep the report’s fonts/ })
   await expect(fonts.locator('.plan-tab-blocked')).toHaveCount(0)
 })
+
+test('why @phone · on a coarse pointer the blockers’ rows keep their reaching targets apart', async ({ page }) => {
+  await page.goto(PAGE)
+  const why = lane(page, 'Blocked').locator('.lane-why')
+  await expect(why).toBeVisible()
+  const read = await why.evaluate((el) => {
+    const press = el.querySelector('.text-button')
+    const reach = press ? getComputedStyle(press, '::after').top : ''
+    return { rowGap: parseFloat(getComputedStyle(el).rowGap), reach: Math.abs(parseFloat(reach)) }
+  })
+  // The target reaches `reach` px past each row's words, above and below: two rows need twice that between them.
+  expect(read.reach).toBe(7)
+  expect(read.rowGap).toBeGreaterThanOrEqual(2 * read.reach)
+})
