@@ -53,6 +53,8 @@ Ending commit/tree: `4e83c6dc` (tree `1e767c148902`): 3 files, 2 new (`e2e/press
   (`--ink-rgb`, `--core-hover`, in #234's light work), so on this branch alone the pressed square's hover plane and the
   report title's underline alpha fell to nothing. Both are defined here now (the room's: the ink as channels, white
   as the primary's hover plane); #234 redefines them for the paper, and the merge forward keeps one definition.
+- After the review (Codex on #232, round 2): a native disclosure (`summary`) is a press: the mission's «Settings and
+  history» answers under the pointer (the ink steps up) and the sweep enumerates `summary` too.
 
 ## Remaining obligations
 
