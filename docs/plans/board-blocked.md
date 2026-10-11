@@ -42,6 +42,15 @@
 - `work.spec.ts` as above; the mutant with `laneOf` ignoring `rows` fails the lane test and the unit tests.
 - `pnpm check` clean.
 
+## After the review (Codex on #236, 2026-10-11)
+
+- Five lanes need 1221 px (each 220 and up, as the four do at 270): under it they stand three and two
+  (`.board-lanes[data-lanes='5']`), before the two columns every board takes at 1000. At 1024 each of five was 183 px.
+- The threads are measured again whenever the lanes' boxes change (a `ResizeObserver` on the lanes and their box, and
+  the lane count in the effect): a lane coming or going, or the window resized, moved the tiles under a thread drawn
+  for the old places. work.spec: five lanes at 1100 in two rows, each 220 and up, and the thread's end still at its
+  tile's left edge after the resize.
+
 ## Left
 
 - A «why blocked» press on the lane head (open the blocker) is not here: the tile's foot and its thread already point
