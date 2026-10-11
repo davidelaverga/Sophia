@@ -25,7 +25,8 @@
   360 from 1536. The thread's content stays 760 centred (at 1440 a first cut took half of what was spare and left the
   thread 744: the sides count).
 - **The views' fades at any width**: the `data-more-start` / `data-more-end` masks move from the phone's rules to the
-  row's; `ViewNav` already marks the ends and scrolls the current view into sight at every width.
+  row's; `ViewNav` marks the ends and scrolls the current view into sight at every width, and clear of a fade (an end
+  that hides more fades 18 % of the row: Codex on #233, Updates at 1024 stood in sight but under the fade).
 - `e2e/widths.spec.ts`: at 1920 the page is 1280 and four lanes of 270 or more stand in it; Knowledge shows four cards
   of 260 or more a row; Conversations reads list 300, field 760, context 360; at 1440 the context is 312 and the field
   still 760; at 1024 the
