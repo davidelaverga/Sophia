@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { secondsToWait, sendFailure, waitAfter } from './auth-words.ts'
+import { secondsToWait, sendFailure, SIGN_IN_LEDE, waitAfter } from './auth-words.ts'
 
 const EMAIL = 'ana@sophia.test'
+
+describe('what opens, said at the door', () => {
+  it('is the guest door’s sentence, of Sophia and your team: one line, a full stop, no project named', () => {
+    assert.equal(SIGN_IN_LEDE, 'A room where your team and Sophia think together.')
+    assert.match(SIGN_IN_LEDE, /^A room where your team and Sophia think together\.$/)
+    assert.ok(!SIGN_IN_LEDE.includes('“'), 'no project is quoted before one exists')
+  })
+})
 
 describe('why a sign-in email was not sent', () => {
   it('says that new accounts are closed, by code or by the older sentence', () => {
