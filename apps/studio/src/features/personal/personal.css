@@ -519,6 +519,11 @@
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
+/* On paper her halo is ink laid on the page, not light added to it (docs/plans/light-breath.md). */
+:root[data-theme='light'] .places .hw-light .light,
+:root[data-theme='light'] .places .c3-talk-light .light {
+  mix-blend-mode: multiply;
+}
 /* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
    it on the same hairlines as the projects'. */
 .places .hw-side {

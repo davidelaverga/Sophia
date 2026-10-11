@@ -4,7 +4,7 @@
 import { handoffFrame, settle, spring, stepSpring, type HandoffFrame, type Point, type Spring } from './motion.ts'
 import { createLightRenderer, type LightFrame, type LightRenderer } from './renderer.ts'
 import { aimOf, BEHIND, lightBehind } from './threshold.ts'
-import { drawHandoff, drawWorkLine, perimeter } from './trace.ts'
+import { drawHandoff, drawWorkLine, inksFor, perimeter } from './trace.ts'
 
 /** rest: present but not in a live room. The others are the four states of the prototype. */
 export type LightMode = 'rest' | 'listen' | 'think' | 'speak' | 'work'
@@ -184,6 +184,8 @@ export class LightEngine {
   private relayoutUntil = 0
   /** The pointer on the page while a mark is shown (fine pointers, full motion only); placed in the box per frame. */
   private pointer: Point | null = null
+  /** The page on paper: the trace writes in the paper's inks (trace.ts). */
+  private paper = false
   private readonly box: HTMLElement
 
   constructor(box: HTMLElement, glCanvas: HTMLCanvasElement, traceCanvas: HTMLCanvasElement) {
@@ -201,6 +203,11 @@ export class LightEngine {
       window.addEventListener('pointerout', this.lose, { passive: true })
     }
     this.frameId = requestAnimationFrame(this.tick)
+  }
+
+  /** Told by the component as the root's theme changes. */
+  setPaper(paper: boolean): void {
+    this.paper = paper
   }
 
   update(input: LightInput): void {
@@ -318,8 +325,9 @@ export class LightEngine {
     this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
-    drawWorkLine(this.trace, this.edge, this.springs.workLine.value)
-    if (flight && !this.reduced) drawHandoff(this.trace, flight.from, flight.to, flight.frame)
+    const inks = inksFor(this.paper)
+    drawWorkLine(this.trace, this.edge, this.springs.workLine.value, inks)
+    if (flight && !this.reduced) drawHandoff(this.trace, flight.from, flight.to, flight.frame, inks)
   }
 
   /** Frames slower than ~28 fps for a second step the resolution down; a 30 Hz display is not load. */

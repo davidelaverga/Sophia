@@ -69,3 +69,17 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
   const theme = useSyncExternalStore(subscribe, readTheme, () => 'dark' as const)
   return [theme, setTheme]
 }
+
+const rootSubscribe = (listen: () => void) => {
+  const seen = new MutationObserver(listen)
+  seen.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  return () => seen.disconnect()
+}
+
+/** Whether the page is on paper now (the root's `data-theme`). */
+export const onPaper = (): boolean => document.documentElement.dataset['theme'] === 'light'
+
+/** The page on paper or in the room, followed as the root changes (the account menu, the system): for what draws itself. */
+export function usePaper(): boolean {
+  return useSyncExternalStore(rootSubscribe, onPaper, () => false)
+}

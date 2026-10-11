@@ -148,8 +148,13 @@
 :root[data-theme='light'] .light-gl {
   display: none;
 }
-:root[data-theme='light'] .light {
-  /* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it. */
+/* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
+   it breathes, as the canvas does (docs/plans/light-breath.md). The trace canvas sits above it, so the floor's thread
+   passes over the heart. */
+:root[data-theme='light'] .light::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: radial-gradient(
     circle at 50% 42%,
     rgb(255 255 255 / 0.95) 0,
@@ -157,6 +162,26 @@
     rgb(var(--halo-rgb) / 0.12) 22%,
     transparent 46%
   );
+  transform-origin: 50% 42%;
+  animation: paper-breathe 6s ease-in-out infinite alternate;
+}
+:root[data-theme='light'] .light-trace {
+  z-index: 1;
+}
+@keyframes paper-breathe {
+  from {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  to {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='light'] .light::after {
+    animation: none;
+  }
 }
 /* The mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. */
 :root[data-theme='light'] .umbral-sophia {
