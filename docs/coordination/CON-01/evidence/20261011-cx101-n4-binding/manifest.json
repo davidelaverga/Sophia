@@ -3,7 +3,7 @@
   "files": [
     {
       "path": "CX-0101.md",
-      "sha256": "97e2836e2012458159b65ca5583a46d9188bae3bad380dacafc3f16430587423"
+      "sha256": "93f19e714c9285c241de35a263f0c786585d32fc436c84b3d1797cd2699df9a4"
     },
     {
       "path": "CX-0101.evidence.json",
@@ -36,6 +36,10 @@
     {
       "path": "evidence/20261011-cx101-n4-binding/setup-discovery.json",
       "sha256": "a9ba809c689adfa22a04bfb48c881b6c517b2a7cc1190491b53be3155e594fc8"
+    },
+    {
+      "path": "evidence/20261011-cx101-n4-binding/n4-digest-amendment-review.json",
+      "sha256": "abd9598992a07e81837a9c40784f24784cda68348cbae5084f6a3912431e4433"
     }
   ]
 }
