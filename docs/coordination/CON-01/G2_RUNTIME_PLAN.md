@@ -107,17 +107,53 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 - An execution that may have started (a claim taken whose outcome is unknown, or a lost claim answer) is reconciled first: the request ends `outcome_unknown` and its open reservation becomes `uncertain`. **It is never re-run.**
 - Asking again is a new request.
 
-**A pre-existing issue, in shared code, not CON's:**
-- `reconcile_runtime_outbox` counts every row it selects (0012:796), including those it leaves `outcome_unknown`.
-- The worker skips its idle wait whenever that count is positive (`runtime-dispatch.ts:98`).
-- So one such row keeps the dispatcher looping. That is my reading of the code, not a run.
-- It is filed separately for the runtime writer. **The reply design must not depend on that count.**
+**A pre-existing shared defect sits under this path:** the dispatcher's reconcile spin (§2.4.1). The reply design depends on its correction.
 
 **Tests:** the existing :806 test kept, plus held reply cases:
 - a lost claim answer: `outcome_unknown`, no spawn;
 - a row with a command: never re-dispatched;
 - a row with none: re-dispatched once, for the same request against the same reservations;
 - at most one answer.
+
+### 2.4.1 A shared owner dependency: the dispatcher's reconcile spin (P2; CX-0116)
+
+**What happens.** A native outbox row left `outcome_unknown` behind an answered runtime command is counted as reconciled on every pass, though nothing changes. The worker then skips its idle wait.
+- **Codex reproduced it** on PG 17.6 (CX-0116), at `f36a8fa0`, byte-identical to `main` `fec45a0e` for every file below:
+  - a `failed` receipt and an `outcome_unknown` receipt each leave one such row;
+  - three real `dispatchOnce` passes each return `reconciled=1`, with no expiry, outcome or loss, and the same state;
+  - a real `RuntimeDispatcher` with `idleMs` 1000 ran five reconcile passes in 4.94 ms before a controlled stop;
+  - **control:** a `delivered` receipt gives `reconciled=0` on all three passes.
+- **The damage:** repeated database work with no progress. No duplicate native dispatch or provider use was seen.
+
+**The exact shared boundary,** none of it CON's:
+
+| Where | What |
+|---|---|
+| `db/migrations/0012_runtime_service.sql:782-797`, `reconcile_runtime_outbox` | Selects `outcome_unknown` native rows, LEFT JOINed to their runtime command (:786-789). For a command answered `failed` or `outcome_unknown`, the CASE's `ELSE` leaves the row `outcome_unknown` (:791-795). `n:=n+1` still runs for every selected row (:796) |
+| `db/migrations/0012_runtime_service.sql:470-475`, `apply_runtime_receipt` | Sets the outbox row `outcome_unknown` for any receipt stage other than `rejected`, `delivered` or `checked`, which produces such rows in normal operation |
+| `packages/persistence/src/dispatch.ts:55-58`, `reconcileRuntimeOutbox` | Returns the function's count unchanged |
+| `apps/worker/src/runtime-dispatch.ts:41-60`, `dispatchOnce`; :93-112, `RuntimeDispatcher.run` | A pass is expire → reconcile → claim → dispatch. Line 98 runs the next pass at once when `reconciled > 0`, skipping `idleMs` |
+
+**The smallest owner correction** (the runtime writer's, by a new migration with a census number; 0012 is never edited):
+- **(a)** count a row only when its state actually changes. Increment only when the target state differs from `outcome_unknown`, or test `FOUND` on an UPDATE whose WHERE excludes an unchanged result;
+- **and, optionally, (b)** stop reselecting rows that can't change: those whose command answered `failed` or `outcome_unknown`. Then they no longer occupy the `ORDER BY created_at LIMIT p_limit` window.
+- **(a) alone is enough** to end the spin. `runtime-dispatch.ts` needs no change once the count is honest.
+
+**The owner's recheck:**
+- **The new regression:** a row left `outcome_unknown` by a `failed` receipt, and by an `outcome_unknown` receipt, gives `reconcile_runtime_outbox` = 0 and `dispatchOnce` `reconciled: 0` on the second pass. A `RuntimeDispatcher` then waits `idleMs` between passes.
+- **Controls:**
+  - a `delivered` receipt: 0 (unchanged);
+  - a row with no runtime command: still returned to `pending` once, and still counted;
+  - `runtime.db.test.ts:806`, "reconciles an uncertain dispatch from the database and never queues it twice": unchanged.
+- **The rest:** the existing runtime and worker suites, and `pnpm check`.
+
+**What CON-01 binds for itself** (no CON fix, and no widening of CON's scope):
+- **The order:** 0049's reply branches (§5, step 1) are not proposed for writing until the owner's correction has landed on the accepted base, or is in the same named window ahead of them. Otherwise every failed or uncertain reply create would add a spinning row.
+- **The reply branch of `apply_runtime_receipt`** keeps today's outbox mapping. It does not invent its own outbox state to dodge the spin, so the shared semantics stay one rule.
+- **The reply qualification adds the owner's recheck for replies:**
+  - a reply `create` answered `failed`, and one answered `outcome_unknown`: the request ends as §8.2.1 says, the outbox row stays uncertain, and the next reconcile pass reports 0, with the dispatcher idle;
+  - neither is ever re-dispatched.
+- **Recorded as Q12** in BINDING_MAP §8.8.
 
 ### 2.5 The relay, the projection, and every copy
 
@@ -259,8 +295,8 @@ These are §8.5's table, CC-0117–CC-0121's relay rows, and §2.1–§2.8's tes
 
 ## 5. Order, once the holds lift
 
-Nothing here is writable before Q6, Q7, Q10 and Q11 are answered. Then, each as its own pin with a fail-before, an after and the full gates:
-1. 0049: option C, the reply branches, the claim, `retire`.
+Nothing here is writable before Q6, Q7, Q10, Q11 and Q12 are answered. Then, each as its own pin with a fail-before, an after and the full gates:
+1. 0049: option C, the reply branches, the claim, `retire`. Only after the owner's reconcile correction (§2.4.1, Q12).
 2. The wire and contracts.
 3. The bridge: the claim, the relay, `retire`, `metered`.
 4. The supervisor and launcher: the reply child, the sweep, the profile.
