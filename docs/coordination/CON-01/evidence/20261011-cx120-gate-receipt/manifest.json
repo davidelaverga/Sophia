@@ -14,6 +14,10 @@
       "sha256": "ac5da1069ae37073bef72b40f7af6b84fb541be7ef91ab7f9ce1570ff6cc5769"
     },
     {
+      "path": "independent-acl-fix-recheck.json",
+      "sha256": "3296b7272677db6d914df567a8bd1bcde76f19239f2b43187086fd437d324093"
+    },
+    {
       "path": "independent-assembler-acl.json",
       "sha256": "a5f516ab208f1240e4a84379486442e919c2e736316e4658dff46423b708b339"
     },
@@ -23,7 +27,7 @@
     },
     {
       "path": "operation-handoff.json",
-      "sha256": "61fa108874b8ecdb8a37b913e60335387c8a57e99e1cd813f2327aee7c585801"
+      "sha256": "e27c0841c6af9584e950583e92b2d2d34874ecfbd403f723f8f468ba2eaeb1c4"
     },
     {
       "path": "pr-checkpoint.json",

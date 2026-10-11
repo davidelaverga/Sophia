@@ -1,0 +1,87 @@
+{
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "parent": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "authorReceipt": 6112593418,
+  "countCorrectionReceipt": 6112536220,
+  "completeDeltaLines": 89,
+  "deltaSha256": "75de2217fe32fc863e5409a6cbeda1d7137d87b1a5ee6f9fc241d1d8097757b3",
+  "fileHashes": {
+    "db/candidates/con01-s3-conversation-reply-context.sql": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+    "packages/persistence/src/conversation-assembly.db.test.ts": "5b5121033a54b06505030631de2b44d2f90cffe5308f6b31fef406f2a7d39996"
+  },
+  "sourceReview": "Entire89line/+67\u22120 twofiledelta independently read. pg_shdepend currentdatabase/sharedobject role dependencies checked before grant/table mutations, preserving intentional otherdatabase S3 grants and prior membership/attribute checks. Eight committed scenarios cover table/column/function/schema/ownership/defaultprivilege/databaseprivilege and control.",
+  "independentPg": {
+    "version": "17.6",
+    "fiveSuites": {
+      "exit": 0,
+      "tests": 139,
+      "passed": 139,
+      "failed": 0,
+      "skipped": 0
+    },
+    "separateProbe": {
+      "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "cases": [
+        {
+          "noPartialObjects": false,
+          "rightsUnchanged": true,
+          "scenario": "clean_control",
+          "expected": "accepted; unrelated table unreadable",
+          "actualS3Accepted": true,
+          "code": null,
+          "activationLoginCanReadOutOfScope": false,
+          "readCode": "42501"
+        },
+        {
+          "noPartialObjects": true,
+          "rightsUnchanged": true,
+          "scenario": "direct_table_grant",
+          "expected": "42501 before adoption",
+          "actualS3Accepted": false,
+          "code": "42501",
+          "activationLoginCanReadOutOfScope": false,
+          "readCode": null
+        },
+        {
+          "noPartialObjects": true,
+          "rightsUnchanged": true,
+          "scenario": "table_ownership",
+          "expected": "42501 before adoption",
+          "actualS3Accepted": false,
+          "code": "42501",
+          "activationLoginCanReadOutOfScope": false,
+          "readCode": null
+        }
+      ],
+      "census": {
+        "databases": [
+          "postgres"
+        ],
+        "otherClients": 0
+      }
+    },
+    "outerSecondsPerCommand": 600,
+    "checkoutCleanAfter": true,
+    "closingCensus": {
+      "databases": [
+        "postgres"
+      ],
+      "otherClients": 0
+    },
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "sourceProbeSha256": "84a54cd123c938cf3be321c5358df0966a0cda1971f5414f70a5673b6c6651ad",
+    "harnessSha256": "1a4ddc87e5f51c105c94037b51ffcdfea0f1d2daf243b12e0382d3aed92db037",
+    "fiveLogSha256": "50a7117487ef070fd7591b5cc7f6d16efe27323feac4fab997a8e36419cb27e4"
+  },
+  "parentEvidence": "Exactf0 same cleancontrol passes, directgrant+ownership two boundary failures; first alias operatorfailure retained separately.",
+  "authorVoidedRun": "CC0143 reports edit had not applied; repeated fail-before is void, not a pass. Preserved separately from independent run.",
+  "verdict": "P2 scoped correction independently verified at exact7d8. Ordinary checks pending; no wholemission/native/provider/live approval.",
+  "next": "Primary one bounded exact7d8 pnpmcheck/testsql batch permitted, timeout12000, existing pinned artifacts only, clean/nooverlap preconditions; no duplicate DBsuite/CIrerun/PRadvance/shared/auth/provider/live."
+}

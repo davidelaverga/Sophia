@@ -9,10 +9,10 @@
   "artifactReceiptTree": "7b142aab5ffd43edf4183ecaf32aea1a95b50d0d",
   "routeProposalCandidate": "154f09f037b8d5b85357ba151219cda703bc60f3",
   "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-  "statement": "Author exactf0 gate terminal; independently matched19source hashes/3blobs/seven reported artifact identities and reconstructed report hashes. Existing draftPR211 FF to exactf0/freshreview pending. Official Claude telemetry discovery only. Fresh exactf0 automatic review P2 direct privileges independently confirmed on realPG; affected adoption review reopened.",
+  "statement": "Author exactf0 gate terminal; independently matched19source hashes/3blobs/seven reported artifact identities and reconstructed report hashes. Existing draftPR211 FF to exactf0/freshreview pending. Official Claude telemetry discovery only. Fresh exactf0 automatic review P2 direct privileges independently confirmed on realPG; affected adoption review reopened. Separate7d8 correction independentlypasses139/139+threecontrols/refusals; scopedP2verified, ordinarycheckspending, PR211f0held.",
   "readiness": {
-    "source_ready": "Dormant combined source available; freshP2 existing-role ACL/ownership boundary defect open. Sharedruntime incomplete.",
-    "locally_verified": "Prior138/138+API10/10 retained; NEW actualPG cleanrolecontrolPASS/directgrant+ownership2boundaryFAIL; source/artifactreceiptconsistencyverified.",
+    "source_ready": "Separate7d8 correction scopedreviewed; ordinarychecks pending. Sharedruntime incomplete.",
+    "locally_verified": "Priorf0PG/API and artifactreceipt remain scoped; NEW f0 two boundaryFAIL/controlPASS, corrected7d8 actualPG139/139+threeindependentcasesPASS/no partial objects/rightsunchanged.",
     "scoped_delta_reviewed": true,
     "reviewed": false,
     "authorized": false,
@@ -23,12 +23,12 @@
   "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null",
   "operationApproval": null,
   "expiry": null,
-  "cleanup": "Two newly owned PGclusters stopped/PIDsabsent/removed; correctedrepeat census onlypostgres/0otherclients and sourceclean. First aliasfailure retained. Authorgate terminalreportedclean. ExistingIABmarkedhandoff; no uncertainhostedeffect.",
-  "next": "Independently review primary immutable assembler direct-privilege correction and rerun affected positive/negative PG crossings; retain exactf0 PR211 hold and Q7/Q12 owner/window requirements.",
+  "cleanup": "Allthree newlyowned PGclusters stopped/PIDsabsent/removed; both executedprobe censuses onlypostgres/0otherclients, sourceclean. Initialaliasfailure retained. Authorgatef0 terminalreportedclean; new7d8 finiteordinarybatch permitted, start/results not yet observed. IABhandoffretained; no uncertainhostedeffect.",
+  "next": "Read terminal/source/artifact/census of primary single bounded ordinary-check batch at exact7d8, then decide bounded draftPR advance/freshreview; retain sharedowner/native/live authorization holds.",
   "evidence": "evidence/20261011-cx120-gate-receipt/",
   "resourceUse": {
-    "newOwnedLocalPgClusters": 2,
-    "newTestCommands": 2,
+    "newOwnedLocalPgClusters": 3,
+    "newTestCommands": 4,
     "sophiaProviderCalls": 0,
     "realNativeExecutions": 0,
     "hostedAppMutations": 0,
@@ -38,8 +38,13 @@
     "reviewerEffectSpending": 0,
     "codingAgentCoordinationConsumption": "Unmeasured/private",
     "sourceReviewEffect": "Existing draftPR211 bounded FF/title/body/review request by primary; ordinary push CI queued; no rerun/cancel.",
-    "independentCasesExecuted": 3,
+    "independentCasesExecuted": 6,
     "independentBoundaryFailures": 2,
-    "independentControlsPassed": 1
-  }
+    "independentControlsPassed": 1,
+    "committedTestsExecuted": 139,
+    "independentBoundaryFailuresAtParent": 2,
+    "independentCorrectedRefusalsAtFix": 2
+  },
+  "fixCandidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "fixTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c"
 }
