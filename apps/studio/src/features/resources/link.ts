@@ -5,6 +5,8 @@
 
 export const RESOURCE = '#resource-'
 export const TASK = '#task-'
+/** A decision on the board, by its own id: the board scrolls to its choice and gives it the focus (needs-api.md). */
+export const DECISION = '#decision-'
 
 export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURIComponent(id)}`
 

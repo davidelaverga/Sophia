@@ -17,7 +17,7 @@
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
 import { useContext, useEffect, useRef, useState } from 'react'
 import { EmptyState, Icon } from '@sophia/ui'
-import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
+import { DECISION, linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
 import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
@@ -350,6 +350,7 @@ function Decisions({
   ...rest
 }: DecisionsProps) {
   const list = useRef<HTMLDivElement>(null)
+  useAddressedDecision(decisions)
   // Opened on one (from a review that waits on it), the focus goes to its first choice. Found by comparing ids, never
   // by putting one in a selector: a decision's id is any string.
   useEffect(() => {
@@ -476,6 +477,28 @@ function useOpenTask(rows: readonly PlanRow[]) {
     }
   }, [open])
   return { open, setOpen: (id: string | null) => setPressed({ id, seq: named.seq }) }
+}
+
+/**
+ * A decision named in the address (`#decision-`, from Home's «needs you»): the board scrolls to its choice and gives
+ * the focus to its first option (or to the decision itself where the viewer is not its decider), then lets the
+ * address go. The sheet of the task that holds it is not opened: the choice is here, not there (Codex on #245).
+ */
+function useAddressedDecision(decisions: readonly { decision_id: string }[]) {
+  const named = useAddressed(DECISION)
+  useEffect(() => {
+    if (!named.id || !decisions.some((d) => d.decision_id === named.id)) return
+    const section = document.querySelector<HTMLElement>(`[data-decision="${CSS.escape(named.id)}"]`)
+    if (!section) return
+    section.scrollIntoView({ block: 'center' })
+    const choice = section.querySelector<HTMLElement>('.plan-choice:not(:disabled)')
+    if (choice) choice.focus({ preventScroll: true })
+    else {
+      section.tabIndex = -1
+      section.focus({ preventScroll: true })
+    }
+    showInAddress(null, DECISION)
+  }, [named, decisions])
 }
 
 /** The board's moment-to-moment state: the hovered task and what it waits on, the open task, the lens. */
