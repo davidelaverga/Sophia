@@ -33,6 +33,7 @@ import { VIEW_LABEL } from './ViewNav.tsx'
 import { useCatchUp } from '../voice/CatchUp.tsx'
 import { MeetingRecapOnLeave } from '../voice/MeetingRecap.tsx'
 import { useProjectRoom, type LeaveHow, type ProjectRoom } from '../voice/useProjectRoom.ts'
+import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
@@ -324,11 +325,26 @@ function doorOf(snapshot: ReturnType<typeof useProjectFeed>['snapshot']) {
   return { loaded, blocked, shown: blocked ? undefined : snapshot.data }
 }
 
+/** The room from this view, for the header's end cluster (docs/plans/dock-header.md): Sophia's «looking» stays visible from every view. */
+function headerDock(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: () => void) {
+  return <MiniDock room={room} looking={lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))} onOpen={onOpen} />
+}
+
+/** The room's dock where the width puts it: in the header on a wide screen, floating (outside the header) on a narrow one. */
+function useDockPlace(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: () => void) {
+  const wide = useMedia(WIDE)
+  const dock = headerDock(room, snapshot, onOpen)
+  return wide ? { inHeader: dock, floating: null } : { inHeader: null, floating: dock }
+}
+
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection, room, membership } = useProject(projectId, identity)
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
   const { loaded, blocked, shown } = doorOf(snapshot)
+  // The room's dock: in the header on a wide screen; on a narrow one it floats, mounted outside the header (a sticky
+  // header with a backdrop filter would hold a fixed child inside its own box).
+  const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'))
   const work = useTasksWork(props, feed, membership, blocked)
   useBeyondTheView(props, snapshot.data, room, blocked)
   const mayInvite = !!shown && canInvite(membership)
@@ -340,6 +356,7 @@ export function ProjectShell(props: Props) {
           title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
           connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
           nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
+          dock={dockAt.inHeader}
           share={shown && <HeadActions may={canInvite(membership)} projectId={projectId} go={{ invite, search }} />}
           account={account}
           onLeave={onLeave}
@@ -372,6 +389,7 @@ export function ProjectShell(props: Props) {
             onInvite={invite}
             background={!!props.background}
             resources={props.resources}
+            floating={dockAt.floating}
             {...work}
             search={{ open: searching, onClose: () => setSearching(false) }}
           />
@@ -386,6 +404,8 @@ interface HeaderProps {
   /** The feed's state; null while the project can't be shown, where the notice below says why. */
   connection: Connection | null
   nav: React.ReactNode
+  /** The room from this view (MiniDock), first in the end cluster: off the page, never over it (docs/plans/dock-header.md). */
+  dock: React.ReactNode
   /** Invite (editors and admins) or copy the link (viewers). */
   share: React.ReactNode
   account: React.ReactNode
@@ -416,7 +436,7 @@ function LazyInvite({ context, onClose }: { context: SheetContext; onClose: () =
  * The path to the project, as the places name it: the mark goes home, Work to the projects. Both keep a call going:
  * the places' bar shows the room, with Leave one tap away.
  */
-function ProjectHeader({ title, connection, nav, share, account, onLeave, onWork }: HeaderProps) {
+function ProjectHeader({ title, connection, nav, dock, share, account, onLeave, onWork }: HeaderProps) {
   const home = 'Home'
   return (
     <header className="topbar">
@@ -438,6 +458,7 @@ function ProjectHeader({ title, connection, nav, share, account, onLeave, onWork
       <h1 className="project-name">{title}</h1>
       {nav}
       <div className="topbar-end">
+        {dock}
         {connection && (
           <span role="status" className="connection" data-state={connection} title={CONNECTION[connection]}>
             <span className="connection-dot" aria-hidden />
@@ -479,6 +500,8 @@ interface BodyProps {
   entry?: ServedWork['entry']
   /** The project's search (A13): open from the head's Search, or `/`. */
   search: { open: boolean; onClose: () => void }
+  /** The room's dock when the header has no room for it (a narrow screen): floating, mounted outside the header. */
+  floating: React.ReactNode
 }
 
 /**
@@ -544,7 +567,7 @@ function ProjectBody(props: BodyProps) {
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
-      <MiniDock room={room} looking={looking} onOpen={() => onShow('studio')} />
+      {props.floating}
     </>,
   )
 }

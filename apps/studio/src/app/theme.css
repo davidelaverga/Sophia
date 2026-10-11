@@ -2740,7 +2740,8 @@ button.contribution-quote:hover {
   font-size: 12px;
 }
 
-/* The room from other views: a small floating bar. */
+/* The room from other views: in the header's end cluster on a wide screen (docs/plans/dock-header.md), a small
+   floating bar on a narrow one. */
 .mini-dock {
   position: fixed;
   right: var(--gutter);
@@ -2771,6 +2772,35 @@ button.contribution-quote:hover {
 .mini-dock .round {
   width: 32px;
   height: 32px;
+}
+/* In the header: a group of controls, not a bar. Static, no glass, no shadow, no rise; the pill the ghost's height,
+   a hairline before the connection pill. */
+@media (min-width: 721px) {
+  .topbar .mini-dock {
+    position: static;
+    gap: 2px;
+    padding: 0 8px 0 0;
+    margin-right: 2px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    animation: none;
+  }
+  .topbar .mini-dock .pill {
+    height: 28px;
+    padding: 0 10px;
+  }
+  .topbar .mini-dock .round {
+    width: 28px;
+    height: 28px;
+  }
+  .topbar .mini-dock .mini-note {
+    max-width: 240px;
+  }
 }
 
 /* Room access: the lobby over the stage and the Invite panel. */
