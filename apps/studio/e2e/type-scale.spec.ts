@@ -3,7 +3,8 @@ import { DRAWN, drawn } from './drawn.ts'
 import { typeOff, typeSizes } from './type-sizes.ts'
 
 // The work views keep to the app's type scale (docs/plans/type-stragglers.md): the four text sizes (label 10.5, small 12,
-// body 13, title 14) and the headings' (15, 16, 18, 20); no 11, 12.5 or 13.5 left from before the scale. The fixture's
+// body 13, title 14), the headings' (15, 16, 18, 20) and a view's title (28, docs/plans/view-titles.md); no 11, 12.5
+// or 13.5 left from before the scale. The fixture's
 // own «Demo» label is the page's, not the app's. Home and the personal space keep to it too
 // (docs/plans/type-places.md), on a phone as on a wide screen; only Home's greeting is a size of its own, a display line
 // that grows with the screen. And every word's leading is on the 4 px grid, its weight 400, 500 or 600
@@ -18,7 +19,7 @@ const VIEWS = [
   ['Tasks', '/room.html?demo=1&place=work', DRAWN.tasks],
   ['Resources', '/resources.html', DRAWN.resources],
 ] as const
-const SCALE = ['10.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px']
+const SCALE = ['10.5px', '12px', '13px', '14px', '15px', '16px', '18px', '20px', '28px']
 
 test.afterEach(async ({ page }) => {
   expect(

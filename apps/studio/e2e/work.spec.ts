@@ -600,7 +600,7 @@ test('type · the board, a goal without a plan, and a task’s sheet keep to the
   await expect(tile(page, 'work-1')).toBeVisible()
   await expect(page.locator('.goal').filter({ hasText: 'Exports keep their fonts' })).toBeVisible()
   const onBoard = await typeSizes(page, '.goals')
-  expect(onBoard, onBoard.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '20px'])
+  expect(onBoard, onBoard.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '28px'])
   await tile(page, 'work-1').click()
   const sheet = await typeSizes(page, '.task-sheet')
   expect(

@@ -2,8 +2,10 @@
    for data), small radii, one-pixel lines, fast transitions. Sophia's light is the only soft thing on the
    screen: people are warm, she is violet, everything else is quiet. The Studio is dark-only. */
 :root {
-  /* The type scale of the work views (Resources, the plan's board): four steps under a view's title (20 px).
-     Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. */
+  /* The type scale of the work views (Resources, the plan's board): four steps under a view's title.
+     Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
+     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). */
+  --type-view: 28px;
   --type-title: 14px;
   --type-body: 13px;
   --type-small: 12px;
@@ -12,6 +14,7 @@
   --lh-small: 16px;
   --lh-body: 20px;
   --lh-head: 24px;
+  --lh-view: 32px;
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
@@ -3336,8 +3339,8 @@ button.contribution-quote:hover {
   border-bottom: 1px solid var(--line);
 }
 .view-head h2 {
-  font-size: 20px;
-  line-height: var(--lh-head);
+  font-size: var(--type-view);
+  line-height: var(--lh-view);
 }
 .count {
   color: var(--text-3);
@@ -4707,8 +4710,8 @@ button.contribution-quote:hover {
 }
 .updates > h2 {
   grid-column: 1 / -1;
-  font-size: 20px;
-  line-height: var(--lh-head);
+  font-size: var(--type-view);
+  line-height: var(--lh-view);
 }
 @media (max-width: 900px) {
   .updates {
