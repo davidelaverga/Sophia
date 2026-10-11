@@ -452,7 +452,9 @@
 .task-tile-title {
   display: -webkit-box;
   overflow: hidden;
-  font-size: var(--type-title);
+  /* A card in a lane, under the heads (15) and the view's title (28): the body's size, carried by its weight, so the
+     screen keeps to five sizes (CONTRIBUTING, Codex on #248). */
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: -0.008em;
   -webkit-box-orient: vertical;
@@ -978,7 +980,8 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  font-size: var(--type-title);
+  /* The plan's next step, under the goal's head: the body's size (five sizes on the screen, Codex on #248). */
+  font-size: var(--type-body);
 }
 .plan-next > .field-label {
   color: var(--halo-text);
@@ -1080,7 +1083,7 @@
 }
 .board .plan-ask-question {
   grid-area: question;
-  font-size: var(--type-title);
+  font-size: var(--type-head);
 }
 .board .plan-choices,
 .board .plan-ask-choices {

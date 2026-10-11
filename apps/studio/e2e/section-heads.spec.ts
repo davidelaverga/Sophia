@@ -58,10 +58,13 @@ for (const [name, url, parts] of VIEWS) {
   })
 }
 
-test('section heads · Tasks: a task tile’s title keeps the title step, under the heads', async ({ page }) => {
+test('section heads · Tasks: a task tile’s title is the body’s size at 500, under the heads; five sizes on the screen', async ({
+  page,
+}) => {
   await page.goto('/room.html?demo=1&place=work')
   await drawn(page, DRAWN.tasks)
   const tile = page.locator('.task-tile-title').first()
   await expect(tile).toBeVisible()
-  await expect(tile).toHaveCSS('font-size', '14px')
+  await expect(tile).toHaveCSS('font-size', '13px')
+  await expect(tile).toHaveCSS('font-weight', '500')
 })
