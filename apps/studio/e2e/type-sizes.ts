@@ -53,7 +53,9 @@ export const typeOff = (page: Page, selector: string) =>
           )
         ] ?? 32
       const control = el.closest('button, [role="button"]')
-      const boxed = control !== null && controls.includes(Math.round(control.getBoundingClientRect().height))
+      // A control's words keep the control's 20 px line at any size (a text press at 12 px, wrapping or not).
+      const boxed =
+        control !== null && (controls.includes(Math.round(control.getBoundingClientRect().height)) || lh === 20)
       return Math.round(lh * 100) / 100 === step || Math.abs(lh - el.getBoundingClientRect().height) <= 1 || boxed
     }
     const left = '.sr-only, .tip, .avatar, .hw-hello, .md, .msg .body, .pdot, .tile-initial, .textLayer, .fixture-label'
