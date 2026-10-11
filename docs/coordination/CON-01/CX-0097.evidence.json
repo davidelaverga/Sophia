@@ -57,7 +57,12 @@
   "sharedReceipt": {
     "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6105122273",
     "exactReadback": true,
-    "docsCommit": "56ec9314"
+    "docsCommit": "56ec9314",
+    "terminalUpdate": {
+      "docsCommit": "440ebf4b",
+      "exactReadback": true,
+      "sameCommentPreservedOriginalAndAppended": true
+    }
   },
   "operatorPreparation": {
     "schema": "sophia.con01.operator-preparation.v1",
