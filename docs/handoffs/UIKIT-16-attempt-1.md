@@ -61,6 +61,9 @@ view with ids of the list's own; `commands.spec.ts` gains three checks. That is 
 - Places not converted here: the Home fixture renders Welcome alone, so no check could see the host there.
 - After the review (Codex on #238, 2026-10-11): in a call the palette names three rows (the call's row first), so
   the list stays the one that shrinks and scrolls under the 480 px cap; commands.spec holds it.
+- After the review (Codex on #238, round 2): the palette's keys are the field's while an IME composes
+  (`nativeEvent.isComposing`); behind a shut door the view commands are not offered (Home and Your projects stay),
+  commands.spec shuts the fixture's door and reads the list.
 
 ## Remaining obligations
 
