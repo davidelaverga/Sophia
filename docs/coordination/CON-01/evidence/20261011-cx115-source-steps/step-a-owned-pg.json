@@ -1,0 +1,109 @@
+{
+  "schema": "sophia.con01.independent-owned-pg-run.v1",
+  "candidate": "ae1a12349c84d6ed489d1150ebc9ca0885bdea13",
+  "tree": "2f6d3c11a40197af9029dce4896c90c9fc2c585a",
+  "at": "2026-10-11T16:38:38.328771+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+    "packages/persistence/src/conversation-ledger.db.test.ts": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+    "db/candidates/con01-s3-conversation-reply-context.sql": "27c25b112efcdb1767790ac3b3790f62fd524e820d514b04c35fa7e0335ea498",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-fences.db.test.ts": "8e42fcb40f6027d778a83b00537ed019c9a6b8b7e1a0cea37ecd2887e12ba693",
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995"
+  },
+  "mutationHarnessHash": "933059b552ef72733b3afacdfcf1b3a29bb6bb50088a6f54e373946e64321b51",
+  "commands": [
+    {
+      "label": "conversation-five-parallel",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=4",
+        "packages/persistence/src/conversations.db.test.ts",
+        "packages/persistence/src/conversation-ledger.db.test.ts",
+        "packages/persistence/src/conversation-assembly.db.test.ts",
+        "packages/persistence/src/conversation-fences.db.test.ts",
+        "packages/persistence/src/conversation-reply-states.db.test.ts"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "expectedExit": 0,
+      "exit": 0
+    },
+    {
+      "label": "index-absent-negative",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=plans source_out",
+        "packages/persistence/src/conversation-fences.db.test.ts"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "expectedExit": 1,
+      "exit": 1
+    },
+    {
+      "label": "index-restored-positive",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern=plans source_out",
+        "packages/persistence/src/conversation-fences.db.test.ts"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "expectedExit": 0,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "restoredSourceSha256": "27c25b112efcdb1767790ac3b3790f62fd524e820d514b04c35fa7e0335ea498",
+  "checkoutCleanAfter": true,
+  "evidenceOrigin": "Reviewer executed, actual local PostgreSQL17.6; synthetic fixtures; not native/provider/hosted acceptance",
+  "summaries": [
+    {
+      "log": "conversation-five-parallel.log",
+      "tests": 130,
+      "suites": 42,
+      "pass": 130,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 19040.875709
+    },
+    {
+      "log": "index-absent-negative.log",
+      "tests": 1,
+      "suites": 2,
+      "pass": 0,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 1246.03325
+    },
+    {
+      "log": "index-restored-positive.log",
+      "tests": 1,
+      "suites": 2,
+      "pass": 1,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 1272.148
+    }
+  ],
+  "negativeOutcome": "Four real source_out plans, custom/generic x three dependencies/none: sequential scan, missing index,667 buffers; expected assertion failure only.",
+  "countingLimit": "The restored focused run repeats affected committed cases; it is not an additional unique-case count."
+}

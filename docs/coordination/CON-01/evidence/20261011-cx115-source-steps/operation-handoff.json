@@ -1,0 +1,69 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "CX100 dashboard tuple remains dated12:02UTC; actual DB metadata refreshed16:41UTC separately. No CON deployment. Studio sourceSHA/installed runtime combined artifacts/current safe window remain unbound.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Read complete StepA/StepB deltas and CC0122/123/124; independently inspect source/privileges/context cleanup/held locks/bounds.",
+    "Frozen install at each candidate, exact Node24.21.0/pnpm11.7.0.",
+    "Fresh owned PG17.6 at ae: node --test --test-concurrency=4 five conversation suites =>130/130. Exact parent3b S3 sensitivity =>1 expected assertion failure/four sequential plans667buffers; restore ae =>1/1.",
+    "Fresh owned PG17.6 at f36: same five suites =>135/135. Exact parentae S4 sensitivity =>1pass4fail; restore f36 =>5/5. Both wrappers exit0; source restoration and cleanup verified.",
+    "git merge-tree --write-tree at mainfec45+3b/ae/f36; verify both parent stablepatchids and main-only/candidate-only blobs. Git objects only, no merge commit/branch/checkout.",
+    "One bounded production metadata connection via existing credential reference; target matched before connect; BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY,5s statement/2s lock/7s connection-query bounds; metadataSELECTs,ROLLBACK/connectionended. No content or operational function.",
+    "Read actual existing authenticated Studio tab controls; preserve tab, no project/account/invite/auth/model writes or actualCON episode.",
+    "Refresh GitHub PR211/currentmain/run38150511775 and PR190, no CI restart/promotion/merge. Guarded exactCON qualification communicated and acknowledged; one earlier desktop destination race reconciled as documented."
+  ],
+  "results": "Independent StepA130 and StepB135 actualPG17.6 PASS, meaningful parent negatives and restored controls; fresh per-source main composition discovery and production READ ONLY metadata. No native/provider/hosted acceptance;36full verdicts unchanged.",
+  "unresolvedEffects": "No uncertain hosted app/provider effect. One misrouted routine metadata message already processed; visible no-action response, no further effects inferred. Native/capture/runtime/cohort/route/finite allowance/expiry/current window/approval, whole gates and product acceptance remain open.",
+  "rollback": "No CON live effects to roll back. Two local clusters removed, source restored, metadata transaction rolled back/connection ended. Exact compatible live artifacts and governed-data rollback rehearsal remain unbound; preserve authoritative saved/erasure/accounting records.",
+  "nextBoundedAction": "Primary returns actual terminal combined3b ordinary gate receipt, then StepA/StepB receipts in order; reviewer checks exact candidate, each exit/census and any fresh automatic review before draft-only progression. Shared runtime writer/window and compatible subscription route/finite allowance/cohort/effect batch remain separate prerequisites.",
+  "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
+  "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
+  "resourceUse": {
+    "newLocalPg": 2,
+    "readOnlyProductionMetadataConnections": 1,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "codingAgentSubscriptionConsumption": "Routine authorized coding-agent coordination, unmeasured/private; no new provider fallback or allowance reset."
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "observedMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "candidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "mergeBase": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
+  "computedTree": "191edc6f017e22432cf7f3f3abaaf134f82976ac",
+  "mergeTreeExit": 0,
+  "kind": "Read-only automatic composition tree; no commit/branch/checkouts changed. Not an accepted integration base/window or release candidate.",
+  "mainOnly": 75,
+  "candidateOnly": 117,
+  "overlap": [
+    "apps/studio/fixtures/room.tsx",
+    "apps/studio/src/api/vision.ts"
+  ],
+  "mainOnlyPreserved": true,
+  "candidateOnlyPreserved": true,
+  "parentPathCount": 194,
+  "patchEqualities": [
+    {
+      "pairs": [
+        [
+          "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
+          "fec45a0e96c4679a09da02be979503910a623c5c"
+        ],
+        [
+          "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+          "191edc6f017e22432cf7f3f3abaaf134f82976ac"
+        ]
+      ],
+      "patchIds": [
+        "58b64b9df0bd19eab2e1a55c34a51c6220bd80a8",
+        "58b64b9df0bd19eab2e1a55c34a51c6220bd80a8"
+      ],
+      "equal": true
+    },
+    {
+      "pairs": [
+        [
+          "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
+          "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1"
+        ],
+        [
+          "fec45a0e96c4679a09da02be979503910a623c5c",
+          "191edc6f017e22432cf7f3f3abaaf134f82976ac"
+        ]
+      ],
+      "patchIds": [
+        "a38a79bd16a8c0089febe940215a4133667d90ec",
+        "a38a79bd16a8c0089febe940215a4133667d90ec"
+      ],
+      "equal": true
+    }
+  ]
+}

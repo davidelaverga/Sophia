@@ -1085,28 +1085,27 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0114.md",
+    "record": "CX-0115.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
-    "supplementalCandidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
-    "supplementalTree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+    "supplementalCandidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+    "supplementalTree": "369b060dfc02e96634f5e596907855041d390a7a",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Early proposed plan corrections reviewed through cfaf1295:1..16000codepoint/empty/astral refusal and required terminal body/hash scrub. StepsA/B scoped source preparation accepted, implementation not yet independently qualified. Prior combined3b129+12 scopedPASS retained;all36verdicts unchanged.",
+    "statement": "Independent StepA130 and StepB135 actualPG17.6 PASS, meaningful parent negatives and restored controls; fresh per-source main composition discovery and production READ ONLY metadata. No native/provider/hosted acceptance;36full verdicts unchanged.",
     "readiness": {
       "source_ready": true,
       "N4_source_ready": true,
-      "locally_verified": "Prior combined3b129+12 and Unicode boundaries retained; current checkpoint source/docs review only.",
+      "locally_verified": "StepA130/130;StepB135/135; negatives/restoredcontrols. Scoped dormant database changes only.",
       "scoped_delta_reviewed": true,
-      "proposed_binding_corrections_reviewed": "Named bound/empty/astral and terminal-scrub plan corrections only; local source preparation accepted, runtime implementation unqualified",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only3b progression conditional on all ordinary steps passing and fresh review; no merge/live permission.",
-    "cleanup": "No new local cluster or hosted mutation. Prior three CX113 clusters and earlier resources remain settled.",
-    "next": "Primary early-publishes separate immutable CON-only StepA index source pin with before/after evidence; reviewer inspects actual delta and independently reruns affected PostgreSQL controls. StepB may follow separately; shared/runtime/live holds remain."
+    "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null. Exact3b draft-only progression remains conditional on every ordinary gate and fresh review, no merge/live authority.",
+    "cleanup": "Two new owned localPG17.6 clusters stopped/PIDs absent/data removed; exact source restored/checkout clean. Read-only production transaction rolled back/connection ended.",
+    "next": "Primary returns actual terminal combined3b ordinary gate receipt, then StepA/StepB receipts in order; reviewer checks exact candidate, each exit/census and any fresh automatic review before draft-only progression. Shared runtime writer/window and compatible subscription route/finite allowance/cohort/effect batch remain separate prerequisites."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1254,19 +1253,19 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0113.md",
+    "record": "CX-0114.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
     "supplementalTree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Exact combined3b936 source+harness129 committed+12 independent PostgreSQL PASS; c86 proposed-binding corrections reviewed after ecf residuals and actual Unicode boundary. Runtime/native/provider/hosted acceptance open; all36 full verdicts retained.",
+    "statement": "Early proposed plan corrections reviewed through cfaf1295:1..16000codepoint/empty/astral refusal and required terminal body/hash scrub. StepsA/B scoped source preparation accepted, implementation not yet independently qualified. Prior combined3b129+12 scopedPASS retained;all36verdicts unchanged.",
     "readiness": {
       "source_ready": true,
       "N4_source_ready": true,
-      "locally_verified": "Combined129+12 actual owned PG17.6 PASS; three actual Unicode boundaries expected. No runtime/native/provider/hosted qualification.",
+      "locally_verified": "Prior combined3b129+12 and Unicode boundaries retained; current checkpoint source/docs review only.",
       "scoped_delta_reviewed": true,
-      "proposed_binding_corrections_reviewed": true,
+      "proposed_binding_corrections_reviewed": "Named bound/empty/astral and terminal-scrub plan corrections only; local source preparation accepted, runtime implementation unqualified",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
@@ -1274,8 +1273,8 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only3b progression conditional on all ordinary steps passing and fresh review; no merge/live permission.",
-    "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed, including failed bootstrap. Twelve role/DB censuses clean,0 other clients. Earlier resources remain settled.",
-    "next": "Primary prepares immutable CON-only runtime file/call-site/test plan against reviewed c86 binding, excluding held shared files; reviewer checks plan and terminal combined gates at next execution checkpoint before any current-main/shared integration."
+    "cleanup": "No new local cluster or hosted mutation. Prior three CX113 clusters and earlier resources remain settled.",
+    "next": "Primary early-publishes separate immutable CON-only StepA index source pin with before/after evidence; reviewer inspects actual delta and independently reruns affected PostgreSQL controls. StepB may follow separately; shared/runtime/live holds remain."
   },
   "checkpoint_history": [
     {
@@ -1956,6 +1955,30 @@
       "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only3b progression conditional on all ordinary steps passing and fresh review; no merge/live permission.",
       "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed, including failed bootstrap. Twelve role/DB censuses clean,0 other clients. Earlier resources remain settled.",
       "next": "Primary prepares immutable CON-only runtime file/call-site/test plan against reviewed c86 binding, excluding held shared files; reviewer checks plan and terminal combined gates at next execution checkpoint before any current-main/shared integration."
+    },
+    {
+      "record": "CX-0114.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+      "supplementalTree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+      "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "statement": "Early proposed plan corrections reviewed through cfaf1295:1..16000codepoint/empty/astral refusal and required terminal body/hash scrub. StepsA/B scoped source preparation accepted, implementation not yet independently qualified. Prior combined3b129+12 scopedPASS retained;all36verdicts unchanged.",
+      "readiness": {
+        "source_ready": true,
+        "N4_source_ready": true,
+        "locally_verified": "Prior combined3b129+12 and Unicode boundaries retained; current checkpoint source/docs review only.",
+        "scoped_delta_reviewed": true,
+        "proposed_binding_corrections_reviewed": "Named bound/empty/astral and terminal-scrub plan corrections only; local source preparation accepted, runtime implementation unqualified",
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only3b progression conditional on all ordinary steps passing and fresh review; no merge/live permission.",
+      "cleanup": "No new local cluster or hosted mutation. Prior three CX113 clusters and earlier resources remain settled.",
+      "next": "Primary early-publishes separate immutable CON-only StepA index source pin with before/after evidence; reviewer inspects actual delta and independently reruns affected PostgreSQL controls. StepB may follow separately; shared/runtime/live holds remain."
     }
   ]
 }

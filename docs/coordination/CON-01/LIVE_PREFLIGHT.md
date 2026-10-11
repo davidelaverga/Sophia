@@ -1,5 +1,9 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Actual database metadata refresh — CX-0115, 2026-10-11, 16:41 UTC
+
+Bounded repeatable READ ONLY transaction at `2026-10-11T16:41:26.800Z`, existing private credential reference, exact target matched before connection, terminal ROLLBACK/connection ended. PostgreSQL17.6/read_only on; ledger36/last0036/no drift against reviewer0001–0045, pending0037–0045. CON conversations/replies/contexts tables are absent. Runtime aggregates retain six running m03 bindings and two settled s1-03 bindings; these self-reports do not prove safe drain or installed composition. No content/operational function, mutation, provider/native call or spend. [Safe metadata receipt](evidence/20261011-cx115-source-steps/live-readonly-refresh.json), [scope and full handoff](CX-0115.md). API/runtime/worker/bridge/Studio serving tuple remains the dated CX100 observation at12:02UTC below. Browser access works, but no designated two-account CON episode or deployment has occurred. OP1r2/OP2r3 remain draft_not_authorized; approval/expiry null.
+
 ## Setup discovery — CX-0101, 2026-10-11
 
 Actual Supabase main Production `ikigawvpaxnvdjzzzhws` healthy; included Auth headroom visible with delayed usage. No Sophia ledger refresh: dashboard No migrations is Supabase's own list. Resend invitation source inspected, live mailer cost/configuration unbound. Studio has no sophia-build meta; asset filename does not resolve sourceSHA. Account quota telemetry available through Codex tool and Claude desktop, private values retained outside Git; no Sophia monitoring/connection proof. [Safe discovery](evidence/20261011-cx101-n4-binding/setup-discovery.json). No setup effects; OP1r2/OP2r3 still draft_not_authorized. Latest CX100 service tuple below remains the dated observation, not a refreshed execution window.

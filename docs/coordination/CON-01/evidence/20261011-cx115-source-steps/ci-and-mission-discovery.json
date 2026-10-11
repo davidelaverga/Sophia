@@ -1,0 +1,115 @@
+{
+  "observedAt": "2026-10-11T16:57:53.680772+00:00",
+  "pr211": {
+    "head": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "base": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+    "draft": true,
+    "updatedAt": "2026-10-11T15:33:48Z"
+  },
+  "run": {
+    "status": "in_progress",
+    "conclusion": "",
+    "headSha": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "updatedAt": "2026-10-11T16:52:47Z"
+  },
+  "jobs": [
+    {
+      "name": "Live auth on local Supabase",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "runtime-unit",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "The room in Chromium, on its fixture page",
+      "status": "in_progress",
+      "conclusion": ""
+    },
+    {
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "Media bridge against a real LiveKit server",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "latestAutomaticReview": {
+    "id": 5483818635,
+    "source": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "finding": 4242086333,
+    "correction": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+    "qualification": "Prior scoped source/actualPG correction, retained; latest5483863278 is empty review body for author reply4242132129, not fresh combined automatic review."
+  },
+  "pr190": {
+    "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "tree": "631824e4196c36be99159ab3fbb95c640bf8412f",
+    "draft": true,
+    "checkStates": [
+      {
+        "name": "SQL, persistence and API on PostgreSQL 16",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Confined PDF renderer on a real Chromium",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Media bridge against a real LiveKit server",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Live auth on local Supabase",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "SQL, persistence and API on PostgreSQL 16",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "runtime-unit",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Live auth on local Supabase",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Paperclip image under a 2 GiB cgroup",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "runtime-unit",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Media bridge against a real LiveKit server",
+        "state": "SUCCESS"
+      },
+      {
+        "name": "Confined PDF renderer on a real Chromium",
+        "state": "SUCCESS"
+      }
+    ],
+    "limitations": "Read-only status observations; open billing findings r4235198833/r4232295959, default off. No CON voice activation or shared window approval."
+  },
+  "authority": "Existing push run only, not retriggered. #211 may advance only to exact3b after its own complete ordinary gates, then fresh automatic review; no merge/live authority."
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0115.md",
+  "artifacts": {
+    "evidence/20261011-cx115-source-steps/acceptance-status-comparison.json": "b9e709af454405d2f74e8ab8b97f7a650248719770e4be141b6f3fef896260d4",
+    "evidence/20261011-cx115-source-steps/ci-and-mission-discovery.json": "3a5d5794aa63e6a1a2c0d5c449f3a82ed28fc60cf4b581a066c853c4e666430d",
+    "evidence/20261011-cx115-source-steps/desktop-coordination-incident.json": "672da28382b350689026439c973bec338fba79180a116324199ce678c0b5b400",
+    "evidence/20261011-cx115-source-steps/live-readonly-refresh.json": "792a72e70665453bfe5b52274cd15f3dccd148ef016cce7fe6902d79d58907c5",
+    "evidence/20261011-cx115-source-steps/main-auto-tree-ae.json": "79e95a90827c9f6c39a5b07e24cf9fdc399e43b4deb94b79185617d617086f9e",
+    "evidence/20261011-cx115-source-steps/main-auto-tree-f36.json": "f1c9891cfd5260fc8773743628d0e3010d2f525de8ff3ed8340ef45ed393c391",
+    "evidence/20261011-cx115-source-steps/main-auto-tree.json": "703d0f8c85e9bc7fd17a0cf8a6ac757ff3e9cfb9f4aea2e42ad823fbea05c083",
+    "evidence/20261011-cx115-source-steps/operation-handoff.json": "1084b9388b8d94489eec3c78bd2a90947e52de96c776a83785e88ecc138bf2a7",
+    "evidence/20261011-cx115-source-steps/source-review.json": "451075cb653f43e10d93f433c172dfcbb70542593c56cd6d2fab535d333b4a5d",
+    "evidence/20261011-cx115-source-steps/step-a-owned-pg.json": "b8103184dada78278acac16f3aa3e9ddd00c22829bb20987d6433252a4573623",
+    "evidence/20261011-cx115-source-steps/step-b-owned-pg.json": "2e3eb791db66a6819332ab71561707401eb5558f19359c9d6f9128dcdb1ea6d5"
+  }
+}

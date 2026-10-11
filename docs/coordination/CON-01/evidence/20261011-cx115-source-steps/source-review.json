@@ -1,0 +1,36 @@
+{
+  "stepA": {
+    "candidate": "ae1a12349c84d6ed489d1150ebc9ca0885bdea13",
+    "tree": "2f6d3c11a40197af9029dce4896c90c9fc2c585a",
+    "parent": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+    "delta": "3files+140/-0, full180line delta read",
+    "behavior": "S3 composite(project_id,source_id)dependency index; N2 footprint; N4 actual nested auto_explain/custom/generic/BUFFERS sensitivity. No shared caller/number/grant change.",
+    "authorReceipt": 6111213000,
+    "authorVoidRuns": "Retained S3 preflight membership failure and fixture uuid/text type error; neither qualifies negative query plan."
+  },
+  "stepB": {
+    "candidate": "f36a8fa0588f5c09d2cbd5bdf1b49f45e1bc82e3",
+    "tree": "369b060dfc02e96634f5e596907855041d390a7a",
+    "parent": "ae1a12349c84d6ed489d1150ebc9ca0885bdea13",
+    "delta": "2files+238/-1, full280line delta read",
+    "function": "conversation_refuse_answer(uuid,integer,text)",
+    "behavior": "Owner-only/security-definer/fixed search_path/READ COMMITTED; same publication locks; only current recorded attempt running->failed with answer_empty/answer_too_long/answer_invalid_text. Required existing terminal context body/message-hash scrub retained. Ended/stale/replay unchanged; no new published message/answer/suppression/receipt. Native caller held.",
+    "authorReceipt": 6111272209,
+    "qualification": "135/135 actual reviewer PG17.6; parent negative1pass4fail; restored5/5. Bounds/control1..16000 PostgreSQL characters, including astral, retained."
+  },
+  "authorTerminal86b": {
+    "receipt": 6111236353,
+    "origin": "Author report fully read, not reviewer execution",
+    "wrapperExit": 0,
+    "bothLocales": {
+      "N4": "40/40 exit0",
+      "composedN2": "36/39 exit1, exactly intended3differences; source restored",
+      "five": "129/129 exit0",
+      "dbAll": "738/738 exit0"
+    },
+    "testSql": "exit0,46migrations5files",
+    "pnpmCheck": "exit0; units2256(2255pass1skip),integration88(86pass2skip)",
+    "census": "Each before/after matched; final defaults only,0 other clients/test processes. Teardown nonrecurrence does not qualify harness fix by itself; older72a ICU failure retained."
+  },
+  "remaining": "Ordered3b/StepA/StepB broad terminal receipts pending at scoped source handoff; current-main/shared/native/capture/isolation/copy/crash/cleanup/real-provider/app crossing remain unqualified. No reviewer feature fix."
+}

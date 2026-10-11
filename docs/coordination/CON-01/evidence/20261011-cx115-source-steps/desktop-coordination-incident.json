@@ -1,0 +1,11 @@
+{
+  "kind": "One misrouted routine coordination message",
+  "expectedDestination": "Authorized CON-01 Claude session",
+  "observedDestination": "Paperclip Claude session, independently observed after old post-submit guard threw",
+  "data": "Read-only aggregate production metadata, no secrets, content, source-change instruction or operation/spending authority",
+  "observedResponse": "Paperclip visibly acknowledged no action required and unrelated scratch repair does not touch Sophia ledger. This visible response is the limit of reconciliation.",
+  "resolution": "No resend or follow-up to Paperclip. Correct metadata and incident then delivered once to exact CON. StepB scoped qualification delivered to exact CON and its acknowledgment visibly read.",
+  "guardChange": "Fresh exact URL plus rename-heading before focus, after focus, after paste and after submit; require blank composer and message prefix. Abort before submission on mismatch; no blind resend after ambiguity.",
+  "concurrency": "Read-only discovery identified another active Codex reviewer using same Claude window. Permission to send that existing Codex task one coordination message is pending; no such message sent. No new automation/task/agent.",
+  "unresolved": "Message already processed cannot be unsent; no later Paperclip operational effects independently inferred."
+}
