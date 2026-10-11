@@ -712,16 +712,24 @@
 .conv-msg-body {
   position: relative;
 }
-.conv-propose {
+/* A message's acts at its corner (docs/plans/conversation-acts.md): copy, quote, propose, and what a copy or a
+   proposal said. */
+.conv-acts {
   position: absolute;
   top: -12px;
   right: -12px;
   z-index: 1;
   display: flex;
   align-items: center;
+  gap: 6px;
+}
+.conv-propose {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.conv-propose-press {
+.conv-propose-press,
+.conv-act {
   display: grid;
   place-items: center;
   width: 28px;
@@ -731,38 +739,55 @@
   background: var(--plane-2);
   color: var(--text-2);
 }
-.conv-propose-press:hover {
+.conv-propose-press:hover,
+.conv-act:hover {
   color: var(--text);
 }
-.conv-proposed {
+.conv-act svg {
+  width: 14px;
+  height: 14px;
+}
+.conv-copied[data-kind='failed'] {
+  color: var(--rose);
+  white-space: normal;
+}
+.conv-proposed,
+.conv-copied {
   color: var(--teal);
   font-size: var(--type-small);
   white-space: nowrap;
 }
 @media (hover: hover) {
-  .conv-msg:not(:hover, :focus-within) .conv-propose-press {
+  .conv-msg:not(:hover, :focus-within) :is(.conv-propose-press, .conv-act) {
     opacity: 0;
   }
 }
 /* On a touch screen it shows on the message pressed, or when the keyboard reaches it: out of sight, it stays in reach of
    a keyboard and a screen reader, taking no tap meant for the message. */
 @media (hover: none) {
-  .conv-msg:not([data-pressed], :focus-within) .conv-propose,
-  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+  .conv-msg:not([data-pressed], :focus-within) .conv-acts,
+  .conv-msg:not([data-pressed], :focus-within) :is(.conv-propose-press, .conv-act) {
     pointer-events: none;
   }
-  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+  .conv-msg:not([data-pressed], :focus-within) :is(.conv-propose-press, .conv-act) {
     opacity: 0;
   }
 }
 /* A finger's target: 40 px, as every icon control on a touch screen. */
 @media (pointer: coarse) {
   /* Within the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
-  .conv-propose {
+  .conv-acts {
     top: -20px;
     right: -12px;
   }
-  .conv-propose-press {
+  /* Another's message sits at the pane's left: three 40 px presses anchored to a short bubble's right would run past
+     the pane's edge, so they start at the bubble's left and run right. One's own, at the right, keep the right. */
+  .conv-msg:not(.mine) .conv-acts {
+    right: auto;
+    left: -12px;
+  }
+  .conv-propose-press,
+  .conv-act {
     width: 40px;
     height: 40px;
   }
