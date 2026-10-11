@@ -979,7 +979,7 @@
     max-width: none;
     margin: 0;
     width: calc(100% - var(--report-w));
-    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - 1040px) / 2 + var(--gutter)));
+    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - var(--content)) / 2 + var(--gutter)));
   }
   /* Work's pulse column goes under the goals: two columns beside the pane leave neither room to read. */
   .shell:has(> .report-pane[data-size='side']) > main.page.split {
