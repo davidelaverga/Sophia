@@ -1,0 +1,79 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0092",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "classification": "progress: immutable N3 source and actual PostgreSQL independently qualified within named scope",
+  "verdict": "N3 scoped PASS; no whole G2/G4/live acceptance",
+  "N3": {
+    "candidate": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
+    "tree": "492cbabfe1a3efe1b3720124cf7f3b81e64486a4",
+    "parent": "0dc3be79f068d01244a0736e440fa9bb5798f53f",
+    "branch": "claude/con01-g2-s2-review",
+    "pr": 211,
+    "diff": {
+      "files": 2,
+      "added": 578,
+      "removed": 0
+    },
+    "authorReceipt": 6104577784,
+    "independentTests": {
+      "postgres": "17.6",
+      "committed": {
+        "tests": 12,
+        "suites": 3,
+        "passed": 12,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0
+      },
+      "additionalCases": 5,
+      "baseline": "old d527 desired behavior gap reproduced, not desired-behavior PASS"
+    },
+    "checks": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0",
+      "frozenOfflineInstall": 0,
+      "persistenceTypecheck": 0,
+      "changedFileTypeAwareLint": 0,
+      "changedFileFormat": 0,
+      "diffCheck": 0
+    },
+    "rollback": "Old CHECK rejects new terminal unknown row23514; attempted DDL transaction rollback preserves governed row/new schema. Old-schema/live rollback unqualified."
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "N3 exact source and named real-PG17.6 scopes pass; earlier held scopes retained",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "runtimeProviderCalls": 0,
+    "actualSpend": 0,
+    "newActualAppStacks": 0,
+    "ownedPgOnlyClusters": 2,
+    "unresolvedNewEffects": false
+  },
+  "acceptance": "all36 full case status values retained",
+  "cleanup": "Both owned PG-only clusters stopped/removed and databases dropped, wrapper exits0. All82 previous actual-app stacks settled per CX90. Worktrees retained.",
+  "subscriptionObligation": "Plan wire compatibility alone does not establish finite token bound; positive S2 reservation needs conservative finite provider bound or explicit authorized overrun/uncertainty handling. No provider experiment.",
+  "coordination": {
+    "messages": [
+      450,
+      451,
+      452
+    ],
+    "N1": "Selected pure renderer/test source preparation only; concrete contract before final bytes; no N2/N4/shared/caller/artifact/provider changes"
+  },
+  "next": "Independently review concrete N1 contract then immutable renderer/test candidate; shared/live holds remain"
+}

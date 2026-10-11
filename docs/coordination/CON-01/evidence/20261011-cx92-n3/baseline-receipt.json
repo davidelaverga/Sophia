@@ -1,0 +1,14 @@
+{
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "scope": "actual owned PG17.6 baseline only; synthetic subjects; no API server/browser/native/provider/hosted effects",
+  "at": "2026-10-11T02:14:40.901306+00:00",
+  "outerPid": 54869,
+  "command": [
+    "node",
+    "<private-journal>/cx92/n3-baseline.mjs"
+  ],
+  "exit": 0,
+  "postgresStopped": true,
+  "clusterRemoved": true
+}

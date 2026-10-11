@@ -1,0 +1,29 @@
+▶ CON-01 N3: a reply request’s terminal set, in SQL
+  ▶ its footprint, recorded before and after it
+    ✔ replaces only the settled-time CHECK, under the same name; every other constraint is 0048’s (0.88275ms)
+    ℹ settled CHECK conversation_replies_check1: CHECK (((state = ANY (ARRAY['answered'::text, 'failed'::text, 'cancelled'::text, 'blocked'::text])) = (settled_at IS NOT NULL))) -> CHECK (((state = ANY (ARRAY['answered'::text, 'failed'::text, 'cancelled'::text, 'blocked'::text, 'outcome_unknown'::text])) = (settled_at IS NOT NULL)))
+    ✔ keeps the open index plain (not unique) under its name and columns, its predicate pending and running only (0.120334ms)
+    ℹ open index: CREATE INDEX conversation_replies_open ON sophia.conversation_replies USING btree (project_id, conversation_id, cutoff_seq) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text, 'outcome_unknown'::text])) -> CREATE INDEX conversation_replies_open ON sophia.conversation_replies USING btree (project_id, conversation_id, cutoff_seq) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text]))
+    ✔ changes conversation_withdrawn_from in its open set only; owner, SECURITY DEFINER, search_path and privileges stay (0.0725ms)
+    ℹ conversation_withdrawn_from acl {postgres=X/postgres}, owner postgres
+    ✔ adds or changes nothing else: functions, relations, triggers, policies, grants and every table’s rows (0.791458ms)
+    ✔ lets none of PUBLIC, sophia_api and sophia_worker execute the replaced helper, as before (11.624125ms)
+  ✔ its footprint, recorded before and after it (13.8955ms)
+  ✔ gives every terminal state its settled time and an open one none: all fourteen pairs (18.717959ms)
+  ✔ a withdrawal cancels pending and running; every ended request, outcome_unknown included, stays as it ended (41.677333ms)
+  ✔ an erasure cancels only what is open, and every member’s text goes (26.82775ms)
+  ✔ wrote no row of the runtime or the model (17.397459ms)
+✔ CON-01 N3: a reply request’s terminal set, in SQL (409.550042ms)
+▶ CON-01 N3: over rows written before it, and taken back
+  ✔ applies over them, changing none, and each satisfies 0048’s settled-time rule and the candidate’s (13.739125ms)
+  ✔ taken back to 0048’s definitions while no outcome_unknown is written, its identities are 0048’s again and the rows unchanged (22.602917ms)
+  ✔ is refused over a request 0048 recorded as an open outcome_unknown, and changes nothing (24.512041ms)
+✔ CON-01 N3: over rows written before it, and taken back (346.029542ms)
+ℹ tests 12
+ℹ suites 3
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 894.905875

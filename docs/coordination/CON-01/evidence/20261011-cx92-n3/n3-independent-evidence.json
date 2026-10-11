@@ -1,0 +1,45 @@
+{
+  "scope": "Independent N3 candidate actual local PG/S2 composition; synthetic subjects; no native/provider/hosted",
+  "cases": [
+    {
+      "name": "Legacy uncertain row refuses installation before changes",
+      "observed": "55000; exact function/index/constraints and all reply fields unchanged; no timestamp invented",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Successful additive candidate preserves rows and non-unique index",
+      "observed": {
+        "indisunique": false,
+        "definition": "CREATE INDEX conversation_replies_open ON sophia.conversation_replies USING btree (project_id, conversation_id, cutoff_seq) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text]))"
+      },
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Terminal uncertain withdrawal preserves request and cumulative S2 allowance",
+      "observed": "exact reply/timestamp/reason/ids unchanged; human body/name scrubbed; uncertain1call/100tokens and reservation exact; no fresh call",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Actual API and worker invocation remains denied",
+      "observed": "42501 for both; no added helper grant",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Old-schema rollback incompatibility remains explicit",
+      "observed": "old CHECK installation rejected23514; rollback of attempted DDL retains governed terminal uncertain row and new schema. No old-code-only live rollback qualification.",
+      "verdict": "PASS_preservation_limit"
+    }
+  ],
+  "counts": {
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0
+  },
+  "providerCalls": 0,
+  "spend": 0,
+  "finishedAt": "2026-10-11T02:21:41.792Z",
+  "databaseDropped": true
+}

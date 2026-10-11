@@ -1,0 +1,37 @@
+{
+  "candidate": "dd5fc68866d3dfe6084928f557f0ee8ab92f8303",
+  "tree": "492cbabfe1a3efe1b3720124cf7f3b81e64486a4",
+  "parent": "0dc3be79f068d01244a0736e440fa9bb5798f53f",
+  "scope": "actual owned PG17.6 candidate tests plus independent legacy/cumulative/permission/rollback-preservation cases; synthetic; no appserver/browser/native/provider/hosted",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "at": "2026-10-11T02:21:39.889916+00:00",
+  "outerPid": 69889,
+  "commands": [
+    {
+      "label": "author-test-independent-run",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=1",
+        "--test-timeout=120000",
+        "packages/persistence/src/conversation-reply-states.db.test.ts"
+      ],
+      "exit": 0
+    },
+    {
+      "label": "reviewer-cases",
+      "command": [
+        "node",
+        "<private-journal>/cx92/n3-independent.mjs"
+      ],
+      "exit": 0
+    }
+  ],
+  "hashes": {
+    "db/migrations/0048_project_conversations.sql": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+    "db/candidates/con01-s1-reply-states.sql": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+    "packages/persistence/src/conversation-reply-states.db.test.ts": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0"
+  },
+  "postgresStopped": true,
+  "clusterRemoved": true
+}

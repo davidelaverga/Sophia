@@ -1,0 +1,43 @@
+{
+  "scope": "Independent actual local PG baseline on unmodified d527; not candidate qualification",
+  "cases": [
+    {
+      "name": "Desired terminal timestamp currently rejected",
+      "observed": "23514 CHECK violation for outcome_unknown with non-null settled_at",
+      "baseline": "gap reproduced; not pass for desired G2 semantics"
+    },
+    {
+      "name": "Open index",
+      "observed": {
+        "indisunique": false,
+        "definition": "CREATE INDEX conversation_replies_open ON sophia.conversation_replies USING btree (project_id, conversation_id, cutoff_seq) WHERE (state = ANY (ARRAY['pending'::text, 'running'::text, 'outcome_unknown'::text]))"
+      },
+      "baseline": "non-unique must remain; predicate still includes outcome_unknown"
+    },
+    {
+      "name": "API-role withdrawal rewrites old uncertain state",
+      "observed": "outcome_unknown -> cancelled; original human body and author_name scrubbed",
+      "baseline": "desired terminal-state retention not yet implemented"
+    },
+    {
+      "name": "API direct privileged helper",
+      "observed": "42501 denied"
+    },
+    {
+      "name": "worker direct privileged helper",
+      "observed": "42501 denied"
+    }
+  ],
+  "counts": {
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0
+  },
+  "providerCalls": 0,
+  "spend": 0,
+  "finishedAt": "2026-10-11T02:14:42.187Z",
+  "databaseDropped": true
+}
