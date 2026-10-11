@@ -32,6 +32,8 @@ export interface RecapLine {
   text: string
   /** Who and how, in a few words: "proposed by Marco, decided by you", "asked by you", "your note". */
   by: string
+  /** Where the line lives, for a press from Updates: the brief, or the task in Tasks; what was made opens itself. */
+  to?: 'brief' | 'task'
 }
 
 export interface RecapSection {
@@ -59,6 +61,7 @@ export function recapSections(recap: Records, nameOf: NameOf, closed = false): R
         key: d.decisionId,
         text: d.statement,
         by: `proposed by ${nameOf(d.proposedBy)}, decided by ${nameOf(d.decidedBy)}`,
+        to: 'brief',
       })),
     },
     {
@@ -69,14 +72,21 @@ export function recapSections(recap: Records, nameOf: NameOf, closed = false): R
         by: `asked by ${nameOf(m.askedBy)}`,
       })),
     },
-    { title: 'Kept', lines: recap.noted.map((n) => ({ key: n.entryId, text: n.text, by: keptBy(n, nameOf) })) },
-    { title: 'Still open', lines: recap.open.map((o) => ({ key: o.proposalId, text: o.statement, by: 'proposed' })) },
+    {
+      title: 'Kept',
+      lines: recap.noted.map((n) => ({ key: n.entryId, text: n.text, by: keptBy(n, nameOf), to: 'brief' })),
+    },
+    {
+      title: 'Still open',
+      lines: recap.open.map((o) => ({ key: o.proposalId, text: o.statement, by: 'proposed', to: 'brief' })),
+    },
     {
       title: 'Work',
       lines: recap.work.map((w) => ({
         key: w.taskId,
         text: w.kind.replaceAll('_', ' '),
         by: closed && ongoing(w.state) ? 'still running at close' : w.state.replaceAll('_', ' '),
+        to: 'task',
       })),
     },
   ]
