@@ -1,0 +1,43 @@
+{
+  "candidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+  "tree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
+  "parent": "923336e23d6f47a9138f329186c788217ae11b1e",
+  "completeDiff": "twofiles+163/-10, full205line delta read; onlysource_outattemptcorrelation and3tests, other productionfiles unchanged",
+  "sourceHashes": {
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995",
+    "packages/persistence/src/conversation-fences.db.test.ts": "6ca39be84309cac30aad09d581867f415dd3b27b3d50b217fea1e13d4fe7ddcf"
+  },
+  "privateScriptHashes": {
+    "correction/n4-independent.mjs": "8bfa326e64c2f0979534ee8a9adc2ca29c56c404f759f00eb51872d76a9ff38b",
+    "correction/run-correction-owned.py": "a6a25ca0258b9707ce0657ca1a479cbe7b3b96386db737b1a9874863265a6066",
+    "correction-r2/n4-independent.mjs": "5e3a73fb841d689bf29aeb0203a43b358474f7be8030846d8e9fdf0c2fb7abe9",
+    "correction-r2/run-correction-owned.py": "e8d58d1e69a2c390974a39476821d0467b627a192bd110be89402ac4aaa101ee"
+  },
+  "firstRun": {
+    "committedExit": 1,
+    "tests": 77,
+    "pass": 37,
+    "cancelled": 40,
+    "cause": "ReviewerPGOPTIONSstatement_timeout5000 expired on roleadvisorylock in beforehook; not implementation assertions",
+    "independentExit": 1,
+    "independentCasesRun": 0,
+    "cause2": "Reviewerprivateprobe extraction truncated innerfinally; SyntaxError before execution",
+    "cleanup": "ownedPGstop/PIDabsence/removal successful; no fixture-level cleanup claim for script that didnotexecute"
+  },
+  "rerun": {
+    "method": "Reviewer-only script reconstructed; node--check0 beforePG; freshownedcluster, finite45ssetupstatement/lockbound with600soutercommandbound; no repositorysource/assertionchange",
+    "committedTests": 77,
+    "pass": 77,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "exit": 0,
+    "independent": 11,
+    "independentExit": 0,
+    "wrapperExit": 0
+  },
+  "authorEvidence": "CC0104/6109335651 prose read in full; complete205line delta independently read; hashesmatch. Authorfailbefore37/40/3 andafter40/40CandICU remain attributed, mutants/broadgatepending",
+  "finding": "r4241643132 scoped_resolved within named answered/pending/running andcurrent-source controls; original923FAIL retained",
+  "policy": "r4241643135 currentconservativecutoff observed again. Davide asked keepcurrentrule vsrecordeddependencies; unansweredatcheckpoint. No silentnarrowing, noownerpolicyapprovalinferred.",
+  "authority": "ExactCONmessage517 sent permitting existingdraft211FFexactb5/freshreview withpreliminarygates, no merge/main/shared/live effects; actualGHexecution must be checked separately"
+}

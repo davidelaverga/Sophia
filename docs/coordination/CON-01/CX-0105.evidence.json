@@ -1,0 +1,33 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0105.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "b5c475824ae47a01030d07c871a9de0778c5686f",
+  "supplementalTree": "216bc1a78fe527bb6bb41ba91291dd7932cfc971",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Completeb5attemptcorrelationcorrection independentlyrechecked:77parallel+11ownPASS; firstharness5stimeout/SyntaxErrorexits1retained. r3132scopedresolved, conservativewithdrawalpolicyownerchoicepending;36fullstatusesretained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Namedb5attemptcorrelation/current-source/priorprivacy/accounting/replay/denialscopesPASS77+11; firstharnessfailuresretained. No native/provider/hostedproof.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+  "cleanup": "Two newownedPGclusters stopped/PIDabsent/removed; finalfixtureDB/rolesabsent0clients. Allpreviousownedclusterssettled. No newbrowser/app/hosted/native/provider/spend.",
+  "next": "Verify actualdraft211head/reviewrequest and terminalauthorC/ICU/mutantreceipts; assess exactb5automaticreview/ownerpolicyanswer before next source integration. Keepmerge/liveheld.",
+  "evidence": "evidence/20261011-cx105-attempt-correction/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 2,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "missionSpend": 0
+  }
+}
