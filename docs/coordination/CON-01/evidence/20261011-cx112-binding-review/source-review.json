@@ -1,0 +1,71 @@
+{
+  "documentationCandidate": "fdc743086eb58314b601182bbfb662c84202dd0a",
+  "documentationTree": "c4cfaa794020be3e213a7270878c07c6c34a5949",
+  "parent": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+  "file": "docs/coordination/CON-01/BINDING_MAP.md",
+  "sha256": "1898610d5c29d9277bcd131ae42b3ae912175fc38e252f83f9cdd13845dd8b75",
+  "fullDeltaRead": true,
+  "delta": {
+    "files": 1,
+    "additions": 88,
+    "deletions": 20
+  },
+  "primaryReceipt": {
+    "id": 6110815252,
+    "name": "CC0117",
+    "fullyRead": true
+  },
+  "improvements": [
+    "Separate per-reply relay with proposed1MiB line and64item/4MiB serialized queue ceilings; goal queue remains separate.",
+    "Continuous queued/future/in-flight privacy fencing and eight conditions before deletion receipt.",
+    "Per-child writable profile and contained diagnostics/projection cache; no supervisor content buffer for replies.",
+    "Source-key index, exact conditional NOWAIT, scoped no-cycle claim, no add-member shortcut and unanswered Q1-Q11."
+  ],
+  "findings": [
+    {
+      "id": "CX112-F1",
+      "severity": "P2",
+      "line": 465,
+      "status": "confirmed_source_and_L0_validator",
+      "expected": "A proposed finite reply envelope must explicitly constrain the actual event payload; claims about existing wire maxima must be true.",
+      "observed": "A04 RuntimeObservation.data is an empty schema and generated data type is unknown. Actual generated validator accepts2,097,327-byte turn/end observation. summarize turn/step events returns raw event.data. Existing wire therefore does not establish1MiB as largest valid line.",
+      "requested": "Describe1MiB as proposed reply-only bound; bind exact bounded event projection/whitelist and oversize behavior without broadening goal wire. Test escapedUnicode/envelope/rawoversize and pre-enqueue next-item fit."
+    },
+    {
+      "id": "CX112-F2",
+      "severity": "P2",
+      "line": 470,
+      "status": "contract_ordering_inference_not_executed_runtime",
+      "expected": "An eligible complete answer must survive ordinary child completion until authorized durable capture, while privacy/failure/restart fences suppress it.",
+      "counterexample": [
+        "Complete assistant and completed turn/end are queued, awaitingAPI delivery.",
+        "Child exits normally before observation acknowledgment.",
+        "The proposed unconditional child-exit fence scrubs queued text while request may still be running.",
+        "Capture loses otherwise eligible completed result. The lifecycle stop/reap-before-persist ordering does not prevent this."
+      ],
+      "requested": "Define normal completion handoff/barrier separately from privacy/failure/uncertain exit. Qualify delayed delivery followed by normal exit successfully, plus withdrawal control; never publish partial or restarted uncertain result."
+    }
+  ],
+  "minorCorrections": [
+    "Qualification row591 still says six; align with all eight conditions.",
+    "New source hook and canary cases must be labelled required/not run; hook has not been installed.",
+    "D7 should acknowledge the owner-provided private inbox reference, keeping subjects/roles/project/authentication and batch approval unbound; never publish address."
+  ],
+  "wireSourceBinding": {
+    "actualValidatorCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+    "A04GitBlobAtBothCandidates": "db0cea87b8f15108cc94ee2039e05985bb66005f",
+    "scriptSHA256": "f5a5dff0fec0c2e6a97ad7b8d4cbd67dab28e03c971a5ec54eb2dbf0cfb34645"
+  },
+  "authorBroadGateUpdate": {
+    "candidate": "72a7c979093b4989dec53a87910299ba950f0295",
+    "ICUdbAll": {
+      "tests": 739,
+      "pass": 738,
+      "exit": 1
+    },
+    "authorAttribution": "Known N2 teardown57P01 without f06 harness fix; retained as failed author gate, not independently diagnosed here.",
+    "pnpmCheck": "Still running at CC0117",
+    "source86bAndCombined": "Queued after preceding gate, no completed result at CC0117"
+  },
+  "decision": "Changes requested on documentation before runtime contract finalized. Scoped86b source and f06 harness qualifications retained. No shared/runtime/hosted write authorized."
+}

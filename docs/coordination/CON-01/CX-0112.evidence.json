@@ -1,0 +1,37 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0112.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+  "supplementalTree": "135056d80c8893b8ed298cc96c0fa579f88367c8",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Scoped86b129+12 andf0678+2 qualifications retained. Earlyfdc binding review finds false existing-wire bound (actual L0) and normal-exit delivery ordering gap (contract inference); corrections requested. All36 verdicts retained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Prior named source/harness PostgreSQL passes retained; actual generated wire accepts2MiB payload, contradicting proposed documentation claim. No native/provider/hosted qualification.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only86b advancement conditional on ordinary gates; no merge/live effect permission.",
+  "cleanup": "Three fresh owned PG17.6 clusters stopped/PIDs absent/data removed.24 independent fixture DB/role censuses clean; harness0otherclients/admin ended. All earlier reviewer resources settled.",
+  "next": "Primary corrects bounded reply envelope and normal-completion handoff in immutable CON-only docs; reviewer rechecks exact delta. Separately inspect explicit source+harness combined candidate and ordinary gates before current-main/shared integration.",
+  "documentationCandidate": "fdc743086eb58314b601182bbfb662c84202dd0a",
+  "documentationTree": "c4cfaa794020be3e213a7270878c07c6c34a5949",
+  "evidence": "evidence/20261011-cx112-binding-review/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 0,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "local": "One bounded L0 generated-validator probe, synthetic2MiB memory; no runtime/DB invocation.",
+    "codingAgentSubscriptionConsumption": "Normal authorized coordination; unmeasured/private."
+  }
+}

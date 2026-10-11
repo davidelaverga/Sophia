@@ -1,0 +1,19 @@
+{
+  "candidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+  "documentationCandidate": "fdc743086eb58314b601182bbfb662c84202dd0a",
+  "scope": "L0 actual generated validator, synthetic in-memory only; no app/native/provider/DB",
+  "cases": [
+    {
+      "name": "Small observation control",
+      "acceptedByActualGeneratedWire": true,
+      "serializedBytes": 181,
+      "errors": null
+    },
+    {
+      "name": "Unbounded observation data exceeds proposed1MiB line",
+      "acceptedByActualGeneratedWire": true,
+      "serializedBytes": 2097327,
+      "errors": null
+    }
+  ]
+}

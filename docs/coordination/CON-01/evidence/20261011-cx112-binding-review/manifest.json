@@ -1,0 +1,10 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0112.md",
+  "artifacts": {
+    "evidence/20261011-cx112-binding-review/acceptance-status-comparison.json": "e4552570df19085a74d8feed79dc350bcae2a184c123f4db326e9a050fc3e540",
+    "evidence/20261011-cx112-binding-review/operation-handoff.json": "99b77a24037a289eaae796c6a610e70e36d3c1d75a71fd6f956724d00c3d35de",
+    "evidence/20261011-cx112-binding-review/source-review.json": "0e87a8104dfb798ba0fb218a209d0d7b16965d66695c3c06631b585fd443c685",
+    "evidence/20261011-cx112-binding-review/wire-bound-result.json": "34f1a9c8ba2f94d1375b6df983074779901bca6a3cd8e62548b3440713a95243"
+  }
+}

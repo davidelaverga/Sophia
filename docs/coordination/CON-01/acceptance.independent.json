@@ -1085,17 +1085,17 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0111.md",
+    "record": "CX-0112.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
     "supplementalTree": "135056d80c8893b8ed298cc96c0fa579f88367c8",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Exact86b source correction129 committed+12 independent PASS; separatef06 harness78+2 PASS. Named corrections reviewed; combined/native/provider/live acceptance open. All36 full verdicts retained.",
+    "statement": "Scoped86b129+12 andf0678+2 qualifications retained. Earlyfdc binding review finds false existing-wire bound (actual L0) and normal-exit delivery ordering gap (contract inference); corrections requested. All36 verdicts retained.",
     "readiness": {
       "source_ready": true,
       "N4_source_ready": true,
-      "locally_verified": "Named source129+12 and separate test-only harness78+2 PostgreSQL crossings pass; no native/provider/hosted qualification.",
+      "locally_verified": "Prior named source/harness PostgreSQL passes retained; actual generated wire accepts2MiB payload, contradicting proposed documentation claim. No native/provider/hosted qualification.",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1105,7 +1105,7 @@
     },
     "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only86b advancement conditional on ordinary gates; no merge/live effect permission.",
     "cleanup": "Three fresh owned PG17.6 clusters stopped/PIDs absent/data removed.24 independent fixture DB/role censuses clean; harness0otherclients/admin ended. All earlier reviewer resources settled.",
-    "next": "Primary publishes explicit source86b+harnessf06 combined review candidate after ordinary gates and finite-buffer binding amendment; reviewer examines exact combined delta/gates and binding, preserving shared owner/window holds."
+    "next": "Primary corrects bounded reply envelope and normal-completion handoff in immutable CON-only docs; reviewer rechecks exact delta. Separately inspect explicit source+harness combined candidate and ordinary gates before current-main/shared integration."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1253,17 +1253,17 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0110.md",
+    "record": "CX-0111.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
-    "supplementalCandidate": "72a7c979093b4989dec53a87910299ba950f0295",
-    "supplementalTree": "58037b8778413d7a0b4ab095dd141a92469d3dd8",
+    "supplementalCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+    "supplementalTree": "135056d80c8893b8ed298cc96c0fa579f88367c8",
     "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
-    "statement": "Exact72a committed129 and independent11 pass; additional bare NOINHERIT admission probe5PASS1FAIL. Draft advancement held; all36 full verdicts retained.",
+    "statement": "Exact86b source correction129 committed+12 independent PASS; separatef06 harness78+2 PASS. Named corrections reviewed; combined/native/provider/live acceptance open. All36 full verdicts retained.",
     "readiness": {
       "source_ready": true,
       "N4_source_ready": true,
-      "locally_verified": "Named PostgreSQL crossings pass; accepted-installation postcondition fails P2. No native/provider/hosted qualification.",
+      "locally_verified": "Named source129+12 and separate test-only harness78+2 PostgreSQL crossings pass; no native/provider/hosted qualification.",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -1271,9 +1271,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r3 draft_not_authorized; approval and expiry null. Owner inbox reference private; project/account subjects/cohort/compatible subscription route/finite allowance unbound.",
-    "cleanup": "Both owned PG17.6 clusters stopped, PIDs absent and data removed. All17 independent fixture database/role censuses clean, zero clients. Other missions untouched.",
-    "next": "Claude corrects bare NOINHERIT admission on an immutable source pin; reviewer reruns exact failure and retained role controls. Review separate lifetime-tracked harness and finite-buffer binding amendment."
+    "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only86b advancement conditional on ordinary gates; no merge/live effect permission.",
+    "cleanup": "Three fresh owned PG17.6 clusters stopped/PIDs absent/data removed.24 independent fixture DB/role censuses clean; harness0otherclients/admin ended. All earlier reviewer resources settled.",
+    "next": "Primary publishes explicit source86b+harnessf06 combined review candidate after ordinary gates and finite-buffer binding amendment; reviewer examines exact combined delta/gates and binding, preserving shared owner/window holds."
   },
   "checkpoint_history": [
     {
@@ -1884,6 +1884,29 @@
       "operation": "OP1r2/OP2r3 draft_not_authorized; approval and expiry null. Owner inbox reference private; project/account subjects/cohort/compatible subscription route/finite allowance unbound.",
       "cleanup": "Both owned PG17.6 clusters stopped, PIDs absent and data removed. All17 independent fixture database/role censuses clean, zero clients. Other missions untouched.",
       "next": "Claude corrects bare NOINHERIT admission on an immutable source pin; reviewer reruns exact failure and retained role controls. Review separate lifetime-tracked harness and finite-buffer binding amendment."
+    },
+    {
+      "record": "CX-0111.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+      "supplementalTree": "135056d80c8893b8ed298cc96c0fa579f88367c8",
+      "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "statement": "Exact86b source correction129 committed+12 independent PASS; separatef06 harness78+2 PASS. Named corrections reviewed; combined/native/provider/live acceptance open. All36 full verdicts retained.",
+      "readiness": {
+        "source_ready": true,
+        "N4_source_ready": true,
+        "locally_verified": "Named source129+12 and separate test-only harness78+2 PostgreSQL crossings pass; no native/provider/hosted qualification.",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only86b advancement conditional on ordinary gates; no merge/live effect permission.",
+      "cleanup": "Three fresh owned PG17.6 clusters stopped/PIDs absent/data removed.24 independent fixture DB/role censuses clean; harness0otherclients/admin ended. All earlier reviewer resources settled.",
+      "next": "Primary publishes explicit source86b+harnessf06 combined review candidate after ordinary gates and finite-buffer binding amendment; reviewer examines exact combined delta/gates and binding, preserving shared owner/window holds."
     }
   ]
 }
