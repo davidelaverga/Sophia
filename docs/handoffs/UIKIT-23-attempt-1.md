@@ -110,3 +110,10 @@ failed beside them, with Try again. The fixture's `breakNeeds()` makes every lat
 brings the window back (`visibilitychange`, the event the query library hears), sees the note and the four rows
 together, recovers, and Try again clears the note. Run locally (home-needs.spec: 8 passed) with lint and typecheck clean.
 
+## Post-review, round 6 (Codex on #245)
+
+Two P2s on the amendment, answered in its words (no schema change, the generated spec and validators regenerated):
+`NeedList` names a deterministic truncation (the 200 most urgent by the service's order, the same 200 for the same
+records, the rest where they live, no cursor), and `markNeedSeen` says why advancing the mark is sound (a reply opens
+the personal space, where every turn since the last seen is shown; the mark only moves forward; later replies stay).
+
