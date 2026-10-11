@@ -69,7 +69,7 @@
 .places .chip-wrap {
   position: relative;
 }
-/* A small menu under a control: the privacy chip's answer and the list of earlier days. */
+/* A small popover under a control: the privacy chip's answer (the days' list is the kit's menu). */
 .places .popover {
   position: absolute;
   top: calc(100% + 8px);
@@ -971,19 +971,14 @@
   -webkit-mask-image: linear-gradient(transparent 0 30px, #000 68px);
   mask-image: linear-gradient(transparent 0 30px, #000 68px);
 }
-.places .c3-daybar .popover {
+/* The days' menu hangs 6 px under the pill (10 + 26 in the bar), centred, as wide as the chip's popover. */
+.places .c3-daybar .menu {
   top: 42px;
-  right: auto;
-  left: 50%;
-  transform: translateX(-50%);
+  min-width: 230px;
 }
-/* The days' menu and the note form keep to the scale: their rows and fields at the body's size. */
-.places .c3-daybar .popover button,
+/* The note form keeps to the scale: its field at the body's size. */
 .places .c3-noteform input {
   font-size: 13px;
-}
-.places .c3-daybar .popover .muted {
-  font-size: 10.5px;
 }
 .places .c3-day {
   display: flex;

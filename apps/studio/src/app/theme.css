@@ -732,20 +732,39 @@ button.mark:hover {
 .account-btn[aria-expanded='true'] .avatar {
   border-color: var(--warm);
 }
-.account-menu {
+/* A menu (docs/plans/menu-scale.md): the plane a control opens, 6 px from it, aligned to its end, its start or its
+   middle, under it or (`menu-top`) over it. The account's is 230 wide. */
+.menu {
   position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  top: calc(100% + 6px);
   z-index: 30;
   display: grid;
   gap: 2px;
-  min-width: 230px;
+  min-width: 160px;
   padding: 6px;
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   animation: arrive var(--base) var(--ease) both;
+}
+.menu-top {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.menu-end {
+  right: 0;
+}
+.menu-start {
+  left: 0;
+}
+/* Centred with `translate`, which the arrival's transform leaves alone. */
+.menu-center {
+  left: 50%;
+  translate: -50%;
+}
+.account-menu {
+  min-width: 230px;
 }
 .menu-head {
   display: grid;
@@ -765,9 +784,10 @@ button.mark:hover {
   height: 28px;
   border-color: var(--line);
 }
-.account-menu [role='menuitem'],
-.menu-list [role='menuitem'],
-.menu-list [role='menuitemradio'] {
+/* Its rows: 32 px in the body type, the one under the pointer or the focus lit; one that waits (aria-disabled) in
+   the third ink, unlit. */
+.menu [role='menuitem'],
+.menu [role='menuitemradio'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -778,17 +798,31 @@ button.mark:hover {
   border-radius: var(--r-2);
   background: none;
   color: var(--text);
-  font-size: var(--type-small);
+  font-size: var(--type-body);
   text-align: left;
 }
-.account-menu [role='menuitem']:hover,
-.account-menu [role='menuitem']:focus-visible,
-.menu-list [role='menuitem']:hover,
-.menu-list [role='menuitem']:focus-visible,
-.menu-list [role='menuitemradio']:hover,
-.menu-list [role='menuitemradio']:focus-visible {
+.menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
   background: rgba(236, 235, 241, 0.06);
+}
+.menu [aria-disabled='true'] {
+  color: var(--text-3);
+}
+/* The one of a set that is on: the app's lavender dot at the row's end. */
+.menu-mark {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
+}
+/* A row's detail (a day's topics): the label type, cut at the row's end. */
+.menu-detail {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .menu-sep {
   height: 1px;
@@ -2146,38 +2180,16 @@ button.contribution-quote:hover {
   color: var(--warm);
   font-weight: 500;
 }
-/* Pass to…: the names open above the dock, one button each. */
+/* Pass to…: the names open over the dock, the kit's menu, in the floor's warm. */
 .pass-menu {
   position: relative;
 }
-.pass-list {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  z-index: 5;
-  display: grid;
+/* Named with the menu, so its width outweighs the plane's 160 whatever the order the sheets load in. */
+.menu.pass-list {
   min-width: 140px;
-  padding: 4px;
-  transform: translateX(-50%);
-  border-radius: var(--r-3);
-  border: 1px solid var(--line-2);
-  background: var(--plane-2);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
-.pass-list button {
-  height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--r-2);
-  background: none;
+.pass-list [role='menuitem'] {
   color: var(--warm);
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-}
-.pass-list button:hover,
-.pass-list button:focus-visible {
-  background: rgba(241, 220, 199, 0.08);
 }
 /* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
 .sophia-controls {
@@ -3354,10 +3366,9 @@ div.empty {
     min-width: 40px;
     min-height: 40px;
   }
-  .account-menu [role='menuitem'],
-  .menu-list [role='menuitem'],
-  .menu-list [role='menuitemradio'] {
-    height: 40px;
+  .menu [role='menuitem'],
+  .menu [role='menuitemradio'] {
+    height: 44px;
   }
   .sheet-head .round {
     min-width: 40px;
