@@ -219,6 +219,9 @@ input,
 select,
 textarea {
   font: inherit;
+  /* The shorthand inherits the parent's leading too: a control at its own size (a small ghost in a card) finds its own
+     step again (Codex on #231). */
+  line-height: round(down, 1.55em, 4px);
   color: inherit;
   letter-spacing: inherit;
 }
@@ -381,7 +384,7 @@ select option {
   border: 0;
   background: none;
   padding: 2px 0;
-  line-height: 20px;
+  line-height: round(down, 1.55em, 4px); /* 20 at its 13 px; a smaller one (a lane's why, 12 px) finds 16 */
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
