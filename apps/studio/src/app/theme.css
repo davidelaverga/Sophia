@@ -18,6 +18,10 @@
   --plane-2: #121118;
   --glass: rgba(12, 11, 17, 0.74);
   --text: #ecebf1;
+  /* The ink as channels (for an alpha of it: a title's underline at 0.4), and the primary's hover plane: the on state
+     under the pointer (Codex on #232). */
+  --ink-rgb: 236 235 241;
+  --core-hover: #fff;
   --text-2: rgba(236, 235, 241, 0.66);
   /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
   --text-3: rgba(236, 235, 241, 0.52);
@@ -221,6 +225,9 @@ input,
 select,
 textarea {
   font: inherit;
+  /* The shorthand inherits the parent's leading too: a control at its own size (a small ghost in a card) finds its own
+     step again (Codex on #231). */
+  line-height: round(down, 1.55em, 4px);
   color: inherit;
   letter-spacing: inherit;
 }
@@ -393,7 +400,7 @@ select option {
   border: 0;
   background: none;
   padding: 2px 0;
-  line-height: 20px;
+  line-height: round(down, 1.55em, 4px); /* 20 at its 13 px; a smaller one (a lane's why, 12 px) finds 16 */
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
