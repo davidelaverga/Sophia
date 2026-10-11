@@ -1,0 +1,25 @@
+{
+  "record": "CX-0100",
+  "files": [
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx100-precision-n4/acceptance-status-comparison.json",
+      "sha256": "93006a7335f6779eeec3bbca1e4fb2a695d4dc4a1b62c148a58c5a65fd1d3a1b"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx100-precision-n4/automatic-review.json",
+      "sha256": "4c9cb55fe2faf1be1b962900af50b9384db40ef1427d0e2e8d09c32195081239"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx100-precision-n4/live-dashboard.json",
+      "sha256": "605a9b35af3d59501803be6ba9ef88b58ccd65970ceaf5ff8d135412cb925766"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx100-precision-n4/n4-contract-review.json",
+      "sha256": "7bdbee6246d6ab636d4bb067e16799cc9fa2c31af998ace848cd703b1873e257"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx100-precision-n4/precision-run.json",
+      "sha256": "db51fe3bb6f0d48b31d553cfe7ab8db48d1e72e987ad613d243823a2085d10d2"
+    }
+  ]
+}

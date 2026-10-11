@@ -1,0 +1,75 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0100.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "supplementalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Fresh exact7e840 automatic P2 independently not reproduced: actual PG committed37+own16PASS. N4 proposal reviewed/conditionally selected before shared edits; actual dashboard tuple refreshed, new worker deployment preserved. All36 full statuses unchanged.",
+  "readiness": {
+    "source_ready": true,
+    "N2_source_ready": true,
+    "locally_verified": "N2 named dormant scopes only, actual37+independent16PGPASS incl bot microsecond cases; previous local scopes retained",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2 and OP2r3 draft_not_authorized; approval/expiry null. Private owner inbox bound, actual second subject/role/cohort and subscription route/cap/expiry unbound. No hosted/provider/native/spend effects.",
+  "cleanup": "Fifth CX99/100 owned PG cluster stopped/PID absent/removed, own fixtures absent/0clients. Temporary dashboard tabs6/7 closed; hosted session preserved/Invite closed. Prior dated cleanup retained; primary cleanup claim remains attributed.",
+  "next": "Review amended N4 contract and returned immutable source/real PG evidence; no shared/live effect. Resolve actual setup batch identity/cost/role/approval before effects.",
+  "review": {
+    "review": 5483200793,
+    "head": "7e84002c36ceefab34cb27b710e554954cd269cc",
+    "comment": 4241470225,
+    "priority": "P2",
+    "claim": "Honest submillisecond decision timestamp order would be refused as context_forged",
+    "independent": "Not reproduced: accepted/pending opposite timestamp-vs-UUID pair and millisecond-spaced control all recorded; existing13 plus3 =16PASS, committed37PASS",
+    "sourceExplanation": "mission-context.ts maps pg Date to millisecond ISO; conversation-context.ts:275 re-sorts mapped timestamps then UUID; SQL matches renderer. SQL-only full-precision change would disagree.",
+    "limits": "Full-precision semantics across bounded list selection are not qualified; primary explicitly documents same-millisecond UUID tie at20-item renderer cut.",
+    "reply": 4241485532,
+    "readback": "Exact body read back at corrected review-comment endpoint; initial wrong /pulls/211/comments/id GET404 caused no write.",
+    "decision": "Report independently counterevidenced, not an unqualified release approval.",
+    "primaryAdjudication": {
+      "reply": 4241489338,
+      "decision": "Rejected with traced renderer/read-model/SQL rationale; no feature change",
+      "thread": "PRRT_kwDOUqJnR86rNRTw",
+      "isResolved": true,
+      "origin": "Actual fresh GraphQL thread/comments/head readback, head remains7e840"
+    }
+  },
+  "N4": {
+    "primaryHandback": 6108772417,
+    "origin": "Full actual GitHub issue CC0099 body read; exact native message490 read",
+    "scope": "N4 separate dormant CON SQL+real-PG test preparation conditionally selected; no shared/numbered/applied/schema/runtime/contract/artifact/grant/caller/live edits. Exact7e840 frozen while bot adjudicated.",
+    "reviewObligations": [
+      "saved reply and assembly-attempt identity plus eventual trusted native correlation",
+      "privacy dominates same-text replay and uncertain-accounting settlement",
+      "answer replay remains reconcilable after terminal N2 context body scrub, no duplicate event/message",
+      "fresh transaction/isolation and source mutation before insert; exact project/source lock protocol; avoid inverse trigger ordering",
+      "recorded dependencies retained for source withdrawal after answered; re-eligibility cannot resurrect; governed hash/body scrub",
+      "ordinary contextChanged vs privacy suppression, no premature A16 fields/Studio label",
+      "direct-role denial and real PG current/replay/conflict/late withdrawal/race evidence; supplied text L1 only"
+    ],
+    "sharedOwners": "CC0099 nine-row table read. Source/membership/runtime owners or acknowledgments/window not established; dispatch/capture#190, registry/image/mergeDavide, StudioLuis. No waiver.",
+    "authorGates": "CC0099 quoted exits0 at7e840 for N2/par/db-all/SQL/ICU/check. Reviewer expanded actual terminal-record tool but AX text truncates after source/hash prefix; full tail and counts remain attributed here. Own committed37/independent16 are actual reviewer execution.",
+    "authorCleanup": "CC0099 says second container restart, recovered PG16 owned cluster/census and fast-stop, PID/socket/port absent, retained directory. Actual tool labels read, full settlement raw output not yet inspected; do not silently upgrade attribution.",
+    "stale": "CC0099 identifies f8 task finished/superseded, current7e840 gates finished, stale old task list/worktrees/stash retained. No reviewer deletion.",
+    "primaryResponse": "Native message494 accepts six obligations and begins contract/source preparation, no immutable N4 candidate returned yet"
+  },
+  "resourceUse": {
+    "newLocalPgThisCheckpoint": 1,
+    "CX99and100Total": 5,
+    "hostedMutations": 0,
+    "sophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "reviewAgentUsage": "not reported; no remaining subscription capacity proof"
+  },
+  "operationApproval": null,
+  "expiry": null,
+  "rollback": "No live rollback; governed data retained. Earlier old-schema terminal uncertainty incompatibility holds. Native/read-erase compatible restore artifact and rehearsal unbound.",
+  "evidence": "evidence/20261011-cx100-precision-n4/"
+}

@@ -1,0 +1,20 @@
+{
+  "review": 5483200793,
+  "head": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "comment": 4241470225,
+  "priority": "P2",
+  "claim": "Honest submillisecond decision timestamp order would be refused as context_forged",
+  "independent": "Not reproduced: accepted/pending opposite timestamp-vs-UUID pair and millisecond-spaced control all recorded; existing13 plus3 =16PASS, committed37PASS",
+  "sourceExplanation": "mission-context.ts maps pg Date to millisecond ISO; conversation-context.ts:275 re-sorts mapped timestamps then UUID; SQL matches renderer. SQL-only full-precision change would disagree.",
+  "limits": "Full-precision semantics across bounded list selection are not qualified; primary explicitly documents same-millisecond UUID tie at20-item renderer cut.",
+  "reply": 4241485532,
+  "readback": "Exact body read back at corrected review-comment endpoint; initial wrong /pulls/211/comments/id GET404 caused no write.",
+  "decision": "Report independently counterevidenced, not an unqualified release approval.",
+  "primaryAdjudication": {
+    "reply": 4241489338,
+    "decision": "Rejected with traced renderer/read-model/SQL rationale; no feature change",
+    "thread": "PRRT_kwDOUqJnR86rNRTw",
+    "isResolved": true,
+    "origin": "Actual fresh GraphQL thread/comments/head readback, head remains7e840"
+  }
+}

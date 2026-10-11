@@ -1,5 +1,10 @@
 # CON-01 live preflight — read-only, 2026-10-09
 
+## Read-only dashboard refresh — CX-0100, 2026-10-11
+
+Actual authenticated Render/Vercel dashboard reads refreshed all four services and Studio production. API `dep-db0h6jad0e5s73bkine0` / `1e912b7e`; native host `dep-db02hcou01pc738k4atg` / `6ec64f36`; bridge `dep-db0h7rc9v7es73bed57g` / `1e912b7e`; Studio Ready manual production `dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1`, source SHA still unknown. **Worker now serves `dep-db5dos8473hc73apq6b0`, same source `0391bc66`, trigger Compute plan updated.** Earlier `dep-dasrio7` worker observations below are historical. [Exact safe tuple](evidence/20261011-cx100-precision-n4/live-dashboard.json). Dashboard labels do not prove installed native composition, live-work settlement or schema state; no DB/runtime/provider query or configuration/deploy effect this refresh. Current signed-in Invite/Members sheet inspected then closed without inputs/effects; test inbox privately bound, actual second subject/cohort not established. OP1r2/OP2r3 remain draft_not_authorized. Temporary tabs6/7 closed, existing hosted session preserved.
+
+
 ## Runtime registration metadata — 2026-10-10, 20:15 UTC
 
 Bounded metadata SELECTs under `BEGIN READ ONLY`, statement_timeout5s/connection-query timeout7s, terminal `ROLLBACK`; PostgreSQL17.6/read_only=on. [Safe receipt](evidence/20261010-live-runtime-registration-2015.json), [scope and limitations](CX-0075.md). Four rows/no truncation, locally hashed bundle labels/no secret or project content. Active m03 last_seen20:15:43.682 (8s before server observation), self-reported protocol1/dsh0.2.0-rc.2/two roles; six m03 bindings still running. Active m02 and s1-03 ready labels remain stale (Oct2/Sep30), one m02 revoked, two s1-03 settled. No operational function or mutation/provider/spend effect. Fresh status is not installed-composition or safe-drain proof; preserve concurrent work. Dashboard service/deployment identities and migration ledger were not refreshed; OP1r2/OP2r2 remain unapproved.
