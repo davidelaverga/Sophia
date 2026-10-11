@@ -28,6 +28,7 @@ import { PlaceDialogs } from './PlaceDialogs.tsx'
 import { PlacesBar, type InCall } from './PlacesBar.tsx'
 import { PersonalSpace } from './PersonalSpace.tsx'
 import { useNeeds } from './useNeeds.ts'
+import { turnShown } from './turn-shown.ts'
 import type { NeedAt } from '../../api/needs.ts'
 import { usePresses, type Presses } from './presses.ts'
 import {
@@ -383,7 +384,13 @@ function Home({ v }: { v: View }) {
   // What needs the person (A15, the vision flag): undefined without the flag or the read, and Home is as it was.
   const { seen: needs, read: needsRead } = useNeeds(
     props.identity.token,
-    { project: props.onOpenView, personal: () => nav.enter('personal') },
+    {
+      project: props.onOpenView,
+      personal: (turnId) => {
+        nav.enter('personal')
+        return turnId ? turnShown(turnId) : Promise.resolve(true)
+      },
+    },
     { locked: props.lock.locked },
   )
   const projects = v.projects.data?.projects
