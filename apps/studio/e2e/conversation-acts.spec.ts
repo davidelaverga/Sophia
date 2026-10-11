@@ -143,3 +143,21 @@ test('@phone · acts · on another’s message the presses start at its left and
   const acts = await first.locator('.conv-acts').boundingBox()
   expect(acts && pane && acts.x >= pane.x && acts.x + acts.width <= pane.x + pane.width).toBe(true)
 })
+
+test('acts · another’s acts start at the bubble’s left: a short message keeps its Copy inside the pane, on a desktop', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const others = messages(page)
+    .filter({ hasNot: page.locator('.mine') })
+    .filter({ has: page.locator('.conv-msg:not(.mine)') })
+  const first = others.first()
+  await first.hover()
+  const copy = first.getByRole('button', { name: 'Copy' })
+  await expect(copy).toBeVisible()
+  const pane = await page.locator('.conv-scroll').boundingBox()
+  const bubble = await first.locator('.conv-msg').boundingBox()
+  const press = await copy.boundingBox()
+  expect(press?.x ?? -1).toBeGreaterThanOrEqual((pane?.x ?? 0) - 0.5)
+  expect(press?.x ?? -1).toBeLessThan((bubble?.x ?? 0) + 40)
+})

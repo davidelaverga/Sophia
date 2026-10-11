@@ -37,6 +37,7 @@ after it adds only this handoff.
   plan does not hold together).
 - After the review (Codex on #244, 2026-10-11): on a coarse pointer the blockers' rows keep 14 px between them, so
   their reaching targets (7 px above and below) never meet; board-why.spec @phone.
+- After the review (Codex on #244, round 2): a lane names three blockers, the rest behind «and N more».
 
 ## Remaining obligations
 
