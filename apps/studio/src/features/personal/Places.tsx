@@ -381,7 +381,7 @@ function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
   // What needs the person (A15, the vision flag): undefined without the flag or the read, and Home is as it was.
-  const needs = useNeeds(
+  const { seen: needs, read: needsRead } = useNeeds(
     props.identity.token,
     { project: props.onOpenView, personal: () => nav.enter('personal') },
     { locked: props.lock.locked },
@@ -396,7 +396,7 @@ function Home({ v }: { v: View }) {
         date={dateLine(now)}
         says={sophiaSays(projects, now, props.call ?? null)}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
-        reads={[personalRead(v), projectsRead(v)]}
+        reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
