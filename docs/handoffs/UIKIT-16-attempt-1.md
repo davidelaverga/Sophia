@@ -59,6 +59,8 @@ view with ids of the list's own; `commands.spec.ts` gains three checks. That is 
 - Views as commands without keys: a one-letter key in the room is text for the bar; the palette is the keyboard's way
   to a view.
 - Places not converted here: the Home fixture renders Welcome alone, so no check could see the host there.
+- After the review (Codex on #238, 2026-10-11): in a call the palette names three rows (the call's row first), so
+  the list stays the one that shrinks and scrolls under the 480 px cap; commands.spec holds it.
 
 ## Remaining obligations
 

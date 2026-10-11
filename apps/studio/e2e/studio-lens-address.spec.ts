@@ -38,3 +38,17 @@ test('lens · «Working on … in the background» is a press: Tasks, with the t
   await note.click()
   await expect(page.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page')
 })
+
+test('lens · the door shut under the Studio view: the notice stands and the address names no lens', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&lens=explore`)
+  await drawn(page, DRAWN.room)
+  await expect(page.locator('#lens-explore[aria-selected="true"]')).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('lens')).toBe('explore')
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  // The address keeps the rest of itself and drops the lens nothing shows.
+  await expect.poll(() => new URL(page.url()).searchParams.get('lens')).toBeNull()
+  expect(new URL(page.url()).searchParams.get('demo')).toBe('1')
+})

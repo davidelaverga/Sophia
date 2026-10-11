@@ -290,7 +290,9 @@
 .conv-head h3 {
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: var(
+    --type-head
+  ); /* the open conversation's title is a section head: five sizes on the view (Codex on #248) */
   font-weight: 600;
   letter-spacing: -0.015em;
   text-overflow: ellipsis;
@@ -1005,7 +1007,7 @@
 }
 .conv-new > h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--type-head);
   font-weight: 600;
 }
 .conv-field {

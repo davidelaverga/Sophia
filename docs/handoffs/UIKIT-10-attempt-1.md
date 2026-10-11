@@ -49,6 +49,10 @@ Ending commit/tree: `4e83c6dc` (tree `1e767c148902`): 3 files, 2 new (`e2e/press
   of a box that scrolls) is not on screen, so it is not measured. The sink test's square is the header's Search (the
   account press is its own kind), and each press that opens a sheet on release is seen open, then shut, before the
   next.
+- After the review (Codex on #232, 2026-10-11): two tokens the answers named were defined only further up the stack
+  (`--ink-rgb`, `--core-hover`, in #234's light work), so on this branch alone the pressed square's hover plane and the
+  report title's underline alpha fell to nothing. Both are defined here now (the room's: the ink as channels, white
+  as the primary's hover plane); #234 redefines them for the paper, and the merge forward keeps one definition.
 
 ## Remaining obligations
 
