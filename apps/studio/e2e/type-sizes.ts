@@ -39,7 +39,6 @@ export const typeOff = (page: Page, selector: string) =>
   page.evaluate((sel) => {
     const root = document.querySelector(sel)
     if (!root) return []
-    const stepOf = (size: number) => (size <= 12 ? 16 : size <= 15 ? 20 : size <= 18 ? 24 : 32)
     const weights = new Set(['400', '500', '600'])
     const left = '.sr-only, .tip, .avatar, .hw-hello, .md, .msg .body, .pdot, .tile-initial, .textLayer, .fixture-label'
     const off = new Set<string>()
@@ -51,9 +50,9 @@ export const typeOff = (page: Page, selector: string) =>
       const lh = parseFloat(cs.lineHeight)
       const name = `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`
       // A leading that is `normal` parses to nothing and is off the grid like any other.
-      const onGrid =
-        Math.round(lh * 100) / 100 === stepOf(parseFloat(cs.fontSize)) ||
-        Math.abs(lh - el.getBoundingClientRect().height) <= 1
+      const size = parseFloat(cs.fontSize)
+      const step = size <= 12 ? 16 : size <= 15 ? 20 : size <= 18 ? 24 : 32
+      const onGrid = Math.round(lh * 100) / 100 === step || Math.abs(lh - el.getBoundingClientRect().height) <= 1
       if (!onGrid) off.add(`${name} ${cs.fontSize}/${cs.lineHeight}`)
       if (!weights.has(cs.fontWeight)) off.add(`${name} weight ${cs.fontWeight}`)
     }
