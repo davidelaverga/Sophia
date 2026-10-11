@@ -1,0 +1,25 @@
+{
+  "record": "CX-0099",
+  "files": [
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx99-n2-independent/acceptance-status-comparison.json",
+      "sha256": "93006a7335f6779eeec3bbca1e4fb2a695d4dc4a1b62c148a58c5a65fd1d3a1b"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx99-n2-independent/ci-snapshot.json",
+      "sha256": "57f7fdbc547629aebc106660020339f354e3ba9bbd7fd0ae86ae26bad6ede5de"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx99-n2-independent/findings.json",
+      "sha256": "ddfa30f6e9984f216f5378a2f103e033de5c38d6371c0e2ed3eaae8fb984f64a"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx99-n2-independent/owned-runs.json",
+      "sha256": "c64f40860f51f316b4432e8d3c20a65e215697599949d30347524b7880dcf801"
+    },
+    {
+      "path": "docs/coordination/CON-01/evidence/20261011-cx99-n2-independent/source-review.json",
+      "sha256": "6e98c6ef00bd08db3f6f915a7bb4bfec4a5b29aaab6f94ef531ae7f785d72d42"
+    }
+  ]
+}

@@ -1,0 +1,486 @@
+[
+  {
+    "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "tree": "be5a822d7beeb841c92f31c818c8d51236f4b9cb",
+    "at": "2026-10-11T04:21:54.507077+00:00",
+    "postgresVersion": "postgres (PostgreSQL) 17.6",
+    "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+    "hashes": {
+      "db/candidates/con01-s3-conversation-reply-context.sql": "836f66e473b262f3c68dffd4503d88a4e228f275b8e48a6aeef93fe4daf39735",
+      "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "packages/persistence/src/conversation-assembly.db.test.ts": "339a4a99c88268797d0e5ba8d8e8cd7110cf322e93135625623d9b4dfb65a7cf"
+    },
+    "independentScriptHash": "7566b158fb1e95014ed8acacf88e2f7fc9a2c54cd99f2ceb1867277fdecc4539",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "label": "original-fresh",
+    "commands": [
+      {
+        "label": "committed-tests",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 1
+      }
+    ],
+    "committedSummary": {
+      "tests": 37,
+      "suites": 11,
+      "pass": 37,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 13551.4845
+    },
+    "limitation": "Owned local PG17.6 C locale. Same-process fresh connections are not OS/API/native restart. No actual provider/native/browser/hosted acceptance."
+  },
+  {
+    "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "tree": "be5a822d7beeb841c92f31c818c8d51236f4b9cb",
+    "at": "2026-10-11T04:23:00.572801+00:00",
+    "postgresVersion": "postgres (PostgreSQL) 17.6",
+    "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+    "hashes": {
+      "db/candidates/con01-s3-conversation-reply-context.sql": "836f66e473b262f3c68dffd4503d88a4e228f275b8e48a6aeef93fe4daf39735",
+      "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "packages/persistence/src/conversation-assembly.db.test.ts": "339a4a99c88268797d0e5ba8d8e8cd7110cf322e93135625623d9b4dfb65a7cf"
+    },
+    "independentScriptHash": "7566b158fb1e95014ed8acacf88e2f7fc9a2c54cd99f2ceb1867277fdecc4539",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "label": "original-normal-base",
+    "commands": [
+      {
+        "label": "normal-migration-bootstrap",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 0
+      },
+      {
+        "label": "committed-tests",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 0
+      },
+      {
+        "label": "independent-cases",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 1
+      }
+    ],
+    "committedSummary": {
+      "tests": 37,
+      "suites": 11,
+      "pass": 37,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 13403.114667
+    },
+    "independent": {
+      "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+      "scope": "Independent actual local PG17.6, synthetic only; no app/native/provider/hosted",
+      "cases": [
+        {
+          "name": "Real API/worker denial and no-actor row isolation",
+          "verdict": "PASS_scoped",
+          "observed": "42501 twice; assembler without actor sees0messages"
+        },
+        {
+          "name": "Binding derives actual saved asker and reply destination",
+          "verdict": "PASS_scoped",
+          "observed": "saved asker/project/conversation/message and current mission match"
+        },
+        {
+          "name": "Reject null item discriminator",
+          "verdict": "FAIL",
+          "error": {
+            "name": "AssertionError",
+            "code": "ERR_ASSERTION",
+            "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'recorded'\n- 'context_forged'\n"
+          },
+          "actual": "recorded"
+        },
+        {
+          "name": "Reject null item plus missing untrusted-data preamble",
+          "verdict": "FAIL",
+          "error": {
+            "name": "AssertionError",
+            "code": "ERR_ASSERTION",
+            "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'recorded'\n- 'context_forged'\n"
+          },
+          "actual": "recorded"
+        },
+        {
+          "name": "Reject null item plus swapped constraints/pending sections",
+          "verdict": "FAIL",
+          "error": {
+            "name": "AssertionError",
+            "code": "ERR_ASSERTION",
+            "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'recorded'\n- 'context_forged'\n"
+          },
+          "actual": "recorded"
+        },
+        {
+          "name": "Reject missing item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject numeric item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject wrong asking identity",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Honest control records after rejected/rolled-back probes",
+          "verdict": "PASS_scoped",
+          "observed": "exact honest bytes committed"
+        },
+        {
+          "name": "Fresh module call with new connections reconciles existing committed context without another attempt",
+          "verdict": "PASS_scoped",
+          "observed": "already_recorded, one durable claim"
+        },
+        {
+          "name": "Two simultaneous calls for one reply publish one context",
+          "verdict": "PASS_scoped",
+          "observed": [
+            "recorded",
+            "in_progress"
+          ]
+        },
+        {
+          "name": "Actual author withdrawal scrubs context and message hashes, preserving metadata",
+          "verdict": "PASS_scoped",
+          "observed": "body/hashesNULL; context hash retained"
+        },
+        {
+          "name": "No operational/model/allowance rows written",
+          "verdict": "PASS_scoped",
+          "observed": {
+            "commands": 0,
+            "jobs": 0,
+            "work_attempts": 0,
+            "outbox": 0,
+            "runtime_commands": 0,
+            "usage_records": 0,
+            "conversation_grants": 0,
+            "conversation_reservations": 0
+          }
+        }
+      ],
+      "cleanup": {
+        "databaseDropped": true,
+        "rolesAbsent": true,
+        "remainingDatabases": [],
+        "otherClients": 0
+      },
+      "finishedAt": "2026-10-11T04:23:15.411Z"
+    },
+    "limitation": "Owned local PG17.6 C locale. Same-process fresh connections are not OS/API/native restart. No actual provider/native/browser/hosted acceptance."
+  },
+  {
+    "candidate": "780b3f0cb3dc54d78552e5971132444a1d282b80",
+    "tree": "ee218807ca2a2ffc51a50051f9c2b94e5393dff1",
+    "at": "2026-10-11T11:42:17.842256+00:00",
+    "postgresVersion": "postgres (PostgreSQL) 17.6",
+    "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+    "hashes": {
+      "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+      "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "packages/persistence/src/conversation-assembly.db.test.ts": "ee2466b0754651a3f058cf80d99bb9bd87db6bb1dbeab0612a0e453a890e9867"
+    },
+    "independentScriptHash": "dba4c1c333b65d55b1b09bc9367c6aa7b7b0c39e475b34f0b7db36fc67ff11c9",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "label": "corrected-fresh",
+    "commands": [
+      {
+        "label": "committed-tests",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 0
+      },
+      {
+        "label": "independent-cases",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 0
+      }
+    ],
+    "committedSummary": {
+      "tests": 37,
+      "suites": 11,
+      "pass": 37,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 13405.621917
+    },
+    "independent": {
+      "candidate": "780b3f0cb3dc54d78552e5971132444a1d282b80",
+      "scope": "Independent actual local PG17.6, synthetic only; no app/native/provider/hosted",
+      "cases": [
+        {
+          "name": "Real API/worker denial and no-actor row isolation",
+          "verdict": "PASS_scoped",
+          "observed": "42501 twice; assembler without actor sees0messages"
+        },
+        {
+          "name": "Binding derives actual saved asker and reply destination",
+          "verdict": "PASS_scoped",
+          "observed": "saved asker/project/conversation/message and current mission match"
+        },
+        {
+          "name": "Reject null item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject null item plus missing untrusted-data preamble",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject null item plus swapped constraints/pending sections",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject missing item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject numeric item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject wrong asking identity",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Honest control records after rejected/rolled-back probes",
+          "verdict": "PASS_scoped",
+          "observed": "exact honest bytes committed"
+        },
+        {
+          "name": "Fresh module call with new connections reconciles existing committed context without another attempt",
+          "verdict": "PASS_scoped",
+          "observed": "already_recorded, one durable claim"
+        },
+        {
+          "name": "Two simultaneous calls for one reply publish one context",
+          "verdict": "PASS_scoped",
+          "observed": [
+            "recorded",
+            "in_progress"
+          ]
+        },
+        {
+          "name": "Actual author withdrawal scrubs context and message hashes, preserving metadata",
+          "verdict": "PASS_scoped",
+          "observed": "body/hashesNULL; context hash retained"
+        },
+        {
+          "name": "No operational/model/allowance rows written",
+          "verdict": "PASS_scoped",
+          "observed": {
+            "commands": 0,
+            "jobs": 0,
+            "work_attempts": 0,
+            "outbox": 0,
+            "runtime_commands": 0,
+            "usage_records": 0,
+            "conversation_grants": 0,
+            "conversation_reservations": 0
+          }
+        }
+      ],
+      "cleanup": {
+        "databaseDropped": true,
+        "rolesAbsent": true,
+        "remainingDatabases": [],
+        "otherClients": 0
+      },
+      "finishedAt": "2026-10-11T11:42:32.558Z"
+    },
+    "limitation": "Owned local PG17.6 C locale. Same-process fresh connections are not OS/API/native restart. No actual provider/native/browser/hosted acceptance."
+  },
+  {
+    "candidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
+    "tree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
+    "at": "2026-10-11T11:47:14.923411+00:00",
+    "postgresVersion": "postgres (PostgreSQL) 17.6",
+    "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+    "hashes": {
+      "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+      "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "packages/persistence/src/conversation-assembly.db.test.ts": "536c6bda088efa3b7e17eaab92f50902df6d0282d543a9f19f81c7740ed3ff22"
+    },
+    "independentScriptHash": "d72f57abb0e163089a3b2834642d8d405dd28ae1f07c78993f199d93e6d72c87",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "label": "final-fresh",
+    "commands": [
+      {
+        "label": "committed-tests",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 0
+      },
+      {
+        "label": "independent-cases",
+        "outerSeconds": 600,
+        "timedOut": false,
+        "exit": 0
+      }
+    ],
+    "committedSummary": {
+      "tests": 37,
+      "suites": 11,
+      "pass": 37,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 13748.277459
+    },
+    "independent": {
+      "candidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
+      "scope": "Independent actual local PG17.6, synthetic only; no app/native/provider/hosted",
+      "cases": [
+        {
+          "name": "Real API/worker denial and no-actor row isolation",
+          "verdict": "PASS_scoped",
+          "observed": "42501 twice; assembler without actor sees0messages"
+        },
+        {
+          "name": "Binding derives actual saved asker and reply destination",
+          "verdict": "PASS_scoped",
+          "observed": "saved asker/project/conversation/message and current mission match"
+        },
+        {
+          "name": "Reject null item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject null item plus missing untrusted-data preamble",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject null item plus swapped constraints/pending sections",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject missing item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject numeric item discriminator",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Reject wrong asking identity",
+          "verdict": "PASS_scoped",
+          "observed": "context_forged",
+          "actual": "context_forged"
+        },
+        {
+          "name": "Honest control records after rejected/rolled-back probes",
+          "verdict": "PASS_scoped",
+          "observed": "exact honest bytes committed"
+        },
+        {
+          "name": "Fresh module call with new connections reconciles existing committed context without another attempt",
+          "verdict": "PASS_scoped",
+          "observed": "already_recorded, one durable claim"
+        },
+        {
+          "name": "Two simultaneous calls for one reply publish one context",
+          "verdict": "PASS_scoped",
+          "observed": [
+            "recorded",
+            "in_progress"
+          ]
+        },
+        {
+          "name": "Actual author withdrawal scrubs context and message hashes, preserving metadata",
+          "verdict": "PASS_scoped",
+          "observed": "body/hashesNULL; context hash retained"
+        },
+        {
+          "name": "No operational/model/allowance rows written",
+          "verdict": "PASS_scoped",
+          "observed": {
+            "commands": 0,
+            "jobs": 0,
+            "work_attempts": 0,
+            "outbox": 0,
+            "runtime_commands": 0,
+            "usage_records": 0,
+            "conversation_grants": 0,
+            "conversation_reservations": 0
+          }
+        }
+      ],
+      "cleanup": {
+        "databaseDropped": true,
+        "rolesAbsent": true,
+        "remainingDatabases": [],
+        "otherClients": 0
+      },
+      "finishedAt": "2026-10-11T11:47:29.804Z"
+    },
+    "limitation": "Owned local PG17.6 C locale. Same-process fresh connections are not OS/API/native restart. No actual provider/native/browser/hosted acceptance."
+  }
+]

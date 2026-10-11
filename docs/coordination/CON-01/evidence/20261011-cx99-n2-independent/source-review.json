@@ -1,0 +1,24 @@
+{
+  "record": "CX-0099",
+  "original": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+  "correction": "780b3f0cb3dc54d78552e5971132444a1d282b80",
+  "final": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "finalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "reviewed": "Complete original candidate SQL/module/tests; complete bbac-to780 two-file correction and780-to7e840 test-only delta. No feature source authored by reviewer.",
+  "finalHashes": {
+    "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-assembly.db.test.ts": "536c6bda088efa3b7e17eaab92f50902df6d0282d543a9f19f81c7740ed3ff22"
+  },
+  "callerSearch": "No N2 callers/exports outside its source/tests at immutable original; candidate remains unnumbered and inactive.",
+  "PR190": "5c10bce3060ca867402cb5ba869146a69af057c6 refreshed via API; combined new head not yet reviewed.",
+  "limits": [
+    "assembler inherits broad sophia_api role, not read-only execution proof",
+    "source_objects integration and audience_changed producer absent/held",
+    "N4/B1 disposable native state/termination/cleanup/recovery unqualified",
+    "provider compatible route and enforceable finite allowance not bound",
+    "withdrawal SQL scrubbing does not prove WAL/backup/provider/host-copy deletion",
+    "No account subject, project cohort, live authorization or serving tuple established"
+  ]
+}

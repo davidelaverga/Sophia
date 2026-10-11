@@ -1,0 +1,65 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0099.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "7e84002c36ceefab34cb27b710e554954cd269cc",
+  "supplementalTree": "3b067da399b7cb7b8f07614b9537aeabf26525a7",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Independent complete N2 review and actual PG found malformed-fragment P1 plus fresh-cluster census defect; primary fixes independently pass final37+13. Full36 acceptance statuses unchanged.",
+  "readiness": {
+    "source_ready": true,
+    "N2_source_ready": true,
+    "locally_verified": "N2 dormant assembly only: full source/delta review; actual real-role PG final committed37 + independent13 PASS. Primary-only fixes independently rechecked. Prior named scopes retained.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/deploy/spend0. Private owner test inbox supplied/distinct visible existing email; second actual subject/role/cohort not established.",
+  "cleanup": "All4 CX99 owned PG clusters stopped/PID absent/removed; own fixture DB/roles absent. Prior82 app stacks and CX92 PG settled as dated receipts. Immutable worktrees retained. No hosted mutation.",
+  "next": "Inspect fresh exact7e840 automatic review and primary terminal handback; review bounded N4 shared-owner proposal/current-main/PR190 integration before source changes or any live batch.",
+  "findings": [
+    {
+      "id": "CX99-F1",
+      "severity": "P1",
+      "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+      "expected": "context_forged for malformed grammar/discriminator",
+      "observed": "Three actual assembler-role probes returned recorded: item:null; item:null plus removed untrusted-data head; item:null plus section reorder. Each probe rolled back to savepoint.",
+      "cause": "SQL NULL in NOT IN and shape !~ made refusal IF unknown; unknown-item ELSE treated null as ask.",
+      "correction": "Primary780 positive discriminator IS NOT TRUE, fail-closed grammar and explicit ask branch.",
+      "independent": "original10PASS3FAIL;78013PASS;7e84013PASS; honest control committed; scoped resolved."
+    },
+    {
+      "id": "CX99-F2",
+      "severity": "P2 evidence",
+      "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+      "expected": "Fresh cluster normal migration roles handled without false census result",
+      "observed": "37 cases PASS but after-hook exit1 when normal sophia_api/sophia_worker roles appeared. Original failure preserved; explicit normal-base bootstrap then suite exit0.",
+      "correction": "Primary61fd role class comparison retains original non-test roles and requires owned fixtures gone; unexpected roles fail.",
+      "independent": "Fresh780/final7e840 each committed37 and own13 exits0; no bootstrap required.",
+      "limitation": "Reviewer did not inject unexpected role or ICU locale; primary ICU fail-before/pass-after is attributed evidence."
+    }
+  ],
+  "runs": "evidence/20261011-cx99-n2-independent/owned-runs.json",
+  "source": "evidence/20261011-cx99-n2-independent/source-review.json",
+  "actualResourceUse": {
+    "newOwnedLocalPgClusters": 4,
+    "sophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "hostedEffects": 0,
+    "reviewAgentUsage": "not reported; no remaining subscription cap proof"
+  },
+  "privateSetup": "Owner inbox privately recorded, differs visible current account email. Not an account subject or batch approval. No address in shared evidence.",
+  "coordination": {
+    "exactMission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "messages": [
+      485,
+      487
+    ],
+    "finalHandback": "Normal exact mission message observed after latest488, independently verified37+13 and requested actual gates/N4 owner plan; no interrupt/new task."
+  },
+  "rollback": "No live rollback performed. Prior governed uncertain-data preservation/old-schema incompatibility remains; do not erase governed rows to fit old schema."
+}

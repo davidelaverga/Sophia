@@ -1,0 +1,22 @@
+[
+  {
+    "id": "CX99-F1",
+    "severity": "P1",
+    "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "expected": "context_forged for malformed grammar/discriminator",
+    "observed": "Three actual assembler-role probes returned recorded: item:null; item:null plus removed untrusted-data head; item:null plus section reorder. Each probe rolled back to savepoint.",
+    "cause": "SQL NULL in NOT IN and shape !~ made refusal IF unknown; unknown-item ELSE treated null as ask.",
+    "correction": "Primary780 positive discriminator IS NOT TRUE, fail-closed grammar and explicit ask branch.",
+    "independent": "original10PASS3FAIL;78013PASS;7e84013PASS; honest control committed; scoped resolved."
+  },
+  {
+    "id": "CX99-F2",
+    "severity": "P2 evidence",
+    "candidate": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "expected": "Fresh cluster normal migration roles handled without false census result",
+    "observed": "37 cases PASS but after-hook exit1 when normal sophia_api/sophia_worker roles appeared. Original failure preserved; explicit normal-base bootstrap then suite exit0.",
+    "correction": "Primary61fd role class comparison retains original non-test roles and requires owned fixtures gone; unexpected roles fail.",
+    "independent": "Fresh780/final7e840 each committed37 and own13 exits0; no bootstrap required.",
+    "limitation": "Reviewer did not inject unexpected role or ICU locale; primary ICU fail-before/pass-after is attributed evidence."
+  }
+]
