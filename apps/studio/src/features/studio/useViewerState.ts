@@ -73,6 +73,16 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
       /* no storage: the address's lens is read as any link's */
     }
   }, [state.lens, inAddress, key])
+  // The Studio view gone without a move of the route (the door shut under it: AccessNotice): the address stops
+  // naming a lens nothing shows, the rest of it kept (Codex on #242). A move of the route rewrites the address itself.
+  useEffect(() => {
+    if (!inAddress) return undefined
+    return () => {
+      const { pathname, search, hash } = window.location
+      const next = withLensInAddress(search, 'converse')
+      if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
+    }
+  }, [inAddress])
 
   return {
     state,
