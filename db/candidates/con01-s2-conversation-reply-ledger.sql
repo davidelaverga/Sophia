@@ -109,10 +109,10 @@ CREATE TABLE sophia.conversation_reservations (
 );
 
 -- What a lineage, a reply's binding and a reservation's fingerprint were made with never changes, and nothing in the
--- ledger is deleted.
+-- ledger is deleted or truncated.
 CREATE FUNCTION sophia.conversation_ledger_kept() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,sophia AS $$
 BEGIN
- IF TG_OP='DELETE' THEN RAISE EXCEPTION 'ledger_kept' USING ERRCODE='55000'; END IF;
+ IF TG_OP IN ('DELETE','TRUNCATE') THEN RAISE EXCEPTION 'ledger_kept' USING ERRCODE='55000'; END IF;
  IF TG_TABLE_NAME='conversation_grants' THEN
   IF (NEW.project_id,NEW.lineage_id,NEW.unit)<>(OLD.project_id,OLD.lineage_id,OLD.unit) THEN
    RAISE EXCEPTION 'unit_is_fixed' USING ERRCODE='55000'; END IF;
@@ -139,6 +139,15 @@ CREATE TRIGGER conversation_grant_approvals_kept BEFORE UPDATE OR DELETE ON soph
  FOR EACH ROW EXECUTE FUNCTION sophia.conversation_ledger_kept();
 CREATE TRIGGER conversation_reservations_kept BEFORE UPDATE OR DELETE ON sophia.conversation_reservations
  FOR EACH ROW EXECUTE FUNCTION sophia.conversation_ledger_kept();
+-- TRUNCATE fires no row trigger, so the same four tables refuse it by statement, a cascade included (PR #211 review).
+CREATE TRIGGER conversation_ledger_tables_kept BEFORE TRUNCATE ON sophia.conversation_grants
+ FOR EACH STATEMENT EXECUTE FUNCTION sophia.conversation_ledger_kept();
+CREATE TRIGGER conversation_ledger_tables_kept BEFORE TRUNCATE ON sophia.conversation_reply_allowances
+ FOR EACH STATEMENT EXECUTE FUNCTION sophia.conversation_ledger_kept();
+CREATE TRIGGER conversation_ledger_tables_kept BEFORE TRUNCATE ON sophia.conversation_grant_approvals
+ FOR EACH STATEMENT EXECUTE FUNCTION sophia.conversation_ledger_kept();
+CREATE TRIGGER conversation_ledger_tables_kept BEFORE TRUNCATE ON sophia.conversation_reservations
+ FOR EACH STATEMENT EXECUTE FUNCTION sophia.conversation_ledger_kept();
 
 -- An amount in a request: a non-negative whole JSON number that fits a bigint, else refused.
 CREATE FUNCTION sophia.conversation_ledger_amount(p jsonb, k text) RETURNS bigint LANGUAGE plpgsql IMMUTABLE

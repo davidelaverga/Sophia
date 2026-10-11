@@ -292,6 +292,44 @@ describe('reservations: keys, replay and the fingerprint', () => {
       'ledger_kept',
     )
   })
+
+  it('the ledger’s tables refuse TRUNCATE, directly and through a cascade, even for the owner (PR #211 review)', async () => {
+    const p = await setup()
+    await newLineage(p.projectId, tokensGrant())
+    const reply = await p.reply()
+    await reserve(p.projectId, reply, 1, tokensCall(100))
+    const rows = async () =>
+      (
+        await owner<{ n: string }>(
+          `SELECT (SELECT count(*) FROM sophia.conversation_grants) || '/' ||
+                  (SELECT count(*) FROM sophia.conversation_grant_approvals) || '/' ||
+                  (SELECT count(*) FROM sophia.conversation_reply_allowances) || '/' ||
+                  (SELECT count(*) FROM sophia.conversation_reservations) AS n`,
+        )
+      )[0]?.n
+    const was = await rows()
+    // Each in a transaction that is rolled back, so one that went through would take nothing from the other tests.
+    const truncate = async (sql: string) => {
+      const c = new pg.Client({ connectionString: db.ownerUrl })
+      await c.connect()
+      try {
+        await c.query('BEGIN')
+        return await codeOf(c.query(sql))
+      } finally {
+        await c.query('ROLLBACK')
+        await c.end()
+      }
+    }
+    for (const sql of [
+      'TRUNCATE sophia.conversation_reservations',
+      'TRUNCATE sophia.conversation_grant_approvals',
+      'TRUNCATE sophia.conversation_reply_allowances CASCADE',
+      'TRUNCATE sophia.conversation_grants CASCADE',
+    ]) {
+      assert.equal(await truncate(sql), 'ledger_kept', sql)
+    }
+    assert.equal(await rows(), was)
+  })
 })
 
 describe('the setter, renewal, route change and a new lineage', () => {
