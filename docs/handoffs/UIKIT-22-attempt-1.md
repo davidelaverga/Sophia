@@ -35,6 +35,8 @@ after it adds only this handoff.
   press of its own.
 - Named once per blocker, in the plan's order; a blocker outside the plan is not named (the board already says the
   plan does not hold together).
+- After the review (Codex on #244, 2026-10-11): on a coarse pointer the blockers' rows keep 14 px between them, so
+  their reaching targets (7 px above and below) never meet; board-why.spec @phone.
 
 ## Remaining obligations
 

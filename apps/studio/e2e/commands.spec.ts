@@ -163,3 +163,29 @@ test('commands · the light by a key: Ctrl+Shift+L puts the light page on the ro
   await page.keyboard.press('Control+Shift+l')
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
 })
+
+test('commands · in a call the palette keeps its height: the call’s row first, the list the one that scrolls', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&call=on&people=2&floor=1&sophia=listening&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  await expect(palette(page).getByRole('group', { name: 'Your call' })).toBeVisible()
+  const read = await palette(page).evaluate((dialog) => {
+    const list = dialog.querySelector<HTMLElement>('.palette-list')
+    if (!list) return null
+    const d = dialog.getBoundingClientRect()
+    const l = list.getBoundingClientRect()
+    return {
+      height: Math.round(d.height),
+      listWithin: l.bottom <= d.bottom + 0.5 && l.top >= d.top,
+      scrolls: list.scrollHeight > list.clientHeight + 1,
+      rows: getComputedStyle(dialog).gridTemplateRows.split(' ').length,
+    }
+  })
+  expect(read?.rows).toBe(3)
+  expect(read?.height).toBeLessThanOrEqual(480)
+  expect(read?.listWithin).toBe(true)
+  expect(read?.scrolls).toBe(true)
+})
