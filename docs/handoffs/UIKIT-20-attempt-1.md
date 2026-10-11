@@ -8,6 +8,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/lens-ad
 Ending commit/tree: `02649e97` (tree `0f1c83358d6c`): 8 files, 2 new (`e2e/studio-lens-address.spec.ts`,
 `docs/plans/studio-lens-address.md`); `viewer-state.ts` (+ its test), `useViewerState.ts`, `project-go.tsx`,
 `room-view.ts`, `RoomStage.tsx`. The commit after it adds only this handoff.
+After the review (Codex on #242, two P2): `fc3a8390` keeps the address to the Studio view shown (`useViewerState(…,
+inAddress)`, false for a shell kept out of sight) and names a task only when it is the whole count
+(`soleWorkingTask`, unit-tested). That is the completed code state of this PR.
 
 ## Outcome
 
