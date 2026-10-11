@@ -836,3 +836,176 @@ describe('the runtime service', () => {
     assert.deepEqual(settled, { state: 'acknowledged', queued: 1 })
   })
 })
+
+// CON-01 Phase A (0053; Q12, CX-0116 and its recheck): the reconcile pass counts only the rows it changes, and rows it
+// can't change (a command answered failed or outcome_unknown) never fill its window ahead of one it can. On a database
+// of its own: the pass is global, so no other test's rows share its window.
+describe('reconcile: an honest count, and no row starved behind rows it cannot change', () => {
+  let saved: { db: TestDatabase; pool: pg.Pool; worker: pg.Pool }
+  before(async () => {
+    saved = { db, pool, worker }
+    db = await createTestDatabase()
+    pool = createPool(db.apiUrl, { max: 4 })
+    worker = createPool(db.workerUrl, { max: 2 })
+  })
+  after(async () => {
+    await pool.end()
+    await worker.end()
+    await db.drop()
+    ;({ db, pool, worker } = saved)
+  })
+
+  type Stage = RuntimeReceipt['stage']
+
+  const outboxOf = async (command: RuntimeCommand) =>
+    (await one<{ outbox_id: string }>(`SELECT outbox_id FROM sophia.runtime_commands WHERE id=$1`, [command.commandId]))
+      .outbox_id
+
+  /** A native row whose runtime command was answered `stage` by a real receipt; the outbox row as the receipt left it. */
+  async function answered(stage: Stage) {
+    const w = await world()
+    const { create } = await admittedAndQueued(w)
+    await withService(pool, (c) =>
+      recordRuntimeReceipts(c, w.who, [receipt(create, stage, { reason: `the runtime answered ${stage}` })]),
+    )
+    return { w, id: await outboxOf(create) }
+  }
+
+  /** The head: rows left outcome_unknown by a failed and an outcome_unknown receipt, in turn, oldest first. */
+  async function head(count: number) {
+    const ids: string[] = []
+    for (let i = 0; i < count; i++) {
+      const { id } = await answered(i % 2 === 0 ? 'failed' : 'outcome_unknown')
+      await owner((c) =>
+        c.query(`UPDATE sophia.outbox SET created_at=now()-interval '1 day'+$2*interval '1 second' WHERE id=$1`, [
+          id,
+          i,
+        ]),
+      )
+      ids.push(id)
+    }
+    return ids
+  }
+
+  /** The tail, newer than the head: a row the pass can change, of each kind its mapping moves. */
+  async function tail(kind: 'no command' | 'unanswered' | 'delivered' | 'checked' | 'rejected') {
+    let projectId: string
+    let id: string
+    if (kind === 'no command') {
+      const w = await world()
+      projectId = w.project.projectId
+      await brief(E, projectId, w.inputs)
+      const claimed = (await claimRuntimeOutbox(worker, 'crashed-worker', 50, 30)).find(
+        (r) => r.project_id === projectId,
+      )
+      id = claimed!.id
+      await owner((c) => c.query(`UPDATE sophia.outbox SET lease_until=now()-interval '1 second' WHERE id=$1`, [id]))
+      assert.equal(await codeOf(dispatchRuntimeOutbox(worker, projectId, id, claimed!.lease_token!)), 'resolved')
+    } else if (kind === 'unanswered') {
+      const w = await world()
+      projectId = w.project.projectId
+      id = await outboxOf((await admittedAndQueued(w)).create)
+    } else {
+      const made = await answered(kind)
+      projectId = made.w.project.projectId
+      id = made.id
+    }
+    // As a lost receipt or an expired lease leaves it: uncertain, whatever its command says.
+    await owner((c) => c.query(`UPDATE sophia.outbox SET state='outcome_unknown', created_at=now() WHERE id=$1`, [id]))
+    return { projectId, id }
+  }
+
+  /** Everything a pass could touch for a row: the outbox row, its runtime commands, its command and its job. */
+  const recorded = (ids: string[]) =>
+    one<{ rows: unknown }>(
+      `SELECT jsonb_agg(jsonb_build_object('outbox',to_jsonb(o),
+          'runtime',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM sophia.runtime_commands r WHERE r.outbox_id=o.id),
+          'command',(SELECT to_jsonb(c) FROM sophia.commands c WHERE c.project_id=o.project_id AND c.id=o.command_id),
+          'job',(SELECT to_jsonb(j) FROM sophia.jobs j WHERE j.project_id=o.project_id AND j.command_id=o.command_id))
+          ORDER BY o.created_at) AS rows
+         FROM sophia.outbox o WHERE o.id=ANY($1::uuid[])`,
+      [ids],
+    ).then((r) => r.rows)
+
+  const stateOf = (id: string) =>
+    one<{ state: string; commands: number }>(
+      `SELECT o.state, (SELECT count(*) FROM sophia.runtime_commands r WHERE r.outbox_id=o.id)::int AS commands
+         FROM sophia.outbox o WHERE o.id=$1`,
+      [id],
+    )
+
+  it('a row left uncertain by a failed or an outcome_unknown receipt is never counted, and a delivered one is not either', async () => {
+    const failed = await answered('failed')
+    const unknown = await answered('outcome_unknown')
+    const delivered = await answered('delivered')
+    const was = await recorded([failed.id, unknown.id, delivered.id])
+    for (let pass = 1; pass <= 3; pass++) assert.equal(await reconcileRuntimeOutbox(worker), 0, `pass ${pass} counts 0`)
+    assert.deepEqual(await recorded([failed.id, unknown.id, delivered.id]), was, 'nothing about them changed')
+    assert.deepEqual(await stateOf(failed.id), { state: 'outcome_unknown', commands: 1 })
+    assert.deepEqual(await stateOf(unknown.id), { state: 'outcome_unknown', commands: 1 })
+    assert.deepEqual(await stateOf(delivered.id), { state: 'settled', commands: 1 })
+  })
+
+  for (const L of [2, 50]) {
+    it(`at p_limit ${String(L)}, a recoverable row behind ${String(L)} rows the pass can't change is reached on the first pass, counted once, then 0`, async () => {
+      const older = await head(L)
+      const was = await recorded(older)
+      const { projectId, id } = await tail('no command')
+      assert.deepEqual(await stateOf(id), { state: 'outcome_unknown', commands: 0 })
+      // L = 50 is the worker's own call: reconcileRuntimeOutbox(pool), whose default limit is 50.
+      const pass = () => (L === 50 ? reconcileRuntimeOutbox(worker) : reconcileRuntimeOutbox(worker, L))
+      assert.equal(await pass(), 1, 'the first pass reaches the tail and counts it alone')
+      assert.deepEqual(await stateOf(id), { state: 'pending', commands: 0 }, 'returned to pending, no command written')
+      assert.equal(await pass(), 0, 'the next pass counts 0')
+      assert.equal(await pass(), 0, 'and the one after it')
+      assert.deepEqual(await recorded(older), was, 'every older row unchanged: state, reason, command, job')
+      // Dispatched by the ordinary path: its first and only runtime command; no older row gets a second.
+      await owner((c) => c.query(`UPDATE sophia.outbox SET available_at=now() WHERE id=$1`, [id]))
+      assert.deepEqual(
+        (await dispatchAll(projectId)).map((o) => o.result),
+        ['enqueued'],
+      )
+      assert.deepEqual(await stateOf(id), { state: 'acknowledged', commands: 1 })
+      assert.equal(await pass(), 0)
+      assert.deepEqual(await recorded(older), was, 'still unchanged after the tail was dispatched')
+    })
+  }
+
+  it('each other recoverable row behind the same head is reached and moved by the unchanged mapping, counted once', async () => {
+    const cases = [
+      ['unanswered', 'acknowledged'],
+      ['delivered', 'settled'],
+      ['checked', 'settled'],
+      ['rejected', 'denied'],
+    ] as const
+    for (const [kind, moved] of cases) {
+      const older = await head(2)
+      const was = await recorded(older)
+      const { id } = await tail(kind)
+      assert.equal(await reconcileRuntimeOutbox(worker, 2), 1, `${kind}: counted once`)
+      assert.deepEqual(await stateOf(id), { state: moved, commands: 1 }, `${kind}: moved, never queued again`)
+      assert.equal(await reconcileRuntimeOutbox(worker, 2), 0, `${kind}: then 0`)
+      assert.deepEqual(await recorded(older), was, `${kind}: the head unchanged`)
+    }
+  })
+
+  it('keeps the function as it was: signature, default, SECURITY DEFINER, search_path, owner and grants', async () => {
+    const fn = await one<{ args: string; secdef: boolean; config: string[]; same_owner: boolean; grantees: string[] }>(
+      `SELECT pg_get_function_arguments(p.oid) AS args, p.prosecdef AS secdef, p.proconfig AS config,
+              p.proowner=(SELECT proowner FROM pg_proc WHERE oid='sophia.claim_runtime_outbox(text,integer,integer)'::regprocedure) AS same_owner,
+              (SELECT array_agg(a.grantee::regrole::text||':'||a.privilege_type ORDER BY 1) FROM aclexplode(p.proacl) a
+                WHERE a.grantee<>p.proowner) AS grantees
+         FROM pg_proc p WHERE p.oid='sophia.reconcile_runtime_outbox(integer)'::regprocedure`,
+      [],
+    )
+    assert.deepEqual(fn, {
+      args: 'p_limit integer DEFAULT 50',
+      secdef: true,
+      config: ['search_path=pg_catalog, sophia'],
+      same_owner: true,
+      grantees: ['sophia_worker:EXECUTE'],
+    })
+    // The API's login may not run it, as before.
+    await assert.rejects(pool.query(`SELECT sophia.reconcile_runtime_outbox(1)`), { code: '42501' })
+  })
+})
