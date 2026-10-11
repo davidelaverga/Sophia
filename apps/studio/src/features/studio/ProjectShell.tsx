@@ -376,16 +376,12 @@ export function ProjectShell(props: Props) {
   const { snapshot, feed, connection, room, membership } = useProject(projectId, identity)
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
   const { loaded, blocked, shown } = doorOf(snapshot)
-  // The room's dock: in the header on a wide screen; on a narrow one it floats, mounted outside the header (a sticky
-  // header with a backdrop filter would hold a fixed child inside its own box).
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked)
   useBeyondTheView(props, snapshot.data, room, blocked)
   const mayInvite = !!shown && canInvite(membership)
-  useProjectKeys(
-    { onLeave, onWork, invite, search, show: onShow },
-    { view, inviting, mayInvite, shown: !!shown, blocked: !!blocked },
-  )
+  const at = { view, inviting, mayInvite, shown: !!shown, blocked: !!blocked }
+  useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
     <CallKeptInReach room={room} background={!!props.background}>
       <div className="shell" data-view={view}>

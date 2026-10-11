@@ -44,6 +44,8 @@ this handoff.
   «Resources» was clipped (press-answers.spec named it). Live, the dock says the room's state itself: the connection
   pill yields its room (`.topbar-end:has(.mini-dock[data-live]) .connection`), and the spec reads that the nav's
   scroll width is its width.
+- After the review (Codex on #254, round 2): the floating offsets reset in the header (`inset: auto`, measured 10–38
+  in the 48 px bar); with a note and her looking at once, the note comes first and her looking hangs under it.
 
 ## Remaining obligations
 
