@@ -27,7 +27,7 @@
     "observed_diff": "2 files +216/-0, complete independently read; applied migrations and dispatcher/wrapper bytes unchanged",
     "independent_result": "19/19 actual ownedPG checks pass; same parent11pass/8fail, full proof reviewerdd856f8143e1b821ec323859329215aaba72705e",
     "author_terminal_gate": "Taskbqijaz66e/wrapper0; actual native terminal and fullCC0157 independently read. Clean93e/e87c start23:26:30; affectedDB0/243pass0fail0skip23:27:41; SQL0/46migrations4tests23:28:36; pnpmcheck0/unit2105pass1skip+integration86pass2skip23:44:41; afterclean93e, DBcount3/0otherclients/0testprocesses before+after. Author owned55432 remains up; no reviewer target process. Published abbreviated log hashes retained as abbreviated, not full artifact hash verification.",
-    "automatic_review": "PR256 draft exact93e/basee020 created; attached to task. Fresh @codex request6115244559, bot6115247020 Running since23:45:37UTC. No review submissions yet.",
+    "automatic_review": "PR256 exact93e: bot no-major-issues6115259420/reviewed93e; summary6115247020 Completed2026-10-11T23:47:13.813675Z; reviewsubmissions empty and reviewthreads empty. No new source/mergeGO; CI priorQUEUED notgreen.",
     "merge_GO": false,
     "Phase_B_or_Q13_shared_GO": false,
     "operational_authorization": false,
@@ -43,8 +43,11 @@
     }
   },
   "independent_evidence": "evidence/20261012-cx129-phase-a/independent-proof.json",
-  "published_evidence_commit": "dd856f8143e1b821ec323859329215aaba72705e",
-  "mission_comment": null,
+  "published_evidence_commit": "63417c72a3df2e9073136d7f53d8e90f1114284f",
+  "mission_comment": {
+    "id": 6115296038,
+    "full_body_exact_readback": true
+  },
   "coordination": {
     "CON_exact_native_delivery": "CX130 static result/main-e020/merge640414/Q13 remaining admission+settlement gaps delivered and visible in exact CON session; helper submittedAndVisible true",
     "CON_author_handback": "CC0156 issue6115206715 and CC0157 issue6115269247 complete read; exact native PhaseA terminal tool opened and read; Q13 immutable598b proposal fully read,3concrete review corrections sent visibly.",
@@ -187,7 +190,7 @@
   "cleanup": "Reviewer one owned PG17.6 cluster: stop0/PIDabsent/removed;3DBs dropped,all pool endevents settled, closing onlypostgres/0otherclients. Source harness restored clean93e, private synthetic integration ref retained. No provider/native/hosted effect. Author actual wider gate terminal census unchanged. Q13 scratch cleanup author attestation; proposal still in progress.",
   "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
   "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
-  "next_bounded_action": "Read fresh exactPR256automaticreview and Q13 immutable proposal; final source-merge decision and shared-writer acknowledgement remain separate from operations.",
+  "next_bounded_action": "Review corrected Q13 proposal with expanded restrictive-policy scope and actual ownerACK before shared writes; exactPR256 CI/source decision separate from operations.",
   "goal_status": "active",
   "independent_static_checks": "evidence/20261012-cx130-checkpoint/static-checks.json; exact93e focused Prettier/oxlint type-aware/persistence typecheck all0; sanitized environment finite60s each/source clean",
   "Q13_current": {
@@ -230,7 +233,8 @@
         "observed": "Guard checks name/cmd/permissive/rolearray only, no qual/with_check; T2beforeafter preserves alreadychangedpredicate",
         "reproducer": "Keep policyname/roles/cmd and change USING predicate beforeinstall: guard has identicalinputs, accepts. Bind reviewed predicate/view/function identities or narrow claims plus failclosed drift test."
       }
-    ]
+    ],
+    "author_ack": "Exactnative Message650/current stream explicitly accepts all3earlyreview findings; designing claimactor/project/leasebound helper+19restrictiveSELECTpolicies and computing reviewed predicate/view/function identities. New immutable proposal not published; changed shared-object scope requires fresh ACK beforewrites."
   },
   "subscription_revalidation": {
     "receipt": "evidence/20261012-cx130-checkpoint/official-docs-fetch.json",
