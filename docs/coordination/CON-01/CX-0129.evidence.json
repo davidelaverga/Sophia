@@ -1,0 +1,184 @@
+{
+  "checkpoint": "CON-01-CX-0129",
+  "at": "2026-10-11T23:32:17.443057+00:00",
+  "classification": "Meaningful source review/independent real-PG progress; goal active",
+  "owner_decisions": "OWNER_DECISIONS_20261012.md; no new owner choice requested",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "main_last_checked": "2026-10-11T23:30:49Z",
+  "held_PR211": {
+    "sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+    "base": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "cross_database_P2": "r4242913900 open; policy selected, technical fix/qualification incomplete",
+    "withdrawal_thread": "r4241643135 open; conservative policy accepted, isolated635a disclosure independently PASS L1 and broader author fixture terminal read; combined/native privacy qualification still incomplete"
+  },
+  "dispatcher_prerequisite": {
+    "record_id": "CON-01-SOURCE-PHASE-A-20261012-handback-observed",
+    "at": "2026-10-11T23:32:17.443057+00:00",
+    "source_window": "closed by exact sole writer relinquishment; final qualification gates pending",
+    "source_window_record": "SOURCE_PHASE_A_20261012.r1.json",
+    "sole_writer": "Claude CON session_01KUDtFK9gWthsXSrepcLQz3",
+    "stop_at_utc": "2026-10-11T23:26:11Z",
+    "stop_evidence": "Actual exact CON desktop and complete CC0155 issue6115099186: immutable source published, no active writer. Cloud process/filesystem quiescence is author attestation, not independent host access.",
+    "candidate": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "tree": "e87c93dde332ff6032baf93d171a89cfb26748c3",
+    "base": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "reservation": "0053_runtime_outbox_reconcile.sql remains reserved to this prerequisite; do not reuse or renumber",
+    "observed_diff": "2 files +216/-0, complete independently read; applied migrations and dispatcher/wrapper bytes unchanged",
+    "independent_result": "19/19 actual ownedPG checks pass; same parent11pass/8fail, full proof reviewerdd856f8143e1b821ec323859329215aaba72705e",
+    "author_terminal_gate": "Affected real-PG and test:sql author report exit0; pnpmcheck running and final cleanup/terminal receipt pending. Q13 separate owned demo active, not shared source.",
+    "automatic_review": "No new draft PR yet at observed checkpoint; exact draft permitted after complete handback under existing scope",
+    "merge_GO": false,
+    "Phase_B_or_Q13_shared_GO": false,
+    "operational_authorization": false,
+    "next": "Complete terminal handback/cleanup, exact draft automatic review/current main integration before source merge decision; any further PhaseA source correction needs newly recorded narrow writer window."
+  },
+  "independent_evidence": "evidence/20261012-cx129-phase-a/independent-proof.json",
+  "published_evidence_commit": "dd856f8143e1b821ec323859329215aaba72705e",
+  "mission_comment": {
+    "id": 6115114507,
+    "full_body_exact_readback": true
+  },
+  "coordination": {
+    "CON_exact_native_delivery": "CX129 proof/limits delivered and visible in exact session, helper submittedAndVisible true",
+    "CON_author_handback": "CC0155 issue6115099186 fully read; complete current source diff independently checked",
+    "joint_operator_thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
+    "joint_notification": "Exact early relinquishment/immutable source/independent pass delivered; own lane acknowledged recording closure; no CON native control or operations requested",
+    "joint_last_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:15",
+    "joint_terminal_ack": "pending current checkpoint",
+    "CON_author_visible_response": "Message644/current stream acknowledges L1 review and waits pnpmcheck before exact draft; Q13 scratch demonstration running separately55436."
+  },
+  "source_checks": {
+    "full_diff": "2 files+216/-0 complete read, git diff --check0",
+    "independent_parent": "11pass8fail, no setup/program failure",
+    "independent_corrected": "19pass0fail, no setup/program failure",
+    "same_probe_bytes": true,
+    "preserved": "All uncertain row bytes and all other Sophia base-table/accounting digests; original state/default/security/ACL; actual API42501; one command on repeat dispatch; real idle observed",
+    "cost_limit": "Historical uncertain-row scan cost explicitly unbounded; no scan-time or full native qualification claimed"
+  },
+  "author_Studio_disclosure_terminal": {
+    "receipt": "CC0154 issue6114981661, fully read",
+    "candidate": "635a3ef2fc1f0e9c991484815203dce90aa8a065",
+    "reported": "169/169 fixtures, lint0/typecheck0, no Vite/Playwright/Chromium remains and fixture ports closed",
+    "attribution": "Author-reported terminal supplements CX128 independent actual desktop/mobile L1 proof; no duplicate rerun and no hosted/native promotion",
+    "earlier_void_runs_preserved": true
+  },
+  "Studio_integration_overlap": {
+    "source": "Luis issue1986115115786, new note fully read",
+    "candidate": "ui/kit-with-con01 at574766cd56e0e8dd8179f4db71f40273587dc73f",
+    "author_composition": "oldCONd527 over UIkit25427f310f2, not current corrected combined candidate",
+    "paths": [
+      "apps/studio/src/features/conversations/ConversationRows.tsx",
+      "apps/studio/src/features/conversations/OpenConversation.tsx",
+      "apps/studio/src/features/conversations/conversations.css",
+      "apps/studio/src/features/studio/ProjectShell.tsx",
+      "generated contracts/A15/A16"
+    ],
+    "status": "No independent combined UI qualification. CON notified to record exact owner ACKs/integration order before shared writes; outside migration-only PhaseA. Preserve Studio design, no unrelated vision activation."
+  },
+  "ci": {
+    "run": 38168148111,
+    "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "jobs": [
+      114554922829,
+      114554922957,
+      114554922973,
+      114554922974,
+      114554923056,
+      114554923137
+    ],
+    "status": "all six queued in purpose-built diagnostic read",
+    "rerun": false,
+    "cancelled": false,
+    "observed_this_checkpoint": "Purpose-built run38168148111 read at exact7d8: all six queued, no rerun/cancel"
+  },
+  "operation": {
+    "requests": [
+      "CON-01-OP-0002-r4",
+      "CON-01-OP-0001-r3"
+    ],
+    "status": "draft_not_authorized",
+    "approval_ready": false,
+    "approval": null,
+    "expiry": null,
+    "candidates_and_artifacts": "unbound; review-reference pins are not deployment candidates",
+    "setup_human_chat": "bounded proposed cohort/setup and human-chat only; zero native/model calls; Ask disabled",
+    "Ask": "separate qualified one-subscription-route batch; missing finite execution allowance/expiry blocks provider execution",
+    "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+    "lastObservedTuple": {
+      "API": {
+        "service": "srv-daqrn08473hc73flhi8g",
+        "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "runtime": {
+        "service": "srv-darvmse0tbcc73d8kh3g",
+        "liveDeployment": "dep-db02hcou01pc738k4atg",
+        "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+      },
+      "worker": {
+        "service": "srv-darv7snpn0mc73e6c240",
+        "liveDeployment": "dep-db5dos8473hc73apq6b0",
+        "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+        "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+      },
+      "bridge": {
+        "service": "srv-darvcigu01pc73e24o4g",
+        "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "Studio": {
+        "project": "sophia-30911edf/sophia-studio",
+        "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+        "status": "Ready",
+        "source": "manual vercel deploy; Git unconnected; SHA unknown",
+        "domains": [
+          "studio.sophia-ei.com",
+          "sophia-studio.vercel.app"
+        ]
+      }
+    },
+    "tuple_limits": "Dated observation, not refreshed or qualified rollback."
+  },
+  "readiness": {
+    "source_ready": "Bounded dispatcher prerequisite published; CON native/subscription/Q13 incomplete",
+    "locally_verified": "Independent exact93e dispatcher actualPG19/19; prior scoped635a disclosure L1 retained",
+    "reviewed": "Dispatcher source/PG behavior scoped PASS; wider terminal/automatic review/current-main integration pending, whole mission false",
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "changed": false,
+    "fullVerdicts": "acceptance.independent.json",
+    "sha256": "689fe686ebe535868665b98cc5fb6aae56e740a9ff46e8ad9c32ac9c10608b22"
+  },
+  "resource_use": {
+    "owned_clusters_started": 2,
+    "owned_test_databases": 6,
+    "synthetic_projects": 118,
+    "synthetic_admissions": 118,
+    "outer_seconds_per_run": 180,
+    "Sophia_provider_calls": 0,
+    "real_native_executions": 0,
+    "target_DB_connections": 0,
+    "hosted_app_mutations": 0,
+    "real_account_project_creations": 0,
+    "emails_sent": 0,
+    "deployments": 0,
+    "shared_live_grants": 0,
+    "shared_live_sessions_terminated": 0,
+    "new_spend": 0,
+    "coding_agent_coordination": "Unmeasured/private; not Sophia quota qualification."
+  },
+  "cleanup": "Both owned clusters stoppedexit0/postmaster PIDabsent/removed; each closing census onlypostgres and0otherclients;6testDBs dropped/allpool end events settled. Source harness clean detached93e. Hosted IAB tab preserved, no new browser action/app test this turn. No uncertain external effect. Author wider gate/Q13-owned cleanup pending separate terminal receipt.",
+  "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
+  "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
+  "next_bounded_action": "Read exact PhaseA wider terminal/cleanup and fresh draft automatic review; independently check current-main integration before any source merge decision. Review narrow Q13 owned-cluster and subscription proposals without shared/hosted/provider effects.",
+  "goal_status": "active"
+}
