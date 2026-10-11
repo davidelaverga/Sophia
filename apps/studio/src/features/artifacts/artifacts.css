@@ -1128,7 +1128,7 @@
   width: 100%;
   min-height: 70vh;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: #fff;
 }
 

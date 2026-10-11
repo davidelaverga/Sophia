@@ -90,7 +90,7 @@ body::after {
 }
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
-  border-radius: 10px;
+  border-radius: 999px;
   background: rgba(236, 235, 241, 0.12) padding-box;
 }
 h1,
@@ -500,8 +500,10 @@ select {
   transform: translate(0, 0);
 }
 
-/* Status: a dot and a word in a small chip; the color only reinforces the word. */
-.tag {
+/* A chip (docs/plans/chips-radii.md): a word or two in a small box on the first radius. The state chip (the tag): 20 px,
+   the small type at 500, a dot and a tone that only reinforce the word. The data chip (a model's name): 18 px, the mono
+   label type, tinted by its own ink. A key is a `kbd`. */
+.chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -510,34 +512,44 @@ select {
   border-radius: var(--r-1);
   background: rgba(236, 235, 241, 0.06);
   color: var(--text-2);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   white-space: nowrap;
 }
-.tag .dot {
+.chip .dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
 }
-.tag.teal {
+.chip.teal {
   background: rgba(127, 214, 196, 0.1);
   color: var(--teal);
 }
-.tag.amber {
+.chip.amber {
   background: rgba(239, 191, 134, 0.1);
   color: var(--amber);
 }
-.tag.lav {
+.chip.lav {
   background: rgba(156, 130, 245, 0.12);
   color: var(--halo-text);
 }
-.tag.rose {
+.chip.rose {
   background: rgba(238, 159, 176, 0.1);
   color: var(--rose);
 }
-.tag.muted {
+.chip.muted {
   color: var(--text-3);
+}
+.chip-data {
+  --chip-ink: var(--text-3);
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  background: color-mix(in srgb, var(--chip-ink) 7%, transparent);
+  color: color-mix(in srgb, var(--chip-ink) 30%, var(--text-2));
+  font-family: var(--mono);
+  font-size: var(--type-label);
 }
 
 /* The mark: Sophia's point of light and her name. It glows while the project is live. */
@@ -2068,7 +2080,7 @@ button.contribution-quote:hover {
     width: 42px;
     height: 42px;
     padding: 0;
-    border-radius: 10px;
+    border-radius: var(--r-3);
   }
   .dock .dock-icon {
     position: relative;
@@ -2084,7 +2096,7 @@ button.contribution-quote:hover {
     min-width: 15px;
     height: 15px;
     padding: 0 3px;
-    border-radius: 4px;
+    border-radius: var(--r-1);
     background: var(--warm);
     color: var(--void);
     font-size: 9.5px;
@@ -2630,7 +2642,7 @@ button.contribution-quote:hover {
   z-index: 15;
   width: min(320px, calc(100% - 2 * var(--gutter)));
   padding: 12px 14px 8px;
-  border-radius: 14px;
+  border-radius: var(--r-4);
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
@@ -4603,7 +4615,7 @@ button.contribution-quote:hover {
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: none;
   color: var(--text);
   font-size: var(--type-body);
@@ -4662,7 +4674,7 @@ button.contribution-quote:hover {
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   background: none;
   color: var(--text);
   text-align: left;

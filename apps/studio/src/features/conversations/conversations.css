@@ -138,7 +138,7 @@
   min-height: 28px;
   padding: 0 11px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: var(--raise);
   color: var(--text-2);
   font-size: var(--type-small);
@@ -185,7 +185,7 @@
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-3);
   background: none;
   color: var(--text);
   text-align: left;
@@ -343,7 +343,7 @@
   height: 40px;
   padding: 0 12px 0 7px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r-3);
   background: var(--raise);
   color: var(--text);
   text-align: left;
@@ -360,7 +360,7 @@
   width: 22px;
   height: 28px;
   padding: 4px 3px;
-  border-radius: 3px;
+  border-radius: var(--r-1);
   background: #fbf8f3;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
@@ -481,18 +481,18 @@
   max-width: min(76%, 560px);
   min-width: 0;
   padding: 9px 14px;
-  border-radius: 16px;
+  border-radius: var(--r-4);
   background: var(--raise);
 }
 .conv-msg:not([data-run]) .conv-msg-body {
-  border-top-left-radius: 6px;
+  border-top-left-radius: var(--r-2);
 }
 .conv-msg.mine .conv-msg-body {
   background: var(--warm-raise);
-  border-top-left-radius: 16px;
+  border-top-left-radius: var(--r-4);
 }
 .conv-msg.mine:not([data-run]) .conv-msg-body {
-  border-top-right-radius: 6px;
+  border-top-right-radius: var(--r-2);
 }
 .conv-msg p {
   margin: 0;
@@ -867,7 +867,7 @@
   align-items: flex-end;
   gap: 6px;
   padding: 6px 6px 6px 16px;
-  border-radius: 14px;
+  border-radius: var(--r-4);
   background: var(--plane-2);
   box-shadow:
     0 0 0 1px var(--line-2),
@@ -906,7 +906,7 @@
   height: 36px;
   flex: none;
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   background: var(--raise-2);
   color: var(--text-2);
   transition:
@@ -998,7 +998,7 @@
   gap: 8px;
   min-height: 32px;
   padding: 0 10px;
-  border-radius: 9px;
+  border-radius: var(--r-3);
   color: var(--text-2);
   font-size: var(--type-small);
   cursor: pointer;
@@ -1178,7 +1178,7 @@
     left: 0;
     width: 100%;
     height: 82%;
-    border-radius: 18px 18px 0 0;
+    border-radius: var(--r-4) var(--r-4) 0 0;
     transform: translateY(100%);
   }
 }

@@ -413,26 +413,9 @@
   width: 10px;
   height: 10px;
 }
+/* A task's chip is the kit's state chip (its tone by its mark), with the plan's mark where the dot would be. */
 .task-chip {
-  display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: 5px;
-  height: 18px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: rgba(236, 235, 241, 0.05);
-  color: var(--text-3);
-  font-size: var(--type-small);
-  white-space: nowrap;
-}
-.task-chip[data-mark='waiting'] {
-  background: rgba(239, 191, 134, 0.14);
-  color: var(--amber);
-}
-.task-chip[data-mark='working'] {
-  background: rgba(127, 214, 196, 0.12);
-  color: var(--teal);
 }
 .task-chip .plan-mark {
   width: 6px;
@@ -1310,7 +1293,7 @@
   justify-self: end;
   max-width: 85%;
   padding: 8px 12px;
-  border-radius: 12px 12px 4px 12px;
+  border-radius: var(--r-4) var(--r-4) var(--r-1) var(--r-4);
   background: rgba(236, 235, 241, 0.06);
   font-size: var(--type-body);
 }
