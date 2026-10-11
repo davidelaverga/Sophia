@@ -117,8 +117,8 @@ test('light · a kept choice is on the root before the app runs (entry.js), so t
   page,
 }) => {
   await page.addInitScript(() => localStorage.setItem('sophia.theme', 'light'))
-  // The app's shell: entry.js in its head, read before the body is drawn.
-  await page.goto('/', { waitUntil: 'commit' })
+  // The app's shell (the app's own server, not the fixtures'): entry.js in its head, read before the body is drawn.
+  await page.goto('http://127.0.0.1:5198/', { waitUntil: 'commit' })
   await page.waitForFunction(() => document.head.querySelector('script[src="/entry.js"]') !== null)
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(251, 248, 243)')
