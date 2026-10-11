@@ -39,3 +39,10 @@
   favicon's light block names the same two colours; her light's background on paper starts white at the centre. In the
   room the halves still compute the warm and the core.
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`; measured in the pane before the push.
+
+## After the review (Codex on #249)
+
+- The paper rule that removes the glow at rest reached the threshold too, and its specificity beat the threshold's
+  still halo under reduced motion: Home's formed mark lost its halo for a light-theme reader with reduced motion. The
+  rule is scoped to the bar's mark (`.umbral .umbral-sophia`); the threshold keeps its breathing halo and its still one.
+  `light-mark.spec` adds the case (light, reduced motion, Home: the threshold's half carries a drop-shadow).

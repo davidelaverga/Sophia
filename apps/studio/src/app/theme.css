@@ -143,8 +143,9 @@
     transparent 46%
   );
 }
-/* The mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. */
-:root[data-theme='light'] .umbral-sophia {
+/* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
+   the bar's mark (`.umbral`): the threshold keeps its breathing halo, and its still one under reduced motion (Codex on #249). */
+:root[data-theme='light'] .umbral .umbral-sophia {
   filter: none;
 }
 :root[data-theme='light'] .umbral[data-live] .umbral-sophia {
