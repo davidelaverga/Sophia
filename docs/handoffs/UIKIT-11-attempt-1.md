@@ -46,6 +46,8 @@ handoff's own commits sit beside them.
 - The fades are moved, not duplicated: one source for the row's edges. `ViewNav`'s marking and scroll-into-sight were
   already width-independent.
 - Not done, named: a fifth «Blocked» lane (no lane exists), Home's right half (the feature F2).
+- `resources.spec` (arrow keys, 2026-10-11): ArrowDown from the first tile stays when no tile stands below it (the
+  row below is shorter); the earlier expectation named the last tile, which the keys never chose.
 
 ## Remaining obligations
 
