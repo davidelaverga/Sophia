@@ -27,7 +27,11 @@
     "messages": [
       462,
       464
-    ]
+    ],
+    "sharedReceipt": 6104825593,
+    "sharedReceiptReadback": "exact",
+    "docsCommit": "792bd0508ba1692755e7697d5e772a2483c99920",
+    "finalCheckpoint": "PR211 remains exact36d draft/open/unmerged; exact Claude mission visibly Thinking/running on bounded source preparation, no returned new candidate yet"
   },
   "automaticReview": {
     "comment": 6104747456,
