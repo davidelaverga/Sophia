@@ -15,6 +15,7 @@ Files were read only; nothing was run against a network.
 
 **The vendor pages** are as Codex read them in CX-0118, because this container's network policy blocks `developers.openai.com` (§8.4):
 - `developers.openai.com/siwc/token-sharing-open-source/models-and-inference`, and its overview.
+- `developers.openai.com/siwc/token-sharing-open-source/preview-limitations`, its unsupported-fields bullet (Codex's retained CX-0118 copy, `051ee06d`).
 - **The current accounts and sessions pages:** they point to ChatGPT Settings, Usage, and shared limits. That is not proof of an app quota endpoint.
 - **`learn.chatgpt.com/docs/app-server`** (`developers.openai.com/codex/app-server` redirects there), §6, as Codex read it in its CX-0119 recheck. It documents the Codex App Server's account rate limits; §2.5 gives the detail.
 
@@ -109,8 +110,8 @@ Each one names the documentation that must state it, the installed code that mus
   - **A forced WebSocket resend:** it is reserved, or it never leaves.
 - **Today:** **unmet.**
   - The Codex path sends no cap, and its WebSocket resends bypass `maxRetries`.
-  - **The current SIWC preview forbids `max_output_tokens`.** Codex read this on `developers.openai.com/siwc/token-sharing-open-source/models-and-inference`. So the wire-cap form is unavailable on that flow.
-  - No other hard bound for that flow is established. Until one is documented and qualified, the flow has no bound, and §2.2 is unmet for it.
+  - **The current SIWC preview forbids `max_output_tokens`.** Codex read this on `developers.openai.com/siwc/token-sharing-open-source/preview-limitations`, in its unsupported-fields bullet; the models-and-inference page doesn't mention the field. So the wire-cap form is unavailable on that flow.
+  - No other hard bound for that flow is established, and none is qualified here. That is not proof that none exists. Until one is documented and qualified, §2.2 is unmet for it, and the route stays unsupported and unbound.
 
 ### 2.3 Terminal and unknown outcomes
 
