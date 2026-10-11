@@ -1,0 +1,92 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "Dated CX100 servingtuple12:02UTC/CX115 ledger-runtime16:41UTC/CX117 exactinbox17:33UTC retained; no live metadata refresh this checkpoint.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Owned local PostgreSQL17.6 wrapper: node --test --test-concurrency=4 five conversation DB suites, then node --test apps/api/src/conversations.db.test.ts; each command finite600s, actual sourcef0.",
+    "First census attempted absent bundled psql after both tests passed: overall runner1, successful owned cleanup retained.",
+    "Fresh repeat: same tests, bounded Nodepg BEGIN READ ONLY catalog/client census, ROLLBACK/end; overall0/closing onlypostgres/0otherclients/stop0/PIDabsent/clusterremoved/sourceclean.",
+    "Private installed pi parser fake SSE probe: initialfive and finalfive cases, synthetic unusableJWT, global real-network guard, no native execution.",
+    "Full original150line route proposal and full corrected138line delta read; exact Git identities/blob/patch hashes checked.",
+    "Read official Codex App Server documentation; existing Codex binary located only, no invocation/auth access.",
+    "Read PR190/211 source and check-run metadata; no CI/PR mutation.",
+    "Guarded exactCON desktop correction/recheck messages delivered and visible. Existing author gate untouched. Signed-in IAB marked for handoff."
+  ],
+  "results": "Independent local f0 passes138 conversation/10API tests; original runner census failure retained; corrected run clean. P1/P2 route proposal corrections scoped rechecked; no runtime/provider/cap/app qualification.",
+  "unresolvedEffects": "No uncertain hosted effects. Same setup/cohort/route/finiteallowance/window/runtime integration/rollback holds; new pinned-wire cap qualification pending.",
+  "rollback": "No CON deployment/setup mutation; no product source change. Dated tuple is not a qualified compatible rollback. Governed data must survive future rollback.",
+  "nextBoundedAction": "Independently review the separate telemetry/docs delta and existing f0 gate terminal/source/census; then require named Q7/Q12 runtime ownership before shared implementation. No restart or new live effects.",
+  "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
+  "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
+  "resourceUse": {
+    "newOwnedLocalPgClusters": 2,
+    "testCommands": 4,
+    "testExecutions": 296,
+    "fakeFetchCaptures": 10,
+    "distinctFinalOfflineCases": 5,
+    "sophiaProviderCalls": 0,
+    "realNativeExecutions": 0,
+    "hostedAppMutations": 0,
+    "productionConnections": 0,
+    "mailboxMessagesRead": 0,
+    "emailsSent": 0,
+    "reviewerEffectSpending": 0,
+    "codingAgentCoordinationConsumption": "Unmeasured/private"
+  },
+  "cleanup": "Both owned PG clusters stopped/PIDs absent/removed; detached source clean. Fake probe settled. Existing author gate still running, not reviewer-owned cleanup. No uncertain hosted effects.",
+  "combinedLocalGate": {
+    "receipt": 6112140539,
+    "script": "n4k-final.sh",
+    "scriptShaPrefix": "e4946ca9",
+    "wrapperSeconds": 12000,
+    "start": "2026-10-11T18:15:42Z",
+    "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+    "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+    "nativeHandle": "Running the combined gate on f0afe14b under the 12000s wrapper; one Running task independently visible in exactCONsession",
+    "classification": "start_progress_only_not_terminal_pass",
+    "authorPreconditions": "frozenofflineinstall/unchangedlock+packagefiles/clean;bothclustersdefaultDBs0otherclients",
+    "state": "running",
+    "lastIndependentObservation": "2026-10-11T18:36Z exact CON UI still shows existing f0 gate running; author has provided partial progress only.",
+    "terminalResult": null
+  }
+}

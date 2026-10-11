@@ -1,0 +1,10 @@
+{
+  "source": "https://learn.chatgpt.com/docs/app-server",
+  "entryRedirectFrom": "https://developers.openai.com/codex/app-server",
+  "markdownSource": "https://learn.chatgpt.com/docs/app-server.md",
+  "documentSha256": "14c29f997cffff66125e710c1746425c53262eb4e636eb0bbcd5c8b4ec7e4464",
+  "sectionsRead": "API overview; auth field notes and experimental external-token scope; section6 rate limits and adjacent usage/reset sections. Not entire 100675-byte document.",
+  "boundedSummary": "Codex App Server documents account/rateLimits/read and account/rateLimits/updated. Optional per-limit buckets expose usedPercent, windowDurationMins and resetsAt; the single bucket is legacy. This establishes a documented telemetry candidate, not compatibility with pinned dsh, eligibility for Sophia topology or a selected connection. Account identity, scope, freshness and unavailable states still need qualification. No app-server process, login, token access, reset-credit redemption, credit purchase or notification was performed. Sophia remaining-cap display remains unmet.",
+  "installedCodexBinary": "Existing vendor desktop binary located by command-v only; not invoked.",
+  "noNewExecutorOrInstallation": true
+}

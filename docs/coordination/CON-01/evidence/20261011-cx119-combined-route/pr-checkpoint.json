@@ -1,0 +1,201 @@
+{
+  "observedAt": "2026-10-11T18:34Z",
+  "pulls": {
+    "190": {
+      "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+      "base": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "baseRef": "main",
+      "draft": true,
+      "mergeable": true,
+      "mergeableState": "clean",
+      "checks": [
+        {
+          "id": 114442172394,
+          "name": "SQL, persistence and API on PostgreSQL 16",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:51:16Z"
+        },
+        {
+          "id": 114442172372,
+          "name": "Paperclip image under a 2 GiB cgroup",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:37:58Z"
+        },
+        {
+          "id": 114442172314,
+          "name": "The room in Chromium, on its fixture page",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T16:18:25Z"
+        },
+        {
+          "id": 114442172313,
+          "name": "Confined PDF renderer on a real Chromium",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:57:23Z"
+        },
+        {
+          "id": 114442172302,
+          "name": "Live auth on local Supabase",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:37:39Z"
+        },
+        {
+          "id": 114442172300,
+          "name": "runtime-unit",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:26:29Z"
+        },
+        {
+          "id": 114442172135,
+          "name": "Media bridge against a real LiveKit server",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:11:33Z"
+        },
+        {
+          "id": 114442154952,
+          "name": "Media bridge against a real LiveKit server",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:40:01Z"
+        },
+        {
+          "id": 114442154930,
+          "name": "SQL, persistence and API on PostgreSQL 16",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:33:50Z"
+        },
+        {
+          "id": 114442154894,
+          "name": "runtime-unit",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:33:40Z"
+        },
+        {
+          "id": 114442154838,
+          "name": "Live auth on local Supabase",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:27:44Z"
+        },
+        {
+          "id": 114442154825,
+          "name": "The room in Chromium, on its fixture page",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:57:39Z"
+        },
+        {
+          "id": 114442154762,
+          "name": "Confined PDF renderer on a real Chromium",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T15:06:00Z"
+        }
+      ]
+    },
+    "211": {
+      "head": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+      "base": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+      "baseRef": "claude/con01-project-conversations",
+      "draft": true,
+      "mergeable": false,
+      "mergeableState": "dirty",
+      "checks": [
+        {
+          "id": 114525779666,
+          "name": "SQL, persistence and API on PostgreSQL 16",
+          "status": "queued",
+          "conclusion": null,
+          "completedAt": null
+        },
+        {
+          "id": 114525779636,
+          "name": "runtime-unit",
+          "status": "queued",
+          "conclusion": null,
+          "completedAt": null
+        },
+        {
+          "id": 114525779594,
+          "name": "Media bridge against a real LiveKit server",
+          "status": "queued",
+          "conclusion": null,
+          "completedAt": null
+        },
+        {
+          "id": 114525779584,
+          "name": "The room in Chromium, on its fixture page",
+          "status": "queued",
+          "conclusion": null,
+          "completedAt": null
+        },
+        {
+          "id": 114525779568,
+          "name": "Confined PDF renderer on a real Chromium",
+          "status": "queued",
+          "conclusion": null,
+          "completedAt": null
+        },
+        {
+          "id": 114525779416,
+          "name": "Live auth on local Supabase",
+          "status": "queued",
+          "conclusion": null,
+          "completedAt": null
+        },
+        {
+          "id": 114513206937,
+          "name": "Live auth on local Supabase",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T17:31:35Z"
+        },
+        {
+          "id": 114513206914,
+          "name": "Confined PDF renderer on a real Chromium",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T17:33:08Z"
+        },
+        {
+          "id": 114513206912,
+          "name": "The room in Chromium, on its fixture page",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T18:09:10Z"
+        },
+        {
+          "id": 114513206876,
+          "name": "SQL, persistence and API on PostgreSQL 16",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T17:25:07Z"
+        },
+        {
+          "id": 114513206851,
+          "name": "runtime-unit",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T17:26:12Z"
+        },
+        {
+          "id": 114513206737,
+          "name": "Media bridge against a real LiveKit server",
+          "status": "completed",
+          "conclusion": "success",
+          "completedAt": "2026-10-11T17:19:54Z"
+        }
+      ]
+    }
+  },
+  "limits": "PR211 remains draft3b and dirty; current latest checks queued, earlier same-head checks success. PR190 draft5c10/mainfec clean/13successful checks. No run rerun, cancel, PR move, merge or other-mission effect. This checkpoint did not newly reread automatic-review threads; exact-head prior bot receipts remain dated evidence."
+}

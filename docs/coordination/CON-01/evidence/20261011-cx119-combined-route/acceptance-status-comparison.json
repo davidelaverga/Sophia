@@ -1,0 +1,12 @@
+{
+  "count": 36,
+  "counts": {
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15
+  },
+  "fullCasesUnchanged": true,
+  "fullCasesSha256": "d44c17989370bf89cc9d681ff9ec26f9384374d211b8932d95ee45c9a08062c7",
+  "CX118HistoryOccurrences": 1,
+  "limits": "All full36 verdicts retained unchanged; no hosted/native/provider acceptance inferred from local tests."
+}

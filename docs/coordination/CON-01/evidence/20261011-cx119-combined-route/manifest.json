@@ -1,0 +1,14 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0119.md",
+  "artifacts": {
+    "evidence/20261011-cx119-combined-route/acceptance-status-comparison.json": "1f1315ff7e87098a2d3c30d9d962ac9a0ead26b6a4ba643a1550f6758bec65cd",
+    "evidence/20261011-cx119-combined-route/author-combined-gate-progress.json": "73a17d7dd4eaff4b6d2a48eb48029caf313af643392c2b5b2434987d4aa0be44",
+    "evidence/20261011-cx119-combined-route/independent-combined-pg-api.json": "04c02461e168e748866d958ffcef25fa20a5de9e2473826da8008f864143aec2",
+    "evidence/20261011-cx119-combined-route/official-telemetry-lead.json": "a68c11689da5445459bed99f3268bc0031a78947e4ae0519def1101b0b4e65d7",
+    "evidence/20261011-cx119-combined-route/offline-terminal-uncertainty.json": "150f11e404f7ad4f606967207c2147e1ef4576e012ea9b279aa95edccff440ed",
+    "evidence/20261011-cx119-combined-route/operation-handoff.json": "ee07b90300667a4122460e5b8b076abdd03894e394b11a3ee10b1fc06dc9d107",
+    "evidence/20261011-cx119-combined-route/pr-checkpoint.json": "51a69fd87cc13989726822ab5f464a115bc59abc46e6a3add10a91ca011d7af8",
+    "evidence/20261011-cx119-combined-route/route-review.json": "ea22dfdb1b5c11d37f8824594343f131ae8468833a76c8e47ee7321f3d2f24f6"
+  }
+}

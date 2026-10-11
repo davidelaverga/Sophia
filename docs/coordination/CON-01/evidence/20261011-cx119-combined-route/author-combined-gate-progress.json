@@ -1,0 +1,15 @@
+{
+  "receipt": 6112140539,
+  "script": "n4k-final.sh",
+  "scriptShaPrefix": "e4946ca9",
+  "wrapperSeconds": 12000,
+  "start": "2026-10-11T18:15:42Z",
+  "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "nativeHandle": "Running the combined gate on f0afe14b under the 12000s wrapper; one Running task independently visible in exactCONsession",
+  "classification": "start_progress_only_not_terminal_pass",
+  "authorPreconditions": "frozenofflineinstall/unchangedlock+packagefiles/clean;bothclustersdefaultDBs0otherclients",
+  "state": "running",
+  "lastIndependentObservation": "2026-10-11T18:36Z exact CON UI still shows existing f0 gate running; author has provided partial progress only.",
+  "terminalResult": null
+}

@@ -1,0 +1,108 @@
+{
+  "classification": "L0_installed_protocol_with_fake_fetch_not_native_provider_evidence",
+  "realNetworkCalls": 0,
+  "realProviderCalls": 0,
+  "nativeHarnessExecutions": 0,
+  "blockedNetworkCalls": 0,
+  "results": [
+    {
+      "name": "completed",
+      "fetchCalls": 1,
+      "events": [
+        {
+          "type": "start"
+        },
+        {
+          "type": "text_start"
+        },
+        {
+          "type": "text_delta"
+        },
+        {
+          "type": "done",
+          "reason": "stop",
+          "stopReason": "stop",
+          "rawStopReason": "completed",
+          "content": [
+            {
+              "type": "text",
+              "text": "Synthetic offline reply"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "future_terminal",
+      "fetchCalls": 1,
+      "events": [
+        {
+          "type": "start"
+        },
+        {
+          "type": "text_start"
+        },
+        {
+          "type": "text_delta"
+        },
+        {
+          "type": "done",
+          "reason": "stop",
+          "stopReason": "stop",
+          "content": [
+            {
+              "type": "text",
+              "text": "Synthetic offline reply"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "stream_no_terminal",
+      "fetchCalls": 1,
+      "events": [
+        {
+          "type": "start"
+        },
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "OpenAI Responses stream ended before a terminal response event"
+        }
+      ]
+    },
+    {
+      "name": "pre_dispatch_failure",
+      "fetchCalls": 1,
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "socket closed before headers"
+        }
+      ]
+    },
+    {
+      "name": "accepted_then_headers_lost",
+      "fetchCalls": 1,
+      "events": [
+        {
+          "type": "error",
+          "reason": "error",
+          "errorMessage": "socket closed before headers"
+        }
+      ]
+    }
+  ],
+  "observations": [
+    "unknown status normalizes to undefined and yields done/stop just like completed (nonempty synthetic text; dsh mapping code inspected, not invoked)",
+    "no terminal correctly emits error",
+    "no response headers plus same transport error is observationally identical before dispatch or after fake acceptance; no-response-began alone cannot release a reservation"
+  ],
+  "probeSha256": "f1f8e3790da627417e44682e71908f9f61702c00ec2346727ada2adf2a9f239c",
+  "resultRawSha256": "ed2e350d7a10a2aba78ec8eaa1595c4f27189219e6e1a2cc15769c4b90f92204",
+  "totalFakeFetchCaptures": 10,
+  "distinctFinalCases": 5,
+  "initialRun": "Five cases with empty completed control; final run adds non-empty text events to the completed/future controls. Both retained as execution history; final result is not ten distinct cases."
+}

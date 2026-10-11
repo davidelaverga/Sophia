@@ -1,0 +1,66 @@
+{
+  "original": {
+    "commit": "aa4b7630dc1a458d3bf67dbca5bd23e826415da0",
+    "tree": "991a72392d5d9265b621fc3e90cf25f710154648",
+    "fileSha256": "a65581582f9c9d2a6f1ffb212a18083140c34f29102da61e43ed5b19b3c08426",
+    "full150LinesRead": true,
+    "receipt": 6112100470
+  },
+  "corrected": {
+    "commit": "e4f8d4ab4102f2be21fe279784ccd8509228cbb6",
+    "tree": "93d8affc2e7f1f6b189ae756e364e3b598ab78df",
+    "parent": "aa4b7630dc1a458d3bf67dbca5bd23e826415da0",
+    "fileSha256": "88693cdc63be9216758ea232cbd40b737231eba69dbca1cd507ea4c14d0a586e",
+    "deltaSha256": "fc2e9ba2f686a57bb1191dbc6fa7d4d267a6ba47d4e0bc4748c0a8636349c98d",
+    "complete138LineDeltaRead": true,
+    "receipt": 6112202377,
+    "oneFileOnly": true
+  },
+  "findings": [
+    {
+      "severity": "P1",
+      "location": "2.3",
+      "expected": "Release only with positive request-correlated proof never dispatched and cannot dispatch later; uncertain outcomes retain durable request and cumulative allowance.",
+      "observedOriginal": "No response began treated as never left; independently indistinguishable fake before-dispatch and accepted/lost-headers errors.",
+      "reproducer": "Private installed pi SSE fake-fetch probe, maxRetries0, global real-network guard, identical error shapes.",
+      "status": "proposal_correction_independently_rechecked; runtime_unqualified"
+    },
+    {
+      "severity": "P2",
+      "location": "2.2",
+      "expected": "Documented qualified finite pre-dispatch bound and honest reservation/accounting; wire field is one possible form.",
+      "observedOriginal": "Wire output cap universally required despite current SIWC disallowing max_output_tokens.",
+      "status": "proposal_correction_independently_rechecked; selected_route_bound_unmet"
+    },
+    {
+      "severity": "P2",
+      "location": "2.5",
+      "expected": "Audit scope distinguished from absence; owner remaining subscription-cap display remains required.",
+      "observedOriginal": "Unavailable/no app endpoint conclusion exceeded bounded reading.",
+      "status": "proposal_correction_independently_rechecked; new official telemetry lead sent for separate docs delta"
+    },
+    {
+      "severity": "P2",
+      "location": "2.4",
+      "expected": "Runtime/vendor-qualified credential mechanism pending Q7; no unsupported legal or inevitable full-copy claim.",
+      "observedOriginal": "Per-reply home said to require full grant copy and called intermediation.",
+      "status": "proposal_correction_independently_rechecked; no credential design or transfer authorized"
+    }
+  ],
+  "coordination": "Both correction requests submitted and visible in exact CON desktop URL/title; wrong-foreground guards refused input. Running f0 gate remains untouched. No reviewer feature fix.",
+  "telemetryDelta": {
+    "commit": "485b33a9246238c17afcfa7dc0a8d7f14093f32f",
+    "tree": "da1c3d4938b822665301cee3c120bef61ac189fc",
+    "parent": "e4f8d4ab4102f2be21fe279784ccd8509228cbb6",
+    "receipt": 6112300193,
+    "fileSha256": "71164ccde252cdbb8a6cf89e99f16dc5cc50fafd1b189187a4a1a423e91d1c22",
+    "deltaSha256": "d3526b5758067b22303e433bec5dc62b4d8a426776f94df790eb3ee35f3045b5",
+    "complete71LineDeltaRead": true,
+    "oneFileOnly": true,
+    "scopedResult": "Telemetry candidate and qualification/privacy/identity holds match official evidence; two minimal attribution/uncertainty wording corrections requested from primary.",
+    "correctionsRequested": [
+      "Use supporting preview-limitations page for unsupported max_output_tokens; models-and-inference has no such field.",
+      "No bound qualified here rather than proof flow has no bound."
+    ]
+  }
+}
