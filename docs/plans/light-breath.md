@@ -38,3 +38,10 @@
   canvas is above it; on Home in light the light blends `multiply`; in the room `.light` carries no CSS animation (the
   canvas breathes instead).
 - `light-mark.spec` reads the halo from the pseudo-element. `pnpm format`, `lint`, `typecheck`; measured in the pane.
+
+## After the review (Codex on #251)
+
+- The halo's pseudo-element painted after the light's children, and only the trace had been lifted: on Home and after
+  the sign-in's threshold forms, the white heart painted over the formed mark. The light now isolates its stacking and
+  the halo sits at `z-index: -1` inside it, behind every child (the formed mark, the trace); the trace's own lift goes.
+  `light-breath.spec` reads the halo's layer and hits the mark through its centre on Home.

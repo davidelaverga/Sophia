@@ -151,12 +151,16 @@
   display: none;
 }
 /* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
-   it breathes, as the canvas does (docs/plans/light-breath.md). The trace canvas sits above it, so the floor's thread
-   passes over the heart. */
+   it breathes, as the canvas does (docs/plans/light-breath.md). The light isolates its stacking, and the halo sits at
+   the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
+:root[data-theme='light'] .light {
+  isolation: isolate;
+}
 :root[data-theme='light'] .light::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: -1;
   background: radial-gradient(
     circle at 50% 42%,
     rgb(255 255 255 / 0.95) 0,
@@ -166,9 +170,6 @@
   );
   transform-origin: 50% 42%;
   animation: paper-breathe 6s ease-in-out infinite alternate;
-}
-:root[data-theme='light'] .light-trace {
-  z-index: 1;
 }
 @keyframes paper-breathe {
   from {
