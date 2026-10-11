@@ -239,6 +239,8 @@ export type CoordinationObservation = { "phase": "queued" | "running" | "holding
 export type DesignDeliveryAck = { "attemptId": string; "nativeSessionId": string; "deliveryId": string; "attachments": ReadonlyArray<{ "name": string; "attachmentId": string; }>; };
 export type DesignDeliveryReceipt = { "deliveryId": string; "renderJobId": string; "state": "delivered"; "captures": ReadonlyArray<string>; };
 export type DesignShownMeasure = { "id": string; "section": string | null; "box": { "x": number; "y": number; "width": number; "height": number; }; "fontPx": number; "issues": ReadonlyArray<"not_rendered" | "hidden" | "transparent" | "no_visible_text" | "off_page" | "text_cut" | "clipped" | "scrolls" | "covered" | "low_contrast">; "contrast": { "ratio": number | null; "floor": number; "large": boolean; "detail": string | null; }; };
+export type Need = { "id": string; "kind": "decision" | "permission" | "review" | "guest" | "reply"; "title": string; "projectId": string | null; "projectTitle": string | null; "expiresAt": string | null; "detail": string | null; "at": string; "ref": { "kind": "mission_decision" | "work_item" | "artifact_version" | "lobby_entry" | "personal_turn"; "id": string; }; };
+export type NeedList = { "needs": ReadonlyArray<Need>; "readAt": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -378,4 +380,5 @@ export interface Operations {
   "coordinationCancel": { method: "POST"; path: "/v1/coordination/cancel"; request: CoordinationRunRequest; response: CoordinationObservation; };
   "runtimeDesignDelivered": { method: "POST"; path: "/v1/runtime/design/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
   "runtimeReviewDelivered": { method: "POST"; path: "/v1/runtime/review/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
+  "listNeeds": { method: "GET"; path: "/api/v1/me/needs"; request: undefined; response: NeedList; };
 }

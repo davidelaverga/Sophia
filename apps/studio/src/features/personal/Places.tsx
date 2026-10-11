@@ -8,7 +8,7 @@ import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@so
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentTitle } from '../../app/document-title.ts'
-import type { Place } from '../../app/route.ts'
+import type { Place, View as ProjectView } from '../../app/route.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
 import type { ShowToast } from '../../app/Toast.tsx'
@@ -27,6 +27,7 @@ import { NOTICE } from './notice-view.ts'
 import { PlaceDialogs } from './PlaceDialogs.tsx'
 import { PlacesBar, type InCall } from './PlacesBar.tsx'
 import { PersonalSpace } from './PersonalSpace.tsx'
+import { useNeeds } from './useNeeds.ts'
 import { usePresses, type Presses } from './presses.ts'
 import {
   dateLine,
@@ -76,6 +77,8 @@ export interface PlacesProps {
   /** `replace`: take this history entry's place (a place that can't be shown, which Back must not land on again). */
   onGo: (place: Place, replace?: boolean) => void
   onOpenProject: (projectId: string, join: boolean) => void
+  /** A project at one of its views: where a need lives (docs/plans/needs-api.md). */
+  onOpenView: (projectId: string, view: ProjectView) => void
   onChooseDev: (identity: Identity | null) => void
   onSignOut: () => void
 }
@@ -376,6 +379,8 @@ const projectsRead = (v: View): Read => ({
 function Home({ v }: { v: View }) {
   const { props, now, nav } = v
   const data = v.personal
+  // What needs the person (A15, the vision flag): undefined without the flag or the read, and Home is as it was.
+  const needs = useNeeds(props.identity.token, { project: props.onOpenView, personal: () => nav.enter('personal') })
   const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
@@ -387,6 +392,7 @@ function Home({ v }: { v: View }) {
         says={sophiaSays(projects, now, props.call ?? null)}
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         reads={[personalRead(v), projectsRead(v)]}
+        needs={needs}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}

@@ -33,6 +33,8 @@ export function useProjectRoute() {
   return {
     route,
     open: (projectId: string) => go({ projectId, view: 'studio', place: 'work' }),
+    /** A project at one of its views (a need from Home lives in Tasks, Knowledge or the room). */
+    openAt: (projectId: string, view: View) => go({ projectId, view, place: 'work' }),
     show: (view: View) => go({ ...route, view }),
     /** Out of the project, back to the two doors. */
     leave: () => go(HOME),

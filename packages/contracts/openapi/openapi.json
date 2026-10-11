@@ -12813,6 +12813,55 @@
         "x-sophia-implementation": "implemented",
         "x-sophia-release-goal": "SDD-01"
       }
+    },
+    "/api/v1/me/needs": {
+      "get": {
+        "operationId": "listNeeds",
+        "tags": [
+          "personal"
+        ],
+        "summary": "What needs the calling person now, across the projects they belong to and their personal space: decisions waiting on them (with their expiry), native permissions agents ask of them, reviews asked of them, guests waiting in lobbies they admit to, Sophia's replies they have not read. Owner-only: built from the person's own memberships and space; nothing of another person is in it. A need leaves the list when its record is answered where it lives.",
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeedList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (a guest has no needs of their own)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -28300,6 +28349,146 @@
           "contrast"
         ],
         "description": "One label a tooltip, an accessible name or an ID reference rests on (data-sophia-shown), or an element inside one that holds text, measured as a block is (#117, CX-0037)."
+      },
+      "Need": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One thing that needs the calling person, where it lives.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Stable for the record it names: `<kind>:<ref.id>`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "decision",
+              "permission",
+              "review",
+              "guest",
+              "reply"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "What it is about, in the record's own words: the decision's statement, what the agent asks to do, the report's title, the guest's name, the first words of Sophia's reply."
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project it is in; null for the personal space (a reply)."
+          },
+          "projectTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it stops waiting (a decision's or a permission's expiry); null when it does not expire."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A word on it when nothing expires: who asks (`Davide asks`), how long a guest has waited."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it came to need the person: the proposal, the ask, the knock, the reply."
+          },
+          "ref": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The record it names, so the Studio opens that one and never guesses.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "mission_decision",
+                  "work_item",
+                  "artifact_version",
+                  "lobby_entry",
+                  "personal_turn"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "projectId",
+          "projectTitle",
+          "expiresAt",
+          "detail",
+          "at",
+          "ref"
+        ]
+      },
+      "NeedList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "needs": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/Need"
+            },
+            "description": "In no promised order; the Studio sorts by urgency (the expiring first, soonest first)."
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The service's clock when it answered: expiries are compared against it, never against the reader's clock."
+          }
+        },
+        "required": [
+          "needs",
+          "readAt"
+        ]
       }
     }
   }

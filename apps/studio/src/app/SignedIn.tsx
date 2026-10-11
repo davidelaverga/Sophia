@@ -211,7 +211,7 @@ function ProjectShells(props: ShellsProps) {
  * so a result is said the same way in a project and in the places, and a call that ends out of sight says why.
  */
 function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedInProps) {
-  const { route, open, leave, goTo } = routing
+  const { route, open, openAt, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
   const [call, reportCall] = useCall(ended)
@@ -258,6 +258,7 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
           onOpened={sheets.opened}
           onGo={goTo}
           onOpenProject={openProject}
+          onOpenView={openAt}
           onChooseDev={onChooseDev}
           onSignOut={onSignOut}
         />
