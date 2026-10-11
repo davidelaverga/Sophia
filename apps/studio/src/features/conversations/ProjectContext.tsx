@@ -19,6 +19,7 @@ import {
   contextQuery,
   decidableHere,
   pressesWait,
+  readSince,
   type DecideArgs,
   type DecideState,
   type DecisionAsk,
@@ -65,7 +66,7 @@ function useContextRead(props: Props) {
   useLayoutEffect(() => {
     if (refusal) onRefused()
   }, [refusal, onRefused])
-  const stale = read.data !== undefined && refusedAt !== null && !(read.data.readFrom > refusedAt)
+  const stale = read.data !== undefined && !readSince(read.data, refusedAt)
   // Not an answer since the refusal: one from before it, or the refusal itself.
   const behind = stale || refused
   const { refetch, isFetching } = read

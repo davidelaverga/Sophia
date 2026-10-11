@@ -10,6 +10,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { missionKey } from '../mission/mission-view.ts'
 import type { Held } from './held-write.ts'
 import { plainOf } from './sophia-text.ts'
+import { useKept, type Kept } from './talk-store.ts'
 import { orderNow } from './withdrawn-purge.ts'
 
 /** The longest statement a message gives a proposal to start from: a sentence or two. */
@@ -103,13 +104,43 @@ export const contextKey = (projectId: string, identity: Pick<Identity, 'name' | 
 export const contextQuery = (projectId: string, identity: Identity) => ({
   queryKey: contextKey(projectId, identity),
   // Where in this view's order the read set out: one from before a refusal never shows as current (PR #199 r4239772110).
-  queryFn: () => {
+  queryFn: (): Promise<ContextRead> => {
     const readFrom = orderNow()
     return getMission(identity.token, projectId).then((ctx) => ({ ...ctx, readFrom }))
   },
   // Refused, it is not asked again: the reader isn't a current member of the project.
   retry: (failures: number, err: unknown) => failures < 1 && !(err instanceof ApiError && err.code === 'forbidden'),
 })
+
+/** The brief as the conversations read it: where in this view's order its read set out (`orderNow`). */
+export type ContextRead = MissionContext & { readFrom: number }
+
+/** Whether a read of the brief set out after the latest refusal here (`refusedAt`): only such a read is current. */
+export const readSince = (read: Pick<ContextRead, 'readFrom'>, refusedAt: number | null): boolean =>
+  refusedAt === null || read.readFrom > refusedAt
+
+/**
+ * The brief as it may show now, for every reader of it (PR #199 r4239772110, r4239851727): none while the view is
+ * fenced, nor one read set out before the latest refusal here, cached or answering late, until a read since answers.
+ */
+export const briefNow = (
+  read: ContextRead | undefined,
+  kept: Pick<Kept, 'fence' | 'refusedAt'>,
+): ContextRead | undefined => (read && kept.fence === null && readSince(read, kept.refusedAt) ? read : undefined)
+
+/**
+ * What the brief as last read says of a proposal, for a refused decision's words (`decideRefusal`): only a read that
+ * came back and may show now (`briefNow`) says it was read, and whether the proposal still waits there. None yet, one
+ * under way with nothing, failed, fenced or from before the latest refusal: unknown (PR #199 r4239851727).
+ */
+export function briefSays(
+  read: { status: string; data: ContextRead | undefined } | undefined,
+  kept: Pick<Kept, 'fence' | 'refusedAt'>,
+  id: string,
+): { fresh: boolean; stillWaiting: boolean } {
+  const now = read?.status === 'success' ? briefNow(read.data, kept) : undefined
+  return { fresh: now !== undefined, stillWaiting: now?.pending.some((d) => d.id === id) === true }
+}
 
 /**
  * A proposal accepted or turned down, at the revision read; the brief read again whatever the answer. Answered or
@@ -182,6 +213,7 @@ const BRIEF_UNREAD = 'brief_unread'
  */
 export function useAlreadyOpen(projectId: string, identity: Identity | null) {
   const client = useQueryClient()
+  const { latest } = useKept(projectId, identity ? accountOf(identity) : '')
   return async (statement: string): Promise<ProposedMark | null> => {
     if (!identity) return null
     const brief = await client
@@ -189,7 +221,10 @@ export function useAlreadyOpen(projectId: string, identity: Identity | null) {
       // Access lost is said as such; any other failure is the brief unread.
       .catch((err: unknown) => (err instanceof ApiError && err.status === 403 ? err : null))
     if (brief instanceof ApiError) throw brief
-    if (brief === null) throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
+    // A read it joined on its way from before the latest refusal tells nothing of now: the brief unread (r4239851727).
+    if (brief === null || !briefNow(brief, latest())) {
+      throw new ApiError(503, BRIEF_UNREAD, 'The brief could not be read', 'never')
+    }
     const found = openAs(brief.pending, statement)
     return found ? { id: found.id, statement } : null
   }

@@ -3,15 +3,29 @@ import { describe, it } from 'node:test'
 import { ApiError } from '../../api/client.ts'
 import type { MissionDecision } from '@sophia/contracts'
 import {
+  briefNow,
+  briefSays,
   decidableHere,
   decideRefusal,
   openAs,
   pressesWait,
   proposedWhere,
+  readSince,
   refusalWords,
   stateOf,
   statementFrom,
+  type ContextRead,
 } from './decide.ts'
+import {
+  changeIfCurrent,
+  currentGeneration,
+  forgetKept,
+  keptAt,
+  liftFence,
+  withDenied,
+  withFence,
+  type Kept,
+} from './talk-store.ts'
 
 describe('a message proposed as a decision (C7)', () => {
   it('a member’s words, on one line, as written', () => {
@@ -187,5 +201,76 @@ describe('where a message’s proposal stands, in the brief as last read (propos
   it('not read again when the last read failed, or there is none yet', () => {
     assert.equal(proposedWhere({ isError: true, data: { pending } }, { id: 'p1', statement: 'x' }), 'unread')
     assert.equal(proposedWhere({ isError: false, data: undefined }, { id: 'p1', statement: 'x' }), 'unread')
+  })
+})
+
+/** A read of the brief set out at `readFrom`, in this view's order. */
+const brief = (readFrom: number) => ({ readFrom, pending: [] }) as unknown as ContextRead
+
+describe('the brief as it may show now, whatever refused (PR #199 r4239772110, r4239851727)', () => {
+  const PLACE = 'p-brief brief@example.test'
+  /** Nothing kept yet for this project and account: never refused here. */
+  function nothingKept(): Kept {
+    forgetKept()
+    changeIfCurrent(PLACE, currentGeneration(), (was) => was)
+    const kept = keptAt(PLACE)
+    assert.ok(kept)
+    return kept
+  }
+
+  it('never refused here: any read is current, and none is none', () => {
+    const read = brief(1)
+    assert.equal(readSince(read, null), true)
+    assert.equal(briefNow(read, nothingKept()), read)
+    assert.equal(briefNow(undefined, nothingKept()), undefined)
+  })
+
+  const origins: Record<string, (k: Kept) => Kept> = {
+    'the list read, or the context’s own (withFence)': (k) => withFence(k, 5),
+    'a thread’s read, or a probe’s (withDenied)': (k) => withDenied(k, 'c1', 5),
+  }
+  for (const [origin, refuse] of Object.entries(origins)) {
+    it(`${origin}: none while fenced; once lifted, only a read set out after the refusal`, () => {
+      const fenced = refuse(nothingKept())
+      assert.equal(fenced.refusedAt, 5)
+      assert.equal(briefNow(brief(4), fenced), undefined)
+      assert.equal(briefNow(brief(6), fenced), undefined)
+      const lifted = liftFence(fenced, 6)
+      assert.equal(lifted.fence, null)
+      assert.equal(lifted.refusedAt, 5)
+      // Cached, or answering late, from before the refusal or from its moment: not current.
+      assert.equal(briefNow(brief(4), lifted), undefined)
+      assert.equal(briefNow(brief(5), lifted), undefined)
+      const since = brief(7)
+      assert.equal(briefNow(since, lifted), since)
+    })
+  }
+
+  it('the latest refusal counts: a later one moves it on, an older one never back', () => {
+    const again = withFence(liftFence(withFence(nothingKept(), 5), 6), 9)
+    assert.equal(again.refusedAt, 9)
+    const lifted = liftFence(again, 10)
+    assert.equal(briefNow(brief(8), lifted), undefined)
+    assert.equal(withFence(lifted, 3).refusedAt, 9)
+    assert.equal(briefNow(brief(11), lifted)?.readFrom, 11)
+  })
+
+  it('a refused decision’s brief: says anything only from a read that came back and may show now', () => {
+    const waiting = { readFrom: 7, pending: [{ id: 'p1' }] } as unknown as ContextRead
+    const unknown = { fresh: false, stillWaiting: false }
+    const lifted = liftFence(withFence(nothingKept(), 5), 6)
+    // No read yet; one under way with nothing yet; one failed, even holding an older answer.
+    assert.deepEqual(briefSays(undefined, lifted, 'p1'), unknown)
+    assert.deepEqual(briefSays({ status: 'pending', data: undefined }, lifted, 'p1'), unknown)
+    assert.deepEqual(briefSays({ status: 'error', data: waiting }, lifted, 'p1'), unknown)
+    // From before the latest refusal, or while fenced: unknown too.
+    assert.deepEqual(briefSays({ status: 'success', data: { ...waiting, readFrom: 4 } }, lifted, 'p1'), unknown)
+    assert.deepEqual(briefSays({ status: 'success', data: waiting }, withFence(lifted, 8), 'p1'), unknown)
+    // Read since: said, and whether it still waits there.
+    assert.deepEqual(briefSays({ status: 'success', data: waiting }, lifted, 'p1'), { fresh: true, stillWaiting: true })
+    assert.deepEqual(briefSays({ status: 'success', data: waiting }, lifted, 'p2'), {
+      fresh: true,
+      stillWaiting: false,
+    })
   })
 })

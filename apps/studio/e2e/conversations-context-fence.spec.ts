@@ -199,3 +199,193 @@ test('context fence · a decision held with no reply: kept across the fence unde
   expect(all).toHaveLength(sent + 1)
   expect((await kept(page))?.decision ?? null).toBeNull()
 })
+
+// Every reader of the project's context, not the pane alone (PR #199 r4239851727, CX-0088): the New conversation form's
+// «Start from what’s still open» and a message's «Proposed» line show what the context held only from a read set out
+// since the latest refusal, whatever refused: the list, a thread, the context's own read.
+const form = (page: Page) => page.getByRole('form', { name: 'New conversation' })
+const starters = (page: Page) => form(page).getByRole('group', { name: 'Start from what’s still open' })
+const draft = (page: Page) => form(page).getByRole('textbox', { name: 'Context, if it helps' })
+const DRAFT = 'SYNTHETIC-DRAFT-CONTEXT'
+const briefsServed = async (page: Page) => (await served(page)).filter((s) => s.startsWith('mission:')).length
+
+/** The form open, a draft in it, offering what is still open. */
+async function formOpen(page: Page) {
+  await list(page).getByRole('button', { name: 'New conversation' }).click()
+  await draft(page).fill(DRAFT)
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+}
+
+/** Back in the form: the draft as it was, and none of what the context read before the refusal offered meanwhile. */
+async function formOffersNothing(page: Page) {
+  await expect(form(page)).toBeVisible()
+  await expect(draft(page)).toHaveValue(DRAFT)
+  await page.waitForTimeout(500)
+  await expect(starters(page)).toHaveCount(0)
+  await expect(form(page)).not.toContainText(PENDING)
+}
+
+test('context fence · the New conversation form across a list refusal: what’s still open is offered only once the brief’s read since answers', async ({
+  page,
+}) => {
+  await enter(page)
+  await formOpen(page)
+  await listRefusedOnTryAgain(page)
+  await expect(form(page)).toHaveCount(0)
+  // Given the project back, the brief's read since held: the form is back with its draft, offering nothing meanwhile.
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await page.evaluate(() => window.fixture?.refuseConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(context(page)).toContainText('Reading the project’s context again…')
+  await formOffersNothing(page)
+  // The read since answers (200): offered again.
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+  await expect(draft(page)).toHaveValue(DRAFT)
+})
+
+test('context fence · the New conversation form across a list refusal, the brief’s read since failing: nothing it read before is offered', async ({
+  page,
+}) => {
+  await enter(page)
+  await formOpen(page)
+  await listRefusedOnTryAgain(page)
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await page.evaluate(() => window.fixture?.refuseConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(context(page)).toContainText('The project’s context can’t be read now.')
+  await formOffersNothing(page)
+  await page.waitForTimeout(1500)
+  await expect(starters(page)).toHaveCount(0)
+  // Read again, and answered: offered again.
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+})
+
+test('context fence · the New conversation form: a read of the brief set out before the refusal, answering after the fence lifts, offers nothing', async ({
+  page,
+}) => {
+  await enter(page)
+  await formOpen(page)
+  // The brief's read as the feed moves is held; the list then refused; the project given back.
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await listRefusedOnTryAgain(page)
+  await page.evaluate(() => window.fixture?.refuseConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(form(page)).toBeVisible()
+  // The held read answers now (200), and the next one is held: that older answer offers nothing.
+  const before = await briefsServed(page)
+  await page.evaluate(() => {
+    window.fixture?.holdMission(false)
+    window.fixture?.holdMission(true)
+  })
+  await expect.poll(() => briefsServed(page)).toBeGreaterThan(before)
+  await formOffersNothing(page)
+  await expect(context(page)).toContainText('Reading the project’s context again…')
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+})
+
+test('context fence · a thread’s read refused (403): New conversation, opened once the project is back, offers only from the brief’s read since', async ({
+  page,
+}) => {
+  await enter(page)
+  // The open thread read again (to another view and back), and refused; the list's reads fail meanwhile.
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate((c) => window.fixture?.refuseMessageReads(c), '00000000-0000-4000-8000-0000000000c1')
+  const views = page.getByRole('navigation', { name: 'Project views' })
+  await views.getByRole('link', { name: 'Goals' }).click()
+  await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  await views.getByRole('link', { name: 'Conversations' }).click()
+  await expect.poll(async () => (await served(page)).includes('messages-refused:c1')).toBe(true)
+  await expect(list(page)).toContainText(FENCED)
+  await contextHidden(page)
+  // Given the project back, the brief's read since held: the form opened now offers nothing it read before.
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await page.evaluate(() => window.fixture?.refuseMessageReads(null))
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  const again = list(page).getByRole('button', { name: 'Try again' })
+  if (await again.isVisible()) await again.click()
+  await expect(rows(page)).not.toHaveCount(0)
+  await list(page).getByRole('button', { name: 'New conversation' }).click()
+  await draft(page).fill(DRAFT)
+  await formOffersNothing(page)
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+})
+
+test('context fence · the context’s own read refused (403) with the form open: offered from a 503 before it, then only from a read since', async ({
+  page,
+}) => {
+  await enter(page)
+  await formOpen(page)
+  // A 503 first, with no refusal: what was read is still offered.
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect(context(page)).toContainText('This may be out of date.')
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+  // The brief refused on the context's own Try again: the whole view is fenced, the form with it.
+  await page.evaluate(() => window.fixture?.failMission(false))
+  await page.evaluate(() => window.fixture?.refuseMission(true))
+  await context(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(list(page)).toContainText(FENCED)
+  await expect(form(page)).toHaveCount(0)
+  // Given the project back, the brief's read since held: nothing read before is offered.
+  await page.evaluate(() => window.fixture?.refuseMission(false))
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await formOffersNothing(page)
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(starters(page).getByRole('button', { name: PENDING })).toBeVisible()
+})
+
+test('context fence · a message’s «Proposed» line across a list refusal: where its proposal stands is said only from the brief’s read since', async ({
+  page,
+}) => {
+  await enter(page)
+  await list(page)
+    .getByRole('button', { name: /Short or long briefs/ })
+    .click()
+  const marco = open(page).locator('.conv-messages > li').filter({ hasText: 'Anything longer, nobody reads.' })
+  await marco.hover()
+  await marco.getByRole('button', { name: 'Propose as decision' }).click()
+  await open(page).getByRole('textbox', { name: 'Decision to propose' }).fill('Briefs stay on one page')
+  await open(page).getByRole('button', { name: 'Propose', exact: true }).click()
+  const line = marco.getByRole('status')
+  await expect(line).toHaveText('Proposed · it’s in Still open')
+  await listRefusedOnTryAgain(page)
+  await expect(open(page)).toHaveCount(0)
+  // Given the project back, the brief's read since held: the thread is back, and its line doesn't say it waits.
+  await page.evaluate(() => window.fixture?.holdMission(true))
+  await page.evaluate(() => window.fixture?.refuseConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(line).toBeVisible()
+  await page.waitForTimeout(500)
+  await expect(line).not.toHaveText('Proposed · it’s in Still open')
+  await page.evaluate(() => window.fixture?.holdMission(false))
+  await expect(line).toHaveText('Proposed · it’s in Still open')
+  expect(await writes(page, '/mission/proposals')).toEqual([
+    { kind: 'constraint', statement: 'Briefs stay on one page' },
+  ])
+})
+
+test('context fence · @phone: the New conversation form across a list refusal, the brief’s read since failing: nothing it read before is offered', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await formOpen(page)
+  await page.evaluate(() => window.fixture?.refuseConversations(true))
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect(list(page).getByText(FENCED)).toBeVisible()
+  await expect(form(page)).toHaveCount(0)
+  // Given the project back, the brief's read since failing: the form is back with its draft, offering nothing.
+  await page.evaluate(() => window.fixture?.failMission(true))
+  await page.evaluate(() => window.fixture?.refuseConversations(false))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await formOffersNothing(page)
+  await page.waitForTimeout(1500)
+  await expect(starters(page)).toHaveCount(0)
+})
