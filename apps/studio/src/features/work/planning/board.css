@@ -1383,13 +1383,16 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+/* The five-lane rule above names the attribute too: the narrower rows name it as well, so they win (Codex on #236). */
 @media (max-width: 1000px) {
-  .board-lanes {
+  .board-lanes,
+  .board-lanes[data-lanes] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 760px) {
-  .board-lanes {
+  .board-lanes,
+  .board-lanes[data-lanes] {
     grid-template-columns: minmax(0, 1fr);
   }
   .goal-chip {
