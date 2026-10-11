@@ -894,7 +894,7 @@
   "candidate_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
   "candidate_tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
   "review_ref": "d527f3854222020abb6ba723bf0ea7480c76bb82",
-  "current_main_observed": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "current_main_observed": "fec45a0e96c4679a09da02be979503910a623c5c",
   "supplemental_candidates": [
     {
       "candidate_sha": "839fb45b378a4f22517e4bf940372c6734f558ef",
@@ -982,17 +982,17 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0095.md",
+    "record": "CX-0096.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
     "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
     "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
-    "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "progress: independent immutable earlierCount delta and L0 before/after qualified; dormant N2 implementation live, no candidate returned yet; all36 full statuses unchanged",
+    "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "statement": "progress: current main advance independently completely inspected; actual writer lock/authority boundaries and13 adversarial N2 cases pinned; observed local startup warning/leftovers returned for ownership/settlement before cleanup; no N2 qualification advanced",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "earlierCount renderer L0 only: committed19pass, own exact parent8pass4fail/amendment12pass; prior named S2/N3 scopes retained",
-      "scoped_delta_reviewed": true,
+      "locally_verified": "Earlier named N1/earlierCount L0 and S2/N3 PG scopes retained; CX96 static main/writer source inspection only",
+      "scoped_delta_reviewed": "Complete new-main67-line test/doc delta inspected; dormant N2 actual candidate pending",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
@@ -1000,8 +1000,8 @@
       "owner_accepted": false
     },
     "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/Sophia native/provider/missionSpend0; no new bot request",
-    "cleanup": "No new app/PG/browser/Sophia native process; all current reviewer commands terminal. Detached source worktrees retained; all82 prior app stacks and CX92 PG clusters settled. Claude N2 implementation in progress, not a terminal author receipt.",
-    "next": "Inspect returned immutable N2 full source and independently qualify its real-PG/concurrency/restart/privacy/uncertainty scopes before any shared integration or activation"
+    "cleanup": "No new reviewer browser/app/PG/runtime process; prior82 reviewer app stacks/CX92 PG clusters settled. Author CON01 disposable PG start observed with warning/leftovers; actual ownership/census/cleanup and N2 execution still unresolved/in progress.",
+    "next": "Inspect exact N2 handback including owned-cluster identity/cleanup and independently review source plus actual PostgreSQL concurrency/restart/privacy/uncertainty evidence"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1149,26 +1149,26 @@
     }
   ],
   "previous_checkpoint": {
-    "record": "CX-0094.md",
+    "record": "CX-0095.md",
     "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
     "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
-    "supplementalCandidate": "36d51821c8f7487103915df7eb2e6243d4bc4935",
-    "supplementalTree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
+    "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "progress: N2 proposal independently reviewed and amended for identity/retry/privacy/coverage/ownership; dormant source preparation selected with exact remaining proofs; exact36d bot review no major issues; all36 full statuses retained",
+    "statement": "progress: independent immutable earlierCount delta and L0 before/after qualified; dormant N2 implementation live, no candidate returned yet; all36 full statuses unchanged",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "Earlier corrected N1 L0 and N3/S2 named PostgreSQL scopes retained; CX94 static proposal review only",
-      "scoped_delta_reviewed": "N2 proposal amended after independent findings; dormant source preparation selected, actual candidate pending",
+      "locally_verified": "earlierCount renderer L0 only: committed19pass, own exact parent8pass4fail/amendment12pass; prior named S2/N3 scopes retained",
+      "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
       "deployed": false,
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/missionSpend0; no additional bot review request",
-    "cleanup": "All current commands terminal; reviewer source worktrees retained; docs checkpoint prepared. All82 previous actual-app stacks and CX92 both PG-only clusters remain settled. No new server/native/DB/browser. Immutable worktrees retained.",
-    "next": "Independently review immutable earlierCount amendment and N2 dormant source candidate/adversarial/real-PG evidence at actual returned-candidate checkpoint"
+    "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/Sophia native/provider/missionSpend0; no new bot request",
+    "cleanup": "No new app/PG/browser/Sophia native process; all current reviewer commands terminal. Detached source worktrees retained; all82 prior app stacks and CX92 PG clusters settled. Claude N2 implementation in progress, not a terminal author receipt.",
+    "next": "Inspect returned immutable N2 full source and independently qualify its real-PG/concurrency/restart/privacy/uncertainty scopes before any shared integration or activation"
   },
   "checkpoint_history": [
     {
@@ -1403,6 +1403,28 @@
       "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/native/provider/missionSpend0; no additional bot review request",
       "cleanup": "All current commands terminal; reviewer source worktrees retained; docs checkpoint prepared. All82 previous actual-app stacks and CX92 both PG-only clusters remain settled. No new server/native/DB/browser. Immutable worktrees retained.",
       "next": "Independently review immutable earlierCount amendment and N2 dormant source candidate/adversarial/real-PG evidence at actual returned-candidate checkpoint"
+    },
+    {
+      "record": "CX-0095.md",
+      "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+      "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+      "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
+      "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "statement": "progress: independent immutable earlierCount delta and L0 before/after qualified; dormant N2 implementation live, no candidate returned yet; all36 full statuses unchanged",
+      "readiness": {
+        "source_ready": true,
+        "locally_verified": "earlierCount renderer L0 only: committed19pass, own exact parent8pass4fail/amendment12pass; prior named S2/N3 scopes retained",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized; approval/expiryNULL; hosted/Sophia native/provider/missionSpend0; no new bot request",
+      "cleanup": "No new app/PG/browser/Sophia native process; all current reviewer commands terminal. Detached source worktrees retained; all82 prior app stacks and CX92 PG clusters settled. Claude N2 implementation in progress, not a terminal author receipt.",
+      "next": "Inspect returned immutable N2 full source and independently qualify its real-PG/concurrency/restart/privacy/uncertainty scopes before any shared integration or activation"
     }
   ]
 }

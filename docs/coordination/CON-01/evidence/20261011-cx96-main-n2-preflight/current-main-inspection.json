@@ -1,0 +1,33 @@
+{
+  "schema": "sophia.con01.current-main-inspection.v1",
+  "observedAt": "2026-10-11T03:18:05.839460+00:00",
+  "before": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "after": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "tree": "8c1232f751df67a5de16779047b21bb5f5ada176",
+  "parent": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "commitTitle": "A Done with no reply is checked without racing the feed (#219)",
+  "diff": {
+    "files": 3,
+    "added": 67,
+    "removed": 0,
+    "completeRead": true,
+    "sha256": "62f99afcd0c54eccb4d7051d9c068f6f07fc934376760e7668b13e15d4d5a451"
+  },
+  "files": [
+    {
+      "path": "apps/studio/e2e/room-passage-task.spec.ts",
+      "sha256": "26dde5b0e9ec6947f029f5b07c25eee24069d7bb26549d4ecc0e360f25004565"
+    },
+    {
+      "path": "docs/handoffs/TESTDONENOREPLY-attempt-1.md",
+      "sha256": "e4760ebbd7556a732876e9cfe174f9b855a2ec2be122e3dae81c1d20d3e68786"
+    },
+    {
+      "path": "docs/plans/test-done-no-reply.md",
+      "sha256": "8a3eebf6f801134697c4624884b3b5efa6ccf53941ac8ce846ad2786a77db656"
+    }
+  ],
+  "scope": "4 added fixture-test synchronization lines plus2 documentation files; no product/DB/compiler/contract/runtime change",
+  "qualificationImpact": "Earlier named immutable renderer/S2/N3 source scopes retained; eventual G4 combined main/base explicitly needs reconciliation; no branch reset/merge",
+  "authorTestClaims": "25/25 fixed,15/25 old failures attributed to handoff; not independently rerun"
+}

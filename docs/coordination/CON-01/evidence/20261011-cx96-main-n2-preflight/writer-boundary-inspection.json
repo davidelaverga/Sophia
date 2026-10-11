@@ -1,0 +1,75 @@
+{
+  "schema": "sophia.con01.writer-boundary-source-inspection.v1",
+  "candidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+  "scope": "Latest definitions in the applied migration source chain only; no actual PostgreSQL execution or complete shared-dispatch caller census",
+  "files": {
+    "db/migrations/0048_project_conversations.sql": {
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "excerpts": [
+        {
+          "from": 140,
+          "through": 160,
+          "text": "140: \n141: -- The conversation a request names, with the caller a member of its project; otherwise \"not found\", whether it does\n142: -- not exist or the caller may not see it (the two answer alike). Locks its project's row first, then its own.\n143: -- Membership is read again once the project's row is held (CON-01-CX-0006): a revocation that committed while this\n144: -- call waited for the row is seen, so a member removed meanwhile neither writes nor withdraws. The first read only\n145: -- keeps a caller who is no member from holding a project's row at all.\n146: CREATE FUNCTION sophia.conversation_locked(p_conversation uuid) RETURNS sophia.conversations LANGUAGE plpgsql\n147: SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$\n148: DECLARE c sophia.conversations; p uuid;\n149: BEGIN\n150:  SELECT project_id INTO p FROM sophia.conversations WHERE id=p_conversation;\n151:  IF p IS NULL OR NOT sophia.is_member(p) THEN RAISE EXCEPTION 'Conversation not found' USING ERRCODE='22023'; END IF;\n152:  PERFORM 1 FROM sophia.projects WHERE id=p FOR UPDATE;\n153:  IF NOT sophia.is_member(p) THEN RAISE EXCEPTION 'Conversation not found' USING ERRCODE='22023'; END IF;\n154:  SELECT * INTO c FROM sophia.conversations WHERE project_id=p AND id=p_conversation FOR UPDATE;\n155:  RETURN c;\n156: END $$;\n157: REVOKE ALL ON FUNCTION sophia.conversation_locked(uuid) FROM PUBLIC;\n158: \n159: -- The caller writes in the project: an admin or an editor, now. Checked before any earlier request under a key is read.\n160: CREATE FUNCTION sophia.conversation_writer(p_project uuid) RETURNS void LANGUAGE plpgsql STABLE"
+        }
+      ]
+    },
+    "db/migrations/0010_room_access.sql": {
+      "sha256": "6f29ef7ab098147e65a91b25ec1771f0c05b19ea92de04d8501f5c28873df757",
+      "excerpts": [
+        {
+          "from": 313,
+          "through": 335,
+          "text": "313: CREATE FUNCTION sophia.accept_room_invitation(p_token_sha256 bytea, p_email text) RETURNS jsonb LANGUAGE plpgsql\n314: SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$\n315: DECLARE a uuid:=sophia.actor_id(); i sophia.room_invitations;\n316: BEGIN\n317:  IF a IS NULL THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;\n318:  SELECT * INTO i FROM sophia.room_invitations WHERE token_sha256=p_token_sha256;\n319:  IF NOT FOUND OR i.kind<>'member' THEN RAISE EXCEPTION 'Invitation not found' USING ERRCODE='22023'; END IF;\n320:  IF p_email IS NULL OR lower(p_email)<>i.email THEN\n321:   RAISE EXCEPTION 'This invitation is for another email address' USING ERRCODE='42501'; END IF;\n322:  PERFORM 1 FROM sophia.projects WHERE id=i.project_id FOR UPDATE;\n323:  SELECT * INTO i FROM sophia.room_invitations WHERE id=i.id FOR UPDATE;\n324:  IF EXISTS(SELECT 1 FROM sophia.project_members WHERE project_id=i.project_id AND actor_id=a AND active) THEN\n325:   RETURN jsonb_build_object('projectId',i.project_id); END IF;\n326:  IF i.revoked_at IS NOT NULL OR i.expires_at<=now() THEN RAISE EXCEPTION 'The invitation is closed' USING ERRCODE='40001'; END IF;\n327:  IF i.uses>=i.max_uses THEN RAISE EXCEPTION 'The invitation has been used up' USING ERRCODE='40001'; END IF;\n328:  INSERT INTO sophia.project_members AS pm(project_id,actor_id,role) VALUES(i.project_id,a,i.member_role)\n329:   ON CONFLICT (project_id,actor_id) DO UPDATE SET active=true, role=EXCLUDED.role, revision=pm.revision+1;\n330:  UPDATE sophia.projects SET audience_revision=audience_revision+1 WHERE id=i.project_id;\n331:  UPDATE sophia.room_invitations SET uses=uses+1 WHERE id=i.id;\n332:  PERFORM sophia.emit_project_event(i.project_id,'project.member_joined','project_member',a,1,'project.member');\n333:  RETURN jsonb_build_object('projectId',i.project_id);\n334: END $$;\n335: "
+        }
+      ]
+    },
+    "db/migrations/0018_mission_ledger.sql": {
+      "sha256": "d6e6598c3a4c4e1a9771c3ac8169fad5cca55d33c1f5a6cb119859e9a87aa181",
+      "excerpts": [
+        {
+          "from": 344,
+          "through": 355,
+          "text": "344: CREATE FUNCTION sophia.mission_forgettable(p_project uuid, p_entry uuid) RETURNS sophia.mission_entries LANGUAGE plpgsql\n345: STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$\n346: DECLARE e sophia.mission_entries;\n347: BEGIN\n348:  SELECT * INTO e FROM sophia.mission_entries WHERE project_id=p_project AND id=p_entry;\n349:  IF NOT FOUND THEN RAISE EXCEPTION 'Note not found' USING ERRCODE='22023'; END IF;\n350:  IF NOT sophia.is_member(p_project) OR (e.actor_id<>sophia.actor_id() AND NOT sophia.is_admin(p_project)) THEN\n351:   RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;\n352:  IF e.state='withdrawn' THEN RAISE EXCEPTION 'Stale note: it is already withdrawn' USING ERRCODE='40001'; END IF;\n353:  RETURN e;\n354: END $$;\n355: REVOKE ALL ON FUNCTION sophia.mission_forgettable(uuid,uuid) FROM PUBLIC;"
+        },
+        {
+          "from": 434,
+          "through": 451,
+          "text": "434: CREATE FUNCTION sophia.withdraw_mission_entry(p_project uuid, p_entry uuid, p_key text, p_expected jsonb, p_token text)\n435: RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$\n436: DECLARE a uuid:=sophia.actor_id();\n437:  semantic jsonb:=jsonb_build_object('entryId',p_entry,'expected',p_expected,'previewToken',p_token);\n438:  prior jsonb; e sophia.mission_entries; shown record; expires bigint;\n439:  v sophia.mission_entries; d sophia.decisions; receipt_value jsonb; r record; affected jsonb:='[]';\n440: BEGIN\n441:  IF a IS NULL OR NOT sophia.is_member(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;\n442:  IF p_expected IS NULL OR jsonb_typeof(p_expected->'entryIds') IS DISTINCT FROM 'array'\n443:    OR jsonb_typeof(p_expected->'decisions') IS DISTINCT FROM 'array' THEN\n444:   RAISE EXCEPTION 'Invalid withdrawal: it must name what the member was shown' USING ERRCODE='22023'; END IF;\n445:  IF p_token IS NULL OR p_token !~ '^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$' THEN\n446:   RAISE EXCEPTION 'Invalid withdrawal: it must carry the preview shown to the member' USING ERRCODE='22023'; END IF;\n447:  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;\n448:  prior:=sophia.mission_prior(p_project,p_key,'withdraw_note',semantic);\n449:  IF prior IS NOT NULL THEN RETURN prior; END IF;\n450:  e:=sophia.mission_forgettable(p_project,p_entry);\n451:  SELECT * INTO r FROM sophia.mission_forget_reach(p_project,p_entry,a,sophia.is_admin(p_project));"
+        },
+        {
+          "from": 465,
+          "through": 483,
+          "text": "465:   RAISE EXCEPTION 'Stale withdrawal: the list shown has expired' USING ERRCODE='40001'; END IF;\n466:  FOR v IN SELECT m.* FROM unnest(r.entry_ids) WITH ORDINALITY AS x(id,ord)\n467:    JOIN sophia.mission_entries m ON m.project_id=p_project AND m.id=x.id ORDER BY x.ord LOOP\n468:   UPDATE sophia.mission_entries SET state='withdrawn', changed_by=a, changed_at=now() WHERE project_id=p_project AND id=v.id;\n469:   PERFORM sophia.mission_erase_source(p_project,v.source_id);\n470:   affected:=affected||to_jsonb(v.id);\n471:  END LOOP;\n472:  FOR d IN SELECT m.* FROM unnest(r.decision_ids) WITH ORDINALITY AS x(id,ord)\n473:    JOIN sophia.decisions m ON m.project_id=p_project AND m.id=x.id ORDER BY x.ord LOOP\n474:   UPDATE sophia.decisions SET state='withdrawn', proposal=NULL, revision=revision+1 WHERE project_id=p_project AND id=d.id;\n475:   PERFORM sophia.mission_erase_source(p_project,d.body_source_id);\n476:   DELETE FROM sophia.mission_confirmation_targets WHERE project_id=p_project AND decision_id=d.id;\n477:   IF d.kind='mission' THEN\n478:    UPDATE sophia.project_revisions SET frame=jsonb_build_object('decisionId',d.id,'withdrawn',true)\n479:     WHERE project_id=p_project AND frame->>'decisionId'=d.id::text;\n480:   END IF;\n481:   affected:=affected||to_jsonb(d.id);\n482:  END LOOP;\n483:  UPDATE sophia.projects SET eligibility_revision=eligibility_revision+1 WHERE id=p_project;"
+        }
+      ]
+    },
+    "db/migrations/0020_typed_mission_turns.sql": {
+      "sha256": "61641a52fe9c5b66f2ea61d09eb8e2a5d995a2c0396c0d2caba3baf14e873a3e",
+      "excerpts": [
+        {
+          "from": 150,
+          "through": 163,
+          "text": "150: CREATE OR REPLACE FUNCTION sophia.decide_mission_change(p_project uuid, p_decision uuid, p_key text, p_request jsonb) RETURNS jsonb\n151: LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$\n152: DECLARE a uuid:=sophia.actor_id(); choice text:=p_request->>'decision'; turn jsonb:=p_request->'turn'; semantic jsonb; prior jsonb;\n153:  d sophia.decisions; affected jsonb:='[]'; receipt_value jsonb;\n154: BEGIN\n155:  IF a IS NULL OR NOT sophia.can_edit(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;\n156:  IF choice IS NULL OR choice NOT IN ('accept','reject') THEN RAISE EXCEPTION 'Invalid decision' USING ERRCODE='22023'; END IF;\n157:  IF jsonb_typeof(p_request->'expectedRevision')<>'number' THEN RAISE EXCEPTION 'Missing expected revision' USING ERRCODE='22023'; END IF;\n158:  PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;\n159:  IF NOT sophia.can_edit(p_project) THEN RAISE EXCEPTION 'Forbidden' USING ERRCODE='42501'; END IF;\n160:  semantic:=jsonb_build_object('decisionId',p_decision,'decision',choice,'expectedRevision',p_request->'expectedRevision','turn',turn);\n161:  prior:=sophia.mission_prior(p_project,p_key,'decide',semantic);\n162:  IF prior IS NOT NULL THEN RETURN prior; END IF;\n163:  SELECT * INTO d FROM sophia.decisions WHERE project_id=p_project AND id=p_decision FOR UPDATE;"
+        }
+      ]
+    },
+    "db/migrations/0041_design_lifecycle.sql": {
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "excerpts": [
+        {
+          "from": 133,
+          "through": 146,
+          "text": "133: CREATE OR REPLACE FUNCTION sophia.mission_erase_source(p_project uuid, p_source uuid) RETURNS void LANGUAGE plpgsql\n134: SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$\n135: BEGIN\n136:  DELETE FROM sophia.source_texts WHERE project_id=p_project AND source_id=p_source;\n137:  UPDATE sophia.source_objects SET eligible=false, state='deleted', eligibility_revision=eligibility_revision+1, byte_length=0,\n138:   sha256=encode(sha256(convert_to(gen_random_uuid()::text||gen_random_uuid()::text,'UTF8')),'hex')\n139:   WHERE project_id=p_project AND id=p_source;\n140:  UPDATE sophia.mission_requests SET semantic_request=(semantic_request-'text'-'proposal')||'{\"redacted\":true}',\n141:   receipt=receipt||'{\"sha256\":null}'\n142:   WHERE project_id=p_project AND receipt->>'sourceId'=p_source::text;\n143:  PERFORM sophia.research_revoke_source(p_project,p_source);\n144:  PERFORM sophia.design_revoke_source(p_project,p_source);\n145: END $$;\n146: "
+        }
+      ]
+    }
+  },
+  "observations": [
+    "conversation_locked locks project then conversation and rechecks membership after project lock",
+    "accept_room_invitation locks project then invitation, mutates membership and increments audience_revision",
+    "decide_mission_change latest override is0020; project lock and post-lock can_edit check precede decision lock/write",
+    "withdraw_mission_entry locks project before forgettable/reach and writes; mission_forgettable rechecks current membership/author-or-admin; eligibility_revision is incremented by public withdrawal",
+    "mission_erase_source latest override is0041, not0018 or0028; helper relies on public caller lock; required shared source-object context scrub trigger remains absent/held",
+    "Source-chain search found membership creation and invitation upsert, no public member removal function; do not invent one for actual-app acceptance"
+  ]
+}

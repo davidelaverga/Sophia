@@ -1,0 +1,42 @@
+{
+  "schema": "sophia.safe-evidence-manifest.v1",
+  "record": "CX-0096",
+  "scope": "Exact source/ref receipts, planned unexecuted cases, normalized author-local observation; no credentials/raw runtime record",
+  "artifacts": [
+    {
+      "path": "acceptance-status-comparison.json",
+      "sha256": "747403f2f6aef34ca181c22af08959f3f7b878430dc85a816f1c76770a7aea8c",
+      "bytes": 234
+    },
+    {
+      "path": "author-local-cluster-observation.json",
+      "sha256": "4db8d562aa4c8b680e036880212263eace454a412146e2ba88323fd39191eebd",
+      "bytes": 1594
+    },
+    {
+      "path": "check-runs.json",
+      "sha256": "2439f5da9fb8e533ea94ff98d8c1b930fbac3a2be3b8460026b56811de3aafa2",
+      "bytes": 1081
+    },
+    {
+      "path": "current-main-inspection.json",
+      "sha256": "89ed3ed24f98b8e31c85c072628a47259068aea30599dc6f1e5fa08fe9e7c880",
+      "bytes": 1474
+    },
+    {
+      "path": "github-refs.json",
+      "sha256": "bfa1954fe96c401d665fe7ec557fe8cb9a4e9708aa256a3017feb4e8086910b7",
+      "bytes": 774
+    },
+    {
+      "path": "independent-n2-cases.json",
+      "sha256": "71ca2dd024b2a494f655af5910fe341123117faeb57dc22d185400474e48e6fc",
+      "bytes": 4237
+    },
+    {
+      "path": "writer-boundary-inspection.json",
+      "sha256": "6e825fc9e86a549fa9bd9f22bd3ad8aef8a1ae098fd7ebc273241a30a253c423",
+      "bytes": 12310
+    }
+  ]
+}

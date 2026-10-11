@@ -1,0 +1,24 @@
+{
+  "schema": "sophia.con01.author-local-cluster-observation.v1",
+  "scope": "CUA visible completed tool receipt, not a direct operator server query or terminal cleanup proof",
+  "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+  "tool": "Started the disposable PostgreSQL cluster and listed roles",
+  "observed": [
+    "Author attempted pg_ctl start on named CON01 disposable PG16 data directory and port; socket/lock files already present",
+    "Output: pg_ctl another server might be running; trying to start server anyway, then server started",
+    "Visible stdout truncates after Postgre; complete version/role/database listing not independently inspected",
+    "Author subsequently says leftover test database/logins exist and plans cleanup"
+  ],
+  "unresolved": [
+    "Actual PID/data-dir/port identity and current clients",
+    "Exact leftover ownership census against prior attempt receipts",
+    "Exact owned-resource cleanup and terminal test/cluster settlement"
+  ],
+  "action": {
+    "message": 470,
+    "request": "Read-only identity/current-client/ownership census before exact owned disposable cleanup; record warning and commands/results; no broad prefix or other-mission cleanup",
+    "delivery": "message470 delivered, Thinking/running follows; no actual census/cleanup acknowledgment/result yet"
+  },
+  "authority": "Existing bounded dormant N2 local source/test preparation only; no production authority",
+  "qualificationLimit": "Warning is not proof of simultaneous servers/corruption; collapsed commands/full cleanup not inspected, outcome unresolved"
+}

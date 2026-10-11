@@ -1,0 +1,73 @@
+{
+  "schema": "sophia.con01.independent-case-plan.v1",
+  "status": "prepared_not_executed",
+  "scope": "N2 dormant real-PG source qualification, synthetic records/local owned cluster only; no new endpoint/caller/live approval",
+  "caseCount": 13,
+  "cases": [
+    {
+      "id": "claim-and-record-uncertainty",
+      "requirement": "Drop replies after actual claim COMMIT and record COMMIT separately; reconnect/reconcile before next claim. Same logical reply, attempt count and S2 counters; current privacy checked before recorded context use.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "serialization-restart-exhaustion",
+      "requirement": "Real writer changes project after snapshot:40001 rolls back assembly, durable claim survives restart; three consumed claims/fourth persisted context_unstable; no fresh logical request/allowance.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "same-and-different-reply-concurrency",
+      "requirement": "Two assemblers same reply: one current claim/record; different conversations can assemble without cross-history. Show actual pg_stat_activity waiter and exact locks, no unasserted sleeps.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "expired-token-fence",
+      "requirement": "After lease replacement, old token cannot record/close/fail successor or change its receipt; unknown COMMIT reconciled before minting another attempt.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "writer-orders",
+      "requirement": "Existing conversation/mission/invitation writers against assembly in both orders; show waiter and post-lock values or40001; inherited helper lock assumption explicit.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "actual-role-negative",
+      "requirement": "Owner seeds only; actual assembler test login runs unchanged compiler under RLS with asker from reply. API/worker/nonmember cannot execute; borrowed API operational grants remain dormant-only, never final read-only proof.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "tenant-and-source-predicate",
+      "requirement": "Wrong conversation/project/cutoff, private/foreign/deleted/not-ready/ineligible sources refused before record; canaries absent. Held source-object withdrawal trigger tested only in agreed shared candidate, never substituted by a stub.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "count-window-provenance",
+      "requirement": "Real large history/count/latest40/tombstone gaps with exact same snapshot; validate suffix/count, old bodies not fetched; renderer bytes alone cannot prove SQL completeness.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "canonical-mission-parity",
+      "requirement": "Actual current project_revisions row, different creator/accepter/decider/old revisions; unchanged compiler legacy/empty/withdrawn/present/constraint/stale/50-count parity; no second selector.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "fragment-corruption",
+      "requirement": "Each pinned template/value/kind/state/label/revision/byte/count/range/hash forged independently. Test actual SQL/JS Unicode/control/timestamp grammar on representable database text.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "scrub-closure",
+      "requirement": "Author/admin withdrawal, erase, supersede and each terminal state; both race orders; context body and per-message hashes NULL with accurate reason. Retained metadata/WAL/backups/native copies remain separately governed.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "finite-transaction-and-settlement",
+      "requirement": "PG16 whole-transaction, idle, statement, lock, connect and cancellation paths; failed connection disposed, server locks settled before next claim; no false cleanup/known-outcome receipt after lost COMMIT.",
+      "verdict": "not_run"
+    },
+    {
+      "id": "role-collision-and-governed-rollback",
+      "requirement": "Unexpected preexisting cluster-global role must fail safely or match an explicitly reviewed preflight; no altered unrelated role/table/grant. Keep uncertain governed data and N3 old-schema incompatibility; candidate/catalog rollback not live rollback qualification.",
+      "verdict": "not_run"
+    }
+  ]
+}

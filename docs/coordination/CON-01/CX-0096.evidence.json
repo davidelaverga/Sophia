@@ -1,0 +1,94 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0096",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+  "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "mainTree": "8c1232f751df67a5de16779047b21bb5f5ada176",
+  "classification": "progress: current-main and writer-boundary source inspection;13 source-derived cases prepared, no N2 execution qualification",
+  "mainDiff": {
+    "files": 3,
+    "added": 67,
+    "removed": 0,
+    "completeRead": true,
+    "productChange": false,
+    "effect": "Eventual combined base/census must reconcile new accepted main; source pins not reset/merged"
+  },
+  "writerAudit": "Latest applied-chain definitions/excerpts hashed; not actual PG race or full shared caller census",
+  "independentN2Cases": {
+    "prepared": 13,
+    "executed": 0,
+    "allVerdicts": "not_run"
+  },
+  "coordination": {
+    "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "messages": [
+      468,
+      470
+    ],
+    "mainNotice": "Claude explicitly acknowledged fec45a0e; no merge requested/performed",
+    "cluster": {
+      "schema": "sophia.con01.author-local-cluster-observation.v1",
+      "scope": "CUA visible completed tool receipt, not a direct operator server query or terminal cleanup proof",
+      "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+      "tool": "Started the disposable PostgreSQL cluster and listed roles",
+      "observed": [
+        "Author attempted pg_ctl start on named CON01 disposable PG16 data directory and port; socket/lock files already present",
+        "Output: pg_ctl another server might be running; trying to start server anyway, then server started",
+        "Visible stdout truncates after Postgre; complete version/role/database listing not independently inspected",
+        "Author subsequently says leftover test database/logins exist and plans cleanup"
+      ],
+      "unresolved": [
+        "Actual PID/data-dir/port identity and current clients",
+        "Exact leftover ownership census against prior attempt receipts",
+        "Exact owned-resource cleanup and terminal test/cluster settlement"
+      ],
+      "action": {
+        "message": 470,
+        "request": "Read-only identity/current-client/ownership census before exact owned disposable cleanup; record warning and commands/results; no broad prefix or other-mission cleanup",
+        "delivery": "queued during live implementation; acknowledgment/cleanup not yet observed"
+      },
+      "authority": "Existing bounded dormant N2 local source/test preparation only; no production authority"
+    },
+    "lastNativeObservation": {
+      "N2DraftSQL": "planned candidate path created722lines, uncommitted/not independently read or qualified",
+      "state": "Thinking/running after delivered470; no immutable candidate/test result",
+      "cleanup": "Exact collapsed command group/full cleanup not inspected; outcome unresolved, not asserted absent",
+      "startupWarning": "Not proof of simultaneous servers or corruption"
+    }
+  },
+  "automaticReview": {
+    "prior36dResult": 6104747456,
+    "newCbResult": null,
+    "newRequest": false
+  },
+  "CI": "6 exactcb jobs remain queued",
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "Earlier named N1/earlierCount L0 and S2/N3 PG scopes retained; CX96 static main/writer source inspection only",
+    "scoped_delta_reviewed": "Complete new-main67-line test/doc delta inspected; dormant N2 actual candidate pending",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "newReviewerHostedEffects": 0,
+    "newReviewerPgClusters": 0,
+    "sophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "authorLocalPg": "Startup observed, current identity/leftover census/cleanup unresolved; not production",
+    "reviewAgentUsage": "unreported; not subscription remaining-capacity proof"
+  },
+  "acceptance": "All36 full status values unchanged",
+  "rollback": "No live rollback; CX92 uncertain-data/old-schema incompatibility retained",
+  "cleanup": "No new reviewer browser/app/PG/runtime process; prior82 reviewer app stacks/CX92 PG clusters settled. Author CON01 disposable PG start observed with warning/leftovers; actual ownership/census/cleanup and N2 execution still unresolved/in progress.",
+  "next": "Inspect exact N2 handback including owned-cluster identity/cleanup and independently review source plus actual PostgreSQL concurrency/restart/privacy/uncertainty evidence"
+}
