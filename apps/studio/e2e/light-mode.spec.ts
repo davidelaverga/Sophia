@@ -108,6 +108,25 @@ test('light · the states the at-rest scan does not see read on paper: a note th
   expect(await ratio(page, '.conv-send[data-ready]', 'rgb(251, 248, 243)')).toBeGreaterThanOrEqual(4.5)
   await page.goto('/signin.html?theme=light')
   await drawn(page, DRAWN.signin)
+  // An address that is not one: the field's boundary says so in an ink the paper shows (3:1 or more, as a boundary).
+  await page.locator('.field input').first().fill('nope')
+  await page.keyboard.press('Enter')
+  const invalid = page.locator('.field:has(input[aria-invalid="true"])')
+  await expect(invalid).toHaveCount(1)
+  const edge = await invalid.evaluate((el) => {
+    el.getAnimations().forEach((a) => a.finish()) // the edge's transition from the focus ink, finished before the read
+    return [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]
+  })
+  expect(
+    contrastOf({
+      words: 'invalid edge',
+      size: 13,
+      ink: edge[0] ?? '',
+      opacity: 1,
+      grounds: [edge[1] ?? '', 'rgb(251, 248, 243)'],
+    }),
+    edge.join(' on '),
+  ).toBeGreaterThanOrEqual(3)
   const primary = page.getByRole('button', { name: 'Email me a link' })
   await primary.hover()
   await expect(primary).toHaveCSS('background-color', 'rgb(26, 19, 64)')

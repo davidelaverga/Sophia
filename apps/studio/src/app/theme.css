@@ -1136,7 +1136,12 @@ img.avatar {
   opacity: 0.55;
 }
 .field:has(input[aria-invalid='true']) {
-  border-color: rgba(240, 150, 170, 0.55);
+  border-color: rgb(var(--rose-rgb) / 0.55);
+}
+/* On paper the error's rose at that alpha paled to 1.5:1 against the page: the ink itself (6:1), as a boundary a
+   person must see (Codex on #234). */
+:root[data-theme='light'] .field:has(input[aria-invalid='true']) {
+  border-color: var(--rose);
 }
 /* Send again: its countdown, then what came of it, on one quiet line; a failure in the error colour. */
 .send-again {
