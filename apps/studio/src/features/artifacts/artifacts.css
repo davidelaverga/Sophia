@@ -890,6 +890,12 @@
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
 }
+/* The title is a press of its own over the card: it answers under the pointer with its underline. */
+.report-card-title:hover {
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--ink-rgb) / 0.4);
+  text-underline-offset: 3px;
+}
 .report-card-title {
   display: -webkit-box;
   min-height: 24px;
