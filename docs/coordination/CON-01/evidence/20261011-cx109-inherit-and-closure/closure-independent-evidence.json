@@ -1,0 +1,33 @@
+{
+  "candidate": "ae5673fe35a9f3292b34776784e3aed95f1212ad",
+  "scope": "L1 actual PG17.6/pinned pg-pool, controlled150ms client-close delay; no repository changes",
+  "cases": [
+    {
+      "name": "Pending old remove must not count as current client closure",
+      "verdict": "FAIL",
+      "error": {
+        "message": "closed() resolved while captured client backend still live\n\ntrue !== false\n"
+      }
+    },
+    {
+      "name": "No forced delay control",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "Pending old remove must not count as current client closure": {
+      "countAtCapture": 1,
+      "helperResolvedBeforeSocketClosure": true,
+      "controlledDelayMs": 150
+    },
+    "No forced delay control": {
+      "countAtCapture": 1,
+      "helperResolvedBeforeSocketClosure": false,
+      "controlledDelayMs": 0
+    }
+  },
+  "cleanup": {
+    "otherClients": 0,
+    "adminEnded": true
+  }
+}

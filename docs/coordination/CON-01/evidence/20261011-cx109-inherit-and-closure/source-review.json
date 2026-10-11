@@ -1,0 +1,30 @@
+{
+  "candidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+  "tree": "0d3f53f47838ff6df5f606c300bec0a27115bb3a",
+  "harnessCandidate": "ae5673fe35a9f3292b34776784e3aed95f1212ad",
+  "harnessTree": "6961f5978e725aed944767edbd8b60f0cf041ddb",
+  "harnessDelta": "Complete one-file test-only diff read:19-line closed helper, three end calls replaced, refusal(begun) attached before two writers commit. No source/SQL/runtime changes.",
+  "automaticReview": {
+    "id": 5483818635,
+    "author": "chatgpt-codex-connector[bot]",
+    "submittedAt": "2026-10-11T15:18:57Z",
+    "finding": 4242086333,
+    "priority": "P2",
+    "exactCandidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "fullRead": true
+  },
+  "inheritIndependent": "Two false edge variants survive install/GRANT unchanged; actual assembleReply retry atclaim/attemptnull/cause_database,0claims0contexts; roleSELECTprojects42501. Two trueINHERIT controls, SETfalse/true, record1claim1context. 2FAIL2PASSexit1/wrapper1. No exhaustion claim.",
+  "harnessIndependent": "Exactae helper extracted privately, executed using5e7installed pinnedpg-pool onfreshownedPG17.6; controlled150mscurrentclient.end delay andpendingoldremove. CapturedtotalCount1,closed resolveswhilecurrentbackendvisible. 1FAIL/1no-delayPASSexit1/wrapper1. Not a fullae suite run.",
+  "harnessFeedback": "Early rejection handling valid scoped; count-only closure barrier not qualified. Requested identity/lifetime tracking frompoolcreation includingpending removals orsupportedequivalent; no blanketerrorignore/no assertionschanged. Existingauthorgate notinterrupted/restarted.",
+  "scriptHashes": {
+    "inherit-independent.mjs": "7393397e8b6b5136f7688bf865057636a6f60b2554aae145fa6e85940f08bb36",
+    "run-owned.py": "23a589cc4334d7ed46cc22819db330c1b7adecaaf33ef3252df56518864ef3e9",
+    "harness/closed-independent.mjs": "aedb652fff0226451ab444e779598910544c303a9a9ddbae188fdd8456427d0b",
+    "harness/run-owned.py": "23a589cc4334d7ed46cc22819db330c1b7adecaaf33ef3252df56518864ef3e9"
+  },
+  "sourceHash": "16ee9dea1567b289ce9d0688d4fbc9c97080ee6dffeaf671b544768ef500e5cf",
+  "helperSourceHash": "7036520887c1015a0200454b2287a5bdf8364acf8ceb132d62b7c8a678706282",
+  "coordination": "ExactCON537freshbotfinding/earlypin request,539actualinheritrepro correctedmechanism,541closureorderingrepro. Primary accepts actual0claim mechanism and prepares separateS3pin plusharnesscorrection. No Sendnow/Stop ornewtask.",
+  "ownerClarification": "NamedWBC/SDDruntime owner/window reference requestedasync; noanswer/approvalinferred. Previouswithdrawalpolicyquestionstillpending.",
+  "readiness": "Prior128+6 rolegraphpasses remainnamedonly. CombinedS3newP2changesrequested; harnessaechangesrequested; finiteparentqueue bindingopen."
+}

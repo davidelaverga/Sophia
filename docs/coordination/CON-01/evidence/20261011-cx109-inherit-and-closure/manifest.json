@@ -1,0 +1,13 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0109.md",
+  "artifacts": {
+    "evidence/20261011-cx109-inherit-and-closure/acceptance-status-comparison.json": "650a141662ec47dd9aac123c176d2bfd10e95d0fa6b01ddadccf5663ad3d6829",
+    "evidence/20261011-cx109-inherit-and-closure/closure-independent-evidence.json": "6f7cc531ba086459a88385c07c06d2c8c161531257670362934584a0a7d394ea",
+    "evidence/20261011-cx109-inherit-and-closure/closure-owned-receipt.json": "b24c49e5591c2eb77e702209228963c8eb0882a2dd6052a21c7ffac54a673d9a",
+    "evidence/20261011-cx109-inherit-and-closure/inherit-independent-evidence.json": "366eee3feacd30c845add35f744d1d16c290aa529701cfc169c4025159620c1a",
+    "evidence/20261011-cx109-inherit-and-closure/inherit-owned-receipt.json": "2a2fc492f239322a40aaf89e1e978ede4dac74dfa00ebddf3877b24136387077",
+    "evidence/20261011-cx109-inherit-and-closure/operation-handoff.json": "7ef7da15a505db10e5e42a19cf9f8c0bb5b2d7e861f6277364355803d7327d1a",
+    "evidence/20261011-cx109-inherit-and-closure/source-review.json": "655a8ba1b31ebee4eb90534b0e9737bf240bbc45ae46c9270a7dc26a8c1ad149"
+  }
+}

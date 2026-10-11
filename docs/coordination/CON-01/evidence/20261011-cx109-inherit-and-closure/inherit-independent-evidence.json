@@ -1,0 +1,165 @@
+{
+  "candidate": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+  "level": "L1 actual owned PG17.6; actual dormant compiler, no native/provider/app",
+  "cases": [
+    {
+      "name": "Explicit API edge INHERIT FALSE SET TRUE is refused",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "false inherit accepted: {\"before\":[{\"admin_option\":false,\"inherit_option\":false,\"set_option\":true}],\"after\":[{\"admin_option\":false,\"inherit_option\":false,\"set_option\":true}],\"installationError\":null,\"compilerResult\":{\"outcome\":\"retry\",\"stage\":\"claim\",\"attempt\":null,\"cause\":\"database\"},\"recordedContexts\":0,\"claims\":0,\"projectSelectCode\":\"42501\"}\n+ actual - expected\n\n+ undefined\n- '42501'\n"
+      }
+    },
+    {
+      "name": "API edge defaults to FALSE when made under role NOINHERIT and is refused",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "false inherit accepted: {\"before\":[{\"admin_option\":false,\"inherit_option\":false,\"set_option\":true}],\"after\":[{\"admin_option\":false,\"inherit_option\":false,\"set_option\":true}],\"installationError\":null,\"compilerResult\":{\"outcome\":\"retry\",\"stage\":\"claim\",\"attempt\":null,\"cause\":\"database\"},\"recordedContexts\":0,\"claims\":0,\"projectSelectCode\":\"42501\"}\n+ actual - expected\n\n+ undefined\n- '42501'\n"
+      }
+    },
+    {
+      "name": "API edge INHERIT TRUE SET FALSE remains usable by actual compiler",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "API edge INHERIT TRUE SET TRUE remains usable by actual compiler",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "Explicit API edge INHERIT FALSE SET TRUE is refused": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "retry",
+        "stage": "claim",
+        "attempt": null,
+        "cause": "database"
+      },
+      "recordedContexts": 0,
+      "claims": 0,
+      "projectSelectCode": "42501"
+    },
+    "API edge defaults to FALSE when made under role NOINHERIT and is refused": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "retry",
+        "stage": "claim",
+        "attempt": null,
+        "cause": "database"
+      },
+      "recordedContexts": 0,
+      "claims": 0,
+      "projectSelectCode": "42501"
+    },
+    "API edge INHERIT TRUE SET FALSE remains usable by actual compiler": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": false
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": false
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1044
+      },
+      "recordedContexts": 1,
+      "claims": 1,
+      "projectSelectCode": null
+    },
+    "API edge INHERIT TRUE SET TRUE remains usable by actual compiler": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1044
+      },
+      "recordedContexts": 1,
+      "claims": 1,
+      "projectSelectCode": null
+    }
+  },
+  "cleanup": [
+    {
+      "kind": "Explicit API edge INHERIT FALSE SET TRUE is refused",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "API edge defaults to FALSE when made under role NOINHERIT and is refused",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "API edge INHERIT TRUE SET FALSE remains usable by actual compiler",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "API edge INHERIT TRUE SET TRUE remains usable by actual compiler",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    }
+  ],
+  "finishedAt": "2026-10-11T15:22:15.005Z"
+}
