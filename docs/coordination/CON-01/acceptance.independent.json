@@ -945,14 +945,14 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0084.md",
-    "candidate": "d92323b0a15f867c2ff4d5d620c123307299aa96",
-    "tree": "d530d04eda59d4e1afda240cd5ce598deffd78e8",
+    "record": "CX-0085.md",
+    "candidate": "342288a2360843e84593aaed95c1d6423b7c8681",
+    "tree": "cc8aa3c26bf0acd821084ece0e0cc92ae6419752",
     "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
-    "statement": "Actual mobile composer/new-form refusal focus and exact draft/fields recovery scopedPASS on d923; late200-order76/77 remains INCONCLUSIVE on a704; combined342local/unpublished/gatepending. All36statuses retained.",
+    "statement": "Primarydraft199 promoted exact342 after guardedauthorFF; independent14pathreview/installTSC0/MacC9 2pass/signedin7pass. SameLinuxmain+combinedC9 baselineFAIL/unwaived; expectedimporterrorcorrected. One actual342 freshreview and normalCI pending. All36statuses retained.",
     "readiness": {
       "source_ready": true,
-      "locally_verified": "named actual local phone crossings only",
+      "locally_verified": "named scoped checks only; full gate failed",
       "scoped_delta_reviewed": true,
       "reviewed": false,
       "authorized": false,
@@ -960,9 +960,9 @@
       "app_verified": false,
       "owner_accepted": false
     },
-    "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL; no hosted/provider/native/spend effects",
-    "cleanup": "all78ownedappstacks clean/terminal0/DBdrop/PGstop/clusterremoved/PIDsabsent/portsclosed/tabsclosed/viewportreset",
-    "next": "Immutable combined342288a2 handback/terminal receipt; independent full combined delta/current-main qualification before any merge; live inputs still required"
+    "operation": "OP1r2/OP2r2 draft_not_authorized;approvalexpiryNULL; no hosted/provider/native/spend effects",
+    "cleanup": "all78actualstacks clean; both independentCLI fixture runs terminal0/PIDsabsent/portsclosed/sourceclean",
+    "next": "Read actual342 automatic review and normal CI at next execution checkpoint; independently reproduce material findings; preserve baselineC9/unexplainedolderCI and all native/hosted/liveholds before any merge"
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1136,6 +1136,26 @@
       "tree": "523bb5864e49ae88b469243b4d77b54d49a6b385",
       "result": "OriginalP1/newform/unknownerasure scopedPASS; late200orderingINCONCLUSIVE; combined3b1a stilloldsource/G4held",
       "level": "L1 actual owned Studio/API/PostgreSQL17.6, synthetic devJWT, no fixtures/native/provider/hosted"
+    },
+    {
+      "record": "CX-0084.md",
+      "candidate": "d92323b0a15f867c2ff4d5d620c123307299aa96",
+      "tree": "d530d04eda59d4e1afda240cd5ce598deffd78e8",
+      "currentMain": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "statement": "Actual mobile composer/new-form refusal focus and exact draft/fields recovery scopedPASS on d923; late200-order76/77 remains INCONCLUSIVE on a704; combined342local/unpublished/gatepending. All36statuses retained.",
+      "readiness": {
+        "source_ready": true,
+        "locally_verified": "named actual local phone crossings only",
+        "scoped_delta_reviewed": true,
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operation": "OP1r2/OP2r2 draft_not_authorized/approvalexpiryNULL; no hosted/provider/native/spend effects",
+      "cleanup": "all78ownedappstacks clean/terminal0/DBdrop/PGstop/clusterremoved/PIDsabsent/portsclosed/tabsclosed/viewportreset",
+      "next": "Immutable combined342288a2 handback/terminal receipt; independent full combined delta/current-main qualification before any merge; live inputs still required"
     }
   ]
 }

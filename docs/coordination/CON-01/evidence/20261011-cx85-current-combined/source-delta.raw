@@ -1,0 +1,14 @@
+:100644 100644 53300df5 c5d01dd8 M	apps/studio/e2e/conversations-removal.spec.ts
+:100644 100644 94f6186d 396a8a37 M	apps/studio/e2e/signed-in-later.spec.ts
+:100644 100644 f85f075b 151bf9b8 M	apps/studio/fixtures/fixture-api.ts
+:100644 100644 3b4b0fde 885f178d M	apps/studio/fixtures/room.tsx
+:100644 100644 03057f1e a501057a M	apps/studio/index.html
+:100644 100644 4f6a0fee 52edee96 M	apps/studio/src/app/App.tsx
+:100644 100644 6aebd702 7ad0ae33 M	apps/studio/src/app/signed-in-load.ts
+:100644 100644 ebfd9bfb edef9f60 M	apps/studio/src/features/conversations/ConversationsView.tsx
+:100644 100644 dca5d86f 196dd09a M	apps/studio/vite.app.config.ts
+:100644 100644 77d37239 e5b246cf M	apps/studio/vite.fixtures.config.ts
+:100644 100644 e8620232 2d9c46a4 M	docs/coordination/CON-01/BINDING_MAP.md
+:100644 100644 98e899a9 c585fae7 M	docs/coordination/CON-01/G2_IMPACT_INVENTORY.md
+:000000 100644 00000000 bbb8ccdd A	docs/handoffs/SIGNEDINEARLY-attempt-1.md
+:000000 100644 00000000 fb0b9743 A	docs/plans/signed-in-early.md
