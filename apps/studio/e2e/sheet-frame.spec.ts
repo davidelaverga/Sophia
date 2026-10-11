@@ -50,12 +50,11 @@ const FRAME = {
 }
 
 async function oneSheet(page: Page) {
-  const sheets = await page.evaluate(readSheets)
-  expect(sheets).toHaveLength(1)
-  const [sheet] = sheets
-  const { title, ...frame } = sheet ?? { title: '' }
-  expect(frame).toEqual(FRAME)
-  return title
+  // A sheet may arrive as its own chunk (the Invite sheet is lazy) and take the focus a frame later: polled until it
+  // is the one sheet, in the frame, focused (CI on #224 read it before it was there).
+  await expect.poll(() => page.evaluate(readSheets)).toEqual([{ ...FRAME, title: expect.any(String) }])
+  const [sheet] = await page.evaluate(readSheets)
+  return sheet?.title ?? ''
 }
 
 test.afterEach(async ({ page }) => {
