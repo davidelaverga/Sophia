@@ -60,13 +60,14 @@ test('commands · the index of keys: ? where nothing takes stray typing, Ctrl+/ 
   await drawn(page, DRAWN.tasks)
   await page.keyboard.press('Shift+/')
   await expect(index(page)).toBeVisible()
+  // Tasks has a search of its own on `/`: the index names it, and the project's search keeps no key here.
   await expect(index(page).locator('.keys-list li')).toHaveText([
     /Home\s*H$/,
     /Your projects\s*W$/,
+    /Search goals and tasks\s*\/$/,
     /Commands\s*Ctrl\+K$/,
     /Keyboard shortcuts\s*Ctrl\+\/$/,
     /Invite someone\s*I$/,
-    /Search this project\s*\/$/,
   ])
   await page.keyboard.press('Escape')
   await expect(index(page)).toHaveCount(0)
@@ -85,4 +86,38 @@ test('commands · the index of keys: ? where nothing takes stray typing, Ctrl+/ 
     /Open the chat\s*C$/,
     /Open the brief\s*B$/,
   ])
+})
+
+test('commands · the index has a visible control too: «Keyboard shortcuts» in the account menu, with its key', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.getByRole('button', { name: 'Account' }).click()
+  const item = page.getByRole('menuitem', { name: /Keyboard shortcuts/ })
+  await expect(item).toContainText('Ctrl+/')
+  await item.click()
+  await expect(index(page)).toBeVisible()
+})
+
+test('commands · the row the keys choose stays in the list’s view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await expect(options(page).first()).toBeVisible()
+  for (let i = 0; i < 14; i += 1) await page.keyboard.press('ArrowDown')
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const list = document.querySelector('.palette-list')
+        const active = list?.querySelector('[aria-selected="true"]')
+        if (!list || !active) return null
+        const box = list.getBoundingClientRect()
+        const row = active.getBoundingClientRect()
+        return row.top >= box.top - 1 && row.bottom <= box.bottom + 1
+      }),
+    )
+    .toBe(true)
+  await expect(field(page)).toBeFocused()
 })
