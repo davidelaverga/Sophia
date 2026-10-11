@@ -38,6 +38,8 @@ describe('what needs you on Home', () => {
       tone: 'quiet',
     })
     assert.equal(untilWords(NOW.getTime() + 3 * 24 * 3_600_000, NOW.getTime()), 'in 3 days')
+    assert.equal(untilWords(NOW.getTime() + 30 * 3_600_000, NOW.getTime()), 'in 30 h') // hours to 47: never «1 days»
+    assert.equal(untilWords(NOW.getTime() + 50 * 3_600_000, NOW.getTime()), 'in 2 days')
     assert.deepEqual(needNote(need('x', { expiresAt: at(-1) }), NOW), { text: 'Launch plan · expired', tone: 'late' })
   })
 

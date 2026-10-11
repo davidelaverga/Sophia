@@ -1,5 +1,6 @@
 // What needs you on Home (docs/plans/home-needs-you.md): one list over the places a person would otherwise visit to
 // learn nothing is waiting. No API serves it yet: the Studio shows it behind the vision flag, on fixture data.
+import { about } from '../../app/time-words.ts'
 
 export type NeedKind = 'decision' | 'permission' | 'review' | 'guest' | 'reply'
 
@@ -25,9 +26,7 @@ export const NEED_WORDS: Readonly<Record<NeedKind, string>> = {
   reply: 'Read',
 }
 
-const MINUTE = 60_000
-const HOUR = 60 * MINUTE
-const DAY = 24 * HOUR
+const HOUR = 3_600_000
 const expiry = (need: Need) => (need.expiresAt ? new Date(need.expiresAt).getTime() : null)
 
 /** The needs in the order of their urgency: the expiring ones first, soonest first; then the rest as given. */
@@ -36,13 +35,8 @@ export function needsOrder(needs: readonly Need[]): Need[] {
   return [...timed, ...needs.filter((n) => expiry(n) === null)]
 }
 
-/** "in 20 min", "in 2 h", "in 3 days": how long until a moment, from now. */
-export function untilWords(at: number, now: number): string {
-  const left = at - now
-  if (left < HOUR) return `in ${String(Math.max(Math.ceil(left / MINUTE), 1))} min`
-  if (left < DAY) return `in ${String(Math.round(left / HOUR))} h`
-  return `in ${String(Math.round(left / DAY))} days`
-}
+/** "in 20 min", "in 2 h", "in 3 days": how long until a moment, from now, as the Studio says every span (time-words). */
+export const untilWords = (at: number, now: number): string => `in ${about(at - now)}`
 
 export type NeedTone = 'soon' | 'late' | 'quiet'
 

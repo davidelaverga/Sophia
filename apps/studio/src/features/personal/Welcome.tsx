@@ -2,7 +2,7 @@
 // and Sophia's one sentence; then you and Sophia (where you left off, your notes, a line to write or speak to her) and
 // your projects (the ones Work shows first); on the right, alone, her own light behind Umbral, whose rays turn to you as
 // you move and to the line while you write or speak to her. Given what needs you (needs-you.ts, behind the vision
-// flag), the right half is a column: her light smaller at its head, the needs under it.
+// flag), the right half is a column: her light at its head (the 96 px emblem in a small box), the needs under it.
 import type { ProjectSummary } from '@sophia/contracts'
 import { Button, Icon, Skeleton } from '@sophia/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
@@ -42,8 +42,11 @@ interface Props {
   locked: boolean
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
-  /** What needs you (needs-you.ts): undefined until an API serves it, and the right half is her light alone. */
-  needs?: readonly Need[] | undefined
+  /**
+   * What needs you (needs-you.ts) and what opens one: undefined until an API serves it, and the right half is her
+   * light alone. The opener comes with the items, so no row is ever offered that leads nowhere.
+   */
+  needs?: { items: readonly Need[]; open: (need: Need) => void } | undefined
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -55,8 +58,6 @@ interface Props {
     room: (projectId: string, action: HomeAction) => void
     /** Hands the words to Sophia's conversation, which opens and sends them as its own. */
     say: (text: string) => void
-    /** Opens where a need is. */
-    need?: ((need: Need) => void) | undefined
   }
 }
 
@@ -344,7 +345,7 @@ function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' |
 const FORMED = { from: null }
 
 /** Where her mark rests in the light's box, measured as the box changes: 96 px wherever there is room (threshold.ts). */
-function useMarkRest(box: RefObject<HTMLDivElement | null>): LightTarget | null {
+function useMarkRest(box: RefObject<HTMLDivElement | null>, large: boolean): LightTarget | null {
   const [rest, setRest] = useState<LightTarget | null>(null)
   useLayoutEffect(() => {
     const b = box.current
@@ -353,14 +354,16 @@ function useMarkRest(box: RefObject<HTMLDivElement | null>): LightTarget | null 
       const { clientWidth: width, clientHeight: height } = b
       // Out of sight the box has no size: keep where it was, so the mark is never placed at nothing.
       if (width < 1 || height < 1) return
-      const next = roomForMark(defaultTarget(width, height), width, height)
+      const at = defaultTarget(width, height)
+      // At a column's head the box is small and the mark is still the 96 px emblem: the radius is given, not earned.
+      const next = large ? { ...at, radius: Math.max(at.radius, 160) } : roomForMark(at, width, height)
       setRest((was) => (was?.x === next.x && was.y === next.y && was.radius === next.radius ? was : next))
     }
     measure()
     const resized = new ResizeObserver(measure)
     resized.observe(b)
     return () => resized.disconnect()
-  }, [box])
+  }, [box, large])
   return rest
 }
 
@@ -368,7 +371,18 @@ function useMarkRest(box: RefObject<HTMLDivElement | null>): LightTarget | null 
  * Sophia's own light, alone on the right, standing behind the mark: its rays turn to you as you move, and to the line
  * while you write or speak to her.
  */
-function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement | null>; hidden: boolean }) {
+function Light({
+  talk,
+  line,
+  hidden,
+  large = false,
+}: {
+  talk: Talk
+  line: RefObject<HTMLElement | null>
+  hidden: boolean
+  /** At a column's head: the 96 px emblem in a small box. */
+  large?: boolean
+}) {
   const box = useRef<HTMLDivElement>(null)
   const at = usePointerIn(box, hidden)
   // While you write to her, she attends to the line you write on, measured once each time you start.
@@ -383,7 +397,7 @@ function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement
     )
   }, [talk.writing, line])
   const attention = talk.writing ? writingAt : at
-  const rest = useMarkRest(box)
+  const rest = useMarkRest(box, large)
   return (
     <div className="hw-light" ref={box} data-door="personal" aria-hidden>
       <SophiaLight
@@ -431,8 +445,8 @@ export function Welcome(props: Props) {
       </div>
       {props.needs ? (
         <aside className="hw-side" aria-label="What needs you">
-          <Light talk={talk} line={line} hidden={props.hidden} />
-          <NeedsYou needs={props.needs} now={props.now} onOpen={(need) => props.actions.need?.(need)} />
+          <Light talk={talk} line={line} hidden={props.hidden} large />
+          <NeedsYou needs={props.needs.items} now={props.now} onOpen={props.needs.open} />
         </aside>
       ) : (
         <Light talk={talk} line={line} hidden={props.hidden} />
