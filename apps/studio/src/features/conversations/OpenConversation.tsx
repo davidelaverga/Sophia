@@ -462,20 +462,22 @@ function MessageItem(props: {
           <Mark />
         </span>
       )}
-      <span className="conv-msg-by">
-        {messageBy(m, me)}
-        <span className="sr-only">
-          {' · '}
-          <time dateTime={m.at}>{when(m.at, now)}</time>
+      {/* The turn (the name, the bubble, the acts, the clock) is the acts' box: the thread's width, from the name's line. */}
+      <div className="conv-turn">
+        <span className="conv-msg-by">
+          {messageBy(m, me)}
+          <span className="sr-only">
+            {' · '}
+            <time dateTime={m.at}>{when(m.at, now)}</time>
+          </span>
         </span>
-      </span>
-      <div className="conv-msg-body">
-        {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
-        {sophia && at}
+        <div className="conv-msg-body">
+          {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
+          {sophia && at}
+        </div>
+        <MessageActs message={m} who={messageBy(m, me)} now={now} onQuote={props.onQuote} propose={here.press} />
+        {!sophia && at}
       </div>
-      {/* Outside the bubble: the message's box is the acts' box, so they stand at its right edge whatever the bubble's width. */}
-      <MessageActs message={m} who={messageBy(m, me)} now={now} onQuote={props.onQuote} propose={here.press} />
-      {!sophia && at}
       {here.form}
     </li>
   )
