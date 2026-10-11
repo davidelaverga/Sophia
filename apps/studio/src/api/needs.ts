@@ -37,20 +37,22 @@ const VIEW_OF: Readonly<Record<WireNeed['kind'], View>> = {
   reply: 'work',
 }
 
-/** The record a need names, when the Studio has an address for it: a task in Tasks' fragment. */
+/** The record a need names, when the Studio has an address for it: a task in Tasks' fragment, or a decision's own choice. */
 export interface NeedAt {
   taskId?: string
+  decisionId?: string
 }
 
 export type Where = { place: 'personal' } | { projectId: string; view: View; at: NeedAt }
 
 /**
- * The address a ref gives (Codex on #245): a wait and a decision are their own records, named through the work item
- * that holds them in Tasks' fragment (`#task-`). A lobby entry and a personal turn have no address of their own: their
- * view.
+ * The address a ref gives (Codex on #245): a wait is named through the work item that holds it in Tasks' fragment
+ * (`#task-`, the sheet); a decision by its own id (`#decision-`): its choice stands on the board, not in the sheet, so
+ * the board scrolls to it and gives it the focus. A lobby entry and a personal turn have no address of their own.
  */
 export function atOf(ref: WireNeed['ref']): NeedAt {
-  if ((ref.kind === 'work_wait' || ref.kind === 'work_decision') && ref.within) return { taskId: ref.within }
+  if (ref.kind === 'work_decision') return { decisionId: ref.id }
+  if (ref.kind === 'work_wait' && ref.within) return { taskId: ref.within }
   return {}
 }
 
