@@ -25,6 +25,11 @@
   a message, a statement and an input keep the title step.
 - Heights: a Knowledge tile's title keeps `min-height: 24px` and two clamped lines (20 → 40 px, as before); a goal's
   head grows by one pixel of glyph, not of line.
+- **Five sizes on Tasks** (Codex on #248): with the heads at 15 the board held six (10.5 · 12 · 13 · 14 · 15 · 28),
+  and CONTRIBUTING caps a screen at five. A task tile's title is a card in a lane, not a head: it takes the body's
+  size and keeps its weight (13/500); the plan's next step (`.plan-next`) takes the body too; the decision's question
+  (`.plan-ask-question`) heads its block and takes the heads' step at 400 (15/20). The board reads
+  10.5 · 12 · 13 · 15 · 28 on both Tasks fixtures. CONTRIBUTING's scale line now names the heads' 15 and the view's 28.
 
 ## Checks
 

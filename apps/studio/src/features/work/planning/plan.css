@@ -85,7 +85,8 @@
   color: var(--amber);
 }
 .plan-ask-question {
-  font-size: var(--type-title);
+  /* The question to decide heads its block: the heads' step, a notch lighter (five sizes on Tasks, Codex on #248). */
+  font-size: var(--type-head);
   letter-spacing: -0.01em;
 }
 .plan-ask-choices {
