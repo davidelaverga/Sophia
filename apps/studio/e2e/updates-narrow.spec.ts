@@ -51,3 +51,19 @@ test('updates · every line goes where it lives: a decision to the brief, open i
   await expect(page.getByRole('link', { name: 'Studio' })).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('.side-panel [role="tab"][aria-selected="true"]')).toHaveText(/Brief/)
 })
+
+test('updates · work goes to its task: Tasks shown with the task named in the address, the task in view', async ({
+  page,
+}) => {
+  // The research runs: the digest has a line of work, the task the board holds.
+  await page.goto('/room.html?place=updates&research=running')
+  const work = since(page).getByRole('region', { name: 'Work' })
+  await expect(work).toContainText('research')
+  await work.getByRole('button', { name: 'Open the task' }).click()
+  await expect(page.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page')
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toMatch(/^#task-/)
+  // The research is a card, not a plan's tile: the card named takes the focus and is in view.
+  const card = page.locator('.work-card[data-task]')
+  await expect(card).toBeFocused()
+  await expect(card).toBeInViewport()
+})

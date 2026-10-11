@@ -27,10 +27,11 @@ export function ProjectGoProvider({ onShow, children }: { onShow: (view: View) =
   const [arrival, setArrival] = useState<Arrival | null>(null)
   const go = useCallback(
     (to: Arrival) => {
-      // A task is named in the address: the board that holds it opens it (useOpenTask), as a link followed does.
-      if (to.view === 'work') showInAddress(to.taskId, TASK)
-      else setArrival(to)
+      if (to.view !== 'work') setArrival(to)
       onShow(to.view)
+      // A task is named in the address after the view's own push (which carries no fragment): the board that holds
+      // it opens it (useOpenTask), as a link followed does.
+      if (to.view === 'work') showInAddress(to.taskId, TASK)
     },
     [onShow],
   )

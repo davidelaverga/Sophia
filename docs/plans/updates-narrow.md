@@ -41,6 +41,10 @@
 - `e2e/updates-narrow.spec.ts` on the room fixture: the kinds offered with their counts; «Still open» alone; «By
   Lucía» keeps the decision and drops what names nobody; «In the brief» → the Studio view current with the brief open.
 - `pnpm check` clean; `room-updates.spec.ts` unchanged.
+- After the review (Codex on #239): the task's fragment is written after the view's own push, which carries none;
+  the spec presses «Open the task» with the research running and finds Tasks current, the address naming the task and
+  the task in view: a plan's tile opens its sheet (`useOpenTask`), a research card takes the focus and comes into view
+  (`useNamedCard` in `WorkCard`), since a card has no sheet of its own.
 
 ## Left
 
