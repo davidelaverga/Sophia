@@ -45,6 +45,9 @@
   --teal-rgb: 127 214 196;
   --amber-rgb: 239 191 134;
   --rose-rgb: 238 159 176;
+  /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
+  --shadow-rgb: 0 0 0;
+  --shadow-k: 1;
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -95,6 +98,8 @@
   --teal-rgb: 15 107 91;
   --amber-rgb: 143 87 23;
   --rose-rgb: 168 55 90;
+  --shadow-rgb: 29 27 34;
+  --shadow-k: 0.35;
 }
 :root[data-theme='light'] body::after {
   display: none;
@@ -550,7 +555,7 @@ select {
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   color: var(--text);
   font-size: 12px;
   font-weight: 500;
@@ -854,7 +859,7 @@ button.mark:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
   animation: arrive var(--base) var(--ease) both;
 }
 .menu-top {
@@ -1644,7 +1649,7 @@ img.avatar {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.5);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
 }
 .stage-made.born {
   animation: made-born 0.9s var(--ease) both;
@@ -2132,7 +2137,7 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.5);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 @keyframes rise {
@@ -2642,7 +2647,7 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 12px 40px rgba(0, 0, 0, 0.45);
+    0 12px 40px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   animation: rise 0.4s var(--ease) backwards;
 }
 .mini-dock .pill {
@@ -2695,7 +2700,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
@@ -2742,7 +2747,7 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.45);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
 }
 /* Who is at the door, in a sentence, after a warm dot that breathes. */
 .lobby-title {
@@ -2917,7 +2922,7 @@ button.contribution-quote:hover {
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
-  box-shadow: -24px 0 64px rgba(0, 0, 0, 0.5);
+  box-shadow: -24px 0 64px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: slide var(--base) var(--ease) both;
 }
 .sheet:focus-visible {
@@ -4254,7 +4259,7 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.5);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */

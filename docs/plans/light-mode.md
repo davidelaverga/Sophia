@@ -53,7 +53,8 @@
 
 - The report's own HTML page (`report-page.spec.ts`) already has a light and a dark scheme of its own; this does not
   touch it.
-- The shadows (`rgba(0, 0, 0, …)`) stay black in both modes; on paper a menu's shadow is heavier than the room's. A
-  `--shadow` token would soften it: not measured by any check yet.
+- The shadows (24 declarations, black at 0.3 to 0.6) read `--shadow-rgb` and `--shadow-k`: black at full in the
+  room, the ink at a third of the strength on paper (a menu's 0.55 reads 0.19). `light-mode.spec.ts` reads the
+  account menu's shadow in light.
 - Informe-30 §2 is in with this: the kit (§2.1), the type scale (§2.2), the answers (§2.3), the widths (§2.4), the
   light page (§2.5).

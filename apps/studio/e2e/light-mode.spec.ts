@@ -65,6 +65,8 @@ test('light · chosen in the account menu, kept on the browser; «system» follo
   await page.getByRole('button', { name: 'Account' }).click()
   await page.getByRole('menuitemradio', { name: 'Light' }).click()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  // A shadow on paper is the ink at a third of its strength: the menu's 0.55 reads 0.19.
+  await expect(page.getByRole('menu')).toHaveCSS('box-shadow', /rgba\(29, 27, 34, 0\.19\d*\) 0px 18px 50px 0px/)
   await expect(page.getByRole('menuitemradio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
   expect(await page.evaluate(() => localStorage.getItem('sophia.theme'))).toBe('light')
   await page.getByRole('menuitemradio', { name: 'Dark' }).click()
