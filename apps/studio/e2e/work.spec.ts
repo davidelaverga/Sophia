@@ -343,6 +343,47 @@ test('the board by keys: the arrows across lanes, Enter opens', async ({ page })
   await expect(page.getByRole('dialog')).toBeVisible()
 })
 
+test('five lanes under 1221 px stand three and two, each 220 and up; a thread follows the tiles when they move', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tile(page, 'work-3').hover()
+  await expect(board(page).locator('.thread')).toHaveCount(1)
+  const before = (await board(page).locator('.thread').getAttribute('d')) ?? ''
+  await page.setViewportSize({ width: 1100, height: 800 })
+  const lanes = await page.evaluate(() =>
+    [...document.querySelectorAll('.lane')].map((l) => {
+      const r = l.getBoundingClientRect()
+      return { width: Math.round(r.width), top: Math.round(r.top) }
+    }),
+  )
+  expect(lanes).toHaveLength(5)
+  for (const l of lanes) expect(l.width).toBeGreaterThanOrEqual(220)
+  expect(new Set(lanes.map((l) => l.top)).size).toBe(2) // three in the first row, two in the second
+  // The thread is measured again as the tiles move (the pointer stays on the same tile): its end meets the waiting
+  // tile's own edge in the new layout, not where the tile stood before.
+  await tile(page, 'work-3').hover()
+  await expect.poll(() => board(page).locator('.thread').getAttribute('d')).not.toBe(before)
+  const d = (await board(page).locator('.thread').getAttribute('d')) ?? ''
+  const numbers = d.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? []
+  const origin = await rect(board(page).locator('.board-lanes'))
+  const to = await rect(tile(page, 'work-3'))
+  const end = { x: (numbers.at(-2) ?? -1) + origin.x, y: (numbers.at(-1) ?? -1) + origin.y }
+  const onEdge =
+    end.x >= to.x - 1.5 &&
+    end.x <= to.x + to.width + 1.5 &&
+    end.y >= to.y - 1.5 &&
+    end.y <= to.y + to.height + 1.5 &&
+    Math.min(
+      Math.abs(end.x - to.x),
+      Math.abs(end.x - (to.x + to.width)),
+      Math.abs(end.y - to.y),
+      Math.abs(end.y - (to.y + to.height)),
+    ) < 1.5
+  expect(onEdge, `${JSON.stringify(end)} on ${JSON.stringify(to)}`).toBe(true)
+})
+
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
   await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
   const held = lane(page, 'Blocked')

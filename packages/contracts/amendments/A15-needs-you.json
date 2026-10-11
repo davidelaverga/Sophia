@@ -131,7 +131,7 @@
             "items": {
               "$ref": "#/components/schemas/Need"
             },
-            "description": "In no promised order; the Studio sorts by urgency (the expiring first, soonest first)."
+            "description": "In no promised order; the Studio sorts by urgency (the expiring first, soonest first). At most 200: a person with more gets the 200 most urgent by the service's own order (the expiring first, soonest first; then the rest, newest first), always the same 200 for the same records; the rest stand where they live (each project's board, lobby and the personal space). No cursor: what needs a person is a list they act on, and 200 is far past one; a longer read is a later amendment's."
           },
           "readAt": {
             "type": "string",
@@ -202,7 +202,7 @@
         "post": {
           "operationId": "markNeedSeen",
           "tags": ["personal"],
-          "summary": "The calling person has seen this need. For a reply (ref.kind personal_turn) it advances their last seen personal turn to the one named, so the reply leaves the list; for any other kind it answers 204 and changes nothing (those leave when their record is answered). Owner-only and idempotent.",
+          "summary": "The calling person has seen this need. For a reply (ref.kind personal_turn) it advances their last seen personal turn to the one named, so the reply leaves the list: a reply opens the personal space, where every turn since the last seen is shown, so seeing one is seeing those before it; the mark only moves forward (a turn before the mark changes nothing), and replies after the one named stay listed. For any other kind it answers 204 and changes nothing (those leave when their record is answered). Owner-only and idempotent.",
           "security": [
             {
               "supabaseBearer": []

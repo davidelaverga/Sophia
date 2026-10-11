@@ -48,6 +48,8 @@ words from `time-words.ts`; `home-needs.spec.ts` measures them. That is the comp
 - The kind's glyph where the project's row has its number: the same row, read at a glance; the action word stays for
   screen readers and touch (`hw-go-words`).
 - `moveInIndex` moved to `index-keys.ts` to be shared; no behaviour change.
+- After the review (Codex on #237, 2026-10-11): the 96 px emblem at the column's head is the wide screen's; on a phone
+  the 48 px rule stands and the greeting keeps clear of it (`useMarkRest` hears the phone query; home-needs.spec @phone).
 
 ## Remaining obligations
 
