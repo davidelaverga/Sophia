@@ -51,7 +51,13 @@ export const typeOff = (page: Page, selector: string) =>
       const name = `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]}`
       // A leading that is `normal` parses to nothing and is off the grid like any other.
       const size = parseFloat(cs.fontSize)
-      const step = size <= 12 ? 16 : size <= 15 ? 20 : size <= 18 ? 24 : 32
+      const step =
+        [16, 20, 24, 32][
+          Math.max(
+            0,
+            [12, 15, 18, Infinity].findIndex((max) => size <= max),
+          )
+        ] ?? 32
       const onGrid = Math.round(lh * 100) / 100 === step || Math.abs(lh - el.getBoundingClientRect().height) <= 1
       if (!onGrid) off.add(`${name} ${cs.fontSize}/${cs.lineHeight}`)
       if (!weights.has(cs.fontWeight)) off.add(`${name} weight ${cs.fontWeight}`)
