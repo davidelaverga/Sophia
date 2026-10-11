@@ -42,3 +42,9 @@ Ending commit/tree: `f5a6cb3b` (tree `78aab7cacafd`): 3 files: `src/app/SignIn.t
 
 Informe-ui-premium §6: the light's trace in the project views and the composed empty states (§3 movements 1 and 3)
 need Luis's eye on a calibration before code; prepare the comparison, not the PR.
+
+## Post-review (Codex on #247)
+
+Fixed in `72d8c8bf`: the sentence is owned by `auth-words.ts` (`SIGN_IN_LEDE`, the sign-in's words module) with a node test
+beside the module's others; `SignIn` only renders it, as CONTRIBUTING's Copy rule asks. `signin-lede.spec` keeps its own
+literal, so a change of words is caught twice. Format, lint, typecheck, `auth-words.test.ts`: clean.
