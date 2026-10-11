@@ -105,6 +105,9 @@ CREATE TABLE sophia.conversation_reply_sources (
  FOREIGN KEY(project_id,reply_id,attempt) REFERENCES sophia.conversation_reply_contexts(project_id,reply_id,attempt),
  FOREIGN KEY(project_id,source_id) REFERENCES sophia.source_objects(project_id,id)
 );
+-- Looked up by source: N4's conversation_source_out and the foreign key's check (the source hook's probe, later), each
+-- one index probe instead of a scan of every dependency (CON-01 G2_CON_ONLY_PLAN Step A).
+CREATE INDEX conversation_reply_sources_by_source ON sophia.conversation_reply_sources(project_id,source_id);
 
 -- The messages a context rendered: the included earlier ones and the asking one, each with its text's hash until scrubbed.
 CREATE TABLE sophia.conversation_reply_messages (

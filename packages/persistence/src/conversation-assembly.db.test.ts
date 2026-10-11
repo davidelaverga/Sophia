@@ -106,6 +106,7 @@ const ADDED_INDEXES = [
   'conversation_reply_contexts_recorded',
   'conversation_reply_messages_by_message',
   'conversation_reply_messages_pkey',
+  'conversation_reply_sources_by_source',
   'conversation_reply_sources_pkey',
 ]
 const ADDED_TRIGGERS = [

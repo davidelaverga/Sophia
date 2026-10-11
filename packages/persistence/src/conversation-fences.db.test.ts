@@ -551,6 +551,94 @@ async function untouched(): Promise<Record<string, string>> {
   return out
 }
 
+// G2_CON_ONLY_PLAN Step A. Dependency rows only, inserted with replication triggers off, so no reply or context stands
+// behind them: 25,000 over 2,000 sources in one project, 5,000 in another. `read`: three replies read it, and it is still
+// within its predicate, so source_out's loop has nothing to do. `unread`: no reply read it. Written inside the caller's
+// transaction, so nothing of it outlives the rollback.
+async function sourceKeyFixture(c: pg.Client, projectId: string, elsewhere: string) {
+  await c.query('SET LOCAL session_replication_role = replica')
+  const sources = `INSERT INTO sophia.source_objects(project_id, id, owner_id, scope, sha256, mime, storage_key,
+      byte_length, eligible, state)
+    SELECT $1::uuid, gen_random_uuid(), $2::uuid, 'project', encode(sha256(convert_to(g::text||$1::text, 'UTF8')), 'hex'),
+      'text/plain', 'inline/'||gen_random_uuid(), 10, true, 'ready' FROM generate_series(1, $3::int) g`
+  await c.query(sources, [projectId, A, 2000])
+  await c.query(sources, [elsewhere, A, 500])
+  const deps = `INSERT INTO sophia.conversation_reply_sources(project_id, reply_id, attempt, kind, ref_id, source_id,
+      sha256, eligibility_revision)
+    SELECT $1::uuid, gen_random_uuid(), 1, 'constraint', gen_random_uuid(), s.ids[1 + g % s.n], s.shas[1 + g % s.n], 1
+      FROM (SELECT array_agg(id) AS ids, array_agg(sha256) AS shas, count(*)::int AS n
+              FROM sophia.source_objects WHERE project_id = $1::uuid) s, generate_series(1, $2::int) g`
+  await c.query(deps, [projectId, 25000])
+  await c.query(deps, [elsewhere, 5000])
+  const read = randomUUID()
+  const unread = randomUUID()
+  for (const id of [read, unread])
+    await c.query(
+      `INSERT INTO sophia.source_objects(project_id, id, owner_id, scope, sha256, mime, storage_key, byte_length,
+         eligible, state) VALUES ($1::uuid, $2::uuid, $3::uuid, 'project', repeat('a', 64), 'text/plain', 'inline/'||$2::text, 10,
+         true, 'ready')`,
+      [projectId, id, A],
+    )
+  for (let i = 0; i < 3; i++)
+    await c.query(
+      `INSERT INTO sophia.conversation_reply_sources
+         SELECT $1::uuid, gen_random_uuid(), 1, 'constraint', gen_random_uuid(), $2::uuid, sha256, eligibility_revision
+           FROM sophia.source_objects WHERE project_id = $1::uuid AND id = $2::uuid`,
+      [projectId, read],
+    )
+  await c.query('SET LOCAL session_replication_role = DEFAULT')
+  await c.query('ANALYZE sophia.conversation_reply_sources')
+  await c.query('ANALYZE sophia.source_objects')
+  return { read, unread }
+}
+
+/** Every statement this session runs from here, nested ones included, is reported to it with its plan and buffers. */
+async function explainNested(c: pg.Client) {
+  await c.query("LOAD 'auto_explain'")
+  for (const setting of [
+    'auto_explain.log_min_duration = 0',
+    'auto_explain.log_nested_statements = on',
+    'auto_explain.log_analyze = on',
+    'auto_explain.log_buffers = on',
+    "auto_explain.log_format = 'json'",
+    "auto_explain.log_level = 'notice'",
+    'client_min_messages = notice',
+  ])
+    await c.query(`SET LOCAL ${setting}`)
+}
+
+type PlanNode = Record<string, unknown> & { Plans?: PlanNode[] }
+const planNodes = (n: PlanNode): PlanNode[] => [n, ...(n.Plans ?? []).flatMap(planNodes)]
+
+/** How source_out's own dependency query was planned, in one call under the given plan cache mode, rolled back. */
+async function sourceOutPlan(c: pg.Client, plans: string[], mode: string, projectId: string, sourceId: string) {
+  plans.length = 0
+  await c.query('SAVEPOINT planned')
+  try {
+    await c.query(`SET LOCAL plan_cache_mode = ${mode}`)
+    const sql = 'SELECT sophia.conversation_source_out($1, $2) AS v'
+    const v = (await c.query<{ v: { suppressed: number } }>(sql, [projectId, sourceId])).rows[0]?.v
+    assert.equal(v?.suppressed, 0, 'nothing for source_out to act on')
+  } finally {
+    await c.query('ROLLBACK TO SAVEPOINT planned')
+  }
+  const query = plans
+    .map((t) => JSON.parse(t) as { 'Query Text': string; Plan: PlanNode })
+    .find(
+      (x) =>
+        x['Query Text'].includes('FROM sophia.conversation_reply_sources s') &&
+        x['Query Text'].includes('s.source_id=p_source'),
+    )
+  if (!query) return "source_out's dependency query was not planned"
+  const all = planNodes(query.Plan)
+  const scans = all.some((n) => n['Node Type'] === 'Seq Scan' && n['Relation Name'] === 'conversation_reply_sources')
+  const indexed = all.some((n) => n['Index Name'] === 'conversation_reply_sources_by_source')
+  const buffers = Number(query.Plan['Shared Hit Blocks'] ?? 0) + Number(query.Plan['Shared Read Blocks'] ?? 0)
+  return `${scans ? 'scans the table' : 'no scan of the table'}; ${
+    indexed ? 'by conversation_reply_sources_by_source' : 'not by the index'
+  }; ${buffers <= 32 ? 'at most 32 buffers' : `${buffers} buffers`}`
+}
+
 describe('CON-01 N4: a reply’s answer under its fences, and a source’s withdrawal (L1, disposable PostgreSQL)', () => {
   let pre: Catalog
   let post: Catalog
@@ -1730,6 +1818,54 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
         state: 'outcome_unknown',
       })
       assert.deepEqual(await ledgerState(t.projectId, t.replyId), lost)
+    })
+  })
+
+  describe('a source’s dependencies are found by an index, not a scan (G2_CON_ONLY_PLAN Step A)', () => {
+    it('plans source_out’s own dependency query on conversation_reply_sources_by_source, custom and generic, in few buffers', async () => {
+      // Another database, so its fixture rows reach no other test. S1 to N4 are applied in one transaction, rolled back
+      // at the end: S3 adopts the cluster's assembler role only as it leaves it, so this file's test login's membership
+      // is revoked inside that transaction and so restored by the rollback, as N2's role-graph tests do.
+      const other = await createTestDatabase()
+      const projectId = (await seedProject(other.ownerUrl, { admin: A })).projectId
+      const elsewhere = (await seedProject(other.ownerUrl, { admin: A })).projectId
+      const c = new pg.Client({ connectionString: other.ownerUrl })
+      await c.connect()
+      const plans: string[] = []
+      c.on('notice', (n) => {
+        const text = n.message ?? ''
+        if (text.includes('"Query Text"')) plans.push(text.slice(text.indexOf('{')))
+      })
+      const outcomes: string[] = []
+      try {
+        await withClusterMigrationLock(async () => {
+          await c.query('BEGIN')
+          try {
+            await c.query(`REVOKE ${ROLE} FROM ${loginRole}`)
+            for (const name of [...BEFORE_N4, N4]) await c.query(candidate(name))
+            const { read, unread } = await sourceKeyFixture(c, projectId, elsewhere)
+            await explainNested(c)
+            for (const mode of ['force_custom_plan', 'force_generic_plan'])
+              for (const [label, source] of [
+                ['three dependencies', read],
+                ['none', unread],
+              ] as const)
+                outcomes.push(`${mode}, ${label}: ${await sourceOutPlan(c, plans, mode, projectId, source)}`)
+          } finally {
+            await c.query('ROLLBACK')
+          }
+        })
+      } finally {
+        await c.end()
+        await other.drop()
+      }
+      const good = 'no scan of the table; by conversation_reply_sources_by_source; at most 32 buffers'
+      assert.deepEqual(outcomes, [
+        `force_custom_plan, three dependencies: ${good}`,
+        `force_custom_plan, none: ${good}`,
+        `force_generic_plan, three dependencies: ${good}`,
+        `force_generic_plan, none: ${good}`,
+      ])
     })
   })
 
