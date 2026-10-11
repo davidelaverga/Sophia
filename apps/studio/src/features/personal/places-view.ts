@@ -36,6 +36,7 @@ export function readState(read: { data: unknown; isFetching: boolean; isError: b
 export const READ_FAILED = {
   personal: 'Couldn’t load your personal space.',
   projects: 'Couldn’t load your projects.',
+  needs: 'Couldn’t read what needs you.',
 } as const
 
 /** The first visit's one sentence about the line between the doors. */

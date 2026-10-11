@@ -97,7 +97,7 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
   await rows.nth(4).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
     'open work 00000000-0000-4000-8000-0000000000aa #task-00000000-0000-4000-8000-0000000000c3',
-    'open work 00000000-0000-4000-8000-0000000000aa #task-w1',
+    'open work 00000000-0000-4000-8000-0000000000aa #task-00000000-0000-4000-8000-0000000000c1',
     'open knowledge 00000000-0000-4000-8000-0000000000aa report 00000000-0000-4000-8000-0000000000b1 00000000-0000-4000-8000-0000000000b2',
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
@@ -105,6 +105,20 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
   ])
   await expect(rows).toHaveCount(4)
   await expect(rows.filter({ hasText: 'Sophia replied' })).toHaveCount(0)
+})
+
+test('home · needs you when the read fails: Home says so, Try again reads it', async ({ page }) => {
+  await page.goto(`${PAGE}?needs=api&needsFail=1`)
+  const note = page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })
+  await expect(note).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  const failed = await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)
+  expect(failed).toBeGreaterThanOrEqual(1)
+  await page.evaluate(() => window.homeFixture?.recover()) // the service is back
+  await note.getByRole('button', { name: 'Try again' }).click()
+  await expect(list(page).getByRole('button')).toHaveCount(5)
+  await expect(note).toHaveCount(0)
+  expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(failed + 1)
 })
 
 test('home · needs you behind a shut padlock: nothing is read, nothing is shown', async ({ page }) => {

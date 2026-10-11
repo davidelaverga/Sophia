@@ -365,10 +365,10 @@ export function needsAnswer(now = Date.now()) {
           '00000000-0000-4000-8000-0000000000b1',
         ),
       }),
-      need('permission:w1', 'permission', 'Claude Code asks to run the export tests', {
+      need('permission:wait-w1', 'permission', 'Claude Code asks to run the export tests', {
         expiresAt: at(130),
         at: at(-10),
-        ref: needRef('work_item', 'w1'),
+        ref: needRef('work_wait', 'wait-w1', '00000000-0000-4000-8000-0000000000c1'), // the wait, and the work item that holds it
       }),
       need('guest:g1', 'guest', 'Marco Pereira is in the lobby', {
         detail: 'Waiting 2 min',

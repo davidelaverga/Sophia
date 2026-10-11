@@ -87,3 +87,10 @@ Fixed in `9d5f7f32`:
 - Measured in the page (`home.html?needs=api`): the decision's press `open work …aa #task-…c3`, the reply's press
   `personal` then `seen reply:t9`, and the list 5 → 4 rows. `needs.test.ts` 4, `contracts.test.ts` 4, `generate:check`,
   format, lint, typecheck: clean.
+
+## Post-review, round 3 (Codex on #245)
+
+Fixed in `9cbebb22`: a permission is its wait (`ref.kind` `work_wait`, the wait as `id`, its work item in `within` and the
+address); a failed read says so on Home (`useNeeds` → `{ seen, read }`, the read in `ReadNotes`, «Couldn’t read what
+needs you.» with Try again; the fixture fails until `recover()`). Measured in the page: the note and no list, then
+five rows after Try again (reads 2 → 3); the permission’s press `#task-…c1`.
