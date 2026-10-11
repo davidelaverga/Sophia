@@ -153,22 +153,28 @@ async function onAdmin<T extends pg.QueryResultRow>(sql: string): Promise<T[]> {
 }
 
 /**
- * A pool ended and every connection of it closed. pg-pool's end() resolves once it has asked its clients to end, not
- * once their sockets have closed; each client's 'remove' comes from client.end's callback, on its connection's end.
- * Waiting for all of them keeps a forced DROP DATABASE from meeting a backend still closing.
+ * Every connection a pool opens, from the pool's creation until its socket closes (the client's own 'end'). pg-pool's
+ * count is no barrier: it drops a client as soon as it is removed (a release(true), an end), before its socket closes,
+ * and a 'remove' still to come for such a client can't be told from one for a client still open. A closed socket is one
+ * no later termination can reach; after a graceful end it is also a backend gone, as PostgreSQL closes it only at exit.
  */
-async function closed(pool: pg.Pool): Promise<void> {
-  const open = pool.totalCount
-  let removed = 0
-  const all = new Promise<void>((resolve) => {
-    if (open === 0) resolve()
-    pool.on('remove', () => {
-      removed += 1
-      if (removed === open) resolve()
-    })
+const connections = new WeakMap<pg.Pool, Set<Promise<void>>>()
+
+function tracked<P extends pg.Pool>(pool: P): P {
+  const ends = new Set<Promise<void>>()
+  connections.set(pool, ends)
+  pool.on('connect', (opened) => {
+    ends.add(new Promise<void>((resolve) => opened.once('end', () => resolve())))
   })
+  return pool
+}
+
+/** A pool ended and every connection it ever opened closed: none left open for a forced DROP DATABASE to terminate. */
+async function closed(pool: pg.Pool): Promise<void> {
+  const ends = connections.get(pool)
+  assert.ok(ends, 'a pool closed here is tracked from its creation')
   await pool.end()
-  await all
+  await Promise.all(ends)
 }
 
 const roleNames = async () =>
@@ -556,8 +562,8 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
     rolesBefore = await roleNames()
     assemblerExisted = rolesBefore.includes(ROLE)
     db = await createTestDatabase()
-    ownerPool = new pg.Pool({ connectionString: db.ownerUrl, max: 8 })
-    api = createPool(db.apiUrl, { max: 8 })
+    ownerPool = tracked(new pg.Pool({ connectionString: db.ownerUrl, max: 8 }))
+    api = tracked(createPool(db.apiUrl, { max: 8 }))
     await withClusterMigrationLock(async () => {
       for (const name of BEFORE_N4) await owner(candidate(name))
       pre = await catalog()
