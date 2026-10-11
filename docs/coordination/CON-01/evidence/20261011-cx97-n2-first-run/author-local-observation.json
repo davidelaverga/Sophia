@@ -1,0 +1,49 @@
+{
+  "schema": "sophia.con01.author-local-observation.v1",
+  "record": "CX-0097",
+  "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+  "scope": "Read-only actual completed tool observations; no direct operator PG query/cleanup",
+  "correction": {
+    "tool": "Correct the cleanup record's client-census claim",
+    "observedCommand": "Assert old no-client line exactly once, replace with missing pre-drop census and posthoc-only ownership wording; write record; grep corrected lines",
+    "observedOutput": "Corrected line explicitly says pre-drop pg_stat_activity never captured; only later census available. Removal preceded any ownership check.",
+    "remainingWording": "Not repeated anywhere else is an unproven copy-accounting claim; message474 requests bounded checked-scope wording."
+  },
+  "probeSettlement": {
+    "tool": "Drop the probe database and probe-created role",
+    "at": "2026-10-11T03:39:34Z",
+    "orderedEffects": [
+      "Read exact probe DB identifier from this attempt receipt",
+      "Capture current client backends",
+      "Drop that exact probe database WITH FORCE",
+      "Drop exact probe-created sophia_conversation_assembler role",
+      "Read roles/databases afterward"
+    ],
+    "observedOutput": [
+      "Single census psql client on maintenance database",
+      "DROP DATABASE success",
+      "DROP ROLE success",
+      "After: postgres/sophia_api/sophia_worker plus maintenance/template databases; probe DB and assembler role absent"
+    ],
+    "verdict": "Scoped actual probe cleanup observed; no claim of final test/cluster settlement or prior fixture pre-drop client state"
+  },
+  "N2Draft": {
+    "sql": "db/candidates/con01-s3-conversation-reply-context.sql",
+    "module": "packages/persistence/src/conversation-assembly.ts",
+    "test": "packages/persistence/src/conversation-assembly.db.test.ts",
+    "testCreation": "1749 added lines observed",
+    "immutableCandidate": null,
+    "qualification": "none",
+    "sourceInspection": "Creation-artifact first100lines inspected only; stale relative to timeout amendment, not current full source review. Original-root file search returns no matching secondary-worktree file; not proof of source absence."
+  },
+  "liveHandle": {
+    "kind": "exact mission CUA running tool",
+    "name": "Running the N2 disposable-PostgreSQL tests (first run)",
+    "observed": "Actual expanded running tool shows2m29s, with outer600-second and Node300000ms bounds; same background task is Running",
+    "terminal": false,
+    "action": "Rechecked same session; no Stop/Send now/restart",
+    "command": "timeout600 node --test --test-concurrency=1 --test-timeout=300000 packages/persistence/src/conversation-assembly.db.test.ts; local disposable URL by private reference; stdout/stderr to private attempt log"
+  },
+  "message": 474,
+  "authority": "Existing dormant CON-only local source/test scope; no live/shared activation"
+}

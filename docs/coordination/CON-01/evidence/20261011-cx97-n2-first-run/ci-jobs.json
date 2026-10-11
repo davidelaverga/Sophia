@@ -1,0 +1,89 @@
+{
+  "jobs": [
+    {
+      "completed_at": null,
+      "conclusion": null,
+      "id": 114374973192,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "name": "Live auth on local Supabase",
+      "runner_group_name": "",
+      "runner_id": 0,
+      "runner_name": "",
+      "started_at": "2026-10-11T03:03:28Z",
+      "status": "queued"
+    },
+    {
+      "completed_at": null,
+      "conclusion": null,
+      "id": 114374973207,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "name": "The room in Chromium, on its fixture page",
+      "runner_group_name": "",
+      "runner_id": 0,
+      "runner_name": "",
+      "started_at": "2026-10-11T03:03:28Z",
+      "status": "queued"
+    },
+    {
+      "completed_at": null,
+      "conclusion": null,
+      "id": 114374973223,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "runner_group_name": "",
+      "runner_id": 0,
+      "runner_name": "",
+      "started_at": "2026-10-11T03:03:28Z",
+      "status": "queued"
+    },
+    {
+      "completed_at": null,
+      "conclusion": null,
+      "id": 114374973225,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "name": "Media bridge against a real LiveKit server",
+      "runner_group_name": "",
+      "runner_id": 0,
+      "runner_name": "",
+      "started_at": "2026-10-11T03:03:28Z",
+      "status": "queued"
+    },
+    {
+      "completed_at": null,
+      "conclusion": null,
+      "id": 114374973242,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "name": "Confined PDF renderer on a real Chromium",
+      "runner_group_name": "",
+      "runner_id": 0,
+      "runner_name": "",
+      "started_at": "2026-10-11T03:03:28Z",
+      "status": "queued"
+    },
+    {
+      "completed_at": null,
+      "conclusion": null,
+      "id": 114374973262,
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "name": "runtime-unit",
+      "runner_group_name": "",
+      "runner_id": 0,
+      "runner_name": "",
+      "started_at": "2026-10-11T03:03:28Z",
+      "status": "queued"
+    }
+  ],
+  "total_count": 6
+}

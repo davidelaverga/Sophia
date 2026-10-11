@@ -1,0 +1,32 @@
+{
+  "schema": "sophia.safe-evidence-manifest.v1",
+  "record": "CX-0097",
+  "scope": "Normalized exact API/source-view/tool observations only, no runtime URI/auth value/raw fixture",
+  "artifacts": [
+    {
+      "path": "acceptance-status-comparison.json",
+      "sha256": "8d2d7f64334ca87966885fc93c8d6d04c29879b1439fc90327d39edae482f0e3",
+      "bytes": 118
+    },
+    {
+      "path": "author-local-observation.json",
+      "sha256": "f856250682033e751518b7e7c5308979c1cdbb51321191e96780a3e7f76203a3",
+      "bytes": 2921
+    },
+    {
+      "path": "ci-jobs.json",
+      "sha256": "260dea30a24418e12c59500192a5b0e8c273af82f5ae72661f2781a5ca2b7d91",
+      "bytes": 2090
+    },
+    {
+      "path": "new-pr-comments.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": "pr211.json",
+      "sha256": "56c39548b96db378e606beeeb7b0f1522b99b959db70aa0c1feb1559e67a9063",
+      "bytes": 206
+    }
+  ]
+}

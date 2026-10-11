@@ -1,0 +1,54 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0097",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+  "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "classification": "progress: corrected private receipt actually written and probe cleanup terminal observed; verified wait on first actual N2 test process",
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "Prior named N1/earlierCount L0 and S2/N3 PG scopes retained. CX97 observes actual author probe cleanup only; N2 source/test result unqualified.",
+    "scoped_delta_reviewed": "Receipt correction and exact probe cleanup output independently inspected, not N2 full source",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "coordination": {
+    "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "message": 474,
+    "normalQueue": true,
+    "interruption": false
+  },
+  "CI": {
+    "run": 38107154878,
+    "url": "https://github.com/davidelaverga/Sophia/actions/runs/38107154878",
+    "candidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "jobs": 6,
+    "status": "queued",
+    "assignedRunners": 0,
+    "cause": "not established",
+    "manualRerun": false,
+    "newAutomaticReviewCommentsSince0300": 0,
+    "newReviewRequest": false
+  },
+  "source": "N2 draft only, no immutable handback and no complete current source review. No feature fix by reviewer.",
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "newReviewerHostedEffects": 0,
+    "newReviewerPgClusters": 0,
+    "sophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "reviewAgentUsage": "unreported; not Sophia remaining subscription capacity proof"
+  },
+  "acceptance": "All36 full case status pairs unchanged",
+  "cleanup": "No new reviewer app/PG/browser/native process. Prior82 reviewer app stacks and CX92 PG clusters remain settled. Author exact probe DB/global assembler role drop observed; first N2 test process live and cluster retained/unsettled; earlier fixture pre-drop census permanently unavailable.",
+  "rollback": "No live rollback. CX92 governed uncertain-data/old-schema incompatibility retained.",
+  "next": "Receive exact immutable N2 source/test/terminal cleanup handback, independently review complete SQL/module/tests and run affected actual-PG/adversarial cases before any shared integration or activation."
+}
