@@ -1,5 +1,5 @@
-import { expect, test } from '@playwright/test'
-import { lowContrast } from './contrast.ts'
+import { expect, test, type Page } from '@playwright/test'
+import { contrastOf, lowContrast } from './contrast.ts'
 import { DRAWN, drawn } from './drawn.ts'
 
 // A light mode on the report's paper (docs/plans/light-mode.md, informe-30 §2.5): asked for in the account menu (or by
@@ -78,4 +78,48 @@ test('light · chosen in the account menu, kept on the browser; «system» follo
   await page.reload()
   await drawn(page, DRAWN.room)
   expect(await page.evaluate(() => localStorage.getItem('sophia.theme'))).toBe('system')
+})
+
+/** The contrast of an element's ink over one ground, as the page computes them. */
+const ratio = async (page: Page, selector: string, ground: string) => {
+  const [ink, bg] = await page
+    .locator(selector)
+    .first()
+    .evaluate((el) => {
+      // At rest: a state's transition is finished before its colours are read.
+      el.getAnimations().forEach((a) => a.finish())
+      return [getComputedStyle(el).color, getComputedStyle(el).backgroundColor] as const
+    })
+  return contrastOf({ words: selector, size: 13, ink, opacity: 1, grounds: [ground, bg] })
+}
+
+test('light · the states the at-rest scan does not see read on paper: a note that is soon, the send ready, a primary press hovered', async ({
+  page,
+}) => {
+  await page.goto('/home.html?theme=light')
+  await drawn(page, DRAWN.home)
+  expect(await ratio(page, '.hw-row[data-tone="soon"] .hw-m', 'rgb(251, 248, 243)')).toBeGreaterThanOrEqual(4.5)
+  await page.goto('/room.html?demo=1&place=conversations&theme=light')
+  await drawn(page, DRAWN.conversations)
+  await page.getByPlaceholder('Continue this question with the team').fill('hi')
+  const send = page.locator('.conv-send[data-ready]')
+  await expect(send).toHaveCount(1)
+  expect(await ratio(page, '.conv-send[data-ready]', 'rgb(251, 248, 243)')).toBeGreaterThanOrEqual(4.5)
+  await page.goto('/signin.html?theme=light')
+  await drawn(page, DRAWN.signin)
+  const primary = page.getByRole('button', { name: 'Email me a link' })
+  await primary.hover()
+  await expect(primary).toHaveCSS('background-color', 'rgb(26, 19, 64)')
+  expect(await ratio(page, '.pill.primary', 'rgb(251, 248, 243)')).toBeGreaterThanOrEqual(4.5)
+})
+
+test('light · a kept choice is on the root before the app runs (entry.js), so the first paint is paper', async ({
+  page,
+}) => {
+  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'light'))
+  // The app's shell: entry.js in its head, read before the body is drawn.
+  await page.goto('/', { waitUntil: 'commit' })
+  await page.waitForFunction(() => document.head.querySelector('script[src="/entry.js"]') !== null)
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(251, 248, 243)')
 })

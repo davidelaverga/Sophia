@@ -910,7 +910,7 @@
 }
 .conv-send[data-ready] {
   background: var(--core);
-  color: #0c0a16;
+  color: var(--on-core);
 }
 /* While it sends: the arrow gives way to a turning arc, in the light's ink. */
 .conv-send[data-busy] {

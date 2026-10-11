@@ -9,6 +9,15 @@ body {
   margin: 0;
   background: #050408;
 }
+/* A light page (entry.js read the choice): paper from the first paint, the opening's ground and wipe with it. */
+html[data-theme='light'],
+html[data-theme='light'] body,
+html[data-theme='light'] .entry-ground {
+  background: #fbf8f3;
+}
+html[data-theme='light'] .entry-wipe {
+  background: linear-gradient(90deg, rgba(251, 248, 243, 0), #fbf8f3 24px);
+}
 #entry {
   --h: 64px;
   --u: calc(var(--h) / 60);
