@@ -563,6 +563,17 @@ function section(p: Payload, head: string): readonly [number, number] {
   const to = rest.findIndex((f) => f.kind === 'template' && f.id.endsWith('.head'))
   return [from, from + 1 + (to < 0 ? rest.length : to)]
 }
+/** The asking fragment's discriminator as JSON null. */
+function nullAsk(p: Payload): void {
+  const asking = p.fragments.at(-1)
+  if (asking) Object.assign(asking, { item: null })
+}
+/** The constraints and pending sections in each other's place. */
+function swapSections(p: Payload): void {
+  const [cs, ce] = section(p, 'constraints.head')
+  const [ps, pe] = section(p, 'pending.head')
+  p.fragments.splice(cs, pe - cs, ...p.fragments.slice(ps, pe), ...p.fragments.slice(cs, ce))
+}
 
 describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable PostgreSQL)', () => {
   let pre: Catalog
@@ -1701,6 +1712,35 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
         },
         non_object_fragment: (p) => {
           p.fragments.splice(1, 0, 'stray' as unknown as Fragment)
+        },
+        // CX99: the pinned heading, with its untrusted-data preamble, removed or moved and the text rejoined; alone, under
+        // a null item, and with the sections also out of order. Then the discriminator missing or its kind null.
+        head_omitted: (p) => {
+          p.fragments.splice(0, 1)
+        },
+        head_moved: (p) => {
+          p.fragments.push(...p.fragments.splice(0, 1))
+        },
+        null_item_head_omitted: (p) => {
+          nullAsk(p)
+          p.fragments.splice(0, 1)
+        },
+        null_item_head_omitted_sections_swapped: (p) => {
+          nullAsk(p)
+          p.fragments.splice(0, 1)
+          swapSections(p)
+        },
+        null_item_head_moved: (p) => {
+          nullAsk(p)
+          p.fragments.push(...p.fragments.splice(0, 1))
+        },
+        missing_item_key: (p) => {
+          const asking = p.fragments.at(-1)
+          if (asking) delete asking.item
+        },
+        null_kind: (p) => {
+          const asking = p.fragments.at(-1)
+          if (asking) Object.assign(asking, { kind: null })
         },
       }
       const refused: Record<string, string> = {}
