@@ -1,14 +1,13 @@
 // Invite: the room's link and its QR for guests, emailed invitations, and the room's calendar. A sheet over
 // the Studio; nothing here changes the room itself until someone uses a link. Every action says when it is
 // working and when it failed, every link can be copied by hand, and what cuts someone off asks first.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Invitation, InvitationCreate, LobbyEntry } from '@sophia/contracts'
-import { ConfirmButton, Icon, SwapLabel, Tabs, Tip } from '@sophia/ui'
+import { ConfirmButton, SwapLabel, Tabs } from '@sophia/ui'
 import { createInvitation, reissueInvitation, revokeInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
-import { SheetCall } from '../../app/call-in-reach.tsx'
-import { useDialog } from '../../app/useDialog.ts'
+import { Sheet } from '../../app/Sheet.tsx'
 import { admissionLabel, doorNote, invitationState, linkLimits } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
@@ -39,33 +38,18 @@ const EMAIL: Record<Invitation['emailStatus'], string> = {
 
 export function InviteSheet({ context, onClose }: { context: SheetContext; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('guests')
-  const panel = useRef<HTMLDivElement>(null)
-  useDialog(panel, onClose)
   return (
-    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div ref={panel} className="sheet" role="dialog" aria-modal="true" aria-labelledby="invite-title" tabIndex={-1}>
-        <div className="sheet-top">
-          <header className="sheet-head">
-            <h2 id="invite-title">Invite</h2>
-            <button type="button" className="round has-tip" aria-label="Close" onClick={onClose}>
-              <Icon name="close" />
-              <Tip label="Close" keys="Esc" side="bottom" align="end" />
-            </button>
-          </header>
-          <SheetCall />
-          <SheetTabs tab={tab} onTab={setTab} />
-        </div>
-        <TabPanel tab="guests" shown={tab}>
-          <GuestsTab context={context} />
-        </TabPanel>
-        <TabPanel tab="members" shown={tab}>
-          <MembersTab context={context} onGuests={() => setTab('guests')} />
-        </TabPanel>
-        <TabPanel tab="calendar" shown={tab}>
-          <CalendarTab context={context} />
-        </TabPanel>
-      </div>
-    </div>
+    <Sheet id="invite-title" title="Invite" onClose={onClose} top={<SheetTabs tab={tab} onTab={setTab} />}>
+      <TabPanel tab="guests" shown={tab}>
+        <GuestsTab context={context} />
+      </TabPanel>
+      <TabPanel tab="members" shown={tab}>
+        <MembersTab context={context} onGuests={() => setTab('guests')} />
+      </TabPanel>
+      <TabPanel tab="calendar" shown={tab}>
+        <CalendarTab context={context} />
+      </TabPanel>
+    </Sheet>
   )
 }
 
@@ -147,7 +131,7 @@ function GuestsTab({ context }: { context: SheetContext }) {
   const emailed = invitations.filter((i) => i.kind === 'guest' && !!i.email)
   const now = useNow()
   return (
-    <section className="sheet-body" aria-label="Guests">
+    <section className="sheet-tab-body" aria-label="Guests">
       <p className="sheet-lead">
         A link to the room. Guests say their name and wait in the lobby until someone here lets them in. They reach the
         call only, never the project.
@@ -390,7 +374,7 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
   const { query, refresh } = useInviteList(context)
   if (context.membership?.role !== 'admin') {
     return (
-      <section className="sheet-body">
+      <section className="sheet-tab-body">
         <p className="sheet-lead">Only project admins can add members. You can still invite guests to the call.</p>
         <button type="button" className="pill" onClick={onGuests}>
           Go to Guests
@@ -400,7 +384,7 @@ function MembersTab({ context, onGuests }: { context: SheetContext; onGuests: ()
   }
   const members = (query.data?.invitations ?? []).filter((i) => i.kind === 'member')
   return (
-    <section className="sheet-body" aria-label="Members">
+    <section className="sheet-tab-body" aria-label="Members">
       <p className="sheet-lead">
         A member works in the project with you. The invitation is bound to one email: only that person can accept it.
       </p>
