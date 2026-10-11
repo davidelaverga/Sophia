@@ -259,8 +259,7 @@ function Home() {
     {
       project: (projectId, view, where) => {
         const task = where.taskId ? ` #task-${where.taskId}` : ''
-        const report = where.report ? ` report ${where.report.artifactId} ${where.report.versionId}` : ''
-        pressed.push(`open ${view} ${projectId}${task}${report}`)
+        pressed.push(`open ${view} ${projectId}${task}`)
       },
       personal: () => pressed.push('personal'),
     },
