@@ -1,0 +1,34 @@
+{
+  "schema": "sophia.con01.evidence-manifest.v1",
+  "files": [
+    {
+      "path": "author-terminal.json",
+      "sha256": "916021dc355d464d96017a8eaf1cdf0f12ff8c46221f5fca3437f0dcd32acd5e"
+    },
+    {
+      "path": "binding-proposal-review.json",
+      "sha256": "52b364e925c241b9dc98e031cdec8fcdb7e46bad5c082c1ddc5a433a803310d6"
+    },
+    {
+      "path": "ci-diagnostics.json",
+      "sha256": "6f5f402ff8d5b795961d61596a276b0d986d5daf7632046e8870c34e2d1fec57"
+    },
+    {
+      "path": "independent-cross-database.json",
+      "sha256": "ff3defbb5f95619dd85e06859ab9e6a48e2446e607910275612dcb94f64d65dd"
+    },
+    {
+      "path": "operation-handoff.json",
+      "sha256": "48ab3f60a6181c7f82549ac6ce36c4153b8063a059645d697106f32fb2e888e0"
+    },
+    {
+      "path": "pr-checkpoint.json",
+      "sha256": "a1f4db48db9295844180f201bdf05a44cf18f86ddbc80a3865762fd463967410"
+    },
+    {
+      "path": "terminal-source-recheck.json",
+      "sha256": "ebb61f30364b5e5aa8361d914f93da1167045e35316d146b4461d13f2655b41e"
+    }
+  ],
+  "privacy": "Safe source/artifact/operationmetadata only; no privatequota/account/contact/credential/rawlog."
+}

@@ -797,3 +797,12 @@ CX120 correction recheck: primary7d8/eef3 fully reviewed/89linedelta hashesmatch
 ## CX-0122 samecheck verifiedwait
 
 [CX-0122](../coordination/CON-01/CX-0122.md): same7d8n4l independentlyRunning/Bash10m42s, fullscriptSHAfromCC0144/SQL0/unitphasestillrunning; actualpackagechain/hashchecked. Partialexitnotwholepass. No restart/duplicate/PRmove/newacceptance. Sameapproval/owner/liveholds. Next existingbatchterminal/source/artifact/census.
+
+
+## CX-0123 terminal and bounded draft step
+
+[CX-0123](../coordination/CON-01/CX-0123.md): exact7d8ordinarycheckterminal0/source19hash+artifactreceiptconsistent; existingdraftPR211FF→7d8/freshreview6112835028, no merge/liveauthority. PreviousPGexecutionattributionscorrected, full36verdicts/approvalNULLunchanged. Next freshexactreview/CI andnamedQ7/Q12ownerwindow.
+
+CX123 freshreviewupdate: exact7d8botP2crossDBr4242913900 independentlyconfirmed with realPGX/Y/actualLOGIN, freshCONNECTdenialcontrolonly (existingconnectionsettlementunproven), ownedcluster/census/sourceclean. Newboundaryopen/activationheld; separateCON-onlydocsproposalrequested, no ownerchoice/sharedwrite. AttributionCC0147rechecked; purposebuiltCIqueued/no causeinferred. Next bindingproposal/CIcheckpoint/ownerwindow.
+
+CX123 heldproposal82ce9f60/18cc2cb1 full45linedelta/hash/historyreviewed, directiononly; Q13newarchitecturalchoice askedDavide/pending, all commonactualrights/CONNECT/sessionproof mandatory. Seven safeartifacts; crossDBP2open/PR2117d8unchanged/operationapprovalNULL. Nextowneranswer+actualCIcheckpoint.

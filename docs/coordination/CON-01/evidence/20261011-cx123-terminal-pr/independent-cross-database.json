@@ -1,0 +1,42 @@
+{
+  "review": 5484636886,
+  "finding": 4242913900,
+  "severity": "P2",
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "expected": "Owner-bound leastpriv activation identity cannot reach another database; adoptingrole must not imply safeactivation until actualscope qualification.",
+  "observed": {
+    "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "adoptedInX": true,
+    "adoptionCode": null,
+    "activationLoginCanConnectOtherDatabase": true,
+    "activationLoginReadsOutOfScopeY": true,
+    "connectIsolationControl": {
+      "denied": true,
+      "deniedCode": "42501",
+      "ownDatabaseStillWorks": true
+    }
+  },
+  "scope": "Independent actualPG17.6, two ownedsyntheticdatabases/fullmigrations/S1S2S3 and actualfreshLOGIN; no deployment/provider/native.",
+  "verdict": "CONFIRMED; openactivation/designboundary, not waivedbydormancy. PreviouscurrentDBdirectprivilegefix remains scopedverified.",
+  "controlLimit": "RevokedPUBLICCONNECT blocks freshYconnection; existingYconnection explicitlyendedbeforecontrol. Doesnotprove termination/settlementofexistingconnections.",
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "otherClients": 0
+  },
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "sourceClean": true,
+  "outerSeconds": 180,
+  "probeSha256": "416cf495e3ace61ae7aeafdd49bc49ed5250c4f5a126a425e0f48fc5a0126b4e",
+  "harnessSha256": "3ef119bb54781a0fe77a8f93f5d6d488b73f0ec0dcbdc233bdcc36f4efbd6610",
+  "logSha256": "53d892b8499912407ef8786a1d4231a2952c2a2074dd435a360c8d292536e4f1",
+  "feedback": "ExactCONexpected/observed/severity/reproducerdelivered; separateCON-onlydocsproposalrequested coveringALLDB/inheritedrights/CONNECT/PUBLIC/existingconnectionsettlement andowner-heldalternatives, no ownerpolicy/newrole/runtimechoice orsourcePRmove."
+}

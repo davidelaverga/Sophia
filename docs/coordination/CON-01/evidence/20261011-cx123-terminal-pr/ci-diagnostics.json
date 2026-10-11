@@ -1,0 +1,177 @@
+{
+  "headRevision": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "checks": [
+    {
+      "id": 114554923137,
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168148111/job/114554923137"
+    },
+    {
+      "id": 114554923056,
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168148111/job/114554923056"
+    },
+    {
+      "id": 114554922974,
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168148111/job/114554922974"
+    },
+    {
+      "id": 114554922973,
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168148111/job/114554922973"
+    },
+    {
+      "id": 114554922957,
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168148111/job/114554922957"
+    },
+    {
+      "id": 114554922829,
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168148111/job/114554922829"
+    },
+    {
+      "id": 114554909594,
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168143565/job/114554909594"
+    },
+    {
+      "id": 114554909580,
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168143565/job/114554909580"
+    },
+    {
+      "id": 114554909579,
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168143565/job/114554909579"
+    },
+    {
+      "id": 114554909552,
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168143565/job/114554909552"
+    },
+    {
+      "id": 114554909492,
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168143565/job/114554909492"
+    },
+    {
+      "id": 114554909347,
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38168143565/job/114554909347"
+    },
+    {
+      "id": 114549940168,
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38166465821/job/114549940168"
+    },
+    {
+      "id": 114549940103,
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38166465821/job/114549940103"
+    },
+    {
+      "id": 114549940065,
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38166465821/job/114549940065"
+    },
+    {
+      "id": 114549940047,
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38166465821/job/114549940047"
+    },
+    {
+      "id": 114549940021,
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38166465821/job/114549940021"
+    },
+    {
+      "id": 114549939915,
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null,
+      "url": "https://github.com/davidelaverga/Sophia/actions/runs/38166465821/job/114549939915"
+    }
+  ],
+  "latestRunId": 38168148111,
+  "jobs": [
+    {
+      "id": 114554922829,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "SQL, persistence and API on PostgreSQL 16",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554922957,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "The room in Chromium, on its fixture page",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554922973,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "runtime-unit",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554922974,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "Live auth on local Supabase",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554923056,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "Media bridge against a real LiveKit server",
+      "status": "queued",
+      "conclusion": null
+    },
+    {
+      "id": 114554923137,
+      "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "name": "Confined PDF renderer on a real Chromium",
+      "status": "queued",
+      "conclusion": null
+    }
+  ],
+  "scope": "Purpose-built Code Review read-only diagnostics. All returned exacthead checks/jobs queued; no cause/failure/runneravailability inferred. No rerun/cancel or CLI fallback. No selected account provided; returned headRevision preserved on followup."
+}

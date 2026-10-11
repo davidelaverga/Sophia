@@ -1,0 +1,16 @@
+{
+  "candidate": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
+  "tree": "18cc2cb10c2215060a9710aa01e07117c0996537",
+  "parent": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "authorReceipt": 6112924406,
+  "deltaLines": 45,
+  "added": 20,
+  "removed": 0,
+  "fileSha256": "d2070f9fea4b674744e352fff343a90c1f8821778cd74209e7595bc58354aafc",
+  "deltaSha256": "e08db6bae05d6fdb508ccb661271e9bc928390474d6f3a0c3ec31312eca4f7de",
+  "prior26HistoryRowsUneditedInOrder": true,
+  "independentReview": "Fullreceipt/full45linedelta/identity/hashes/history independentlyreadandmatched. Requestedheldproposal coversALLDBinheritedrights/CONNECT/PUBLIC/existingconnections/actualnegativeandpositiveidentityproof. No option alone substitutes for commonqualification.",
+  "scope": "Direction scopedreviewedonly, newcrossDBP2OPEN; no schema/activation/runtime/ownerpolicyqualified orimplemented. PR211remains7d8.",
+  "ownerQuestion": "Q13architecturalchoice senttoDavide viaasync tool: peridentityDBisolation recommended vsoneSophiaDBexistingcluster vsstrictsingleinstallpreflight, eachwithcommonactualproofs. Answerpending, not activation/spend/deployapproval.",
+  "feedback": "ExactCONreviewhandbackdelivered, no newdocround/sourcechange requested; existingQ6/Q7/Q10/Q11/Q12runtimewindow and actualoperationbindings remainheld."
+}

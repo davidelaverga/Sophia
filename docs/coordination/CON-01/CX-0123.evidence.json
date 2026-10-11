@@ -1,0 +1,63 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0123.md",
+  "at": "2026-10-11T19:31:08.225749+00:00",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "combinedCandidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "combinedTree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "fixCandidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "fixTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "routeProposalCandidate": "154f09f037b8d5b85357ba151219cda703bc60f3",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Exact7d8authorordinarycheckterminal0; independently19source/artifactreceiptconsistent. ExistingdraftPR211FF\u21927d8/exactfreshreviewrequested. No newPG/app/native/providerqualification. Fresh exact7d8automaticreviewnewP2crossDB independentlyconfirmed onrealPG; owner-heldactivationbindingproposalrequested, no waiver. Separate82ce9f60heldactivationbindingproposal scopedreviewed, newQ13ownerchoicepending.",
+  "readiness": {
+    "source_ready": "Dormantcore+currentDBfix available; newcrossDBactivationauthorityP2open, native/runtime/routeincomplete.",
+    "locally_verified": "Priorf0PG/API and artifactreceipt remain scoped; NEW f0 two boundaryFAIL/controlPASS, corrected7d8 actualPG139/139+threeindependentcasesPASS/no partial objects/rightsunchanged. CX123actualPGcrossDBnegativeFAIL/freshCONNECTdenialcontrolPASS, scopeexistingconnectionsunproven.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null",
+  "operationApproval": null,
+  "expiry": null,
+  "next": "RecoverDavideQ13answer and actualexact7d8CIcheckpoint; crossDBP2/ownerwindow/livebatchheld.",
+  "cleanup": "NewlyownedcrossDBPGcluster stopped/PIDabsent/removed, onlypostgres/0otherclients census andsourceclean. Earlierownedclustersclean; authorgateterminalreportedclean. ExistingIABretained; no uncertainhostedeffect.",
+  "resourceUse": {
+    "ownedLocalPgClusters": 1,
+    "testCommands": 1,
+    "sophiaProviderCalls": 0,
+    "realNativeExecutions": 0,
+    "hostedAppMutations": 0,
+    "productionConnections": 0,
+    "mailboxMessagesRead": 0,
+    "emailsSent": 0,
+    "quotaMetadataReads": 0,
+    "reviewerEffectSpending": 0,
+    "codingAgentCoordinationConsumption": "Unmeasured/private",
+    "sourceReviewEffect": "ExistingdraftPR211boundedFF/titlebody/P2thread/exactreviewrequest; ordinarypushCIallowed,nooldrerun/cancel.",
+    "syntheticDatabases": 2,
+    "independentBoundaryFailures": 1,
+    "independentFreshConnectControlsPassed": 1
+  },
+  "acceptanceCases": {
+    "record": "acceptance.independent.json",
+    "caseCount": 36,
+    "counts": {
+      "partial_L1": 18,
+      "passed_L1": 3,
+      "not_run": 15
+    },
+    "fullCasesSha256": "50bdbf7d40739dfe979a036b3bca3047e54d563c4d4fe3ea732d76fa5aab6eb7",
+    "verdictChanges": 0
+  },
+  "evidence": "evidence/20261011-cx123-terminal-pr/",
+  "gateState": "terminal_author0_independent_source_receipt_verified",
+  "gateLastIndependentObservation": "AuthorCC0145fullyread; sameexistingtasksettled; no restart/duplicate.",
+  "boundaryProposalCandidate": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
+  "boundaryProposalTree": "18cc2cb10c2215060a9710aa01e07117c0996537",
+  "Q13": "Ownerarchitecturalchoicepending; heldproposalreviewed, boundarynotqualified"
+}

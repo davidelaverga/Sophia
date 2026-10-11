@@ -1,0 +1,30 @@
+{
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "receipt": 6112809363,
+  "script": "n4l-check.sh",
+  "scriptSha256": "a6232e682490f740b26c05ea4d84a93dc09fc67678c6957298a0adf39d074959",
+  "start": "2026-10-11T19:08:16Z",
+  "end": "2026-10-11T19:25:38Z",
+  "wrapperSeconds": 12000,
+  "wrapperExit": 0,
+  "steps": [
+    {
+      "command": "timeout1200pnpmtest:sql on existingownedcluster55432",
+      "exit": 0,
+      "result": "46migrations/5testfilespassed"
+    },
+    {
+      "command": "timeout3600pnpmcheck",
+      "exit": 0,
+      "result": "unit2331pass1skip;integration86pass2skip;noERR_PNPM/ELIFECYCLE"
+    }
+  ],
+  "stepRecordSha256": "f125627c5a78278bd410829b6aa30a3fefbf23dc557a48bf4f6f8f40a3a8b3c7",
+  "checkLogSha256": "28225df8a8f31d846e89fd6019a413c07932c1234897bc446e0154675bc5f58c",
+  "checkLogLines": 3524,
+  "authorCensus": "Allthreeclusters55432/55435/55436beforeafter onlystandardroles/defaultDBs/0otherclients/0testprocesses; sourcecleanbeforeafter",
+  "artifactValues": "All8reportedmatch;7configvalues/report0977953d/builtlines5bc8ecbf/bundleb423d27e unchangedfromf0. Artifactsectionpathdiffattributed, rawsectionnotindependentlyread.",
+  "scope": "Author finiteordinarycheckterminal; rawlogs/archives/censusnotindependentlyaccessed. Independent19source/artifactreceiptconsistency and priorCX120actualPGcrossings remain distinct.",
+  "noRerun": "No N4/five/db-all duplicate, noCIrerun/PRmove bybatch."
+}
