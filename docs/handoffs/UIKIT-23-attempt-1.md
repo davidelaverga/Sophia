@@ -117,3 +117,7 @@ Two P2s on the amendment, answered in its words (no schema change, the generated
 records, the rest where they live, no cursor), and `markNeedSeen` says why advancing the mark is sound (a reply opens
 the personal space, where every turn since the last seen is shown; the mark only moves forward; later replies stay).
 
+## Post-review, round 7 (Codex on #245)
+
+`within` takes the work item id's shape (1 to 160 characters, as A13's `work_id`), not a uuid: a slug-named item's
+decision or permission validates. Spec and validators regenerated; `contracts:check` clean.
