@@ -4,7 +4,7 @@
 // their hash is checked. Hold and Stop live on its goal (WorkControls), as for every task.
 import { useQuery } from '@tanstack/react-query'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
-import { Icon, Tag } from '@sophia/ui'
+import { Card, Icon, Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
@@ -46,14 +46,14 @@ export function DesignCard(props: Props) {
   const { task, identity } = props
   const { design, words, page } = useDesign(props)
   return (
-    <li className="task work-card" data-state={design?.state ?? 'designing'} tabIndex={-1}>
+    <Card as="li" className="task work-card" data-state={design?.state ?? 'designing'} tabIndex={-1}>
       <div className="goal-meta work-card-head">
         <Tag tone={words.tone}>{words.label}</Tag>
         <span className="muted">{designOf(design)}</span>
       </div>
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {page && task.artifactId && <PageRow page={page} artifactId={task.artifactId} token={identity.token} />}
-    </li>
+    </Card>
   )
 }
 

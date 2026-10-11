@@ -4,7 +4,7 @@
 // (ResourceSheet). Its name is whose tool it is; what its lines say is its description, so assistive technology hears
 // them too.
 import { useEffect, useId, useRef, useState } from 'react'
-import { Tag } from '@sophia/ui'
+import { Card, Tag } from '@sophia/ui'
 import type { Buddy } from './buddies.ts'
 import { Meter } from './Meter.tsx'
 import { ModelChip } from './ModelChip.tsx'
@@ -210,8 +210,8 @@ export function ResourceTile(props: Props) {
     .map(said)
     .join(' ')
   return (
-    <button
-      type="button"
+    <Card
+      as="button"
       className="resource-tile"
       data-tool={tool}
       data-resource={resource.id}
@@ -243,6 +243,6 @@ export function ResourceTile(props: Props) {
       </span>
       {speaks && <Live session={speaks} live={live} now={now} id={said('live')} />}
       <TileCapacity capacity={held} id={said('capacity')} />
-    </button>
+    </Card>
   )
 }

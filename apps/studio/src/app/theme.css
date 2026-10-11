@@ -2377,6 +2377,47 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+/* A card (docs/plans/card-scale.md): a raised plane with a 1 px edge, 12 px of radius and 14 of padding; the board's
+   tile 8 and 10 × 12. A live one answers: the edge lights and the plane rises a step under the pointer, a press sinks
+   it half a pixel, the keyboard draws the ring. A card names its own layout; the kit gives it its surface. */
+.card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background-color: var(--plane-2);
+  color: var(--text);
+}
+.card-tile {
+  padding: 10px 12px;
+  border-radius: var(--r-3);
+}
+.card.live {
+  cursor: pointer;
+  transition:
+    border-color var(--fast) var(--ease),
+    background-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.card.live:hover {
+  border-color: var(--card-edge-hover, var(--line-2));
+  background-color: color-mix(in srgb, var(--text) 3%, var(--plane-2));
+}
+.card.live:active {
+  background-color: color-mix(in srgb, var(--text) 6%, var(--plane-2));
+  transform: translateY(0.5px);
+}
+.card.live:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+/* A cover inside a card (a report's page): the deeper plane behind the card's edge, the smaller radius. */
+.card-cover {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--plane);
+}
 .tile {
   position: relative;
   display: grid;
