@@ -90,14 +90,23 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
     /Marco Pereira is in the lobbyFixture project · Waiting 2 min/,
     /Sophia replied about the launch dateYesterday/,
   ])
-  await rows.nth(0).click() // a decision lives in Tasks
-  await rows.nth(2).click() // a review in Knowledge
+  await rows.nth(0).click() // a decision lives in Tasks (no address of its own yet)
+  await rows.nth(1).click() // a permission at its task, named in Tasks' fragment
+  await rows.nth(2).click() // a review at its version, in Knowledge's viewer
   await rows.nth(3).click() // a guest at the room
   await rows.nth(4).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
     'open work 00000000-0000-4000-8000-0000000000aa',
-    'open knowledge 00000000-0000-4000-8000-0000000000aa',
+    'open work 00000000-0000-4000-8000-0000000000aa #task-w1',
+    'open knowledge 00000000-0000-4000-8000-0000000000aa report 00000000-0000-4000-8000-0000000000b1 00000000-0000-4000-8000-0000000000b2',
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
   ])
+})
+
+test('home · needs you behind a shut padlock: nothing is read, nothing is shown', async ({ page }) => {
+  await page.goto(`${PAGE}?needs=api&locked=1`)
+  await expect(page.getByText('Product launch')).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(0)
 })

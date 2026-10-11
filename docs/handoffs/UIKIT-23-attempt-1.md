@@ -56,3 +56,19 @@ Ending commit/tree: `3c6a0cfd` (tree `e187d6abec46`): 17 files, 5 new (`amendmen
 ## Next bounded action
 
 The UI evaluation Luis asked for (every page, the premium minimalist bar, onboarding, what stays hidden or unexplained).
+
+## Post-review (Codex on #245)
+
+Fixed in `55e8bb54` (`docs/plans/needs-api.md`, «After the review»):
+
+- **P1, the padlock**: `useNeeds(…, { locked })` from Places' lock: shut, nothing is read and nothing read is shown;
+  `forgetPersonalReads` removes `['vision', 'needs']` with the personal reads. `home-needs.spec` (+1): behind `locked=1`
+  no list and zero reads of the route (the fixture counts them).
+- **P2, the service's clock**: the hook keeps `receivedAt` beside the answer; `clockSkew(readAt, receivedAt)` (tested)
+  is added to Home's now before `NeedsYou` compares expiries.
+- **P2, the record**: `whereOf` → `at` (`atOf`, tested): `work_item` → `#task-<id>` in Tasks; `artifact_version` →
+  the viewer in Knowledge, for which A15's `ref` now carries `artifactId` (null for every other kind; regenerated,
+  `generate:check` clean). `useProjectRoute.openAt(projectId, view, at)`. A decision, a lobby entry and a personal turn
+  have no address yet: their view. The spec's presses read `… #task-w1` and `… report <artifact> <version>`.
+- Measured in the page (`home.html?needs=api`): the five presses as the spec expects; `?needs=api&locked=1`: no list,
+  0 reads. `pnpm format`, `lint`, `typecheck` (studio, contracts), `needs.test.ts` 4, `contracts.test.ts` 4: clean.
