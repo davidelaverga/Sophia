@@ -32,7 +32,7 @@ describe('what needs the person, from the wire', () => {
     ])
   })
   it('lives where its kind says: Tasks, Knowledge, the room; a reply, or anything without a project, in the personal space', () => {
-    assert.deepEqual(whereOf(wire()), { projectId: P, view: 'work', at: {} })
+    assert.deepEqual(whereOf(wire()), { projectId: P, view: 'work', at: { decisionId: 'd1' } })
     assert.deepEqual(whereOf(wire({ kind: 'permission', ref: { kind: 'work_wait', id: 'wait-1', within: 'w1' } })), {
       projectId: P,
       view: 'work',
@@ -46,11 +46,13 @@ describe('what needs the person, from the wire', () => {
     assert.deepEqual(whereOf(wire({ kind: 'reply', projectId: null, projectTitle: null })), { place: 'personal' })
     assert.deepEqual(whereOf(wire({ projectId: null })), { place: 'personal' })
   })
-  it('opens the record its ref names when the Studio has an address for it; a decision without its task, only its view', () => {
+  it('opens the record its ref names when the Studio has an address for it: a wait at its task, a decision at its own choice', () => {
     assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: 'w1' }), { taskId: 'w1' })
     assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: null }), {})
-    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: null }), {})
-    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: 'w3' }), { taskId: 'w3' })
+    // A decision is its own address on the board (its choice stands there, not in its task's sheet), with or without
+    // the task that holds it (Codex on #245, round 8).
+    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: null }), { decisionId: 'd1' })
+    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: 'w3' }), { decisionId: 'd1' })
     assert.deepEqual(atOf({ kind: 'personal_turn', id: 't9', within: null }), {})
   })
   it('keeps the service’s clock: the skew from readAt and when the answer arrived; nothing from an unreadable readAt', () => {

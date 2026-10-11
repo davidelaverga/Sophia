@@ -108,3 +108,10 @@
   one is seeing those before it; the mark only moves forward, and replies after the one named stay listed.
 - **`within` is the holder's own id** (P2, round 7): a work item's id is any string of 1 to 160 characters (A13's
   `work_id`, a slug such as `build` among them), so `within` takes that shape, not a uuid; a uuid still fits.
+- **Round 8 (P2 ×3)**: a decision is addressed by its own id (`#decision-<id>`): Tasks' board scrolls to its choice and
+  gives the focus to its first option (`useAddressedDecision`), where the `#task-` address had opened the holding
+  task's sheet, which has no choice in it. A need's title is up to 1200 characters, the length of a decision's question
+  in A13 (the Studio cuts it for the eye). A reply is marked seen once its turn is shown in the personal space
+  (`turnShown`: the `.msg[data-turn]` watched for up to 20 s), not on the press: a space that failed to read marks
+  nothing and the need stays.
+
