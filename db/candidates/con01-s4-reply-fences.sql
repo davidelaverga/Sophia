@@ -371,6 +371,32 @@ BEGIN
  RETURN sophia.conversation_answer_receipt(a,'published');
 END $$;
 
+-- A completed turn whose answer publication can't take (CON-01 G2_CON_ONLY_PLAN Step B): an empty one, one longer than
+-- 0048's 16,000 characters, or one that isn't storable. Capture's reply branch calls this instead of publishing, so
+-- nothing raises inside an observation batch. Under publication's locks, and only through the attempt the reply stands
+-- on, a running reply ends failed with the reason: no message, answer, suppression or receipt is written here. Like
+-- every terminal move it fires S3's context scrub, which is kept. Anything else (a reply already ended, a stale attempt,
+-- a replay) is answered with its state, unchanged.
+CREATE FUNCTION sophia.conversation_refuse_answer(p_reply uuid, p_attempt integer, p_reason text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+DECLARE r sophia.conversation_replies;
+BEGIN
+ IF current_setting('transaction_isolation')<>'read committed' THEN
+  RAISE EXCEPTION 'read_committed_required' USING ERRCODE='25000'; END IF;
+ IF p_attempt IS NULL OR p_reason IS NULL OR p_reason NOT IN ('answer_empty','answer_too_long','answer_invalid_text') THEN
+  RAISE EXCEPTION 'invalid_input' USING ERRCODE='22023'; END IF;
+ r:=sophia.conversation_fences_locked(p_reply,p_attempt,true);
+ IF r.state<>'running' OR NOT EXISTS(SELECT 1 FROM sophia.conversation_reply_contexts x
+     WHERE x.project_id=r.project_id AND x.reply_id=r.id AND x.attempt=p_attempt AND x.state='recorded')
+   OR NOT EXISTS(SELECT 1 FROM sophia.conversation_assembly_claims k
+     WHERE k.project_id=r.project_id AND k.reply_id=r.id AND k.attempt=p_attempt AND k.outcome='recorded') THEN
+  RETURN jsonb_build_object('verdict','unchanged','state',r.state,'reason',r.reason);
+ END IF;
+ UPDATE sophia.conversation_replies SET state='failed', reason=p_reason, settled_at=clock_timestamp()
+  WHERE project_id=r.project_id AND id=r.id;
+ RETURN jsonb_build_object('verdict','refused','state','failed','reason',p_reason);
+END $$;
+
 -- A source left its predicate: every reply attempt that read it, whatever its state and whether or not its context is
 -- already scrubbed, is suppressed once and for good. The reply itself is reached only through the attempt it stands on:
 -- an open reply whose recorded attempt read the source is cancelled (so its context is scrubbed); a published answer
@@ -465,5 +491,5 @@ REVOKE ALL ON FUNCTION sophia.conversation_fences_kept(), sophia.conversation_co
  sophia.conversation_answer_receipt(sophia.conversation_reply_answers,text),
  sophia.conversation_context_digest_erase(uuid,uuid,integer,text), sophia.conversation_fences_text_gone(),
  sophia.conversation_reply_check(uuid,integer), sophia.conversation_publish_answer(uuid,integer,uuid,text),
- sophia.conversation_source_out(uuid,uuid)
+ sophia.conversation_refuse_answer(uuid,integer,text), sophia.conversation_source_out(uuid,uuid)
  FROM PUBLIC, sophia_api, sophia_worker, sophia_conversation_assembler;

@@ -57,6 +57,7 @@ const ADDED_FUNCTIONS = [
   'sophia.conversation_fences_recorded(sophia.conversation_replies,integer)',
   'sophia.conversation_fences_text_gone()',
   'sophia.conversation_publish_answer(uuid,integer,uuid,text)',
+  'sophia.conversation_refuse_answer(uuid,integer,text)',
   'sophia.conversation_reply_check(uuid,integer)',
   'sophia.conversation_reply_verdict(sophia.conversation_replies,sophia.conversation_reply_contexts)',
   'sophia.conversation_source_out(uuid,uuid)',
@@ -549,6 +550,57 @@ async function untouched(): Promise<Record<string, string>> {
   for (const t of UNTOUCHED)
     out[t] = (await owner<{ n: string }>(`SELECT count(*)::text AS n FROM sophia.${t}`))[0]?.n ?? ''
   return out
+}
+
+// G2_CON_ONLY_PLAN Step B. The refusal of an answer publication can't take, and what it must leave behind.
+const refuse = async (replyId: string, attempt: number | null, reason: string, c?: pg.Client) => {
+  const sql = 'SELECT sophia.conversation_refuse_answer($1, $2, $3) AS v'
+  const params = [replyId, attempt, reason]
+  const rows = c
+    ? (await c.query<{ v: Record<string, unknown> }>(sql, params)).rows
+    : await owner<{ v: Record<string, unknown> }>(sql, params)
+  return rows[0]?.v
+}
+const scrubTrigger = async () =>
+  (
+    await owner<{ e: string }>(
+      `SELECT tgenabled AS e FROM pg_trigger WHERE tgname = 'conversation_context_reply_scrub'`,
+    )
+  )[0]?.e
+/** The reply's governed context: each attempt's state, whether its body is kept, its scrub and hash; message hashes kept;
+ * the source hashes it retained; and its suppressions. */
+const governed = async (replyId: string) =>
+  (
+    await owner<{ g: Record<string, unknown> }>(
+      `SELECT jsonb_build_object(
+         'contexts', (SELECT jsonb_agg(jsonb_build_object('attempt', attempt, 'state', state, 'body', body IS NOT NULL,
+            'by', scrubbed_by, 'at', scrubbed_at, 'hash', context_hash) ORDER BY attempt)
+            FROM sophia.conversation_reply_contexts WHERE reply_id = $1),
+         'messageHashes', (SELECT count(*) FILTER (WHERE body_sha256 IS NOT NULL)
+            FROM sophia.conversation_reply_messages WHERE reply_id = $1),
+         'messages', (SELECT count(*) FROM sophia.conversation_reply_messages WHERE reply_id = $1),
+         'sources', (SELECT jsonb_agg(sha256 ORDER BY kind, ref_id) FROM sophia.conversation_reply_sources WHERE reply_id = $1),
+         'suppressions', (SELECT count(*) FROM sophia.conversation_reply_suppressions WHERE reply_id = $1)) AS g`,
+      [replyId],
+    )
+  )[0]?.g as {
+    contexts: { attempt: number; state: string; body: boolean; by: string | null; at: string | null; hash: string }[]
+    messageHashes: number
+    messages: number
+    sources: string[]
+    suppressions: number
+  }
+/** A recorded reply whose first attempt was superseded by a second, recorded after a new mission; then running. */
+async function onSecondAttempt(): Promise<Scene> {
+  const s = await recorded()
+  await propose(s.projectId, A, { kind: 'mission', statement: 'Ship the list first', purpose: 'Find lists' }, A)
+  assert.equal((await assembleReply(loginUrl, s.replyId, LIMITS)).outcome, 'recorded')
+  await owner(`UPDATE sophia.conversation_replies SET state='running' WHERE id=$1`, [s.replyId])
+  assert.deepEqual(
+    (await governed(s.replyId)).contexts.map((x) => x.state),
+    ['superseded', 'recorded'],
+  )
+  return s
 }
 
 // G2_CON_ONLY_PLAN Step A. Dependency rows only, inserted with replication triggers off, so no reply or context stands
@@ -1818,6 +1870,165 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
         state: 'outcome_unknown',
       })
       assert.deepEqual(await ledgerState(t.projectId, t.replyId), lost)
+    })
+  })
+
+  describe('an answer publication can’t take is refused, never published (G2_CON_ONLY_PLAN Step B)', () => {
+    it('refuses each of the three: failed with the reason, nothing published, S3’s scrub kept with its trigger enabled; a replay changes nothing', async () => {
+      assert.equal(await scrubTrigger(), 'O')
+      for (const reason of ['answer_empty', 'answer_too_long', 'answer_invalid_text']) {
+        const s = await running()
+        const was = await governed(s.replyId)
+        assert.deepEqual(
+          was.contexts.map((x) => [x.state, x.body, x.by]),
+          [['recorded', true, null]],
+        )
+        assert.ok(was.messageHashes > 0 && was.messageHashes === was.messages)
+        assert.deepEqual(await refuse(s.replyId, 1, reason), { verdict: 'refused', state: 'failed', reason })
+        assert.deepEqual(await replyOf(s.replyId), { state: 'failed', reason, answer_id: null, settled: true })
+        assert.equal(await sophiaMessages(s.replyId), 0, 'no message')
+        assert.equal(await answerOf(s.replyId), undefined, 'no answer')
+        const now = await governed(s.replyId)
+        // S3's governed cleanup at a terminal move: the body and the message hashes go; state, hash, sources stay.
+        assert.deepEqual(
+          now.contexts.map((x) => [x.state, x.body, x.by, x.hash]),
+          was.contexts.map((x) => ['recorded', false, 'reply_ended', x.hash]),
+        )
+        assert.deepEqual(
+          [now.messageHashes, now.messages, now.sources, now.suppressions],
+          [0, was.messages, was.sources, 0],
+        )
+        assert.deepEqual(await refuse(s.replyId, 1, reason), { verdict: 'unchanged', state: 'failed', reason })
+        assert.deepEqual(await governed(s.replyId), now, 'a replay scrubs nothing further')
+      }
+      assert.equal(await scrubTrigger(), 'O')
+    })
+
+    it('refuses an unknown reason, a missing attempt and a call outside READ COMMITTED; changes nothing', async () => {
+      const s = await running()
+      const was = await governed(s.replyId)
+      assert.equal(await refusal(refuse(s.replyId, 1, 'answer_unknown')), 'invalid_input')
+      assert.equal(await refusal(refuse(s.replyId, null, 'answer_empty')), 'invalid_input')
+      const r = await client()
+      await r.c.query('BEGIN ISOLATION LEVEL REPEATABLE READ')
+      assert.equal(await refusal(refuse(s.replyId, 1, 'answer_empty', r.c)), 'read_committed_required')
+      await r.c.query('ROLLBACK')
+      assert.deepEqual(await replyOf(s.replyId), { state: 'running', reason: null, answer_id: null, settled: false })
+      assert.deepEqual(await governed(s.replyId), was)
+    })
+
+    it('leaves a reply already ended, and an attempt the reply no longer stands on, as they are', async () => {
+      const s = await running()
+      await asActor(E, (c) => withdrawConversationMessage(c, s.conversationId, s.earlier[0] ?? '', randomUUID()))
+      const ended = await must(replyOf(s.replyId), 'reply')
+      assert.equal(ended.state, 'cancelled')
+      const kept = await governed(s.replyId)
+      assert.deepEqual(await refuse(s.replyId, 1, 'answer_empty'), {
+        verdict: 'unchanged',
+        state: 'cancelled',
+        reason: ended.reason,
+      })
+      assert.deepEqual([await replyOf(s.replyId), await governed(s.replyId)], [ended, kept])
+      const t = await onSecondAttempt()
+      assert.deepEqual(await refuse(t.replyId, 1, 'answer_too_long'), {
+        verdict: 'unchanged',
+        state: 'running',
+        reason: null,
+      })
+      assert.equal((await replyOf(t.replyId))?.state, 'running')
+      assert.deepEqual(await refuse(t.replyId, 2, 'answer_too_long'), {
+        verdict: 'refused',
+        state: 'failed',
+        reason: 'answer_too_long',
+      })
+    })
+
+    it('against publication, and against a withdrawal through 0048, in both orders under a held lock: one outcome each', async () => {
+      const s = await running()
+      const p = await client()
+      await p.c.query('BEGIN')
+      const v = await publish(s.replyId, 1, randomUUID(), 'In time.', p.c)
+      const r = await client()
+      const refused = refuse(s.replyId, 1, 'answer_empty', r.c)
+      await waitFor('the refusal waiting on the publication', () => waiting(r.pid))
+      await p.c.query('COMMIT')
+      assert.deepEqual(await refused, { verdict: 'unchanged', state: 'answered', reason: null })
+      assert.equal((await answerOf(s.replyId))?.answer_id, v.answerId)
+
+      const t = await running()
+      const q = await client()
+      await q.c.query('BEGIN')
+      assert.deepEqual(await refuse(t.replyId, 1, 'answer_too_long', q.c), {
+        verdict: 'refused',
+        state: 'failed',
+        reason: 'answer_too_long',
+      })
+      const u = await client()
+      const published = publish(t.replyId, 1, randomUUID(), 'Too late.', u.c)
+      await waitFor('the publication waiting on the refusal', () => waiting(u.pid))
+      await q.c.query('COMMIT')
+      assert.deepEqual(await published, { verdict: 'not_running', state: 'failed' })
+      assert.equal(await sophiaMessages(t.replyId), 0)
+
+      const w = await running()
+      const x = await client()
+      await x.c.query('BEGIN')
+      await x.c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [E])
+      await x.c.query('SELECT sophia.withdraw_conversation_message($1, $2, $3)', [
+        w.conversationId,
+        w.earlier[0],
+        randomUUID(),
+      ])
+      const y = await client()
+      const late = refuse(w.replyId, 1, 'answer_invalid_text', y.c)
+      await waitFor('the refusal waiting on the withdrawal', () => waiting(y.pid))
+      await x.c.query('COMMIT')
+      const cancelled = await must(replyOf(w.replyId), 'reply')
+      assert.equal(cancelled.state, 'cancelled')
+      assert.deepEqual(await late, { verdict: 'unchanged', state: 'cancelled', reason: cancelled.reason })
+
+      const z = await running()
+      const k = await client()
+      await k.c.query('BEGIN')
+      await refuse(z.replyId, 1, 'answer_empty', k.c)
+      const m = await client()
+      await m.c.query('BEGIN')
+      await m.c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [E])
+      const withdrawal = m.c.query('SELECT sophia.withdraw_conversation_message($1, $2, $3)', [
+        z.conversationId,
+        z.earlier[0],
+        randomUUID(),
+      ])
+      await waitFor('the withdrawal waiting on the refusal', () => waiting(m.pid))
+      await k.c.query('COMMIT')
+      await withdrawal
+      await m.c.query('COMMIT')
+      assert.deepEqual(await replyOf(z.replyId), {
+        state: 'failed',
+        reason: 'answer_empty',
+        answer_id: null,
+        settled: true,
+      })
+      assert.equal((await messageOf(z.earlier[0] ?? ''))?.body, null, 'the withdrawal still went through')
+    })
+
+    it('publication’s own bounds stand beside it: 1 and 16,000 characters publish, as U+0001 and outside the BMP; 0 and 16,001 raise', async () => {
+      const astral = '\u{1F600}'
+      for (const text of ['x', '\u0001'.repeat(16000), astral.repeat(16000)]) {
+        const s = await running()
+        const v = await publish(s.replyId, 1, randomUUID(), text)
+        const label = `${String(Array.from(text).length)} characters, ${String(text.length)} UTF-16 units`
+        assert.equal(v.verdict, 'published', label)
+        assert.equal((await messageOf(v.answerId))?.body === text, true, label)
+      }
+      const s = await running()
+      for (const text of ['', '\u0001'.repeat(16001), astral.repeat(16001)])
+        assert.equal(
+          await refusal(publish(s.replyId, 1, randomUUID(), text)),
+          'invalid_input',
+          `${String(Array.from(text).length)} characters`,
+        )
+      assert.deepEqual(await replyOf(s.replyId), { state: 'running', reason: null, answer_id: null, settled: false })
     })
   })
 
