@@ -16,6 +16,8 @@ const lightRead = (page: Page) =>
       names: running.map((a) => (a instanceof CSSAnimation ? a.animationName : a.constructor.name)),
       halo: getComputedStyle(light, '::after').backgroundImage.slice(0, 70),
       traceZ: trace ? getComputedStyle(trace).zIndex : null,
+      haloZ: getComputedStyle(light, '::after').zIndex,
+      isolation: getComputedStyle(light).isolation,
       blend: getComputedStyle(light).mixBlendMode,
     }
   })
@@ -24,14 +26,16 @@ for (const [name, url, parts] of [
   ['sign-in', '/signin.html?theme=light', DRAWN.signin],
   ['the room', '/room.html?demo=1&theme=light', DRAWN.room],
 ] as const) {
-  test(`light · ${name}: her light breathes on paper, the trace above the halo`, async ({ page }) => {
+  test(`light · ${name}: her light breathes on paper, behind what the light holds`, async ({ page }) => {
     await page.goto(url)
     await drawn(page, parts)
     const read = await lightRead(page)
     expect(read?.animations).toBe(1)
     expect(read?.names).toEqual(['paper-breathe'])
     expect(read?.halo).toMatch(/^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.95\) 0px/)
-    expect(read?.traceZ).toBe('1')
+    // The halo at the back of the light's own stacking: the trace and the formed mark paint over it.
+    expect(read?.haloZ).toBe('-1')
+    expect(read?.isolation).toBe('isolate')
   })
 }
 
@@ -44,11 +48,23 @@ test('light · under reduced motion the light on paper stands still', async ({ p
   expect(read?.halo).toMatch(/^radial-gradient/)
 })
 
-test('light · on Home her light blends as ink on the page', async ({ page }) => {
+test('light · on Home her light blends as ink on the page, and the formed mark stands over the halo', async ({
+  page,
+}) => {
   await page.goto('/home.html?demo=1&theme=light')
   await drawn(page, DRAWN.home)
   const read = await lightRead(page)
   expect(read?.blend).toBe('multiply')
+  expect(read?.haloZ).toBe('-1')
+  // The mark is a child of the light, after the halo in paint order: it is what the point under its centre hits.
+  const over = await page.evaluate(() => {
+    const mark = document.querySelector<SVGSVGElement>('svg.threshold')
+    if (!mark) return null
+    const r = mark.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width * 0.3, r.top + r.height * 0.55)
+    return hit ? hit.closest('svg.threshold') !== null : null
+  })
+  expect(over).toBe(true)
 })
 
 test('the room: the light carries no CSS animation (its canvas breathes), and no halo pseudo-element', async ({

@@ -80,3 +80,11 @@
   personal turn to the one named (a mark A10 keeps beside the space); for any other kind it changes nothing. The Studio
   posts it when a reply is opened from Home and reads the list again; the fixture records `seen <id>` and drops the need
   from its next answer, which `home-needs.spec` checks (the row leaves).
+- **A permission is its wait** (P2, round 3). One work item may hold several `native_permission` waits, and A15's id is
+  `<kind>:<ref.id>`, so a wait must be its own record: `ref.kind` `work_wait` with the wait's own reference as its id
+  and the work item that holds it in `within`, which is the address (as a decision's). The fixture names
+  `permission:wait-w1` within its work item.
+- **A failed read says so** (P2, round 3). `useNeeds` returns the needs and the read itself (`{ seen, read }`); Home
+  hands the read to its notes beside the personal space's and the projects' (`ReadNotes`): a 403, a 503 or a timeout
+  says «Couldn’t read what needs you.» with Try again, instead of the light alone. The fixture's `needsFail=1` fails
+  the first read; the spec sees the note, presses Try again, and the five rows arrive.

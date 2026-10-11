@@ -35,7 +35,7 @@ describe('what needs the person, from the wire', () => {
   })
   it('lives where its kind says: Tasks, Knowledge, the room; a reply, or anything without a project, in the personal space', () => {
     assert.deepEqual(whereOf(wire()), { projectId: P, view: 'work', at: {} })
-    assert.deepEqual(whereOf(wire({ kind: 'permission', ref: { kind: 'work_item', id: 'w1', within: null } })), {
+    assert.deepEqual(whereOf(wire({ kind: 'permission', ref: { kind: 'work_wait', id: 'wait-1', within: 'w1' } })), {
       projectId: P,
       view: 'work',
       at: { taskId: 'w1' },
@@ -57,7 +57,8 @@ describe('what needs the person, from the wire', () => {
     assert.deepEqual(whereOf(wire({ projectId: null })), { place: 'personal' })
   })
   it('opens the record its ref names when the Studio has an address for it; a version without its report, a decision without its task, only their view', () => {
-    assert.deepEqual(atOf({ kind: 'work_item', id: 'w1', within: null }), { taskId: 'w1' })
+    assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: 'w1' }), { taskId: 'w1' })
+    assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: null }), {})
     assert.deepEqual(atOf({ kind: 'artifact_version', id: VERSION, within: null }), {})
     assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: null }), {})
     assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: 'w3' }), { taskId: 'w3' })

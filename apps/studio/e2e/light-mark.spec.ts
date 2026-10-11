@@ -47,6 +47,17 @@ for (const [name, url, parts] of PAGES) {
   })
 }
 
+test('light · under reduced motion the formed threshold keeps its still halo on paper', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/home.html?demo=1&theme=light')
+  await drawn(page, DRAWN.home)
+  const seen = await marks(page)
+  const threshold = seen.find((m) => m.where === 'threshold')
+  expect(threshold).toBeDefined()
+  expect(threshold?.her).toBe(HALO_DEEP)
+  expect(threshold?.filter).toMatch(/drop-shadow/)
+})
+
 test('light · the favicon switches to the same two paper inks', async ({ page, request }) => {
   const svg = await (await request.get('/favicon.svg')).text()
   expect(svg).toMatch(/prefers-color-scheme: light[^}]*\.y\{fill:#16151B\}\.s\{fill:#8468EE\}/i)

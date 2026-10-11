@@ -134,11 +134,13 @@
   --shadow-k: 0.35;
   --mark-you: #16151b;
   --mark-sophia: #8468ee;
-  --teal-fill: rgb(var(--teal-rgb) / 0.14);
+  /* The tints are the accent at 14 % over the paper, mixed once and opaque: a tag over a cover or a plane keeps the
+     same backing and the same contrast wherever it sits (Codex on #250). */
+  --teal-fill: #dae4de;
   --on-teal: var(--teal);
-  --amber-fill: rgb(var(--amber-rgb) / 0.14);
+  --amber-fill: #ece1d4;
   --on-amber: var(--amber);
-  --rose-fill: rgb(var(--rose-rgb) / 0.14);
+  --rose-fill: #efddde;
   --on-rose: var(--rose);
 }
 :root[data-theme='light'] body::after {
@@ -149,12 +151,16 @@
   display: none;
 }
 /* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
-   it breathes, as the canvas does (docs/plans/light-breath.md). The trace canvas sits above it, so the floor's thread
-   passes over the heart. */
+   it breathes, as the canvas does (docs/plans/light-breath.md). The light isolates its stacking, and the halo sits at
+   the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
+:root[data-theme='light'] .light {
+  isolation: isolate;
+}
 :root[data-theme='light'] .light::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: -1;
   background: radial-gradient(
     circle at 50% 42%,
     rgb(255 255 255 / 0.95) 0,
@@ -164,9 +170,6 @@
   );
   transform-origin: 50% 42%;
   animation: paper-breathe 6s ease-in-out infinite alternate;
-}
-:root[data-theme='light'] .light-trace {
-  z-index: 1;
 }
 @keyframes paper-breathe {
   from {
@@ -183,8 +186,9 @@
     animation: none;
   }
 }
-/* The mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. */
-:root[data-theme='light'] .umbral-sophia {
+/* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
+   the bar's mark (`.umbral`): the threshold keeps its breathing halo, and its still one under reduced motion (Codex on #249). */
+:root[data-theme='light'] .umbral .umbral-sophia {
   filter: none;
 }
 :root[data-theme='light'] .umbral[data-live] .umbral-sophia {
