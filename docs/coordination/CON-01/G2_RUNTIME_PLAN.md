@@ -116,7 +116,7 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 - An execution that may have started (a claim taken whose outcome is unknown, or a lost claim answer) is reconciled first: the request ends `outcome_unknown` and its open reservation becomes `uncertain`. **It is never re-run.**
 - Asking again is a new request.
 
-**A pre-existing shared defect sits under this path:** the dispatcher's reconcile spin (§2.4.1). The reply design depends on its correction.
+**A pre-existing shared defect sits under this path:** the dispatcher's reconcile spin, and the starvation of recoverable rows behind it (§2.4.1). The reply design depends on its correction.
 
 **Tests:** the existing :806 test kept, plus held reply cases:
 - a lost claim answer: `outcome_unknown`, no spawn;
@@ -124,7 +124,7 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 - a row with none: re-dispatched once, for the same request against the same reservations;
 - at most one answer.
 
-### 2.4.1 A shared owner dependency: the dispatcher's reconcile spin (P2; CX-0116)
+### 2.4.1 A shared owner dependency: the dispatcher's reconcile spin and starvation (P2; CX-0116)
 
 **What happens.** A native outbox row left `outcome_unknown` behind an answered runtime command is counted as reconciled on every pass, though nothing changes. The worker then skips its idle wait.
 - **Codex reproduced it** on PG 17.6 (CX-0116), at `f36a8fa0`, byte-identical to `main` `fec45a0e` for every file below:
@@ -133,6 +133,11 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
   - a real `RuntimeDispatcher` with `idleMs` 1000 ran five reconcile passes in 4.94 ms before a controlled stop;
   - **control:** a `delivered` receipt gives `reconciled=0` on all three passes.
 - **The damage:** repeated database work with no progress. No duplicate native dispatch or provider use was seen.
+- **The same rows also starve recoverable ones** (CX-0116 recheck, a third fresh probe on PG 17.6 at the same source):
+  - **The backlog:** two older rows whose commands answered `failed` and `outcome_unknown`, and a newer expired row with no runtime command.
+  - **With `p_limit` 2:** three passes each return 2, and the newer row stays `outcome_unknown` with 0 commands. It could be returned to `pending`, but the `ORDER BY created_at LIMIT p_limit` window (:786-789) selects the same two older rows every time.
+  - **Control, `p_limit` 3:** the pass returns 3, and the newer row becomes `pending` with 0 commands.
+  - **The default window has the same class:** 50 such rows older than a recoverable one hide it from the worker's own call, `reconcileRuntimeOutbox(pool)` with its limit of 50 (`dispatch.ts:56`).
 
 **The exact shared boundary,** none of it CON's:
 
@@ -143,25 +148,46 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 | `packages/persistence/src/dispatch.ts:55-58`, `reconcileRuntimeOutbox` | Returns the function's count unchanged |
 | `apps/worker/src/runtime-dispatch.ts:41-60`, `dispatchOnce`; :93-112, `RuntimeDispatcher.run` | A pass is expire → reconcile → claim → dispatch. Line 98 runs the next pass at once when `reconciled > 0`, skipping `idleMs` |
 
-**The smallest owner correction** (the runtime writer's, by a new migration with a census number; 0012 is never edited):
-- **(a)** count a row only when its state actually changes. Increment only when the target state differs from `outcome_unknown`, or test `FOUND` on an UPDATE whose WHERE excludes an unchanged result;
-- **and, optionally, (b)** stop reselecting rows that can't change: those whose command answered `failed` or `outcome_unknown`. Then they no longer occupy the `ORDER BY created_at LIMIT p_limit` window.
-- **(a) alone is enough** to end the spin. `runtime-dispatch.ts` needs no change once the count is honest.
+**The smallest owner correction** (the runtime writer's, by a new migration with a census number; 0012 is never edited). Both parts are required:
+- **(a) No starvation.** A recoverable row is reached within a bounded number of passes, however many rows that can't change are older than it. Either:
+  - **select only rows the pass can change.** Exclude exactly the rows the CASE's `ELSE` leaves `outcome_unknown`: a command whose `answered_stage` is set and is not `delivered`, `checked` or `rejected` (today `failed` or `outcome_unknown`). Then they no longer occupy the window. The filter and the mapping must state the same rule, so they can't drift;
+  - **or a bounded fair traversal** that the owner proves: every recoverable row is selected within a stated number of passes, whatever the backlog ahead of it.
+- **(b) An honest count.** Count a row only when its state actually changes: test `FOUND` on an UPDATE whose WHERE excludes an unchanged result, or increment only when the target state differs from `outcome_unknown`.
+- **(b) alone is not enough.** It ends the spin, but each pass keeps selecting the same older rows, and the recoverable row behind them is never reached (CX-0116 recheck).
+- **Unchanged:**
+  - the mapping itself;
+  - a row that can't change stays `outcome_unknown`, with its one runtime command, its reason and its accounting;
+  - no row ever gets a second runtime command;
+  - `runtime-dispatch.ts` needs no change once both hold.
+- **The scan's cost:** rows that can't change stay `outcome_unknown` until an operator settles them (A12, A13). How the selection's cost over that backlog is bounded is the owner's call; this plan does not choose an index.
 
 **The owner's recheck:**
 - **The new regression:** a row left `outcome_unknown` by a `failed` receipt, and by an `outcome_unknown` receipt, gives `reconcile_runtime_outbox` = 0 and `dispatchOnce` `reconciled: 0` on the second pass. A `RuntimeDispatcher` then waits `idleMs` between passes.
+- **The backlog regression, at `p_limit` L, run at L = 2 and at the default 50.** The head is L older rows whose commands answered `failed` and `outcome_unknown`, both kinds present. Behind it, at L + 1, is a newer expired row with no runtime command.
+  - **The tail is reached:** on the first pass with a selection of changeable rows, or within the stated bound with a fair traversal. It becomes `pending`, reconcile writes no runtime command, and that pass counts 1.
+  - **The head is unchanged:** every row stays `outcome_unknown`, each with exactly its one runtime command, and its reason, command state and accounting unchanged.
+  - **Every other pass counts 0,** and a `RuntimeDispatcher` idles between them.
+  - **Afterwards:** the tail, dispatched by the ordinary path, gets its first and only runtime command. No head row ever gets a second.
+  - **Fail-before, at today's source:** each pass counts L, and the tail stays `outcome_unknown` with 0 commands (Codex's probe).
+- **The same backlog with each other recoverable tail:**
+  - a command not yet answered: `acknowledged`;
+  - one answered `delivered` or `checked`: `settled`;
+  - one answered `rejected`: `denied`.
+  - Each is reached as above and moved by today's mapping, so the correction leaves out nothing the mapping can move.
 - **Controls:**
+  - `p_limit` L + 1 over the same backlog reaches the tail at once (as today);
   - a `delivered` receipt: 0 (unchanged);
   - a row with no runtime command: still returned to `pending` once, and still counted;
   - `runtime.db.test.ts:806`, "reconciles an uncertain dispatch from the database and never queues it twice": unchanged.
 - **The rest:** the existing runtime and worker suites, and `pnpm check`.
 
 **What CON-01 binds for itself** (no CON fix, and no widening of CON's scope):
-- **The order:** 0049's reply branches (§5, step 1) are not proposed for writing until the owner's correction has landed on the accepted base, or is in the same named window ahead of them. Otherwise every failed or uncertain reply create would add a spinning row.
-- **The reply branch of `apply_runtime_receipt`** keeps today's outbox mapping. It does not invent its own outbox state to dodge the spin, so the shared semantics stay one rule.
+- **The order:** 0049's reply branches (§5, step 1) are not proposed for writing until the owner's correction has landed on the accepted base, or is in the same named window ahead of them. Otherwise every failed or uncertain reply create would add a spinning row, and enough of them would hide a recoverable reply behind them.
+- **The reply branch of `apply_runtime_receipt`** keeps today's outbox mapping. It does not invent its own outbox state to dodge the spin or the window, so the shared semantics stay one rule.
 - **The reply qualification adds the owner's recheck for replies:**
   - a reply `create` answered `failed`, and one answered `outcome_unknown`: the request ends as §8.2.1 says, the outbox row stays uncertain, and the next reconcile pass reports 0, with the dispatcher idle;
-  - neither is ever re-dispatched.
+  - neither is ever re-dispatched;
+  - **the backlog:** a full window of such reply rows, then an expired reply `create` with no runtime command. The newer one is reached as the owner's recheck requires and dispatched once, for the same request and against the same reservations. No older one is re-dispatched.
 - **Recorded as Q12** in BINDING_MAP §8.8.
 
 ### 2.5 The relay, the projection, and every copy
