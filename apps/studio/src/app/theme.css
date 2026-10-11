@@ -44,6 +44,14 @@
   --warm-rgb: 241 220 199;
   --teal-rgb: 127 214 196;
   --amber-rgb: 239 191 134;
+  /* The inks of a state the at-rest scan does not see: a primary press hovered, the ink on the core and on the warm,
+     a note that is soon, Claude's own; each with a paper value (Codex on #234). */
+  --core-hover: #fff;
+  --on-core: #0c0a16;
+  --warm-hover: #fff4e8;
+  --on-warm: #1a1512;
+  --soon: #e8c48d;
+  --claude-ink: #b3a3f5;
   --rose-rgb: 238 159 176;
   /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
   --shadow-rgb: 0 0 0;
@@ -97,6 +105,12 @@
   --warm-rgb: 150 83 40;
   --teal-rgb: 15 107 91;
   --amber-rgb: 143 87 23;
+  --core-hover: #1a1340;
+  --on-core: #fbf8f3;
+  --warm-hover: #7a4220;
+  --on-warm: #fbf8f3;
+  --soon: #8f5717;
+  --claude-ink: #5546b8;
   --rose-rgb: 168 55 90;
   --shadow-rgb: 29 27 34;
   --shadow-k: 0.35;
@@ -335,7 +349,7 @@ button:disabled,
   box-shadow: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
 }
 .pill.primary:hover:not(:disabled, [aria-disabled='true']) {
-  background: #fff;
+  background: var(--core-hover);
 }
 /* A primary action that can't run yet (no name, nothing typed, a wait) waits as an outline, not a greyed-out block. */
 .pill.primary:disabled,
@@ -1941,7 +1955,7 @@ img.avatar {
     color var(--fast) var(--ease);
 }
 .send:hover:not(:disabled) {
-  background: #fff;
+  background: var(--core-hover);
 }
 /* Nothing to send yet: the arrow waits, quiet, like a primary button's outline. */
 .send:disabled {
@@ -2878,7 +2892,7 @@ button.contribution-quote:hover {
   color: var(--void);
 }
 .lobby-actions .pill.warm:hover:not(:disabled) {
-  background: #fff4e8;
+  background: var(--warm-hover);
   box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.22);
 }
 /* Asking before a Block: the question takes the row's width under the name, which stays in sight. */

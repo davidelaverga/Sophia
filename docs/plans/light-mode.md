@@ -33,6 +33,13 @@
   Knowledge, Resources): the root carries the theme, the body is paper, the grain is gone, no visible box keeps one of
   the dark room's planes, and every word reads at 4.5:1 or more (`lowContrast`, the repo's own measure); and the menu's
   choice is shown, kept and followed.
+- The states the at-rest scan does not see carry their own tokens with a paper value (Codex on #234): `--core-hover`
+  (a primary press hovered: white in the room, the deepest violet on paper), `--on-core` and `--on-warm` (the ink on
+  those planes), `--warm-hover`, `--soon` (a note within the hour: the dark room's `#e8c48d`, the amber on paper),
+  `--claude-ink`. `light-mode.spec.ts` measures the three Codex named at 4.5:1 or more.
+- The choice is on the root before the first paint: `public/entry.js` (head-loaded, the CSP's own script) reads
+  `sophia.theme` and sets `data-theme`; `entry.css` paints paper and the opening's ground with it. The spec opens the
+  shell with the choice kept and finds the root light.
 
 ## States
 
