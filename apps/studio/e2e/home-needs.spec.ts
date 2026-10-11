@@ -46,6 +46,8 @@ test('home · needs you: her light smaller at the column’s head; none, one qui
   await page.goto(`${PAGE}?needs=some`)
   const light = page.locator('.hw-side .hw-light')
   await expect.poll(async () => (await light.boundingBox())?.width).toBe(220)
+  // The emblem at the column's head keeps its 96 px: the box is small, the mark is not.
+  await expect.poll(async () => (await light.locator('svg[data-mark="umbral"]').boundingBox())?.width).toBe(96)
   const lightBox = await light.boundingBox()
   const listBox = await list(page).boundingBox()
   expect(listBox?.y ?? 0).toBeGreaterThan((lightBox?.y ?? 0) + (lightBox?.height ?? 0) - 1)
@@ -55,4 +57,23 @@ test('home · needs you: her light smaller at the column’s head; none, one qui
   await page.goto(PAGE)
   await expect(page.locator('.hw-side')).toHaveCount(0)
   await expect.poll(async () => (await page.locator('.hw-light').boundingBox())?.width).toBe(480)
+})
+
+test('home · needs you: by the side’s width a row takes two lines; under 1100 the page is one column, nothing wider than the screen', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await page.goto(`${PAGE}?needs=some`)
+  const row = list(page).getByRole('button').first()
+  await expect.poll(async () => (await row.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(58)
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const side = document.querySelector('.hw-side')?.getBoundingClientRect()
+        const col = document.querySelector('.hw-col')?.getBoundingClientRect()
+        return side && col ? side.top >= col.bottom - 1 && document.documentElement.scrollWidth <= innerWidth : null
+      }),
+    )
+    .toBe(true)
 })

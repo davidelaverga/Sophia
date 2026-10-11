@@ -23,8 +23,11 @@
 - **`NeedsYou.tsx`**: the same index rows as the projects' (`hw-index` / `hw-row`: a glyph for the kind where the number
   is, the title, the note, the arrow), ↑ and ↓ between them, one press opens it (`actions.need(need)`); empty, one
   quiet line «Nothing needs you right now».
-- **Welcome**: a `needs` prop. Undefined (the Studio today), Home is as it was: her light alone on the right. Given, the
-  right half is a column: her light smaller at its head (220 px, the mark 48 px as on a phone), the list under it.
+- **Welcome**: a `needs` prop, the items with their opener (`{ items, open }`: no row is offered that leads nowhere).
+  Undefined (the Studio today), Home is as it was: her light alone on the right. Given, the right half is a column:
+  her light at its head in a 220 px box with the mark kept at 96 px (the emblem, as informe-30 F2 asks: the radius is
+  given to the small box, not earned by its size), the list under it. By the side's own width a row takes two lines
+  under 440 px; under 1100 px of page the page is one column, the side under the words.
 - **The fixture** (`home.tsx`): `needs=some` (five, one per kind; the decision expiring in 20 min first) · `none` ·
   absent (the Studio's own Home, so no existing check moves); the demo shows them. `window.homeFixture.pressed`
   records «need <id>».

@@ -227,7 +227,7 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           hidden={away}
-          needs={needs}
+          needs={needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined}
           actions={{
             personal: () => pressed.push('personal'),
             notes: () => pressed.push('notes'),
@@ -236,7 +236,6 @@ function Home() {
             unlock: () => pressed.push('unlock'),
             room: (projectId, action) => pressed.push(`${action} ${projectId}`),
             say,
-            need: (need) => pressed.push(`need ${need.id}`),
           }}
         />
       </div>
