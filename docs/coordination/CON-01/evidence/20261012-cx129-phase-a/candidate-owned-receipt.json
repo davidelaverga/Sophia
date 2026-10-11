@@ -1,0 +1,47 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+  "tree": "e87c93dde332ff6032baf93d171a89cfb26748c3",
+  "at": "2026-10-11T23:27:05.253206+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/migrations/0012_runtime_service.sql": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+    "apps/worker/src/runtime-dispatch.ts": "f6e0e92edfc75d724e226189ddc7d531314e7179f3fa29ba07aba9e62905c8e8",
+    "packages/persistence/src/dispatch.ts": "e004d398ded2b42f78b5fc83bccf88f164fa774e9654c289f3e3ada72e991de2",
+    "db/migrations/0053_runtime_outbox_reconcile.sql": "bf403b7eff741a5d2056b484c802cdc4cbe382f23bc00ee5826315beedc4bae7"
+  },
+  "operatorHarnessHash": "8f1a86883375d13310055f8e9f0f128f117fe01f600e9840c967e2f3f0d7eac3",
+  "probeHash": "971f4c8feeb603bbd6a409b58c09064a2b54af85111e83ee0b09b0c5cf773063",
+  "commands": [
+    {
+      "label": "dispatch-probe",
+      "command": [
+        "node",
+        "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx129-phase-a/candidate/dispatch-probe.mjs"
+      ],
+      "outerSeconds": 180,
+      "timedOut": false,
+      "expectedExit": 0,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "otherClients": 0
+  },
+  "checkoutCleanAfter": true,
+  "raw_receipt_sha256": "5b7c14e156e8b4e62a453621ba0996920d9ac41858c38dc666efcf75ad5489f8",
+  "raw_log_sha256": "9976010f721e110dd2ab9c492a98a95eff65f2486c71ddc8a199133543723640",
+  "server_log_sha256": "3765678dde0110678b8cf93aec8d5f1276c741e1681c24158764b937ee295d4f",
+  "private_binding_omitted": "Fresh private loopback cluster path/port/PID only; no shared target. Cleanup and closing census below are actual."
+}

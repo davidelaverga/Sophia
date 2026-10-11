@@ -1,0 +1,75 @@
+{
+  "checkpoint": "CON-01-CX-0129",
+  "at": "2026-10-11T23:28:27.473331+00:00",
+  "candidate": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+  "tree": "e87c93dde332ff6032baf93d171a89cfb26748c3",
+  "parent": {
+    "candidate": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "passed": 11,
+    "failed": 8,
+    "fatal": null,
+    "counts_L2": [
+      2,
+      2,
+      2
+    ],
+    "counts_L50": [
+      50,
+      50,
+      50
+    ],
+    "tail": "outcome_unknown",
+    "idle_260ms_passes_L2": 1646,
+    "idle_260ms_passes_L50": 368
+  },
+  "scope": "Independent full 2-file216-insertion source review plus owned PostgreSQL17.6 actual API/worker admission/receipt/dispatch/reconciliation; no feature fix authored.",
+  "result": "scoped L1 PASS; author wider terminal gate/automatic PR review/current-main integration remain pending; no merge or operational authorization",
+  "corrected": {
+    "passed": 19,
+    "failed": 0,
+    "fatal": null,
+    "counts_L2": [
+      1,
+      0,
+      0
+    ],
+    "counts_L50": [
+      1,
+      0,
+      0
+    ],
+    "tail": "pending first pass, no command until ordinary dispatch; exactly one after repeated dispatch",
+    "idle_80ms_observed_260ms": {
+      "L2": {
+        "passes": 4,
+        "minimum_gap_ms": 82.20333299999993
+      },
+      "L50": {
+        "passes": 4,
+        "minimum_gap_ms": 82.04770899999994
+      }
+    },
+    "preservation": "All uncertain outbox records unchanged; all Sophia base tables other than outbox hashed identically before/after reconciliation, including commands/accounting; no-argument5 then0/state mapping preserved; API42501; default/security/search_path/owner+worker ACL matches parent."
+  },
+  "cleanup": "Both independent clusters stopped exit0, postmaster PID absent, removed; each closing census only postgres and0 other clients; all6 owned test databases dropped/pools settled; source clean exact93e9313d.",
+  "resource_use": {
+    "owned_clusters_started": 2,
+    "synthetic_projects": 118,
+    "synthetic_admissions": 118,
+    "real_provider_calls": 0,
+    "native_execution": 0,
+    "hosted_connections": 0,
+    "deployments": 0,
+    "accounts_created": 0,
+    "shared_grants_or_sessions_changed": 0,
+    "new_spend": 0,
+    "owned_test_databases": 6
+  },
+  "review_limits": [
+    "No live migration/deploy/provider/app/actor/cohort acceptance",
+    "Unbounded historical uncertain-row scan remains disclosed; row-limit is not a scan-time proof",
+    "PhaseB/Q13 shared writes remain outside the closed PhaseA source scope",
+    "Ask stays disabled; OP0002r4/OP0001r3 unapproved"
+  ],
+  "base_commit": "fec45a0e96c4679a09da02be979503910a623c5c"
+}

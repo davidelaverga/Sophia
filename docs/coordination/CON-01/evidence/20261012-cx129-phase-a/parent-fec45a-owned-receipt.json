@@ -1,0 +1,46 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "tree": "8c1232f751df67a5de16779047b21bb5f5ada176",
+  "at": "2026-10-11T23:26:10.320745+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/migrations/0012_runtime_service.sql": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+    "apps/worker/src/runtime-dispatch.ts": "f6e0e92edfc75d724e226189ddc7d531314e7179f3fa29ba07aba9e62905c8e8",
+    "packages/persistence/src/dispatch.ts": "e004d398ded2b42f78b5fc83bccf88f164fa774e9654c289f3e3ada72e991de2"
+  },
+  "operatorHarnessHash": "8f1a86883375d13310055f8e9f0f128f117fe01f600e9840c967e2f3f0d7eac3",
+  "probeHash": "971f4c8feeb603bbd6a409b58c09064a2b54af85111e83ee0b09b0c5cf773063",
+  "commands": [
+    {
+      "label": "dispatch-probe",
+      "command": [
+        "node",
+        "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx129-phase-a/parent-fec45a/dispatch-probe.mjs"
+      ],
+      "outerSeconds": 180,
+      "timedOut": false,
+      "expectedExit": 1,
+      "exit": 1
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "otherClients": 0
+  },
+  "checkoutCleanAfter": true,
+  "raw_receipt_sha256": "d53969c130b4e3c5aae2485ac2340795280f0b29ede2003fbb3b452aea01db18",
+  "raw_log_sha256": "4729d975acc68e6c778231ddc48b9a7cbf52041ee07b4da7b41f66cbf072c6a6",
+  "server_log_sha256": "11d7b7706452e3f6605e1a54264d93166ab850388789ad6f9efbb2f8719ce4f1",
+  "private_binding_omitted": "Fresh private loopback cluster path/port/PID only; no shared target. Cleanup and closing census below are actual."
+}

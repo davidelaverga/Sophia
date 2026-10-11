@@ -1,0 +1,44 @@
+{
+  "files": [
+    {
+      "path": "candidate-owned-receipt.json",
+      "bytes": 1992,
+      "sha256": "f580bca06279d7ee4f7543ccc4709d4f1ae8b69de7d9ac930868f26b8ef4a063"
+    },
+    {
+      "path": "candidate-probe-results.json",
+      "bytes": 3962,
+      "sha256": "b44463a1bc700a10966662cf6ac4f24e866be9d7ce9eb23c6e13f9b497af3ff5"
+    },
+    {
+      "path": "candidate.diff",
+      "bytes": 12734,
+      "sha256": "5ded4e58ba197e822a495e1ee13b4f8622502289f2f104fee59a7c3c6c2228c3"
+    },
+    {
+      "path": "dispatch-probe.mjs",
+      "bytes": 10239,
+      "sha256": "971f4c8feeb603bbd6a409b58c09064a2b54af85111e83ee0b09b0c5cf773063"
+    },
+    {
+      "path": "independent-proof.json",
+      "bytes": 2632,
+      "sha256": "9fde59709c4a199a5ba58fe99a5449adb1e7603390106687e88edd9cd808734b"
+    },
+    {
+      "path": "parent-fec45a-owned-receipt.json",
+      "bytes": 1873,
+      "sha256": "6d970cce94d37ffec2318aafac5ff55ec45bf3a3096957856056e499c3a5053f"
+    },
+    {
+      "path": "parent-fec45a-probe-results.json",
+      "bytes": 5519,
+      "sha256": "08afd503120bd1f2f4923934d756e7a7659fcdc88710193c7921699a184a6318"
+    },
+    {
+      "path": "run-owned.py",
+      "bytes": 8072,
+      "sha256": "8f1a86883375d13310055f8e9f0f128f117fe01f600e9840c967e2f3f0d7eac3"
+    }
+  ]
+}

@@ -1,0 +1,199 @@
+{
+  "schema": "sophia.con01.independent-phase-a-pg.v1",
+  "candidate": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "scope": "Owned local PostgreSQL only; real API/worker logins and admission/receipt paths; explicit owned uncertainty/clock fixtures; synthetic receipts; no native/provider or hosted execution",
+  "checks": [
+    {
+      "name": "L2: recoverable tail reached first pass and honest changed counts",
+      "pass": false,
+      "actual": [
+        2,
+        2,
+        2
+      ],
+      "expected": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "L2: no-command tail becomes pending",
+      "pass": false,
+      "actual": "outcome_unknown",
+      "expected": "pending"
+    },
+    {
+      "name": "L2: uncertain heads entirely unchanged",
+      "pass": false,
+      "actual": {
+        "sha256_of_json": "13344fd4cb2a55e5cd59daadf4136a0d26ebfc4659a49dd210483b936973f96f",
+        "row_count": 2,
+        "full_synthetic_detail": "Private immutable probe receipt; large outbox arrays abbreviated in shared record."
+      },
+      "expected": {
+        "sha256_of_json": "fc8eff29d3b0d2ce950a1e85d93a5820b658d44c7044eeadfcc22ce1af247d93",
+        "row_count": 2,
+        "full_synthetic_detail": "Private immutable probe receipt; large outbox arrays abbreviated in shared record."
+      }
+    },
+    {
+      "name": "L2: all other Sophia tables unchanged during reconciliation",
+      "pass": true
+    },
+    {
+      "name": "L2: recovered row enqueues exactly once",
+      "pass": true
+    },
+    {
+      "name": "L2: repeated dispatch creates no duplicate command",
+      "pass": true
+    },
+    {
+      "name": "L2: real dispatcher idles with unchanged uncertain rows",
+      "pass": false,
+      "actual": false,
+      "expected": true
+    },
+    {
+      "name": "L50: recoverable tail reached first pass and honest changed counts",
+      "pass": false,
+      "actual": [
+        50,
+        50,
+        50
+      ],
+      "expected": [
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "L50: no-command tail becomes pending",
+      "pass": false,
+      "actual": "outcome_unknown",
+      "expected": "pending"
+    },
+    {
+      "name": "L50: uncertain heads entirely unchanged",
+      "pass": false,
+      "actual": {
+        "sha256_of_json": "628bc67bd876c01d55e79a32cc04b1d4e13b5ba9212bc1dfa581a1b150ff9373",
+        "row_count": 50,
+        "full_synthetic_detail": "Private immutable probe receipt; large outbox arrays abbreviated in shared record."
+      },
+      "expected": {
+        "sha256_of_json": "16cc609dff173069b62cb4797444355e03380500c331958147c5392c3b8f6cc8",
+        "row_count": 50,
+        "full_synthetic_detail": "Private immutable probe receipt; large outbox arrays abbreviated in shared record."
+      }
+    },
+    {
+      "name": "L50: all other Sophia tables unchanged during reconciliation",
+      "pass": true
+    },
+    {
+      "name": "L50: recovered row enqueues exactly once",
+      "pass": true
+    },
+    {
+      "name": "L50: repeated dispatch creates no duplicate command",
+      "pass": true
+    },
+    {
+      "name": "L50: real dispatcher idles with unchanged uncertain rows",
+      "pass": false,
+      "actual": false,
+      "expected": true
+    },
+    {
+      "name": "API execution of worker reconciliation remains denied",
+      "pass": true
+    },
+    {
+      "name": "No-argument default call preserves five recoverable transitions",
+      "pass": true
+    },
+    {
+      "name": "Original recoverable state mapping preserved",
+      "pass": true
+    },
+    {
+      "name": "Recoverable reconciliation preserves all other tables",
+      "pass": true
+    },
+    {
+      "name": "Reconciliation clears owned leases",
+      "pass": true
+    }
+  ],
+  "details": [
+    {
+      "label": "fairness-2",
+      "counts": [
+        2,
+        2,
+        2
+      ],
+      "tailState": "outcome_unknown",
+      "uncertainHeads": 2,
+      "accountingBefore": "966f8918f7a5559573cfc0bc0426153ffa66f8bf3259fb69ea9a823cfef1fe6b",
+      "accountingAfter": "966f8918f7a5559573cfc0bc0426153ffa66f8bf3259fb69ea9a823cfef1fe6b"
+    },
+    {
+      "label": "idle-2",
+      "intervalMs": 80,
+      "observedMs": 260,
+      "passes": 1646,
+      "minimumGapMs": 0.1307920000000422
+    },
+    {
+      "label": "fairness-2",
+      "databaseDropped": true,
+      "clientEndEventsSettled": true
+    },
+    {
+      "label": "fairness-50",
+      "counts": [
+        50,
+        50,
+        50
+      ],
+      "tailState": "outcome_unknown",
+      "uncertainHeads": 50,
+      "accountingBefore": "deb92d824bd3dff4bb4a9cd887dec053e79f528dd098a1c3c019532cabcb5b06",
+      "accountingAfter": "deb92d824bd3dff4bb4a9cd887dec053e79f528dd098a1c3c019532cabcb5b06"
+    },
+    {
+      "label": "idle-50",
+      "intervalMs": 80,
+      "observedMs": 260,
+      "passes": 368,
+      "minimumGapMs": 0.6452079999999114
+    },
+    {
+      "label": "fairness-50",
+      "databaseDropped": true,
+      "clientEndEventsSettled": true
+    },
+    {
+      "label": "catalog",
+      "prosecdef": true,
+      "proconfig": [
+        "search_path=pg_catalog, sophia"
+      ],
+      "arguments": "p_limit integer DEFAULT 50",
+      "proacl": "{postgres=X/postgres,sophia_worker=X/postgres}"
+    },
+    {
+      "label": "state-and-permission-preservation",
+      "databaseDropped": true,
+      "clientEndEventsSettled": true
+    }
+  ],
+  "fatal": null,
+  "passed": 11,
+  "failed": 8,
+  "raw_receipt_sha256": "545b9e701e51702df08ca4183bb5313e317801fe3decc387ff0e1145f2ec0035"
+}
