@@ -8,6 +8,7 @@ import type {
   MissionContext,
   MissionEntry,
   MissionNotePolicy,
+  RoomQualification,
   RoomToken,
   Snapshot,
   SophiaPresence,
@@ -242,3 +243,23 @@ export const roomToken: RoomToken = {
   token: 'fixture-no-livekit',
   expiresAt: '2099-01-01T00:00:00.000Z',
 }
+
+/**
+ * The grant a room token names with `qualification=on` (A15), as the API names one to the grant's principal alone: the
+ * page then emits its voice receipts. Synthetic: no grant or Lab run is behind it.
+ */
+export const QUALIFICATION: RoomQualification = {
+  grantId: '00000000-0000-4000-8000-0000000000f7',
+  runBindingSha256: '0123456789abcdef'.repeat(4),
+}
+
+/**
+ * The ids the fake LiveKit gives (fake-livekit.ts): the viewer's microphone publication and its track, and the voices
+ * `voices()` attaches, Sophia's and the first other person's.
+ */
+export const TRACKS = {
+  microphone: 'TR_fixture_microphone',
+  microphoneTrack: 'fixture-microphone-track',
+  sophia: 'TR_fixture_sophia_voice',
+  member: 'TR_fixture_member_voice',
+} as const

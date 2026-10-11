@@ -10,6 +10,7 @@ import type {
   SophiaPresence,
 } from '@sophia/contracts'
 import { safeInt } from './bigint.ts'
+import { classifyDbError } from './errors.ts'
 import { onlyRow } from './rows.ts'
 
 /** A bridge that has not reported for this long is not heard: its voice is `unavailable`. */
@@ -137,8 +138,17 @@ export interface PresenceReport {
   voice: 'connecting' | 'ready' | 'recovering' | 'unavailable'
   reason: string | null
   participants: ReadonlyArray<{ identity: string; standing: string }>
+  /**
+   * The bridge process's report sequence (the presence-order amendment, provisional number; 0052): a report not above its
+   * process's last one for the room has no presence effect. Omitted only by a bridge built before it.
+   */
+  reportSeq?: number
 }
 
+/**
+ * The bridge's report for a room (0052's media_report_presence): applied, or, if stale for its process, with no
+ * presence effect. Either way it returns nothing.
+ */
 export async function reportPresence(c: pg.PoolClient, report: PresenceReport): Promise<void> {
   await c.query(`SELECT sophia.media_report_presence($1)`, [JSON.stringify(report)])
 }
@@ -170,6 +180,46 @@ export async function holderEvent(
     [event.exchangeId, event.actorId, event.inputEpoch, event.event],
   )
   return onlyRow(rows, 'media_holder_event').outcome
+}
+
+/**
+ * Claim a bound tool call's key (live:<exchange>:<generation>:<call>) for its speaker, input epoch, tool and call,
+ * before anything runs for it (0047): one call per key, whoever speaks. `callSha256` is the digest the API computes of
+ * what the call's handlers read beyond the key and these (its arguments, utterance, input mode and guide), 64 lowercase
+ * hex, never the arguments. The same call again (the bridge's retry of a lost answer) is a no-op; another speaker,
+ * epoch, tool or call under the key raises idempotency_conflict. Call inside withService, in the transaction that binds
+ * the call (toolSpeaker), before it takes any lock.
+ */
+export async function claimLiveCall(
+  c: pg.PoolClient,
+  call: { exchangeId: string; inputEpoch: number; actorId: string; key: string; name: string; callSha256: string },
+): Promise<void> {
+  await c.query(`SELECT sophia.media_claim_live_call($1,$2,$3,$4,$5,$6)`, [
+    call.exchangeId,
+    call.inputEpoch,
+    call.actorId,
+    call.key,
+    call.name,
+    call.callSha256,
+  ])
+}
+
+/**
+ * Maintenance, on the worker's login: delete the claimed keys of exchanges that ended over an hour ago (0047,
+ * live_call_keys_expire). A call in an ended exchange is refused at its bind, so its key protects nothing more. Run by
+ * the worker's periodic pass. A database without 0047 holds none: nothing is asked of it, and it answers 0.
+ */
+export async function expireLiveCallKeys(pool: pg.Pool): Promise<number> {
+  try {
+    const present = await pool.query<{ ok: boolean }>(
+      `SELECT to_regprocedure('sophia.live_call_keys_expire()') IS NOT NULL AS ok`,
+    )
+    if (!present.rows[0]?.ok) return 0
+    const { rows } = await pool.query<{ n: number }>(`SELECT sophia.live_call_keys_expire() AS n`)
+    return onlyRow(rows, 'live_call_keys_expire').n
+  } catch (err: unknown) {
+    throw classifyDbError(err)
+  }
 }
 
 /** The project a tool call acts in, when its speaker is bound to its input epoch; otherwise it raises. */

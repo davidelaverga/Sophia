@@ -14,7 +14,10 @@
 // Sophia leave, or read what happened. Others in the room, the floor, who speaks, Sophia's states and video come from
 // fake-people.ts (`people`, `floor=1|me|absent`, `speaking`,
 // `sophia=here|listening|settling|answering|speaking|blocked`, `voice`, `paused`, `video=camera|screen`,
-// `looking=screen`; docs/plans/room-fixture-people.md).
+// `looking=screen`; docs/plans/room-fixture-people.md). `qualification=on`: the room token names a voice qualification
+// grant (A15), so the page emits its voice receipts; `window.fixture.voices` attaches Sophia's voice and a member's,
+// `voicesLeave` unsubscribes them (LiveKit keeps one element to attach again), and `grant` says whether the next room
+// tokens name the grant.
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { Goal, GoalCommand } from '@sophia/contracts'
@@ -36,7 +39,16 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
+import {
+  asked,
+  deliverCaption,
+  deliverNotice,
+  dropCall,
+  leaving,
+  sophiaLeaves,
+  voicesArrive,
+  voicesLeave,
+} from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -51,6 +63,7 @@ import {
   type SophiaState,
 } from './fake-people.ts'
 import {
+  grantTokens,
   installFixtureApi,
   publish,
   releaseSources,
@@ -205,6 +218,15 @@ interface Fixture {
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
   sophiaLeaves: () => void
+  /**
+   * Sophia's voice and the first other person's reach the page, in this order (hers first unless asked): an audio
+   * element each, as LiveKit attaches them, a recycled one first.
+   */
+  voices: (order?: readonly ('sophia' | 'member')[]) => void
+  /** Their tracks are unsubscribed: the elements go, and LiveKit keeps one to attach again. */
+  voicesLeave: () => void
+  /** The next room tokens name the voice qualification grant, or not (A15). */
+  grant: (on: boolean) => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -717,6 +739,9 @@ window.fixture = {
   },
   caption: deliverCaption,
   sophiaLeaves,
+  voices: voicesArrive,
+  voicesLeave,
+  grant: grantTokens,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },

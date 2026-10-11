@@ -1,31 +1,59 @@
-// The bridge's client for the private media routes (contract amendments A06, A08). It authenticates with the media-bridge
-// capability (a bearer the API compares by hash), never a member's session. Every response is validated against
-// the canonical contract before the bridge acts on it: an assignment that does not parse is not an assignment.
+// The bridge's client for the private media routes (contract amendments A06, A08, A15). It authenticates with the
+// media-bridge capability (a bearer the API compares by hash), never a member's session. Every response is validated
+// against the canonical contract before the bridge acts on it: an assignment that does not parse is not an assignment.
 import type {
   MediaAnnounced,
   MediaAssignmentBatch,
+  MediaEvidenceAck,
+  MediaEvidenceWrite,
   MediaHolderEvent,
+  MediaQualificationReservation,
+  MediaQualificationReserve,
   MediaPresenceReport,
   MediaQuiesceAck,
   MediaToolCall,
   MediaToolResult,
   MediaToolSurface,
 } from '@sophia/contracts'
-import { parseMediaAssignmentBatch, parseMediaToolResult, parseMediaToolSurface } from '@sophia/contracts/validate'
+import {
+  parseMediaAssignmentBatch,
+  parseMediaEvidenceAck,
+  parseMediaQualificationReservation,
+  parseMediaToolResult,
+  parseMediaToolSurface,
+} from '@sophia/contracts/validate'
 import type { GuideVersion } from './guide.ts'
 
 /** What the bridge asks of the API; tests supply a labelled fake. */
 export interface MediaService {
   /** Long-polls: returns at once when `after` is stale, else when assignments change or `waitMs` passes. */
   assignments: (after: string | null, waitMs: number, signal: AbortSignal) => Promise<MediaAssignmentBatch>
-  presence: (report: MediaPresenceReport) => Promise<void>
-  ackQuiesce: (ack: MediaQuiesceAck) => Promise<void>
-  holder: (event: MediaHolderEvent) => Promise<void>
-  announced: (event: MediaAnnounced) => Promise<void>
-  toolCall: (call: MediaToolCall) => Promise<MediaToolResult>
+  /**
+   * The presence report, the quiesce acknowledgement, a holder event, an announcement's record and a tool call. `signal`
+   * ends the attempt, its body's read included (attempt.ts, withinAttempt).
+   */
+  presence: (report: MediaPresenceReport, signal?: AbortSignal) => Promise<void>
+  ackQuiesce: (ack: MediaQuiesceAck, signal?: AbortSignal) => Promise<void>
+  holder: (event: MediaHolderEvent, signal?: AbortSignal) => Promise<void>
+  announced: (event: MediaAnnounced, signal?: AbortSignal) => Promise<void>
+  toolCall: (call: MediaToolCall, signal?: AbortSignal) => Promise<MediaToolResult>
   /** The operations the API executes for a guide version (A08, A11): the guide activates only when they equal the
    *  declared tools. */
   toolSurface: (guide: GuideVersion) => Promise<MediaToolSurface>
+  /**
+   * A receipt for an exchange under a voice qualification grant (A15), sent only with SOPHIA_VOICE_EVIDENCE=on, by its
+   * write identity: the service numbers it (0051; Codex P1 r4232908444). The answer says its number and whether the
+   * API's guard has ended the exchange. `signal` ends the attempt, its body's read included (Codex P2 r4235355799).
+   */
+  recordEvidence: (write: MediaEvidenceWrite, signal?: AbortSignal) => Promise<MediaEvidenceAck>
+  /**
+   * The exchange's durable bound under a voice qualification grant (A15): a provider connection or a generation,
+   * reserved before it is spent. A refusal has ended the exchange. `signal` limits how long the bridge waits.
+   */
+  reserveQualification: (
+    reserve: MediaQualificationReserve,
+    signal?: AbortSignal,
+  ) => Promise<MediaQualificationReservation>
 }
 
 export class ServiceError extends Error {
@@ -43,6 +71,11 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
   const base = baseUrl.replace(/\/+$/, '')
   const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
 
+  /**
+   * One request. Its `signal`, when given, bounds all of it: fetch applies it to the response's body too, so an
+   * abort while the body is read rejects `res.text()` and cancels the request, its socket closed (Codex P2
+   * r4235355799).
+   */
   async function send(path: string, init: RequestInit): Promise<unknown> {
     const res = await fetchImpl(`${base}${path}`, { ...init, headers })
     if (res.status === 204) return undefined
@@ -52,8 +85,8 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
     return JSON.parse(text) as unknown
   }
 
-  const post = async (path: string, body: unknown): Promise<unknown> =>
-    send(path, { method: 'POST', body: JSON.stringify(body) })
+  const post = async (path: string, body: unknown, signal?: AbortSignal): Promise<unknown> =>
+    send(path, { method: 'POST', body: JSON.stringify(body), ...(signal ? { signal } : {}) })
 
   return {
     assignments: async (after, waitMs, signal) => {
@@ -62,12 +95,16 @@ export function httpMediaService(baseUrl: string, token: string, fetchImpl: Fetc
         await send(`/v1/media/assignments?${query.toString()}`, { method: 'GET', signal }),
       )
     },
-    presence: async (report) => void (await post('/v1/media/presence', report)),
-    ackQuiesce: async (ack) => void (await post('/v1/media/quiesce-acks', ack)),
-    holder: async (event) => void (await post('/v1/media/holder', event)),
-    announced: async (event) => void (await post('/v1/media/announced', event)),
-    toolCall: async (call) => parseMediaToolResult(await post('/v1/media/tool-calls', call)),
+    presence: async (report, signal) => void (await post('/v1/media/presence', report, signal)),
+    ackQuiesce: async (ack, signal) => void (await post('/v1/media/quiesce-acks', ack, signal)),
+    holder: async (event, signal) => void (await post('/v1/media/holder', event, signal)),
+    announced: async (event, signal) => void (await post('/v1/media/announced', event, signal)),
+    toolCall: async (call, signal) => parseMediaToolResult(await post('/v1/media/tool-calls', call, signal)),
     toolSurface: async (guide) =>
       parseMediaToolSurface(await send(`/v1/media/tool-surface?guide=${guide}`, { method: 'GET' })),
+    recordEvidence: async (write, signal) =>
+      parseMediaEvidenceAck(await post('/v1/media/evidence-writes', write, signal)),
+    reserveQualification: async (reserve, signal) =>
+      parseMediaQualificationReservation(await post('/v1/media/qualification-reserve', reserve, signal)),
   }
 }

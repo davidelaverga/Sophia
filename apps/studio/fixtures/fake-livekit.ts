@@ -3,23 +3,30 @@
 // that reaches no server. It records what it is asked, in order, and can refuse a device or drop the call, as
 // LiveKit would report them. What Sophia sends goes through the Studio's own listener (sophia-channel.ts), as bytes
 // from her participant on the reply topic. Who else is in the room, what Sophia's participant says and the video
-// feeds come from fake-people.ts. Nothing else in the Studio is replaced.
-import { RoomEvent, type Room } from 'livekit-client'
+// feeds come from fake-people.ts. Under a grant the token names (`qualification=on`, A15), the Studio's own voice
+// receipts (voice-qualification.ts) hear the microphone's publication and the voices' elements from here, as they
+// would from LiveKit, which recycles a detached audio element for the next audio track. Nothing else in the Studio
+// is replaced.
+import { RoomEvent, Track, type Room } from 'livekit-client'
+import type { RoomQualification, RoomToken } from '@sophia/contracts'
 import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/contracts/room-chat'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
+import { watchQualification } from '../src/features/voice/voice-qualification.ts'
 import {
   allowSound,
   feeds,
   onPeopleChange,
   others,
+  personId,
   setSophia,
   sophiaSignal,
   soundBlocked,
   viewerSpeaks,
 } from './fake-people.ts'
+import { TRACKS } from './data.ts'
 import { VIEWER_NAME } from './demo.ts'
 
 /** What the room's connection was asked, in order: `connect`, `microphone:on`, `text:off`, `leave`… */
@@ -65,6 +72,92 @@ export function deliverCaption(packet: Parameters<NonNullable<RoomCallbacks['onC
   fromSophia(packet)
 }
 
+/**
+ * Detached audio elements kept to attach again, as LiveKit keeps them (`recycledElements`, livekit-client 2.22.3): one
+ * at most, and the next audio track attached without an element takes it, whoever's it is and in whichever call.
+ */
+const recycled: HTMLAudioElement[] = []
+
+/** The voices on the page (`voicesArrive`), each with its track: they go when they leave or the call ends. */
+const voices = new Map<HTMLAudioElement, { trackSid: string; who: object }>()
+
+type Voice = 'sophia' | 'member'
+
+/** Whose voice: its first track and its participant. */
+const VOICES: Record<Voice, { trackSid: string; who: object }> = {
+  sophia: { trackSid: TRACKS.sophia, who: SOPHIA },
+  member: { trackSid: TRACKS.member, who: { identity: personId(1), metadata: '{}' } },
+}
+
+/** How many times each voice arrived: each later arrival is a track published anew, `<first sid>-2`, `-3`… */
+const arrived: Record<Voice, number> = { sophia: 0, member: 0 }
+
+/** As LiveKit's `attach()` and remoteAudio: a recycled element if one is free, else a new one, marked whose voice. */
+function attachVoice(voice: Voice): void {
+  const { who } = VOICES[voice]
+  arrived[voice] += 1
+  const trackSid = arrived[voice] === 1 ? VOICES[voice].trackSid : `${VOICES[voice].trackSid}-${arrived[voice]}`
+  const free = recycled.findIndex((e) => e.parentElement === null)
+  const [kept] = free === -1 ? [] : recycled.splice(free, 1)
+  const el = kept ?? document.createElement('audio')
+  el.dataset.sophiaRoomAudio = voice
+  document.body.append(el)
+  voices.set(el, { trackSid, who })
+  emit(RoomEvent.TrackSubscribed, { kind: Track.Kind.Audio, attachedElements: [el] }, { trackSid }, who)
+}
+
+/**
+ * Sophia's voice and the first other person's reach this page, in this order, as LiveKit attaches a subscribed track
+ * (remoteAudio in livekit-room.ts): an audio element each, marked whose it is as remoteAudio marks it. They carry no
+ * sound of their own; a check gives them one.
+ */
+export function voicesArrive(order: readonly Voice[] = ['sophia', 'member']): void {
+  for (const voice of order) attachVoice(voice)
+}
+
+/**
+ * The voices' tracks are unsubscribed, in the order they came, as remoteAudio and LiveKit's `detach()` do it: each
+ * element paused, removed and kept to attach again if none is kept yet, then its track's TrackUnsubscribed.
+ */
+export function voicesLeave(): void {
+  for (const [el, { trackSid, who }] of voices) {
+    el.pause()
+    if (!recycled.some((e) => e.parentElement === null)) recycled.push(el)
+    el.remove()
+    emit(RoomEvent.TrackUnsubscribed, { kind: Track.Kind.Audio, attachedElements: [] }, { trackSid }, who)
+  }
+  voices.clear()
+}
+
+/** The viewer's microphone as LiveKit publishes it: its publication, and the MediaStreamTrack it carries. */
+const MICROPHONE = {
+  source: Track.Source.Microphone,
+  trackSid: TRACKS.microphone,
+  track: { mediaStreamTrack: { id: TRACKS.microphoneTrack } },
+}
+
+/**
+ * The call's tracks as LiveKit keeps them: the microphone is published the first time it turns on (turned off, it is
+ * muted, not unpublished). When the call ends, the others' tracks go first, their elements with them, then the
+ * microphone is unpublished, then the room says it disconnected.
+ */
+function callTracks() {
+  let published = false
+  return {
+    microphoneOn: () => {
+      if (published) return
+      published = true
+      emit(RoomEvent.LocalTrackPublished, MICROPHONE)
+    },
+    end: () => {
+      voicesLeave()
+      if (published) emit(RoomEvent.LocalTrackUnpublished, MICROPHONE)
+      published = false
+      emit(RoomEvent.Disconnected)
+    },
+  }
+}
+
 /** Sophia's participant leaves the room, as when her bridge lost its link or restarted. */
 export function sophiaLeaves(): void {
   setSophia(null)
@@ -95,20 +188,32 @@ function sayFollowing(versionId: string | null): Promise<void> {
   return Promise.resolve()
 }
 
-export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  asked.push('connect')
-  said = null // a new connection has said nothing yet, as following-signal.ts starts each one
-  const me = viewer()
-  let textOnly = false
-  let open = true
+/**
+ * A new connection's room, as the Studio's own listeners hear it: Sophia's packets (sophia-channel.ts) and, under a
+ * grant, the voice receipts (voice-qualification.ts). Its listeners replace the last connection's.
+ */
+function listenAnew(cb: RoomCallbacks, qualification: RoomQualification | undefined): void {
   listeners = new Map()
   const room = {
     on: (event: string, fn: (...args: unknown[]) => void) => {
       listeners.set(event, [...(listeners.get(event) ?? []), fn])
     },
   }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a fake of the one method the listener uses
-  listenToSophia(room as unknown as Pick<Room, 'on'>, cb)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a fake of the one method the listeners use
+  const heard = room as unknown as Pick<Room, 'on'>
+  listenToSophia(heard, cb)
+  watchQualification(heard, qualification)
+}
+
+/** The token is the API's answer: no server is behind it, and only the grant it may name is read. */
+export function connectRoom({ qualification }: RoomToken, cb: RoomCallbacks): Promise<RoomConnection> {
+  asked.push('connect')
+  said = null // a new connection has said nothing yet, as following-signal.ts starts each one
+  const me = viewer()
+  let textOnly = false
+  let open = true
+  listenAnew(cb, qualification)
+  const tracks = callTracks()
   // Nothing more is heard from a room this connection left or lost, as LiveKit emits nothing after a disconnect.
   onPeopleChange(() => {
     if (open) cb.onChange()
@@ -116,6 +221,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   ended = (why) => {
     if (!open) return
     open = false
+    tracks.end()
     cb.onEnded(why)
   }
   const device =
@@ -123,6 +229,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       asked.push(`${name}:${on ? 'on' : 'off'}`)
       if (on && refused === name) return Promise.reject(blocked())
       me[key] = on
+      if (name === 'microphone' && on) tracks.microphoneOn()
       cb.onChange()
       return Promise.resolve()
     }
@@ -151,6 +258,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     leave: () => {
       asked.push('leave')
       open = false
+      tracks.end()
       // A slow disconnect (`window.fixture.holdLeave`): it ends when released.
       if (leaving.fails) return Promise.reject(new Error('Disconnect failed'))
       return leaving.held ? new Promise<void>((resolve) => leaving.waiting.push(resolve)) : Promise.resolve()

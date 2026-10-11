@@ -145,3 +145,12 @@ jobs:
       - run: pnpm --filter @sophia/studio exec playwright install --with-deps chromium
       # LFE-00's preservation checks: the real Studio components over labelled fixture data, no API, call or provider.
       - run: pnpm --filter @sophia/studio test:browser
+      # A failed check's trace and error context (playwright.config.ts: trace retain-on-failure), kept for a week: without
+      # them a failure on this runner cannot be read afterwards. Fixture data only: synthetic accounts, no credential.
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: studio-browser-test-results
+          path: apps/studio/test-results/
+          retention-days: 7
+          if-no-files-found: ignore

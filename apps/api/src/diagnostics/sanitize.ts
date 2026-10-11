@@ -172,6 +172,8 @@ const EXCHANGE_CHANGES = [
   'guest',
   'holder_left',
   'empty',
+  // A voice qualification grant's guard (0046) ended it.
+  'qualification_limit',
 ]
 const LOBBY_CHANGES = ['knock', 'admit', 'deny', 'block', 'unblock']
 const TASK_SUMMARIES = [

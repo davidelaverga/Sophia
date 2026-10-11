@@ -1,0 +1,776 @@
+// An exchange under a voice qualification grant, as its RoomSession sees it (sophia.voice-qualification.v1; amendment
+// A15, migration 0046; docs/plans/voice-qualification-g7.md). It joins the receipts (qualification-recorder.ts, sent by
+// evidence-sender.ts), the exchange's durable bound (qualification-ledger.ts, held by the API) and the bridge's own
+// first check (qualification-reserve.ts), with the grant's deadline. A session has one only when
+// SOPHIA_VOICE_EVIDENCE=on and its assignment names a grant; otherwise it has none, and nothing here runs: what the
+// bridge sends to the API and the provider is what it sent before.
+//
+// The bound holds for the whole session under the grant, whoever holds the floor: it counts and records nothing. Every
+// spend is first checked here, at once and without the network (a refusal here never waits on the API), then reserved
+// on the API, which holds the exchange's true counts across replaced sessions and restarted bridges:
+// - a provider connection is reserved before it opens, and its durable ordinal names its receipts;
+// - a generation is reserved before what can start one is sent (the first input after a turn ended, held meanwhile; a
+//   tool response; a notice; a typed message), charged at its worst case (with the text it sends); one that starts
+//   unasked (its output arrives while no generation is paid for, a reservation still in flight included: nothing behind
+//   that has reached the provider yet) is charged as its output arrives;
+// - input is paid for before it is sent (charge ahead): each connection holds an allowance prepaid on the API, which the
+//   generation input asks for fills up to INPUT_SLICE, and a top-up ('spend') refills once the next chunk or frame would
+//   pass it. Audio, frames, transcription and Sophia's words are taken from it; audio held meanwhile waits behind the
+//   top-up, in order, and a frame is dropped and counted. So the API's committed amount is never less than what was
+//   sent: a crash loses only allowance already paid for, never spend nobody paid for.
+// A refusal, or no answer in time, stops the session for good: it sends nothing more to the provider and closes it
+// (RoomSession.guardStop). The receipts are recorded only while the grant's principal holds the floor.
+import type { UsageMetadata } from '@google/genai'
+import type { MediaAssignment, MediaEvidenceAck, VoiceQualification } from '@sophia/contracts'
+import type { ReplyEnd } from './audio.ts'
+import { EvidenceSender } from './evidence-sender.ts'
+import type { Attribution, ProviderState } from './exchange-state.ts'
+import { type CloseReason, QualificationRecorder, type TurnEnd } from './qualification-recorder.ts'
+import { type LedgerAnswer, type LedgerStop, QualificationLedger } from './qualification-ledger.ts'
+import { ASSUMED_RATES, QualificationReserve, type Stop, type Verdict } from './qualification-reserve.ts'
+import type { MediaService } from './service.ts'
+
+/** Why the session stopped talking to the provider: its own bound, the API's refusal, or the grant's deadline. */
+export type GuardStop = Stop | LedgerStop | 'deadline'
+
+/** The most a single charge may be (the API refuses more): the largest budget a grant can have. */
+const MAX_CHARGE = 5_000_000
+/**
+ * The longest chain of ledger requests a session's close can wait for, one after another (Codex r4235490757):
+ * 1. a top-up, or the reservation input asked for, already in flight on a connection;
+ * 2. the debt a cut, or the holder's words past the budget (Codex r4235620508), left on that connection, spent once
+ *    that is credited (#chargeDebt): only the call that made the bound's stop leaves one, so there is one;
+ * 3. the bridge's stop, sent once every charge is answered (stopped()).
+ * Nothing else waits on another: an unasked generation's charge is one request, alongside; a debt's top-up may ask
+ * one more top-up when its credit leaves a debt (two, with no stop: a stop's debt is #chargeDebt's, and a credit asks
+ * nothing once the session stopped); and nothing new is owed once the session closed (no output arrives then). So a
+ * close waits at most three times one request's bound (RESERVE_TIMEOUT_MS attempts and RESERVE_RETRY_MS waits).
+ */
+export const SETTLE_DEPTH = 3
+const INPUT_RATE = 16_000
+/**
+ * What a connection's allowance is filled up to, in tokens: by the generation input asks for, and by each top-up. About
+ * 95 s of speech with its transcription (42 tokens a second), so most spoken turns never top up; with a camera on (a
+ * frame each second, 258), about 13 s. It is paid before anything is sent, so the API may hold at most this much more
+ * than was spent per connection: an exchange ends at most that much earlier, never later.
+ */
+export const INPUT_SLICE = 4000
+/**
+ * The transcription a second of the holder's speech is prepaid for, in tokens (30 characters, at 3 a token: about
+ * twice a fast speaker). Transcription follows audio already sent, so it is paid with the audio; what the provider
+ * transcribes beyond it comes out of the allowance, and a debt is topped up at once.
+ */
+export const TRANSCRIPT_PER_SECOND = 10
+
+/**
+ * SOPHIA_VOICE_EVIDENCE as the bridge reads it, the way the API reads SOPHIA_VOICE_QUALIFICATION: on, or off when off,
+ * unset or empty. Anything else stops the bridge's start: an operator who meant on must not get a silent off.
+ */
+export function voiceEvidenceSetting(raw: string | undefined): boolean {
+  const value = raw?.trim() || undefined
+  if (value === undefined || value === 'off') return false
+  if (value !== 'on') throw new Error('SOPHIA_VOICE_EVIDENCE is on, off or unset')
+  return true
+}
+
+/** The deployed commit a provider receipt names: RENDER_GIT_COMMIT when it is 40 hex, otherwise none, never guessed. */
+export function commitOf(raw: string | undefined): string | null {
+  return raw !== undefined && /^[0-9a-f]{40}$/.test(raw) ? raw : null
+}
+
+export interface QualificationDeps {
+  exchangeId: string
+  grant: VoiceQualification
+  model: string
+  instructionSha256: string
+  bridgeCommit: string | null
+  record: MediaService['recordEvidence']
+  retryMs: readonly number[]
+  now: () => number
+  attribution: () => Attribution | null
+  /** The API's guard ended the exchange (an evidence answer said so). */
+  ended: (reason: MediaEvidenceAck['reason']) => void
+  /** A reservation made on the way (an unasked generation's) was refused: the session stops. */
+  stop: (why: GuardStop) => void
+  reserve: MediaService['reserveQualification']
+  reserveRetryMs: readonly number[]
+  reserveTimeoutMs: number
+  log: (event: string, detail?: Record<string, unknown>) => void
+}
+
+/** A provider connection: its ordinal in this session (the first check's) and in the exchange (the API's). */
+interface Link {
+  local: number
+  durable: number
+  /** Tokens prepaid on the API for this connection's input and not spent yet; below zero, a debt being topped up. */
+  paid: number
+  /** Of what audio prepaid, what its transcription may still take. */
+  credit: number
+}
+
+/** A chunk of 16 kHz audio at the assumed rate, with its transcription prepaid. */
+const audioCost = (samples: number) => (samples / INPUT_RATE) * (ASSUMED_RATES.audioInPerSecond + TRANSCRIPT_PER_SECOND)
+
+export class SessionQualification {
+  readonly #deps: QualificationDeps
+  readonly #reserve: QualificationReserve
+  readonly #ledger: QualificationLedger
+  readonly #recorder: QualificationRecorder
+  readonly #sender: EvidenceSender
+  readonly #deadline: number
+  /** The session's connection numbers, and each one's ordinals. */
+  readonly #links = new Map<number, Link>()
+  /**
+   * The reservation in flight on a connection that input waits for: the next generation, asked for by input, or a
+   * top-up of the allowance. Only this one, once granted, lets input flow.
+   */
+  readonly #pending = new Map<number, Promise<GuardStop | null>>()
+  /**
+   * Generations paid for on a connection that no turn has ended yet: each granted reservation, and each generation
+   * charged as it arrived (unasked). Input flows while there is one; output arriving while there is none is a generation
+   * nobody reserved. A turn's end takes one.
+   */
+  readonly #granted = new Map<number, number>()
+  /**
+   * The charges of generations nobody reserved (unasked) on each connection, while the API has not answered them: every
+   * one, never only the latest (Codex r4234233112: a second unasked turn before the first's charge was answered hid the
+   * first). A function call runs only once all of its connection's are counted there, and not at all if one is refused.
+   */
+  readonly #unaskedCharges = new Map<number, Set<Promise<GuardStop | null>>>()
+  /**
+   * Charges for what was already spent, not answered yet: every unasked generation's, every top-up of a debt (output
+   * already received), and the debt a cut left (#chargeDebt). Each with the phase it is in, for a close that stops
+   * waiting (qualification.charge_unsettled). The session settles them before the bridge's stop, and before it ends
+   * (settle()).
+   */
+  readonly #owed = new Map<Promise<boolean>, { name: string }>()
+  /** Whether a charge for what was already spent was refused, or never confirmed: it is not on the API. */
+  #lost = false
+  /** The bridge's stop, once its bound stopped the session: sent when what it owes is answered (stopped()). */
+  #stopping: Promise<void> | null = null
+  #stopSent = false
+  #stopAnswered = false
+  /** The stop was asked and never confirmed: the exchange may still be open on the API. */
+  #stopLost = false
+  #stopped: GuardStop | null = null
+  /** Frames dropped because the allowance did not cover them yet: never sent unpaid. */
+  #framesDropped = 0
+
+  constructor(deps: QualificationDeps) {
+    this.#deps = deps
+    const { grant } = deps
+    this.#reserve = new QualificationReserve({
+      usageTokens: grant.maxUsageTokens,
+      outputTokensPerTurn: grant.maxOutputTokensPerTurn,
+      turns: grant.maxTurns,
+      connections: grant.maxProviderConnections,
+    })
+    // An unreadable deadline is already past: the bound fails closed.
+    const deadline = Date.parse(grant.deadline)
+    this.#deadline = Number.isFinite(deadline) ? deadline : 0
+    this.#ledger = new QualificationLedger({
+      exchangeId: deps.exchangeId,
+      grantId: grant.grantId,
+      reserve: deps.reserve,
+      retryMs: deps.reserveRetryMs,
+      timeoutMs: deps.reserveTimeoutMs,
+      log: deps.log,
+    })
+    this.#sender = new EvidenceSender({
+      exchangeId: deps.exchangeId,
+      grantId: grant.grantId,
+      record: deps.record,
+      retryMs: deps.retryMs,
+      ended: deps.ended,
+      log: deps.log,
+    })
+    this.#recorder = new QualificationRecorder({
+      grant,
+      model: deps.model,
+      instructionSha256: deps.instructionSha256,
+      bridgeCommit: deps.bridgeCommit,
+      now: deps.now,
+      attribution: deps.attribution,
+      emit: (receipt) => this.#sender.send(receipt),
+    })
+  }
+
+  /** The provider's output cap for one generation: the grant's (the bound does not rely on it being honoured). */
+  get maxOutputTokens(): number {
+    return this.#deps.grant.maxOutputTokensPerTurn
+  }
+
+  /** The API's newer view: who holds the floor, and whether it still names the grant. */
+  floor(assignment: MediaAssignment): void {
+    this.#recorder.floor(assignment.inputActorId, assignment.qualification?.grantId ?? null)
+  }
+
+  /**
+   * Before a provider connection opens (the first, a reconnection, a replacing session's): checked here, then reserved
+   * on the API, whose durable ordinal its receipts name. Resolves to why it must not open, or null.
+   */
+  async connecting(connection: number, resumed: boolean): Promise<GuardStop | null> {
+    const local = this.#links.size + 1
+    const stop = this.#check(() => this.#reserve.connected(local))
+    if (stop) return stop
+    const answer = await this.#ledger.connection()
+    if (!answer.ok || answer.ordinal === null) return this.#refused(answer)
+    if (this.#stopped) return this.#stopped
+    this.#links.set(connection, { local, durable: answer.ordinal, paid: 0, credit: 0 })
+    this.#recorder.opened(answer.ordinal, resumed)
+    return null
+  }
+
+  ready(connection: number): void {
+    this.#recorder.provider('ready', this.#durable(connection))
+  }
+
+  /** A connection was lost or replaced: the next is on its way, or the provider is unavailable for now. */
+  recovering(connection: number, state: ProviderState): void {
+    this.#recorder.provider(state === 'unavailable' ? 'unavailable' : 'recovering', this.#durable(connection))
+  }
+
+  /** The provider's usage report, from whichever connection sent it: what it reports was spent. */
+  usage(connection: number, usage: UsageMetadata): void {
+    const total = usage.totalTokenCount
+    const link = this.#links.get(connection)
+    if (total === undefined || link === undefined) return
+    this.#reserve.reported(link.local, total)
+    this.#recorder.usage(link.durable, total, usage.promptTokenCount ?? null)
+  }
+
+  /**
+   * Before a chunk of the holder's audio goes to the provider. The first after a turn ended may start a generation: it
+   * is reserved, and input waits ('hold') until the API granted it (granted()). A chunk the allowance does not cover
+   * waits for a top-up the same way. Every chunk sent is counted and paid for. `dropped` is what the chunker dropped
+   * before it.
+   */
+  input(
+    connection: number,
+    identity: string,
+    chunk: Int16Array,
+    dropped: number,
+    inputEpoch: number,
+  ): GuardStop | 'hold' | null {
+    if (this.#pending.has(connection)) return this.#stopped ?? 'hold'
+    if (!this.#granted.has(connection)) {
+      const stop = this.#check(() => this.#reserve.reserve(this.#local(connection)))
+      if (stop) return stop
+      this.#reserveInput(connection)
+      return 'hold'
+    }
+    const cost = audioCost(chunk.length)
+    if (!this.#covers(connection, cost)) return this.#topUp(connection) ?? 'hold'
+    const stop = this.#check(() => this.#reserve.sentAudio(chunk.length))
+    if (stop) return stop
+    this.#pay(connection, cost, (chunk.length / INPUT_RATE) * TRANSCRIPT_PER_SECOND)
+    this.#recorder.input(identity, chunk, dropped, inputEpoch)
+    return null
+  }
+
+  /** The reservation input waits for on this connection: null once granted, or why the session stops. */
+  granted(connection: number): Promise<GuardStop | null> {
+    return this.#pending.get(connection) ?? Promise.resolve(this.#stopped)
+  }
+
+  /**
+   * Before text that starts a generation goes to the provider: a tool response, a notice, a typed message. Checked
+   * here at once, then reserved on the API; resolves to why it must not be sent, or null.
+   */
+  prompt(connection: number, chars: number): Promise<GuardStop | null> {
+    const stop =
+      this.#check(() => this.#reserve.reserve(this.#local(connection))) ??
+      this.#check(() => this.#reserve.sentText(chars))
+    if (stop) return Promise.resolve(stop)
+    return this.#charge(connection, false, chars / ASSUMED_RATES.charsPerToken).then((refused) => {
+      if (!refused) this.#grant(connection)
+      return refused
+    })
+  }
+
+  /**
+   * Before a video frame goes to the provider on this connection: paid from the allowance. One it does not cover is
+   * dropped and counted ('drop'), never sent unpaid, and a top-up is asked for if none is in flight, so a later frame may
+   * go. A frame that comes while a top-up is in flight is never covered (one is asked for only when the allowance cannot
+   * pay for what comes next, and nothing is credited before it is granted): it is dropped.
+   */
+  frame(connection: number): GuardStop | 'drop' | null {
+    const due = this.due()
+    if (due) return due
+    if (!this.#covers(connection, ASSUMED_RATES.perFrame)) {
+      const stop = this.#topUp(connection)
+      if (stop) return stop
+      this.#framesDropped += 1
+      this.#deps.log('qualification.frame_dropped', { exchangeId: this.#deps.exchangeId, dropped: this.#framesDropped })
+      return 'drop'
+    }
+    const stop = this.#check(() => this.#reserve.sentFrame())
+    if (stop) return stop
+    this.#pay(connection, ASSUMED_RATES.perFrame, 0)
+    return null
+  }
+
+  /**
+   * Output arrived: audio (24 kHz samples) or Sophia's words (their characters, billed as text). A generation nobody
+   * reserved takes its reserve now, and is charged on the API (unasked); one past the grant's per-turn output is cut.
+   * Her words are the generation's output text (Codex r4233559250): in tokens, rounded up as a call's payload is, they
+   * go to the generation's own text with its calls' payload, so words alone past the cap cut it. They are counted once
+   * in what the exchange may cost (transcribed) and charged once on the API, from the allowance (#owe).
+   */
+  output(connection: number, out: { samples?: number; chars?: number }): GuardStop | null {
+    const ordinal = this.#local(connection)
+    const text = out.chars === undefined ? 0 : Math.ceil(out.chars / ASSUMED_RATES.charsPerToken)
+    const going = this.#stopped === null
+    const unasked = this.#startsUnasked(connection)
+    // Counted whatever stops the session: the provider billed it.
+    const received = this.#reserve.received(ordinal, out.samples ?? 0, text)
+    const unpaid = this.#reserve.unpaid
+    const stop =
+      this.#check(() => received) ??
+      (out.chars === undefined ? null : this.#check(() => this.#reserve.transcribed(out.chars ?? 0)))
+    if (unasked) this.#unasked(connection)
+    // And recorded, when it came while the session was going: output that stops it was the model's response all the
+    // same (Codex r4235651864). The caller plays none of it.
+    if (going) this.#recorder.responded(0)
+    if (stop) return this.#stopsUnpaid(connection, unpaid, stop)
+    return out.chars === undefined ? null : this.#owe(connection, out.chars / ASSUMED_RATES.charsPerToken, 0)
+  }
+
+  /**
+   * The provider's function calls arrived on this connection, before any handler runs. Their payload (each name and its
+   * serialized arguments, `chars`) is billed output text: it is held to the per-turn cap (a generation whose calls pass
+   * it is cut, and nothing runs) and paid from the allowance as Sophia's words are. Resolves once what they cost is
+   * durable on the API: the generation they belong to, when nobody reserved it (unasked, its charge whether these calls
+   * or earlier output started it), and a top-up their debt asked for. Null to run them, or why the session stops
+   * instead: a refusal runs none.
+   */
+  called(connection: number, calls: number, chars: number): Promise<GuardStop | null> {
+    const tokens = chars / ASSUMED_RATES.charsPerToken
+    const going = this.#stopped === null
+    const unasked = this.#startsUnasked(connection)
+    const received = this.#reserve.received(this.#local(connection), 0, Math.ceil(tokens))
+    const unpaid = this.#reserve.unpaid
+    const stop = this.#check(() => received)
+    if (unasked) this.#unasked(connection)
+    // Recorded, with how many, when they came while the session was going: calls that stop it were the model's
+    // response all the same (Codex r4235651864). None of them runs.
+    if (going) this.#recorder.responded(calls)
+    if (stop) return Promise.resolve(this.#stopsUnpaid(connection, unpaid, stop))
+    const owed = this.#owe(connection, tokens, 0)
+    if (owed) return Promise.resolve(owed)
+    const counted = [...(this.#unaskedCharges.get(connection) ?? [])]
+    if (counted.length === 0) return this.#paidUp(connection)
+    return Promise.all(counted).then((answers) => answers.find((a) => a !== null) ?? this.#paidUp(connection))
+  }
+
+  /**
+   * Once the connection's allowance is out of debt (what was owed was topped up on the API): null, or why the session
+   * stops. With no debt it is at once: the allowance was prepaid.
+   */
+  #paidUp(connection: number): Promise<GuardStop | null> {
+    if (this.#stopped) return Promise.resolve(this.#stopped)
+    if ((this.#links.get(connection)?.paid ?? 0) >= 0) return Promise.resolve(null)
+    const pending = this.#pending.get(connection)
+    if (pending) return pending.then(() => this.#paidUp(connection))
+    const stop = this.#topUp(connection)
+    return stop ? Promise.resolve(stop) : this.#paidUp(connection)
+  }
+
+  /**
+   * The holder's words were transcribed on this connection: billed as text, from what their audio prepaid for it
+   * first, then the allowance; the receipt keeps only how many characters. Words that take the exchange past its
+   * budget were billed all the same (Codex r4235620508): they are recorded and paid the same way, and a debt they
+   * leave is charged before the stop and the end, as a cut's is (#stopsOwing); the stop is returned as it was. Words
+   * that come once the session stopped are returned its stop, as before.
+   */
+  heard(connection: number, chars: number, finished: boolean): GuardStop | null {
+    const going = this.#stopped === null
+    const stop = this.#check(() => this.#reserve.transcribed(chars))
+    if (!going) return stop
+    // Words that came while the session was going are recorded, whatever stop they meet: they were transcribed.
+    this.#recorder.heard(chars, finished)
+    const tokens = chars / ASSUMED_RATES.charsPerToken
+    const fromCredit = Math.min(tokens, this.#links.get(connection)?.credit ?? 0)
+    if (!stop) return this.#owe(connection, tokens, fromCredit)
+    // The bound's own stop, made by these words (the reserve was going, as the session was), is paid for; it stays made,
+    // so this is once. The deadline's, found as they came, is returned as it was.
+    return this.#reserve.stopped === null ? stop : this.#stopsOwing(connection, tokens, fromCredit, stop)
+  }
+
+  /**
+   * The provider's turn on this connection ended: completed, cut by its barge-in, or lost with the connection. A
+   * generation still being reserved is for what comes next, and stays. A completed or interrupted turn retires one
+   * generation, here and in the reserve (the oldest open there, Codex r4233559261); the others paid for on the
+   * connection stay for their own turn ends. A lost connection retires all of its own: no turn of it ends again.
+   */
+  turnEnded(connection: number, how: TurnEnd): void {
+    const lost = how === 'lost'
+    this.#reserve.ended(this.#local(connection), lost)
+    const paid = this.#granted.get(connection) ?? 0
+    if (paid > 1 && !lost) this.#granted.set(connection, paid - 1)
+    else this.#granted.delete(connection)
+    this.#recorder.turnEnded(how)
+  }
+
+  windowEnded(reason: 'handoff' | 'paused'): void {
+    this.#recorder.windowEnded(reason)
+  }
+
+  /** A typed message of `by` went to the provider. */
+  typed(by: Attribution): void {
+    this.#recorder.typed(by)
+  }
+
+  /** The bridge asked for the next generation: a tool response (for the calls' speaker) or a notice (for no one). */
+  asked(by: Attribution | null): void {
+    this.#recorder.asked(by)
+  }
+
+  replyReceived(samples: number): void {
+    this.#recorder.replyReceived(samples)
+  }
+
+  replyPlayed(frame: Int16Array): void {
+    this.#recorder.replyPlayed(frame)
+  }
+
+  replyEnded(how: ReplyEnd): void {
+    this.#recorder.replyEnded(how)
+  }
+
+  /** Past the grant's deadline: the session stops (checked on every tick, and before anything is sent). */
+  due(): GuardStop | null {
+    if (this.#stopped === null && this.#deps.now() >= this.#deadline) this.#halt('deadline')
+    return this.#stopped
+  }
+
+  /** The session closed, or the bound stopped it: the receipts end. */
+  closed(reason: CloseReason): void {
+    this.#recorder.closed(reason)
+  }
+
+  /**
+   * The bound stopped the session: the API is told, so the exchange ends there too, whether or not anything was
+   * recorded (a receipt is recorded only while the principal holds the floor). Every charge for what was already spent
+   * and not answered yet is answered first (Codex r4233954386, r4234233112): every generation nobody reserved, the one
+   * whose first output was cut included, and every debt's top-up. So the stop ends an exchange whose ledger already
+   * holds them, never one that would refuse them as ended. Once; resolves when the stop is answered (settle() awaits it).
+   */
+  stopped(): Promise<void> {
+    this.#stopping ??= this.#settled()
+      .then(() => {
+        this.#stopSent = true
+        return this.#ledger.stop()
+      })
+      .then((ended) => {
+        this.#stopAnswered = true
+        if (ended) return
+        this.#stopLost = true
+        this.#deps.log('qualification.stop_unconfirmed', { exchangeId: this.#deps.exchangeId })
+      })
+    return this.#stopping
+  }
+
+  /**
+   * Before the session ends (RoomSession's close, a process's SIGINT or SIGTERM included; Codex r4234233106): every
+   * charge for what it already spent is answered, then the bridge's stop if its bound stopped it, so the exchange's
+   * ledger holds all of it. A session its bound did not stop is not stopped here: a bridge going away is not the grant's
+   * limit, and a replacing or restarted bridge goes on with the exchange against those counts. Bounded by what the
+   * ledger's own attempts allow along the longest chain a close can wait for, SETTLE_DEPTH requests one after another
+   * (Codex r4235490757); what is still unanswered then is logged (qualification.charge_unsettled: each charge's phase,
+   * and the stop's), never waited for, and stays unanswered in the ledger this session hands over (ledger()).
+   */
+  async settle(): Promise<void> {
+    const { reserveRetryMs, reserveTimeoutMs } = this.#deps
+    const once = (reserveRetryMs.length + 1) * reserveTimeoutMs + reserveRetryMs.reduce((sum, ms) => sum + ms, 0)
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const expired = new Promise<'expired'>((resolve) => {
+      timer = setTimeout(() => resolve('expired'), SETTLE_DEPTH * once)
+    })
+    const settled = this.#settled()
+      .then(() => this.#stopping)
+      .then(() => 'settled' as const)
+    const how = await Promise.race([settled, expired])
+    clearTimeout(timer)
+    if (how === 'expired') {
+      const stop =
+        this.#stopping === null ? 'none' : !this.#stopSent ? 'unsent' : this.#stopAnswered ? 'answered' : 'unanswered'
+      this.#deps.log('qualification.charge_unsettled', {
+        exchangeId: this.#deps.exchangeId,
+        charges: this.#owed.size,
+        phases: [...this.#owed.values()].map((p) => p.name),
+        stop,
+      })
+    }
+  }
+
+  /**
+   * What this session spent and the API may not hold yet, for the session that replaces it on the exchange (Codex
+   * r4234649847): how many of its charges are still unanswered, its stop among them once asked and until answered
+   * (Codex r4235490757: a stop the close stopped waiting for is not on the API either), whether one was refused or never
+   * confirmed, and once every one is answered, whether all of them are on the API.
+   */
+  ledger(): { unanswered: number; lost: boolean; landed: Promise<boolean> } {
+    const stopOwed = this.#stopping !== null && !this.#stopAnswered
+    return {
+      unanswered: this.#owed.size + (stopOwed ? 1 : 0),
+      lost: this.#lost || this.#stopLost,
+      landed: this.#settled()
+        .then(() => this.#stopping)
+        .then(() => !this.#lost && !this.#stopLost),
+    }
+  }
+
+  /** Once every charge for what was already spent is answered, those that come while waiting included. */
+  async #settled(): Promise<void> {
+    while (this.#owed.size > 0) await Promise.allSettled(this.#owed.keys())
+  }
+
+  /**
+   * Waits (at most `ms`) for the receipts still queued, as a close waits for its announcements; what is left then is
+   * dropped and counted.
+   */
+  async flush(ms: number): Promise<void> {
+    await this.#sender.flush(ms)
+    this.#sender.abandon()
+  }
+
+  /** Receipts the API took and receipts dropped, for the close's log. */
+  get delivery(): { sent: number; dropped: number } {
+    return { sent: this.#sender.sent, dropped: this.#sender.dropped }
+  }
+
+  #local(connection: number): number {
+    return this.#links.get(connection)?.local ?? 0
+  }
+
+  #durable(connection: number): number {
+    return this.#links.get(connection)?.durable ?? 0
+  }
+
+  /**
+   * Reserve a generation on the API at its worst case: the context again and its output twice (audio and text), with
+   * `extra` (text it sends, or the allowance input asked for).
+   */
+  async #charge(connection: number, unasked: boolean, extra = 0): Promise<GuardStop | null> {
+    const answer = await this.#generation(connection, unasked, extra)
+    if (!answer.ok) return this.#refused(answer)
+    return this.#stopped
+  }
+
+  /** A generation reserved on the API at its worst case, with `extra`: the API's answer. */
+  #generation(connection: number, unasked: boolean, extra = 0): Promise<LedgerAnswer> {
+    const worst = ASSUMED_RATES.context + 2 * this.#deps.grant.maxOutputTokensPerTurn + extra
+    return this.#ledger.generation(this.#durable(connection), Math.min(MAX_CHARGE, Math.ceil(worst)), unasked)
+  }
+
+  /**
+   * Output that stopped the session (Codex r4234649836): what its generation billed beyond its reserve and beyond what
+   * was owed for it already comes out of the allowance, and a debt it leaves is charged on the API at once, a spend of
+   * the debt alone (nothing more will be sent, so nothing is refilled). It is owed before the stop and the end. The
+   * stop itself is returned as it was.
+   */
+  #stopsUnpaid(connection: number, unpaid: number, stop: GuardStop): GuardStop {
+    const link = this.#links.get(connection)
+    if (!link || unpaid <= 0) return stop
+    link.paid -= unpaid
+    this.#owesDebt(connection, link)
+    return stop
+  }
+
+  /**
+   * Words heard that stopped the session (Codex r4235620508): `fromCredit` of them comes out of what their audio
+   * prepaid, the rest out of the allowance, as any words heard; a debt that leaves is charged on the API alone, owed
+   * before the stop and the end, as a cut's is (#stopsUnpaid). No debt, nothing more is asked. The same stop is returned.
+   */
+  #stopsOwing(connection: number, tokens: number, fromCredit: number, stop: GuardStop): GuardStop {
+    const link = this.#links.get(connection)
+    if (!link) return stop
+    link.credit -= fromCredit
+    link.paid -= tokens - fromCredit
+    if (link.paid < 0) this.#owesDebt(connection, link)
+    return stop
+  }
+
+  /**
+   * A stopped connection's debt is owed (one more link of the chain a close waits for, SETTLE_DEPTH's second): charged
+   * once what is in flight on it is credited.
+   */
+  #owesDebt(connection: number, link: Link): void {
+    const phase = { name: 'debt, after what is in flight' }
+    this.#oblige(this.#chargeDebt(connection, link, phase), phase)
+  }
+
+  /** A stopped connection's debt, charged once a top-up in flight is credited: whether it is on the API. */
+  async #chargeDebt(connection: number, link: Link, phase: { name: string }): Promise<boolean> {
+    await this.#pending.get(connection)
+    phase.name = 'debt'
+    const debt = Math.ceil(-link.paid)
+    if (debt <= 0) return true
+    const answer = await this.#ledger.spend(link.durable, Math.min(MAX_CHARGE, debt))
+    if (answer.ok) link.paid += debt
+    return answer.ok
+  }
+
+  /**
+   * The reservation input asked for, stored as the one it waits for: only its own grant lets input flow (a tool
+   * response's, a notice's or a typed message's never touches it). It also fills the connection's allowance up to
+   * INPUT_SLICE, so the turn's input is paid before it is sent.
+   */
+  #reserveInput(connection: number): void {
+    const prepay = this.#shortfall(connection)
+    const pending = this.#charge(connection, false, prepay).then((refused) => {
+      this.#pending.delete(connection)
+      if (refused) return refused
+      this.#grant(connection)
+      return this.#credited(connection, prepay)
+    })
+    this.#pending.set(connection, pending)
+  }
+
+  /** What fills the connection's allowance up to INPUT_SLICE, a debt included: a whole number of tokens. */
+  #shortfall(connection: number): number {
+    return Math.max(0, Math.ceil(INPUT_SLICE - (this.#links.get(connection)?.paid ?? 0)))
+  }
+
+  /** Whether the allowance prepaid on this connection covers `cost` now. */
+  #covers(connection: number, cost: number): boolean {
+    return (this.#links.get(connection)?.paid ?? 0) >= cost
+  }
+
+  /** Something sent was paid from the allowance; `credit` of it is its transcription's, prepaid. */
+  #pay(connection: number, cost: number, credit: number): void {
+    const link = this.#links.get(connection)
+    if (!link) return
+    link.paid -= cost
+    link.credit += credit
+  }
+
+  /**
+   * What the provider billed after the fact (a transcription, Sophia's words): `fromCredit` of it was prepaid with the
+   * audio, the rest comes out of the allowance. A debt is topped up at once (and input waits for it).
+   */
+  #owe(connection: number, tokens: number, fromCredit: number): GuardStop | null {
+    const link = this.#links.get(connection)
+    if (!link) return null
+    link.credit -= fromCredit
+    link.paid -= tokens - fromCredit
+    return link.paid < 0 ? this.#topUp(connection) : null
+  }
+
+  /**
+   * Refill the connection's allowance on the API ('spend': a charge only, no turn) before anything more is sent, unless a
+   * reservation input waits for is in flight already. Input waits for it, frames are dropped meanwhile; a refusal stops
+   * the session, whoever was waiting. Returns why the session stops now (the deadline), or null.
+   */
+  #topUp(connection: number): GuardStop | null {
+    const due = this.due()
+    if (due) return due
+    if (this.#pending.has(connection)) return null
+    const charge = this.#shortfall(connection)
+    const debt = (this.#links.get(connection)?.paid ?? 0) < 0
+    const spent = this.#ledger.spend(this.#durable(connection), Math.min(MAX_CHARGE, charge))
+    const pending = spent.then((answer) => {
+      this.#pending.delete(connection)
+      const stop = answer.ok ? this.#credited(connection, charge) : this.#refused(answer)
+      if (stop) this.#deps.stop(stop)
+      return stop
+    })
+    this.#pending.set(connection, pending)
+    // A debt is for what was already received: owed before the session may stop or end. A top-up for input not sent yet
+    // is not: if the session ends first, that input is never sent. Kept until its credit (which may ask another) is done.
+    if (debt)
+      this.#oblige(
+        pending.then(() => spent).then((answer) => answer.ok),
+        { name: 'top-up' },
+      )
+    return null
+  }
+
+  /** A grant prepaid `amount` for the connection's input: credited, and a debt still left is topped up again. */
+  #credited(connection: number, amount: number): GuardStop | null {
+    const link = this.#links.get(connection)
+    // What the API took is the allowance's, stopped or not: a stopped connection's debt is what is left after it.
+    if (link) link.paid += amount
+    if (this.#stopped) return this.#stopped
+    if (!link) return null
+    return link.paid < 0 ? this.#topUp(connection) : null
+  }
+
+  #grant(connection: number): void {
+    this.#granted.set(connection, (this.#granted.get(connection) ?? 0) + 1)
+  }
+
+  /**
+   * Whether output arriving now on the connection starts a generation nobody reserved: none is paid for there (a
+   * reservation still in flight is for what comes next: nothing behind it has reached the provider yet), and the
+   * session was still going when it came. Asked before the bound judges the output: the provider generated and billed
+   * it whatever the bound says, so it is charged even when that very output is cut or past a limit (Codex
+   * r4233954386: a first chunk past the per-turn cap, or a function call's payload, left no durable record of its turn).
+   */
+  #startsUnasked(connection: number): boolean {
+    return this.#stopped === null && !this.#granted.has(connection)
+  }
+
+  /**
+   * A generation started that nobody reserved: it is spent, so it is charged, even when its first output stopped the
+   * session; a refusal stops the session. Its output has arrived already and is counted as it comes; a function call of
+   * its connection waits for the charge (#unaskedCharges), and the bridge's stop and the session's end wait for it
+   * (#owed: stopped(), settle()).
+   */
+  #unasked(connection: number): void {
+    this.#grant(connection)
+    const charges = this.#unaskedCharges.get(connection) ?? new Set<Promise<GuardStop | null>>()
+    this.#unaskedCharges.set(connection, charges)
+    const answer = this.#generation(connection, true)
+    this.#oblige(
+      answer.then((a) => a.ok),
+      { name: 'unasked' },
+    )
+    const charged: Promise<GuardStop | null> = answer
+      .then((a) => (a.ok ? this.#stopped : this.#refused(a)))
+      .then((stop) => {
+        charges.delete(charged)
+        if (charges.size === 0 && this.#unaskedCharges.get(connection) === charges)
+          this.#unaskedCharges.delete(connection)
+        if (stop) this.#deps.stop(stop)
+        return stop
+      })
+    charges.add(charged)
+  }
+
+  /**
+   * A charge for what was already spent: kept until it is answered, whatever the answer; `landed` says whether the API
+   * took it. One refused, or never confirmed, is not on the API (#lost).
+   */
+  #oblige(landed: Promise<boolean>, phase: { name: string }): void {
+    this.#owed.set(landed, phase)
+    void landed.then(
+      (ok) => {
+        this.#owed.delete(landed)
+        if (!ok) this.#lost = true
+      },
+      () => {
+        this.#owed.delete(landed)
+        this.#lost = true
+      },
+    )
+  }
+
+  #refused(answer: LedgerAnswer): GuardStop | null {
+    this.#halt(answer.ok ? 'unconfirmed' : answer.stop)
+    return this.#stopped
+  }
+
+  #check(verdict: () => Verdict): GuardStop | null {
+    const due = this.due()
+    if (due) return due
+    const v = verdict()
+    if (!v.ok) this.#halt(v.stop)
+    return this.#stopped
+  }
+
+  #halt(why: GuardStop): void {
+    this.#stopped ??= why
+  }
+}

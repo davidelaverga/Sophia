@@ -25,10 +25,21 @@ export default defineConfig({
       url: `${fixtures}/room.html`,
       reuseExistingServer: !process.env.CI,
     },
-    // The Studio app itself, signed in by a synthetic Auth service (vite.app.config.ts, e2e/app-auth.spec.ts).
+    // The Studio app itself, signed in by a synthetic Auth service, its modules served one by one (vite.app.config.ts,
+    // e2e/signed-in-later.spec.ts).
     {
       command: 'pnpm exec vite --config vite.app.config.ts',
       url: 'http://127.0.0.1:5198/app.html',
+      reuseExistingServer: !process.env.CI,
+    },
+    // The same page built, React's development build (vite.app-build.config.ts, e2e/app-auth.spec.ts): each check's
+    // fresh context loads 13 files, not every module. NODE_ENV is set here, before Vite reads it: an inherited one (say,
+    // production) would otherwise make Vite build production React, which the config then refuses to build.
+    {
+      command:
+        'pnpm exec vite build --config vite.app-build.config.ts && pnpm exec vite preview --config vite.app-build.config.ts',
+      url: 'http://127.0.0.1:5197/app.html',
+      env: { NODE_ENV: 'development' },
       reuseExistingServer: !process.env.CI,
     },
   ],

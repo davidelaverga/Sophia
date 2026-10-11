@@ -78,4 +78,55 @@ describe('media service client', () => {
       resultRevision: 1,
     })
   })
+
+  it('posts a voice qualification receipt (A15) and validates the answer, refusing one off the contract', async () => {
+    const write = {
+      exchangeId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      grantId: '77777777-7777-4777-8777-777777777777',
+      writeId: '99999999-9999-4999-8999-999999999999',
+      receipt: {
+        kind: 'session_closed' as const,
+        schema: 'sophia.bridge.voice_qualification.v1' as const,
+        grantId: '77777777-7777-4777-8777-777777777777',
+        runBindingSha256: 'ab'.repeat(32),
+        atMs: 1,
+        providerClosed: true,
+        windows: 0,
+        turns: 0,
+        replies: 0,
+        toolCalls: 0,
+        typedMessages: 0,
+        transcriptRetained: false as const,
+        reason: 'ended' as const,
+      },
+    }
+    const ok = fakeFetch(() => Response.json({ seq: 7, replayed: true, ended: true, reason: 'deadline' }))
+    assert.deepEqual(await httpMediaService('http://api.test', 'cap', ok.impl).recordEvidence(write), {
+      seq: 7,
+      replayed: true,
+      ended: true,
+      reason: 'deadline',
+    })
+    assert.equal(ok.seen[0]?.url, 'http://api.test/v1/media/evidence-writes', 'the service numbers it (0051)')
+    assert.equal(ok.seen[0]?.init.method, 'POST')
+    const body = ok.seen[0]?.init.body
+    assert.deepEqual(JSON.parse(typeof body === 'string' ? body : ''), write)
+    for (const off of [
+      { seq: 1, replayed: false, ended: 'yes', reason: null },
+      { ended: false, reason: null },
+      { seq: 0, replayed: false, ended: false, reason: null },
+      { seq: 1, ended: false, reason: null },
+    ]) {
+      const bad = fakeFetch(() => Response.json(off))
+      await assert.rejects(
+        httpMediaService('http://api.test', 'cap', bad.impl).recordEvidence(write),
+        JSON.stringify(off),
+      )
+    }
+    const conflict = fakeFetch(() => new Response('{"code":"idempotency_conflict"}', { status: 409 }))
+    await assert.rejects(
+      httpMediaService('http://api.test', 'cap', conflict.impl).recordEvidence(write),
+      (err: unknown) => err instanceof ServiceError && err.status === 409,
+    )
+  })
 })

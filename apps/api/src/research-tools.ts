@@ -15,6 +15,7 @@ import {
   admitResearchTask,
   canCommand,
   htmlDesignReady,
+  liveCallAdmits,
   pdfRendererReady,
   readTaskStandings,
   requestResearchRendition,
@@ -196,6 +197,7 @@ async function admit(
   if (!specialist) throw new DomainError('invalid_request', 'No research specialist writes these formats')
   return withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
     if (await amendsTooLong(c, ctx.projectId, request)) return null
+    if (ctx.liveCall) await liveCallAdmits(c, ctx.projectId, ctx.key)
     const result = await admitResearchTask(c, ctx.projectId, {
       key: ctx.key,
       exchangeId: ctx.call.exchangeId,
@@ -203,6 +205,8 @@ async function admit(
       specialist,
     })
     if (design && 'admitted' in result) await requestResearchDesign(c, ctx.projectId, result.admitted.taskId, design)
+    // A recorded call's answer, with what it admitted (startResearch's: ok for research already under way).
+    await ctx.seal?.(c, 'admitted' in result ? 'admitted' : 'ok')
     return result
   })
 }
@@ -310,9 +314,11 @@ export async function renderResearch(ctx: ToolContext): Promise<MediaToolResult>
   const taskId = ctx.args.taskId
   if (!isUuid(taskId)) return clarify('Which research report should I print as a PDF?')
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      requestResearchRendition(c, ctx.projectId, taskId, renditionKey(ctx.key)),
-    )
+    const r = await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+      const rendition = await requestResearchRendition(c, ctx.projectId, taskId, renditionKey(ctx.key))
+      await ctx.seal?.(c, rendition.state === 'rejected' ? 'refused' : 'admitted')
+      return rendition
+    })
     if (r.state === 'rejected') {
       const failed = (r.reportChecks ?? []).filter((x) => x.outcome === 'failed').map((x) => x.detail ?? x.name)
       return {
