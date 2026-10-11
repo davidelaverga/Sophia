@@ -9,6 +9,10 @@ Ending commit/tree: `279a64fd` (tree `0427a3be89e8`): 13 files, 8 new (`app/comm
 `app/useCommands.ts`, `app/Palette.tsx`, `app/ShortcutIndex.tsx`, `app/CommandsHost.tsx`, `e2e/commands.spec.ts`,
 `docs/plans/commands.md`); `ProjectShell.tsx`, `StudioShell.tsx`, `ViewNav.tsx`, `RoomStage.tsx`, `theme.css`. The
 commit after it adds only this handoff.
+After the review (Codex on #238, four P2): `14ed8284` makes every binding inside a project a command (Resources' and
+Tasks' `/`, a report's `F`, a staged report's `O`), gives the index a visible control («Keyboard shortcuts» in the
+account menu, `askCommands`), shows a live call's switches in the palette (`SheetCall`), scrolls the chosen row into
+view with ids of the list's own; `commands.spec.ts` gains three checks. That is the completed code state of this PR.
 
 ## Outcome
 

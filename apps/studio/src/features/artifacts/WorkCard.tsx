@@ -32,6 +32,8 @@ import './artifacts.css'
 import { WORKING_PHASES } from '../voice/room-view.ts'
 import { clock } from '../../app/time-words.ts'
 import { useNow } from '../../app/use-now.ts'
+import { TASK } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 
 type Output = NonNullable<NonNullable<NativeTaskDetail['result']>['outputs']>[number]
 
@@ -108,15 +110,30 @@ function useOpen(artifactId: string | undefined): Open | null {
 const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgress | undefined) =>
   canAct && words.missing === 'pdf' && research !== undefined && !research.pdfRendering
 
+/**
+ * Named in the address (`#task-<id>`, as a line of Updates names it): the card takes the focus and comes into view,
+ * as a plan's tile would open its sheet (useOpenTask); a card has no sheet of its own.
+ */
+function useNamedCard(taskId: string) {
+  const named = useAddressed(TASK)
+  useEffect(() => {
+    if (named.id !== taskId) return
+    const card = document.querySelector<HTMLElement>(`.work-card[data-task="${CSS.escape(taskId)}"]`)
+    card?.focus({ preventScroll: true })
+    card?.scrollIntoView({ block: 'center' })
+  }, [named, taskId])
+}
+
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
+  useNamedCard(task.id)
   const { research, outputs, versions, words, current } = useResearch(props)
   const now = useNow()
   const open = useOpen(task.artifactId)
   const retry = offersRetry(canAct, words, research)
   return (
     // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
-    <Card as="li" className="task work-card" data-state={words.state} tabIndex={-1}>
+    <Card as="li" className="task work-card" data-state={words.state} data-task={task.id} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}

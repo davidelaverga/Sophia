@@ -8,6 +8,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/updates
 Ending commit/tree: `818064d0` (tree `b0f9a141d5f6`): 10 files, 3 new (`updates-narrow.test.ts`, `e2e/updates-narrow.spec.ts`,
 `docs/plans/updates-narrow.md`); `updates-view.ts`, `UpdatesView.tsx`, `recap-view.ts`, `MeetingRecap.tsx`,
 `project-go.tsx`, `ProjectShell.tsx`, `theme.css`. The commit after it adds only this handoff.
+After the review (Codex on #239, P2): `b418f73c` writes the task's fragment after the view's own push and makes a
+research card named in the address take the focus and come into view (`useNamedCard` in `WorkCard`); the spec
+presses «Open the task» with the research running. That is the completed code state of this PR.
 
 ## Outcome
 
