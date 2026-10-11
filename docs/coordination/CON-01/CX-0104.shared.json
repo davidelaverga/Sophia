@@ -1,0 +1,12 @@
+{
+  "record": "CX-0104.md",
+  "contentCommit": "e784a130cd7fc02718c186f0da25fffcbc56f508",
+  "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6109313352",
+  "id": 6109313352,
+  "createdAt": "2026-10-11T13:03:48Z",
+  "readbackAt": "2026-10-11T13:03:49.181330+00:00",
+  "bodySha256": "a3494d539eeb1ed0e6f8e72f1cb206d7350d5ebfae42cb1221d57dbbf3f9720a",
+  "postBodyExact": true,
+  "independentGetBodyExact": true,
+  "validationNote": "Initial generic privacy scan falsely matched harmless prose privatebindings. Corrected exact-field scan, all5hashes/JSON/36statuspairs/history passed before sharing. Shell sequence had continued after scan failure; no evidence mismatch or sensitive disclosure found."
+}
