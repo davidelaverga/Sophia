@@ -49,3 +49,11 @@
 - Without WebGL the engine marks `data-fallback` and the room paints its radial on `.light` itself; with the halo on the
   pseudo-element both painted together on paper. On paper the element's own background is `none`; the spec sets the
   mark and reads both layers.
+
+## After Luis's eye (2026-10-11)
+
+- «El halo morado se pierde un poco con el blanco»: the heart's white reached the halo at 0.34 with nothing between,
+  and the halo read as a wash. Three calibrations captured headless (`light-mode/halo-signin-{A,B,C,D}.png`); D
+  chosen: the heart fades (0.96 → 0.86 by 4 %) into a rim of the deep violet (`85 70 184` at 0.4 by 8.5 %), then
+  the halo (0.44 → 0.24 → 0.1) thins to nothing by 48 %. B's rim was crisp and read as a disc; C's ink shadow under
+  the heart did not show. Depth comes from the rim, not from a shadow.

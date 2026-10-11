@@ -32,7 +32,7 @@ for (const [name, url, parts] of [
     const read = await lightRead(page)
     expect(read?.animations).toBe(1)
     expect(read?.names).toEqual(['paper-breathe'])
-    expect(read?.halo).toMatch(/^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.95\) 0px/)
+    expect(read?.halo).toMatch(/^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.96\) 0px/)
     // The halo at the back of the light's own stacking: the trace and the formed mark paint over it.
     expect(read?.haloZ).toBe('-1')
     expect(read?.isolation).toBe('isolate')

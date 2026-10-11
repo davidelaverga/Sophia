@@ -164,12 +164,17 @@
   position: absolute;
   inset: 0;
   z-index: -1;
+  /* A soft heart and a deeper ring (Luis, 2026-10-11: the halo lost itself against the white): the heart fades to
+     the deep violet at the rim, then the halo thins to nothing by 48 %. */
   background: radial-gradient(
     circle at 50% 42%,
-    rgb(255 255 255 / 0.95) 0,
-    rgb(var(--halo-rgb) / 0.34) 8%,
-    rgb(var(--halo-rgb) / 0.12) 22%,
-    transparent 46%
+    rgb(255 255 255 / 0.96) 0,
+    rgb(255 255 255 / 0.86) 4%,
+    rgb(85 70 184 / 0.4) 8.5%,
+    rgb(var(--halo-rgb) / 0.44) 11.5%,
+    rgb(var(--halo-rgb) / 0.24) 18%,
+    rgb(var(--halo-rgb) / 0.1) 28%,
+    transparent 48%
   );
   transform-origin: 50% 42%;
   animation: paper-breathe 6s ease-in-out infinite alternate;
