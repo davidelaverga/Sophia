@@ -31,9 +31,9 @@ BEGIN
  END IF;
  -- A role found is adopted only as this file leaves it (PR #211 review): a member of sophia_api alone, inheriting it,
  -- without the admin option (this file's own grant, made in another database of the cluster), and with no member of
- -- its own, so it inherits nothing else and lends the entry points to no one. The GRANT below keeps an existing edge's
- -- options, so an edge that does not inherit (inherit_option, not the role's own INHERIT) would leave the compiler
- -- unable to read as the asker. The SET option is not used either way. Anything else is refused; nothing is revoked.
+ -- its own, so it inherits nothing else and lends the entry points to no one. An edge that does not inherit
+ -- (inherit_option, not the role's own INHERIT) is refused here, not changed by the GRANT below. The SET option is not
+ -- used either way. Anything else is refused; nothing is revoked.
  SELECT oid INTO STRICT a FROM pg_roles WHERE rolname='sophia_conversation_assembler';
  IF EXISTS(SELECT FROM pg_auth_members m WHERE m.member=a
      AND (m.roleid<>'sophia_api'::regrole OR m.admin_option OR NOT m.inherit_option))
@@ -41,8 +41,10 @@ BEGIN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with unexpected memberships' USING ERRCODE='42501';
  END IF;
 END $$;
--- For the row policies of the tables the compiler reads, as the asker.
-GRANT sophia_api TO sophia_conversation_assembler;
+-- For the row policies of the tables the compiler reads, as the asker. INHERIT TRUE whatever the role's own INHERIT, which
+-- sets only a new grant's default: a found NOINHERIT role with no edge would otherwise get one it can't read through
+-- (PR #211 review). An edge found already inherits (else refused above), so no existing edge's options change.
+GRANT sophia_api TO sophia_conversation_assembler WITH INHERIT TRUE;
 
 -- One claimed attempt at a reply's context, by its lease token. Begin writes what it found in its own transaction.
 CREATE TABLE sophia.conversation_assembly_claims (

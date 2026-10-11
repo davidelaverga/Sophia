@@ -790,18 +790,20 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       assert.equal(await graph(), was, 'nothing revoked, granted or normalized')
     })
 
-    it('adopts its sophia_api membership only when the edge inherits: INHERIT FALSE refused in either form, SET either way (PR #211 review)', async () => {
-      // The edge's own options, and the role's INHERIT apart: that only sets the default for a grant made later.
+    it('adopts its sophia_api membership only when the edge inherits, and leaves one that does: INHERIT FALSE refused in either form, SET either way (PR #211 review)', async () => {
+      // The edge's own options, and the role's INHERIT apart: that only sets the default for a grant made later. `usage`:
+      // the role holds sophia_api's privileges, by inheritance, which is what the compiler reads with.
       const edge = `SELECT (SELECT coalesce(string_agg(format('inherit=%s set=%s admin=%s', m.inherit_option::text, m.set_option::text,
-                      m.admin_option::text), ', '), '') FROM pg_auth_members m
+                      m.admin_option::text), ', '), 'no edge') FROM pg_auth_members m
                       WHERE m.member = '${ROLE}'::regrole AND m.roleid = 'sophia_api'::regrole)
-                    || ' rolinherit=' || (SELECT rolinherit FROM pg_roles WHERE rolname = '${ROLE}') AS s`
+                    || ' rolinherit=' || (SELECT rolinherit FROM pg_roles WHERE rolname = '${ROLE}')
+                    || ' usage=' || pg_has_role('${ROLE}', 'sophia_api', 'USAGE') AS s`
       const was = (await onAdmin<{ s: string }>(edge))[0]?.s
-      assert.equal(was, 'inherit=true set=true admin=false rolinherit=true', 'as this file left it')
+      assert.equal(was, 'inherit=true set=true admin=false rolinherit=true usage=true', 'as this file left it')
       const other = await createTestDatabase()
       const c = new pg.Client({ connectionString: other.ownerUrl })
       await c.connect()
-      // Each case: the edge its setup left, as S3 then finds it, and what S3 did.
+      // Each case: the edge its setup left, as S3 then finds it, and what S3 did; once applied, the edge S3 leaves.
       const apply = async (setup: string) => {
         await c.query('BEGIN')
         try {
@@ -809,7 +811,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
           const found = (await c.query<{ s: string }>(edge)).rows[0]?.s
           try {
             await c.query(candidate(CANDIDATES[2] ?? ''))
-            return `${found}: applied`
+            return `${found}: applied -> ${(await c.query<{ s: string }>(edge)).rows[0]?.s}`
           } catch (err) {
             return `${found}: ${err instanceof Error ? err.message : String(err)}`
           }
@@ -832,15 +834,25 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
             ['INHERIT TRUE, SET FALSE', `GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE, SET FALSE`],
             ['INHERIT TRUE, SET TRUE', `GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE, SET TRUE`],
             ['the role NOINHERIT, its edge inheriting', `ALTER ROLE ${ROLE} NOINHERIT`],
+            [
+              'the role NOINHERIT, its edge granted WITH INHERIT TRUE',
+              `REVOKE sophia_api FROM ${ROLE}; ALTER ROLE ${ROLE} NOINHERIT; GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE`,
+            ],
+            ['the role NOINHERIT, no edge', `REVOKE sophia_api FROM ${ROLE}; ALTER ROLE ${ROLE} NOINHERIT`],
+            ['the role, no edge', `REVOKE sophia_api FROM ${ROLE}`],
           ]
           const outcomes: string[] = []
           for (const [name, setup] of cases) outcomes.push(`${name} | ${await apply(`${alone}; ${setup}`)}`)
+          const t = 'inherit=true set=true admin=false'
           assert.deepEqual(outcomes, [
-            `the edge granted WITH INHERIT FALSE | inherit=false set=true admin=false rolinherit=true: ${unexpected}`,
-            `the edge granted while the role was NOINHERIT | inherit=false set=true admin=false rolinherit=false: ${unexpected}`,
-            'INHERIT TRUE, SET FALSE | inherit=true set=false admin=false rolinherit=true: applied',
-            'INHERIT TRUE, SET TRUE | inherit=true set=true admin=false rolinherit=true: applied',
-            'the role NOINHERIT, its edge inheriting | inherit=true set=true admin=false rolinherit=false: applied',
+            `the edge granted WITH INHERIT FALSE | inherit=false set=true admin=false rolinherit=true usage=false: ${unexpected}`,
+            `the edge granted while the role was NOINHERIT | inherit=false set=true admin=false rolinherit=false usage=false: ${unexpected}`,
+            'INHERIT TRUE, SET FALSE | inherit=true set=false admin=false rolinherit=true usage=true: applied -> inherit=true set=false admin=false rolinherit=true usage=true',
+            `INHERIT TRUE, SET TRUE | ${t} rolinherit=true usage=true: applied -> ${t} rolinherit=true usage=true`,
+            `the role NOINHERIT, its edge inheriting | ${t} rolinherit=false usage=true: applied -> ${t} rolinherit=false usage=true`,
+            `the role NOINHERIT, its edge granted WITH INHERIT TRUE | ${t} rolinherit=false usage=true: applied -> ${t} rolinherit=false usage=true`,
+            `the role NOINHERIT, no edge | no edge rolinherit=false usage=false: applied -> ${t} rolinherit=false usage=true`,
+            `the role, no edge | no edge rolinherit=true usage=false: applied -> ${t} rolinherit=true usage=true`,
           ])
         })
       } finally {
