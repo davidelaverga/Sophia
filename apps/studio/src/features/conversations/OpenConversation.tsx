@@ -96,7 +96,8 @@ function useQuote(props: Pick<Props, 'writer' | 'draft' | 'onDraft'>, section: R
   if (props.writer !== true) return null
   return (quote: string) => {
     props.onDraft(withQuote(props.draft, quote))
-    section.current?.querySelector('textarea')?.focus()
+    // The composer's own field: a proposal's form open on a message has a textarea of its own before it.
+    section.current?.querySelector<HTMLTextAreaElement>('.conv-compose textarea')?.focus()
   }
 }
 

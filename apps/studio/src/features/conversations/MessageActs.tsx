@@ -19,28 +19,45 @@ interface Props {
 /** The message's own press (a phone's) is not one of these. */
 const own = (e: MouseEvent) => e.stopPropagation()
 
-/** How long «Copied» stays. */
-const COPIED_MS = 2000
+/** How long what a copy said stays. */
+const SAID_MS = 2000
 
-function useCopied() {
-  const [copied, setCopied] = useState(false)
+/** What the last copy said: each press says it anew (its own number), so the timer restarts and a reader hears it. */
+type Said = { kind: 'copied' | 'failed'; n: number }
+
+const WORDS: Readonly<Record<Said['kind'], string>> = {
+  copied: 'Copied',
+  failed: 'Not copied: select the words to copy them.',
+}
+
+function useSaid() {
+  const [said, setSaid] = useState<Said | null>(null)
   useEffect(() => {
-    if (!copied) return undefined
-    const timer = setTimeout(() => setCopied(false), COPIED_MS)
+    if (!said) return undefined
+    const timer = setTimeout(() => setSaid(null), SAID_MS)
     return () => clearTimeout(timer)
-  }, [copied])
-  return { copied, said: () => setCopied(true) }
+  }, [said])
+  return { said, say: (kind: Said['kind']) => setSaid((was) => ({ kind, n: (was?.n ?? 0) + 1 })) }
+}
+
+/** The words to the clipboard: refused (no permission, no focus) or absent (an old webview), it says so. */
+async function toClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function MessageActs({ message, who, now, onQuote, propose }: Props) {
-  const copied = useCopied()
-  // The clipboard may refuse (no focus, a private window): then nothing is said, and nothing breaks.
-  const copy = () => navigator.clipboard.writeText(clipOf(message, who, now)).then(copied.said, () => undefined)
+  const { said, say } = useSaid()
+  const copy = async () => say((await toClipboard(clipOf(message, who, now))) ? 'copied' : 'failed')
   return (
     <span className="conv-acts" onClick={own}>
-      {copied.copied && (
-        <span className="conv-copied" role="status">
-          Copied
+      {said && (
+        <span key={said.n} className="conv-copied" role="status" data-kind={said.kind}>
+          {WORDS[said.kind]}
         </span>
       )}
       <button type="button" className="conv-act has-tip" aria-label="Copy" onClick={() => void copy()}>

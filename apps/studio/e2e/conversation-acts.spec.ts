@@ -54,3 +54,56 @@ test('acts · a viewer may copy a message, not quote it nor propose it', async (
   await expect(first.getByRole('button', { name: 'Quote in your message' })).toHaveCount(0)
   await expect(first.getByRole('button', { name: 'Propose as decision' })).toHaveCount(0)
 })
+
+test('acts · a copy refused says so; a second copy says «Copied» anew', async ({ page }) => {
+  await page.addInitScript(() => {
+    let presses = 0
+    // The first write is refused (no permission), the ones after go through.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => (presses++ === 0 ? Promise.reject(new Error('denied')) : Promise.resolve()) },
+    })
+  })
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveText('Not copied: select the words to copy them.')
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveText('Copied')
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveText('Copied')
+  await expect(first.getByRole('status')).toHaveCount(1)
+})
+
+test('acts · Quote with a proposal’s form open on a message still fills the composer, which takes the focus', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  await first.hover()
+  await first.getByRole('button', { name: 'Propose as decision' }).click()
+  await expect(first.locator('.conv-propose-form textarea')).toBeFocused()
+  const second = messages(page).nth(1)
+  await second.hover()
+  await second.getByRole('button', { name: 'Quote in your message' }).click()
+  await expect(field(page)).toBeFocused()
+  await expect(field(page)).toHaveValue(/^> .+\n— .+\n\n$/)
+})
+
+test('@phone · acts · on another’s message the presses start at its left and stay inside the pane', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  // A phone shows one pane at a time: the conversation opens from its row.
+  await page
+    .getByRole('button', { name: /What makes a report worth reading/ })
+    .first()
+    .tap()
+  const first = messages(page).first()
+  await first.tap()
+  const copy = first.getByRole('button', { name: 'Copy' })
+  await expect(copy).toBeVisible()
+  const pane = await page.locator('.conv-scroll').boundingBox()
+  const acts = await first.locator('.conv-acts').boundingBox()
+  expect(acts && pane && acts.x >= pane.x && acts.x + acts.width <= pane.x + pane.width).toBe(true)
+})

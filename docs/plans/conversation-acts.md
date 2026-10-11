@@ -29,7 +29,10 @@
 
 - Under the pointer or the focus (a wide screen); on the message pressed (touch); a 40 px target on a coarse pointer.
 - A viewer: Copy alone. A writer: Copy · Quote · Propose. While the propose form is open: Copy · Quote.
-- A clipboard refused (a private window, no focus): nothing said, nothing broken.
+- A clipboard refused (no permission, no focus) or absent (an old webview): the press says «Not copied: select the
+  words to copy them.» (Codex on #240). Every copy that goes through says «Copied» anew, its own announcement.
+- On a coarse pointer, another's message (at the pane's left) has its presses start at the bubble's left and run
+  right, inside the pane; one's own keep the right.
 
 ## Checks (written first)
 

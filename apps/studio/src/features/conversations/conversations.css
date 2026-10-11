@@ -747,6 +747,10 @@
   width: 14px;
   height: 14px;
 }
+.conv-copied[data-kind='failed'] {
+  color: var(--rose);
+  white-space: normal;
+}
 .conv-proposed,
 .conv-copied {
   color: var(--teal);
@@ -775,6 +779,12 @@
   .conv-acts {
     top: -20px;
     right: -12px;
+  }
+  /* Another's message sits at the pane's left: three 40 px presses anchored to a short bubble's right would run past
+     the pane's edge, so they start at the bubble's left and run right. One's own, at the right, keep the right. */
+  .conv-msg:not(.mine) .conv-acts {
+    right: auto;
+    left: -12px;
   }
   .conv-propose-press,
   .conv-act {
