@@ -334,9 +334,9 @@ test('the board by keys: the arrows across lanes, Enter opens', async ({ page })
     ),
   )
   const after = lanes.slice(1).filter((l) => l.length > 0)
-  for (const lane of after.slice(0, 2)) {
+  for (const next of after.slice(0, 2)) {
     await page.keyboard.press('ArrowRight')
-    await expect(tile(page, lane[0] ?? '')).toBeFocused() // the nearest place in the next lane
+    await expect(tile(page, next[0] ?? '')).toBeFocused() // the nearest place in the next lane
   }
   await page.keyboard.press('Enter')
   await expect(page.getByRole('dialog')).toBeVisible()
