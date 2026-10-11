@@ -94,3 +94,10 @@ Fixed in `9cbebb22`: a permission is its wait (`ref.kind` `work_wait`, the wait 
 address); a failed read says so on Home (`useNeeds` → `{ seen, read }`, the read in `ReadNotes`, «Couldn’t read what
 needs you.» with Try again; the fixture fails until `recover()`). Measured in the page: the note and no list, then
 five rows after Try again (reads 2 → 3); the permission’s press `#task-…c1`.
+
+## Post-review, round 4 (Codex on #245)
+
+Fixed in `ed39e193`: no review kind until a request record exists (A11 keeps verdicts); a permission does not expire
+(A13’s wait has none: `detail` says how long it has waited); a seen write that fails reads the list again; both
+operations marked `contract_only`, goal F2. Measured in the page: four rows (decision, permission «Asked 10 min ago»,
+guest, reply), the presses at their work items, the reply leaving (4 → 3).
