@@ -260,6 +260,31 @@ async function onAdmin<T extends pg.QueryResultRow>(sql: string): Promise<T[]> {
   }
 }
 
+/**
+ * Every connection a pool opens, from the pool's creation until its socket closes (the client's own 'end'). pg-pool's
+ * count is no barrier: it drops a client as soon as it is removed (a release(true), an end), before its socket closes,
+ * and a 'remove' still to come for such a client can't be told from one for a client still open. A closed socket is one
+ * no later termination can reach; after a graceful end it is also a backend gone, as PostgreSQL closes it only at exit.
+ */
+const connections = new WeakMap<pg.Pool, Set<Promise<void>>>()
+
+function tracked<P extends pg.Pool>(pool: P): P {
+  const ends = new Set<Promise<void>>()
+  connections.set(pool, ends)
+  pool.on('connect', (opened) => {
+    ends.add(new Promise<void>((resolve) => opened.once('end', () => resolve())))
+  })
+  return pool
+}
+
+/** A pool ended and every connection it ever opened closed: none left open for a forced DROP DATABASE to terminate. */
+async function closed(pool: pg.Pool): Promise<void> {
+  const ends = connections.get(pool)
+  assert.ok(ends, 'a pool closed here is tracked from its creation')
+  await pool.end()
+  await Promise.all(ends)
+}
+
 const roleNames = async () =>
   (await onAdmin<{ r: string }>('SELECT rolname AS r FROM pg_roles ORDER BY rolname COLLATE "C"')).map((x) => x.r)
 
@@ -597,8 +622,8 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
     rolesBefore = await roleNames()
     assemblerExisted = rolesBefore.includes(ROLE)
     db = await createTestDatabase()
-    ownerPool = new pg.Pool({ connectionString: db.ownerUrl, max: 6 })
-    api = createPool(db.apiUrl, { max: 8 })
+    ownerPool = tracked(new pg.Pool({ connectionString: db.ownerUrl, max: 6 }))
+    api = tracked(createPool(db.apiUrl, { max: 8 }))
     await withClusterMigrationLock(async () => {
       for (const name of CANDIDATES.slice(0, 2)) await owner(candidate(name))
       pre = await catalog()
@@ -617,7 +642,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
     u.username = loginRole
     u.password = password
     loginUrl = u.toString()
-    assemblerPool = new pg.Pool({ connectionString: loginUrl, max: 12 })
+    assemblerPool = tracked(new pg.Pool({ connectionString: loginUrl, max: 12 }))
     assemblerPool.on('error', () => undefined)
   })
 
@@ -642,9 +667,9 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
           // released already by its test
         }
       }
-      await assemblerPool.end()
-      await api.end()
-      await ownerPool.end()
+      await closed(assemblerPool)
+      await closed(api)
+      await closed(ownerPool)
       await db.drop()
       await onAdmin(`DROP ROLE IF EXISTS ${loginRole}`)
       if (!assemblerExisted) await onAdmin(`DROP ROLE IF EXISTS ${ROLE}`)
@@ -1310,9 +1335,11 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       t.diagnostic(
         `begin waited ${String(await waitFor('begin to wait', () => waiting(pid)))} ms on the writer (pid ${String(writerPid)})`,
       )
+      // Awaited from here, before the writer commits: its 40001 may reach this process before the writer's COMMIT does.
+      const refused = refusal(begun)
       writerHeld.open()
       await writer
-      assert.equal(await refusal(begun), '40001')
+      assert.equal(await refused, '40001')
       await c.query('ROLLBACK')
       c.release(true)
       assert.deepEqual(await claims(s.replyId), [
@@ -2176,9 +2203,11 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       await inside.wait
       const { s: c, pid, begun } = await begin(s.replyId, k)
       await waitFor('begin to wait', () => waiting(pid))
+      // Awaited from here, before the withdrawal commits: its 40001 may reach this process before the COMMIT does.
+      const refused = refusal(begun)
       held.open()
       await withdrawal
-      assert.equal(await refusal(begun), '40001')
+      assert.equal(await refused, '40001')
       await c.query('ROLLBACK')
       c.release(true)
       assert.deepEqual(await assembleReply(loginUrl, s.replyId, LIMITS), { outcome: 'not_pending', state: 'cancelled' })
