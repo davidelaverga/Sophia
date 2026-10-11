@@ -3,5 +3,8 @@
   "to": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
   "studioAndA08DeltaSha256": "02bbf03164774d6eb1557801d45e39613c264080a32bf1c03f87e59c1667c845",
   "observed": "Only apps/studio/e2e/room-passage-task.spec.ts +4 test ordering lines. Entire delta read. All Studio product source including conversations/current project context and A08 amendment bytes unchanged. Prior scoped G3 evidence retained; no fixture retirement/new vision activation inferred from tests.",
-  "limits": "Not a current hosted UI/native/provider crossing; full36verdicts unchanged."
+  "limits": "Not a current hosted UI/native/provider crossing; full36verdicts unchanged.",
+  "actualA08Path": "packages/contracts/amendments/A08-mission-ledger.json",
+  "equalA08Blob": "a1d57589cd47bb6fa88ca5e6d07ec87db7d626ce",
+  "operatorProbeCorrection": "Initial pathspec used nonexistent A08-project-decisions.json, so that check established Studio only. Located actual A08-mission-ledger.json and explicitly compared both Git blobs equal; corrected full delta hash unchanged."
 }
