@@ -95,7 +95,10 @@ function scoreOf(asked: readonly string[], command: Offered): number {
  */
 export function matchCommands(query: string, commands: readonly Offered[]): Offered[] {
   const asked = wordsOf(query)
-  if (asked.length === 0) return [...commands]
+  // Nothing asked: every command, in the groups' order (go, view, room, do), each group as registered.
+  if (asked.length === 0) {
+    return [...commands].toSorted((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group))
+  }
   return commands
     .map((command, at) => ({ command, at, score: scoreOf(asked, command) }))
     .filter((s) => s.score > 0)
