@@ -457,8 +457,9 @@ test('detail · one type scale: Personal’s text comes in four sizes, the app�
   await page.locator('#c-notes').getByRole('button', { name: 'Review what to carry' }).click()
   await page.locator('#c-notes').getByRole('checkbox').first().check()
   await read()
-  // On the app's scale (docs/plans/type-places.md): label, body, heading, and her reading voice a size above.
-  expect([...sizes].toSorted()).toEqual(['10.5px', '13px', '15px', '16px'])
+  // On the app's scale (docs/plans/type-places.md): label, body, heading, and her reading voice a size above; the
+  // section labels read at 12 since UIKIT-19 (docs/plans/task-keys-micro-type.md), the data stays at 10.5.
+  expect([...sizes].toSorted()).toEqual(['10.5px', '12px', '13px', '15px', '16px'])
 })
 
 test('detail · with less motion asked for, nothing in Personal moves: no breathing wash, no flicker', async ({

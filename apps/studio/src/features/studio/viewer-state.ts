@@ -11,13 +11,18 @@ export interface ViewerState {
   drafts: Partial<Record<Lens, string>>
 }
 
-export type ViewerAction = { type: 'lens'; lens: Lens } | { type: 'draft'; lens: Lens; text: string }
+export type ViewerAction =
+  | { type: 'lens'; lens: Lens }
+  | { type: 'draft'; lens: Lens; text: string }
+  /** Another viewer (or project) at the same page: their stored state, whole. */
+  | { type: 'load'; state: ViewerState }
 
 export const INITIAL_VIEWER_STATE: ViewerState = { lens: 'converse', drafts: {} }
 
 const isLens = (value: unknown): value is Lens => LENSES.some((l) => l === value)
 
 export function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
+  if (action.type === 'load') return action.state
   if (action.type === 'lens') return action.lens === state.lens ? state : { ...state, lens: action.lens }
   const drafts = { ...state.drafts }
   if (action.text === '') delete drafts[action.lens]
