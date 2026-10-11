@@ -53,4 +53,4 @@ move 3, the room as lit paper and «has the floor» at 4.5:1 (UIKIT-30).
   (the card's plane while a report loads: 4.3:1). They are the mixed values now, opaque; `light-fills.spec` asserts the
   fill it has. (`color-mix()` was tried first; Chromium computes it as `color(srgb …)`, which the spec's reader could
   not parse.) Also `e8954db1`: the spec's luminance typed. The outcome and evidence above are the post-review state.
-- `4240828592`: this record itself updated to say so.
+- `26ee4730`: this record itself updated to say so (the earlier line named the review thread's id, not a revision).

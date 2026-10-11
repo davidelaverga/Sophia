@@ -28,3 +28,10 @@
   `.pill.primary`, «Request review»; «Hold» and «Stop» are `.text-button` 24 px tall with their tips; pressing Stop
   still asks, with «Stop for good» and «Keep working»; «Keep working» puts Stop back as a text button.
 - `control-heights` keeps passing (24 is on the scale). `pnpm format`, `lint`, `typecheck`; measured in the pane.
+
+## After the review (Codex on #253)
+
+- The step after the filled press reached every `.control-row` (the mission editor's Save · Cancel too); it is scoped
+  to `.controls`, a goal's. A text button that is `disabled` (a command sending) no longer brightens its underline on
+  hover (the rule excluded only `aria-disabled`), and reads as waiting (cursor default, 0.6). `goal-controls.spec`
+  measures both.
