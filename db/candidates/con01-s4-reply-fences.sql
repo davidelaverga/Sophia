@@ -372,14 +372,15 @@ BEGIN
 END $$;
 
 -- A source left its predicate: every reply attempt that read it, whatever its state and whether or not its context is
--- already scrubbed, is suppressed once and for good. An open reply is cancelled (so its context is scrubbed); a published
--- answer loses its text, and so does every answer derived from it, by 0048's rule for a withdrawn message (N3's
--- conversation_withdrawn_from): each Sophia answer in the conversation asked at or after it, every hop at once, and each
--- open request that would read it is cancelled. The context's digest and length are erased; a retained hash the source
--- no longer holds becomes a tombstone, at once or, for a suppression made while the source still held it, when a later
--- call finds it gone (CX-0102). Why is read from the source row, never given. `withdrawn` counts the answers it reached
--- directly; the derived ones show in their rows. The body a held source_objects trigger would run, in the source
--- writer's transaction; called directly here.
+-- already scrubbed, is suppressed once and for good. The reply itself is reached only through the attempt it stands on:
+-- an open reply whose recorded attempt read the source is cancelled (so its context is scrubbed); a published answer
+-- whose own attempt read it loses its text, and so does every answer derived from it, by 0048's rule for a withdrawn
+-- message (N3's conversation_withdrawn_from): each Sophia answer in the conversation asked at or after it, every hop at
+-- once, and each open request that would read it is cancelled. The context's digest and length are erased; a retained
+-- hash the source no longer holds becomes a tombstone, at once or, for a suppression made while the source still held
+-- it, when a later call finds it gone (CX-0102). Why is read from the source row, never given. `withdrawn` counts the
+-- answers it reached directly; the derived ones show in their rows. The body a held source_objects trigger would run, in
+-- the source writer's transaction; called directly here.
 CREATE FUNCTION sophia.conversation_source_out(p_project uuid, p_source uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE o sophia.source_objects; d record; r sophia.conversation_replies; why text; tomb text; aseq bigint;
@@ -419,11 +420,16 @@ BEGIN
   INSERT INTO sophia.conversation_reply_suppressions(project_id,reply_id,attempt,source_id,reason,tombstone,suppressed_at)
   VALUES(p_project,d.reply_id,d.attempt,p_source,why,tomb,t);
   n_suppressed:=n_suppressed+1;
-  IF r.state IN ('pending','running') THEN
+  -- A superseded attempt reached no one (only a pending reply is ever superseded), and the reply goes on, or was
+  -- answered, from an attempt that did not read the source: that attempt is suppressed and its digest erased, and no
+  -- more. An answer with no answers row (none is written but by publication) is taken as its own attempt's.
+  IF r.state IN ('pending','running') AND EXISTS(SELECT 1 FROM sophia.conversation_reply_contexts x
+    WHERE x.project_id=p_project AND x.reply_id=d.reply_id AND x.attempt=d.attempt AND x.state='recorded') THEN
    UPDATE sophia.conversation_replies SET state='cancelled', reason=why, settled_at=t
     WHERE project_id=p_project AND id=r.id;
    n_cancelled:=n_cancelled+1;
-  ELSIF r.state='answered' THEN
+  ELSIF r.state='answered' AND NOT EXISTS(SELECT 1 FROM sophia.conversation_reply_answers a
+    WHERE a.project_id=p_project AND a.reply_id=d.reply_id AND a.attempt<>d.attempt) THEN
    UPDATE sophia.conversation_messages SET body=NULL, author_name=NULL, withdrawn_at=t, withdrawn_by='source'
     WHERE project_id=p_project AND id=r.answer_id AND withdrawn_at IS NULL RETURNING seq INTO aseq;
    IF FOUND THEN

@@ -1372,6 +1372,153 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
     })
   })
 
+  describe('a source’s withdrawal reaches a reply only through the attempt it stands on (r4241643132)', () => {
+    /**
+     * Attempt 1 reads the first mission's source (S) and the constraint's (C). A new mission is accepted, so the next
+     * claim supersedes attempt 1, and attempt 2 is recorded reading C but not S.
+     */
+    async function superseded() {
+      const s = await recorded()
+      const [mission] = await owner<{ source_id: string }>(
+        `SELECT source_id FROM sophia.conversation_reply_sources WHERE reply_id=$1 AND attempt=1 AND kind='mission'`,
+        [s.replyId],
+      )
+      assert.ok(mission)
+      await propose(s.projectId, A, { kind: 'mission', statement: 'Ship the list first', purpose: 'Find lists' }, A)
+      assert.equal((await assembleReply(loginUrl, s.replyId, LIMITS)).outcome, 'recorded')
+      const one = await must(contextOf(s.replyId, 1), 'attempt 1')
+      const two = await must(contextOf(s.replyId, 2), 'attempt 2')
+      assert.deepEqual([one.state, two.state], ['superseded', 'recorded'])
+      const reads2 = await owner<{ s: string }>(
+        'SELECT source_id::text AS s FROM sophia.conversation_reply_sources WHERE reply_id=$1 AND attempt=2',
+        [s.replyId],
+      )
+      assert.ok(!reads2.some((r) => r.s === mission.source_id), 'attempt 2 does not read S')
+      const c = await must(dependency(s.replyId, s.constraint, 2), 'attempt 2 reads C')
+      assert.equal((await must(dependency(s.replyId, s.constraint, 1), 'attempt 1 reads C')).source_id, c.source_id)
+      return { ...s, onlyOne: mission.source_id, both: c.source_id, two }
+    }
+    const suppressions = (replyId: string) =>
+      owner<{ attempt: number; source_id: string; reason: string; tombstoned: boolean }>(
+        `SELECT attempt, source_id::text, reason, tombstone IS NOT NULL AS tombstoned
+           FROM sophia.conversation_reply_suppressions WHERE reply_id=$1 ORDER BY attempt, source_id`,
+        [replyId],
+      )
+    /** Attempt 1 suppressed for S alone, its digest and length erased; attempt 2's kept. */
+    async function onlyOneSuppressed(s: Awaited<ReturnType<typeof superseded>>) {
+      assert.deepEqual(await suppressions(s.replyId), [
+        { attempt: 1, source_id: s.onlyOne, reason: 'source_withdrawn', tombstoned: true },
+      ])
+      const e = await must(erasureOf(s.replyId, 1), 'erasure 1')
+      const x = await must(contextOf(s.replyId, 1), 'context 1')
+      assert.deepEqual([e.reason, x.context_hash, x.byte_length], ['source_withdrawn', e.tombstone, 0])
+      assert.equal(await erasureOf(s.replyId, 2), undefined, 'attempt 2 keeps its digest')
+    }
+
+    it('answered from attempt 2: a source only superseded attempt 1 read leaves the answer; one attempt 2 read withdraws it', async () => {
+      const s = await superseded()
+      await owner(`UPDATE sophia.conversation_replies SET state='running' WHERE id=$1`, [s.replyId])
+      await grantFor(s.projectId)
+      await reserveUncertain(s)
+      const ledger = await ledgerState(s.projectId, s.replyId)
+      const text = 'Answered from attempt 2.'
+      const v = await publish(s.replyId, 2, randomUUID(), text)
+      assert.deepEqual([v.verdict, v.attempt], ['published', 2])
+      const two = await must(contextOf(s.replyId, 2), 'attempt 2, scrubbed at answered')
+      const withdrawnEvents = await events(s.projectId, 'conversation.message_withdrawn')
+      await erase(s.projectId, s.onlyOne)
+      assert.deepEqual(await sourceOut(s.projectId, s.onlyOne), {
+        verdict: 'source_out',
+        reason: 'source_withdrawn',
+        suppressed: 1,
+        cancelled: 0,
+        withdrawn: 0,
+      })
+      await onlyOneSuppressed(s)
+      assert.deepEqual(await contextOf(s.replyId, 2), two)
+      assert.deepEqual(
+        [(await messageOf(v.answerId))?.body, (await messageOf(v.answerId))?.withdrawn_by],
+        [text, null],
+        'the answer stands',
+      )
+      assert.deepEqual(
+        [(await answerOf(s.replyId))?.text_sha256, (await answerOf(s.replyId))?.withdrawn_by],
+        [sha256(text), null],
+      )
+      assert.equal((await replyOf(s.replyId))?.state, 'answered')
+      assert.equal(await events(s.projectId, 'conversation.message_withdrawn'), withdrawnEvents)
+      assert.deepEqual(
+        { ...(await check(s.replyId, 2)), contextChanged: null },
+        { verdict: 'ok', reason: null, contextChanged: null, state: 'answered' },
+      )
+      const replay = await publish(s.replyId, 2, v.resultRef, text)
+      assert.deepEqual([replay.verdict, replay.visible], ['already_answered', true])
+      // The control: C, which attempt 2 read too, withdraws the answer (attempt 1's dependency on it is suppressed too).
+      await erase(s.projectId, s.both)
+      assert.deepEqual(await sourceOut(s.projectId, s.both), {
+        verdict: 'source_out',
+        reason: 'source_withdrawn',
+        suppressed: 2,
+        cancelled: 0,
+        withdrawn: 1,
+      })
+      assert.deepEqual(
+        [(await messageOf(v.answerId))?.body, (await messageOf(v.answerId))?.withdrawn_by],
+        [null, 'source'],
+      )
+      assert.deepEqual(
+        [(await answerOf(s.replyId))?.text_sha256, (await answerOf(s.replyId))?.withdrawn_by],
+        [null, 'source'],
+      )
+      assert.equal(await events(s.projectId, 'conversation.message_withdrawn'), withdrawnEvents + 1)
+      assert.equal((await must(erasureOf(s.replyId, 2), 'erasure 2')).reason, 'source_withdrawn')
+      assert.deepEqual(await ledgerState(s.projectId, s.replyId), ledger, 'the uncertain call stays counted')
+    })
+
+    for (const state of ['pending', 'running'] as const) {
+      it(`${state} on recorded attempt 2: a source only superseded attempt 1 read leaves it ${state}; one attempt 2 read cancels it`, async () => {
+        const s = await superseded()
+        if (state === 'running') {
+          await owner(`UPDATE sophia.conversation_replies SET state='running' WHERE id=$1`, [s.replyId])
+          await grantFor(s.projectId)
+          await reserveUncertain(s)
+        }
+        const ledger = await ledgerState(s.projectId, s.replyId)
+        await erase(s.projectId, s.onlyOne)
+        assert.deepEqual(await sourceOut(s.projectId, s.onlyOne), {
+          verdict: 'source_out',
+          reason: 'source_withdrawn',
+          suppressed: 1,
+          cancelled: 0,
+          withdrawn: 0,
+        })
+        await onlyOneSuppressed(s)
+        assert.deepEqual(await replyOf(s.replyId), { state, reason: null, answer_id: null, settled: false })
+        assert.deepEqual(await contextOf(s.replyId, 2), s.two, 'attempt 2 untouched: its body, digest and length')
+        assert.equal((await check(s.replyId, 2))?.verdict, 'ok')
+        // The control: C, which recorded attempt 2 read too, cancels the reply.
+        await erase(s.projectId, s.both)
+        assert.deepEqual(await sourceOut(s.projectId, s.both), {
+          verdict: 'source_out',
+          reason: 'source_withdrawn',
+          suppressed: 2,
+          cancelled: 1,
+          withdrawn: 0,
+        })
+        assert.deepEqual(await replyOf(s.replyId), {
+          state: 'cancelled',
+          reason: 'source_withdrawn',
+          answer_id: null,
+          settled: true,
+        })
+        const e = await must(erasureOf(s.replyId, 2), 'erasure 2')
+        const x = await must(contextOf(s.replyId, 2), 'context 2')
+        assert.deepEqual([x.body, e.reason, x.context_hash, x.byte_length], [null, 'source_withdrawn', e.tombstone, 0])
+        assert.deepEqual(await ledgerState(s.projectId, s.replyId), ledger, 'the ledger stays as it was')
+      })
+    }
+  })
+
   describe('a rollback keeps read and erase access', () => {
     it('source_out rolled back: the answer stays readable by members, and withdrawable and erasable through 0048', async () => {
       const s = await running()
