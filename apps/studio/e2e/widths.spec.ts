@@ -118,3 +118,23 @@ test.describe('narrow', () => {
       .toEqual({ inSight: true, clearOfTheFades: true })
   })
 })
+
+test('widths · at 1024 a view the keyboard reaches is scrolled clear of the fade, as the current one is', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 800 })
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const nav = page.locator('.view-nav')
+  const updates = nav.getByRole('link', { name: 'Updates' })
+  await updates.focus()
+  await expect
+    .poll(async () => {
+      const box = await nav.boundingBox()
+      const r = await updates.boundingBox()
+      if (!box || !r) return false
+      const moreEnd = await nav.evaluate((el) => el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+      return !moreEnd || r.x + r.width <= box.x + box.width - box.width * 0.18 + 1
+    })
+    .toBe(true)
+})

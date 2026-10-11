@@ -47,27 +47,33 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
     }
     const item = row.querySelector('[aria-current="page"]')
     // Into sight, and out of a fade: an end that hides more fades 18 % of the row, where the current view must not stand
-    // (Codex on #233: Updates at 1024, in sight but under the fade before Resources).
+    // (Codex on #233: Updates at 1024, in sight but under the fade before Resources), nor a link the keyboard reached.
+    const clear = (el: Element) => {
+      const box = row.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      const fade = box.width * FADE
+      const moreEnd = row.scrollLeft + row.clientWidth < row.scrollWidth - 1
+      const overEnd = r.right - (box.right - fade)
+      const overStart = box.left + fade - r.left
+      if (moreEnd && overEnd > 0) row.scrollLeft += overEnd
+      else if (row.scrollLeft > 0 && overStart > 0) row.scrollLeft -= overStart
+    }
     const settle = () => {
-      if (item) {
-        const box = row.getBoundingClientRect()
-        const r = item.getBoundingClientRect()
-        const fade = box.width * FADE
-        const moreEnd = row.scrollLeft + row.clientWidth < row.scrollWidth - 1
-        const overEnd = r.right - (box.right - fade)
-        const overStart = box.left + fade - r.left
-        if (moreEnd && overEnd > 0) row.scrollLeft += overEnd
-        else if (row.scrollLeft > 0 && overStart > 0) row.scrollLeft -= overStart
-      }
+      if (item) clear(item)
       mark()
+    }
+    const onFocus = (e: FocusEvent) => {
+      if (e.target instanceof Element) clear(e.target)
     }
     settle()
     row.addEventListener('scroll', mark, { passive: true })
+    row.addEventListener('focusin', onFocus)
     const observer = new ResizeObserver(settle)
     observer.observe(row)
     if (item) observer.observe(item)
     return () => {
       row.removeEventListener('scroll', mark)
+      row.removeEventListener('focusin', onFocus)
       observer.disconnect()
     }
   }, [ref, current])

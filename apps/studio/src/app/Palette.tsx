@@ -30,6 +30,7 @@ function usePalette({ onClose, onSearch }: Props) {
     setAt(0)
   }
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.nativeEvent.isComposing) return // an IME's candidate keys are the field's, not the list's (Codex on #238)
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       setAt((was) => Math.min(Math.max(was + (e.key === 'ArrowDown' ? 1 : -1), 0), shown.length - 1))
