@@ -44,3 +44,9 @@ pseudo-element), `docs/plans/light-breath.md`. The commit after it adds only thi
 ## Next bounded action
 
 Informe-ui-premium §8 move 3: the room's stage as lit paper and «has the floor» at 4.5:1 (UIKIT-30).
+
+## Post-review (Codex on #251)
+
+- `9519350b`: the light isolates its stacking and the halo sits at `z-index: -1` inside it, behind the formed mark and
+  the trace; `3d59aadd`: the spec reads the stacking (the light takes no pointer events). `f7a74c2b`: on paper the
+  element’s own background is `none`, so the dark fallback radial (no WebGL) no longer paints under the halo.
