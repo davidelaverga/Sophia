@@ -91,7 +91,21 @@
     ],
     "automaticReviewRequest": 6104723372,
     "automaticReviewResult": null,
-    "nextSelection": "N2 concrete assembly/recording/ownership proposal only, no code/shared changes yet; N4 still proposal"
+    "nextSelection": "N2 concrete assembly/recording/ownership proposal only, no code/shared changes yet; N4 still proposal",
+    "automaticReviewActivity": {
+      "comment": 6104725869,
+      "state": "running",
+      "commit": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+      "since": "2026-10-11T02:44:27.603244Z"
+    },
+    "N2Proposal": {
+      "comment": 6104736474,
+      "createdAt": "2026-10-11T02:46:10Z",
+      "retrieved": true,
+      "characters": 12290,
+      "substantiveReview": "pending"
+    },
+    "sharedReceipt": 6104742986
   },
   "readiness": {
     "source_ready": true,
