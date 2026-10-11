@@ -159,6 +159,8 @@ export interface RoomLine {
   text: string
   /** A quiet second line, or null. */
   note: string | null
+  /** The note is the work's: a press goes to Tasks (docs/plans/studio-lens-address.md). */
+  goes?: 'work' | undefined
 }
 
 /** Before anyone asks Sophia into the conversation (S1-05A), the room says how she joins. */
@@ -222,9 +224,21 @@ export function roomLine(
   doing: string | null = null,
 ): RoomLine {
   const work = doing ?? workCountText(workCount)
+  return aboutWork(lineOf(status, floor, work, sophia), work)
+}
+
+function lineOf(status: DockStatus, floor: FloorView, work: string | null, sophia: SophiaLineView | null): RoomLine {
   if (status === 'joining') return { text: 'Joining the room…', note: null }
   if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
   if (status === 'live') return { text: floorLine(floor), note: work }
   return { text: 'The room is ready', note: work ?? VOICE_NOTE }
 }
+
+/** A note that is the work's goes to Tasks. */
+const aboutWork = (line: RoomLine, work: string | null): RoomLine =>
+  work !== null && line.note === work ? { ...line, goes: 'work' } : line
+
+/** The tasks working now, by id: one of them is named in the address when the work's note is pressed. */
+export const workingTaskIds = (snapshot: Pick<Snapshot, 'work'> | undefined): string[] =>
+  (snapshot?.work ?? []).filter((t) => WORKING_PHASES.has(t.phase)).map((t) => t.id)

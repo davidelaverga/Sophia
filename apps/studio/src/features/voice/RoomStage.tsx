@@ -15,6 +15,7 @@ import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Command } from '../../app/commands.ts'
 import { useCommands } from '../../app/useCommands.ts'
+import { useProjectGo } from '../studio/project-go.tsx'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { reachesSophia } from '../conversation/chat-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
@@ -22,15 +23,16 @@ import { Presences } from './Presences.tsx'
 import { canShareScreen, RoomDock } from './RoomDock.tsx'
 import { ROOM_KEYS } from './room-keys.ts'
 import {
+  type FloorView,
   floorView,
   orderParticipants,
+  type RoomLine,
   roomLine,
   runningWork,
   shortName,
   stageMode,
-  type FloorView,
-  type RoomLine,
   type StageMode,
+  workingTaskIds,
 } from './room-view.ts'
 import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
@@ -123,7 +125,23 @@ function useFloorHandoff(
   return travel
 }
 
-function SophiaLine({ line, session }: { line: RoomLine; session: string | null }) {
+/** The work's note goes to Tasks; with one task working, to that task (named in the address). Null outside a shell. */
+function useWorkGo(snapshot: Snapshot | undefined): (() => void) | null {
+  const go = useProjectGo()
+  if (!go) return null
+  const [only, ...rest] = workingTaskIds(snapshot)
+  return () => go(only !== undefined && rest.length === 0 ? { view: 'work', taskId: only } : { view: 'work' })
+}
+
+function SophiaLine({
+  line,
+  session,
+  onWork,
+}: {
+  line: RoomLine
+  session: string | null
+  onWork: (() => void) | null
+}) {
   return (
     <div className="sophia-line">
       <p className="line-text" aria-live="polite">
@@ -131,10 +149,18 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
           {line.text}
         </span>
       </p>
-      {line.note && (
+      {line.note && line.goes === 'work' && onWork ? (
         <p key={line.note} className="line-note arrive">
-          {line.note}
+          <button type="button" className="text-button" onClick={onWork}>
+            {line.note}
+          </button>
         </p>
+      ) : (
+        line.note && (
+          <p key={line.note} className="line-note arrive">
+            {line.note}
+          </p>
+        )
       )}
       {session && <p className="line-session">{session}</p>}
     </div>
@@ -258,6 +284,7 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
 
 export function RoomStage(props: Props) {
   const { room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions, presented, showing } = props
+  const onWork = useWorkGo(snapshot)
   const stage = useRef<HTMLElement>(null)
   // The time, again every half minute: enough for "starts in 12 min".
   const now = useNow(30_000)
@@ -292,6 +319,7 @@ export function RoomStage(props: Props) {
           <SophiaLine
             line={line ?? conversationLine(room, snapshot, floor, { running, doing }, sophia)}
             session={sessionNote(snapshot, now)}
+            onWork={onWork}
           />
           <div className="stage-body">
             {showing}

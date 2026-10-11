@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { INITIAL_VIEWER_STATE, readViewerState, storedViewerState, viewerKey, viewerReducer } from './viewer-state.ts'
+import {
+  INITIAL_VIEWER_STATE,
+  lensInAddress,
+  readViewerState,
+  storedViewerState,
+  viewerKey,
+  viewerReducer,
+  withLensInAddress,
+} from './viewer-state.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 
@@ -41,4 +49,19 @@ it('chat drafts survive resnapshots in memory but never storage serialization or
   assert.equal(state.drafts.converse, 'Private unsent chat')
   assert.equal(JSON.stringify(storedViewerState(state)).includes('Private unsent chat'), false)
   assert.equal(readViewerState(JSON.stringify(state)).drafts.converse, undefined)
+})
+
+describe('the lens in the address', () => {
+  it('reads a lens the address names, and nothing else', () => {
+    assert.equal(lensInAddress('?lens=explore'), 'explore')
+    assert.equal(lensInAddress('?demo=1&lens=build'), 'build')
+    assert.equal(lensInAddress('?lens=kitchen'), null)
+    assert.equal(lensInAddress(''), null)
+  })
+  it('writes the lens beside the rest, and says Converse by its absence', () => {
+    assert.equal(withLensInAddress('?demo=1', 'build'), '?demo=1&lens=build')
+    assert.equal(withLensInAddress('?demo=1&lens=build', 'converse'), '?demo=1')
+    assert.equal(withLensInAddress('?lens=explore', 'converse'), '')
+    assert.equal(withLensInAddress('', 'explore'), '?lens=explore')
+  })
 })

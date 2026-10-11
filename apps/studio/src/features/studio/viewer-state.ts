@@ -61,3 +61,18 @@ export function storedViewerState(state: ViewerState): ViewerState {
   const { converse: _chat, ...drafts } = state.drafts
   return { ...state, drafts }
 }
+
+/** The lens an address names (`?lens=explore`), or null: none, or not a lens. */
+export function lensInAddress(search: string): Lens | null {
+  const value = new URLSearchParams(search).get('lens')
+  return isLens(value) ? value : null
+}
+
+/** The address's search with the lens in it: the default (Converse) is said by its absence. */
+export function withLensInAddress(search: string, lens: Lens): string {
+  const params = new URLSearchParams(search)
+  if (lens === INITIAL_VIEWER_STATE.lens) params.delete('lens')
+  else params.set('lens', lens)
+  const out = params.toString()
+  return out ? `?${out}` : ''
+}
