@@ -6,8 +6,11 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/widths` from `ui/press-answers` at `bcd49b22`
 (stacked on PR #232 → #231 → #230 → #229 → #228 → #227 → #224 → #223 → #222 → #221 → #220; the base retargets as
 each merges)
-Ending commit/tree: `2d74ff38` (tree `b5c3ea4b765a`): 5 files, 2 new (`e2e/widths.spec.ts`, `docs/plans/widths.md`)
-and `theme.css`, `artifacts.css`, `conversations.css`. The commit after it adds only this handoff.
+Ending commit/tree: `a9818725` (tree `4908b22beaa7`), after the review: 7 files, 2 new (`e2e/widths.spec.ts`,
+`docs/plans/widths.md`) and `theme.css`, `artifacts.css`, `conversations.css`, `ViewNav.tsx`, `widths.spec.ts` again.
+The first code state was `2d74ff38` (tree `b5c3ea4b765a`, the five files); Codex's P2 on #233 (the current view in
+sight but under the fade at 1024 with Updates open) added the `ViewNav` fade fix and its check in `a9818725`. This
+handoff's own commits sit beside them.
 
 ## Outcome
 
