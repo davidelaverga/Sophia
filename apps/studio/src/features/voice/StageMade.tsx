@@ -19,7 +19,8 @@ import { Icon, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReports } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { modalOnScreen, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen, ShortcutScope } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { escapeStepsDown } from '../artifacts/report-view.ts'
 import { noticeActions, noticeOpenRequest, noticeTitle, type ChatNoticeItem } from '../conversation/chat-view.ts'
@@ -195,7 +196,7 @@ function useMadeActions(
   }
   // O only while it does something: the report is ready, no report is on screen, no panel holds the keys.
   const key = keys && ready && !viewer?.shown
-  useShortcuts({ o: open }, key)
+  useCommands([{ id: 'open-made', words: 'Open what Sophia made', group: 'room', key: 'o', run: open }], key)
   useEscapeAway(keys && !viewer?.shown, close)
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return

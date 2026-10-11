@@ -61,8 +61,13 @@
 
 ## Left
 
-- Places (Home · Personal · Work) keeps its `useShortcuts` bindings: the host is not mounted there yet (the Home
-  fixture renders Welcome alone, so a check there could not see it). Next: `useCommands` in Places and the host in
-  the places' bar.
+- Places (Home · Personal · Work) keeps its `useShortcuts` bindings (`h p w d l t`, Find's `mod+f`): the host is
+  not mounted there yet (the Home fixture renders Welcome alone, so a check there could not see it). Next:
+  `useCommands` in Places and the host in the places' bar.
+- After the review (Codex on #238): every binding inside a project is a command (Resources' and Tasks' `/` as the
+  view's own search, so the project's search keeps its words there and not the key; a report's `F`; a staged report's
+  `O`); the index has a visible control, «Keyboard shortcuts» in the account menu with its key, through `askCommands`;
+  the palette shows a live call's switches under its veil as every sheet does (`SheetCall`); the row the keys choose
+  is scrolled into the list's view, and the rows' ids are the list's own.
 - The palette does not hand its query to Search: it opens Search. `ProjectSearch` would take an initial query.
 - Records (a report, a task) in the palette: that is Search's (`/`), under the flag.

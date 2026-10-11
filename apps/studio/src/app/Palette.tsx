@@ -5,6 +5,7 @@ import { Search } from '@sophia/ui'
 import { GROUP_WORDS, matchCommands, type Offered } from './commands.ts'
 import { keyLabel, onMac } from './shortcuts.ts'
 import { useOffered } from './useCommands.ts'
+import { SheetCall } from './call-in-reach.tsx'
 import { useDialog } from './useDialog.ts'
 
 interface Props {
@@ -45,25 +46,20 @@ function usePalette({ onClose, onSearch }: Props) {
 }
 
 function Row({
+  id,
   command,
   active,
   onPick,
   onPoint,
 }: {
+  id: string
   command: Offered
   active: boolean
   onPick: () => void
   onPoint: () => void
 }) {
   return (
-    <li
-      id={command.id}
-      role="option"
-      aria-selected={active}
-      className="palette-row"
-      onPointerMove={onPoint}
-      onClick={onPick}
-    >
+    <li id={id} role="option" aria-selected={active} className="palette-row" onPointerMove={onPoint} onClick={onPick}>
       <span className="palette-group">{GROUP_WORDS[command.group]}</span>
       <span className="palette-words">{command.words}</span>
       {command.key !== undefined && <kbd>{keyLabel(command.key, onMac)}</kbd>}
@@ -91,6 +87,7 @@ function Rows({ id, p, canSearch }: { id: string; p: ReturnType<typeof usePalett
       {p.shown.map((command, i) => (
         <Row
           key={command.id}
+          id={`${id}-${command.id}`}
           command={command}
           active={command === p.active}
           onPick={() => p.pick(command)}
@@ -109,6 +106,11 @@ export function Palette(props: Props) {
   useEffect(() => field.current?.focus(), [])
   const p = usePalette(props)
   const listId = useId()
+  // The row the keys chose stays in the list's view, the focus staying in the field.
+  const activeId = p.active ? `${listId}-${p.active.id}` : null
+  useEffect(() => {
+    if (activeId) document.getElementById(activeId)?.scrollIntoView({ block: 'nearest' })
+  }, [activeId])
   const onVeil = (e: PointerEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) props.onClose()
   }
@@ -123,6 +125,8 @@ export function Palette(props: Props) {
         tabIndex={-1}
         onKeyDown={p.onKey}
       >
+        {/* A live call's switches stay in reach under the veil, as in every sheet (call-in-reach.tsx). */}
+        <SheetCall />
         <Search
           ref={field}
           className="palette-field"
@@ -130,7 +134,7 @@ export function Palette(props: Props) {
           aria-label="Command"
           aria-expanded="true"
           aria-controls={listId}
-          aria-activedescendant={p.active?.id}
+          aria-activedescendant={p.active ? `${listId}-${p.active.id}` : undefined}
           autoComplete="off"
           placeholder="Type a command or a view…"
           value={p.query}

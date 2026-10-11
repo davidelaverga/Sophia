@@ -11,7 +11,8 @@ import { reportLanguage } from '@sophia/report/language'
 import { Icon, ReadNote, Segmented, Tabs, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { modalOnScreen, onScreen as isVisible, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen, onScreen as isVisible, ShortcutScope } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import {
   checkedBlob,
   HashMismatch,
@@ -378,7 +379,16 @@ function usePaneBehaviour(
 ) {
   usePinnedVersion(link, data.versions, onVersion)
   useEscape(onStepDown)
-  useShortcuts({ f: link.size === 'full' ? onStepDown : onEnlarge })
+  const full = link.size === 'full'
+  useCommands([
+    {
+      id: 'report-size',
+      words: full ? 'Step the report down' : 'Enlarge the report',
+      group: 'view',
+      key: 'f',
+      run: full ? onStepDown : onEnlarge,
+    },
+  ])
   const title = useFocusHandoff(opener)
   // Back to the side pane with the focus on a call switch: beside the room the dock has them and the row is hidden,
   // so the focus goes to the title rather than stay on a button nobody sees.

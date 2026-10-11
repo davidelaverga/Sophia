@@ -253,7 +253,8 @@ function useProjectKeys(
         id: 'search',
         words: 'Search this project',
         group: 'do',
-        key: '/',
+        // Tasks and Resources have a search of their own on `/`: there the project's keeps its words, not the key.
+        key: at.view === 'work' || at.view === 'resources' ? undefined : '/',
         run: VISION && at.shown ? go.search : undefined,
       },
     ],

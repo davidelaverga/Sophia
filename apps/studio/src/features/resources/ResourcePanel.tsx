@@ -4,7 +4,7 @@
 // requests go out through `onAct` and `onEffort`, to whoever the host passes; nothing here calls a tool.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { EmptyState, Search as SearchField, Segmented, Skeleton } from '@sophia/ui'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
@@ -160,7 +160,15 @@ interface SearchProps {
 /** The search, focused with "/" from anywhere on the view; Escape clears it, then leaves it. */
 function Search({ query, onChange }: SearchProps) {
   const input = useRef<HTMLInputElement>(null)
-  useShortcuts({ '/': () => input.current?.focus() })
+  useCommands([
+    {
+      id: 'search-resources',
+      words: 'Search the resources',
+      group: 'view',
+      key: '/',
+      run: () => input.current?.focus(),
+    },
+  ])
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Escape') return
     if (query) onChange('')
