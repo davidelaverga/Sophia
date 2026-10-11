@@ -1,0 +1,40 @@
+{
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "toolchain": {
+    "node": "24.21.0",
+    "pnpm": "11.7.0"
+  },
+  "commands": [
+    {
+      "command": "pnpm install --frozen-lockfile --offline",
+      "exit": 0
+    },
+    {
+      "command": "pnpm exec tsc -p apps/studio/tsconfig.json --noEmit",
+      "exit": 0
+    },
+    {
+      "command": "node --test apps/studio/src/features/conversations/decide.test.ts apps/studio/src/features/conversations/proposed-truth.test.ts apps/studio/src/features/conversations/new-conversation.test.ts",
+      "exit": 0,
+      "tests": 31,
+      "passed": 31,
+      "failed": 0,
+      "skipped": 0,
+      "scopePrecision": "decide.test.ts and new-conversation.test.ts executed; proposed-truth.test.ts does not exist and Node omitted that selector. No proposed-truth unit qualification is inferred."
+    }
+  ],
+  "sourceReview": "Complete7-file delta +346/-21 vs a01, all Studio; five context consumers inspected including post-await latest kept store; no feature fix authored by reviewer",
+  "phoneEvidence": {
+    "DOMViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "at": "2026-10-11T01:52:56.905Z",
+    "horizontalOverflow": false,
+    "oldStarterVisible": false,
+    "draftsKept": true,
+    "screenshotLimitation": "Backend returned 390x219 scaled desktop JPEGs for phone captures; excluded from visual proof. Phone DOM is scoped evidence only, not mobile visual acceptance."
+  },
+  "late200Limit": "Original authorized response buffered before403 and releasedafter403/clientopen/Nodefinish; no separate instrumentation proves browser consumption/framezero. Independently observed fenced and recovered DOM only."
+}

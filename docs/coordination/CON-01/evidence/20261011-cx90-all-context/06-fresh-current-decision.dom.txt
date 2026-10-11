@@ -1,0 +1,86 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+    - text: Home
+    - generic: H
+  - generic: /
+  - button "Work":
+    - text: Work
+    - text: Your projects
+    - generic: W
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/studio
+    - link "Conversations":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/conversations
+    - link "Goals":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/goals
+    - link "Tasks":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/work
+    - link "Knowledge":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/knowledge
+    - link "Updates":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/updates
+    - link "Resources":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/resources
+  - status "Reconnecting":
+    - generic: Reconnecting
+  - button "Invite":
+    - generic: Invite
+    - text: Invite people
+    - generic: I
+  - button "Account":
+    - generic: R
+    - generic: Account
+- main:
+  - region "Conversations":
+    - region "All conversations":
+      - heading "Conversations" [level=2]
+      - button "New conversation" [pressed]:
+      - searchbox "Filter conversations"
+      - group "Show only":
+        - button "Open"
+        - button "Mine"
+        - status
+      - list:
+        - button "SYNTHETIC current access check":
+          - generic: SYNTHETIC current access check
+          - generic: 03:51
+          - generic: "You: SYNTHETIC current conversation before revocation"
+          - generic: You. No recorded questions yet. Last moved 03:51.
+        - button "SYNTHETIC stale sender regression":
+          - generic: SYNTHETIC stale sender regression
+          - generic: 03:51
+          - generic: "Synthetic A Surviving: SYNTHETIC A surviving third"
+          - generic: You, Synthetic C Old, Synthetic A Surviving. No recorded questions yet. Last moved 03:51.
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - generic: Question
+      - textbox "Question":
+        - /placeholder: What do you want to figure out?
+        - text: SYNTHETIC keep my question draft
+      - generic: Context, if it helps
+      - textbox "Context, if it helps": SYNTHETIC keep my bounded context draft
+      - checkbox "Ask Sophia" [checked]
+      - text: Ask Sophia
+      - button "Start"
+      - button "Cancel"
+    - complementary "Project context":
+      - heading "Project context" [level=3]
+      - paragraph: SYNTHETIC private current mission
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - list:
+          - listitem: SYNTHETIC accepted access boundary
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - paragraph: Nothing waits for a decision.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "Join the room":
+    - text: Join the room
+    - generic: You join with your microphone on
+- status

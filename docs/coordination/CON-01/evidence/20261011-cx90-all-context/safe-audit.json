@@ -1,0 +1,42 @@
+{
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "observedAt": "2026-10-11T01:53:10.514Z",
+  "level": "L1 actual local browser/API/PostgreSQL only",
+  "projectId": "db75d3e1-f243-4f5d-8d75-c2ca154c7769",
+  "counts": {
+    "goals": 1,
+    "jobs": 0,
+    "work_attempts": 0,
+    "execution_bindings": 0,
+    "commands": 0,
+    "outbox": 0,
+    "runtime_commands": 0,
+    "usage_records": 0,
+    "conversation_replies": 0
+  },
+  "humanMessages": 4,
+  "nullHumanBodies": 0,
+  "requests": 4,
+  "replies": 0,
+  "decisionStates": [
+    {
+      "id": "b81c968f-812a-4ba0-9220-feec3825509c",
+      "kind": "mission",
+      "state": "accepted",
+      "revision": "2"
+    },
+    {
+      "id": "ebc606df-dd82-40fc-9613-946dbcfa9614",
+      "kind": "constraint",
+      "state": "accepted",
+      "revision": "2"
+    },
+    {
+      "id": "75d22cd7-5983-4615-b9f4-c1fe00c1dcd4",
+      "kind": "constraint",
+      "state": "rejected",
+      "revision": "2"
+    }
+  ]
+}

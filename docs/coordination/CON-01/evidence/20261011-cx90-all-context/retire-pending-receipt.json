@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-11T01:52:26.936Z",
+  "key": "e507445a-25a1-4b11-b8bf-864e933871b3",
+  "projectId": "db75d3e1-f243-4f5d-8d75-c2ca154c7769",
+  "decisionId": "75d22cd7-5983-4615-b9f4-c1fe00c1dcd4",
+  "result": {
+    "cursor": "10",
+    "sha256": null,
+    "status": "committed",
+    "entryId": null,
+    "affected": [],
+    "decision": "rejected",
+    "sourceId": "8fe6b430-d948-46b1-b888-c57e5ecdfa1e",
+    "operation": "decide",
+    "projectId": "db75d3e1-f243-4f5d-8d75-c2ca154c7769",
+    "decisionId": "75d22cd7-5983-4615-b9f4-c1fe00c1dcd4",
+    "ledgerRevision": 7,
+    "missionRevision": 2,
+    "decisionRevision": 2,
+    "eligibilityRevision": 1
+  },
+  "scope": "One owned synthetic proposed constraint retired through real A08 persistence as existing editor; no provider/native/hosted effect"
+}

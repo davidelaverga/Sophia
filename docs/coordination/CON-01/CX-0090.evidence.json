@@ -1,0 +1,274 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0090",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "parent": "a01bda0dc7303d10f1580167e7655b657ba4d48c",
+  "classification": "progress: independently fetched reviewed immutable correction and executed actual owned local app/PG crossing",
+  "episode": 82,
+  "verdict": "pass_for_named_scope; whole G3/G4/native/hosted remain open",
+  "priorFinding": 4239851727,
+  "cases": [
+    {
+      "boundary": "ordinary503 before refusal",
+      "verdict": "PASS_scoped",
+      "observed": "cached eligible pending starter remains with truthful stale notice and drafts"
+    },
+    {
+      "boundary": "original403 while original authorized mission200 held",
+      "verdict": "PASS_scoped_DOM; transport_limit",
+      "observed": "form and context absent after original403; old bytes released while clientopen; no independently instrumented browser-consumption or framezero claim"
+    },
+    {
+      "boundary": "list200 after restore with mission503",
+      "verdict": "PASS_scoped",
+      "observed": "both fields retained; old pending starter and pane text absent; truthful Retry. Corrects independently reproduced CX88 failure"
+    },
+    {
+      "boundary": "current A08 pending settlement and freshmission200",
+      "verdict": "PASS_scoped",
+      "observed": "one editor/API-role reject stablekey committed; fresh current mission and accepted boundary return, Nothingwaits, retired starter absent; no UI write pressed"
+    },
+    {
+      "boundary": "390px responsive state",
+      "verdict": "PASS_scoped_DOM_only",
+      "observed": "390x844 DOM/nooverflow/drafts/nooldstarter; screenshotreturnedscaleddesktop390x219 so mobile visual acceptance remains open"
+    }
+  ],
+  "independentChecks": {
+    "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+    "toolchain": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0"
+    },
+    "commands": [
+      {
+        "command": "pnpm install --frozen-lockfile --offline",
+        "exit": 0
+      },
+      {
+        "command": "pnpm exec tsc -p apps/studio/tsconfig.json --noEmit",
+        "exit": 0
+      },
+      {
+        "command": "node --test apps/studio/src/features/conversations/decide.test.ts apps/studio/src/features/conversations/proposed-truth.test.ts apps/studio/src/features/conversations/new-conversation.test.ts",
+        "exit": 0,
+        "tests": 31,
+        "passed": 31,
+        "failed": 0,
+        "skipped": 0,
+        "scopePrecision": "decide.test.ts and new-conversation.test.ts executed; proposed-truth.test.ts does not exist and Node omitted that selector. No proposed-truth unit qualification is inferred."
+      }
+    ],
+    "sourceReview": "Complete7-file delta +346/-21 vs a01, all Studio; five context consumers inspected including post-await latest kept store; no feature fix authored by reviewer",
+    "phoneEvidence": {
+      "DOMViewport": {
+        "width": 390,
+        "height": 844
+      },
+      "at": "2026-10-11T01:52:56.905Z",
+      "horizontalOverflow": false,
+      "oldStarterVisible": false,
+      "draftsKept": true,
+      "screenshotLimitation": "Backend returned 390x219 scaled desktop JPEGs for phone captures; excluded from visual proof. Phone DOM is scoped evidence only, not mobile visual acceptance."
+    },
+    "late200Limit": "Original authorized response buffered before403 and releasedafter403/clientopen/Nodefinish; no separate instrumentation proves browser consumption/framezero. Independently observed fenced and recovered DOM only."
+  },
+  "audit": {
+    "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+    "observedAt": "2026-10-11T01:53:10.514Z",
+    "level": "L1 actual local browser/API/PostgreSQL only",
+    "projectId": "db75d3e1-f243-4f5d-8d75-c2ca154c7769",
+    "counts": {
+      "goals": 1,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "commands": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_replies": 0
+    },
+    "humanMessages": 4,
+    "nullHumanBodies": 0,
+    "requests": 4,
+    "replies": 0,
+    "decisionStates": [
+      {
+        "id": "b81c968f-812a-4ba0-9220-feec3825509c",
+        "kind": "mission",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "id": "ebc606df-dd82-40fc-9613-946dbcfa9614",
+        "kind": "constraint",
+        "state": "accepted",
+        "revision": "2"
+      },
+      {
+        "id": "75d22cd7-5983-4615-b9f4-c1fe00c1dcd4",
+        "kind": "constraint",
+        "state": "rejected",
+        "revision": "2"
+      }
+    ]
+  },
+  "cleanup": {
+    "at": "2026-10-11T01:53:10.514Z",
+    "pids": {
+      "51595": "absent",
+      "51626": "absent",
+      "51635": "absent",
+      "51636": "absent"
+    },
+    "portsClosed": {
+      "55463": true,
+      "55464": true
+    },
+    "tabClosed": "105",
+    "viewportReset": true
+  },
+  "wrapper": {
+    "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+    "level": "L1 actual local UI/API/PostgreSQL, synthetic accounts, no fixtures/provider/runtime",
+    "apiPort": 55463,
+    "studioPort": 55464,
+    "pid": 51595,
+    "exit": 0,
+    "postgresStopped": true,
+    "clusterRemoved": true
+  },
+  "finalAudit": {
+    "at": "2026-10-11T01:53:10.518Z",
+    "exit": 0,
+    "phase": "API/Studio stopped, before disposable DB drop"
+  },
+  "authorEvidence": {
+    "sourceReceipt": 6104313009,
+    "terminalReceipt": 6104365132,
+    "fixtureBrowser": 188,
+    "unit": 1222,
+    "PG": 22,
+    "API": 10,
+    "allExit": 0,
+    "qualification": "attributed author L1 only, not independent rerun"
+  },
+  "sourceCheckpoint": {
+    "reviews": [],
+    "runs": [
+      {
+        "id": 38103277135,
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+        "event": "pull_request"
+      },
+      {
+        "id": 38103277223,
+        "status": "pending",
+        "conclusion": null,
+        "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+        "event": "pull_request"
+      },
+      {
+        "id": 38103272790,
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+        "event": "push"
+      },
+      {
+        "id": 38102842903,
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+        "event": "push"
+      }
+    ],
+    "190": {
+      "head": "ceed13d8199166935a8a26cc47e98d21b2bc4d53",
+      "base": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "draft": true,
+      "state": "open",
+      "updated_at": "2026-10-11T01:49:10Z",
+      "merged": false
+    },
+    "226": {
+      "head": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+      "base": "0ccc344d076ba433543b6a72b052fd0c6c065eca",
+      "draft": true,
+      "state": "open",
+      "updated_at": "2026-10-10T23:07:36Z",
+      "merged": false
+    },
+    "199": {
+      "head": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "base": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+      "draft": true,
+      "state": "open",
+      "updated_at": "2026-10-11T01:52:58Z",
+      "merged": false
+    }
+  },
+  "coordination": {
+    "reviewBranchRequestMessage": 438,
+    "actualIndependentResultMessage": 440,
+    "freshReviewRequest": 6104365613,
+    "automaticReviewResult": {
+      "id": 6104392647,
+      "at": "2026-10-11T01:56:15Z",
+      "author": "chatgpt-codex-connector[bot]",
+      "reviewedCommit": "d527f38542",
+      "verdict": "no major issues; automated source only"
+    },
+    "authorCorrectionReceipt": 6104395144,
+    "scopedResolutions": [
+      {
+        "original": 4239772110,
+        "reply": 4239922378,
+        "url": "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4239922378",
+        "thread": {
+          "id": "PRRT_kwDOUqJnR86rJHxl",
+          "isResolved": true
+        }
+      },
+      {
+        "original": 4239851727,
+        "reply": 4239922476,
+        "url": "https://github.com/davidelaverga/Sophia/pull/199#discussion_r4239922476",
+        "thread": {
+          "id": "PRRT_kwDOUqJnR86rJUTs",
+          "isResolved": true
+        }
+      }
+    ]
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "hostedEffects": 0,
+    "nativeProviderEffects": 0,
+    "spend": 0,
+    "newActualStacks": 1,
+    "unresolvedLocalEffects": false
+  },
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "CX90 named all-context source/unit/actual-local crossings pass; broader gates open",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "next": "Recover current remaining G2 implementation/ownership proposal against accepted D6/B1, retaining exactd527 queued-CI hold; no shared edit or live effect without actual bound authority"
+}

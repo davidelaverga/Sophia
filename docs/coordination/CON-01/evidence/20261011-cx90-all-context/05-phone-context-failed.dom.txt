@@ -1,0 +1,46 @@
+- banner:
+  - button "Home":
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "CON01 independent synthetic browser project" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/studio
+    - link "Conversations":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/conversations
+    - link "Goals":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/goals
+    - link "Tasks":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/work
+    - link "Knowledge":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/knowledge
+    - link "Updates":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/updates
+    - link "Resources":
+      - /url: /p/db75d3e1-f243-4f5d-8d75-c2ca154c7769/resources
+  - button "Invite":
+  - button "Account":
+    - generic: R
+- main:
+  - region "Conversations":
+    - form "New conversation":
+      - heading "New conversation" [level=3]
+      - generic: Question
+      - textbox "Question" [active]:
+        - /placeholder: What do you want to figure out?
+        - text: SYNTHETIC keep my question draft
+      - generic: Context, if it helps
+      - textbox "Context, if it helps": SYNTHETIC keep my bounded context draft
+      - checkbox "Ask Sophia" [checked]
+      - text: Ask Sophia
+      - button "Start"
+      - button "Cancel"
+    - complementary "Project context":
+      - button "Close the context":
+      - heading "Project context" [level=3]
+      - alert:
+        - text: The project’s context can’t be read now.
+        - button "Try again"
+      - generic "How conversation context works"
+- status

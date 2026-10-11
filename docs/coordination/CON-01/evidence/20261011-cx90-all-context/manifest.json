@@ -1,0 +1,167 @@
+[
+  {
+    "path": "evidence/20261011-cx90-all-context/01-current-form.dom.txt",
+    "sha256": "45ad4c1667b117dc781433caf51d83162f1b15b9527b78ddbea58a70335e0c3b",
+    "bytes": 3310
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/01-current-form.jpg",
+    "sha256": "31d2a1c8570cd93f7a20a4675d1bf76e17969a0694ad445df9be3f9983f3a302",
+    "bytes": 50693
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/02-ordinary-503.dom.txt",
+    "sha256": "e486a3de4b8d15d02b57dbe4aebefc2620429b4712d2b0664305740ccf18484c",
+    "bytes": 3480
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/02-ordinary-503.jpg",
+    "sha256": "f8eead92ceb92bb057a012434ae6642055c653d58219ec971cc783e5c438f251",
+    "bytes": 55422
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/03-fenced-after-old-200.dom.txt",
+    "sha256": "12da3626843b487cd84f5956be43af7c22c28428b0602e8fefe81c8740fc5444",
+    "bytes": 1787
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/03-fenced-after-old-200.jpg",
+    "sha256": "ee5d81101c50492fb54ed70717dd12851bcec5d777e8cf0614db606ef3a954b6",
+    "bytes": 28107
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/04-list-recovered-context-failed.dom.txt",
+    "sha256": "f15187f2fc78b6fbef30189cd062304aae9dbecaa552b673a83f9498b749fbc2",
+    "bytes": 2842
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/04-list-recovered-context-failed.jpg",
+    "sha256": "1b4c1fcc3a3b0eb5930c9d431ad1daad2473c3f9b08d3dfd52d1419293d0f9e5",
+    "bytes": 44528
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/05-phone-context-failed.dom.txt",
+    "sha256": "e21749dc8195d684a618e80dc4856f9868912a115eb104ad01fc6d7391917202",
+    "bytes": 1625
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/06-fresh-current-decision.dom.txt",
+    "sha256": "ae376b5b0f066f0422b9eb060667213c743ea07a866f1a698c386a516c228016",
+    "bytes": 3078
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/06-fresh-current-decision.jpg",
+    "sha256": "5d3bba0fcd5fc0e6b38e22cd4236dfb7480e9b58fbffea52ee401ad6758e902d",
+    "bytes": 48020
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/07-phone-current-drafts.dom.txt",
+    "sha256": "1efe45db7f3d284f59f7a68d6cde21f1ed0f7ac7131641b313dabc8730679bca",
+    "bytes": 1861
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/browser-stack-cleanup.json",
+    "sha256": "34c20424aaa8416b10a1757ac6283a8efa2b13eac57773a66b4891ce7d6fc41d",
+    "bytes": 114
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/browser-stack-receipt.json",
+    "sha256": "7d0aa5bf24dec4df63579caa82af3b3dae8f3cf847735afd0d4c3e2430d244bf",
+    "bytes": 339
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/conversation-read-receipts.json",
+    "sha256": "7745c72bb09aa7d5eac4c4023b9b5edfc9626895d3d3c78478a8002dadb0983f",
+    "bytes": 2593
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/feed-block-observed.json",
+    "sha256": "ece946ecddba666bd41eb9599b55c5d7cda57fb8f6914c8ad9b87e99c19a2a96",
+    "bytes": 141
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/final-audit-receipt.json",
+    "sha256": "2b6d3d74215f0687cdaec46fe3984cabcae13c77c639a3cadb4b87728cc0e077",
+    "bytes": 98
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/fresh-review-result.json",
+    "sha256": "fa2ce4a00fd0cc9a8d1cc40e058c232674233dc4f0a951bded4a887eda5104fb",
+    "bytes": 3186
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/independent-checks.json",
+    "sha256": "e09b5f7d28baca8e138576bc9fbfe83a30238022a55f30ea99e86b5941711df1",
+    "bytes": 1736
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/independent-cleanup.json",
+    "sha256": "242126a87fc71c53fbee365863050107ba34f59b34b5a50e39547618829767a7",
+    "bytes": 255
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/mission200-buffered.json",
+    "sha256": "cf4554e00a8602bde91f4f60e7cac57e1d2f41740be22307e5364f1f360f8623",
+    "bytes": 241
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/mission200-finished.json",
+    "sha256": "665a3fa5c22ce2b40f27fda4b37efb334c2b060c792ba8dca052010b36de4393",
+    "bytes": 286
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/mission200-release.json",
+    "sha256": "b0a0343730ca4466d691aacc5b6eb159b7dfebcdf3beeec0ad3bcea4ffc228dc",
+    "bytes": 246
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/parallel-checkpoint.json",
+    "sha256": "c60dd4913b8babddcb115cc38ca83bdc88fd7df12afe3f9ef29b877cad4c76dd",
+    "bytes": 3718
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/preparation.json",
+    "sha256": "b0b14614a4e3281a970cc640381074beb1c967b52cfd189166283505f5cb21da",
+    "bytes": 1754
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/read-ceiling.json",
+    "sha256": "2e1aa90249ca7b0cc877c07e0f226ed5edb0cc9443de2888df2353770a1fccbe",
+    "bytes": 96
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/restore-receipt.json",
+    "sha256": "39c687986d1bef7b559e4223f39a688b1d103cb4db4ec69c64f849f659987573",
+    "bytes": 202
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/retire-pending-receipt.json",
+    "sha256": "6b178c040ec915366e73bb62998c9c747f93e1589bafdff19929639cd0b1277f",
+    "bytes": 802
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/review-checkpoint.json",
+    "sha256": "70d26d135f28a2a61e0ce43fafb8f79cbabed07d16183ba19b68834c90084f53",
+    "bytes": 4689
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/revocation-receipt.json",
+    "sha256": "cb48825a7c37a870de2499f25a1ef7cd881ea0cef134048e44b65d42a84120d0",
+    "bytes": 338
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/safe-audit.json",
+    "sha256": "8d6d987f34997b0f5601afadbdf4d5ec508c915ff302fce4453363c08b193170",
+    "bytes": 1021
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/scoped-thread-resolutions.json",
+    "sha256": "69482b0eea61f5b2a5407858ffe0ea77139aa7bd43a6400b74d432abd4dbab7e",
+    "bytes": 467
+  },
+  {
+    "path": "evidence/20261011-cx90-all-context/source-checkpoint.json",
+    "sha256": "171c340a67334a159786c75e76778d3b28840423a7b3ac78450f8c877457ad90",
+    "bytes": 1439
+  }
+]

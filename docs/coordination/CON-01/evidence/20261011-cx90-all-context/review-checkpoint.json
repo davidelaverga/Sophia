@@ -1,0 +1,72 @@
+{
+  "at": "2026-10-11T01:58:04.604748+00:00",
+  "result": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "headRefOid": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+          "reviews": {
+            "nodes": [
+              {
+                "databaseId": 5481477213,
+                "submittedAt": "2026-10-11T01:24:43Z",
+                "state": "COMMENTED",
+                "commit": {
+                  "oid": "a01bda0dc7303d10f1580167e7655b657ba4d48c"
+                },
+                "body": "\n### \ud83d\udca1 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `a01bda0dc7`\n    \n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with \ud83d\udc4d.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>"
+              },
+              {
+                "databaseId": 5481488133,
+                "submittedAt": "2026-10-11T01:29:51Z",
+                "state": "COMMENTED",
+                "commit": {
+                  "oid": "a01bda0dc7303d10f1580167e7655b657ba4d48c"
+                },
+                "body": ""
+              }
+            ]
+          },
+          "reviewThreads": {
+            "nodes": [
+              {
+                "id": "PRRT_kwDOUqJnR86rJHxl",
+                "isResolved": false,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4239772110,
+                      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Fence the project context after an authorization refusal**\n\nWhen membership is revoked and the list, current transcript, or a direct probe returns the new definitive 403, `fenced` removes the rows and thread but this unconditional `ProjectContext` remains mounted. Its React Query read retains the previous `MissionContext` on a failed refetch, so cached mission, accepted/pending decision text, and A08 controls can remain visible indefinitely if subsequent context or snapshot reads fail; include this pane in the same synchronous render gate until a post-refusal authorization read succeeds.\n\nAGENTS.md reference: [AGENTS.md:L21-L21](https://github.com/davidelaverga/Sophia/blob/342288a2360843e84593aaed95c1d6423b7c8681/AGENTS.md#L21-L21)\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.",
+                      "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+                      "line": 230,
+                      "originalCommit": {
+                        "oid": "342288a2360843e84593aaed95c1d6423b7c8681"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "PRRT_kwDOUqJnR86rJUTs",
+                "isResolved": false,
+                "comments": {
+                  "nodes": [
+                    {
+                      "databaseId": 4239851727,
+                      "body": "**<sub><sub>![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat)</sub></sub>  Fence every consumer of the shared context cache**\n\nWhen the New conversation form was open before a refusal, a later successful list read remounts it while this post-refusal context read is still pending or has failed. This freshness check protects only `ProjectContext`; `NewConversation.tsx:66-67` consumes the same cached query without checking `refusedAt` or `readFrom`, so its \u201cStart from what\u2019s still open\u201d buttons reveal the pre-refusal pending-decision text again, indefinitely if the new context read fails. Apply the refusal freshness gate to all consumers of `contextQuery`, not only this pane.\n\nAGENTS.md reference: [AGENTS.md:L21-L21](https://github.com/davidelaverga/Sophia/blob/a01bda0dc7303d10f1580167e7655b657ba4d48c/AGENTS.md#L21-L21)\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e.",
+                      "path": "apps/studio/src/features/conversations/ProjectContext.tsx",
+                      "line": null,
+                      "originalCommit": {
+                        "oid": "a01bda0dc7303d10f1580167e7655b657ba4d48c"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

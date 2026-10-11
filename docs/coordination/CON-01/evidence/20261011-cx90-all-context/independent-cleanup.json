@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-11T01:53:10.514Z",
+  "pids": {
+    "51595": "absent",
+    "51626": "absent",
+    "51635": "absent",
+    "51636": "absent"
+  },
+  "portsClosed": {
+    "55463": true,
+    "55464": true
+  },
+  "tabClosed": "105",
+  "viewportReset": true
+}
