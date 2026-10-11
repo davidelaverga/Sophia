@@ -34,6 +34,8 @@ import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
+import { MessageActs } from './MessageActs.tsx'
+import { withQuote } from './message-acts.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
@@ -89,19 +91,30 @@ function useAwaiting(asked: Asked | null) {
   return { since: asked?.at ?? null, late }
 }
 
+/** A quote goes under the draft and the field takes the focus; null for those who can't write here. */
+function useQuote(props: Pick<Props, 'writer' | 'draft' | 'onDraft'>, section: RefObject<HTMLElement | null>) {
+  if (props.writer !== true) return null
+  return (quote: string) => {
+    props.onDraft(withQuote(props.draft, quote))
+    section.current?.querySelector('textarea')?.focus()
+  }
+}
+
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
   const read = useTranscript(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
+  const section = useRef<HTMLElement>(null)
   const follow = useFollow()
+  const onQuote = useQuote(props, section)
   useEffect(() => {
     if (!arrived) return
     head.current?.focus()
     onArrived()
   }, [arrived, onArrived])
   return (
-    <section className="conv-open" aria-label="Open conversation">
+    <section ref={section} className="conv-open" aria-label="Open conversation">
       <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
       {/* A scrolled region the keyboard reaches (arrows scroll it); from the keyboard, every time shows there. */}
       <div
@@ -119,6 +132,7 @@ export function OpenConversation(props: Props) {
           onAnswered={props.onAnswered}
           onGrown={follow.grown}
           propose={props.writer === true ? { projectId: props.projectId, identity } : null}
+          onQuote={onQuote}
         />
       </div>
       {props.writer === true && (
@@ -299,6 +313,7 @@ function Messages(props: {
   onGrown: () => void
   /** Where a message may be proposed as a decision (C7); null for those who can't write here. */
   propose: Propose
+  onQuote: ((quote: string) => void) | null
 }) {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
@@ -334,7 +349,9 @@ function Messages(props: {
           }}
         />
       )}
-      {messages.length > 0 && <MessageList messages={messages} me={me} first={first} propose={props.propose} />}
+      {messages.length > 0 && (
+        <MessageList messages={messages} me={me} first={first} propose={props.propose} onQuote={props.onQuote} />
+      )}
       {waiting && (
         <p className="conv-note conv-answering" role="status">
           <span className="conv-glyph" aria-hidden>
@@ -378,6 +395,7 @@ function MessageList(props: {
   me: string
   first: RefObject<HTMLLIElement | null>
   propose: Propose
+  onQuote: ((quote: string) => void) | null
 }) {
   const { messages, me, first, propose } = props
   const now = Date.now()
@@ -394,6 +412,7 @@ function MessageList(props: {
           now={now}
           first={i === 0 ? first : undefined}
           propose={propose}
+          onQuote={props.onQuote}
           pressed={pressed === m.id}
           onPress={() => setPressed(m.id)}
         />
@@ -410,6 +429,7 @@ function MessageItem(props: {
   now: number
   first: RefObject<HTMLLIElement | null> | undefined
   propose: Propose
+  onQuote: ((quote: string) => void) | null
   pressed: boolean
   onPress: () => void
 }) {
@@ -451,7 +471,7 @@ function MessageItem(props: {
       <div className="conv-msg-body">
         {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
         {sophia && at}
-        {here.press}
+        <MessageActs message={m} who={messageBy(m, me)} now={now} onQuote={props.onQuote} propose={here.press} />
       </div>
       {!sophia && at}
       {here.form}
