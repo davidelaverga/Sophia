@@ -51,6 +51,25 @@ test('last · a note sent says itself in its row at once, even when the list can
   await expect(briefs.locator('.conv-gist')).toHaveText('You: Two pages at most.')
 })
 
+test('last · a note sent moves its row to the top at once, saying when, even when the list can’t be read again', async ({
+  page,
+}) => {
+  // PR #199 r4238826987: the receipt's own time is when the conversation last moved at the least.
+  await page.goto(`${PAGE}&last=1`)
+  const rows = list(page).getByRole('listitem')
+  const briefs = rows.filter({ hasText: 'Short or long briefs?' })
+  await expect(rows.first()).not.toContainText('Short or long briefs?')
+  const movedBefore = await briefs.locator('.conv-row-at').innerText()
+  await briefs.getByRole('button').click()
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  await field(page).fill('Two pages at most.')
+  await field(page).press('Enter')
+  await expect(briefs.locator('.conv-gist')).toHaveText('You: Two pages at most.')
+  await expect(rows.first()).toContainText('Short or long briefs?')
+  await expect(briefs.locator('.conv-row-at')).not.toHaveText(movedBefore)
+})
+
 test('last · where the list doesn’t say it, the row keeps Sophia’s summary', async ({ page }) => {
   await page.goto(PAGE)
   await expect(gists(page).first()).toHaveText(/^Compared a short brief/)

@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string
   /** "1" where the APIs proposed in issue #105 are answered (the fixture pages): their controls show (app/vision.ts). */
   readonly VITE_SOPHIA_VISION?: string
+  readonly VITE_SOPHIA_CONVERSATIONS?: string
 }
 
 interface ImportMeta {

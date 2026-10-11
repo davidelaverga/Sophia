@@ -132,6 +132,29 @@ test('follow · once Sophia’s answer is seen the wait is over, even after newe
   await expect(open(page)).not.toContainText('Sophia hasn’t answered yet')
 })
 
+test('follow · an Ask whose outcome isn’t known ends the wait and says so; nothing goes again by itself', async ({
+  page,
+}) => {
+  await openBriefs(page, '&answer=unknown')
+  await field(page).fill('Sophia, which do readers finish?')
+  await open(page).getByRole('button', { name: 'Send' }).click()
+  await expect(open(page)).toContainText('Sophia is answering…')
+  const asked = messages(page).filter({ hasText: 'Sophia, which do readers finish?' })
+  await expect(asked).toContainText('No answer came, and none will.')
+  await expect(asked).toContainText('still counts')
+  await expect(open(page)).not.toContainText('Sophia is answering…')
+  await expect(open(page)).not.toContainText('Sophia hasn’t answered yet')
+  await expect(open(page).locator('.conv-msg.sophia')).toHaveCount(0)
+  // Read again (another conversation, then back): still ended, never waited for; and the message was sent once.
+  await row(page, READING).click()
+  await row(page, BRIEFS).click()
+  await expect(asked).toContainText('No answer came, and none will.')
+  await expect(open(page)).not.toContainText('Sophia is answering…')
+  expect(await written(page, 'conversation-message')).toEqual([
+    'conversation-message:Sophia, which do readers finish?:yes',
+  ])
+})
+
 test('follow · a receipt that lands after the account was forgotten writes nothing and reads nothing', async ({
   page,
 }) => {

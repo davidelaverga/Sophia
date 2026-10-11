@@ -64,6 +64,16 @@ function personalCompanion(): Companion | null {
   if (process.env.NODE_ENV === 'production') throw new Error('The rehearsal companion is for development only')
   return rehearsalCompanion()
 }
+/**
+ * Saved project conversations (CON-01): SOPHIA_CONVERSATIONS=on serves A16 and makes /ready require migration 0048.
+ * Unset or off, neither: nothing else changes. Which projects keep text is still each project's own setting (0048).
+ */
+function conversationsOn(): boolean {
+  const mode = optional('SOPHIA_CONVERSATIONS')
+  if (!mode || mode === 'off') return false
+  if (mode !== 'on') throw new Error('SOPHIA_CONVERSATIONS is on, off or unset')
+  return true
+}
 const app = buildApp({
   pool,
   logger: true,
@@ -74,6 +84,7 @@ const app = buildApp({
   // texts are still read. The retired REST settings stop the start (byteStoreFromEnv).
   byteStore: byteStoreFromEnv(process.env),
   companion: personalCompanion(),
+  conversations: conversationsOn(),
   ...(mediaBridgeTokenSha256 ? { mediaBridgeTokenSha256 } : {}),
   ...(livekitUrl
     ? { livekit: { url: livekitUrl, apiKey: required('LIVEKIT_API_KEY'), apiSecret: required('LIVEKIT_API_SECRET') } }

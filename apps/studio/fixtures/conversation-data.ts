@@ -1,7 +1,7 @@
-// The project's conversations as the proposed A18 reads would give them (docs/plans/project-conversations.md): three,
-// newest activity first, the first with more messages than a page. Every word is synthetic.
-import type { MissionDecision } from '@sophia/contracts'
-import type { ConversationMessage, ConversationSummary } from '../src/api/vision.ts'
+// The project's conversations as the fixtures keep them (docs/plans/project-conversations.md): three, newest activity
+// first, the first with more messages than a page. Served in A16's shapes (conversation-wire.ts). Every word is
+// synthetic.
+import type { ConversationMessage, ConversationSummary, MissionDecision } from '@sophia/contracts'
 import { membership } from './data.ts'
 import { personId } from './fake-people.ts'
 import { REPORT, TITLE, versionId } from './report-data.ts'
@@ -21,7 +21,20 @@ export const CONVERSATION = {
 /** A page of messages: the newest six, and `before` for the page before them. */
 export const MESSAGE_PAGE = 6
 
-export const conversations = (): ConversationSummary[] => [
+/** A conversation as kept here: its words and people; A16's other fields are added when it is served. */
+export type FixtureConversation = Pick<
+  ConversationSummary,
+  'id' | 'title' | 'summary' | 'lastAt' | 'contributors' | 'sophia' | 'openQuestions' | 'output'
+>
+
+/** A message as kept here: A16's, its order (`seq`) given by its place when it is served. */
+export type FixtureMessage = Pick<ConversationMessage, 'id' | 'author' | 'actorId' | 'name' | 'text' | 'at'> &
+  Partial<Pick<ConversationMessage, 'withdrawn' | 'ask' | 'replyTo'>>
+
+/** A message's id, a UUID as A16's are: the seeded ones by number. */
+export const messageId = (n: number) => `00000000-0000-4000-8000-0000000c${n.toString(16).padStart(4, '0')}`
+
+export const conversations = (): FixtureConversation[] => [
   {
     id: CONVERSATION.reading,
     title: 'What makes a report worth reading?',
@@ -63,7 +76,7 @@ export const conversations = (): ConversationSummary[] => [
 ]
 
 /** A conversation nobody has written in yet (`conversations=quiet`): oldest, with no messages. */
-export const quietConversation = (): ConversationSummary => ({
+export const quietConversation = (): FixtureConversation => ({
   id: CONVERSATION.quiet,
   title: 'A quiet question',
   summary: null,
@@ -79,66 +92,95 @@ const sophia = { author: 'sophia' as const, actorId: null, name: null }
 const at = (day: number, hh: number, mm: number) =>
   `2026-10-0${String(day)}T${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:00.000Z`
 
+/** «What makes a report worth reading?»: more messages than a page. */
+const readingMessages = (): FixtureMessage[] => [
+  {
+    id: messageId(1),
+    ...member(LUCIA, 'Lucía'),
+    text: 'Who reads the report first, and what do they need from it?',
+    at: at(6, 9, 0),
+  },
+  {
+    id: messageId(2),
+    ...sophia,
+    text: 'Mostly the people deciding: they need the answer, then the evidence.',
+    at: at(6, 9, 2),
+  },
+  {
+    id: messageId(3),
+    ...member(ME, VIEWER_NAME),
+    text: 'Then the first screen should say the answer.',
+    at: at(6, 9, 5),
+  },
+  {
+    id: messageId(4),
+    ...member(LUCIA, 'Lucía'),
+    text: 'And every claim keeps its source, one click away.',
+    at: at(6, 9, 9),
+  },
+  {
+    id: messageId(5),
+    ...sophia,
+    text: 'I can keep both versions apart so we compare them on the same question.',
+    at: at(6, 9, 12),
+  },
+  { id: messageId(6), ...member(ME, VIEWER_NAME), text: 'Please do. Short first.', at: at(6, 9, 20) },
+  {
+    id: messageId(7),
+    ...member(LUCIA, 'Lucía'),
+    text: 'The short one still needs the March figures.',
+    at: at(6, 9, 28),
+  },
+  {
+    id: messageId(8),
+    ...sophia,
+    text: 'Added them, cited. The open question is how long the evidence section may be.',
+    at: at(6, 9, 35),
+  },
+  { id: messageId(9), ...member(ME, VIEWER_NAME), text: 'Let’s look at it together tomorrow.', at: at(6, 9, 40) },
+]
+
+/** «Short or long briefs?» */
+const briefsMessages = (): FixtureMessage[] => [
+  {
+    id: messageId(17),
+    ...member(MARCO, 'Marco'),
+    text: 'One page. Anything longer, nobody reads.',
+    at: at(5, 15, 50),
+  },
+  {
+    id: messageId(18),
+    ...member(LUCIA, 'Lucía'),
+    text: 'One page, with the sources inline, then.',
+    at: at(5, 16, 10),
+  },
+]
+
+/** The third conversation: the demo's setup question, or the tests' data. */
+const dataMessages = (): FixtureMessage[] => [
+  {
+    id: messageId(33),
+    ...member(ME, VIEWER_NAME),
+    text: DEMO
+      ? 'Two teams left right after their admin changed. Who picks up setup then?'
+      : 'Which records can we copy for the tests?',
+    at: at(4, 10, 50),
+  },
+  {
+    id: messageId(34),
+    ...sophia,
+    text: DEMO
+      ? 'The owner named at signup, handed on with the admin role. Two questions are open: who tells the new admin, and when.'
+      : 'The synthetic ones only. Two questions are open: how many, and who checks them.',
+    at: at(4, 11, 0),
+  },
+]
+
 /** Each conversation's messages, oldest first. */
-export const messagesOf = (): Record<string, ConversationMessage[]> => ({
-  [CONVERSATION.reading]: [
-    {
-      id: 'm1',
-      ...member(LUCIA, 'Lucía'),
-      text: 'Who reads the report first, and what do they need from it?',
-      at: at(6, 9, 0),
-    },
-    {
-      id: 'm2',
-      ...sophia,
-      text: 'Mostly the people deciding: they need the answer, then the evidence.',
-      at: at(6, 9, 2),
-    },
-    {
-      id: 'm3',
-      ...member(ME, VIEWER_NAME),
-      text: 'Then the first screen should say the answer.',
-      at: at(6, 9, 5),
-    },
-    { id: 'm4', ...member(LUCIA, 'Lucía'), text: 'And every claim keeps its source, one click away.', at: at(6, 9, 9) },
-    {
-      id: 'm5',
-      ...sophia,
-      text: 'I can keep both versions apart so we compare them on the same question.',
-      at: at(6, 9, 12),
-    },
-    { id: 'm6', ...member(ME, VIEWER_NAME), text: 'Please do. Short first.', at: at(6, 9, 20) },
-    { id: 'm7', ...member(LUCIA, 'Lucía'), text: 'The short one still needs the March figures.', at: at(6, 9, 28) },
-    {
-      id: 'm8',
-      ...sophia,
-      text: 'Added them, cited. The open question is how long the evidence section may be.',
-      at: at(6, 9, 35),
-    },
-    { id: 'm9', ...member(ME, VIEWER_NAME), text: 'Let’s look at it together tomorrow.', at: at(6, 9, 40) },
-  ],
-  [CONVERSATION.briefs]: [
-    { id: 'b1', ...member(MARCO, 'Marco'), text: 'One page. Anything longer, nobody reads.', at: at(5, 15, 50) },
-    { id: 'b2', ...member(LUCIA, 'Lucía'), text: 'One page, with the sources inline, then.', at: at(5, 16, 10) },
-  ],
-  [CONVERSATION.data]: [
-    {
-      id: 'd1',
-      ...member(ME, VIEWER_NAME),
-      text: DEMO
-        ? 'Two teams left right after their admin changed. Who picks up setup then?'
-        : 'Which records can we copy for the tests?',
-      at: at(4, 10, 50),
-    },
-    {
-      id: 'd2',
-      ...sophia,
-      text: DEMO
-        ? 'The owner named at signup, handed on with the admin role. Two questions are open: who tells the new admin, and when.'
-        : 'The synthetic ones only. Two questions are open: how many, and who checks them.',
-      at: at(4, 11, 0),
-    },
-  ],
+export const messagesOf = (): Record<string, FixtureMessage[]> => ({
+  [CONVERSATION.reading]: readingMessages(),
+  [CONVERSATION.briefs]: briefsMessages(),
+  [CONVERSATION.data]: dataMessages(),
 })
 
 const decision = (n: number, statement: string, state: 'accepted' | 'proposed', day: number): MissionDecision => ({

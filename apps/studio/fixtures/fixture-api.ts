@@ -59,9 +59,20 @@ import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
-import type { ConversationMessage, ConversationSummary, ProjectTask, VersionReview } from '../src/api/vision.ts'
-import { MESSAGE_PAGE, type conversationMission } from './conversation-data.ts'
-import { conversationWritten, type TalkWrites } from './conversation-writes.ts'
+import type { ProjectTask, VersionReview } from '../src/api/vision.ts'
+import {
+  MESSAGE_PAGE,
+  type conversationMission,
+  type FixtureConversation,
+  type FixtureMessage,
+} from './conversation-data.ts'
+import { wireList, wireMessage } from './conversation-wire.ts'
+import {
+  conversationErased,
+  conversationWithdrawn,
+  conversationWritten,
+  type TalkWrites,
+} from './conversation-writes.ts'
 import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -97,7 +108,7 @@ interface Project {
   waiting: boolean
   /** `lobby=again` (knocked twice) or `lobby=two` (two waiting); anything else, one first knock. */
   lobbyAsked?: string | null
-  /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
+  /** This viewer's role in the project (`role=viewer`, `role=editor`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
@@ -184,6 +195,12 @@ interface Project {
   projectsHeld?: (() => void)[] | null
   /** While set, the membership's reads wait for these (`membership=hold`, `window.fixture.releaseMembership`). */
   membershipHeld?: (() => void)[] | null
+  /** Sophia is out of reach (`outage=1`, `window.fixture.outage`): every API request fails as a lost connection. */
+  outage?: boolean
+  /** The membership's reads fail as the API's `unavailable`, the rest answer (`membership=fail`, `failMembership`). */
+  membershipFails?: boolean
+  /** This viewer is no member of the project (`member=0`): its reads are refused, as the API refuses them. */
+  outsider?: boolean
   /** The project list's reads fail (`projects=fail`). */
   projectsFail?: boolean
   /** The report's tasks (task-data.ts, A17); absent, their requests are unexpected. */
@@ -200,14 +217,25 @@ interface Project {
   missionHeld?: (() => void)[] | null
 }
 
-/** The conversations as the A18 reads give them (and its writes keep them), and the reads that fail. */
+/** The conversations as the fixtures keep them (A16 serves them, conversation-wire.ts), and the reads that fail. */
 export interface Conversations extends TalkWrites {
-  list: ConversationSummary[]
-  messages: Record<string, ConversationMessage[]>
+  list: FixtureConversation[]
+  messages: Record<string, FixtureMessage[]>
   /** The list's reads fail (`conversations=fail`, `window.fixture.failConversations`). */
   failList: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
   lastShown?: boolean
+  /** The list says older conversations exist that it doesn't hold (`more=1`, A16's `more`). */
+  more?: boolean
+  /** One pushed past what the list holds by newer activity, never erased: left out, the list saying `more` (`capPast`). */
+  cappedOut?: string | null
+  /** While set, the list's reads wait for these, each to answer as the list was when asked (`holdListReads`). */
+  heldList?: (() => void)[] | null
+  /**
+   * While set, message reads that would answer wait for these, each to answer as the conversation was when asked
+   * (`holdMessageReads`); a refusal, a not found or a failure answers at once.
+   */
+  heldMessages?: (() => void)[] | null
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -330,18 +358,25 @@ function visionAnswer(project: Project, method: string, url: URL, init: RequestI
 /** A18's writes, where the page keeps conversations; undefined for any other request. */
 function talkWritten(project: Project, path: string, init: RequestInit | undefined) {
   if (!project.conversations) return undefined
-  return conversationWritten(project.conversations, path, init, {
+  const ctx = {
     viewer: project.role === 'viewer',
-    record: (what) => served.push(what),
+    admin: membershipOf(project).role === 'admin',
+    record: (what: string) => served.push(what),
     moved: () => publish(project),
-  })
+    cursor: () => String(project.revision),
+  }
+  const talk = project.conversations
+  const taken = conversationWithdrawn(talk, path, init, ctx)
+  if (taken !== undefined) return taken
+  const erasure = conversationErased(talk, path, init, ctx)
+  return erasure === undefined ? conversationWritten(talk, path, init, ctx) : erasure
 }
 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
-  const talk = project.conversations && conversationRead(project.conversations, url)
+  const talk = project.conversations && conversationRead(project.conversations, url, membershipOf(project).role)
   if (talk !== undefined) return talk
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   const reviews = REVIEWS_OF.exec(url.pathname)
@@ -386,6 +421,10 @@ const membershipOf = (project: Project) => ({ ...membership, role: project.role 
 
 /** The reader's membership; while held, a read that waits until it is let through. */
 function membershipRead(project: Project): Response | Promise<Response> {
+  if (project.membershipFails) {
+    served.push('membership:failed')
+    return unavailable()
+  }
   const held = project.membershipHeld
   if (held) return new Promise<Response>((resolve) => held.push(() => resolve(json(membershipOf(project)))))
   return json(membershipOf(project))
@@ -420,6 +459,30 @@ function meetingAnswer(project: Project, path: string): Promise<Response> | Resp
   return new Promise((resolve) => held.push(() => resolve(json(recap))))
 }
 
+/** A conversation this person can't see (erased): not found, as A16 refuses it (422, packages/domain/src/errors.ts). */
+const conversationGone = () =>
+  new Response(
+    JSON.stringify({
+      code: 'not_found',
+      message: 'Conversation not found',
+      requestId: '00000000-0000-4000-8000-0000000000ce',
+      retry: 'never',
+    }),
+    { status: 422, headers: { 'content-type': 'application/json' } },
+  )
+
+/** A reader not a current member of the project: refused, before anything of a conversation is read (A16, CC-0072). */
+const projectRefused = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Not permitted',
+      requestId: '00000000-0000-4000-8000-0000000000fb',
+      retry: 'never',
+    }),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  )
+
 /** The API's answer while it can't read the records (packages/domain/src/errors.ts). */
 const unavailable = () =>
   new Response(
@@ -435,40 +498,49 @@ const unavailable = () =>
 /** Any report's reviews or tasks (A16, A17): the report (and the version) captured. */
 const REVIEWS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/versions\/([0-9a-f-]{36})\/reviews$/
 const TASKS_OF = /^\/api\/v1\/artifacts\/([0-9a-f-]{36})\/tasks$/
-const MESSAGES_OF = /^\/api\/v1\/conversations\/([0-9a-f-]{36})\/messages$/
+/** A page of a conversation's messages, read within its project (A16 getProjectConversationMessages). */
+const MESSAGES_OF = /^\/api\/v1\/projects\/([0-9a-f-]{36})\/conversations\/([0-9a-f-]{36})\/messages$/
 
-/** A18's reads: the list, or a page of a conversation's messages; undefined for any other request. */
-function conversationRead(talk: Conversations, url: URL) {
-  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk)
-  const messagesOf = MESSAGES_OF.exec(url.pathname)?.[1]
-  return messagesOf ? messagesRead(talk, messagesOf, url) : undefined
+/** A16's reads: the list, or a page of a conversation's messages; undefined for any other request. */
+function conversationRead(talk: Conversations, url: URL, role: Membership['role']) {
+  if (url.pathname === `/api/v1/projects/${PROJECT}/conversations`) return conversationsRead(talk, role)
+  const scoped = MESSAGES_OF.exec(url.pathname)
+  if (!scoped?.[2]) return undefined
+  // Another project's: this reader is a member of this fixture's only, and is refused there before anything is read.
+  return scoped[1] === PROJECT ? messagesRead(talk, scoped[2], url) : projectRefused()
 }
 
-/** The project's conversations (A18), as listed. */
-function conversationsRead(talk: Conversations) {
+/** The project's conversations (A16), as listed, each one's newest message where the page asks for last messages. */
+function conversationsRead(talk: Conversations, role: Membership['role']) {
   if (talk.failList) return unavailable()
   served.push('conversations:read')
-  if (!talk.lastShown) return json({ conversations: talk.list })
-  // A18 (proposed): each one's newest message, a line of it, as its messages say it now.
-  const lastOf = (id: string) => {
-    const m = talk.messages[id]?.at(-1)
-    return m
-      ? {
-          author: m.author,
-          actorId: m.actorId,
-          name: m.name,
-          // Its opening as written, line breaks kept: the Studio says it in one line (C6, sophia-text.ts plainOf).
-          text: m.text.slice(0, 140),
-          at: m.at,
-        }
-      : null
+  const opts = {
+    lastShown: talk.lastShown === true,
+    viewer: role === 'viewer',
+    admin: role === 'admin',
+    more: talk.more === true || Boolean(talk.cappedOut),
   }
-  return json({ conversations: talk.list.map((c) => ({ ...c, lastMessage: lastOf(c.id) })) })
+  const listed = talk.cappedOut ? talk.list.filter((c) => c.id !== talk.cappedOut) : talk.list
+  const asRead = json(wireList(listed, talk.messages, opts))
+  // Held: it answers later as it was read now, a read under way across what happens meanwhile (Codex at 7969d40).
+  const held = talk.heldList
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(asRead))) : asRead
 }
 
 /** A page of a conversation's messages (A18): the newest MESSAGE_PAGE, or those before `before`, oldest first. */
 function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   if (talk.failMessagesOf === conversationId) return unavailable()
+  // As to a reader no longer in the project: refused (403), the conversation itself never read.
+  if (talk.refusedOf === conversationId) {
+    served.push(`messages-refused:${conversationId.slice(-2)}`)
+    return projectRefused()
+  }
+  // Erased here: as 0048's row policy hides it, the API refuses its read as not found. A page reads it again only as
+  // the feed moves (the open thread and the list read at once), before the list shows it gone.
+  if (talk.erasedIds?.has(conversationId)) {
+    served.push(`messages-gone:${conversationId.slice(-2)}`)
+    return conversationGone()
+  }
   const all = talk.messages[conversationId]
   if (!all) return null
   const before = url.searchParams.get('before')
@@ -477,7 +549,14 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const end = Math.min(all.length, Number(before ?? all.length))
   const start = Math.max(0, end - MESSAGE_PAGE)
   served.push(`messages:${conversationId.slice(-2)}:${String(start)}`)
-  return json({ messages: all.slice(start, end), before: start > 0 ? String(start) : null })
+  const asRead = json({
+    conversationId,
+    messages: all.slice(start, end).map((m, i) => wireMessage(m, start + i)),
+    before: start > 0 ? String(start) : null,
+  })
+  // Held: it answers later as it was read now, a read under way across what happens meanwhile (CX-0074).
+  const held = talk.heldMessages
+  return held ? new Promise<Response>((resolve) => held.push(() => resolve(asRead))) : asRead
 }
 
 /** Who waits at the door: one first knock, one knocking again (`lobby=again`), or two (`lobby=two`). */
@@ -1268,10 +1347,24 @@ export function releaseText(project: Project): void {
   for (const release of heldTexts.splice(0)) release()
 }
 
+/** A project's read refused to someone who isn't its member, as the API answers it. */
+const outside = () =>
+  new Response(
+    JSON.stringify({
+      code: 'forbidden',
+      message: 'Not a member of this project',
+      requestId: '00000000-0000-4000-8000-0000000000bd',
+      retry: 'never',
+    }),
+    { status: 403, headers: { 'content-type': 'application/json' } },
+  )
+
 export function installFixtureApi(project: Project): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
+    if (project.outage && url.pathname.startsWith('/api/')) return Promise.reject(new TypeError('Failed to fetch'))
+    if (project.outsider && url.pathname.startsWith(`/api/v1/projects/${PROJECT}/`)) return Promise.resolve(outside())
     const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)
