@@ -16,6 +16,7 @@ Files were read only; nothing was run against a network.
 **The vendor pages** are as Codex read them in CX-0118, because this container's network policy blocks `developers.openai.com` (§8.4):
 - `developers.openai.com/siwc/token-sharing-open-source/models-and-inference`, and its overview.
 - **The current accounts and sessions pages:** they point to ChatGPT Settings, Usage, and shared limits. That is not proof of an app quota endpoint.
+- **`learn.chatgpt.com/docs/app-server`** (`developers.openai.com/codex/app-server` redirects there), §6, as Codex read it in its CX-0119 recheck. It documents the Codex App Server's account rate limits; §2.5 gives the detail.
 
 **Path keys** (all under `.artifacts/runtime/node_modules/.pnpm/`):
 
@@ -108,7 +109,8 @@ Each one names the documentation that must state it, the installed code that mus
   - **A forced WebSocket resend:** it is reserved, or it never leaves.
 - **Today:** **unmet.**
   - The Codex path sends no cap, and its WebSocket resends bypass `maxRetries`.
-  - Whether the documented flow allows a wire cap, or documents another bound, is not established here.
+  - **The current SIWC preview forbids `max_output_tokens`.** Codex read this on `developers.openai.com/siwc/token-sharing-open-source/models-and-inference`. So the wire-cap form is unavailable on that flow.
+  - No other hard bound for that flow is established. Until one is documented and qualified, the flow has no bound, and §2.2 is unmet for it.
 
 ### 2.3 Terminal and unknown outcomes
 
@@ -164,22 +166,41 @@ Each one names the documentation that must state it, the installed code that mus
 
 ### 2.5 Trusted remaining-limit telemetry
 
-- **Documentation:** a documented endpoint or header that reports the remaining limit to an app.
-- **Today:** **not established and not qualified.**
-  - The bounded reading so far found the user's ChatGPT Settings, Usage, and shared limits.
-  - That is not a finding that no app-facing source exists.
+- **Documentation:** a documented endpoint, header or notification that reports the remaining limit to an app.
+- **A documented candidate: the Codex App Server.** `learn.chatgpt.com/docs/app-server` §6, as Codex read it, documents:
+  - a request, `account/rateLimits/read`;
+  - a notification, `account/rateLimits/updated`;
+  - limits keyed in `rateLimitsByLimitId`, each with `usedPercent`, `windowDurationMins` and `resetsAt`.
+
+  This is a telemetry source **candidate**:
+  - It is documented for the App Server's own sessions.
+  - It is not proof that the pinned dsh route can use it.
+  - It is not authority to start another executor or sign-in flow.
+- **The pinned dsh integration: unqualified.**
+  - A read-only search of the installed runtime at `f36a8fa0` finds no `account/rateLimits` call and no App Server client in any `.js`, `.mjs` or `.cjs` file.
+  - In the audited seam (§1), the only response hook is `onResponse` on SSE (CODEX:283), and it is unused.
+  - The SSE path's own limit headers are not established as a source either.
+- **Before any source counts,** these are bound, from its documentation and a qualified capture:
+  - **identity:** which account, and which limit (by its id), a reading belongs to, matched to the route's own sign-in (§2.1);
+  - **freshness:** when the reading was taken and its window. A reading past its window, or one taken before the latest call settled, is shown as stale, never as current;
+  - **an unavailable state:** a source that doesn't answer is shown as unavailable, never as zero or as full;
+  - **privacy:** a private account's quota values stay out of shared records, issues and broad logs. They are shown only to whom the owner decides.
+  - **read only:** reading has no effect, with no reset, no credit purchase and no change to the account.
+- **Today:** **not established and not qualified for Sophia's route.**
+  - The bounded reading found the user's ChatGPT Settings, Usage and shared limits, and the App Server candidate above.
+  - That is not a finding about what else exists.
 - **Davide's requirement stays unmet:** showing the remaining subscription cap.
   - Sophia's own counters (S2) do not meet it.
   - Neither does a link to ChatGPT Settings.
-- **Until a source is established:**
+  - Neither does the App Server candidate until it is qualified for the route.
+- **Until a source is qualified:**
   - Sophia's allowance is its own ledger's count, shown as Sophia's;
   - no vendor remaining limit is displayed or inferred;
   - the usage-limit error is read as a class only (§2.3).
-- **Installed code, in the audited seam only (§1):** a documented source would need dsh to pass a hook. Today `onResponse` exists on SSE only (CODEX:283) and is unused.
 
 ## 3. The order, once D-4 is askable
 
-1. Codex records each page's dated quote for §2.1, §2.3 and §2.5.
+1. Codex records each page's dated quote for §2.1, §2.2, §2.3 and §2.5.
 2. The offline captures and stub cases above are written as CON-01 tests against the installed runtime, labelled L0 or L1. That is only if they need no new harness, version or shared file; otherwise they wait for the runtime owner (Q6, Q7).
 3. Only then does D-4 put a named route, with its documentation, to Davide. Nothing here asks him to approve one.
 
