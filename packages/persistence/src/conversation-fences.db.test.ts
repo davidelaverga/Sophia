@@ -152,6 +152,25 @@ async function onAdmin<T extends pg.QueryResultRow>(sql: string): Promise<T[]> {
   }
 }
 
+/**
+ * A pool ended and every connection of it closed. pg-pool's end() resolves once it has asked its clients to end, not
+ * once their sockets have closed; each client's 'remove' comes from client.end's callback, on its connection's end.
+ * Waiting for all of them keeps a forced DROP DATABASE from meeting a backend still closing.
+ */
+async function closed(pool: pg.Pool): Promise<void> {
+  const open = pool.totalCount
+  let removed = 0
+  const all = new Promise<void>((resolve) => {
+    if (open === 0) resolve()
+    pool.on('remove', () => {
+      removed += 1
+      if (removed === open) resolve()
+    })
+  })
+  await pool.end()
+  await all
+}
+
 const roleNames = async () =>
   (await onAdmin<{ r: string }>('SELECT rolname AS r FROM pg_roles ORDER BY rolname COLLATE "C"')).map((x) => x.r)
 
@@ -564,8 +583,8 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
   after(async () => {
     try {
       await closeClients()
-      await api.end()
-      await ownerPool.end()
+      await closed(api)
+      await closed(ownerPool)
       await db.drop()
       await onAdmin(`DROP ROLE IF EXISTS ${loginRole}`)
       if (!assemblerExisted) await onAdmin(`DROP ROLE IF EXISTS ${ROLE}`)

@@ -260,6 +260,25 @@ async function onAdmin<T extends pg.QueryResultRow>(sql: string): Promise<T[]> {
   }
 }
 
+/**
+ * A pool ended and every connection of it closed. pg-pool's end() resolves once it has asked its clients to end, not
+ * once their sockets have closed; each client's 'remove' comes from client.end's callback, on its connection's end.
+ * Waiting for all of them keeps a forced DROP DATABASE from meeting a backend still closing.
+ */
+async function closed(pool: pg.Pool): Promise<void> {
+  const open = pool.totalCount
+  let removed = 0
+  const all = new Promise<void>((resolve) => {
+    if (open === 0) resolve()
+    pool.on('remove', () => {
+      removed += 1
+      if (removed === open) resolve()
+    })
+  })
+  await pool.end()
+  await all
+}
+
 const roleNames = async () =>
   (await onAdmin<{ r: string }>('SELECT rolname AS r FROM pg_roles ORDER BY rolname COLLATE "C"')).map((x) => x.r)
 
@@ -642,9 +661,9 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
           // released already by its test
         }
       }
-      await assemblerPool.end()
-      await api.end()
-      await ownerPool.end()
+      await closed(assemblerPool)
+      await closed(api)
+      await closed(ownerPool)
       await db.drop()
       await onAdmin(`DROP ROLE IF EXISTS ${loginRole}`)
       if (!assemblerExisted) await onAdmin(`DROP ROLE IF EXISTS ${ROLE}`)
@@ -1238,9 +1257,11 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       t.diagnostic(
         `begin waited ${String(await waitFor('begin to wait', () => waiting(pid)))} ms on the writer (pid ${String(writerPid)})`,
       )
+      // Awaited from here, before the writer commits: its 40001 may reach this process before the writer's COMMIT does.
+      const refused = refusal(begun)
       writerHeld.open()
       await writer
-      assert.equal(await refusal(begun), '40001')
+      assert.equal(await refused, '40001')
       await c.query('ROLLBACK')
       c.release(true)
       assert.deepEqual(await claims(s.replyId), [
@@ -2104,9 +2125,11 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       await inside.wait
       const { s: c, pid, begun } = await begin(s.replyId, k)
       await waitFor('begin to wait', () => waiting(pid))
+      // Awaited from here, before the withdrawal commits: its 40001 may reach this process before the COMMIT does.
+      const refused = refusal(begun)
       held.open()
       await withdrawal
-      assert.equal(await refusal(begun), '40001')
+      assert.equal(await refused, '40001')
       await c.query('ROLLBACK')
       c.release(true)
       assert.deepEqual(await assembleReply(loginUrl, s.replyId, LIMITS), { outcome: 'not_pending', state: 'cancelled' })
