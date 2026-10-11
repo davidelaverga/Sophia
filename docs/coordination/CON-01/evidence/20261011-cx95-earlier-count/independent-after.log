@@ -1,0 +1,20 @@
+✔ Unicode codepoint asking/name ceilings preserve whole values, plus1 refuses (2.394708ms)
+✔ Frozen reordered canonical arrays give exact fragments/bytes and whole capped newest prefixes (5.030334ms)
+✔ Recent over-budget Sophia answer cannot be skipped for older text; tombstone content never read (0.558792ms)
+✔ Foreign conversation, post-cutoff, duplicate IDs/seqs and unsafe cutoffs refuse (0.159667ms)
+✔ Excluded fields are not read; compiler change and withdrawn ask fail with bound codes (0.159709ms)
+✔ Canonical accepted actor and hostile raw content remain separate and explicitly labelled (0.157875ms)
+✔ Standing binding8.7.2 requires missing[] facts stated as supplied, not silently discarded (2.814417ms)
+✔ N2 bounded window states the exact total omitted, without old bodies (0.138459ms)
+✔ N2 oversized newest message stops all history, exact omitted total survives withdrawn gaps (0.568792ms)
+✔ N2 refuses invalid exact count rather than trusting coercion or arithmetic (0.226041ms)
+✔ N2 exact under40 coverage keeps immutable old bytes/fragments and zero is valid (0.26ms)
+✔ N2 total count marker participates in UTF8 section ceiling and preserves deterministic newest suffix (0.714875ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 90.15

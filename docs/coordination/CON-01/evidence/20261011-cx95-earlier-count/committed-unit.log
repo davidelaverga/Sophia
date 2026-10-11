@@ -1,0 +1,29 @@
+▶ CON-01 N1: the conversation context renderer (L0)
+  ✔ renders the pinned bytes for a small project, in its order, the fragments concatenating to the text (1.298625ms)
+  ✔ renders only the compiler it knows: another identity is refused (0.116834ms)
+  ✔ says why there is no mission, and never fills one in (0.364666ms)
+  ✔ orders decisions newest first as the compiler selects them, ties by id descending, whatever order they came in (0.287792ms)
+  ✔ counts what it leaves out only as far as the compiler counted: 21 says one more, 50 says there may be older ones (0.33725ms)
+  ✔ keeps each list within its byte ceiling, labels and markers counted, whole items, and never skips past a long one (1.001625ms)
+  ✔ labels proposals as not decided, a stale one as proposed against an earlier mission, a proposed mission with its fields (0.093375ms)
+  ✔ reads earlier messages as the newest contiguous run within 40 and 32 KiB, shown oldest first, withdrawn ones not read (0.597709ms)
+  ✔ counts the earlier messages it is not given from earlierCount: a read of the newest 40 renders as a read of all (0.385541ms)
+  ✔ refuses a count it can’t render truthfully: not a count, fewer than supplied, or fewer supplied than the window offers (0.33675ms)
+  ✔ shows Sophia as Sophia and a member by the name shown, quoted, never as who they are (0.0895ms)
+  ✔ quotes every record value on one line: no value opens a section, poses as a label or ends its line (0.195958ms)
+  ✔ says who accepted the mission by its actor id (0.042875ms)
+  ✔ states each missing fact as the compiler supplies it, in its order, and never the contents of notes or work (0.159ms)
+  ✔ renders none of what it excludes: the title, decided, notes, history, work, policy, capabilities and actor ids (0.051ms)
+  ✔ reads the asking message whole and last; without it there is nothing to render (0.166416ms)
+  ✔ refuses input it can’t render truthfully: another conversation, past the cutoff, a seq twice, a time or a length off (1.193ms)
+  ✔ gives the same bytes for the same records, whatever order they came in (0.272958ms)
+  ✔ stays within each ceiling and the whole one, every section at its schema limits with the costliest escaping (8.566083ms)
+✔ CON-01 N1: the conversation context renderer (L0) (16.224541ms)
+ℹ tests 19
+ℹ suites 1
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 89.822167

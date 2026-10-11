@@ -1,0 +1,67 @@
+{
+  "schema": "sophia.safe-evidence-manifest.v1",
+  "record": "CX-0095",
+  "scope": "Synthetic L0 data, exact source/check/ref receipts; logs path-normalized; no credentials",
+  "artifacts": [
+    {
+      "path": "acceptance-status-comparison.json",
+      "sha256": "e5e293832576854f47989bb839eb98a2399242c796fff944edd018d48ec9ef84",
+      "bytes": 250
+    },
+    {
+      "path": "check-runs.json",
+      "sha256": "2439f5da9fb8e533ea94ff98d8c1b930fbac3a2be3b8460026b56811de3aafa2",
+      "bytes": 1081
+    },
+    {
+      "path": "committed-unit.log",
+      "sha256": "0fa2de7add83be311564a42c439672525e6084accf0e69a23c79394e270131c4",
+      "bytes": 2438
+    },
+    {
+      "path": "format.log",
+      "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+      "bytes": 66
+    },
+    {
+      "path": "github-refs.json",
+      "sha256": "2b2f2bb09a756a679b3a43197894db675a74a58e8b8e12b748c2b004d45dac54",
+      "bytes": 718
+    },
+    {
+      "path": "independent-after.log",
+      "sha256": "818bdb4842addfd7641f3dcfd867265aa29a0717b660f3c1179ee285ccbe30b2",
+      "bytes": 1339
+    },
+    {
+      "path": "independent-before-final.log",
+      "sha256": "e7174041b205b32ccfd29b91785f1f6b0de1aecf0e3141eb968bed083be109af",
+      "bytes": 5800
+    },
+    {
+      "path": "lint.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "n1-earlier-count-independent.mjs",
+      "sha256": "31e0d63bb0ba1a20b44ef5884014a2d9f48bfff394b043eeaed3818ca0d85cee",
+      "bytes": 11809
+    },
+    {
+      "path": "old-byte-fixture.json",
+      "sha256": "6cc8ffd4c6c568302878b4067a6ce8b996c4890428b8011e6f21cd33a3815f1f",
+      "bytes": 9882
+    },
+    {
+      "path": "source-and-checks.json",
+      "sha256": "a78990de884f295910e2ce18c048ce910cd42f143d28f7b3e845467642ef51d6",
+      "bytes": 2915
+    },
+    {
+      "path": "typecheck.log",
+      "sha256": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d",
+      "bytes": 20
+    }
+  ]
+}

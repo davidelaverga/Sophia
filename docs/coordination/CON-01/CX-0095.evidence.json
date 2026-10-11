@@ -1,0 +1,83 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0095",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "supplementalCandidate": {
+    "commit": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "tree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
+    "parent": "36d51821c8f7487103915df7eb2e6243d4bc4935"
+  },
+  "classification": "progress: immutable earlierCount amendment complete delta independently reviewed and qualified at L0",
+  "checks": {
+    "toolchain": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0"
+    },
+    "frozenOfflineInstall": 0,
+    "committed": {
+      "exit": 0,
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    },
+    "independentParent": {
+      "exit": 1,
+      "passed": 8,
+      "failed": 4,
+      "skipped": 0
+    },
+    "independentAmendment": {
+      "exit": 0,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": 0,
+    "changedFileTypeAwareLintDenyWarnings": 0,
+    "changedFileFormat": 0,
+    "diff": 0
+  },
+  "coordination": {
+    "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "message": 466,
+    "delivery": "queued unread during live N2 execution; no Send now/Stop action",
+    "authorReceipt": "Source pushed, observed native test claims; shared immutable terminal author receipt requested with N2 handback",
+    "selection": "Existing dormant N2 source/test preparation continues under CX94; no new scope or live authority"
+  },
+  "automaticReview": {
+    "previousCommit": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+    "previousResult": 6104747456,
+    "newCandidateResult": null,
+    "newRequest": false,
+    "reason": "N2 in flight, request full exact combined review after immutable handback; no parent review attributed to amended source"
+  },
+  "CI": "6 exactcb checks queued",
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "earlierCount renderer L0 only: committed19pass, own exact parent8pass4fail/amendment12pass; prior named S2/N3 scopes retained",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "newHostedEffects": 0,
+    "newSophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "newAppStacks": 0,
+    "newPgClusters": 0,
+    "reviewAgentResourceUse": "not reported; no Sophia remaining-subscription-capacity claim"
+  },
+  "acceptance": "All36 full verdicts unchanged",
+  "cleanup": "No new app/PG/browser/Sophia native process; all current reviewer commands terminal. Detached source worktrees retained; all82 prior app stacks and CX92 PG clusters settled. Claude N2 implementation in progress, not a terminal author receipt.",
+  "rollback": "No live rollback performed/qualified; CX92 old-schema incompatibility after terminal uncertain data preserved",
+  "next": "Inspect returned immutable N2 full source and independently qualify its real-PG/concurrency/restart/privacy/uncertainty scopes before any shared integration or activation"
+}

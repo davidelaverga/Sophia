@@ -1,0 +1,121 @@
+✔ Unicode codepoint asking/name ceilings preserve whole values, plus1 refuses (4.434791ms)
+✔ Frozen reordered canonical arrays give exact fragments/bytes and whole capped newest prefixes (6.524667ms)
+✔ Recent over-budget Sophia answer cannot be skipped for older text; tombstone content never read (0.306959ms)
+✔ Foreign conversation, post-cutoff, duplicate IDs/seqs and unsafe cutoffs refuse (0.201875ms)
+✔ Excluded fields are not read; compiler change and withdrawn ask fail with bound codes (0.148834ms)
+✔ Canonical accepted actor and hostile raw content remain separate and explicitly labelled (0.136792ms)
+✔ Standing binding8.7.2 requires missing[] facts stated as supplied, not silently discarded (4.330792ms)
+✖ N2 bounded window states the exact total omitted, without old bodies (0.636042ms)
+✖ N2 oversized newest message stops all history, exact omitted total survives withdrawn gaps (0.862958ms)
+✖ N2 refuses invalid exact count rather than trusting coercion or arithmetic (0.12275ms)
+✔ N2 exact under40 coverage keeps immutable old bytes/fragments and zero is valid (0.348083ms)
+✖ N2 total count marker participates in UTF8 section ceiling and preserves deterministic newest suffix (0.579667ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 8
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 114.003375
+
+✖ failing tests:
+
+test at <OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:25:1
+✖ N2 bounded window states the exact total omitted, without old bodies (0.636042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      cutoffSeq: 1001,
+      fromSeq: 961,
+      included: 40,
+  +   omitted: 0,
+  +   read: 40
+  -   omitted: 960,
+  -   read: 1000
+    }
+  
+      at TestContext.<anonymous> (file://<OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:25:227)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { read: 40, included: 40, omitted: 0, fromSeq: 961, cutoffSeq: 1001 },
+    expected: { read: 1000, included: 40, omitted: 960, fromSeq: 961, cutoffSeq: 1001 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at <OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:26:1
+✖ N2 oversized newest message stops all history, exact omitted total survives withdrawn gaps (0.862958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      cutoffSeq: 1001,
+      fromSeq: null,
+      included: 0,
+  +   omitted: 40,
+  +   read: 40
+  -   omitted: 50,
+  -   read: 50
+    }
+  
+      at TestContext.<anonymous> (file://<OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:26:432)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { read: 40, included: 0, omitted: 40, fromSeq: null, cutoffSeq: 1001 },
+    expected: { read: 50, included: 0, omitted: 50, fromSeq: null, cutoffSeq: 1001 },
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at <OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:27:1
+✖ N2 refuses invalid exact count rather than trusting coercion or arithmetic (0.12275ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at refused (file://<OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:14:25)
+      at TestContext.<anonymous> (file://<OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:27:182)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at <OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:29:1
+✖ N2 total count marker participates in UTF8 section ceiling and preserves deterministic newest suffix (0.579667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  40 !== 100000
+  
+      at TestContext.<anonymous> (file://<OPERATOR_JOURNAL>/CON-01/attempt-1/cx95/n1-earlier-count-independent.mjs:29:418)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 40,
+    expected: 100000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

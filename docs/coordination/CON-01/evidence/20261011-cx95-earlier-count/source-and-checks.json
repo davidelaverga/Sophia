@@ -1,0 +1,77 @@
+{
+  "schema": "sophia.con01.renderer-delta-qualification.v1",
+  "observedAt": "2026-10-11T03:09:34.199433+00:00",
+  "candidate": {
+    "commit": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "tree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
+    "parent": "36d51821c8f7487103915df7eb2e6243d4bc4935"
+  },
+  "diff": {
+    "files": 2,
+    "added": 78,
+    "removed": 9,
+    "completeDeltaRead": true,
+    "scope": "Pure renderer input/count/coverage and tests only; no export/caller or DB/runtime/shared/artifact change"
+  },
+  "source": {
+    "packages/persistence/src/conversation-context.ts": {
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739",
+      "lines": 456
+    },
+    "packages/persistence/src/conversation-context.test.ts": {
+      "sha256": "9123b01de94f790b6277e58113e6c2c786a8b74248decfc71903ee6a6e6815e7",
+      "lines": 709
+    },
+    "db/candidates/con01-s1-reply-states.sql": {
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "lines": 55
+    },
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": {
+      "sha256": "9ec206fb9935a0a07c6dad4f78c9dce35d5629dc0d0adfd42e7f76f9ed9a7a2a",
+      "lines": 418
+    },
+    "packages/persistence/src/conversation-reply-states.db.test.ts": {
+      "sha256": "ce1f2be8487fcb0af3fce2fbfc4a91844b547e20482d0e5932bfd3248d119ed0",
+      "lines": 523
+    },
+    "db/migrations/0048_project_conversations.sql": {
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "lines": 430
+    }
+  },
+  "checks": {
+    "toolchain": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0"
+    },
+    "frozenOfflineInstall": 0,
+    "committed": {
+      "exit": 0,
+      "passed": 19,
+      "failed": 0,
+      "skipped": 0
+    },
+    "independentParent": {
+      "exit": 1,
+      "passed": 8,
+      "failed": 4,
+      "skipped": 0
+    },
+    "independentAmendment": {
+      "exit": 0,
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": 0,
+    "changedFileTypeAwareLintDenyWarnings": 0,
+    "changedFileFormat": 0,
+    "diff": 0
+  },
+  "independentScriptSHA256": "31e0d63bb0ba1a20b44ef5884014a2d9f48bfff394b043eeaed3818ca0d85cee",
+  "under40Result": "Entire rendered result a,b (text/fragments/coverage/bytes/revisions/excluded) equals saved immutable-parent fixture, including zero earlier messages",
+  "level": "L0 synthetic only; no actual DB compiler/eligibility/assembly/context recording/app/native/provider proof",
+  "initialWrapperError": "zsh read-only variable status after test returned; corrected to con01_test_exit and rerun, terminal exit1 baseline captured",
+  "testInputRefinement": "large-count cutoff made physically consistent; overbudget case supplied full40 window per candidate guard; added explicit underfilled cases; final same portable script rerun before and after",
+  "privateFailedAttemptsRetained": true
+}
