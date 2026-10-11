@@ -32,6 +32,10 @@
 - After the review (Codex on #242): a shell kept out of sight for its call neither reads nor writes the address (it is
   another view's); the task is named only when it is the whole count the line says (`soleWorkingTask`), never one of
   several.
+- Another subject at the same page (the session changes under the shell, app-auth.spec): the address kept the last
+  one's lens, and the tab remembers whose it is (`sessionStorage`, `LENS_FOR_KEY`); a lens written for another key is
+  not read as this viewer's, so their own stored state stands. A link opened fresh (nothing remembered) is read as
+  before: what it names shows. (`addressLensFor`, with its unit test; 2026-10-11, after a local run.)
 
 ## Checks (written first)
 

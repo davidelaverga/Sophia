@@ -81,3 +81,16 @@ export function withLensInAddress(search: string, lens: Lens): string {
   const out = params.toString()
   return out ? `?${out}` : ''
 }
+
+/** Whose lens the address carries, kept for the tab (sessionStorage): the key of the viewer whose shell wrote it. */
+export const LENS_FOR_KEY = 'sophia.lens-for.v1'
+
+/**
+ * The lens the address names, where it is this viewer's to read: a link opened fresh (nothing written in this tab) or
+ * an address written for this key. Another subject at the page the last one left (the address kept their lens, the
+ * tab remembers whose) reads none, and their own stored state stands (app-auth.spec, «resets for another subject»).
+ */
+export function addressLensFor(key: string, search: string, wroteFor: string | null): Lens | null {
+  const named = lensInAddress(search)
+  return named && (wroteFor === null || wroteFor === key) ? named : null
+}
