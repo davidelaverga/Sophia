@@ -1,0 +1,52 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "dc88c6ef2d3e1fc7f32c5a4a6e9296d602085b62",
+  "tree": "ee1774be2a4ee99cc67785dcc3d096149367301c",
+  "at": "2026-10-11T13:28:08.021890+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+    "packages/persistence/src/conversation-ledger.db.test.ts": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+    "db/candidates/con01-s3-conversation-reply-context.sql": "dc2ac0a3009af0acee87d0a526d1d6b2c87e0732889dfc93402d2ef4beafefb8",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-fences.db.test.ts": "6ca39be84309cac30aad09d581867f415dd3b27b3d50b217fea1e13d4fe7ddcf",
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995"
+  },
+  "independentScriptHash": "d9956e1a519c65d4c36c6efdef8d583ea113b312a7b92953d1aebf922b817cc6",
+  "commands": [
+    {
+      "label": "conversation-five-parallel",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=4",
+        "packages/persistence/src/conversations.db.test.ts",
+        "packages/persistence/src/conversation-ledger.db.test.ts",
+        "packages/persistence/src/conversation-assembly.db.test.ts",
+        "packages/persistence/src/conversation-fences.db.test.ts",
+        "packages/persistence/src/conversation-reply-states.db.test.ts"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    },
+    {
+      "label": "independent-cases",
+      "command": [
+        "node",
+        "ledger-independent.mjs"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  }
+}

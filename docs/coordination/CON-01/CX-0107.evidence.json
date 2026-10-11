@@ -1,0 +1,33 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0107.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "dc88c6ef2d3e1fc7f32c5a4a6e9296d602085b62",
+  "supplementalTree": "ee1774be2a4ee99cc67785dcc3d096149367301c",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Exactdc88 ledger correction independently127+6PASS, draft advanced/freshreview. New S3role-adoptionP2 independently2FAIL2PASS; primarycorrectionrequested. Bindingcorrectionsreturned;36verdictsretained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "dc88 S2 guard/uncertainty/replay/role-controls127+6PASS; separate S3 role-adoption4cases2FAIL2PASS. Whole G2 changes_requested; native/provider/app open.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+  "cleanup": "Two fresh ownedPGclusters settled/PIDabsent/removed; allfixture DB/roles absent0clients. No app/native/provider/hosted effects.",
+  "next": "Review early immutable primary S3 role-graph correction and independently rerun unexpected parent/member refusals, API-only compatibility and concurrent/composed suites; inspect revised CC0107 binding and terminal gates before shared integration.",
+  "evidence": "evidence/20261011-cx107-ledger-correction/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 2,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "missionSpend": 0
+  }
+}

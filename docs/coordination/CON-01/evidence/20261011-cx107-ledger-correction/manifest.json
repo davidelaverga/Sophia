@@ -1,0 +1,14 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0107.md",
+  "artifacts": {
+    "evidence/20261011-cx107-ledger-correction/acceptance-status-comparison.json": "ff467cc543d896cd1bab920d8965ee549dc51531eeba82fadfa556b62b025bc5",
+    "evidence/20261011-cx107-ledger-correction/binding-review.json": "e23d1ea109cb606df0d26025b99795586d0ce246a5f28f1a57360b691f30ea28",
+    "evidence/20261011-cx107-ledger-correction/n4-independent-evidence.json": "7b8f7f1df391536157c3fe6f80ed7a87e7937afcd9b435b722d59185483fa455",
+    "evidence/20261011-cx107-ledger-correction/n4-owned-receipt.json": "658857a1ee55e5c448d9cd31913a18b5c49d6b3ce690d4e2035694af5dd3f1a0",
+    "evidence/20261011-cx107-ledger-correction/operation-handoff.json": "413826f5e2ca2e15be6ee00888495af2981870cdf5a470cad1fde76e408ff097",
+    "evidence/20261011-cx107-ledger-correction/role-graph-n4-independent-evidence.json": "1d75c912cf95e718c5302695a3628c7f959da0ee6e27228bd40379c490a3eb50",
+    "evidence/20261011-cx107-ledger-correction/role-graph-n4-owned-receipt.json": "b7faf40f92f23d6cb9a0e3e40b2dd91082d36236a2cc5d2e5426da386940db2c",
+    "evidence/20261011-cx107-ledger-correction/source-review.json": "969ac87e90294b2d2b81137d1ffa5e305accaea8c79c7bf46b02cd5944f9b892"
+  }
+}

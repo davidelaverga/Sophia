@@ -1,0 +1,80 @@
+{
+  "candidate": "dc88c6ef2d3e1fc7f32c5a4a6e9296d602085b62",
+  "level": "L1 owned PG17.6; role adoption only, no app/native/provider",
+  "cases": [
+    {
+      "name": "Unexpected existing parent membership is refused before adopting assembler",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "unexpected role graph accepted: {\"installationError\":null,\"unexpectedParentReadSucceeded\":true}\n+ actual - expected\n\n+ undefined\n- '42501'\n"
+      }
+    },
+    {
+      "name": "Unexpected existing login member gains no assembly caller through adoption",
+      "verdict": "FAIL",
+      "error": {
+        "code": "ERR_ASSERTION",
+        "message": "unexpected role graph accepted: {\"installationError\":null,\"unexpectedLoginClaim\":\"claimed\"}\n+ actual - expected\n\n+ undefined\n- '42501'\n"
+      }
+    },
+    {
+      "name": "Existing expected API-only parent remains accepted",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Unsafe login role attributes remain refused",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "parent": {
+      "installationError": null,
+      "unexpectedParentReadSucceeded": true
+    },
+    "child": {
+      "installationError": null,
+      "unexpectedLoginClaim": "claimed"
+    },
+    "allowed": {
+      "installationError": null
+    },
+    "unsafe": {
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unsafe attributes"
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "kind": "parent",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "child",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "allowed",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "unsafe",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    }
+  ],
+  "finishedAt": "2026-10-11T13:35:31.663Z"
+}

@@ -1,0 +1,59 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "CX100 dated actual dashboard tuple retained; no live refresh/deployment this checkpoint. Installed combined composition/customledger/current work/rollback and Studio sourceSHA unbound.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Read complete b5..dc88 two-file delta and exact CC0105/0106/0107 receipts",
+    "Create detached dc88 reviewer worktree; pnpm frozen-lock install0; private Node syntax check0",
+    "Fresh owned PG17.6 five conversation suites concurrency4:127/127 exit0",
+    "Own6 adversarial cases exit0:4CASCADE+4RESTARTdenials,full immutable snapshot and uncertain1call100tokens retained,oldapproval replays original,newapproval outstanding-denied,parentcascade atomic,8role denials/nooperationalwork",
+    "Fixture DB/roles absent,0clients; PGfaststop0/statusstopped/PIDabsent/clusterremoved",
+    "CON525 scoped result/FFpermission,526 actual draft advancement,527 concrete binding corrections; read actualGHdc88/request6109539053",
+    "Refresh main/PR190/199/209/218/226; unchanged exact heads",
+    "Fresh exactdc88 auto review5483495341/P2r4241760059 read; separate ownedPG4role-adoption cases2FAIL2PASS withactual legacy login claim; CON529finding/531reproducer returned"
+  ],
+  "results": "127 committed + 6 independent PASS; source clean. Scoped S2 P2 resolved. CC0107 proposal changes requested before finalization; shared acknowledgments and terminal broad gates pending. New S3 role-adoption P2 independently2FAIL2controlsPASS; combined candidate changes_requested.",
+  "unresolvedEffects": "No uncertain hosted effect. New S3 role-adoption correction pending independent recheck. Ledger scoped127+6PASS remains valid; native/provider/source-hook/audience/combined/app proof open.",
+  "rollback": "No live rollback. Both local fixture clusters fully settled/removed. Native/deployment artifact restore and governed-data rehearsal remain unbound; N4 rollback tests are author L1 only.",
+  "nextBoundedAction": "Review early immutable primary S3 role-graph correction and independently rerun unexpected parent/member refusals, API-only compatibility and concurrent/composed suites; inspect revised CC0107 binding and terminal gates before shared integration."
+}

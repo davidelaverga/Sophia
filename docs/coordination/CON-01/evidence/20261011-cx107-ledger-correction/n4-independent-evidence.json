@@ -1,0 +1,68 @@
+{
+  "candidate": "dc88c6ef2d3e1fc7f32c5a4a6e9296d602085b62",
+  "level": "L1 local PG17.6; supplied answers; no native/provider/hosted",
+  "cases": [
+    {
+      "name": "All four permanent ledger tables refuse operator TRUNCATE including CASCADE",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Owner CASCADE truncate cannot reset uncertainty and permit old approval to mint a fresh lineage",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Parent-table CASCADE refuses atomically and retains governed conversations and ledger",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Direct TRUNCATE RESTART IDENTITY is refused on all four ledger tables",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Actual API and worker cannot TRUNCATE any permanent ledger table",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "No model or operational work from ledger probes",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "truncateCodes": {
+      "conversation_grants": "55000",
+      "conversation_grant_approvals": "55000",
+      "conversation_reply_allowances": "55000",
+      "conversation_reservations": "55000"
+    },
+    "reset": {
+      "before": {
+        "uncertainCalls": 1,
+        "uncertainTokens": 100
+      },
+      "truncateCode": "55000",
+      "oldApprovalMintedFreshLineage": false,
+      "countersReset": false,
+      "fullLedgerSnapshotUnchanged": true,
+      "sameApprovalReplaysOriginalLineage": true,
+      "freshApprovalBlockedByUncertainty": true
+    },
+    "parentCascadeAtomic": true,
+    "restartIdentityDenials": 4,
+    "apiWorkerDenials": 8,
+    "collateral": {
+      "commands": 0,
+      "jobs": 0,
+      "work_attempts": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0
+    }
+  },
+  "cleanup": {
+    "databaseDropped": true,
+    "rolesAbsent": true,
+    "remainingDatabases": [],
+    "otherClients": 0
+  },
+  "finishedAt": "2026-10-11T13:28:25.232Z"
+}

@@ -1,0 +1,39 @@
+{
+  "proposal": {
+    "comment": 6109521288,
+    "sha256": "2b7df5b59cd8e904f40da834a5790ca54d35c0659056de6bd9fb3f63d10f2338",
+    "fullyRead": true,
+    "atCandidate": "b5c475824ae47a01030d07c871a9de0778c5686f"
+  },
+  "independentTargetedSourceReads": [
+    "0018 withdraw_mission_entry locks project before latest0041 mission_erase_source; API withdrawal caller matches",
+    "0010 accept_room_invitation locks project then invitation, upserts member and bumps audience_revision atomically",
+    "S3 reply_sources FK source_objects NO ACTION supports no DELETE hook",
+    "0042 work_source_guard trigger remains in same source transaction; source-hook owner acknowledgments still unbound",
+    "RuntimeSupervisor explicit child environment and stdout/stderr parent buffer confirmed",
+    "Actual add-member executable uses membership upsert without project lock or revision bump"
+  ],
+  "changesRequested": [
+    {
+      "item": "Source lookup cost",
+      "evidence": "No source-key index on reply_sources; only PK(project_id,reply_id,attempt,kind,ref_id). Proposal one-index-probe assertion is unsupported.",
+      "requested": "Name CON-owned source-key index; qualify lookup/source_out via EXPLAIN with many unrelated dependency rows, or disclose project-wide scan."
+    },
+    {
+      "item": "NOWAIT and lock-proof scope",
+      "evidence": "NOWAIT only raises55P03 on actual conflicting holder; an uncontended raw writer can acquire project lock. Global no-cycle conclusion goes beyond enumerated CON crossing proof.",
+      "requested": "Keep conditional precise; qualify CON crossings under conforming protocol; test preservation with installed existing WBC/research/design chain."
+    },
+    {
+      "item": "Parent transient content",
+      "evidence": "Prompt/fd3/transport can involve transient buffers despite no retained supervisor copy.",
+      "requested": "Inventory owners/lifetimes and fixed-token errors/settlement/withdrawal; no unqualified no-content-in-parent or cleanup proof before actual execution."
+    },
+    {
+      "item": "Membership operator path",
+      "evidence": "add-member.ts remains executable hosted/local owner path.",
+      "requested": "Explicitly exclude from CON operation recipes while active until acknowledged safe replacement/rule. Preserve current audience revision including joins."
+    }
+  ],
+  "authority": "CON-owned documentation amendment and read-only census may proceed; no shared-schema/runtime/source-hook/live authority conveyed. Actual runtime/provider/isolation/cleanup proof remains open."
+}
