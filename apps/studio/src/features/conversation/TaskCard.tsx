@@ -5,7 +5,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { NativeTask, NativeTaskDetail } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
+import { ReadNote, Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { DesignCard } from '../artifacts/DesignCard.tsx'
@@ -63,7 +63,7 @@ function BriefDetail({
     queryKey: ['native-task', projectId, taskId, revision, identity.name],
     queryFn: () => getNativeTask(identity.token, projectId, taskId),
   })
-  if (detail.isPending) return <p className="muted">Loading the brief…</p>
+  if (detail.isPending) return <ReadNote>Loading the brief…</ReadNote>
   if (detail.isError || !detail.data.result) return <p className="muted">The brief couldn’t be loaded.</p>
   return <BriefView result={detail.data.result} />
 }

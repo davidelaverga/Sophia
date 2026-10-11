@@ -3,6 +3,7 @@
 // the record at close, never changes. Only under the vision flag.
 import { useQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
+import { ReadNote } from '@sophia/ui'
 import { getAfter, type AfterUpdate } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { closeEveryDialog } from '../../app/useDialog.ts'
@@ -56,7 +57,7 @@ export function AfterMeeting({ projectId, identity, meetingId, endedAt, running,
   return (
     <section className="recap-section recap-after" aria-labelledby={id}>
       <h3 id={id}>After the meeting</h3>
-      {after.isPending && <p className="recap-by">Reading what came after…</p>}
+      {after.isPending && <ReadNote className="recap-by">Reading what came after…</ReadNote>}
       {after.isError && (
         <p className="recap-by" role="alert">
           What came after can’t be read now.{' '}

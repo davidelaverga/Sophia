@@ -1,7 +1,7 @@
 // The account's passkeys: add one for this device, see where they were used, remove one. A passkey signs in
 // with Face ID, Touch ID, Windows Hello or a security key, without an email link.
 import { useCallback, useEffect, useState } from 'react'
-import { ConfirmButton } from '@sophia/ui'
+import { ConfirmButton, ReadNote } from '@sophia/ui'
 import { addPasskey, listPasskeys, removePasskey, type SavedPasskey } from './auth.ts'
 import { dayInSentence } from './time-words.ts'
 import { useNow } from './use-now.ts'
@@ -62,7 +62,7 @@ export function PasskeySheet({ onClose }: { onClose: () => void }) {
   return (
     <Sheet id="passkey-title" title="Passkeys" onClose={onClose}>
       <p className="sheet-lead">Sign in with Face ID, Touch ID, Windows Hello or a security key. No email link.</p>
-      {load.status === 'loading' && <p className="muted">Loading…</p>}
+      {load.status === 'loading' && <ReadNote>Loading…</ReadNote>}
       {load.status === 'error' && <p className="form-error">{load.message}</p>}
       {load.status === 'ready' && load.passkeys.length > 0 && (
         <ul className="passkey-list">

@@ -3,7 +3,7 @@
 // where everything else is. It goes in ProjectShell's `resources`. Its owner's acts (guidance, Hold, Stop) and effort
 // requests go out through `onAct` and `onEffort`, to whoever the host passes; nothing here calls a tool.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Search as SearchField, Segmented } from '@sophia/ui'
+import { EmptyState, Search as SearchField, Segmented, Skeleton } from '@sophia/ui'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
 import { linkedId, showInAddress } from './link.ts'
@@ -284,21 +284,10 @@ function Browse(props: Shown) {
   )
 }
 
-/** While the resources are read: tiles' shapes, still and quiet, in their places. */
+/** While the resources are read: six tiles' shapes in their places (the kit's skeleton, in the tiles' own grid). */
 function Placeholders() {
   return (
-    <div className="resource-grid resource-placeholders" aria-busy="true">
-      <p className="sr-only" role="status">
-        Reading the resources…
-      </p>
-      {Array.from({ length: 6 }, (_, i) => (
-        <span key={i} className="resource-placeholder" aria-hidden style={{ '--i': i }}>
-          <span />
-          <span />
-          <span />
-        </span>
-      ))}
-    </div>
+    <Skeleton kind="card" count={6} label="Reading the resources…" className="resource-grid resource-placeholders" />
   )
 }
 
@@ -306,9 +295,7 @@ function Placeholders() {
 function Body(props: Shown) {
   if (props.loading) return <Placeholders />
   if (props.resources.length === 0) {
-    return (
-      <p className="view-note">No tool is enrolled for this project yet. An owner enrolls one from their own host.</p>
-    )
+    return <EmptyState>No tool is enrolled for this project yet. An owner enrolls one from their own host.</EmptyState>
   }
   return <Browse {...props} />
 }

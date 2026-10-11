@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
-import { Icon, Segmented, Tabs, Tip } from '@sophia/ui'
+import { Icon, ReadNote, Segmented, Tabs, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen, onScreen as isVisible, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
@@ -939,9 +939,9 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
       </p>
     )
   }
-  if (!data.pdf.data) return <p className="muted">Loading the PDF…</p>
+  if (!data.pdf.data) return <ReadNote>Loading the PDF…</ReadNote>
   return (
-    <Suspense fallback={<p className="muted">Opening the PDF…</p>}>
+    <Suspense fallback={<ReadNote>Opening the PDF…</ReadNote>}>
       <PdfView bytes={data.pdf.data.bytes} full={full} />
     </Suspense>
   )
@@ -958,7 +958,7 @@ function HtmlTab({ data, full }: { data: PaneData; full: boolean }) {
       </p>
     )
   }
-  if (!data.html.data || !data.page) return <p className="muted">Loading the page…</p>
+  if (!data.html.data || !data.page) return <ReadNote>Loading the page…</ReadNote>
   return (
     <HtmlView html={data.html.data.text} title={data.version?.title ?? 'Report'} rendition={data.page} full={full} />
   )
@@ -987,7 +987,7 @@ function DocumentTab({ data, onCite, changes }: DocumentTabProps) {
       </p>
     )
   }
-  if (!data.parsed || !data.version) return <p className="muted">Loading the report…</p>
+  if (!data.parsed || !data.version) return <ReadNote>Loading the report…</ReadNote>
   return (
     <>
       {formatNote(data) && (

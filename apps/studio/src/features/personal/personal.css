@@ -428,17 +428,6 @@
   color: var(--text-3);
   font-size: 13px;
 }
-.places .hw-row.placeholder {
-  height: 54px;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.035), transparent) 0 0 / 200% 100%;
-  animation: hw-placeholder 1.6s linear infinite;
-}
-@keyframes hw-placeholder {
-  to {
-    background-position: -200% 0;
-  }
-}
 
 /* One line to talk to Sophia, no box. */
 .places .hw-say {
@@ -1354,12 +1343,6 @@
   border-color: rgba(241, 220, 199, 0.45);
   background: var(--warm-soft);
 }
-.places .ps-empty {
-  padding: 4px 8px;
-  color: var(--text-sec);
-  font-size: 13px;
-}
-
 /* The edge crosses; it shows a padlock only when the side behind it is locked. */
 .places .c3-edge {
   position: absolute;
@@ -1532,14 +1515,6 @@
 .places .c3-from .ghost {
   grid-column: 2;
   grid-row: 1 / span 2;
-}
-.places .c3-empty {
-  display: grid;
-  justify-items: start;
-  gap: 10px;
-  max-width: 460px;
-  padding: 24px 0;
-  color: var(--text-sec);
 }
 .places .c3-newproj {
   display: grid;
@@ -1811,7 +1786,6 @@
   .places .hw-say,
   .places .hw-label,
   .places .hw-mic,
-  .places .hw-row.placeholder,
   .places .c3-ambient,
   .places .c3-wave i,
   .places .msg.typing .c3-who {

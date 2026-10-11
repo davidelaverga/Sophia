@@ -4,7 +4,7 @@
 // where it came from where A19 (proposed) gives it, and a conversation or a meeting goes there (source-origins.ts).
 import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, ReportSource } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
+import { ReadNote, Tag } from '@sophia/ui'
 import type { SourceOrigin } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useProjectGo } from '../studio/project-go.tsx'
@@ -46,7 +46,7 @@ export function SourcesTab(
 
 export function SourcesList({ sources, numbers, failed, focus, origins, onOrigin = null }: Props) {
   if (failed) return <p className="muted">The sources couldn’t be loaded. Try again in a moment.</p>
-  if (!sources) return <p className="muted">Loading the sources…</p>
+  if (!sources) return <ReadNote>Loading the sources…</ReadNote>
   if (sources.length === 0) return <p className="muted">This version cites no source you can read.</p>
   return (
     <ol className="sources">

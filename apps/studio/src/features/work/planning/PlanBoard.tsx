@@ -16,7 +16,7 @@
 //   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
 import { useContext, useEffect, useRef, useState } from 'react'
-import { Icon } from '@sophia/ui'
+import { EmptyState, Icon } from '@sophia/ui'
 import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
 import type { QuotaObservation, Resource } from '../../resources/resource.ts'
@@ -134,7 +134,9 @@ function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
         <span className="count">{rows.length}</span>
       </h4>
       {rows.length === 0 ? (
-        <p className="lane-empty">{lane.empty}</p>
+        <EmptyState slot className="lane-empty">
+          {lane.empty}
+        </EmptyState>
       ) : (
         <ul className="task-grid">
           {shown.map((row, i) => (

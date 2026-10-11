@@ -3143,12 +3143,6 @@ button.contribution-quote:hover {
   border-bottom: 1px solid var(--line);
   animation: arrive 0.4s var(--ease) both;
 }
-.goal.skeleton {
-  min-height: 120px;
-  border: 0;
-  border-radius: var(--r-3);
-  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.03), transparent);
-}
 .goal-meta {
   display: flex;
   align-items: center;
@@ -3253,19 +3247,88 @@ button.contribution-quote:hover {
   display: block;
   padding-left: 12px;
 }
-/* An empty list's sentence starts 18 px under the rule, where its first row would. */
+/* The states (docs/plans/states.md): a skeleton while a view reads, an empty state when it has nothing, a read note
+   where a line is enough. One look for the three, wherever they stand. */
+/* A skeleton's shapes: bars with a light passing over them once per 1.6 s, each shape 80 ms after the last (its
+   inline delay, which its bars inherit). The host's grid places the shapes; a skeleton names no layout. */
+.skeleton-shape {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.skeleton-shape > span {
+  height: 10px;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--line) 30%, var(--line-2) 50%, var(--line) 70%) 0 0 / 300% 100%;
+  animation: skeleton-light 1.6s linear infinite;
+  animation-delay: inherit;
+}
+.skeleton-shape > span:first-child {
+  width: 55%;
+  height: 14px;
+}
+.skeleton-shape > span:last-child {
+  width: 70%;
+}
+/* In a card: a tile's plane and edge, its last line set apart as a tile's foot is. */
+.skeleton-card .skeleton-shape {
+  min-height: 150px;
+  padding: 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+}
+.skeleton-card .skeleton-shape > span:last-child {
+  margin-top: 28px;
+}
+/* A row: a name and a word on one line, 54 px as an index's row is. */
+.skeleton-row .skeleton-shape {
+  grid-template-columns: 40% 20%;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 54px;
+}
+.skeleton-row .skeleton-shape > span {
+  width: auto;
+}
+@keyframes skeleton-light {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+/* An empty state: the sentence where the first row would be, 18 px under the rule, in the third ink at the body
+   type; its way forward (a press or two) under it. */
 .empty {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
   padding: 18px 0 24px;
   color: var(--text-3);
+  font-size: var(--type-body);
+}
+.empty > p {
+  max-width: 60ch;
 }
 .pulse .empty {
   padding: 7px 0;
 }
-/* An empty list still leads somewhere: its way forward sits under the sentence. */
-div.empty {
-  display: grid;
-  gap: 14px;
-  justify-items: start;
+/* A slot with nothing in it (a board's lane): the sentence centred in a dashed edge. */
+.empty-slot {
+  place-items: center;
+  min-height: 56px;
+  padding: 0 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-4);
+  font-size: var(--type-small);
+  text-align: center;
+}
+/* A read note: the line that says a read is on. */
+.read-note {
+  color: var(--text-3);
+  font-size: var(--type-body);
 }
 .view-note {
   padding: 10px 0 2px;
@@ -3686,7 +3749,8 @@ div.empty {
   .presence[data-speaking] .meter i,
   .sheet,
   .sheet-backdrop,
-  .sheet-body {
+  .sheet-body,
+  .skeleton-shape > span {
     animation: none;
   }
   .swap > *,
@@ -3941,12 +4005,6 @@ div.empty {
   min-height: 28px;
   color: var(--text-3);
   font-size: var(--type-small);
-}
-.chat-empty {
-  padding: 24px 8px;
-  color: var(--text-3);
-  font-size: var(--type-small);
-  text-align: center;
 }
 .chat-messages {
   display: grid;

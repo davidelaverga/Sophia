@@ -3,7 +3,7 @@
 // your projects (the ones Work shows first); on the right, alone, her own light behind Umbral, whose rays turn to you as
 // you move and to the line while you write or speak to her.
 import type { ProjectSummary } from '@sophia/contracts'
-import { Button, Icon } from '@sophia/ui'
+import { Button, Icon, Skeleton } from '@sophia/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
@@ -156,13 +156,7 @@ function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCa
   const { projects, actions } = props
   if (!projects) {
     if (!props.loadingProjects) return null
-    return (
-      <ol className="hw-index" aria-label="Your projects" aria-busy="true">
-        {[0, 1, 2].map((i) => (
-          <li key={i} className="hw-row placeholder" style={{ '--i': i }} aria-hidden />
-        ))}
-      </ol>
-    )
+    return <Skeleton kind="row" count={3} label="Reading your projects…" />
   }
   const rows = homeRows(projects, props.now, props.inCallProject)
   return (
