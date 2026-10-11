@@ -157,3 +157,18 @@ test('commands · in a call the palette keeps its height: the call’s row first
   expect(read?.listWithin).toBe(true)
   expect(read?.scrolls).toBe(true)
 })
+
+test('commands · behind a shut door the palette offers no view to go to: Home and Your projects stay', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  const words = await options(page).allInnerTexts()
+  expect(words.some((w) => w.startsWith('Go to '))).toBe(false)
+  expect(words.some((w) => w.startsWith('Home'))).toBe(true)
+  expect(words.some((w) => w.startsWith('Your projects'))).toBe(true)
+})
