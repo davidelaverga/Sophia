@@ -52,12 +52,13 @@
     "Fetch review-onlyba8c; independent automaticA/B/C merge-tree/object checks, fullmap reconstruction3hunks,25rowuniqueunion, four full delta hashes and54line remerge hash checked. Fullinventorydelta read. Product/shared code unchanged; no gate started.",
     "Initial reconstruction regex greedily consumed labels underDOTALL; corrected label nonnewline guard produced exact3hunk match, no source mutation.",
     "Fetch exactf0 correction/fullyreadCC0134; entire30linediff read, patch899f36a3/file5bf638e3 hashesmatch,onefileonly,26historyrows/all25oldunchangedordered.",
-    "Guarded exactCON normal prompt deliveredvisible: one existing12000sec ordered LOCAL combined gate permitted onf0only; no PRadvance/sharedruntime/provider/live authority; terminal/censusrequired."
+    "Guarded exactCON normal prompt deliveredvisible: one existing12000sec ordered LOCAL combined gate permitted onf0only; no PRadvance/sharedruntime/provider/live authority; terminal/censusrequired.",
+    "Read fullCC0135/6112140539 and exactCON native Running button/one Running task; existing n4k finite12000 wrapper started18:15:42Z at cleanf0. No terminalpass inferred or tool restarted."
   ],
   "results": "Pinned adapter subscription source/wire cap gap qualified offline; StepB terminal author gate fully read and nine source hashes/composed SQL matched. No route/provider/combined acceptance. Combinedba8c/ad896 composition scoped verified;P2currentOP2r2/mailboxstate docs correction before gate. f0 docs-onlyP2scopedresolved afterindependentrecheck;onefiniteauthorlocalgatepermitted,start/resultnotobserved.",
   "unresolvedEffects": "No uncertain hosted effects. Same setup/cohort/route/finiteallowance/window/runtime integration/rollback holds; new pinned-wire cap qualification pending.",
   "rollback": "No CON deployment/setup mutation; no product source change. Dated tuple is not a qualified compatible rollback. Governed data must survive future rollback.",
-  "nextBoundedAction": "Exactf0 gate actual start/terminal handle; independent fullaa4b routeproposalreview while it runs and affected combined verification.",
+  "nextBoundedAction": "Independent fullaa4b routeproposalread and affectedcombinedverification while existingf0gate runs; actual terminalreceipt/source/census required.",
   "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
   "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
   "resourceUse": {
@@ -74,5 +75,18 @@
     "codingAgentSubscriptionConsumption": "Routine authorized primary coordination, unmeasured/private",
     "distinctOfflineCases": 6
   },
-  "cleanup": "Offline pre-fetch capture settled, no sockets/provider/native/PG started. Product source unchanged. Existing signed-in IAB preserved."
+  "cleanup": "Offline pre-fetch capture settled, no sockets/provider/native/PG started. Product source unchanged. Existing signed-in IAB preserved.",
+  "combinedLocalGate": {
+    "receipt": 6112140539,
+    "script": "n4k-final.sh",
+    "scriptShaPrefix": "e4946ca9",
+    "wrapperSeconds": 12000,
+    "start": "2026-10-11T18:15:42Z",
+    "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+    "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+    "nativeHandle": "Running the combined gate on f0afe14b under the 12000s wrapper; one Running task independently visible in exactCONsession",
+    "classification": "start_progress_only_not_terminal_pass",
+    "authorPreconditions": "frozenofflineinstall/unchangedlock+packagefiles/clean;bothclustersdefaultDBs0otherclients",
+    "state": "running"
+  }
 }

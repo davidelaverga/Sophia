@@ -7,8 +7,8 @@
     "evidence/20261011-cx118-subscription-wire/installed-source.json": "dbce8ea7e95bf9a6224ad408e954d8356425d033702cffc9610dd5b0709f2b7f",
     "evidence/20261011-cx118-subscription-wire/official-docs.json": "b12386fd626448604a1866d3b5f8434dfb67270cddd606da96aa72d0e065afdd",
     "evidence/20261011-cx118-subscription-wire/offline-wire.json": "45f108e8dc45c039b0753fe4d0f5f18f938e8291773b713485630cb6e8876862",
-    "evidence/20261011-cx118-subscription-wire/operation-handoff.json": "0b4b7101b03b92f02c4576014c87383fb8c4f59f94b114ba89acb372ab8b636b",
-    "evidence/20261011-cx118-subscription-wire/pr-checkpoint.json": "495f234ce96185dcdab17180cf42980025f5fc0b200d63f93972ce5fe2e6793a",
+    "evidence/20261011-cx118-subscription-wire/operation-handoff.json": "efe1a9f990459a73dd825036b30756de5bf1336ef7f2e48969225e1c7bd5ca23",
+    "evidence/20261011-cx118-subscription-wire/pr-checkpoint.json": "8ab5daa6e6b827a30bddd700edf348e3c353ef5bb79b88e130c0fd6324fb2b70",
     "evidence/20261011-cx118-subscription-wire/setup-correction-recheck.json": "d811c32c25b9cd5d262a08ca21c59f112a6641ea2dae89a6c41cea07a5cf20e9",
     "evidence/20261011-cx118-subscription-wire/stepB-author-gate.json": "35602e9203ee01d0edaef14e0828e50ee08639e669e6022dc784f0d9dc56dffd"
   }

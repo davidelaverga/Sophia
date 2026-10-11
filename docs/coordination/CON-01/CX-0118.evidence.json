@@ -21,7 +21,7 @@
   },
   "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null; setup path unchanged",
   "cleanup": "Offline pre-fetch capture settled, no sockets/provider/native/PG started. Product source unchanged. Existing signed-in IAB preserved.",
-  "next": "Observe existing exactf0 local combined gate start/terminal handle; independently review aa4b7630 route proposal while it runs, then affected combined local verification. No production/provider authority.",
+  "next": "Independently read fullaa4b routeproposal and run affected combined verification while existing exactf0 gate runs; wait for terminal/source/census without duplicate/restart. No live/provider authority.",
   "evidence": "evidence/20261011-cx118-subscription-wire/",
   "operationApproval": null,
   "expiry": null,
@@ -40,5 +40,18 @@
     "distinctOfflineCases": 6
   },
   "combinedCandidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
-  "combinedTree": "f240ed87fc73223070ba5e7f410c6dcdc086c245"
+  "combinedTree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "combinedLocalGate": {
+    "receipt": 6112140539,
+    "script": "n4k-final.sh",
+    "scriptShaPrefix": "e4946ca9",
+    "wrapperSeconds": 12000,
+    "start": "2026-10-11T18:15:42Z",
+    "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+    "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+    "nativeHandle": "Running the combined gate on f0afe14b under the 12000s wrapper; one Running task independently visible in exactCONsession",
+    "classification": "start_progress_only_not_terminal_pass",
+    "authorPreconditions": "frozenofflineinstall/unchangedlock+packagefiles/clean;bothclustersdefaultDBs0otherclients",
+    "state": "running"
+  }
 }
