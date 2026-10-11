@@ -220,7 +220,8 @@ html {
 }
 /* Every size's leading on the 4 px grid (docs/plans/type-leading.md): set per element, so each size finds its own
    step (10.5 and 12 → 16, 13 and 14 → 20, 15 → 20, 16 and 18 → 24, 22 → 32); a rule that names a leading wins. */
-* {
+/* Every word's leading on the 4 px grid; a report's page keeps its own reading voice (.md, 17/1.6). */
+:where(*:not(.md, .md *)) {
   line-height: round(down, 1.55em, 4px);
 }
 body {
@@ -530,6 +531,10 @@ select option {
   color: var(--void);
   background: var(--core);
   border-color: transparent;
+}
+/* On, it still answers: a press would turn it off. */
+.round[aria-pressed='true']:hover {
+  background: var(--core-hover);
 }
 .round.leave:hover {
   color: var(--rose);

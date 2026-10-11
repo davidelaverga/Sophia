@@ -885,7 +885,8 @@
 }
 /* Her turns' first line is taller (17 px at 1.55): her half sits a pixel lower to stay centred on it. */
 .places .msg.sophia:not(.typing) .c3-who {
-  top: 9px;
+  /* Centred on a 24 px first line (her voice a size up; the leading grid). */
+  top: 8px;
 }
 .places .c3-who[data-who='you'] {
   top: 4.5px;

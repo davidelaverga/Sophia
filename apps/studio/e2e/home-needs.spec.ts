@@ -120,7 +120,7 @@ test('home · needs you when the read fails: Home says so, Try again reads it', 
 
 test('home · needs you behind a shut padlock: nothing is read, nothing is shown', async ({ page }) => {
   await page.goto(`${PAGE}?needs=api&locked=1`)
-  await expect(page.getByText('Product launch')).toBeVisible()
+  await expect(page.getByText('Product launch').first()).toBeVisible()
   await expect(list(page)).toHaveCount(0)
   expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(0)
 })
