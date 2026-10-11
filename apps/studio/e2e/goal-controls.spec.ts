@@ -34,6 +34,33 @@ for (const [name, url, parts] of PAGES) {
   })
 }
 
+test('goal controls · a text button that is disabled shows no hover and the step sits only in a goal’s controls', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const read = await page.evaluate(() => {
+    const hold = document.querySelector<HTMLButtonElement>('.controls .control-row button.text-button')
+    if (!hold) return null
+    const rest = getComputedStyle(hold).textDecorationColor
+    hold.disabled = true
+    const disabled = { cursor: getComputedStyle(hold).cursor, opacity: getComputedStyle(hold).opacity }
+    hold.disabled = false
+    // The step after the filled press belongs to a goal's controls: a row of presses elsewhere keeps the kit's gap.
+    const probe = document.createElement('div')
+    probe.className = 'control-row'
+    probe.innerHTML = '<button class="pill">a</button><button class="text-button">b</button>'
+    document.body.append(probe)
+    const stray = getComputedStyle(probe.lastElementChild as Element).marginLeft
+    probe.remove()
+    return { rest, disabled, stray, step: getComputedStyle(hold).marginLeft }
+  })
+  expect(read?.disabled.cursor).toBe('default')
+  expect(read?.disabled.opacity).toBe('0.6')
+  expect(read?.step).toBe('6px')
+  expect(read?.stray).toBe('0px')
+})
+
 test('goal controls · Stop still asks in place; Keep working puts the text button back', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=work')
   await drawn(page, DRAWN.tasks)
