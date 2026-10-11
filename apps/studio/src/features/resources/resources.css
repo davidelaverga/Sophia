@@ -20,7 +20,7 @@
   height: 7px;
   border-radius: 50%;
   background: var(--amber);
-  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.14);
 }
 .attention-item {
   display: inline-flex;
@@ -31,7 +31,7 @@
   color: var(--text);
   font-size: var(--type-body);
   text-decoration: underline;
-  text-decoration-color: rgba(239, 191, 134, 0.4);
+  text-decoration-color: rgb(var(--amber-rgb) / 0.4);
   text-underline-offset: 3px;
 }
 .attention-item:hover {
@@ -227,7 +227,7 @@
 }
 .resource-sort-button:hover,
 .resource-sort-button[aria-expanded='true'] {
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 .resource-sort-button .icon {
   color: var(--text-3);
@@ -365,7 +365,7 @@
   height: 8px;
   overflow: hidden;
   border-radius: var(--r-1);
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
 }
 .effort-fill {
   position: absolute;
@@ -383,13 +383,13 @@
   color: var(--text-2);
 }
 .effort[data-look='claude'][data-alive] .effort-label {
-  color: #b3a3f5;
+  color: var(--claude-ink);
 }
 /* Below its top, each tool's bar is plain, as its own picker is: a quiet track, a fill, a mark at each stop. Its own
    look is kept for its top alone: Claude's lavender dots and their glint in ultracode, GPT's violet gradient and its
    sparks at ultra. */
 .effort[data-look='claude'] .effort-fill {
-  background: rgba(236, 235, 241, 0.32);
+  background: rgb(var(--ink-rgb) / 0.32);
 }
 .effort[data-look='gpt'] .effort-fill {
   background: #3b7cf6;
@@ -397,11 +397,12 @@
 /* Claude in ultracode: a scale of lavender dots, a glint running along them, a few twinkling. */
 .effort[data-look='claude'][data-alive] .effort-track {
   background:
-    radial-gradient(circle, rgba(236, 235, 241, 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
-    rgba(236, 235, 241, 0.02);
+    radial-gradient(circle, rgb(var(--ink-rgb) / 0.1) 0.8px, transparent 1.2px) 0 0 / 4px 4px,
+    rgb(var(--ink-rgb) / 0.02);
 }
 .effort[data-look='claude'][data-alive] .effort-fill {
-  background: linear-gradient(90deg, rgba(236, 235, 241, 0.3) 0%, #b3a3f5 38%, #f4f0ff 50%, #b3a3f5 62%) 0 0 / 250% 100%;
+  background: linear-gradient(90deg, rgb(var(--ink-rgb) / 0.3) 0%, #b3a3f5 38%, var(--core) 50%, #b3a3f5 62%) 0 0 / 250%
+    100%;
   mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   -webkit-mask: radial-gradient(circle, #000 1px, transparent 1.4px) 0 0 / 4px 4px;
   animation: effort-glint 2.6s linear infinite;
@@ -442,7 +443,7 @@
   height: 4px;
   margin: -2px 0 0 -2px;
   border-radius: 50%;
-  background: rgba(236, 235, 241, 0.35);
+  background: rgb(var(--ink-rgb) / 0.35);
   pointer-events: none;
 }
 .effort-scale[data-alive] .effort-stop {
@@ -501,7 +502,7 @@
   cursor: pointer;
 }
 .effort-button:hover {
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .effort-button .icon {
   width: 12px;
@@ -542,7 +543,7 @@
 }
 .effort-asked[data-tone='done'] .effort-asked-dot {
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.15);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.15);
 }
 .effort-asked[data-tone='warn'],
 .effort-asked[data-tone='refused'] {
@@ -551,7 +552,7 @@
 .effort-asked[data-tone='warn'] .effort-asked-dot,
 .effort-asked[data-tone='refused'] .effort-asked-dot {
   background: var(--amber);
-  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.15);
+  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.15);
 }
 @keyframes effort-breathe {
   to {
@@ -766,11 +767,11 @@
 }
 .online > .resource-dot {
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.12);
 }
 .offline > .resource-dot {
   background: var(--rose);
-  box-shadow: 0 0 0 3px rgba(238, 159, 176, 0.12);
+  box-shadow: 0 0 0 3px rgb(var(--rose-rgb) / 0.12);
 }
 .resource-sessions {
   display: grid;
@@ -918,7 +919,7 @@
   margin: 2px 0 0;
   padding: 8px 10px;
   border-radius: var(--r-3);
-  background: rgba(127, 214, 196, 0.06);
+  background: rgb(var(--teal-rgb) / 0.06);
   color: var(--text-2);
   font-size: var(--type-body);
   animation: arrive 0.4s var(--ease) both;
@@ -1009,7 +1010,7 @@
 }
 .event.waiting .dot {
   background: var(--amber);
-  box-shadow: 0 0 0 3px rgba(239, 191, 134, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--amber-rgb) / 0.14);
 }
 .event.waiting:not(.open) .dot {
   background: var(--text-4);
@@ -1362,7 +1363,7 @@
   margin: 0;
   padding: 0 4px 0 12px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(156, 130, 245, 0.12), rgba(156, 130, 245, 0.03));
+  background: linear-gradient(90deg, rgb(var(--halo-rgb) / 0.12), rgb(var(--halo-rgb) / 0.03));
   color: var(--text);
   font-size: var(--type-body);
   animation: arrive 0.5s var(--ease) 0.2s both;
@@ -1407,7 +1408,7 @@
   padding: 3px 10px;
   border: 0;
   border-radius: 999px;
-  background: rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
   color: var(--text-2);
   font: inherit;
   font-size: var(--type-small);
@@ -1415,7 +1416,7 @@
   transition: background-color var(--fast) var(--ease);
 }
 .away-line-seen:hover {
-  background: rgba(236, 235, 241, 0.14);
+  background: rgb(var(--ink-rgb) / 0.14);
   color: var(--text);
 }
 .away-line-seen:focus-visible {
@@ -1491,14 +1492,14 @@
   padding: 0 12px;
   border: 1px solid var(--line-2);
   border-radius: var(--r-3);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text);
   font-size: var(--type-body);
 }
 .act-guide input:focus {
   outline: none;
-  border-color: rgba(156, 130, 245, 0.6);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
+  border-color: rgb(var(--halo-rgb) / 0.6);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
 }
 .act-note {
   font-size: var(--type-body);
@@ -1508,7 +1509,7 @@
   gap: 8px;
   padding: 12px;
   border-radius: var(--r-3);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   animation: arrive 0.3s var(--ease) both;
 }
 .act-steps ol {
@@ -1538,7 +1539,7 @@
   right: 0;
   height: 3px;
   border-radius: 999px;
-  background: rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
 }
 .act-steps li::after {
   content: '';
@@ -1549,7 +1550,7 @@
   height: 3px;
   border-radius: 999px;
   background: var(--teal);
-  box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
+  box-shadow: 0 0 8px rgb(var(--teal-rgb) / 0.6);
   transition: width 0.5s var(--ease);
 }
 .act-steps li[data-reached] {
@@ -1594,13 +1595,13 @@
   position: absolute;
   inset: -3px;
   border-radius: 50%;
-  background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgba(127, 214, 196, 0.12) 0);
+  background: conic-gradient(var(--teal) calc(var(--fresh, 0) * 360deg), rgb(var(--teal-rgb) / 0.12) 0);
   /* A fine stroke at its edge (closest-side: a bare `circle` reaches the corners and swells into the picture). */
   mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
   transition: background 1s linear;
 }
 .live-ring[data-live][data-waiting]::before {
-  background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgba(239, 191, 134, 0.12) 0);
+  background: conic-gradient(var(--amber) calc(var(--fresh, 0) * 360deg), rgb(var(--amber-rgb) / 0.12) 0);
 }
 .activity-dot {
   position: relative;
@@ -1835,7 +1836,7 @@
       100deg,
       transparent 35%,
       rgba(179, 163, 245, 0.55) 47%,
-      #f4f0ff 50%,
+      var(--core) 50%,
       rgba(179, 163, 245, 0.55) 53%,
       transparent 65%
     )

@@ -52,6 +52,7 @@ import {
   people,
   resources,
 } from './resources-data.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -103,6 +104,7 @@ const refusals = new Map<string, () => void>()
 const asked: NonNullable<NonNullable<Window['resourcesFixture']>['asked']> = []
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const viewer = query.get('viewer') === 'davide' ? people.davide : people.luis
 const more = query.get('more') === '1'
 /** Each session's assignment without its id and generation, as `unfenced=1` says. */

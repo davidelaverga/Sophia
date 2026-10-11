@@ -15,6 +15,7 @@ import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { JoinFlow } from '../src/features/access/JoinFlow.tsx'
 import { DEMO, DEMO_LABEL, DEMO_PROJECT } from './demo.ts'
 import '../src/app/theme.css'
+import { bootTheme } from '../src/app/theme.ts'
 
 type Answer = 'admit' | 'deny' | 'block'
 
@@ -25,6 +26,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const STATES: readonly InvitationPreview['state'][] = ['open', 'expired', 'revoked', 'used_up']
 const ANSWERS: readonly Answer[] = ['admit', 'deny', 'block']
 // A link's token as access-view.ts reads one: 20 to 100 url-safe characters.

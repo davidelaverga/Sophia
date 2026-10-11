@@ -76,7 +76,7 @@
   height: 2px;
   border-radius: 2px;
   background: linear-gradient(90deg, transparent, var(--halo), transparent);
-  box-shadow: 0 0 12px rgba(156, 130, 245, 0.6);
+  box-shadow: 0 0 12px rgb(var(--halo-rgb) / 0.6);
   transform: translateX(var(--thumb-x, 0));
 }
 .goal-rail[data-thumb-ready]::after {
@@ -92,7 +92,7 @@
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: var(--r-4);
-  background: rgba(236, 235, 241, 0.025);
+  background: rgb(var(--ink-rgb) / 0.025);
   color: var(--text-2);
   text-align: left;
   scroll-snap-align: start;
@@ -105,7 +105,7 @@
     transform var(--fast) var(--ease);
 }
 .goal-chip:hover {
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
   color: var(--text);
 }
 .goal-chip:active {
@@ -113,7 +113,7 @@
 }
 .goal-chip[aria-selected='true'] {
   border-color: var(--line-2);
-  background: radial-gradient(120% 120% at 0% 0%, rgba(156, 130, 245, 0.12), transparent 60%), var(--plane-2);
+  background: radial-gradient(120% 120% at 0% 0%, rgb(var(--halo-rgb) / 0.12), transparent 60%), var(--plane-2);
   color: var(--text);
 }
 .goal-chip:focus-visible {
@@ -143,7 +143,7 @@
 }
 .goal-tab-dot[data-status='running'] {
   background: var(--teal);
-  box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
+  box-shadow: 0 0 8px rgb(var(--teal-rgb) / 0.6);
 }
 .goal-tab-dot[data-status='holding'],
 .goal-tab-dot[data-status='held'] {
@@ -182,7 +182,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--amber);
-  box-shadow: 0 0 8px rgba(239, 191, 134, 0.7);
+  box-shadow: 0 0 8px rgb(var(--amber-rgb) / 0.7);
 }
 
 /* ---- The board ---- */
@@ -261,7 +261,7 @@
   margin-left: auto;
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
   font-size: var(--type-label);
   /* The count is data at 500, not the heading's bold. */
   font-weight: 500;
@@ -288,9 +288,9 @@
      when it has none; it lights under the pointer only when it has none. */
   --card-edge-hover: var(--edge, var(--line-2));
   border-color: var(--edge, var(--line));
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
+  background-image: linear-gradient(180deg, rgb(var(--sheen-rgb) / 0.035), rgb(var(--sheen-rgb) / 0.01));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgb(var(--sheen-rgb) / 0.05),
     0 1px 2px rgba(0, 0, 0, 0.3);
   color: var(--text);
   text-align: left;
@@ -313,13 +313,13 @@
   }
 }
 .task-tile[data-mark='waiting'] {
-  --edge: rgba(239, 191, 134, 0.3);
+  --edge: rgb(var(--amber-rgb) / 0.3);
   background:
-    radial-gradient(120% 90% at 100% 0%, rgba(239, 191, 134, 0.12), transparent 60%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)), var(--plane-2);
+    radial-gradient(120% 90% at 100% 0%, rgb(var(--amber-rgb) / 0.12), transparent 60%),
+    linear-gradient(180deg, rgb(var(--sheen-rgb) / 0.035), rgb(var(--sheen-rgb) / 0.01)), var(--plane-2);
 }
 .task-tile[data-mark='working'] {
-  --edge: rgba(127, 214, 196, 0.18);
+  --edge: rgb(var(--teal-rgb) / 0.18);
 }
 .task-tile[data-mark='free'] {
   background: transparent;
@@ -366,7 +366,7 @@
   .task-tile:hover {
     transform: translateY(-2px);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 1px 0 rgb(var(--sheen-rgb) / 0.06),
       0 14px 34px rgba(0, 0, 0, 0.4);
   }
   .task-tile:hover .task-who .avatar {
@@ -375,10 +375,10 @@
 }
 /* What the hovered tile waits on: a lavender ring, with a soft glow around it. */
 .task-tile[data-lit] {
-  --edge: rgba(156, 130, 245, 0.7);
+  --edge: rgb(var(--halo-rgb) / 0.7);
   box-shadow:
-    0 0 0 4px rgba(156, 130, 245, 0.14),
-    0 0 28px rgba(156, 130, 245, 0.2);
+    0 0 0 4px rgb(var(--halo-rgb) / 0.14),
+    0 0 28px rgb(var(--halo-rgb) / 0.2);
 }
 
 .task-who {
@@ -504,7 +504,7 @@
   gap: 4px 10px;
   padding: 10px 12px;
   border-radius: var(--r-3);
-  background: rgba(156, 130, 245, 0.08);
+  background: rgb(var(--halo-rgb) / 0.08);
 }
 .task-sheet-next .field-label {
   color: var(--halo-text);
@@ -526,13 +526,13 @@
   padding: 9px 10px;
   border: 0;
   border-radius: var(--r-3);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text);
   text-align: left;
   transition: background-color var(--fast) var(--ease);
 }
 .task-link:hover {
-  background: rgba(236, 235, 241, 0.07);
+  background: rgb(var(--ink-rgb) / 0.07);
 }
 .task-link-where {
   color: var(--text-3);
@@ -579,7 +579,7 @@
 }
 /* What changed since the last look: a lavender breath along its edge, and a small dot at its corner. */
 .task-tile[data-changed] {
-  --edge: rgba(156, 130, 245, 0.55);
+  --edge: rgb(var(--halo-rgb) / 0.55);
 }
 .task-tile[data-changed] .task-tile-body::after {
   content: '';
@@ -601,25 +601,25 @@
 
 /* Complete by its policy: set back, its title quieter. Ready for review and changes needed are in motion. */
 .task-tile[data-mark='complete'] {
-  background: rgba(236, 235, 241, 0.02);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  background: rgb(var(--ink-rgb) / 0.02);
+  box-shadow: inset 0 0 0 1px rgb(var(--sheen-rgb) / 0.04);
 }
 .task-tile[data-mark='complete'] .task-tile-title {
   color: var(--text-2);
 }
 .task-tile[data-mark='changes'] {
-  --edge: rgba(238, 159, 176, 0.28);
+  --edge: rgb(var(--rose-rgb) / 0.28);
 }
 .task-tile[data-mark='unknown'] {
   outline: 1px dashed var(--line-2);
   outline-offset: -1px;
 }
 .task-chip[data-mark='review'] {
-  background: rgba(127, 214, 196, 0.06);
+  background: rgb(var(--teal-rgb) / 0.06);
   color: var(--teal);
 }
 .task-chip[data-mark='changes'] {
-  background: rgba(238, 159, 176, 0.12);
+  background: rgb(var(--rose-rgb) / 0.12);
   color: var(--rose);
 }
 .task-chip[data-mark='held'],
@@ -636,8 +636,8 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 45%, var(--core), var(--halo) 58%, rgba(156, 130, 245, 0.18) 72%);
-  box-shadow: 0 0 10px rgba(156, 130, 245, 0.35);
+  background: radial-gradient(circle at 50% 45%, var(--core), var(--halo) 58%, rgb(var(--halo-rgb) / 0.18) 72%);
+  box-shadow: 0 0 10px rgb(var(--halo-rgb) / 0.35);
 }
 .task-sheet-who .plan-sophia {
   width: 40px;
@@ -712,7 +712,7 @@
 .board-notice {
   padding: 8px 12px;
   border-radius: var(--r-3);
-  background: rgba(239, 191, 134, 0.08);
+  background: rgb(var(--amber-rgb) / 0.08);
   color: var(--amber);
   font-size: var(--type-small);
 }
@@ -739,11 +739,11 @@
   gap: 2px;
   padding: 8px 10px;
   border-radius: var(--r-3);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   font-size: var(--type-body);
 }
 .task-waits li[data-mine] {
-  background: rgba(239, 191, 134, 0.1);
+  background: rgb(var(--amber-rgb) / 0.1);
 }
 .task-wait-who {
   color: var(--text-3);
@@ -800,7 +800,7 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: var(--r-3);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
 }
 .task-result-text figcaption {
   margin-bottom: 6px;
@@ -854,7 +854,7 @@
   stroke-linecap: round;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.85));
+  filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.85));
   animation: thread-draw 0.5s var(--ease) forwards;
 }
 @keyframes thread-draw {
@@ -937,7 +937,7 @@
   gap: 6px 10px;
   padding: 10px 12px;
   border-radius: var(--r-3);
-  background: rgba(127, 214, 196, 0.06);
+  background: rgb(var(--teal-rgb) / 0.06);
   font-size: var(--type-body);
 }
 .task-sheet-activity .muted {
@@ -997,7 +997,7 @@
   padding: 0 12px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
   color: var(--text-2);
   font-size: var(--type-body);
   transition:
@@ -1005,12 +1005,12 @@
     border-color var(--fast) var(--ease);
 }
 .decision-pill[data-mine] {
-  border-color: rgba(239, 191, 134, 0.4);
-  background: rgba(239, 191, 134, 0.1);
+  border-color: rgb(var(--amber-rgb) / 0.4);
+  background: rgb(var(--amber-rgb) / 0.1);
   color: var(--amber);
 }
 .decision-pill:hover {
-  background: rgba(239, 191, 134, 0.16);
+  background: rgb(var(--amber-rgb) / 0.16);
 }
 .decision-pill .icon {
   transition: transform var(--fast) var(--ease);
@@ -1084,25 +1084,25 @@
 /* ---- The lead's review that proposes a change: its pill (the decisions', in lavender) and its card, in the
    decisions' slot. Four labelled parts down one column; Observed lines lead with their evidence, in mono. ---- */
 .review-pill {
-  border-color: rgba(185, 168, 255, 0.32);
-  background: rgba(185, 168, 255, 0.08);
+  border-color: rgb(var(--halo-text-rgb) / 0.32);
+  background: rgb(var(--halo-text-rgb) / 0.08);
   color: var(--halo-text);
 }
 .review-pill:hover {
-  background: rgba(185, 168, 255, 0.14);
+  background: rgb(var(--halo-text-rgb) / 0.14);
 }
 .review-result {
   display: grid;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid rgba(185, 168, 255, 0.2);
+  border: 1px solid rgb(var(--halo-text-rgb) / 0.2);
   border-radius: var(--r-3);
-  background: linear-gradient(90deg, rgba(185, 168, 255, 0.07), rgba(185, 168, 255, 0.02));
+  background: linear-gradient(90deg, rgb(var(--halo-text-rgb) / 0.07), rgb(var(--halo-text-rgb) / 0.02));
   animation: arrive 0.4s var(--ease) both;
 }
 .review-result:focus-visible {
   outline: none;
-  border-color: rgba(185, 168, 255, 0.5);
+  border-color: rgb(var(--halo-text-rgb) / 0.5);
 }
 .review-result-head {
   display: flex;
@@ -1236,7 +1236,7 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: conic-gradient(var(--amber) 0 240deg, rgba(239, 191, 134, 0.18) 0);
+  background: conic-gradient(var(--amber) 0 240deg, rgb(var(--amber-rgb) / 0.18) 0);
   mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
 }
 .task-sheet-account {
@@ -1244,7 +1244,7 @@
   gap: 8px;
   padding: 10px 12px;
   border-radius: var(--r-3);
-  background: rgba(239, 191, 134, 0.06);
+  background: rgb(var(--amber-rgb) / 0.06);
 }
 .task-sheet-account .capacity-room {
   margin: 0;
@@ -1273,9 +1273,9 @@
 .ask-chip {
   height: 28px;
   padding: 0 12px;
-  border: 1px solid rgba(156, 130, 245, 0.28);
+  border: 1px solid rgb(var(--halo-rgb) / 0.28);
   border-radius: 999px;
-  background: rgba(156, 130, 245, 0.06);
+  background: rgb(var(--halo-rgb) / 0.06);
   color: var(--halo-text);
   font-size: var(--type-body);
   transition:
@@ -1283,7 +1283,7 @@
     transform var(--fast) var(--ease);
 }
 .ask-chip:hover {
-  background: rgba(156, 130, 245, 0.14);
+  background: rgb(var(--halo-rgb) / 0.14);
   transform: translateY(-1px);
 }
 .ask-thread {
@@ -1295,7 +1295,7 @@
   max-width: 85%;
   padding: 8px 12px;
   border-radius: var(--r-4) var(--r-4) var(--r-1) var(--r-4);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   font-size: var(--type-body);
 }
 .ask-a {

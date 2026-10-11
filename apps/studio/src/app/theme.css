@@ -18,14 +18,14 @@
   --plane-2: #121118;
   --glass: rgba(12, 11, 17, 0.74);
   --text: #ecebf1;
-  --text-2: rgba(236, 235, 241, 0.66);
+  --text-2: rgb(var(--ink-rgb) / 0.66);
   /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
-  --text-3: rgba(236, 235, 241, 0.52);
-  --text-4: rgba(236, 235, 241, 0.26);
-  --line: rgba(236, 235, 241, 0.08);
-  --line-2: rgba(236, 235, 241, 0.14);
-  --line-3: rgba(236, 235, 241, 0.22);
-  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --text-3: rgb(var(--ink-rgb) / 0.52);
+  --text-4: rgb(var(--ink-rgb) / 0.26);
+  --line: rgb(var(--ink-rgb) / 0.08);
+  --line-2: rgb(var(--ink-rgb) / 0.14);
+  --line-3: rgb(var(--ink-rgb) / 0.22);
+  --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.04);
   --halo: #9c82f5;
   --halo-text: #b9a8ff;
   --core: #f4f0ff;
@@ -33,6 +33,26 @@
   --teal: #7fd6c4;
   --amber: #efbf86;
   --rose: #ee9fb0;
+  /* The same inks as channels, for the alphas the sheets lay over the room (docs/plans/light-mode.md): a light page
+     swaps them all at once. */
+  --ink-rgb: 236 235 241;
+  --void-rgb: 5 4 8;
+  --sheen-rgb: 255 255 255;
+  --halo-rgb: 156 130 245;
+  --halo-text-rgb: 185 168 255;
+  --core-rgb: 244 240 255;
+  --warm-rgb: 241 220 199;
+  --teal-rgb: 127 214 196;
+  --amber-rgb: 239 191 134;
+  /* The inks of a state the at-rest scan does not see: a primary press hovered, the ink on the core and on the warm,
+     a note that is soon, Claude's own; each with a paper value (Codex on #234). */
+  --core-hover: #fff;
+  --on-core: #0c0a16;
+  --warm-hover: #fff4e8;
+  --on-warm: #1a1512;
+  --soon: #e8c48d;
+  --claude-ink: #b3a3f5;
+  --rose-rgb: 238 159 176;
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -50,6 +70,61 @@
      rest this far above the bottom. */
   --floor: calc(env(safe-area-inset-bottom, 0px) + 18px);
 }
+/* A light page (docs/plans/light-mode.md): the report's paper under the same room, chosen in the account menu
+   (theme.ts) and carried as `data-theme` on the root. The inks darken a step for contrast (4.5:1 on paper and on a
+   white plane), Sophia's light is a halo on paper, the grain goes. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --void: #fbf8f3;
+  --plane: #f4f0ea;
+  --plane-2: #ffffff;
+  --glass: rgba(251, 248, 243, 0.8);
+  --text: #1d1b22;
+  --text-2: rgba(29, 27, 34, 0.74);
+  --text-3: rgba(29, 27, 34, 0.64);
+  --text-4: rgba(29, 27, 34, 0.34);
+  --line: rgba(29, 27, 34, 0.1);
+  --line-2: rgba(29, 27, 34, 0.16);
+  --line-3: rgba(29, 27, 34, 0.24);
+  --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
+  --halo: #6d5bd0;
+  --halo-text: #5546b8;
+  --core: #2f2566;
+  --warm: #965328;
+  --teal: #0f6b5b;
+  --amber: #8f5717;
+  --rose: #a8375a;
+  --ink-rgb: 29 27 34;
+  --void-rgb: 251 248 243;
+  --halo-rgb: 109 91 208;
+  --halo-text-rgb: 85 70 184;
+  --core-rgb: 47 37 102;
+  --warm-rgb: 150 83 40;
+  --teal-rgb: 15 107 91;
+  --amber-rgb: 143 87 23;
+  --core-hover: #1a1340;
+  --on-core: #fbf8f3;
+  --warm-hover: #7a4220;
+  --on-warm: #fbf8f3;
+  --soon: #8f5717;
+  --claude-ink: #5546b8;
+  --rose-rgb: 168 55 90;
+}
+:root[data-theme='light'] body::after {
+  display: none;
+}
+/* Her light on paper: a violet halo, not the screen-blended canvas. */
+:root[data-theme='light'] .light-gl {
+  display: none;
+}
+:root[data-theme='light'] .light {
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgb(var(--halo-rgb) / 0.3) 0,
+    rgb(var(--halo-rgb) / 0.12) 12%,
+    transparent 46%
+  );
+}
 
 *,
 *::before,
@@ -59,7 +134,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   background: var(--void);
-  scrollbar-color: rgba(236, 235, 241, 0.12) transparent;
+  scrollbar-color: rgb(var(--ink-rgb) / 0.12) transparent;
 }
 /* Scrollbars stay thin and quiet everywhere. Chrome ignores ::-webkit-scrollbar once scrollbar-color is set (as
    above), so without this every scrolling box drew the system bar, arrows and all, on Windows. */
@@ -93,7 +168,7 @@ body::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 ::selection {
-  background: rgba(156, 130, 245, 0.35);
+  background: rgb(var(--halo-rgb) / 0.35);
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -102,7 +177,7 @@ body::after {
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 999px;
-  background: rgba(236, 235, 241, 0.12) padding-box;
+  background: rgb(var(--ink-rgb) / 0.12) padding-box;
 }
 h1,
 h2,
@@ -128,7 +203,7 @@ a {
   text-underline-offset: 3px;
 }
 :focus-visible {
-  outline: 2px solid rgba(185, 168, 255, 0.7);
+  outline: 2px solid rgb(var(--halo-text-rgb) / 0.7);
   outline-offset: 2px;
 }
 /* `hidden` always hides. A rule that sets `display` would otherwise win over the browser's own, and the element
@@ -165,7 +240,7 @@ kbd {
   padding: 0 4px;
   border-radius: var(--r-1);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
   color: var(--text-2);
   font-size: 10.5px;
   font-weight: 500;
@@ -243,7 +318,7 @@ button:disabled,
   padding: 0 12px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
@@ -256,7 +331,7 @@ button:disabled,
     color var(--fast) var(--ease);
 }
 .pill:hover:not(:disabled, [aria-disabled='true']) {
-  background: rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
   border-color: var(--line-3);
 }
 .pill:active:not(:disabled, [aria-disabled='true']) {
@@ -266,10 +341,10 @@ button:disabled,
   border-color: transparent;
   background: var(--core);
   color: var(--void);
-  box-shadow: inset 0 -1px 0 rgba(5, 4, 8, 0.16);
+  box-shadow: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
 }
 .pill.primary:hover:not(:disabled, [aria-disabled='true']) {
-  background: #fff;
+  background: var(--core-hover);
 }
 /* A primary action that can't run yet (no name, nothing typed, a wait) waits as an outline, not a greyed-out block. */
 .pill.primary:disabled,
@@ -281,17 +356,17 @@ button:disabled,
   box-shadow: none;
 }
 .pill.warm {
-  border-color: rgba(241, 220, 199, 0.26);
-  background: rgba(241, 220, 199, 0.04);
+  border-color: rgb(var(--warm-rgb) / 0.26);
+  background: rgb(var(--warm-rgb) / 0.04);
   color: var(--warm);
 }
 .pill.warm:hover:not(:disabled) {
-  border-color: rgba(241, 220, 199, 0.46);
-  background: rgba(241, 220, 199, 0.08);
+  border-color: rgb(var(--warm-rgb) / 0.46);
+  background: rgb(var(--warm-rgb) / 0.08);
 }
 .pill.danger {
-  border-color: rgba(238, 159, 176, 0.4);
-  background: rgba(238, 159, 176, 0.08);
+  border-color: rgb(var(--rose-rgb) / 0.4);
+  background: rgb(var(--rose-rgb) / 0.08);
   color: var(--rose);
 }
 .pill-dot {
@@ -302,7 +377,7 @@ button:disabled,
 }
 .pill-dot[data-live] {
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
+  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
 }
 /* Keys inside buttons: quiet until they matter; on the light primary they are ink. */
 .pill kbd {
@@ -312,9 +387,9 @@ button:disabled,
   font-size: var(--type-label);
 }
 .pill.primary:not(:disabled, [aria-disabled='true']) kbd {
-  border-color: rgba(5, 4, 8, 0.16);
-  background: rgba(5, 4, 8, 0.06);
-  color: rgba(5, 4, 8, 0.55);
+  border-color: rgb(var(--void-rgb) / 0.16);
+  background: rgb(var(--void-rgb) / 0.06);
+  color: rgb(var(--void-rgb) / 0.55);
 }
 select.pill {
   appearance: none;
@@ -345,7 +420,7 @@ select option {
 }
 .ghost:hover {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
 .ghost:active:not(:disabled, [aria-disabled='true']),
@@ -362,7 +437,7 @@ select option {
   flex: none;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text-2);
   transition:
     background var(--fast) var(--ease),
@@ -372,7 +447,7 @@ select option {
 .round:hover {
   color: var(--text);
   border-color: var(--line-2);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .round[aria-pressed='true'] {
   color: var(--void);
@@ -381,8 +456,8 @@ select option {
 }
 .round.leave:hover {
   color: var(--rose);
-  border-color: rgba(238, 159, 176, 0.4);
-  background: rgba(238, 159, 176, 0.08);
+  border-color: rgb(var(--rose-rgb) / 0.4);
+  background: rgb(var(--rose-rgb) / 0.08);
 }
 .text-button {
   border: 0;
@@ -392,7 +467,7 @@ select option {
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
-  text-decoration-color: rgba(185, 168, 255, 0.35);
+  text-decoration-color: rgb(var(--halo-text-rgb) / 0.35);
   text-underline-offset: 3px;
   transition: text-decoration-color var(--fast) var(--ease);
 }
@@ -436,7 +511,7 @@ textarea {
   padding: 0 11px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text);
   font-size: var(--type-body);
   transition:
@@ -455,16 +530,16 @@ textarea:hover {
 input:focus-visible,
 textarea:focus-visible {
   outline: none;
-  border-color: rgba(185, 168, 255, 0.6);
-  background: rgba(236, 235, 241, 0.05);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
+  border-color: rgb(var(--halo-text-rgb) / 0.6);
+  background: rgb(var(--ink-rgb) / 0.05);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
 }
 select {
   height: 32px;
   padding: 0 10px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text-2);
   font-size: 13px;
 }
@@ -531,7 +606,7 @@ select {
   height: 20px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   color: var(--text-2);
   font-size: var(--type-small);
   font-weight: 500;
@@ -544,19 +619,19 @@ select {
   background: currentColor;
 }
 .chip.teal {
-  background: rgba(127, 214, 196, 0.1);
+  background: rgb(var(--teal-rgb) / 0.1);
   color: var(--teal);
 }
 .chip.amber {
-  background: rgba(239, 191, 134, 0.1);
+  background: rgb(var(--amber-rgb) / 0.1);
   color: var(--amber);
 }
 .chip.lav {
-  background: rgba(156, 130, 245, 0.12);
+  background: rgb(var(--halo-rgb) / 0.12);
   color: var(--halo-text);
 }
 .chip.rose {
-  background: rgba(238, 159, 176, 0.1);
+  background: rgb(var(--rose-rgb) / 0.1);
   color: var(--rose);
 }
 .chip.muted {
@@ -588,7 +663,7 @@ select {
   transition: background var(--fast) var(--ease);
 }
 button.mark:hover {
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 /* Umbral (Mark.tsx): you in warm, Sophia in core with a soft halo, brighter while the feed is live. */
 .umbral {
@@ -601,11 +676,11 @@ button.mark:hover {
 }
 .umbral-sophia {
   fill: var(--core);
-  filter: drop-shadow(0 0 2px rgba(156, 130, 245, 0.45));
+  filter: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
   transition: filter 1s var(--ease);
 }
 .umbral[data-live] .umbral-sophia {
-  filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.85));
+  filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.85));
 }
 .mark-word {
   font-weight: 600;
@@ -627,7 +702,7 @@ button.mark:hover {
   height: var(--topbar);
   padding: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
-  background: rgba(5, 4, 8, 0.78);
+  background: rgb(var(--void-rgb) / 0.78);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
 }
@@ -654,7 +729,7 @@ button.mark:hover {
 }
 .crumb:hover {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .project-name {
   min-width: 0;
@@ -751,7 +826,7 @@ button.mark:hover {
 }
 .connection[data-state='live'] .connection-dot {
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.14);
 }
 .connection[data-state='reconnecting'] .connection-dot,
 .connection[data-state='resyncing'] .connection-dot {
@@ -851,7 +926,7 @@ button.mark:hover {
 }
 .menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .menu [aria-disabled='true'] {
   color: var(--text-3);
@@ -884,7 +959,7 @@ button.mark:hover {
   height: 24px;
   flex: none;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.4);
+  border: 1px solid rgb(var(--warm-rgb) / 0.4);
   color: var(--warm);
   font-size: var(--type-label);
   font-weight: 600;
@@ -930,16 +1005,16 @@ img.avatar {
 }
 @keyframes threshold-breathe {
   from {
-    filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.45));
+    filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
   }
   to {
-    filter: drop-shadow(0 0 12px rgba(156, 130, 245, 0.85));
+    filter: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .threshold .umbral-sophia {
     animation: none;
-    filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.6));
+    filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
   }
 }
 .light[data-fallback] .light-gl {
@@ -948,9 +1023,9 @@ img.avatar {
 .light[data-fallback] {
   background: radial-gradient(
     circle at 50% 42%,
-    rgba(244, 240, 255, 0.9) 0,
-    rgba(156, 130, 245, 0.45) 6%,
-    rgba(156, 130, 245, 0.12) 22%,
+    rgb(var(--core-rgb) / 0.9) 0,
+    rgb(var(--halo-rgb) / 0.45) 6%,
+    rgb(var(--halo-rgb) / 0.12) 22%,
     transparent 48%
   );
 }
@@ -1043,8 +1118,8 @@ img.avatar {
     transform 140ms;
 }
 .provider:hover:not(:disabled) {
-  border-color: rgba(185, 168, 255, 0.45);
-  background: rgba(185, 168, 255, 0.06);
+  border-color: rgb(var(--halo-text-rgb) / 0.45);
+  background: rgb(var(--halo-text-rgb) / 0.06);
 }
 .provider:active:not(:disabled) {
   transform: translateY(1px);
@@ -1068,7 +1143,7 @@ img.avatar {
 }
 .provider[aria-busy='true'] {
   opacity: 1;
-  border-color: rgba(185, 168, 255, 0.55);
+  border-color: rgb(var(--halo-text-rgb) / 0.55);
 }
 /* Passkeys sheet: one row per saved passkey, the key mark leading. */
 .passkey-list {
@@ -1147,8 +1222,8 @@ img.avatar {
   background: transparent;
 }
 .field:focus-within {
-  border-color: rgba(185, 168, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+  border-color: rgb(var(--halo-text-rgb) / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.12);
 }
 .field.quiet {
   background: transparent;
@@ -1204,8 +1279,8 @@ img.avatar {
     background var(--fast) var(--ease);
 }
 .identity-grid button:hover {
-  border-color: rgba(241, 220, 199, 0.36);
-  background: rgba(241, 220, 199, 0.04);
+  border-color: rgb(var(--warm-rgb) / 0.36);
+  background: rgb(var(--warm-rgb) / 0.04);
 }
 .identity-grid strong {
   font-weight: 600;
@@ -1272,7 +1347,7 @@ img.avatar {
   transition: background var(--fast) var(--ease);
 }
 .recent button:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .home-hint {
   margin-top: -8px;
@@ -1329,8 +1404,8 @@ img.avatar {
   height: var(--thumb-h, 0);
   transform: translate(var(--thumb-x, 0), var(--thumb-y, 0));
   border-radius: var(--r-2);
-  background: rgba(236, 235, 241, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08);
 }
 .segmented[data-thumb-ready]::before {
   transition:
@@ -1413,7 +1488,7 @@ img.avatar {
   flex: none;
   border-radius: 50%;
   border: 1px solid var(--line-2);
-  background: rgba(5, 4, 8, 0.7);
+  background: rgb(var(--void-rgb) / 0.7);
   color: var(--text-2);
   font-size: 13px;
   font-weight: 600;
@@ -1424,19 +1499,19 @@ img.avatar {
 }
 .presence[data-floor] .orbit {
   color: var(--text);
-  border-color: rgba(241, 220, 199, 0.7);
-  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.08);
+  border-color: rgb(var(--warm-rgb) / 0.7);
+  box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.08);
 }
 .presence[data-speaking] .orbit {
   box-shadow:
-    0 0 0 3px rgba(241, 220, 199, 0.12),
-    0 0 24px rgba(241, 220, 199, 0.22);
+    0 0 0 3px rgb(var(--warm-rgb) / 0.12),
+    0 0 24px rgb(var(--warm-rgb) / 0.22);
 }
 .ignite {
   position: absolute;
   inset: -1px;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.8);
+  border: 1px solid rgb(var(--warm-rgb) / 0.8);
   opacity: 0;
   animation: ignite 0.9s var(--ease);
   pointer-events: none;
@@ -1476,7 +1551,7 @@ img.avatar {
   transition: color var(--base) var(--ease);
 }
 .presence[data-floor] .role {
-  color: rgba(241, 220, 199, 0.85);
+  color: rgb(var(--warm-rgb) / 0.85);
 }
 .meter {
   display: flex;
@@ -1605,8 +1680,8 @@ img.avatar {
   width: 36px;
   height: 36px;
   border-radius: var(--r-2);
-  border: 1px solid rgba(156, 130, 245, 0.32);
-  background: rgba(156, 130, 245, 0.08);
+  border: 1px solid rgb(var(--halo-rgb) / 0.32);
+  background: rgb(var(--halo-rgb) / 0.08);
   color: var(--halo-text);
 }
 .made-head {
@@ -1672,7 +1747,7 @@ img.avatar {
   font-variant-numeric: tabular-nums;
 }
 .made-fact[data-limit] {
-  border-color: rgba(239, 191, 134, 0.28);
+  border-color: rgb(var(--amber-rgb) / 0.28);
   color: var(--amber);
 }
 .made-acts {
@@ -1841,8 +1916,8 @@ img.avatar {
     box-shadow var(--fast) var(--ease);
 }
 .message-bar:focus-within {
-  border-color: rgba(185, 168, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+  border-color: rgb(var(--halo-text-rgb) / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.12);
 }
 .message-bar textarea {
   flex: 1;
@@ -1875,7 +1950,7 @@ img.avatar {
     color var(--fast) var(--ease);
 }
 .send:hover:not(:disabled) {
-  background: #fff;
+  background: var(--core-hover);
 }
 /* Nothing to send yet: the arrow waits, quiet, like a primary button's outline. */
 .send:disabled {
@@ -2248,7 +2323,7 @@ button.contribution-quote:hover {
   gap: 8px;
   padding: 6px 11px;
   border-radius: 999px;
-  border: 1px solid rgba(241, 220, 199, 0.28);
+  border: 1px solid rgb(var(--warm-rgb) / 0.28);
   background: var(--glass);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
@@ -2293,7 +2368,7 @@ button.contribution-quote:hover {
   max-width: 34ch;
   padding: 7px 10px;
   border-radius: var(--r-2);
-  border: 1px solid rgba(238, 159, 176, 0.3);
+  border: 1px solid rgb(var(--rose-rgb) / 0.3);
   transform: translateX(-50%);
   background: var(--plane-2);
   color: var(--rose);
@@ -2479,16 +2554,16 @@ button.contribution-quote:hover {
     box-shadow var(--base) var(--ease);
 }
 .tile[data-floor] {
-  border-color: rgba(241, 220, 199, 0.5);
+  border-color: rgb(var(--warm-rgb) / 0.5);
 }
 .tile[data-speaking] {
   box-shadow:
-    0 0 0 1px rgba(241, 220, 199, 0.6),
-    0 0 28px rgba(241, 220, 199, 0.16);
+    0 0 0 1px rgb(var(--warm-rgb) / 0.6),
+    0 0 28px rgb(var(--warm-rgb) / 0.16);
 }
 .sophia-tile {
   background: transparent;
-  border-color: rgba(156, 130, 245, 0.24);
+  border-color: rgb(var(--halo-rgb) / 0.24);
 }
 .tile-initial {
   display: grid;
@@ -2496,7 +2571,7 @@ button.contribution-quote:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.4);
+  border: 1px solid rgb(var(--warm-rgb) / 0.4);
   color: var(--warm);
   font-size: 20px;
   font-weight: 600;
@@ -2510,7 +2585,7 @@ button.contribution-quote:hover {
   height: 22px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgba(5, 4, 8, 0.62);
+  background: rgb(var(--void-rgb) / 0.62);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   color: var(--text);
@@ -2560,7 +2635,7 @@ button.contribution-quote:hover {
   height: 22px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgba(5, 4, 8, 0.66);
+  background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
 }
 
@@ -2590,7 +2665,7 @@ button.contribution-quote:hover {
   box-shadow: none;
 }
 .mini-dock .pill:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .mini-dock .round {
   width: 32px;
@@ -2699,12 +2774,12 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--warm);
-  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.16);
+  box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.16);
   animation: door-breathe 2.4s var(--ease) infinite;
 }
 @keyframes door-breathe {
   50% {
-    box-shadow: 0 0 0 6px rgba(241, 220, 199, 0.06);
+    box-shadow: 0 0 0 6px rgb(var(--warm-rgb) / 0.06);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2772,7 +2847,7 @@ button.contribution-quote:hover {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(241, 220, 199, 0.45);
+  box-shadow: inset 0 0 0 1px rgb(var(--warm-rgb) / 0.45);
   color: var(--warm);
   font-size: var(--type-small);
   font-weight: 600;
@@ -2812,8 +2887,8 @@ button.contribution-quote:hover {
   color: var(--void);
 }
 .lobby-actions .pill.warm:hover:not(:disabled) {
-  background: #fff4e8;
-  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.22);
+  background: var(--warm-hover);
+  box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.22);
 }
 /* Asking before a Block: the question takes the row's width under the name, which stays in sight. */
 .lobby-actions:has(.confirm) {
@@ -2841,7 +2916,7 @@ button.contribution-quote:hover {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(5, 4, 8, 0.5);
+  background: rgb(var(--void-rgb) / 0.5);
   animation: veil var(--base) var(--ease) both;
 }
 .sheet {
@@ -2907,7 +2982,7 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .sheet-head .round:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* Tabs as a line under words, on the panel's own hairline. */
 /* A tab strip (`Tabs` in @sophia/ui, docs/plans/tabs-scale.md): 36 px tabs on the field scale, the third ink at rest,
@@ -2980,12 +3055,12 @@ button.contribution-quote:hover {
   padding: 20px 16px 14px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
-  background: radial-gradient(ellipse at 50% 0%, rgba(156, 130, 245, 0.12), transparent 70%), var(--plane-2);
+  background: radial-gradient(ellipse at 50% 0%, rgb(var(--halo-rgb) / 0.12), transparent 70%), var(--plane-2);
 }
 .qr {
   margin: 0;
   width: min(200px, 64%);
-  filter: drop-shadow(0 0 32px rgba(156, 130, 245, 0.24));
+  filter: drop-shadow(0 0 32px rgb(var(--halo-rgb) / 0.24));
 }
 .qr svg {
   display: block;
@@ -3157,7 +3232,7 @@ button.contribution-quote:hover {
 }
 /* Pages stay in the same lit room: a faint trace of her light from above. */
 .shell:not([data-view='studio']) {
-  background: radial-gradient(ellipse 70% 40% at 50% -12%, rgba(156, 130, 245, 0.07), transparent 70%) fixed;
+  background: radial-gradient(ellipse 70% 40% at 50% -12%, rgb(var(--halo-rgb) / 0.07), transparent 70%) fixed;
 }
 .view-head {
   display: flex;
@@ -3441,7 +3516,7 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.12);
 }
 /* How many times a change repeated close together: quiet, in the time's own mono. */
 .event-count {
@@ -3960,7 +4035,7 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .side-panel-head > .round:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* The panel's top: its head, then (where the panel covers the room) the call's switches and the note. Someone at the
    door is shown under it there (--panel-top), never over the tabs or Close. */
@@ -4205,7 +4280,7 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
+  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
 }
 .chat-show-room {
   display: none;
@@ -4367,7 +4442,7 @@ button.contribution-quote:hover {
 /* Sophia's voice through the report on the stage (useVoiceTrail, docs/plans/room-voice-trail.md): her words lit in her
    colour, the block they are in marked at its edge, and the section index with her mark where she is. */
 ::highlight(sophia-spoken) {
-  background-color: rgba(156, 130, 245, 0.3);
+  background-color: rgb(var(--halo-rgb) / 0.3);
   color: var(--text);
 }
 .report-main-body .md [data-spoken] {
@@ -4405,7 +4480,7 @@ button.contribution-quote:hover {
 }
 .report-sections a:hover {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .report-sections a[data-sophia] {
   color: var(--text);
@@ -4443,14 +4518,14 @@ button.contribution-quote:hover {
   white-space: nowrap;
 }
 .message-bar[data-target='sophia'] .bar-target {
-  border-color: rgba(185, 168, 255, 0.4);
+  border-color: rgb(var(--halo-text-rgb) / 0.4);
   color: var(--halo-text);
 }
 .message-bar button.bar-target {
   cursor: pointer;
 }
 .message-bar button.bar-target:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .message-bar button.bar-target:focus-visible {
   outline: 2px solid var(--halo);
@@ -4673,7 +4748,7 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.18);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.18);
 }
 .meeting-row[data-running] .meeting-bar {
   display: none;

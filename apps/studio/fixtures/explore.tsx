@@ -14,6 +14,7 @@ import { DirectionGallery } from '../src/features/explore/DirectionGallery.tsx'
 import type { ImageAsset } from '../src/features/explore/direction.ts'
 import '../src/app/theme.css'
 import { direction, FILE } from './explore-data.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 interface ExploreFixture {
   /** What the page was asked, in order: `read:<asset>`, `choose:<candidate>@<revision>`. */
@@ -31,6 +32,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const role: Membership['role'] = query.get('role') === 'viewer' ? 'viewer' : 'editor'
 const tampered = query.get('tamper')
 const flaky = new Set((query.get('flaky') ?? '').split(',').filter(Boolean))
