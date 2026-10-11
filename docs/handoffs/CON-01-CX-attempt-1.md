@@ -819,3 +819,5 @@ Evidence commit `015c9135c7878aaa7e7fa00e597edc007fc534cc` is pushed; [the share
 ## CX-0127 blocking audit
 
 [CX-0127](../coordination/CON-01/CX-0127.md) records three consecutive unchanged owner/authorization blockers after CX124's progress. Exact PR/source refs remain held; six jobs in existing run 38168148111 are queued and untouched. Claude is stopped at Message626; actual Studio browser access works. Q13 and the named shared-runtime decisions/window remain required, and no live batch is approved. The audit supports a blocked goal transition, not completion. All 36 verdicts and prior operation/tuple/privacy/spending/cleanup/rollback limits remain unchanged. Next bounded action: Davide's Q13 choice and named runtime owner/window.
+
+Blocking evidence commit `c09623f37f1c101c82b6d53806f40bee3c64af18` is pushed; [the shared handoff](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6113146852) was fetched back with an exact body match. Goal-status transition is recorded by its own tool result.
