@@ -2,7 +2,8 @@
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
 import { useEffect, useReducer, useRef } from 'react'
 import {
-  lensInAddress,
+  LENS_FOR_KEY,
+  addressLensFor,
   readViewerState,
   storedViewerState,
   viewerKey,
@@ -19,13 +20,23 @@ function stored(key: string) {
   }
 }
 
+/** Whose lens the address carries: the key the tab remembers; none for a link opened fresh (or no storage). */
+function wroteFor(): string | null {
+  try {
+    return sessionStorage.getItem(LENS_FOR_KEY)
+  } catch {
+    return null
+  }
+}
+
 /**
  * The state at load: the stored one, the lens the address names winning (a shared link shows what was seen) where
- * the Studio view is the one shown; a shell kept out of sight for its call reads nothing from another view's address.
+ * the Studio view is the one shown and the lens is this viewer's to read (`addressLensFor`); a shell kept out of
+ * sight for its call reads nothing from another view's address.
  */
 function load(key: string, inAddress: boolean) {
   const was = stored(key)
-  const named = inAddress ? lensInAddress(window.location.search) : null
+  const named = inAddress ? addressLensFor(key, window.location.search, wroteFor()) : null
   return named ? { ...was, lens: named } : was
 }
 
@@ -55,7 +66,13 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
     const { pathname, search, hash } = window.location
     const next = withLensInAddress(search, state.lens)
     if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
-  }, [state.lens, inAddress])
+    // Whose lens the address carries, so another subject at this page does not read it as theirs.
+    try {
+      sessionStorage.setItem(LENS_FOR_KEY, key)
+    } catch {
+      /* no storage: the address's lens is read as any link's */
+    }
+  }, [state.lens, inAddress, key])
 
   return {
     state,

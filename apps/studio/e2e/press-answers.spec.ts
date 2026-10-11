@@ -26,7 +26,7 @@ const PAGES = [
  * one that is already on (the page's own link, the chosen tab or option), which a press would not change.
  */
 const PRESSES = [
-  'button:not([aria-checked="true"]):not([aria-selected="true"])',
+  'button:not([aria-checked="true"]):not([aria-selected="true"]):not(.segmented [aria-pressed="true"])',
   'a[href]:not([aria-current])',
   '[role="button"]',
   '[role="tab"]:not([aria-selected="true"])',
@@ -39,8 +39,24 @@ function listPresses(selector: string) {
   return [...document.querySelectorAll<HTMLElement>(selector)].flatMap((el, i) => {
     const r = el.getBoundingClientRect()
     const cs = getComputedStyle(el)
+    // Inside a box that scrolls (the views' nav), what lies past its edge is not on screen.
+    const clipped = (() => {
+      for (let a = el.parentElement; a; a = a.parentElement) {
+        const o = getComputedStyle(a).overflowX
+        if (o !== 'auto' && o !== 'scroll') continue
+        const b = a.getBoundingClientRect()
+        if (r.left < b.left - 0.5 || r.right > b.right + 0.5) return true
+      }
+      return false
+    })()
     const seen =
-      r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && r.top >= 0 && r.bottom <= innerHeight && r.left >= 0
+      r.width > 0 &&
+      r.height > 0 &&
+      cs.visibility !== 'hidden' &&
+      r.top >= 0 &&
+      r.bottom <= innerHeight &&
+      r.left >= 0 &&
+      !clipped
     const live =
       !el.closest('.fixture-label') && !el.matches(':disabled') && el.getAttribute('aria-disabled') !== 'true'
     if (!seen || !live) return []
@@ -125,20 +141,27 @@ test('answers · pressed, the kit’s four kinds sink half a pixel: a pill, a gh
   await page.goto('/room.html?demo=1&conversations=1&place=conversations')
   await drawn(page, DRAWN.conversations)
   // One press of each kind that opens nothing over the page while held (a sheet's backdrop would take the pointer).
-  const kinds: [string, () => ReturnType<typeof page.locator>][] = [
-    ['.pill', () => page.getByRole('button', { name: /^Join the room/ })],
-    ['.ghost', () => page.getByRole('button', { name: 'Invite' })],
-    ['.round', () => page.getByRole('button', { name: 'Account' })],
-    ['.text-button', () => page.getByRole('button', { name: 'Earlier messages' })],
+  // The account press is its own kind (.account-btn), not a square: the square measured is the header's Search. The
+  // presses that open a sheet on release say so: the sheet is seen, then shut, before the next press.
+  const kinds: [string, () => ReturnType<typeof page.locator>, boolean][] = [
+    ['.pill', () => page.getByRole('button', { name: /^Join the room/ }), false],
+    ['.ghost', () => page.getByRole('button', { name: 'Invite' }), true],
+    ['.round', () => page.getByRole('button', { name: 'Search' }), true],
+    ['.text-button', () => page.getByRole('button', { name: 'Earlier messages' }), false],
   ]
-  for (const [kind, find] of kinds) {
+  const backdrop = page.locator('.sheet-backdrop')
+  for (const [kind, find, opens] of kinds) {
     const press = find().first()
     await press.scrollIntoViewIfNeeded()
     await press.hover()
     await page.mouse.down()
     await expect(press, kind).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0.5)')
     await page.mouse.up()
-    await page.keyboard.press('Escape')
+    if (opens) {
+      await expect(backdrop).toHaveCount(1)
+      await page.keyboard.press('Escape')
+    }
     await expect(page.getByRole('menu')).toHaveCount(0)
+    await expect(backdrop).toHaveCount(0)
   }
 })

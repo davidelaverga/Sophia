@@ -55,8 +55,16 @@ export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {})
     retry: false,
   })
   const got = read.data
+  // The rows read last are kept through a poll that fails (the list stays actionable), and the note says the read
+  // failed beside them: `isError` is read apart from the cached rows (Codex on #245).
   const note: Read | null =
-    enabled && !locked ? { state: readState(read), failed: READ_FAILED.needs, retry: () => void read.refetch() } : null
+    enabled && !locked
+      ? {
+          state: read.isError ? 'failed' : readState(read),
+          failed: READ_FAILED.needs,
+          retry: () => void read.refetch(),
+        }
+      : null
   if (!got || locked) return { seen: undefined, read: note }
   const wire = got.list.needs
   // A reply has no answer of its own: opening it is its seen mark (A15), and the list is read again once it is kept.
