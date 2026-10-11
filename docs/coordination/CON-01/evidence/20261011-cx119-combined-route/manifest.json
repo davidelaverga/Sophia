@@ -8,7 +8,8 @@
     "evidence/20261011-cx119-combined-route/official-telemetry-lead.json": "a68c11689da5445459bed99f3268bc0031a78947e4ae0519def1101b0b4e65d7",
     "evidence/20261011-cx119-combined-route/offline-terminal-uncertainty.json": "150f11e404f7ad4f606967207c2147e1ef4576e012ea9b279aa95edccff440ed",
     "evidence/20261011-cx119-combined-route/operation-handoff.json": "ee07b90300667a4122460e5b8b076abdd03894e394b11a3ee10b1fc06dc9d107",
-    "evidence/20261011-cx119-combined-route/pr-checkpoint.json": "51a69fd87cc13989726822ab5f464a115bc59abc46e6a3add10a91ca011d7af8",
-    "evidence/20261011-cx119-combined-route/route-review.json": "1603dc813aca3441ade657b47b85de7a15da1e0bbc43d61c8dc72f606d8f2ac5"
+    "evidence/20261011-cx119-combined-route/pr-checkpoint.json": "9d7e0f73212484dd13a16d2184779b5aece7ced2fdf48cc9d49635c89144e1c3",
+    "evidence/20261011-cx119-combined-route/route-review.json": "1603dc813aca3441ade657b47b85de7a15da1e0bbc43d61c8dc72f606d8f2ac5",
+    "evidence/20261011-cx119-combined-route/ui-source-preservation.json": "e5e47b58e40f2f3c810cb14de38f8f79b9959b072a7ee228e7a060787fc3afb8"
   }
 }

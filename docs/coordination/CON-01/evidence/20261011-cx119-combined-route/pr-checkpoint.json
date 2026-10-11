@@ -197,5 +197,38 @@
       ]
     }
   },
-  "limits": "PR211 remains draft3b and dirty; current latest checks queued, earlier same-head checks success. PR190 draft5c10/mainfec clean/13successful checks. No run rerun, cancel, PR move, merge or other-mission effect. This checkpoint did not newly reread automatic-review threads; exact-head prior bot receipts remain dated evidence."
+  "limits": "PR211 remains draft3b and dirty; current latest checks queued, earlier same-head checks success. PR190 draft5c10/mainfec clean/13successful checks. No run rerun, cancel, PR move, merge or other-mission effect. This checkpoint did not newly reread automatic-review threads; exact-head prior bot receipts remain dated evidence.",
+  "automaticReviewRecheck": [
+    {
+      "commentId": 6111555529,
+      "author": "chatgpt-codex-connector[bot]",
+      "at": "2026-10-11T17:11:42Z",
+      "reviewedCommitPrefix": "3b9363dc86",
+      "result": "no major issues",
+      "scope": "Exact existing PR head, not combinedf0 or whole product acceptance."
+    },
+    {
+      "commentId": 6107811725,
+      "author": "chatgpt-codex-connector[bot]",
+      "at": "2026-10-11T09:58:24Z",
+      "reviewedCommitPrefix": "5c10bce306",
+      "result": "no major issues",
+      "scope": "Exact existing PR head, not combinedf0 or whole product acceptance."
+    }
+  ],
+  "missionMetadata": {
+    "74": {
+      "title": "WBC-01 \u2014 implementation, independent review, app testing and frontend release",
+      "state": "open",
+      "updatedAt": "2026-10-05T12:35:52Z",
+      "comments": 73
+    },
+    "103": {
+      "title": "SDD-01 coordination: native dsh HTML design, independent visual review and iteration (Claude implementation, Codex review and operations)",
+      "state": "open",
+      "updatedAt": "2026-10-06T01:04:55Z",
+      "comments": 39
+    }
+  },
+  "missionMetadataLimits": "Dated mission threads unchanged; metadata refresh is not an owner acknowledgment or current shared runtime window."
 }
