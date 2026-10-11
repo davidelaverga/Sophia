@@ -8,6 +8,7 @@ import type { Point } from '../features/light/motion.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
+import { SIGN_IN_LEDE } from './auth-words.ts'
 import { CodeField } from './CodeField.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { startOver } from './link-accept.ts'
@@ -291,8 +292,8 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
   }
   return (
     <Centered title="Sign in to Sophia" light={listening}>
-      {/* What opens, in the door's voice (docs/plans/sign-in-lede.md): the first screen says what Sophia is. */}
-      <p className="screen-lede">A room where your team and Sophia think together.</p>
+      {/* What opens, in the door's voice (auth-words.ts, docs/plans/sign-in-lede.md): the first screen says what Sophia is. */}
+      <p className="screen-lede">{SIGN_IN_LEDE}</p>
       {notice && (
         <p className="form-error" role="alert">
           {notice}
