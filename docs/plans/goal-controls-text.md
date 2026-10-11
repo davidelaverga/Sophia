@@ -35,3 +35,7 @@
   to `.controls`, a goal's. A text button that is `disabled` (a command sending) no longer brightens its underline on
   hover (the rule excluded only `aria-disabled`), and reads as waiting (cursor default, 0.6). `goal-controls.spec`
   measures both.
+- **After the review (Codex on #253, 2026-10-11)**: on a coarse pointer a text press's target reaches 4 px past each
+  side, and Hold and Stop stood 6 px apart: the targets met by 2 px, and a tap at the edge of Hold could open Stop's
+  question. The row keeps 8 px there. The spec's disabled test now hovers the disabled press (its underline keeps the
+  rest) and the enabled one (it answers); a @phone test reads the reach and the gap.

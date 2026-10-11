@@ -3539,6 +3539,13 @@ button.contribution-quote:hover {
 .controls .control-row .pill + .text-button {
   margin-left: 6px;
 }
+/* On a coarse pointer a text press's target reaches 4 px past each side (theme.css): two text presses side by side
+   (Hold, Stop) keep 8 px between them, so the targets never meet (Codex on #253). */
+@media (pointer: coarse) {
+  .controls .control-row {
+    gap: 8px;
+  }
+}
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
   display: inline-flex;
