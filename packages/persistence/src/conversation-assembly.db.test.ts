@@ -120,6 +120,13 @@ const ADDED_TRIGGERS = [
   'conversation_reply_messages_kept on conversation_reply_messages',
   'conversation_reply_sources_kept on conversation_reply_sources',
 ]
+/**
+ * The cluster-global group roles migration 0002 creates when they are missing. A fresh cluster gains them with the first
+ * test database, and the harness never drops them.
+ */
+const MIGRATION_ROLES = ['sophia_api', 'sophia_worker']
+/** A test database's own logins (test-support's createTestDatabase), this file's or another file's running alongside. */
+const TEST_LOGIN = /^sophia_(api|worker)_t_[0-9a-f]{12}$/
 /** Rows of the runtime, the model and the allowance: none is ever written here. */
 const UNTOUCHED = [
   'commands',
@@ -615,14 +622,20 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
     await db.drop()
     await onAdmin(`DROP ROLE IF EXISTS ${loginRole}`)
     if (!assemblerExisted) await onAdmin(`DROP ROLE IF EXISTS ${ROLE}`)
-    // Other files' databases come and go with their own logins meanwhile; this file's roles are gone, no other removed.
+    // This file's own roles are gone. Any other change is one a named class explains, else it fails.
     const now = await roleNames()
-    for (const role of [loginRole, db.apiRole, ...(assemblerExisted ? [] : [ROLE])])
-      assert.ok(!now.includes(role), role)
-    const others = /^sophia_(api|worker)_t_[0-9a-f]{12}$/
+    const workerRole = db.apiRole.replace(/^sophia_api_t_/, 'sophia_worker_t_')
+    for (const role of [loginRole, db.apiRole, workerRole, ...(assemblerExisted ? [] : [ROLE])])
+      assert.ok(!now.includes(role), `${role} remains`)
     assert.deepEqual(
-      now.filter((r) => !others.test(r)),
-      rolesBefore.filter((r) => !others.test(r)),
+      now.filter((r) => !rolesBefore.includes(r) && !MIGRATION_ROLES.includes(r) && !TEST_LOGIN.test(r)),
+      [],
+      'no role appeared that neither the migrations nor another file’s test database explain',
+    )
+    assert.deepEqual(
+      rolesBefore.filter((r) => !now.includes(r) && !TEST_LOGIN.test(r)),
+      [],
+      'no role removed but test logins',
     )
   })
 
