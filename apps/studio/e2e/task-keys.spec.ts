@@ -32,7 +32,8 @@ test('keys · H holds, then resumes; S asks to stop and the safe answer takes th
   await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(1)
   await ask.getByRole('button', { name: /^Keep/ }).click()
   await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(0)
-  const guide = sheet.getByRole('textbox', { name: 'Guidance for its session' })
+  // A field keeps the keys: the sheet's question to Sophia (the guidance field is offered only to a task's own session).
+  const guide = sheet.getByRole('textbox', { name: 'Ask Sophia about this task' })
   await guide.fill('')
   await guide.press('h')
   await expect(guide).toHaveValue('h')
