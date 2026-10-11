@@ -1,0 +1,18 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0113.md",
+  "artifacts": {
+    "evidence/20261011-cx113-combined-binding/acceptance-status-comparison.json": "9492507636a3a1f09bb7a41af15f6e2e6f8ea128992c92059ac25ebb6ca60e10",
+    "evidence/20261011-cx113-combined-binding/author-receipts.json": "46522dff488d086a0e344772df3d1fbc960581345dcded6430cf334c492b71c3",
+    "evidence/20261011-cx113-combined-binding/composition-check.json": "0fc8f90dcc7f9e7eae7bbdf7a99dd7aed55e19c96e00b3a78730275b0e2398e9",
+    "evidence/20261011-cx113-combined-binding/main-overlap.json": "c02b69b17f93a42f5bd1865d3c842fdce28e47753e2357fe202a2589efee095b",
+    "evidence/20261011-cx113-combined-binding/n4-independent-evidence.json": "35765ff68ce86a48ad8916573a6e093044edc016158207be18eeb4ea06772dfe",
+    "evidence/20261011-cx113-combined-binding/n4-owned-receipt.json": "f51115369a256617016be1610638f743855d7507bbaf25e42293661383f7b127",
+    "evidence/20261011-cx113-combined-binding/operation-handoff.json": "3b022d24e8c8b6e7e9b4505867181d3b212bb995824060e31df12c5523d19e2b",
+    "evidence/20261011-cx113-combined-binding/role-graph-evidence.json": "edc9a05460c3728f9bd8813517e191bf7ad39f17a6e8de3bf869baf7e78577c1",
+    "evidence/20261011-cx113-combined-binding/source-review.json": "a81df836f4c375d505ab51fde7334c4d7ee0e38fa4c53d75355635dfbc851fc3",
+    "evidence/20261011-cx113-combined-binding/suite-summary.json": "322cea83c50d9add1521bf0c871b41864ba9a601cf28271f78e4e76f57a4c7ed",
+    "evidence/20261011-cx113-combined-binding/unicode-bootstrap.json": "69bba9f9b3633e63f336b206e92147bf24d22d83280e0efe017adf520dec696c",
+    "evidence/20261011-cx113-combined-binding/unicode-boundary.json": "76e01580d6367a80da4381f1261f955d1fa92f77d4fdacda419c48a9822062f3"
+  }
+}

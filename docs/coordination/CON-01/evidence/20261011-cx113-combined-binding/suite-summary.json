@@ -1,0 +1,21 @@
+{
+  "candidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "tree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+  "suite": "five committed conversation PostgreSQL suites, node --test --test-concurrency=4",
+  "tests": 129,
+  "suites": 41,
+  "pass": 129,
+  "fail": 0,
+  "cancelled": 0,
+  "skipped": 0,
+  "exit": 0,
+  "ownAdversarial": {
+    "inheritance": 6,
+    "roleGraph": 6,
+    "pass": 12,
+    "fail": 0
+  },
+  "level": "L1 actual owned PG17.6; no native/provider/app execution",
+  "logSha256": "4e5337d3808121ab37bcac54510f38c217f97ba306d0accce6acc49394a6ca6a",
+  "install": "pnpm install --frozen-lockfile exit0; Node24.21.0/pnpm11.7.0; exact detached clean checkout"
+}

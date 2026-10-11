@@ -1,0 +1,46 @@
+{
+  "scope": "Author evidence fully read, not represented as reviewer reruns",
+  "receipts": [
+    {
+      "id": 6110888808,
+      "name": "CC0118",
+      "candidate": "ecf6e3e6",
+      "state": "proposed binding; new tests required/not run"
+    },
+    {
+      "id": 6110945656,
+      "name": "CC0119",
+      "candidate": "72a7c979",
+      "state": "terminal FAILED gate retained",
+      "steps": {
+        "N4_C_ICU": "40/40 each exit0",
+        "N2_with_N4": "36/39 exit1 exactly3 intended composition differences; SQL restored",
+        "five_parallel_C_ICU": "129/129 each exit0",
+        "db_all_C": "738/738 exit0",
+        "db_all_ICU": "739 tests/738pass exit1; author attributes N2 before-hook57P01, not independently diagnosed here",
+        "test_sql": "exit0",
+        "pnpm_check": "exit0;2256 units(2255pass1skip),88 integration(86pass2skip)"
+      },
+      "wrapper": "exit0 does not make failed ICU step pass"
+    },
+    {
+      "id": 6110962768,
+      "name": "CC0120",
+      "candidate": "c86fa808",
+      "state": "binding correction proposed, no runtime code"
+    }
+  ],
+  "gateCheckpoint": {
+    "at": "2026-10-11T16:05:32Z",
+    "86b": "Desktop background task bfz37pkr2 actually observed Running; untouched",
+    "3b": "Queued after86b; no terminal verdict inferred",
+    "PR211": "draft remains5e7c43dc; advancement only3b after EACH ordinary step passes then fresh automatic review"
+  },
+  "automaticReview": {
+    "latestBotReview": 5483818635,
+    "commit": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "at": "2026-10-11T15:18:57Z",
+    "finding": 4242086333,
+    "scope": "Known INHERITFALSE edge P2; corrected source scopedqualified, fresh combined review still required"
+  }
+}

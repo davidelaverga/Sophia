@@ -1,0 +1,38 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0113.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "supplementalTree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Exact combined3b936 source+harness129 committed+12 independent PostgreSQL PASS; c86 proposed-binding corrections reviewed after ecf residuals and actual Unicode boundary. Runtime/native/provider/hosted acceptance open; all36 full verdicts retained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Combined129+12 actual owned PG17.6 PASS; three actual Unicode boundaries expected. No runtime/native/provider/hosted qualification.",
+    "scoped_delta_reviewed": true,
+    "proposed_binding_corrections_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only3b progression conditional on all ordinary steps passing and fresh review; no merge/live permission.",
+  "cleanup": "Three new local PG17.6 clusters stopped/PIDs absent/data removed, including failed bootstrap. Twelve role/DB censuses clean,0 other clients. Earlier resources remain settled.",
+  "next": "Primary prepares immutable CON-only runtime file/call-site/test plan against reviewed c86 binding, excluding held shared files; reviewer checks plan and terminal combined gates at next execution checkpoint before any current-main/shared integration.",
+  "documentationCandidate": "c86fa8088b8825379da421346dca971364d73b90",
+  "documentationTree": "bd06c96244968593c5b2b21a30086bfb1e89e487",
+  "evidence": "evidence/20261011-cx113-combined-binding/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 3,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "local": "One failed operator bootstrap0cases; one3-case boundary probe; combined129+12. All settled.",
+    "codingAgentSubscriptionConsumption": "Normal authorized coordination; unmeasured/private."
+  }
+}

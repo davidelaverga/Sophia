@@ -1,0 +1,17 @@
+{
+  "result": {
+    "documentationCandidate": "ecf6e3e6f9abdb4abab946ffde974cb01333f42a",
+    "at": "2026-10-11T16:03:26.296933+00:00",
+    "scope": "L1 owned PostgreSQL17.6 JSONB/text boundary; synthetic only, no app/native/provider",
+    "cases": [],
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true
+    }
+  },
+  "exit": 1,
+  "casesRun": 0,
+  "failure": "Operator bootstrap used unavailable bundled psql; FileNotFoundError. Not a product failure or passed check. Retained; cluster settled."
+}

@@ -1,0 +1,37 @@
+{
+  "documentation": [
+    {
+      "sha": "ecf6e3e6f9abdb4abab946ffde974cb01333f42a",
+      "tree": "c09b3b6b72ebab956f6df86618d76dc2365cbb5a",
+      "scope": "one BINDING_MAP amendment +44/-23",
+      "verdict": "changes_requested",
+      "findings": [
+        "Held item cleared at child exit despite normal completion drain",
+        "No normal draining-to-terminal closed transition for eighth barrier",
+        "Worst Unicode pass testcase conflicts with actual PostgreSQL storage boundary"
+      ],
+      "evidence": "First two are contract counterexamples/inferences, not executed runtime bugs. Third actual owned PG boundaries recorded separately."
+    },
+    {
+      "sha": "c86fa8088b8825379da421346dca971364d73b90",
+      "tree": "bd06c96244968593c5b2b21a30086bfb1e89e487",
+      "parent": "ecf6e3e6f9abdb4abab946ffde974cb01333f42a",
+      "scope": "complete one-file +18/-15 delta read",
+      "verdict": "named_proposed_binding_corrections_reviewed",
+      "corrections": [
+        "Keep held item and fd3 unread tail under bounds/backpressure to EOF",
+        "Drain eligible completion; both draining and fenced end closed only after acknowledgments and empty buffers; capture committed in same ingestion call",
+        "Only well-formed UTF16/noNUL answer text; invalid text becomes content-free failure retaining usage; worst storable U+0001 testcase"
+      ],
+      "qualification": "New projection/relay/isolation/withdrawal/crash/runtime cases REQUIRED_NOT_RUN; no runtime code or shared-file permission"
+    }
+  ],
+  "composition": "Both stable patch-id equalities true; exact merge3b contains source86b and harnessf06 without another runtime delta. Full two-test delta +66/-12 read. This is not current-main/native composition.",
+  "sharedHolds": [
+    "Current owners/window/accepted base unbound",
+    "Source hook/index/callers/grants not installed",
+    "No compatible subscription reply route/finite allowance",
+    "Conservative all-later-replies withdrawal policy retained pending owner answer"
+  ],
+  "operatorQuota": "Read-only Codex desktop quota tool returned account primary usage/reset fields; private operator snapshot only. No numeric/account data published, Sophia collector/route/budget inferred or monitoring created."
+}

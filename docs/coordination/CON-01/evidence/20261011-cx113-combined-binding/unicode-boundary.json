@@ -1,0 +1,46 @@
+{
+  "documentationCandidate": "ecf6e3e6f9abdb4abab946ffde974cb01333f42a",
+  "at": "2026-10-11T16:04:06.454726+00:00",
+  "scope": "L1 owned PostgreSQL17.6 JSONB/text boundary; synthetic only, no app/native/provider",
+  "cases": [
+    {
+      "name": "Lone high surrogate",
+      "serializedBytes": 17,
+      "accepted": false,
+      "storedLength": null,
+      "error": {
+        "code": "22P02",
+        "message": "invalid input syntax for type json"
+      },
+      "matchesExpectedBoundary": true
+    },
+    {
+      "name": "NUL control",
+      "serializedBytes": 17,
+      "accepted": false,
+      "storedLength": null,
+      "error": {
+        "code": "22P05",
+        "message": "unsupported Unicode escape sequence"
+      },
+      "matchesExpectedBoundary": true
+    },
+    {
+      "name": "Maximum120000 U+0001 control units",
+      "serializedBytes": 720011,
+      "accepted": true,
+      "storedLength": 120000,
+      "error": null,
+      "matchesExpectedBoundary": true
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true
+  },
+  "commandExit": 0,
+  "otherClients": 0,
+  "postgresVersion": "postgres (PostgreSQL) 17.6"
+}

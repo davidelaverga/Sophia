@@ -1,0 +1,62 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "tree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+  "at": "2026-10-11T16:08:20.594163+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+    "packages/persistence/src/conversation-ledger.db.test.ts": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+    "db/candidates/con01-s3-conversation-reply-context.sql": "ea80fbccb783105007d5395bc916fbd839d737b17728659bff7b2db9ac66f228",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-fences.db.test.ts": "c387e1e3ba2c384f7af55b95086bb8a4d1abd424dad95630ceac8316a9699b90",
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995"
+  },
+  "independentScriptHash": "e65152333be0c0f3cdfa287676dbe198b67a7761878f7f845b11bc5f49f8fa35",
+  "commands": [
+    {
+      "label": "conversation-five-parallel",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=4",
+        "packages/persistence/src/conversations.db.test.ts",
+        "packages/persistence/src/conversation-ledger.db.test.ts",
+        "packages/persistence/src/conversation-assembly.db.test.ts",
+        "packages/persistence/src/conversation-fences.db.test.ts",
+        "packages/persistence/src/conversation-reply-states.db.test.ts"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    },
+    {
+      "label": "independent-cases",
+      "command": [
+        "node",
+        "[private-operator-journal]/cx113-combined/inherit-independent.mjs"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    },
+    {
+      "label": "role-graph-cases",
+      "command": [
+        "node",
+        "[private-operator-journal]/cx113-combined/role-graph-independent.mjs"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  }
+}

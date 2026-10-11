@@ -1,0 +1,12 @@
+{
+  "observedMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "candidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "mergeBase": "444235d0e8f62d7cd708b47a21ea0242374fb7e7",
+  "mainChangedPaths": 77,
+  "candidateChangedPaths": 119,
+  "overlap": [
+    "apps/studio/fixtures/room.tsx",
+    "apps/studio/src/api/vision.ts"
+  ],
+  "scope": "Read-only source integration inventory; observedmain is not an acceptedbase/window and no mergecandidate authored."
+}

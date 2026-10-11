@@ -1,0 +1,40 @@
+[
+  {
+    "deltas": [
+      [
+        "diff",
+        "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+        "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1"
+      ],
+      [
+        "diff",
+        "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+        "f06bd0997a7da2133fe133d0babb5fe43ec98c10"
+      ]
+    ],
+    "patchIds": [
+      "046bcb29f9c246e8087d5ac7945bcb7e9f5458d6",
+      "046bcb29f9c246e8087d5ac7945bcb7e9f5458d6"
+    ],
+    "equal": true
+  },
+  {
+    "deltas": [
+      [
+        "diff",
+        "f06bd0997a7da2133fe133d0babb5fe43ec98c10",
+        "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1"
+      ],
+      [
+        "diff",
+        "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+        "86b71e647b70e21711581853ea5afc3c06cfe6c0"
+      ]
+    ],
+    "patchIds": [
+      "0857ff1a25f8bac04bfd3855cc3acb1f45c358e9",
+      "0857ff1a25f8bac04bfd3855cc3acb1f45c358e9"
+    ],
+    "equal": true
+  }
+]
