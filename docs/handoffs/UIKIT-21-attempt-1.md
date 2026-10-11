@@ -40,6 +40,10 @@ completed code state of this PR.
 - The host's `askCommands` target is the host in scope: a project kept out of sight (its call going on) never answers
   the account menu's press.
 - Enter on Home keeps its own listener (the home key's logic is not a command: it goes where the person last was).
+- `commands.spec` after a local run (2026-10-11): the index on Tasks names the appearance's command too
+  (`Ctrl+Shift+L`, from anywhere). On the Studio view with its chat shut nothing takes stray typing, so `?` opens the
+  index; the chat open (`c`), its message bar takes `?` as text. The key is pressed as itself: `Shift+/` reaches the
+  page as `/` (the search's key) on a synthesized keyboard.
 
 ## Remaining obligations
 
