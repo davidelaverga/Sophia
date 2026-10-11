@@ -39,7 +39,7 @@ CREATE INDEX conversation_reply_sources_by_source ON sophia.conversation_reply_s
 
 ### Step B. A refusal of an answer that can't be published, in N4
 
-**Why.** Binding map §8.5 (CC-0118, CC-0120, CC-0121) ends an answer longer than 16,000 characters, or one that isn't storable, as `failed`, with `answer_too_long` or `answer_invalid_text`. Its item is content-free, so nothing raises inside an observation batch. N4 can publish an answer (`conversation_publish_answer`, s4:335-383), but it has no way to end a running reply as `failed` without one. Without that, the refusal would have to be written into a shared function's body (capture's reply branch). Step B gives it a CON-owned entry point instead.
+**Why.** Binding map §8.5 (CC-0118, CC-0120, CC-0121) ends an answer that publication can't take as `failed`, without calling publication: an empty one (`answer_empty`), one longer than 16,000 characters as PostgreSQL counts them (`answer_too_long`), or one that isn't storable (`answer_invalid_text`). Publication raises on the first two (`length(p_text) BETWEEN 1 AND 16000`, s4:342). Its item is content-free, so nothing raises inside an observation batch. N4 can publish an answer (`conversation_publish_answer`, s4:335-383), but it has no way to end a running reply as `failed` without one. Without that, the refusal would have to be written into a shared function's body (capture's reply branch). Step B gives it a CON-owned entry point instead.
 
 **The change.** One function in `db/candidates/con01-s4-reply-fences.sql`:
 
@@ -47,18 +47,19 @@ CREATE INDEX conversation_reply_sources_by_source ON sophia.conversation_reply_s
 sophia.conversation_refuse_answer(p_reply uuid, p_attempt integer, p_reason text) RETURNS jsonb
 ```
 
-- **Reasons:** only `answer_too_long` and `answer_invalid_text`; anything else raises `invalid_input`.
+- **Reasons:** only `answer_empty`, `answer_too_long` and `answer_invalid_text`; anything else raises `invalid_input`.
 - **Locks:** publication's own, under READ COMMITTED: `conversation_fences_locked(p_reply, p_attempt, true)` (s4:174), so it serializes with publication, the check, the claim and a withdrawal exactly as publication does.
 - **Attempt:** it acts only through the reply's live attempt, the rule `b5c47582` bound for `source_out`.
 - **A running request** at that attempt ends `failed` with the reason and `settled_at`. No message, answer row, context change or receipt is written. Usage is not its business: it was recorded when the item was stored.
 - **Anything else** returns its current state unchanged, with no error. That covers a request already terminal (`cancelled` by a withdrawal stays `cancelled`), a stale attempt, and a replay.
 - **Privileges:** publication's pattern, SECURITY DEFINER with `search_path=pg_catalog,sophia`. It joins N4's revocation list, so EXECUTE is revoked from PUBLIC, `sophia_api`, `sophia_worker` and `sophia_conversation_assembler` (s4:455-469), and only its owner can execute it. It stays dormant like N4's other entry points.
 
-**Its call site:** held. Capture's reply branch, in the shared `capture_native_result` (0049). It runs at `turn/end` (0023:45-46), finds the run's last `assistant/message` (the query at 0042:1747-1749), and calls this function when that item is `oversize` or `invalidText`. There is nothing to publish then: the item's `text` is null. Until that branch exists, only the tests call it.
+**Its call site:** held. Capture's reply branch, in the shared `capture_native_result` (0049). It runs at `turn/end` (0023:45-46), finds the run's last `assistant/message` (the query at 0042:1747-1749), and calls this function when that item is `oversize`, `invalidText` or empty, or when there is none. There is nothing to publish then: the item carries no text. Until that branch exists, only the tests call it.
 
 **Tests (L1, N4's suite):**
-- A running reply refused with each reason: `failed`, the reason, `settled_at` set; no message, answer, suppression or context change.
-- A reason outside the two: `invalid_input`, and nothing changed.
+- A running reply refused with each of the three reasons: `failed`, the reason, `settled_at` set; no message, answer, suppression or context change.
+- A reason outside the three: `invalid_input`, and nothing changed.
+- Publication's own bounds, pinned beside it (no change to it): 1 and 16,000 characters publish, as 16,000 U+0001 and as 16,000 characters outside the BMP (32,000 UTF-16 units); 0 and 16,001 raise `invalid_input`. These are the cases the refusal exists for.
 - Replayed: the same state returned, with nothing changed.
 - A withdrawal first, then the refusal: the request stays `cancelled`.
 - A stale attempt, superseded at a new claim: nothing changed. This mirrors `b5c47582`'s controls.
