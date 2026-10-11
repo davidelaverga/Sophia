@@ -1,6 +1,6 @@
 // React binding for viewer-state.ts. Storage is a per-device convenience: when it is unavailable
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
-import { useEffect, useReducer } from 'react'
+import { useEffect, useReducer, useRef } from 'react'
 import {
   lensInAddress,
   readViewerState,
@@ -33,6 +33,14 @@ function load(key: string, inAddress: boolean) {
 export function useViewerState(viewer: string, projectId: string, inAddress = true) {
   const key = viewerKey(viewer, projectId)
   const [state, dispatch] = useReducer(viewerReducer, key, (k) => load(k, inAddress))
+  // Another subject (or project) at the same page: their own stored state, and not the lens the address kept for the
+  // last one (the address is then rewritten from theirs, below).
+  const loadedFor = useRef(key)
+  useEffect(() => {
+    if (loadedFor.current === key) return
+    loadedFor.current = key
+    dispatch({ type: 'load', state: load(key, false) })
+  }, [key])
 
   useEffect(() => {
     try {
