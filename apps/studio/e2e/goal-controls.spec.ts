@@ -43,9 +43,8 @@ test('goal controls · a text button that is disabled shows no hover and the ste
     const hold = document.querySelector<HTMLButtonElement>('.controls .control-row button.text-button')
     if (!hold) return null
     const rest = getComputedStyle(hold).textDecorationColor
-    hold.disabled = true
+    hold.disabled = true // left so, for the hover below
     const disabled = { cursor: getComputedStyle(hold).cursor, opacity: getComputedStyle(hold).opacity }
-    hold.disabled = false
     // The step after the filled press belongs to a goal's controls: a row of presses elsewhere keeps the kit's gap.
     const probe = document.createElement('div')
     probe.className = 'control-row'
@@ -60,6 +59,33 @@ test('goal controls · a text button that is disabled shows no hover and the ste
   expect(read?.disabled.opacity).toBe('0.6')
   expect(read?.step).toBe('6px')
   expect(read?.stray).toBe('0px')
+  // Under the pointer the disabled press keeps its rest; enabled again, it answers (the underline's ink steps up).
+  const hold = page.locator('.controls .control-row button.text-button').first()
+  const decoration = () => hold.evaluate((el) => getComputedStyle(el).textDecorationColor)
+  await hold.hover()
+  expect(await decoration()).toBe(read?.rest)
+  await hold.evaluate((el) => {
+    if (el instanceof HTMLButtonElement) el.disabled = false
+  })
+  await page.mouse.move(0, 0)
+  await hold.hover()
+  await expect.poll(decoration).not.toBe(read?.rest)
+})
+
+test('goal controls @phone · on a coarse pointer Hold and Stop keep their reaching targets apart', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const read = await page
+    .locator('.controls .control-row')
+    .first()
+    .evaluate((row) => {
+      const press = row.querySelector('.text-button')
+      const reach = press ? Math.abs(parseFloat(getComputedStyle(press, '::after').left)) : NaN
+      return { gap: parseFloat(getComputedStyle(row).columnGap), reach }
+    })
+  // The target reaches `reach` px past each side of its words: two side by side need twice that between them.
+  expect(read.reach).toBe(4)
+  expect(read.gap).toBeGreaterThanOrEqual(2 * read.reach)
 })
 
 test('goal controls · Stop still asks in place; Keep working puts the text button back', async ({ page }) => {

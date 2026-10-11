@@ -101,3 +101,8 @@
   the note says the read failed beside them, with Try again: `isError` is read apart from the cached rows. The fixture's
   `breakNeeds()` makes every later read fail; the spec breaks it, brings the window back (a refetch), sees the note
   and the four rows together, recovers, and Try again clears the note.
+- **The cap and the seen mark** (P2 ×2, round 6): `NeedList` names its truncation now: at most 200, the most urgent by
+  the service's own order (the expiring first, soonest first; then the rest, newest first), the same 200 for the same
+  records, the rest standing where they live; no cursor (what needs a person is a list they act on, and 200 is far
+  past one). The seen mark: a reply opens the personal space, where every turn since the last seen is shown, so seeing
+  one is seeing those before it; the mark only moves forward, and replies after the one named stay listed.

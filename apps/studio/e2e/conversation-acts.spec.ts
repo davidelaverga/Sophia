@@ -24,8 +24,9 @@ test('acts · under the pointer a message offers Copy, Quote and Propose; Copy p
   const words = (await first.locator('.conv-msg-body p').first().innerText()).trim()
   await first.getByRole('button', { name: 'Copy' }).click()
   await expect(first.getByRole('status').filter({ hasText: 'Copied' })).toBeVisible()
-  const clip = await page.evaluate(() => navigator.clipboard.readText())
-  expect(clip.startsWith(`${words}\n— `)).toBe(true)
+  // Read back as the page wrote it: a Windows clipboard gives the line break as CRLF.
+  const clip = (await page.evaluate(() => navigator.clipboard.readText())).replaceAll('\r\n', '\n')
+  expect(clip.startsWith(`${words}\n— `), clip).toBe(true)
   expect(clip).toMatch(/— .+, .+ \d\d:\d\d$/)
 })
 
@@ -74,6 +75,41 @@ test('acts · a copy refused says so; a second copy says «Copied» anew', async
   await expect(first.getByRole('status')).toHaveText('Copied')
   await expect(first.getByRole('status')).toHaveCount(1)
 })
+
+test('acts · two presses overlapping: the latest one’s outcome is said, an earlier write refused late changes nothing', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let presses = 0
+    // The first write hangs until the page settles it (refused); the ones after go through at once.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: () =>
+          presses++ === 0
+            ? new Promise<void>((_, reject) => {
+                window.settleFirstCopy = () => reject(new Error('denied'))
+              })
+            : Promise.resolve(),
+      },
+    })
+  })
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveText('Copied')
+  await page.evaluate(() => window.settleFirstCopy?.())
+  await page.waitForTimeout(150)
+  await expect(first.getByRole('status')).toHaveText('Copied')
+  await expect(first.getByRole('status')).toHaveCount(1)
+})
+
+declare global {
+  interface Window {
+    settleFirstCopy?: () => void
+  }
+}
 
 test('acts · Quote with a proposal’s form open on a message still fills the composer, which takes the focus', async ({
   page,

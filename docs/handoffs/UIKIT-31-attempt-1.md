@@ -30,6 +30,8 @@ Ending commit/tree: `dc25fcb3` (tree `16f159f2796e`): 4 files: `WorkControls.tsx
 - Text beside the primary, not a menu: a menu hides Stop, and a stop that is final should be one visible press that
   asks, as it was.
 - 24 px is the press scale's inline step (`control-heights`), so no height was invented.
+- After the review (Codex on #253, 2026-10-11): on a coarse pointer the row keeps 8 px between its text presses, so
+  their reaching targets (4 px a side) never meet; the disabled test hovers the disabled press and the enabled one.
 
 ## Remaining obligations
 
