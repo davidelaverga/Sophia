@@ -7,6 +7,7 @@ import {
   chatEntry,
   chatLine,
   chatTimeline,
+  DELIVERY_NOT_CONFIRMED,
   footError,
   noticeActions,
   noticeOpenRequest,
@@ -101,7 +102,7 @@ it('once Send can work the line only names text mode, and says nothing in voice 
 
 it('says why the call ended before an older chat error, and drops the chat’s errors out of the call', () => {
   const ended = 'You were disconnected from the room.'
-  const sendFailed = 'Delivery unconfirmed. Nothing is resent automatically.'
+  const sendFailed = DELIVERY_NOT_CONFIRMED
   assert.deepEqual(footError(ended, false, sendFailed, null), { text: ended, live: false }, 'the dock announces it')
   assert.equal(footError(null, false, sendFailed, 'start failed'), null, 'left on purpose: nothing old stays')
   assert.deepEqual(footError(null, true, sendFailed, 'start failed'), { text: sendFailed, live: true })

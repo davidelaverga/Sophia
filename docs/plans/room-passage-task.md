@@ -27,7 +27,7 @@ A member reads «The figure for March is unchecked» in Sophia's report and want
 
 **Writes:**
 - one key per press (useAdmission), for Create and for each Done;
-- with no reply, the form or the row says «Not sent. Try again.», and only that press goes again;
+- with no reply, the form or the row says «Not confirmed. Try again.», and only that press goes again;
 - while a Create is held (sending, or with no reply), no other Task is offered. Closed, the form leaves its Try again in the pane's foot; a refusal goes with the form;
 - the API's refusal is said in its words.
 

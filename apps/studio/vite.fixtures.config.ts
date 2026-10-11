@@ -9,6 +9,12 @@ process.env.VITE_SOPHIA_VISION = '1'
 
 const fakeLiveKit = fileURLToPath(new URL('./fixtures/fake-livekit.ts', import.meta.url))
 const studioPage = fileURLToPath(new URL('./index.html', import.meta.url))
+/** index.html's early script (signed-in-load.ts), and the path these servers serve it at: their root is fixtures/. */
+const EARLY = '/src/app/signed-in-load.ts'
+const early = `/@fs/${fileURLToPath(new URL(`.${EARLY}`, import.meta.url))
+  .replaceAll('\\', '/')
+  .replace(/^\//, '')}`
+const EARLY_TAG = `<script type="module" src="${EARLY}"></script>`
 
 /**
  * LiveKit's place on the fixture pages: the room controller's `import('./livekit-room.ts')` (useProjectRoom) loads
@@ -22,20 +28,26 @@ const noLiveKit: Plugin = {
     source === './livekit-room.ts' && importer?.endsWith('/src/features/voice/useProjectRoom.ts') ? fakeLiveKit : null,
 }
 
-/** The Studio's own index.html, as it ships, with the app's part played by `entry` (a fixture) instead of src/main.tsx. */
-export function studioPageWith(entry: string): string {
+/**
+ * The Studio's own index.html, as it ships, with the app's part played by `entry` (a fixture) instead of src/main.tsx.
+ * Its early script (the signed-in Studio asked for beside the app's start) is the Studio's own when the entry is the app
+ * (`withApp`): served (studioPageAs) or built (vite.app-build.config.ts) from `early`; a page that draws parts of it
+ * without App leaves it out.
+ */
+export function studioPageWith(entry: string, withApp = false): string {
   const page = readFileSync(studioPage, 'utf8')
   if (!page.includes('/src/main.tsx')) throw new Error('index.html no longer loads /src/main.tsx')
-  return page.replace('/src/main.tsx', entry)
+  if (!page.includes(EARLY_TAG)) throw new Error(`index.html no longer loads ${EARLY}`)
+  return page.replace('/src/main.tsx', entry).replace(EARLY_TAG, withApp ? EARLY_TAG.replace(EARLY, early) : '')
 }
 
 /** A page that is the Studio's own index.html, as it ships, with `entry` as its app (studioPageWith). */
-export const studioPageAs = (path: string, entry: string): Plugin => ({
+export const studioPageAs = (path: string, entry: string, withApp = false): Plugin => ({
   name: `sophia-fixture-studio-page${path}`,
   configureServer: (server) => {
     server.middlewares.use((req, res, next) => {
       if (!req.url?.startsWith(path)) return next()
-      void server.transformIndexHtml(req.url, studioPageWith(entry)).then((html) => {
+      void server.transformIndexHtml(req.url, studioPageWith(entry, withApp)).then((html) => {
         res.setHeader('content-type', 'text/html')
         res.end(html)
       }, next)

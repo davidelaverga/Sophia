@@ -11,7 +11,9 @@ import fixtures, { appAddresses, studioPageWith } from './vite.fixtures.config.t
 //   import.meta.env.DEV holds. Vite builds it when NODE_ENV is development (playwright.config.ts sets it for this
 //   server) or unset (VITE_USER_NODE_ENV below, as a .env's NODE_ENV=development); an inherited NODE_ENV of anything
 //   else would build production React, so the build refuses it (developmentOnly).
-// - The page is the Studio's own index.html, as it ships, with fixtures/app.tsx as its entry (studioPageWith).
+// - The page is the Studio's own index.html, as it ships, with fixtures/app.tsx as its entry and its early script
+//   (signed-in-load.ts) kept, as the app's page (studioPageWith): a build joins the two in one entry, the early module
+//   first, as the Studio's own build does.
 // - The app's addresses are rewritten to the page, as the deployment's are (appAddresses).
 // - Supabase Auth is a synthetic service at this server's own address, which the checks answer in the page. These
 //   variables are this server's alone.
@@ -40,7 +42,7 @@ const appPage: Plugin = {
   name: 'sophia-fixture-app-page-built',
   enforce: 'pre',
   resolveId: (id) => (id === page ? page : null),
-  load: (id) => (id === page ? studioPageWith('/app.tsx') : null),
+  load: (id) => (id === page ? studioPageWith('/app.tsx', true) : null),
 }
 
 export default mergeConfig(fixtures, {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatInput, ChatNotice, ChatReply } from '@sophia/contracts/room-chat'
 import {
+  DELIVERY_NOT_CONFIRMED,
   receiveChat,
   receiveNotice,
   type Arrivals,
@@ -12,7 +13,7 @@ import type { RoomConnection } from './livekit-room.ts'
 type Connection = { current: RoomConnection | null }
 const unknown = (t: ChatTurn): ChatTurn =>
   t.state === 'sending' || t.state === 'responding'
-    ? { ...t, state: 'unknown', reason: 'Reply unconfirmed. Nothing is resent automatically.' }
+    ? { ...t, state: 'unknown', reason: 'Not confirmed: her reply may not come. Nothing is sent again on its own.' }
     : t
 
 export const MIC_STILL_ON = 'Your microphone couldn’t be turned off, so typing to Sophia didn’t start. Try again.'
@@ -138,7 +139,7 @@ export function useTypedChat(connection: Connection, silence: () => Promise<bool
       await c.sendChat(packet)
     } catch {
       setChat((turns) => turns.map((t) => (t.id === packet.id ? unknown(t) : t)))
-      throw new Error('Delivery unconfirmed. Nothing is resent automatically.')
+      throw new Error(DELIVERY_NOT_CONFIRMED)
     }
   }
   useEffect(() => {

@@ -81,7 +81,10 @@ interface Moment {
 const SAID: readonly (readonly [(m: Moment) => boolean, KeptLine])[] = [
   [(m) => m.withdraw === 'sending' || m.check === 'checking', line('Taking it out…', { busy: true })],
   [(m) => m.withdraw === 'done', line('Taken out of the brief.', { settled: true })],
-  [(m) => m.withdraw === 'unknown', line('Not confirmed it was taken out.', { action: 'retry-undo', busy: true })],
+  [
+    (m) => m.withdraw === 'unknown',
+    line('Not confirmed: it may already be out of the brief.', { action: 'retry-undo', busy: true }),
+  ],
   [(m) => m.withdraw === 'rejected', line('Couldn’t take it out: forget it from the brief.', { error: true })],
   [(m) => m.check === 'built', line('Something was built on it already: forget it from the brief.', { settled: true })],
   [
@@ -89,7 +92,7 @@ const SAID: readonly (readonly [(m: Moment) => boolean, KeptLine])[] = [
     line('Couldn’t check what goes with it: forget it from the brief.', { error: true, action: 'undo' }),
   ],
   [(m) => m.keep === 'sending', line('Keeping it…', { busy: true })],
-  [(m) => m.keep === 'unknown', line('Not confirmed it was kept.', { action: 'retry', busy: true })],
+  [(m) => m.keep === 'unknown', line('Not confirmed: it may already be kept.', { action: 'retry', busy: true })],
   [(m) => m.keep === 'rejected', line('Couldn’t keep it.', { error: true })],
   [(m) => m.keep === 'done', line('Kept in the brief.', { action: 'undo', settled: true })],
 ]

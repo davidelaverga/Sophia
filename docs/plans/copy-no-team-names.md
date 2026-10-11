@@ -15,9 +15,9 @@
 
 - Resources: «The tools your team connects to this project will live here.», as its siblings say what will live there.
 - The access sheet: «No assistant is connected, and none can be connected from here yet.»
-- A check (`src/app/no-team-names.test.ts`) reads every string in the code the Studio builds, as TypeScript parses
-  it (literals, a template's parts, JSX text: never a comment), and finds no name of the people who build it; tests
-  and test data aside.
+- A check (`src/app/no-team-names.test.ts`, now `what-is-read.test.ts`) reads every string in the code the Studio
+  builds, as TypeScript parses it (literals, a template's parts, JSX text: never a comment), and finds no name of the
+  people who build it; tests and test data aside.
 
 ## Checks (written first)
 
