@@ -59,6 +59,8 @@ That is the completed code state of this PR.
   option, not the first.
 - Fixture pages ask for a theme in the address (`theme=light`) without keeping it (`asked`, not `localStorage`), so a
   spec's run leaves nothing behind.
+- After the review (Codex on #234, 2026-10-11): the invalid field's boundary on paper is the rose ink itself (it was
+  the room's rose at 0.55, 1.5:1 against the page); the spec checks the sign-in's invalid state at 3:1 or more.
 - The spec's `ratio()` named its grounds page first, so the paper covered the press's own plane and a paper ink read
   as 1:1 (CI's «send ready» failure); grounds are nearest first, as `lowContrast` collects them (2026-10-11).
 

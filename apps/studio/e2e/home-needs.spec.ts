@@ -59,6 +59,23 @@ test('home · needs you: her light smaller at the column’s head; none, one qui
   await expect.poll(async () => (await page.locator('.hw-light').boundingBox())?.width).toBe(480)
 })
 
+test('home @phone · needs you: her mark keeps the phone’s 48 px, clear of the greeting', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(`${PAGE}?needs=some`)
+  const mark = page.locator('.hw-side .hw-light svg[data-mark="umbral"]')
+  await expect.poll(async () => (await mark.boundingBox())?.width).toBe(48)
+  // The greeting's words stop before the mark: its padding-right keeps the mark's room (personal.css, ≤ 860).
+  const hello = await page.locator('.hw-hello').boundingBox()
+  const markBox = await mark.boundingBox()
+  const words = await page.locator('.hw-hello').evaluate((el) => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return range.getBoundingClientRect().right
+  })
+  expect(hello).not.toBeNull()
+  expect(words).toBeLessThanOrEqual((markBox?.x ?? 0) + 0.5)
+})
+
 test('home · needs you: by the side’s width a row takes two lines; under 1100 the page is one column, nothing wider than the screen', async ({
   page,
 }) => {
