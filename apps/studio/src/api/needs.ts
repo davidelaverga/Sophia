@@ -12,6 +12,13 @@ import { callApi } from './client.ts'
 export const listNeeds = (token: string, signal?: AbortSignal): Promise<NeedList> =>
   callApi('/api/v1/me/needs', { token, method: 'GET', ...(signal ? { signal } : {}) }, parseNeedList)
 
+/**
+ * The person has seen a need (A15, `markNeedSeen`): for a reply it advances their last seen personal turn, so the reply
+ * leaves the list; for any other kind the service answers 204 and changes nothing. A 204 is the whole answer.
+ */
+export const markNeedSeen = (token: string, id: string): Promise<void> =>
+  callApi(`/api/v1/me/needs/${encodeURIComponent(id)}/seen`, { token, method: 'POST' }, () => undefined)
+
 /** The wire's needs as Home shows them: the project by its title, the rest as they are. */
 export const needsOf = (list: Pick<NeedList, 'needs'>): Need[] =>
   list.needs.map((n) => ({
@@ -41,13 +48,15 @@ export interface NeedAt {
 export type Where = { place: 'personal' } | { projectId: string; view: View; at: NeedAt }
 
 /**
- * The address a ref gives (Codex on #245): a work item is named in Tasks' fragment (`#task-`), a version opens in the
- * viewer when its report is known. A decision and a lobby entry have no address of their own yet: their view.
+ * The address a ref gives (Codex on #245): a work item, and a decision through the work item that holds it, are named
+ * in Tasks' fragment (`#task-`); a version opens in the viewer through the report that holds it. A lobby entry and a
+ * personal turn have no address of their own: their view.
  */
 export function atOf(ref: WireNeed['ref']): NeedAt {
   if (ref.kind === 'work_item') return { taskId: ref.id }
-  if (ref.kind === 'artifact_version' && ref.artifactId) {
-    return { report: { artifactId: ref.artifactId, versionId: ref.id, size: 'side', format: 'markdown' } }
+  if (ref.kind === 'work_decision' && ref.within) return { taskId: ref.within }
+  if (ref.kind === 'artifact_version' && ref.within) {
+    return { report: { artifactId: ref.within, versionId: ref.id, size: 'side', format: 'markdown' } }
   }
   return {}
 }

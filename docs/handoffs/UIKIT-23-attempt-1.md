@@ -72,3 +72,18 @@ Fixed in `55e8bb54` (`docs/plans/needs-api.md`, «After the review»):
   have no address yet: their view. The spec's presses read `… #task-w1` and `… report <artifact> <version>`.
 - Measured in the page (`home.html?needs=api`): the five presses as the spec expects; `?needs=api&locked=1`: no list,
   0 reads. `pnpm format`, `lint`, `typecheck` (studio, contracts), `needs.test.ts` 4, `contracts.test.ts` 4: clean.
+
+## Post-review, round 2 (Codex on #245)
+
+Fixed in `9d5f7f32`:
+
+- **P2, a decision is the work board's**: `ref.kind` `mission_decision` → `work_decision` (`WorkDecision`: a decider,
+  an expiry, rendered in Tasks); A15's `why` names the source.
+- **P2, a reply's read transition**: A15 adds `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204): for a
+  reply it advances the person's last seen personal turn (a mark A10 keeps beside the space); for any other kind it
+  changes nothing. `markNeedSeen` in `api/needs.ts`; `useNeeds.open` posts it for a reply and reads the list again.
+- The ref's `artifactId` became `within` (the record that holds the named one: a version's report, a decision's work
+  item), so `atOf` opens a decision at its task as a version in the viewer.
+- Measured in the page (`home.html?needs=api`): the decision's press `open work …aa #task-…c3`, the reply's press
+  `personal` then `seen reply:t9`, and the list 5 → 4 rows. `needs.test.ts` 4, `contracts.test.ts` 4, `generate:check`,
+  format, lint, typecheck: clean.
