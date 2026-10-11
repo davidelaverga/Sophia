@@ -55,6 +55,9 @@ this handoff.
   glyphs sized to their circles (`.avatar`, `.tile-initial`, `.pdot`), the project name centred in its 48 px bar.
 - The informe's «≤ 8 combinations per screen» is not gated: sizes × weights × mono stay above it where a view mixes
   labels, data and words (Conversations 16, Tasks 15). Counted here.
+- After the review (Codex on #231, 2026-10-11): the controls' `font: inherit` inherited the parent's leading, so a
+  small control kept 20 instead of 16; the controls' rule and `.text-button` name the formula after the shorthand, and
+  `typeOff` enforces each size's own step (the two reading voices left out). Measured locally: type-scale.spec green.
 
 ## Remaining obligations
 

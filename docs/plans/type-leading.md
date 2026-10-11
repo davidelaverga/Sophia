@@ -52,3 +52,9 @@
   nine) but not to the informe's eight: sizes × weights × mono stay above it where a view mixes labels, data and
   words. Counted in the handoff, not gated.
 - A report's page keeps its own typography; it is a document, not the Studio's chrome.
+- **After the review (Codex on #231, 2026-10-11)**: the controls' `font: inherit` shorthand inherited the parent's
+  leading too, so a control at its own size (a small ghost in a card: 12 px under a 20 px parent) kept 20 instead of
+  16; the controls' rule names the formula again after the shorthand, and `.text-button` names it instead of 20 px (20
+  at its 13 px, 16 at a lane's 12). The checker (`typeOff`) now enforces the size's own step (up to 12 → 16, 13 to 15
+  → 20, 16 to 18 → 24, from 20 → 32) rather than any grid value; the two reading voices are left out of it (a
+  report's page at 17/1.6, the personal space's turns at 15/24).
