@@ -26,7 +26,8 @@
     "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
     "messages": [
       468,
-      470
+      470,
+      472
     ],
     "mainNotice": "Claude explicitly acknowledged fec45a0e; no merge requested/performed",
     "cluster": {
@@ -41,21 +42,27 @@
         "Author subsequently says leftover test database/logins exist and plans cleanup"
       ],
       "unresolved": [
-        "Actual PID/data-dir/port identity and current clients",
-        "Exact leftover ownership census against prior attempt receipts",
-        "Exact owned-resource cleanup and terminal test/cluster settlement"
+        "Worker login origin",
+        "Full sole-postmaster/current-client census",
+        "Post-drop absence and final probe/global assembler-role cleanup",
+        "Cluster terminal settlement",
+        "N2 exact source or PostgreSQL behavior"
       ],
       "action": {
         "message": 470,
         "request": "Read-only identity/current-client/ownership census before exact owned disposable cleanup; record warning and commands/results; no broad prefix or other-mission cleanup",
-        "delivery": "queued during live implementation; acknowledgment/cleanup not yet observed"
+        "delivery": "470 delivered; author acknowledges cleanup already occurred; followup472 queued normally during implementation"
       },
-      "authority": "Existing bounded dormant N2 local source/test preparation only; no production authority"
+      "authority": "Existing bounded dormant N2 local source/test preparation only; no production authority",
+      "followup": "Deletion preceded ownership check. DB/API origin partly corroborated posthoc; after472 Claude explicitly admits no pre-drop activity census was captured and original no-client claim was wrong. Final cleanup/settlement unproven.",
+      "knownMissingEvidence": [
+        "Pre-drop client census was not captured; earlier no-client claim wrong by author admission"
+      ]
     },
     "lastNativeObservation": {
-      "N2DraftSQL": "planned candidate path created722lines, uncommitted/not independently read or qualified",
-      "state": "Thinking/running after delivered470; no immutable candidate/test result",
-      "cleanup": "Exact collapsed command group/full cleanup not inspected; outcome unresolved, not asserted absent",
+      "N2DraftSQL": "722-line draft created, author-reported initial CASE syntax failure then corrected apply; no immutable/source/PG qualification",
+      "state": "N2 module created; author reports typecheck/lint pass, revising deadline/lease rules. After472 author corrects no-client and harmlessness claims; no immutable candidate.",
+      "cleanup": "Actual deletion acknowledged; complete private record read, partial actual identity/origin outputs corroborated. Final probe/global assembler-role/cluster settlement pending.",
       "startupWarning": "Not proof of simultaneous servers or corruption"
     }
   },
@@ -84,11 +91,17 @@
     "newReviewerPgClusters": 0,
     "sophiaProviderCalls": 0,
     "missionSpend": 0,
-    "authorLocalPg": "Startup observed, current identity/leftover census/cleanup unresolved; not production",
+    "authorLocalPg": "Local PG active, fixture deletion occurred before ownership check; partial posthoc origin/PID corroboration, final cleanup/settlement unproven",
     "reviewAgentUsage": "unreported; not subscription remaining-capacity proof"
   },
   "acceptance": "All36 full status values unchanged",
   "rollback": "No live rollback; CX92 uncertain-data/old-schema incompatibility retained",
-  "cleanup": "No new reviewer browser/app/PG/runtime process; prior82 reviewer app stacks/CX92 PG clusters settled. Author CON01 disposable PG start observed with warning/leftovers; actual ownership/census/cleanup and N2 execution still unresolved/in progress.",
-  "next": "Inspect exact N2 handback including owned-cluster identity/cleanup and independently review source plus actual PostgreSQL concurrency/restart/privacy/uncertainty evidence"
+  "cleanup": "No new reviewer browser/app/PG/runtime process; prior82 reviewer app stacks/CX92 PG clusters settled. Author fixture DB/two logins deleted before ownership check; DB/API origin partly corroborated posthoc; final probe/assembler-role/cluster settlement pending.",
+  "next": "Inspect exact N2 handback including owned-cluster identity/cleanup and independently review source plus actual PostgreSQL concurrency/restart/privacy/uncertainty evidence",
+  "sharedReceipt": {
+    "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6105010378",
+    "exactReadback": true,
+    "docsCommit": "d7302b9bbe4666343e9a22b48658b6d723c0df7c",
+    "followup": "New local deletion/posthoc evidence appended after original publication"
+  }
 }

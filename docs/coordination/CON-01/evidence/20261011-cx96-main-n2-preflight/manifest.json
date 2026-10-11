@@ -14,6 +14,11 @@
       "bytes": 1594
     },
     {
+      "path": "author-local-followup.json",
+      "sha256": "b332374aa016210d3d6474c510a413c639c725e0ae211897b1732ca36780eacd",
+      "bytes": 3605
+    },
+    {
       "path": "check-runs.json",
       "sha256": "2439f5da9fb8e533ea94ff98d8c1b930fbac3a2be3b8460026b56811de3aafa2",
       "bytes": 1081
