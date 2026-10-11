@@ -235,6 +235,14 @@ let rolesBefore: string[]
 let assemblerExisted: boolean
 const adminUrl = process.env.SOPHIA_DISPOSABLE_DATABASE_URL ?? ''
 
+/**
+ * The cluster-global assembler role is shared by every file that applies the S3 candidate (N2's and N4's), and node --test
+ * runs files at once. Each file holds this lock on the admin database from the first line of its setup to the last of its
+ * teardown, so one file's role census and the role's removal never overlap another file's use of the role.
+ */
+const ROLE_LOCK = `hashtext('con01-assembler-role')`
+let roleLock: pg.Client
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const sha256 = (s: string) => createHash('sha256').update(s, 'utf8').digest('hex')
 
@@ -583,6 +591,9 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
   let post: Catalog
 
   before(async () => {
+    roleLock = new pg.Client({ connectionString: adminUrl })
+    await roleLock.connect()
+    await roleLock.query(`SELECT pg_advisory_lock(${ROLE_LOCK})`)
     rolesBefore = await roleNames()
     assemblerExisted = rolesBefore.includes(ROLE)
     db = await createTestDatabase()
@@ -623,34 +634,39 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
   })
 
   after(async () => {
-    for (const s of sessions) {
-      try {
-        s.release(true)
-      } catch {
-        // released already by its test
+    try {
+      for (const s of sessions) {
+        try {
+          s.release(true)
+        } catch {
+          // released already by its test
+        }
       }
+      await assemblerPool.end()
+      await api.end()
+      await ownerPool.end()
+      await db.drop()
+      await onAdmin(`DROP ROLE IF EXISTS ${loginRole}`)
+      if (!assemblerExisted) await onAdmin(`DROP ROLE IF EXISTS ${ROLE}`)
+      // This file's own roles are gone. Any other change is one a named class explains, else it fails.
+      const now = await roleNames()
+      const workerRole = db.apiRole.replace(/^sophia_api_t_/, 'sophia_worker_t_')
+      for (const role of [loginRole, db.apiRole, workerRole, ...(assemblerExisted ? [] : [ROLE])])
+        assert.ok(!now.includes(role), `${role} remains`)
+      assert.deepEqual(
+        now.filter((r) => !rolesBefore.includes(r) && !MIGRATION_ROLES.includes(r) && !TEST_LOGIN.test(r)),
+        [],
+        'no role appeared that neither the migrations nor another file’s test database explain',
+      )
+      assert.deepEqual(
+        rolesBefore.filter((r) => !now.includes(r) && !TEST_LOGIN.test(r)),
+        [],
+        'no role removed but test logins',
+      )
+    } finally {
+      await roleLock.query(`SELECT pg_advisory_unlock(${ROLE_LOCK})`).catch(() => undefined)
+      await roleLock.end()
     }
-    await assemblerPool.end()
-    await api.end()
-    await ownerPool.end()
-    await db.drop()
-    await onAdmin(`DROP ROLE IF EXISTS ${loginRole}`)
-    if (!assemblerExisted) await onAdmin(`DROP ROLE IF EXISTS ${ROLE}`)
-    // This file's own roles are gone. Any other change is one a named class explains, else it fails.
-    const now = await roleNames()
-    const workerRole = db.apiRole.replace(/^sophia_api_t_/, 'sophia_worker_t_')
-    for (const role of [loginRole, db.apiRole, workerRole, ...(assemblerExisted ? [] : [ROLE])])
-      assert.ok(!now.includes(role), `${role} remains`)
-    assert.deepEqual(
-      now.filter((r) => !rolesBefore.includes(r) && !MIGRATION_ROLES.includes(r) && !TEST_LOGIN.test(r)),
-      [],
-      'no role appeared that neither the migrations nor another file’s test database explain',
-    )
-    assert.deepEqual(
-      rolesBefore.filter((r) => !now.includes(r) && !TEST_LOGIN.test(r)),
-      [],
-      'no role removed but test logins',
-    )
   })
 
   describe('its footprint and its role', () => {
