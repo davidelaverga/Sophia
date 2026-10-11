@@ -1,0 +1,38 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0103.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+  "supplementalTree": "407118d0041b3ce2ea207459060cb2a08c23ce11",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Primary-only correction of both actualN4 privacyP1s independently rechecked. Complete923test-only delta and own74parallel+6PASS; draft211FFverified/freshautomaticreviewrunning. All36 full acceptance statuses unchanged.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Named dormantN4 privacy/idempotency/accounting/denial scopesPASS;746composedoriginal34/37expected3differences exit1 honestly retained;923parallel74+own6PASS. No useful native/provider/hosted proof.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-head review advancement only authorized/completed; no merge/main/live batch. Inbox/quota private; subjects/cohort/subscriptionroute/finiteallowance unbound.",
+  "cleanup": "Two new correction/final owned PG17.6 clusters stopped/PIDabsent/removed; ownDB/roles absent0clients. BaselineCX102cluster also settled. No new browser/app stack; primaryresources preserved.",
+  "next": "Inspect terminal author C/ICU receipts and fresh exact923 automatic review; return smallest corrections and independently recheck affected scopes. Then progress held sourcehook/nativecomposition without unapproved live effects.",
+  "evidence": "evidence/20261011-cx103-n4-corrected/",
+  "findings": [
+    "CX102-P1-01 scoped_resolved",
+    "CX102-P1-02 scoped_resolved"
+  ],
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPgSinceCX102": 2,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "missionSpend": 0
+  },
+  "rollback": "No live rollback. Both local fixture clusters fully settled/removed. Native/deployment artifact restore and governed-data rehearsal remain unbound; N4 rollback tests are author L1 only."
+}

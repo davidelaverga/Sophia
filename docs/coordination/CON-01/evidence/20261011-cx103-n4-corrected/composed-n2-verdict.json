@@ -1,0 +1,37 @@
+{
+  "candidate": "746735e8fe53e2274b518309cdb372f2caf7ee94",
+  "originalTestAssertions": "unchanged in private rebased copy, repository untouched",
+  "exit": 1,
+  "total": 37,
+  "pass": 34,
+  "fail": 3,
+  "wrapperExit": 1,
+  "allGreen": false,
+  "inspectedDifferences": [
+    {
+      "test": "adds exactly its four tables...",
+      "difference": "exactly10N4functions added to footprint at first assertion"
+    },
+    {
+      "test": "scrubs at an author's withdrawal, an admin's, and an erasure",
+      "difference": "onlybyte_length1518->0 and context_hash->tombstone"
+    },
+    {
+      "test": "a withdrawal against an assembly, both orders",
+      "difference": "same two fields only"
+    }
+  ],
+  "ownComposedN2": {
+    "pass": 16,
+    "exit": 0,
+    "change": "private N4 apply plus privacy digest/length expectation only"
+  },
+  "final923Parallel": {
+    "total": 74,
+    "pass": 74,
+    "fail": 0,
+    "exit": 0,
+    "concurrency": 2
+  },
+  "limits": "923 committed N2/N4 suites each apply their own candidate; separate composed private run at746 verifies actual N2+N4 semantics. SQL unchanged at923."
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0103.md",
+  "artifacts": {
+    "evidence/20261011-cx103-n4-corrected/acceptance-status-comparison.json": "dd636293b188ec99bbd89fcb9f5c6c646966bbd2a772c9ff4bffad3fba4480a9",
+    "evidence/20261011-cx103-n4-corrected/composed-n2-verdict.json": "0f5ab98e4fff4220361e19f7fc3dcb0ef2cf6860d6e3522ae0b04b06fd0f2b9c",
+    "evidence/20261011-cx103-n4-corrected/corrected-composition-method.json": "252c8ee0302a239352cf9526ab831f6e4f2cb9bf860174084399a8cc2ae70236",
+    "evidence/20261011-cx103-n4-corrected/corrected-n2-independent-evidence.json": "f46283d508fbde8d6b10e336bc840eaa0a76c832421ccc503b063677c380ddb7",
+    "evidence/20261011-cx103-n4-corrected/corrected-n4-independent-evidence.json": "4394c8a54fc117af3f54df534a44235488a560edc757189373a55d1add2c1e08",
+    "evidence/20261011-cx103-n4-corrected/corrected-n4-owned-receipt.json": "957b0869cbef55a3598642ccaac9566afd3b6ef5f376aa69629035c28a2c0c50",
+    "evidence/20261011-cx103-n4-corrected/final-n4-independent-evidence.json": "7e3b17478d1e6bef3ea33e1e22b9bf3630a14a786ffc2f4431f370ed6c720fcd",
+    "evidence/20261011-cx103-n4-corrected/final-n4-owned-receipt.json": "2fc9e6aec1c9e9f189e73339c77316f7a48825bbf1de659e379ae7b98ba393ab",
+    "evidence/20261011-cx103-n4-corrected/findings.json": "d68023b3a08edcfcdac79d1a949838e87658814cc9cf955f8c95a1cd4bb4b642",
+    "evidence/20261011-cx103-n4-corrected/operation-handoff.json": "b688b1fe03b3b6fa3dd4a80a7d876e0cfc3ce35a9e341dd511c85bd66b67da3e",
+    "evidence/20261011-cx103-n4-corrected/source-and-review.json": "c97bd1f6f59b050d212e91acb7167ac011a07e31d26f72e64078bac1e9b584fe"
+  }
+}

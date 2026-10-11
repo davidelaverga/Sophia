@@ -1,0 +1,7 @@
+{
+  "candidate": "746735e8fe53e2274b518309cdb372f2caf7ee94",
+  "originalN2Test": "536c6bda088efa3b7e17eaab92f50902df6d0282d543a9f19f81c7740ed3ff22",
+  "privateComposedCopy": "c61d46d37fb2020f6389345e9cb9ed658dd5b29b0544535ff0e3d734c8be3dfb",
+  "composition": "Original assertions unchanged; imports/metadata URLs rebased, N4 SQL appended when applyingS3. Original repository files untouched.",
+  "expected": "Original N2 suite exit1/three intentional footprint+privacy-scrub failures must be inspected, not automatically accepted. Own16 adjusts only privacy digest/length expectation and applies N4."
+}

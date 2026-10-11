@@ -1,0 +1,48 @@
+{
+  "originalFailureCandidate": "16fe77efc79c6053ec231d9d26faee905e4b0886",
+  "correctionCandidate": "746735e8fe53e2274b518309cdb372f2caf7ee94",
+  "correctionTree": "e1268ad6e55a5a82eccae0d970ab3f050ba4a7a4",
+  "finalCandidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+  "finalTree": "407118d0041b3ce2ea207459060cb2a08c23ce11",
+  "sourceHashes": {
+    "corrected": {
+      "db/candidates/con01-s4-reply-fences.sql": "adc90f226b2ca6e147d00545fb34e4b66ce618e510087c6d2055882bcd314d50",
+      "packages/persistence/src/conversation-fences.db.test.ts": "97b486d52946b03b4884244b0a9507fd469623be68447221f0d7baac36a53935",
+      "packages/persistence/src/conversation-assembly.db.test.ts": "536c6bda088efa3b7e17eaab92f50902df6d0282d543a9f19f81c7740ed3ff22"
+    },
+    "final": {
+      "db/candidates/con01-s4-reply-fences.sql": "adc90f226b2ca6e147d00545fb34e4b66ce618e510087c6d2055882bcd314d50",
+      "packages/persistence/src/conversation-fences.db.test.ts": "f1fb9eb165176dc72e5ffc6c66117c5752ee354536c23f79876fdcfea769902f",
+      "packages/persistence/src/conversation-assembly.db.test.ts": "3ba59e614aa528cb58556642b9612806aeed325cc4a7726304fed444161181f7"
+    }
+  },
+  "completeDeltaRead": {
+    "16fe_to_746": "two files +258/-53; full SQL correction and test changes read",
+    "746_to_923": "two test files +78/-46; full lock-wrapper delta read, no assertion or SQL change"
+  },
+  "independentScriptHashes": {
+    "cx102/corrected/run-corrected-owned.py": "fda299db1d586188069ba5e84b6442a44f9e065dd58d5783c87ea0834da69588",
+    "cx102/corrected/n4-independent.mjs": "19c5db12ee46413ecd8e5e6a1bb33f322d66d74f074c520dc3cc0aa4af707f3c",
+    "cx102/corrected/n2-original-composed.db.test.ts": "c61d46d37fb2020f6389345e9cb9ed658dd5b29b0544535ff0e3d734c8be3dfb",
+    "cx102/corrected/n2-independent-composed.mjs": "43a3f0a3f179681300e6aebcd4630fe13911ec18111ef3bbaf52b1267e6191d4",
+    "cx102/final/run-parallel-owned.py": "a6a25ca0258b9707ce0657ca1a479cbe7b3b96386db737b1a9874863265a6066",
+    "cx102/final/n4-independent.mjs": "6b63817b25320afbd4315abf587140a0e6194122ffbaec1a38eb1d0d97dc4ddf"
+  },
+  "authorRecord": "CC-0103/6109187561 full 4048-character body read; author fail-before/mutants/broad gates remain attributed",
+  "reviewAuthority": "Exact Claude mission message509 received/acknowledged510: advance existing draft211 only to923 and request automatic review; no merge/main/shared/live authority",
+  "githubCheckpoint": {
+    "at": "2026-10-11T12:55:05.357579+00:00",
+    "head": "923336e23d6f47a9138f329186c788217ae11b1e",
+    "draft": true,
+    "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "request": 6109204563,
+    "automaticSummary": 6104725869,
+    "automaticStatus": "running at923, not approval",
+    "checks": {
+      "queued": 12,
+      "conclusions": [
+        ""
+      ]
+    }
+  }
+}

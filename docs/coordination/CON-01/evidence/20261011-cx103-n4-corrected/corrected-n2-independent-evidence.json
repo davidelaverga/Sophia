@@ -1,0 +1,123 @@
+{
+  "candidate": "746735e8fe53e2274b518309cdb372f2caf7ee94",
+  "scope": "Independent actual local PG17.6, synthetic only; no app/native/provider/hosted",
+  "cases": [
+    {
+      "name": "Real API/worker denial and no-actor row isolation",
+      "verdict": "PASS_scoped",
+      "observed": "42501 twice; assembler without actor sees0messages"
+    },
+    {
+      "name": "Binding derives actual saved asker and reply destination",
+      "verdict": "PASS_scoped",
+      "observed": "saved asker/project/conversation/message and current mission match"
+    },
+    {
+      "name": "Reject null item discriminator",
+      "verdict": "PASS_scoped",
+      "observed": "context_forged",
+      "actual": "context_forged"
+    },
+    {
+      "name": "Reject null item plus missing untrusted-data preamble",
+      "verdict": "PASS_scoped",
+      "observed": "context_forged",
+      "actual": "context_forged"
+    },
+    {
+      "name": "Reject null item plus swapped constraints/pending sections",
+      "verdict": "PASS_scoped",
+      "observed": "context_forged",
+      "actual": "context_forged"
+    },
+    {
+      "name": "Reject missing item discriminator",
+      "verdict": "PASS_scoped",
+      "observed": "context_forged",
+      "actual": "context_forged"
+    },
+    {
+      "name": "Reject numeric item discriminator",
+      "verdict": "PASS_scoped",
+      "observed": "context_forged",
+      "actual": "context_forged"
+    },
+    {
+      "name": "Reject wrong asking identity",
+      "verdict": "PASS_scoped",
+      "observed": "context_forged",
+      "actual": "context_forged"
+    },
+    {
+      "name": "Honest control records after rejected/rolled-back probes",
+      "verdict": "PASS_scoped",
+      "observed": "exact honest bytes committed"
+    },
+    {
+      "name": "Fresh module call with new connections reconciles existing committed context without another attempt",
+      "verdict": "PASS_scoped",
+      "observed": "already_recorded, one durable claim"
+    },
+    {
+      "name": "Two simultaneous calls for one reply publish one context",
+      "verdict": "PASS_scoped",
+      "observed": [
+        "in_progress",
+        "recorded"
+      ]
+    },
+    {
+      "name": "Actual author withdrawal scrubs context and message hashes, preserving metadata",
+      "verdict": "PASS_scoped",
+      "observed": "body/hashesNULL; context digest tombstoned and length0"
+    },
+    {
+      "name": "Honest accepted constraints retain microsecond ordering",
+      "verdict": "PASS_scoped",
+      "observed": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1392
+      }
+    },
+    {
+      "name": "Honest pending decisions retain microsecond ordering",
+      "verdict": "PASS_scoped",
+      "observed": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1548
+      }
+    },
+    {
+      "name": "Honest millisecond-spaced decisions control records",
+      "verdict": "PASS_scoped",
+      "observed": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1548
+      }
+    },
+    {
+      "name": "No operational/model/allowance rows written",
+      "verdict": "PASS_scoped",
+      "observed": {
+        "commands": 0,
+        "jobs": 0,
+        "work_attempts": 0,
+        "outbox": 0,
+        "runtime_commands": 0,
+        "usage_records": 0,
+        "conversation_grants": 0,
+        "conversation_reservations": 0
+      }
+    }
+  ],
+  "cleanup": {
+    "databaseDropped": true,
+    "rolesAbsent": true,
+    "remainingDatabases": [],
+    "otherClients": 0
+  },
+  "finishedAt": "2026-10-11T12:46:40.896Z"
+}

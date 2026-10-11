@@ -1,0 +1,102 @@
+{
+  "candidate": "746735e8fe53e2274b518309cdb372f2caf7ee94",
+  "level": "L1 local PG17.6; supplied answers; no native/provider/hosted",
+  "cases": [
+    {
+      "name": "Independent current publication and canonical replay control",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Later erasure removes retained source digest after prior ineligibility suppression",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Source withdrawal hides a later answer derived from its withdrawn answer",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Scope suppression then later erasure is monotonic and idempotent",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Independent API worker and assembler direct-role denials",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "No collateral model or operational writes",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "control": {
+      "first": "published",
+      "replay": "already_answered",
+      "sameAnswer": true
+    },
+    "laterErasure": {
+      "first": {
+        "reason": "source_withdrawn",
+        "verdict": "source_out",
+        "cancelled": 0,
+        "withdrawn": 1,
+        "suppressed": 1
+      },
+      "again": {
+        "reason": "source_withdrawn",
+        "verdict": "source_out",
+        "cancelled": 0,
+        "withdrawn": 0,
+        "suppressed": 0
+      },
+      "sourceDigestChanged": true,
+      "retainedOriginalDigest": false
+    },
+    "transitive": {
+      "directOldSource": 0,
+      "readPriorAnswer": 1,
+      "withdrawal": {
+        "reason": "source_withdrawn",
+        "verdict": "source_out",
+        "cancelled": 0,
+        "withdrawn": 1,
+        "suppressed": 1
+      },
+      "firstBodyGone": true,
+      "secondBodyGone": true,
+      "memberStillReads": false,
+      "replay": "answer_withdrawn",
+      "replayVisible": false,
+      "dependentContextErased": true,
+      "extra": {
+        "thirdAnswerGone": true,
+        "pendingCancelled": true,
+        "uncertainLedgerUnchanged": true,
+        "grantUnchanged": true,
+        "secondSourceOutNoEffect": true
+      }
+    },
+    "scopeErasure": {
+      "tombstoned": true,
+      "reasonTimeUnchanged": true,
+      "idempotent": true
+    },
+    "denial": "42501 for all9 attempts",
+    "collateral": {
+      "commands": 0,
+      "jobs": 0,
+      "work_attempts": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "usage_records": 0,
+      "conversation_grants": 1,
+      "conversation_reservations": 1
+    }
+  },
+  "cleanup": {
+    "databaseDropped": true,
+    "rolesAbsent": true,
+    "remainingDatabases": [],
+    "otherClients": 0
+  },
+  "finishedAt": "2026-10-11T12:46:41.491Z"
+}

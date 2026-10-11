@@ -1,0 +1,18 @@
+{
+  "historicalFailuresRetained": "CX102 actual16fe independent2PASS2FAIL; unchanged historical evidence",
+  "findings": [
+    {
+      "id": "CX102-P1-01",
+      "status": "scoped_resolved",
+      "candidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+      "evidence": "Actual ineligibility->erase and scope->erase retained-digest tombstone, immutable reason/time, repeat no-op PASS at746 and923."
+    },
+    {
+      "id": "CX102-P1-02",
+      "status": "scoped_resolved",
+      "candidate": "923336e23d6f47a9138f329186c788217ae11b1e",
+      "evidence": "Actual R1->R2->R3 answer withdrawal, pendingR4cancel, memberRLS bodyNULL, replayanswer_withdrawn/visiblefalse, unchanged uncertainreservation+grant PASS at746 and923."
+    }
+  ],
+  "limits": "Dormant L1 SQL entrypoints supplied answer text. Source hook/audience producer/native/runtime/provider/live/whole acceptance still unqualified."
+}
