@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   INITIAL_VIEWER_STATE,
+  addressLensFor,
   lensInAddress,
   readViewerState,
   storedViewerState,
@@ -63,5 +64,12 @@ describe('the lens in the address', () => {
     assert.equal(withLensInAddress('?demo=1&lens=build', 'converse'), '?demo=1')
     assert.equal(withLensInAddress('?lens=explore', 'converse'), '')
     assert.equal(withLensInAddress('', 'explore'), '?lens=explore')
+  })
+  it('is this viewer’s to read when the link is fresh or written for them; another subject reads none', () => {
+    const mine = viewerKey('davide', P)
+    assert.equal(addressLensFor(mine, '?lens=explore', null), 'explore') // a shared link, opened fresh
+    assert.equal(addressLensFor(mine, '?lens=explore', mine), 'explore') // written by this shell
+    assert.equal(addressLensFor(viewerKey('ana', P), '?lens=explore', mine), null) // another subject, same page
+    assert.equal(addressLensFor(mine, '?demo=1', null), null)
   })
 })

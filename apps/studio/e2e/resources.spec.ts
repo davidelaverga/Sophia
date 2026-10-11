@@ -475,8 +475,9 @@ test('arrow keys move across the tiles; Tab leaves the grid in one step', async 
   await at(0).focus()
   await page.keyboard.press('ArrowRight')
   await expect(at(1)).toBeFocused()
-  await page.keyboard.press('ArrowDown') // one row down, or the last tile when the row below is shorter
-  await expect(at(Math.min(1 + perRow, last))).toBeFocused()
+  // One row down when a tile stands there; when the row below is shorter the focus stays (nothing is below).
+  await page.keyboard.press('ArrowDown')
+  await expect(at(1 + perRow <= last ? 1 + perRow : 1)).toBeFocused()
   await page.keyboard.press('Home')
   await expect(at(0)).toBeFocused()
   await page.keyboard.press('End')

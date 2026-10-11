@@ -68,17 +68,16 @@ test('commands · the index of keys: ? where nothing takes stray typing, Ctrl+/ 
     /Search goals and tasks\s*\/$/,
     /Commands\s*Ctrl\+K$/,
     /Keyboard shortcuts\s*Ctrl\+\/$/,
+    /Switch to the (light page|dark room)\s*Ctrl\+Shift\+L$/, // the appearance, from anywhere (places-commands.md)
     /Invite someone\s*I$/,
   ])
   await page.keyboard.press('Escape')
   await expect(index(page)).toHaveCount(0)
-  // In the Studio view the message bar takes stray typing: ? is text for it; Ctrl+/ opens the index from the field.
+  // In the Studio view with its chat shut, nothing takes stray typing: `?` opens the index, which names the chat's key.
+  // The key is pressed as itself: `Shift+/` reaches the page as `/` (the search's key) on a synthesized keyboard.
   await page.goto(PAGE)
   await drawn(page, DRAWN.room)
-  await page.keyboard.press('Shift+/')
-  await expect(page.locator('[data-typing-sink]').first()).toHaveValue('?')
-  await expect(index(page)).toHaveCount(0)
-  await page.keyboard.press('Control+/')
+  await page.keyboard.press('?')
   await expect(index(page)).toBeVisible()
   await expect(index(page).locator('.keys-list li')).toContainText([
     /Converse lens\s*1$/,
@@ -87,6 +86,17 @@ test('commands · the index of keys: ? where nothing takes stray typing, Ctrl+/ 
     /Open the chat\s*C$/,
     /Open the brief\s*B$/,
   ])
+  await page.keyboard.press('Escape')
+  await expect(index(page)).toHaveCount(0)
+  // The chat open, its message bar takes stray typing: ? is text for it; Ctrl+/ opens the index from the field.
+  await page.keyboard.press('c')
+  const bar = page.locator('[data-typing-sink]').first()
+  await expect(bar).toBeVisible()
+  await page.keyboard.press('?')
+  await expect(bar).toHaveValue('?')
+  await expect(index(page)).toHaveCount(0)
+  await page.keyboard.press('Control+/')
+  await expect(index(page)).toBeVisible()
 })
 
 test('commands · the index has a visible control too: «Keyboard shortcuts» in the account menu, with its key', async ({
