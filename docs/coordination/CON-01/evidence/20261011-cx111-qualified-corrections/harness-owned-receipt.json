@@ -1,0 +1,49 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "f06bd0997a7da2133fe133d0babb5fe43ec98c10",
+  "tree": "e41cbc4f1f7bc63d230049dd6d29030cd34a4c4d",
+  "at": "2026-10-11T15:44:13.329886+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/candidates/con01-s2-conversation-reply-ledger.sql": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+    "packages/persistence/src/conversation-ledger.db.test.ts": "72bd63ec90e472b028e5a0a5feb8e7740581f32ee1ebf8b30e9459dd5c7136cb",
+    "db/candidates/con01-s3-conversation-reply-context.sql": "16ee9dea1567b289ce9d0688d4fbc9c97080ee6dffeaf671b544768ef500e5cf",
+    "packages/persistence/src/conversation-assembly.ts": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+    "packages/persistence/src/conversation-fences.db.test.ts": "c387e1e3ba2c384f7af55b95086bb8a4d1abd424dad95630ceac8316a9699b90",
+    "db/candidates/con01-s4-reply-fences.sql": "4b591f609339965e1e883f45ccb11daa3ebc90d0a4bec77bba86589b0e162995"
+  },
+  "independentScriptHash": "fc6be0388d2966ef338ddd154b91e7d652bd34a89e8415ee458075969876b527",
+  "commands": [
+    {
+      "label": "affected-two-parallel",
+      "command": [
+        "node",
+        "--test",
+        "--test-concurrency=2",
+        "packages/persistence/src/conversation-assembly.db.test.ts",
+        "packages/persistence/src/conversation-fences.db.test.ts"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    },
+    {
+      "label": "independent-cases",
+      "command": [
+        "node",
+        "closed-independent.mjs"
+      ],
+      "outerSeconds": 600,
+      "timedOut": false,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  }
+}

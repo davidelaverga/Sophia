@@ -1,0 +1,60 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "CX100 dated actual dashboard tuple retained; no live refresh/deployment this checkpoint. Installed combined composition/customledger/current work/rollback and Studio sourceSHA unbound.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Full exact86b two-file source delta and f06 two-file harness delta read; historical ae N4 delta also read.",
+    "Frozen installs in exact detached86b/f06 checkouts; Node24.21.0/pnpm11.7.0.",
+    "Owned PG17.6 exactf06 affected N2+N4 concurrency2:78/78 PASS; extracted helper ordering probe2/2 PASS.",
+    "Owned PG17.6 exact86b five conversation suites concurrency4:129/129 PASS; independent12 PASS with stale raw candidate label retained.",
+    "FreshownedPG corrected-label-only independent12 rerun:allPASS, unchanged criteria.",
+    "Three clusters stop0/PIDabsent/data removed;24 independent fixture database/role censuses clean; harness0otherclients/admin ended.",
+    "Fresh GHmain/draft190/WBC/SDD references; exactCC0115/CC0116 fully read.",
+    "Read-only hosted Studio Account display inspected and restored; no sign-in/create/invite/native action.",
+    "ExactCON qualification messages returned; finite-buffer binding amendment requested during background gates."
+  ],
+  "results": "Exact86b source correction129 committed+12 independent PASS; separatef06 harness78+2 PASS. Named corrections reviewed; combined/native/provider/live acceptance open. All36 full verdicts retained.",
+  "unresolvedEffects": "No uncertain hosted effect. Combined/current-main integration, finite-buffer/native host-copy qualification and owner/window/cohort/route/budget bindings remain open.",
+  "rollback": "No live rollback. Both local fixture clusters fully settled/removed. Native/deployment artifact restore and governed-data rehearsal remain unbound; N4 rollback tests are author L1 only.",
+  "nextBoundedAction": "Primary publishes explicit source86b+harnessf06 combined review candidate after ordinary gates and finite-buffer binding amendment; reviewer examines exact combined delta/gates and binding, preserving shared owner/window holds."
+}

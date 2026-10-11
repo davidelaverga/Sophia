@@ -1,0 +1,65 @@
+{
+  "sourceCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+  "sourceTree": "135056d80c8893b8ed298cc96c0fa579f88367c8",
+  "sourceParent": "72a7c979093b4989dec53a87910299ba950f0295",
+  "harnessCandidate": "f06bd0997a7da2133fe133d0babb5fe43ec98c10",
+  "harnessTree": "e41cbc4f1f7bc63d230049dd6d29030cd34a4c4d",
+  "harnessParent": "ae5673fe35a9f3292b34776784e3aed95f1212ad",
+  "sourceDelta": {
+    "files": 2,
+    "additions": 31,
+    "deletions": 17,
+    "sqlSHA256": "ea80fbccb783105007d5395bc916fbd839d737b17728659bff7b2db9ac66f228",
+    "testSHA256": "efd7db50e0c955f07857f3b4454b555a01c2c5dc3801d668d4c788c48e84cb66"
+  },
+  "harnessDelta": {
+    "files": 2,
+    "additions": 43,
+    "deletions": 31,
+    "assemblyTestSHA256": "087dbefd7dbd62aca32870cd8e0c600eb2d08472dec32b455ef0f0d684831996",
+    "extractedHelperSHA256": "3813f5e13e858d624d1370e2982d29e3f985f57dddb50ea71877a3be02184232"
+  },
+  "sourceResults": {
+    "committedTests": 129,
+    "independentCases": 12,
+    "allPass": true,
+    "exit": 0,
+    "beforeCX110": "bareNOINHERIT accepted withfalseedge,0claims/0contexts,42501",
+    "after": "same case newtrueedge,actualrecorded attempt1/1claim/1context and SELECT succeeds; falseedge refusals and trueSETfalse controls retained"
+  },
+  "harnessResults": {
+    "affectedTests": 78,
+    "independentCases": 2,
+    "allPass": true,
+    "exit": 0,
+    "previousOrderingFailureResolved": true,
+    "limits": "No full assembled source/main candidate or native cleanup qualification."
+  },
+  "reviewerReceiptRepair": "First independent scripts in cx110-final retained a hardcoded72a candidate label. Exact86b wrapper/source hashes prove execution target, but raw mislabeled outputs were not promoted. Corrected label only, unchanged criteria,12 cases rerun in freshownedPG; both receipts agree86b. Original raw outputs retained privately.",
+  "historicalScopeCorrection": "CX109 described ae567 as one-file. Actual ae delta has two test files. Remaining N4 count-helper/end-sites delta independently read now; it matches the originally examined faulty helper. f06 full two-file correction and affected N2/N4 suites independently qualified. Prior ordering failure remains valid.",
+  "primaryReceipts": [
+    {
+      "id": 6110748382,
+      "name": "CC0115",
+      "fullyRead": true,
+      "scope": "author fail-before38/39, after39/39 and129parallel; broad86b gates pending at receipt"
+    },
+    {
+      "id": 6110757886,
+      "name": "CC0116",
+      "fullyRead": true,
+      "scope": "author ae/f06 comparative20-round probes,128parallel; ICU pending at receipt"
+    }
+  ],
+  "githubRefresh": {
+    "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "draft211": "5e7c43dc4ee026dbd15278757e2906d430ff1609",
+    "draft190": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "draft190Title": "SDD-01 G7 voice qualification, product side (source only, default off)",
+    "SDDcoordinationIssue": 103,
+    "WBCcoordinationIssue": 74,
+    "namedSharedOwnerOrWindowEstablished": false
+  },
+  "browserReadOnly": "Existing hosted Sophia Studio accessible in IAB; Account display inspected and restored. Supplied test inbox differs from displayed signed-in account address; this is display evidence only, not a second authenticated subject/cohort or CON app verification. No address committed.",
+  "decision": "Scoped source and test-harness corrections qualify independently. Draft-only86b advancement acceptable after its ordinary gates pass. Explicit combined candidate/current-main integration still needs review. No merge/shared/runtime/hosted effects authorized."
+}

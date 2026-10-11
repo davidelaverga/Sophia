@@ -1,0 +1,115 @@
+{
+  "candidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+  "level": "L1 owned PG17.6; role adoption only, no app/native/provider",
+  "cases": [
+    {
+      "name": "Unexpected existing parent membership is refused before adopting assembler",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Unexpected existing login member gains no assembly caller through adoption",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Existing expected API-only parent remains accepted",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Unsafe login role attributes remain refused",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Existing API parent with admin option is refused without normalization",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Existing safe bare role is accepted and only expected API grant is added",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "parent": {
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unexpected memberships"
+      },
+      "preflightNoCandidateObjects": true,
+      "externalRoleGraphUnchanged": true
+    },
+    "child": {
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unexpected memberships"
+      },
+      "preflightNoCandidateObjects": true,
+      "externalRoleGraphUnchanged": true
+    },
+    "allowed": {
+      "installationError": null
+    },
+    "unsafe": {
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unsafe attributes"
+      },
+      "preflightNoCandidateObjects": true,
+      "externalRoleGraphUnchanged": true
+    },
+    "admin": {
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unexpected memberships"
+      },
+      "preflightNoCandidateObjects": true,
+      "externalRoleGraphUnchanged": true
+    },
+    "empty": {
+      "installationError": null
+    }
+  },
+  "cleanup": [
+    {
+      "kind": "parent",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "child",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "allowed",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "unsafe",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "admin",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "empty",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    }
+  ],
+  "finishedAt": "2026-10-11T15:47:40.952Z"
+}

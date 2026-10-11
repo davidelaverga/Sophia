@@ -1,0 +1,34 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0111.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+  "supplementalTree": "135056d80c8893b8ed298cc96c0fa579f88367c8",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Exact86b source correction129 committed+12 independent PASS; separatef06 harness78+2 PASS. Named corrections reviewed; combined/native/provider/live acceptance open. All36 full verdicts retained.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Named source129+12 and separate test-only harness78+2 PostgreSQL crossings pass; no native/provider/hosted qualification.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only86b advancement conditional on ordinary gates; no merge/live effect permission.",
+  "cleanup": "Three fresh owned PG17.6 clusters stopped/PIDs absent/data removed.24 independent fixture DB/role censuses clean; harness0otherclients/admin ended. All earlier reviewer resources settled.",
+  "next": "Primary publishes explicit source86b+harnessf06 combined review candidate after ordinary gates and finite-buffer binding amendment; reviewer examines exact combined delta/gates and binding, preserving shared owner/window holds.",
+  "evidence": "evidence/20261011-cx111-qualified-corrections/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 3,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "codingAgentSubscriptionConsumption": "Normal authorized coordination; unmeasured/private."
+  }
+}

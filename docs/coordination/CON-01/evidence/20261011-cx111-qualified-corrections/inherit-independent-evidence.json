@@ -1,0 +1,215 @@
+{
+  "candidate": "86b71e647b70e21711581853ea5afc3c06cfe6c0",
+  "level": "L1 actual owned PG17.6; actual dormant compiler, no native/provider/app",
+  "cases": [
+    {
+      "name": "Explicit API edge INHERIT FALSE SET TRUE is refused",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "API edge defaults to FALSE when made under role NOINHERIT and is refused",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "API edge INHERIT TRUE SET FALSE remains usable by actual compiler",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "API edge INHERIT TRUE SET TRUE remains usable by actual compiler",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Role NOINHERIT with API edge INHERIT TRUE records actual context",
+      "verdict": "PASS_scoped"
+    },
+    {
+      "name": "Bare NOINHERIT role without API edge must not install a non-inheriting edge",
+      "verdict": "PASS_scoped"
+    }
+  ],
+  "observations": {
+    "Explicit API edge INHERIT FALSE SET TRUE is refused": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unexpected memberships"
+      },
+      "externalGraphUnchanged": true,
+      "noCandidateObjects": true
+    },
+    "API edge defaults to FALSE when made under role NOINHERIT and is refused": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": false,
+          "set_option": true
+        }
+      ],
+      "installationError": {
+        "code": "42501",
+        "message": "sophia_conversation_assembler exists with unexpected memberships"
+      },
+      "externalGraphUnchanged": true,
+      "noCandidateObjects": true
+    },
+    "API edge INHERIT TRUE SET FALSE remains usable by actual compiler": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": false
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": false
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1044
+      },
+      "recordedContexts": 1,
+      "claims": 1,
+      "projectSelectCode": null
+    },
+    "API edge INHERIT TRUE SET TRUE remains usable by actual compiler": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1044
+      },
+      "recordedContexts": 1,
+      "claims": 1,
+      "projectSelectCode": null
+    },
+    "Role NOINHERIT with API edge INHERIT TRUE records actual context": {
+      "before": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1044
+      },
+      "recordedContexts": 1,
+      "claims": 1,
+      "projectSelectCode": null
+    },
+    "Bare NOINHERIT role without API edge must not install a non-inheriting edge": {
+      "before": [],
+      "after": [
+        {
+          "admin_option": false,
+          "inherit_option": true,
+          "set_option": true
+        }
+      ],
+      "installationError": null,
+      "compilerResult": {
+        "outcome": "recorded",
+        "attempt": 1,
+        "byteLength": 1044
+      },
+      "recordedContexts": 1,
+      "claims": 1,
+      "projectSelectCode": null
+    }
+  },
+  "cleanup": [
+    {
+      "kind": "Explicit API edge INHERIT FALSE SET TRUE is refused",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "API edge defaults to FALSE when made under role NOINHERIT and is refused",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "API edge INHERIT TRUE SET FALSE remains usable by actual compiler",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "API edge INHERIT TRUE SET TRUE remains usable by actual compiler",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "Role NOINHERIT with API edge INHERIT TRUE records actual context",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    },
+    {
+      "kind": "Bare NOINHERIT role without API edge must not install a non-inheriting edge",
+      "databaseDropped": true,
+      "rolesAbsent": true,
+      "remainingDatabases": [],
+      "otherClients": 0
+    }
+  ],
+  "finishedAt": "2026-10-11T15:47:39.247Z"
+}

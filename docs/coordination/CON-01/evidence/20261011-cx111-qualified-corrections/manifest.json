@@ -1,0 +1,15 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0111.md",
+  "artifacts": {
+    "evidence/20261011-cx111-qualified-corrections/acceptance-status-comparison.json": "e4552570df19085a74d8feed79dc350bcae2a184c123f4db326e9a050fc3e540",
+    "evidence/20261011-cx111-qualified-corrections/harness-independent-evidence.json": "60772d4cd452d005a89b628f2d1cf13950dba8cf63359f896d590efd5bd7fdb8",
+    "evidence/20261011-cx111-qualified-corrections/harness-owned-receipt.json": "7dc87e1d21a1e5427323b142b49dc0ecba48845f87fc676bc2f954d2b5df0c58",
+    "evidence/20261011-cx111-qualified-corrections/independent-repeat-owned-receipt.json": "2d1521df545ef60c645b6833f0106f0780c18383ee9ead216602f897bed07acb",
+    "evidence/20261011-cx111-qualified-corrections/inherit-independent-evidence.json": "2e030ef00c6cdb297480daf7f5cba80234fac89842b2ec57b296d8ee3b38a661",
+    "evidence/20261011-cx111-qualified-corrections/operation-handoff.json": "8b1b3680da4d60c2a59805d2da1d74dcbc0de5caf1ffd796af6dacfc3a2b543d",
+    "evidence/20261011-cx111-qualified-corrections/role-graph-evidence.json": "c894a8be20331b2e206d206f69aa6c6f7e59b24d089b3f8e185efee062987a4d",
+    "evidence/20261011-cx111-qualified-corrections/source-owned-receipt.json": "d6ddb15fcded3d6c5208897f34b79826f8d1d8abd7c00de16dca0fcf3690ee12",
+    "evidence/20261011-cx111-qualified-corrections/source-review.json": "2f650197b1dee842803bd489904fb9fdb1c7f7005303134dcba461c72998ddf5"
+  }
+}
