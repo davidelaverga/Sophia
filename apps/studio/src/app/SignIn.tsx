@@ -291,6 +291,8 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
   }
   return (
     <Centered title="Sign in to Sophia" light={listening}>
+      {/* What opens, in the door's voice (docs/plans/sign-in-lede.md): the first screen says what Sophia is. */}
+      <p className="screen-lede">A room where your team and Sophia think together.</p>
       {notice && (
         <p className="form-error" role="alert">
           {notice}
