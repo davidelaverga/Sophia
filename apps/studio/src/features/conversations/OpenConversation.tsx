@@ -631,22 +631,23 @@ function MessageItem(props: {
       <div className="conv-msg-body">
         <MessageWords words={words} sophia={sophia} />
         {sophia && at}
-        {m.text !== null && (
-          <MessageActs
-            message={{ text: m.text, at: m.at }}
-            who={messageBy(m, me)}
-            now={now}
-            onQuote={props.onQuote}
-            propose={
-              <>
-                {here.press}
-                {away.press}
-              </>
-            }
-          />
-        )}
         {ended && <p className="conv-ask-ended">{ended}</p>}
       </div>
+      {/* Beside the bubble: the message's box is the acts' box, so they stand at its right edge whatever the bubble's width. */}
+      {m.text !== null && (
+        <MessageActs
+          message={{ text: m.text, at: m.at }}
+          who={messageBy(m, me)}
+          now={now}
+          onQuote={props.onQuote}
+          propose={
+            <>
+              {here.press}
+              {away.press}
+            </>
+          }
+        />
+      )}
       {!sophia && at}
       {here.form}
       {away.form}
