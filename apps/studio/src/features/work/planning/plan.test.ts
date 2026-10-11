@@ -10,6 +10,7 @@ import {
   decidedFor,
   forViewer,
   forYou,
+  blockersOf,
   LANE,
   laneOf,
   latestDecisions,
@@ -651,5 +652,38 @@ describe('the Blocked lane', () => {
     const stray = item('d', { blocked_by: ['not-in-plan'] })
     const got = lanes([item('a'), review, stray], [view('a', { lifecycle: 'running' }), view('c'), view('d')])
     assert.deepEqual([got.c, got.d], ['next', 'next'])
+  })
+})
+
+describe('what the Blocked lane waits on', () => {
+  it('names each blocker once, in the order it came, and not one that is complete', () => {
+    const done = { policy_ref: 'policy-a', status: 'satisfied' as const, evidence_refs: ['e-a'] }
+    const rows = rowsOf(
+      goal(
+        plan([
+          item('a'),
+          item('z'),
+          item('b', { blocked_by: ['a'] }),
+          item('c', { blocked_by: ['a', 'z'] }),
+          item('d', { blocked_by: ['gone'] }),
+        ]),
+        [
+          view('a', { lifecycle: 'running' }),
+          view('z', { lifecycle: 'complete', completion: done }),
+          view('b'),
+          view('c'),
+          view('d'),
+        ],
+      ),
+    )
+    const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
+    assert.deepEqual(
+      held.map((r) => r.item.id),
+      ['b', 'c'],
+    )
+    assert.deepEqual(
+      blockersOf(held, rows).map((r) => r.item.id),
+      ['a'],
+    )
   })
 })

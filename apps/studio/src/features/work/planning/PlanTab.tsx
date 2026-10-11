@@ -2,7 +2,7 @@
 // tasks it has; and, when something waits on the one looking, an amber dot that says so.
 import { Avatar } from '../../../app/Avatar.tsx'
 import type { Resource } from '../../resources/resource.ts'
-import { boardOf, forYou, type GoalView } from './plan.ts'
+import { boardOf, forYou, laneOf, type GoalView } from './plan.ts'
 
 type Person = Resource['owner']
 
@@ -23,6 +23,7 @@ export function PlanTab({ goal, resources, people, viewerId, now }: Props) {
   const { rows } = board
   const faces = [...new Map(rows.flatMap((r) => (r.doer.person ? [[r.doer.person.id, r.doer.person]] : []))).values()]
   const mine = board.operable && forYou(rows, goal.decisions, viewerId, now)
+  const blocked = rows.filter((r) => laneOf(r, rows) === 'blocked').length
   return (
     <span className="plan-tab">
       <span className="plan-tab-faces" aria-hidden>
@@ -33,6 +34,7 @@ export function PlanTab({ goal, resources, people, viewerId, now }: Props) {
       <span className="plan-tab-count">
         {rows.length} {rows.length === 1 ? 'task' : 'tasks'}
       </span>
+      {blocked > 0 && <span className="plan-tab-blocked">{blocked} blocked</span>}
       {mine && <span className="plan-tab-mine">for you</span>}
     </span>
   )

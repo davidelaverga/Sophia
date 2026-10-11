@@ -37,6 +37,7 @@ import {
   actionable,
   boardOf,
   decidedFor,
+  blockersOf,
   laneOf,
   latestDecisions,
   outsideOf,
@@ -123,7 +124,33 @@ const SHOWN = 5
 interface LaneProps extends Omit<TileProps, 'row' | 'index' | 'flags'> {
   lane: LaneView
   rows: PlanRow[]
+  /** Every row of the plan: what a blocked lane's rows wait on is among them. */
+  all: readonly PlanRow[]
   flags: (row: PlanRow) => TileFlags
+}
+
+/** Under the Blocked lane's head: what its rows wait on, each a press that opens the blocker's sheet. */
+function LaneWhy({
+  rows,
+  all,
+  onOpen,
+}: {
+  rows: readonly PlanRow[]
+  all: readonly PlanRow[]
+  onOpen: (id: string) => void
+}) {
+  const blockers = blockersOf(rows, all)
+  if (blockers.length === 0) return null
+  return (
+    <p className="lane-why">
+      <span className="lane-why-word">Waiting on</span>
+      {blockers.map((b) => (
+        <button key={b.item.id} type="button" className="text-button" onClick={() => onOpen(b.item.id)}>
+          {b.item.purpose}
+        </button>
+      ))}
+    </p>
+  )
 }
 
 /** A lane: its head and count, its first tiles, and the rest one press away. */
@@ -138,6 +165,7 @@ function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
         <span className="field-label">{lane.label}</span>
         <span className="count">{rows.length}</span>
       </h4>
+      {lane.key === 'blocked' && <LaneWhy rows={rows} all={tile.all} onOpen={tile.onOpen} />}
       {rows.length === 0 ? (
         <EmptyState slot className="lane-empty">
           {lane.empty}
@@ -471,7 +499,7 @@ function Lanes({
 }: {
   rows: PlanRow[]
   board: ReturnType<typeof useBoard>
-  tile: Omit<LaneProps, 'lane' | 'rows'>
+  tile: Omit<LaneProps, 'lane' | 'rows' | 'all'>
 }) {
   const lanes = useRef<HTMLDivElement>(null)
   const shown = shownLanes(rows)
@@ -486,7 +514,7 @@ function Lanes({
       }}
     >
       {shown.map((lane) => (
-        <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} />
+        <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} all={rows} />
       ))}
       <Threads box={lanes} to={board.lit} from={board.waited} />
     </div>

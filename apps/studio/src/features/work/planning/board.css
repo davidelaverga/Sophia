@@ -169,6 +169,9 @@
 .plan-tab-faces + .plan-tab-count {
   margin-left: 6px;
 }
+.plan-tab-blocked {
+  color: var(--amber);
+}
 .plan-tab-mine {
   display: inline-flex;
   align-items: center;
@@ -260,6 +263,19 @@
 }
 .lane-head .plan-mark::after {
   display: none;
+}
+/* Under the Blocked lane's head: what it waits on, each a press (docs/plans/board-why-blocked.md). */
+.lane-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: -4px 0 0;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.lane-why .text-button {
+  font-size: var(--type-small);
 }
 .lane-head .count {
   margin-left: auto;
