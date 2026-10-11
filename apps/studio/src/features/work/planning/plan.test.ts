@@ -641,6 +641,11 @@ describe('the Blocked lane', () => {
     assert.equal(got.b, 'next')
   })
 
+  it('keeps the row blocked when its blocker closed without completing: a cancelled prerequisite satisfies nothing', () => {
+    const got = lanes([item('a'), after], [view('a', { lifecycle: 'cancelled' }), view('b')])
+    assert.deepEqual(got, { a: 'closed', b: 'blocked' })
+  })
+
   it('does not hold a row for a blocker outside the plan, nor a review waiting for its candidate', () => {
     const review = item('c', { activation: { kind: 'candidate_ready', producer_work_id: 'a' } })
     const stray = item('d', { blocked_by: ['not-in-plan'] })
