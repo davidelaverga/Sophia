@@ -58,7 +58,8 @@ test('commands · the index of keys: ? where nothing takes stray typing, Ctrl+/ 
 }) => {
   await page.goto(`${PAGE}&place=work`)
   await drawn(page, DRAWN.tasks)
-  await page.keyboard.press('Shift+/')
+  // Tasks takes stray typing into its search, so `?` is a letter there: the index comes by Ctrl+/ (and by `?` on Goals, below).
+  await page.keyboard.press('Control+/')
   await expect(index(page)).toBeVisible()
   // Tasks has a search of its own on `/`: the index names it, and the project's search keeps no key here.
   await expect(index(page).locator('.keys-list li')).toHaveText([
