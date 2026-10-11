@@ -8,6 +8,8 @@ import { clockSkew, listNeeds, markNeedSeen, needsOf, whereOf, type NeedAt } fro
 import type { View } from '../../app/route.ts'
 import { VISION } from '../../app/vision.ts'
 import type { Need } from './needs-you.ts'
+import { READ_FAILED, readState } from './places-view.ts'
+import type { Read } from './ReadNotes.tsx'
 
 export interface NeedsGo {
   /** A project's view, at the record the need names when the Studio has an address for it. */
@@ -33,7 +35,14 @@ export function openNeed(wire: readonly WireNeed[], go: NeedsGo, need: Need): vo
   else go.project(where.projectId, where.view, where.at)
 }
 
-export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {}): NeedsSeen | undefined {
+/** What Home gets: the needs when read, and the read itself for its notes (a failed read says so, with Try again). */
+export interface NeedsRead {
+  seen: NeedsSeen | undefined
+  /** Null while nothing is read (no flag, the padlock shut): nothing to report. */
+  read: Read | null
+}
+
+export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {}): NeedsRead {
   const { enabled = VISION, locked = false } = options
   const client = useQueryClient()
   const queryKey = ['vision', 'needs', token]
@@ -46,7 +55,9 @@ export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {})
     retry: false,
   })
   const got = read.data
-  if (!got || locked) return undefined
+  const note: Read | null =
+    enabled && !locked ? { state: readState(read), failed: READ_FAILED.needs, retry: () => void read.refetch() } : null
+  if (!got || locked) return { seen: undefined, read: note }
   const wire = got.list.needs
   // A reply has no answer of its own: opening it is its seen mark (A15), and the list is read again once it is kept.
   const seen = (need: Need) => {
@@ -57,11 +68,14 @@ export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {})
     )
   }
   return {
-    items: needsOf(got.list),
-    open: (need) => {
-      openNeed(wire, go, need)
-      seen(need)
+    seen: {
+      items: needsOf(got.list),
+      open: (need) => {
+        openNeed(wire, go, need)
+        seen(need)
+      },
+      skew: clockSkew(got.list.readAt, got.receivedAt),
     },
-    skew: clockSkew(got.list.readAt, got.receivedAt),
+    read: note,
   }
 }
