@@ -77,7 +77,7 @@ test('menu · the account’s: the plane 6 px under its control at its end, the 
     at: '6 px under, end',
     size: '230 px',
     focused: 0,
-    checked: [],
+    checked: ['Dark ●'], // Appearance: the dark room is the choice in force (docs/plans/light-mode.md)
   })
   await page.keyboard.press('ArrowDown')
   await expect(page.getByRole('menuitem', { name: 'How privacy works' })).toBeFocused()
