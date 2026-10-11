@@ -383,6 +383,13 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+/* A native disclosure is a press: under the pointer its words step up to the ink (Codex on #232). */
+summary {
+  cursor: pointer;
+}
+summary:hover {
+  color: var(--text);
+}
 /* A press that waits keeps the focus (aria-disabled) and looks as one that can't be pressed, never as a live one. */
 button:disabled,
 .pill[aria-disabled='true'],
@@ -4150,9 +4157,6 @@ button.contribution-quote:hover {
   cursor: pointer;
   color: var(--text-2);
   font-size: 12px;
-}
-.mission-more > summary:hover {
-  color: var(--text);
 }
 .mission-more[open] {
   display: grid;
