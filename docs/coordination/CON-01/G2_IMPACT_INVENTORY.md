@@ -97,7 +97,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
 | File | Owner today | CON-01's change |
 |---|---|---|
-| Migration 0049 (`CREATE OR REPLACE` of the six functions above) | One writer; #190's 0046/0047 (at `0483d40`) replace only `media_assignments` | Replaced from their latest bodies, with the insertions only |
+| A CON-01 migration (`CREATE OR REPLACE` of the six functions above; planned as 0049, a plan only, not reserved) | One writer; #190 adds 0046 and a provisional 0051, neither touching the six (§7.1) | Replaced from their latest bodies, with the insertions only |
 | A04's `RuntimeWorkBinding` (amended in A16), `dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts`, `dsh-bundle/dist` | Contracts and runtime writer | `oneOf` goal or reply |
 | `config/specialists.json` + schema, `role-registry.ts`, `cordis.patch.yml`, `runtime-unit.json` (id, presets, `role_routes`, `model_routes`), lock and digests | Davide (LFE-00) | One role, one preset and one route (D-4). `pnpm artifacts:record` once, on the combined candidate |
 
@@ -106,6 +106,20 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 | A reply launcher in the runtime image (new) | Runtime writer, with Davide (image) | Applies the filesystem rule (Landlock or equivalent) before it executes dsh, and writes the five-field lease. Where the rule can't be enforced it refuses, and no child starts |
 
 **Requested here:** acknowledgment from #190's owner (SDD-01 G7) and from the WBC-02/SDD-01 runtime owner, plus a named `main` window, before 0049 and before the runtime artifacts are recorded. The runtime files above are part of the same request. No route or credential file is changed: none is bound (BINDING_MAP §8.4).
+
+### 7.1 Accepted base and window, as recorded (2026-10-10, 13:2x UTC)
+
+Read-only, from #190, #198 and `main`. Before any shared edit this table must name all three: the accepted base (an exact `main` commit), the window (who holds it, which files, from when), and the census numbers. **Until it does, none of G2's shared parts is written.**
+
+| Item | State |
+|---|---|
+| Accepted base for shared edits | **None accepted.** `main` is `444235d0`, contained in CON-01's head; that is a fact, not an accepted base |
+| Window (exclusive, named) | **None.** CON-01's request (#190 6096401122, 10:06; renewed in #198 6096904900, 11:14) is unacknowledged. The reviewer's checkpoints CX36, CX37, CX39 and CX43 say so |
+| WBC-02/SDD-01 runtime owner | **Not named** in any record |
+| #190 (SDD-01 G7) | Published head `8a39b076`, open and draft. Its reviewer (#190 6097537955, 12:33) records an unpublished local chain `316d2bac` (tree `f89e6861`) on `8a39`, with additive 0051 changes (an EXECUTE revocation on an older sequence function), T4 and Presence C ordering, and author work and review still open. It is shared SQL and runtime work in flight. A green `8a39` qualifies nothing about `316d2bac` |
+| Migration numbers | **Provisional.** #190's `0051` is acknowledged as a file name only, pending a final census of `main` and both candidates (#198 6096561293). CON-01's 0049 is a plan, not a reservation. No number is taken without the recorded census |
+| Generated contracts | A15 (#190) and A16 (CON-01) both regenerate `openapi.json`, the generated types and the validators. Whichever lands second merges `main` and regenerates. Neither is hand-merged |
+| CON-only additive work (S2, S3) | Proposed as a footprint only (#198 6097912569). It needs a census number before any file, and it replaces nothing shared |
 
 ## 8. Why still C, and not B
 

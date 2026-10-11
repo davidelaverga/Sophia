@@ -367,18 +367,31 @@ Assembly records what it put in the prompt:
 
 **Publication** happens at capture, in one transaction. It requires every condition above plus a complete final assistant message (`turn/end` `completed`). It inserts one Sophia message (`reply_id` = the request; `replyTo` = its message), sets the request to `answered` with `answer_id`, and emits `.reply_changed`. Otherwise the request ends `cancelled` with the privacy reason, or `failed` (`turn_error`, `max_tokens`, `blocked`), and nothing is published. Partial streamed text is never published (A26).
 
-**After publication**, an AFTER UPDATE OR DELETE trigger on `source_objects` fires on **any transition out of the full predicate**: `eligible` turning false, `state` leaving `ready`, `scope` becoming `private`, a changed `sha256` or `eligibility_revision`, or the row's deletion. Typical causes are A08 withdrawal through `mission_erase_source`, research revocation and a design source. An AFTER UPDATE trigger on `projects.audience_revision` does the same for every request recorded at an older audience revision whose answer is not yet published. Published answers stay with their own audience rule, which is the project's current members. For every conversation request whose `conversation_reply_sources` names that source (directly or inherited):
-- an open request is cancelled `source_withdrawn`;
-- a published answer is suppressed (`withdrawn_by = 'source'`);
-- projections generated from it are deleted;
-- its native copies are scrubbed and retired.
+**After publication: the source hook** (amended by CC-0117 from CC-0107 and CC-0110, after their reviews; proposed, not written; it is a shared schema change that waits for Q1–Q4 in §8.8). One trigger, in a CON-owned function: `conversation_source_hook AFTER UPDATE OF scope, eligible, state, sha256, eligibility_revision ON sophia.source_objects FOR EACH ROW WHEN` any of those five `IS DISTINCT FROM` its new value. It fires on any change of them, not only one that leaves the full predicate, so that a later erasure of an already-suppressed source still tombstones what was retained (CX-0102). Typical causes are A08 withdrawal through `mission_erase_source`, research revocation and a design source. In order, it:
+1. **returns at once** unless a `conversation_reply_sources` row names the source. That is one probe of a CON-owned index, `conversation_reply_sources_by_source ON sophia.conversation_reply_sources (project_id, source_id)`, made in the same change. Without it every such update scans the whole table: measured at 250,003 dependency rows, a sequential scan of 5,556 buffers (about 25 ms), against 3–4 buffers with the index (CC-0110, L1, PG 16.15). The same index serves `conversation_source_out`'s dependency query and the foreign key's check;
+2. **takes `sophia.projects` FOR UPDATE NOWAIT** for the source's project. A writer that keeps the protocol below already holds that lock and passes at once. A writer that doesn't gets **55P03 only while another transaction holds a conflicting lock on that project row** (a publication, a check, a claim, or an insert's foreign-key check); that replaces the 40P01 Codex reproduced (CX106). Uncontended, it takes the lock and proceeds, serialized after the fact exactly like a conforming writer;
+3. **calls `conversation_source_out`** (N4), whose project lock is then already held. For every conversation request whose `conversation_reply_sources` names that source (directly or inherited), acting on a reply only through its live attempt:
+   - an open request is cancelled `source_withdrawn`;
+   - a published answer is suppressed (`withdrawn_by = 'source'`);
+   - projections generated from it are deleted;
+   - its native copies are scrubbed and retired.
 
-The triggers are additive: no mission, research or design function is replaced. Tested apart from the conversation-message race, each both in flight and after publication:
+There is no `DELETE` hook: S3's NO ACTION foreign key already refuses deleting a source any reply read. There is no `INSERT` hook: a new row is in no recorded set. AFTER ROW triggers fire by name, so this one runs before 0042's `source_objects_withdraw_work`, and neither reads what the other writes. The hook is additive: no mission, research or design function is replaced.
+
+**The writer protocol it rests on** (for Q1–Q4's owners to acknowledge): every transaction that updates a `source_objects` row holds that row's project FOR UPDATE before its first source write. Production's one chain, `withdraw_mission_entry` (0018:447), keeps it. **The no-cycle conclusion is scoped:** it holds for the conversation crossings (publication, check, claim, begin and record, 0048's writers and `source_out`) under that protocol. It is not a proof for the whole runtime: the WBC-02, research and design chains that run inside `withdraw_mission_entry`'s transaction are covered only in that they run after its project lock, and their own internal orders stay theirs.
+
+**Audience: a rule, not a trigger.** The AFTER UPDATE trigger on `projects.audience_revision` proposed in earlier revisions is withdrawn. Assembly supersedes a context recorded at an older audience revision, and publication refuses `audience_changed`, both under the project lock. Published answers stay with their own audience rule, which is the project's current members. The rule, for Q5's owner: every writer that changes a project's membership locks the project FOR UPDATE, bumps `audience_revision`, then changes `project_members`, in one transaction. `accept_room_invitation` (0010:313-334) conforms. **Joins bump the revision too, so they cancel running replies at publication: today's behaviour, kept.** `scripts/add-member.ts` takes no project lock and bumps nothing: **while it stays executable, no CON recipe, runbook or setup uses it** (not OP-0001-r2, not OP-0002-r2, nothing later); CON's second account joins through the Studio invitation. That holds until Luis acknowledges a replacement or a rule (Q5).
+
+**Required tests, none run** (the hook isn't installed, and no conversation runtime exists), apart from the conversation-message race, each both in flight and after publication:
 - withdrawal while the model runs, and after publication;
 - a scope-only change to `private`;
 - a changed body or hash;
-- an audience change;
-- the second-generation summary case above.
+- an audience change, a join included;
+- the second-generation summary case above;
+- the CX106 interleaving with the hook installed: 55P03 for the non-conforming writer, the publication completes, no 40P01; the same raw writer uncontended proceeds with a conforming writer's effects; a conforming writer against publication, in both orders;
+- with the hook installed, a withdrawal that also reaches WBC-02 work items, a research task and a design task beside a publication: each existing chain reaches its current outcome, and the runtime, research, design and coordination `*.db` suites pass unchanged;
+- the hook's probe and `source_out`'s query planned on the index, with bounded buffers, among many unrelated dependencies;
+- N2's caller-chain census, extended to every granted function that can update `source_objects`: each locks the project FOR UPDATE first.
 
 **Exactly once.** One request has one attempt and one outbox row. Restart, reconnect and replay read state; they never admit. An uncertain create leaves its request `outcome_unknown`, terminal and never published (§8.2.1); `reconcile_runtime_outbox` decides only the outbox row and never writes a second create; its spend stays counted until an operator reconciles it (A12, A13). Asking again is a new message and a new request.
 
@@ -425,6 +438,8 @@ The bridge's `metered()` gains a `conversation_reply` account with its own runti
 
 **Davide's decision (source design, not live authorization):** "Throwaway harness home per reply", on the existing pinned runtime and admission machinery, with isolated writable runtime state and no new VM or harness. Sophia's saved conversation and project records are authoritative. Each answer assembles bounded, currently eligible context (§8.3). No native conversation history is reused across completed replies. The qualifications Codex relayed are bound one by one at the end of this section.
 
+**Amended by CC-0117, CC-0118, CC-0120 and CC-0121 (proposed; under Codex's review; no runtime code exists).** CC-0121: the answer's bound is 0048's 16,000 characters, not the goal path's 120,000. CC-0118 corrects CC-0117 after CX-0112: the bounds are a reply-only projection's, not the wire's, and a normal completion drains rather than being fenced. CC-0120, after CX-0113: fd 3's tail is read to end-of-file before a relay is classified, both paths end `closed`, and only storable text is ever forwarded. After CX-0108, the parent's relay of a reply's observations is bound finite and fenced, and nothing is cleaned or receipted as deleted before the result, delivery and accounting are persisted and the parent holds no copy (below, "The parent's relay"). From CC-0107 and CC-0110 after their reviews: the per-child profile, the projection cache named, the supervisor buffer replaced by diagnostic files in the home, `runtime_commands.body`'s scrub confirmed possible, the parent's transient buffers listed with a fixed-token error path, and Landlock at ABI 4. Davide's B-1 decision is unchanged and is what orders this: the authorized result, delivery and accounting are persisted before any cleanup.
+
 **Today's runtime, as read at `b9815b1`:**
 - One long-lived dsh process per project: `runtime-supervisor.ts:176-183`.
 - One process-global environment: `HOME=<root>/home`, `TMPDIR=<root>/home/tmp`, `DSH_HOME=<root>/dsh-home` (`:131-154`).
@@ -436,7 +451,7 @@ The bridge's `metered()` gains a `conversation_reply` account with its own runti
 So a per-reply home cannot be had inside that process without switching a process-global home. It needs its own process.
 
 **The reply child (bound design).** Goal attempts keep today's path unchanged. For a reply `create`, the project's bridge does not create an agent in its own process. It asks the supervisor for a **reply child**:
-- **The same pinned runtime.** The same dsh launcher and bundle (`unit.runtimeDir`, `unit.launcherEntry`), the same profile digest, and a reply profile that loads only what `sophia-conversation-v1` needs. There is no new harness.
+- **The same pinned runtime.** The same dsh launcher and bundle (`unit.runtimeDir`, `unit.launcherEntry`), the same profile digest, and a reply profile that loads only what `sophia-conversation-v1` needs. There is no new harness. A fresh `DSH_HOME` has no profile, and dsh rewrites `cordis.yml` in its profile at every boot, so the profile must be writable: the launcher copies the reviewed reply profile from the read-only runtime directory into the child's `DSH_HOME/profiles/`, checks its digest before `exec`, and it is deleted with the home.
 - **Its own environment, set once at spawn and never changed.** `HOME`, `TMPDIR`, `DSH_HOME` and `SOPHIA_WORKSPACE` all point under **`<root>/replies/<attemptId>/`**: `home/`, `home/tmp/`, `dsh-home/`, and `work/`, an empty directory. That directory is created fresh with mode 0700, only after the execution claim answered `first` (below). A directory already present then is a leftover: no child is started, the request is reconciled `outcome_unknown`, and the leftover is cleaned by steps 3–5. A home is never reused. The parent's and the supervisor's own environments never change.
 - **No other credentials.** It receives only the reply route's credential reference, by name; none exists until a route is bound (§8.4). dsh's local credential store (`config/dsh/base-rows.reviewed.json:100-101`) is disabled in the reply profile.
 - **Writes are contained by the operating system, not by convention.** Passing the child no other path is not isolation: it runs as the same user. The reply launcher applies a filesystem rule before it executes dsh:
@@ -444,8 +459,8 @@ So a per-reply home cannot be had inside that process without switching a proces
   - read only on the runtime directory, the pinned Node executable and the system libraries;
   - nothing else, including other projects' roots and the project's own `home`, `dsh-home`, `work` and `workspace`.
   The mechanism is Landlock, which needs no privilege, or the equivalent the runtime owner names for the deploy host. **It is qualified on the actual host, not by kernel version** (CX-0030):
-  - **ABI.** The launcher reads the host's Landlock ABI (`landlock_create_ruleset` with `LANDLOCK_CREATE_RULESET_VERSION`) and requires ABI 3 or later, so that truncation is handled too. It handles every filesystem right that ABI defines.
-  - **Inherited descriptors.** A ruleset does not restrict descriptors already open, so the launcher closes every one except four before it restricts and executes: the prompt pipe (read), the observation pipe (fd 3), and stdout and stderr to the supervisor's diagnostics.
+  - **ABI.** The launcher reads the host's Landlock ABI (`landlock_create_ruleset` with `LANDLOCK_CREATE_RULESET_VERSION`) and requires **ABI 4 or later**, the level the renderer's reviewed launcher already requires (`renderers/web/pdf/uml/landlock-launch.py`), reusing that pattern (`closerange`, `RLIMIT_CORE`, `pidfd`) with its owner's acknowledgment (Q9). It handles every filesystem right that ABI defines.
+  - **Inherited descriptors.** A ruleset does not restrict descriptors already open, so the launcher closes every one except four before it restricts and executes: the prompt pipe (read), the observation pipe (fd 3), and stdout and stderr, which the launcher has opened onto `diag/stdout` and `diag/stderr` inside the child's home (below).
     - **Four is the pre-`exec` launcher boundary** (CX-0031), not the running process's total.
     - A test records the launcher's own `/proc/self/fd` at that moment, just before `exec`, and finds exactly those four.
     - The running Node and dsh then open their own: the session log and journal files, sockets to the API and the provider, and event-loop descriptors. All of them are opened under the ruleset.
@@ -454,8 +469,49 @@ So a per-reply home cannot be had inside that process without switching a proces
   - Where any of these fails, no reply child is started: the create is answered `rejected` (`containment_unavailable`), and asks stay inactive.
   This is a new launcher in the runtime image, so it is part of the shared-file request.
 - **Read-only shared files.** The runtime directory, bundle and assets are read-only to the child under that rule, and their digests are checked before and after (the recorded artifacts).
-- **The parent keeps no content.** The prompt goes to the child on a pipe, never in `argv`, the environment or a parent file. The parent journals no content for a reply. Its only durable record is the API's **execution claim** (below), which is content-free.
-- **The child journals before it emits.** Each observation is appended to the child's journal in its home, and fsynced, before it is written to fd 3, a separate pipe from stdout and stderr, which the supervisor buffers as diagnostics (`runtime-supervisor.ts:76, 209-210`). The journal is therefore a superset of anything the parent forwarded, and it is the contained recovery record (crash recovery, below). The parent forwards through the existing observation route with the reply's binding and epoch, holding only memory.
+- **The parent retains no content.** The prompt goes to the child on a pipe, never in `argv`, the environment or a parent file. The parent journals no content for a reply: today's `sophia/command` journaling (`control-bridge.ts:968-981`) is skipped on the reply path, and no log line carries content. Its only durable record is the API's **execution claim** (below), which is content-free. What it holds in memory is bounded, owned and cleared, as listed in "The parent's relay" below.
+- **The child journals before it emits.** Each observation is appended to the child's journal in its home, and fsynced, before it is written to fd 3. The journal is therefore a superset of anything the parent forwarded, and it is the contained recovery record (crash recovery, below). The parent forwards through the existing observation route with the reply's binding and epoch, holding only memory.
+- **No supervisor buffer for a reply child.** Today the supervisor collects everything a child prints (`this.output`, `runtime-supervisor.ts:76, 209-210`), unbounded, until relaunch; deleting a home would leave that. A reply child's stdout and stderr go instead to `diag/stdout` and `diag/stderr` in its home, contained and deleted with it. Readiness and failure reach the parent only as fixed, content-free status lines on fd 3: `ready`, or `failed:<code>` with `containment_unavailable`, `runtime_busy`, `timeout` or `child_exited`. The parent maps each to its receipt's fixed reason and never reads or forwards the child's diagnostics. The goal path's collector is unchanged.
+- **The parent's relay: finite, fenced, never ahead of persistence** (CX-0108; proposed; corrected after CX-0112). Each reply child has its own relay in the parent: an fd 3 line reader and a queue to the observation route. The goal path's shared queue (`RetainedQueue`, `retained-queue.ts:32-75`) and its wire are unchanged and never carry a reply's items: that queue bounds each request (500 items, 4 MiB) but not its length, which grows through an API outage.
+  - **The existing wire bounds nothing here; the reply's projection does** (CX-0112). A04's `RuntimeObservation.data` is `{}` (generated as `unknown`), and the bridge's `summarize` passes `turn/*` and `step/*` data through raw (`control-bridge.ts:1459-1491`): the current generated wire accepts a 2,097,327-byte `turn/end` (Codex, CX-0112, L0). So every bound below is CON's own, on a **reply-only projection**, and not a property of today's wire, which stays as it is for goals. The reply child projects each durable session event before it journals and emits it. For a reply, only these types and fields exist:
+
+    | Type | `data`, exactly | Bounds |
+    |---|---|---|
+    | `user/message` | `{ id, length }` | `id` ≤ 64 characters of `[A-Za-z0-9._:-]`; `length` a safe integer. **No text:** the prompt's governed copies are the context record (S3) and the create payload |
+    | `assistant/message` | `{ text, oversize, invalidText, length, provider, model, inputTokens, outputTokens, cacheReadTokens?, cacheWriteTokens?, interrupted }` | `text` ≤ **16,000 characters as PostgreSQL counts them** (code points: `length()`, and `[...text].length` in JavaScript, not `text.length`). That is 0048's bound on a Sophia answer (0048:74), which N4's publication enforces (s4:342). It is whole, never sliced or altered, and **storable**: well-formed UTF-16 (no lone surrogate) and no U+0000, both of which PostgreSQL's `jsonb` refuses (22P02, 22P05; CX-0113). Longer, it is `null` with `oversize: true`; not storable, it is `null` with `invalidText: true`; empty, it is `""`. None of the three can publish (below). `length` its characters, counted the same way; `provider` and `model` ≤ 200 code units and storable, else null; the counts safe integers ≥ 0 or null; `interrupted`, `oversize` and `invalidText` booleans |
+    | `compaction/summary` | `{ compactionId, provider, model, inputTokens, outputTokens, cacheReadTokens?, cacheWriteTokens? }` | as above, `compactionId` ≤ 200; never the summary's text |
+    | `turn/end` | `{ reason: { kind } }` | `kind` one of `completed`, `error`, `max-tokens`, `blocked`: the one field capture reads (0023:45-46), with the kinds it distinguishes (0042:1740-1741), and nothing else of the event |
+    | `turn/start` | `{}` | — |
+
+    `assistant/attempt`, `step/start`, `step/end` and every other type are not emitted for a reply; the child's contained session log keeps them. Besides these items, fd 3 carries only the fixed status lines above. The envelope is `RuntimeObservation`'s, with its patterns (`runtimeUnitId` ≤ 160, `attemptId` ≤ 64, `nativeSessionId` ≤ 160 and `type` ≤ 64 characters; `nativeSeq`; `durable`). A reply-only schema with exactly these maxima, `additionalProperties: false` at every level, is checked by the child before it journals, by the parent before it enqueues, and by the API's reply branch before it stores. The goal path's schema and `summarize` are untouched.
+  - **The largest line, by construction.** A lone surrogate and U+0000 never reach a line (above). Of storable text, the worst character is a control character from U+0001 to U+001F, other than the five with two-byte escapes: JSON writes it as `\u00XX`, 6 bytes. Any other storable character takes at most 4 bytes (one outside the BMP; 3 inside). So 16,000 characters of text are at most 96,000 bytes (Codex's check of the per-character cost, at 120,000 U+0001: 720,011 bytes serialized, stored length 120,000; CX-0113); `provider` and `model` at most 1,200 bytes each; the patterned envelope under 500; keys, booleans and counts under 1,000. An `assistant/message` line is at most about 100 KB, and every other type's far less. **The 1 MiB line bound is CON's envelope over that maximum**, with a wide margin; it is not a wire guarantee.
+  - **Empty, oversize or unstorable text** (CC-0121). An answer of 0 characters, one longer than 16,000 characters as PostgreSQL counts them, or one that isn't storable, is never sliced, replaced, altered or partly published; nor is anything published in its place. Its item carries no text (`""` when empty, else `text: null` with its flag), with its `length` and its usage, so it is stored like any other and holds nothing up behind it: no batch carries a value PostgreSQL refuses, nothing raises inside an observation batch, and no delivery is poisoned. Capture's reply branch refuses it without calling publication, and the request ends `failed` (`answer_empty`, `answer_too_long` or `answer_invalid_text`), with its usage recorded. A completed turn with no `assistant/message` at all ends `answer_empty` too. The count is in code points: an answer of 16,000 characters outside the BMP is 32,000 UTF-16 units and publishes, so a check by `text.length` would wrongly refuse it. A `turn/end` of any other kind is projected as `error`. No raw event data crosses fd 3 for a reply.
+  - **An incremental line bound, before any parse.** The reader appends fd 3's bytes to the current line only while that line stays within **1 MiB**, counted before its newline is seen. `JSON.parse` runs only on a complete line within the bound, and the item is then checked against the reply schema. A line that reaches the bound or fails the schema is **invalid**: its bytes are discarded, and the reader stops reading fd 3. A child that keeps the projection never writes one.
+  - **A finite queue per reply: at most 64 items and 4 MiB** of serialized items, counted as `headBatch` counts them (`retained-queue.ts:15-25`), so the whole queue fits one request. **An item is admitted only if it fits:** before it enqueues, the reader checks that one more item stays within 64 and that its size keeps the queue within 4 MiB. Otherwise it holds that one parsed item, inside its 1 MiB line allowance, and pauses. The caps are never overshot. With at most 2 reply children per project, a project's bridge holds at most 10 MiB of reply queues and held lines, plus at most one request body in flight per reply, however long delivery is blocked.
+  - **Backpressure, never a drop.** While an item is held, the reader pauses fd 3. The kernel pipe fills, and the child's next write blocks. Nothing is lost: every line is already in the child's journal (journal-before-emit). Reading resumes when acknowledgments free room. The reply's deadline still runs while the child runs: a reply held past it is stopped (step 2) and ends `failed`/`timeout`, like any other.
+  - **An invalid line settles, uncertain, and is never repeated.** The parent stops the child (step 2), and the request ends `failed` (`relay_invalid`) by its terminal receipt. An open reservation becomes `uncertain`, still counted (§8.2.1, §8.4). Steps 3–5 recover the journal's whole entries, read under the same bound and schema, all scrubbed; an entry that fails either is unreadable, so the home stays unresolved (step 5). An invalid line, backpressure, a deadline or a restart never releases or resets a reservation, and no attempt is created again: the claim refuses it.
+  - **No duplicate.** Each item keeps its `upstream_key`, so a resend, a recovered copy and a replay after a restart are recorded once (§8.2.2), and usage once by `provider_call_id`.
+  - **A completion drains; privacy, failure and uncertainty fence; both end `closed`** (CX-0112, CX-0113). The relay is `live`, then `draining` or `fenced`, then `closed`, and never goes back.
+    - **`live`, until fd 3's end.** At the child's exit the reader keeps fd 3 open and reads its unread tail to end-of-file, under the same line bound, schema, admission check and backpressure. Neither the held item nor the tail is cleared at the exit. The relay is classified only at end-of-file.
+    - **`draining`: a normal completion.** By end-of-file the relay has read a whole, storable `assistant/message` (not interrupted, not oversize, not invalid) and a `turn/end` with `kind: completed`, and the child exited 0, or was reaped by the parent after that `turn/end`. The parent's own reap after a completed turn is not a fence. The held item and the queued items keep their text and go to the API as they are, in order, however long delivery is blocked. The API applies its own fences, under the conversation writers' locks (§8.2.2, §8.3): it publishes only if the request is still `running`, every recorded source and the audience still pass, and the turn ended in this same, uninterrupted run. Otherwise it stores them scrubbed. So an eligible, complete answer is persisted once delivery resumes, and a withdrawn one never is.
+    - **`fenced`: everything else.** It happens at the first of: the reply's `stop` command (withdrawal, erasure, a source out of the predicate, the grant switched off, the asker removed); its deadline, while the child runs; an invalid line; an end-of-file without a completed `turn/end` (a crash, a signal, a non-zero status, or a clean exit with none); or a hello listing the binding `stopped`. A `live` or `draining` relay turns `fenced` if its reply's `stop` arrives. From then on, for as long as anything remains: the held item and every queued item are reduced in place to the scrubbed form §8.2.2 stores (correlation and usage, no text); every line read afterwards from fd 3 is reduced at parse, before it enters the queue; a batch resent after the fence goes reduced. A fenced relay never sends text again.
+    - **Independently**, the API stores anything for a request no longer `running` scrubbed (§8.2.2). That covers a batch already on the wire at the fence, and a withdrawal the parent can't see yet because delivery is blocked.
+    - **A restart while draining** loses the parent's memory. Step 3 then recovers from the journal, and a recovered observation of an interrupted run never publishes (step 3, CX-0012): it is stored scrubbed, with its usage. Partial, withdrawn and restarted results are never published.
+    - Step 3 reads the journal of a draining relay only once the relay is `closed`: until then the queue is the live path.
+    - **`closed`, the one end.** A `draining` or `fenced` relay turns `closed` when fd 3 is at end-of-file and closed, no item is held, and the API has acknowledged every queued item: with its text from `draining`, reduced from `fenced`. The prompt pipe is then closed too. For a draining relay, the acknowledged items include the `turn/end`, and today's `runtime_record_observations` runs capture inside that same call (0023:45-46), so capture's result is committed before the relay can close. `closed` is step 4's eighth condition.
+  - **The parent's transient buffers, each with its owner, bound, lifetime and cleanup:**
+
+    | Buffer | Owner | Content | Bound | Cleared |
+    |---|---|---|---|---|
+    | The poll response and the parsed create command | bridge (`transport.ts`; `control-bridge.ts:358-376`, :651-732) | the prompt | one command; the wire's `maxLength` 200,000 (`A04-runtime-service.json:66`) | when the create handler hands it to the child |
+    | The prompt pipe | bridge → child's stdin | the prompt | one prompt: Node's write buffer and the kernel pipe | closed at the child's exit or at `stop` |
+    | The spawn request to the supervisor | supervisor | none: ids, epoch, lease | — | — |
+    | fd 3's line buffer and its one held item | the reply's relay | one observation line | 1 MiB | at enqueue, at an invalid line, or when the relay closes; never at a normal exit, whose unread tail is read to end-of-file |
+    | The reply's queue | the reply's relay | the answer's text (≤ 16,000 characters) in an `assistant/message`, until fenced; no prompt text | 64 items, 4 MiB, checked before each enqueue | at acknowledgment; reduced at the fence |
+    | Request bodies | `transport.ts:141-147` | one batch's JSON | ≤ 4 MiB | at the request's end |
+    | The attempt's entry in the bridge's maps | `control-bridge.ts:95-125` | ids and state; never pruned today | one per attempt | dropped at `retire`, for replies |
+
+  - **Errors carry fixed tokens.** Besides the status lines above, transport errors carry only the HTTP status and a pattern-checked contract code (`transport.ts:104-123`); a queue's failure log line names its label, its counts and that error (`retained-queue.ts:66`); `describeFailure` (`protocol.ts:37-40`) names a schema path and keyword, never a value.
 - **Proposed implementation ceilings, not an allowance or a grant:** at most 2 reply children per project, and a 120 s deadline per reply. A third `create` is answered `rejected` (`runtime_busy`), so the request ends `failed`, visibly; asking again is a new ask.
 - **An identity-bound lease.** The supervisor holds each child's process handle, and stops it through that handle. For the restart sweep only, a content-free lease file in the child's home records:
   - its pid;
@@ -480,12 +536,15 @@ So a per-reply home cannot be had inside that process without switching a proces
 | The lease file | child home | Content-free (ids, times, nonce); contained |
 | The execution claim | `conversation_executions` (0049, CON-01's own table) | Content-free: the attempt, the command, the claiming lease, the time and the outcome. Retained after the home is deleted and across restarts. It is the replay fence |
 | dsh storages, attachments (none: no image input), startup logs | child `dsh-home/{storages,attachments,logs}` | Contained |
+| The projection cache (the first prompt's text, as `titleInput`; the `session-title` row stays on, `cordis.patch.yml:50-51`) | child `dsh-home/storages/session_projcache/sessions/<id>.json` | Contained |
+| The reply profile (no content) | child `dsh-home/profiles/` | Copied per child from the read-only runtime directory, digest-checked before `exec`; contained |
+| The child's diagnostics (stdout, stderr) | child `diag/` | Contained; never piped to the supervisor |
 | Spill and temporary files, adapter caches | child `home/tmp`, child `home` | Contained |
 | Credentials | the child's environment only; dsh's local store disabled | Never written to disk by Sophia |
-| Pipes and the parent's relay buffer | parent memory | Transient: dropped at settlement. Never journaled or logged |
-| Supervisor stdout/stderr buffer | supervisor memory | The child prints no conversation text; a test scans for the canary |
+| Pipes, fd 3's line buffer and the reply's queue | parent memory | Transient, finite and fenced ("The parent's relay"): at most a 1 MiB line and 64 items or 4 MiB per reply; drained with its text after a normal completion, reduced to usage at a fence; `closed` before `retire` is `checked`. Never journaled or logged |
+| Supervisor stdout/stderr buffer | supervisor memory | None for a reply child: its output goes to `diag/` in its home. The goal path's buffer is unchanged; a test finds the canary in no supervisor `log` |
 | Core dumps | — | Disabled for the child (`RLIMIT_CORE 0` in its launcher); a crash test asserts no `core*` file anywhere under `<root>` |
-| The create payload (the prompt) | `runtime_commands.body.payload.text` | Scrubbed in place to a fixed marker and its length **at settlement** and at withdrawal or suppression. Nothing re-sends it after delivery (§8.2.1). If an immutability trigger forbids the update (checked before 0049), the prompt is not stored there at all and the child fetches it through a scoped runtime read |
+| The create payload (the prompt) | `runtime_commands.body.payload.text` | Scrubbed in place to a fixed marker and its length **at settlement** and at withdrawal or suppression. Nothing re-sends it after delivery (§8.2.1). Checked: no immutability trigger exists on `runtime_commands` (0012:101-104 only notifies), so the update is possible |
 | Assistant text and events | `native_observations` | Scrubbed in place at publication, withdrawal and suppression; late ones are stored scrubbed (§8.2.2) |
 | Usage | `usage_records` | Usage only, no text |
 | The answer | `conversation_messages` | The governed record: withdrawal and suppression (§6, §8.3) |
@@ -516,19 +575,22 @@ So a per-reply home cannot be had inside that process without switching a proces
    - the usage of every provider call the journal names is recorded;
    - each reservation of the request is ended `settled` or `released`, or is `uncertain` and counted;
    - the terminal receipt is recorded;
-   - the request's terminal state is committed.
-   `/v1/runtime/conversation/acknowledged` answers all six, by keys and states only, never text. Any one missing means no cleanup (step 5). The settlement's `retire` (a new runtime command kind: a reviewed change to `runtime_commands.kind` and the wire) then has the parent:
+   - the request's terminal state is committed;
+   - the create payload in `runtime_commands.body` is scrubbed to its marker (CC-0117).
+   `/v1/runtime/conversation/acknowledged` answers all seven, by keys and states only, never text. **The eighth is the parent's own** (CC-0117, CC-0120): the reply's relay is `closed`, from `draining` or `fenced`: fd 3 read to end-of-file and closed, no item held, every queued item acknowledged, and the prompt pipe closed. Any one missing means no cleanup (step 5), and nothing says a copy is deleted. The settlement's `retire` (a new runtime command kind: a reviewed change to `runtime_commands.kind` and the wire) then has the parent:
    - check the identity-bound lease (no live child);
    - check that the path is `<root>/replies/<attemptId>` and not a link;
    - delete it whole without following links;
    - verify it is gone;
+   - drop the attempt from the bridge's maps;
    - only then answer `retire` `checked`.
 5. **Otherwise the home stays, unresolved.** That covers a journal unreadable or torn beyond its last whole entry, an acknowledgment that can't be obtained, a lease that doesn't match, or a deletion or verification that fails. `retire` is answered `failed`, never `checked`. The purge stays pending, is said to be pending (§6's withdrawal answer: the runtime copy goes when the runtime next runs), and is retried at the next hello. No receipt ever says a copy is gone that isn't.
 
 | Outcome | Path |
 |---|---|
 | Answered | `turn/end` → capture publishes → steps 2–5 |
-| Failed (`turn_error`, `max_tokens`, `runtime_busy`, `timeout`, `containment_unavailable`) | Terminal receipt or capture refusal → steps 2–5 (no home, for a create rejected before the claim) |
+| Failed (`turn_error`, `max_tokens`, `runtime_busy`, `timeout`, `containment_unavailable`, `relay_invalid`, `answer_empty`, `answer_too_long`, `answer_invalid_text`) | Terminal receipt or capture refusal → steps 2–5 (no home, for a create rejected before the claim) |
+| Delivery blocked (an API outage, or the observation route failing) | The relay holds at most its caps, then pauses fd 3; the child blocks, journaled. A reply that completed drains with its text; any other is fenced. When delivery resumes, every item is recorded once, and the API publishes only under its own fences; anything for a request no longer `running` is stored scrubbed. Steps 3–5 follow; until the barrier holds, the home stays and is said pending |
 | Cancelled | `conversation_cancel` raises the reply's epoch to 2 and writes `stop` → steps 2–5 |
 | Bridge or supervisor restart | Every reply child's control pipe closes, and it exits. Before reporting ready, the supervisor sweeps `<root>/replies/*`. A live process matching all five lease fields is stopped; any mismatch kills nothing and leaves the home unresolved. Hello lists the reply binding `stopped`, and a request that was `running` ends `outcome_unknown` (§8.2.1). Then steps 3–5, recovering from the home's journal |
 | Orphan (a child alive after its parent was killed) | It exits when its pipe closes. If it doesn't, the restart sweep stops it, identity-matched, before its home is touched |
@@ -539,6 +601,7 @@ So a per-reply home cannot be had inside that process without switching a proces
 - **Publication is fenced.** Capture refuses a request that is not `running` (§8.3).
 - **Execution settles** (steps 2–3), and the host copies go (steps 4–5), or stay reported as pending.
 - **Late output restores nothing.** Anything the child emitted after the stop, live or recovered from its journal, is stored scrubbed with its usage kept (§8.2.2). It never reaches a page, and the home it came from is deleted.
+- **The relay is fenced too** (CC-0117, CC-0118): a `stop` fences a live or draining relay; queued items are reduced, later fd 3 lines are reduced at parse, and the API's own fence covers anything already on the wire or sent while the parent couldn't yet see the withdrawal.
 
 **Fresh home and retry.**
 - A home belongs to one claimed execution. An attempt has at most one claim, and a request has one attempt (§8.3, exactly once).
@@ -546,17 +609,17 @@ So a per-reply home cannot be had inside that process without switching a proces
 - An execution that may have started (a claim taken whose outcome is unknown, or a lost claim answer) is **uncertain**. It is reconciled (step 3) before anything else: the request ends `outcome_unknown`, its open reservation becomes `uncertain`, and it is never re-run.
 - Asking again is a new message, a new request and a new claim.
 
-**Codex's qualifications, each to its binding and test** (all L1: real PostgreSQL, the stub provider, the real supervisor, bridge and launcher). The canary scans are evidence, not exhaustive proof; containment rests on the operating system's rule and the traced writes.
+**Codex's qualifications, each to its binding and test** (all L1: real PostgreSQL, the stub provider, the real supervisor, bridge and launcher). **Every test below is required and none has run:** no runtime code for replies exists. The canary scans are evidence, not exhaustive proof; containment rests on the operating system's rule and the traced writes.
 
 | Qualification | Bound by | Test |
 |---|---|---|
 | An actual writable home per attempt | The reply child, `<root>/replies/<attemptId>/` | Two concurrent replies: each child's `/proc/<pid>/environ` has `HOME`, `TMPDIR` and `DSH_HOME` inside its own home, and its dsh session log and journal are found there |
 | No process-global home switching under concurrency | The environment is set at spawn, per child; the parent's never changes | The parent's and the supervisor's `environ` are identical before, during and after two concurrent replies |
 | Shared binaries and assets read-only | The launcher's filesystem rule; digests | A write by the child into `runtimeDir` fails (`EACCES`); the digests are unchanged after the replies |
-| Unrelated mission homes untouched; every writable path contained or suppressed | The launcher's filesystem rule, qualified on the host (ABI 3 or later, every right handled, inherited descriptors closed, self-test); no content in the parent | The child's every file-writing call, traced (`strace -f`, the `open*`, `creat`, `rename*`, `unlink*`, `mkdir*`, `link*` families), lies inside its home. A write by the child into the project's `dsh-home` and into another project's root fails. A snapshot of those trees is unchanged, except the parent's content-free claim calls, which touch the database only. Where the rule can't be enforced: `rejected` `containment_unavailable`, and no child |
+| Unrelated mission homes untouched; every writable path contained or suppressed | The launcher's filesystem rule, qualified on the host (ABI 4 or later, every right handled, inherited descriptors closed, self-test); no content retained in the parent | The child's every file-writing call, traced (`strace -f`, the `open*`, `creat`, `rename*`, `unlink*`, `mkdir*`, `link*` families), lies inside its home. A write by the child into the project's `dsh-home` and into another project's root fails. A snapshot of those trees is unchanged, except the parent's content-free claim calls, which touch the database only. Where the rule can't be enforced: `rejected` `containment_unavailable`, and no child |
 | Every session file, journal, temp file, cache, log and copy accounted for | The copy table above | A canary in the prompt and in the answer. After cleanup, a scan of every file under `<root>`, `/tmp`, the supervisor buffer, the API, worker and bridge logs, and every database table finds them only in `conversation_messages`, and only for an answered, unwithdrawn reply. Evidence, not proof |
 | Stop and settle the process before cleanup | Step 2 | Cleanup's start is ordered after the child's exit (a test hook records both) |
-| Persist the result, delivery and accounting first | Steps 3–4: the full acknowledgment barrier | The home exists until all six acknowledgments are confirmed, then it is gone. Each one withheld in turn (a capture not committed, a usage row missing, a reservation still open, the receipt missing, the request not terminal): the home stays |
+| Persist the result, delivery and accounting first | Steps 3–4: the full barrier, eight conditions | The home exists until all eight conditions are confirmed, then it is gone. Each one withheld in turn (a capture not committed, a usage row missing, a reservation still open, the receipt missing, the request not terminal): the home stays |
 | A crash after a result or usage, before its acknowledgment | Journal-before-emit; step 3 | Kill the parent, then the child, between the child's emit and the API's acknowledgment: after the restart, the observation is recorded scrubbed with its usage, nothing is published, and the home goes after. With the journal made unreadable: the home stays, `retire` `failed`, said pending |
 | A durable replay fence, retained after cleanup and restart | The execution claim | The same `create` delivered again during execution, after success, after failure, after `outcome_unknown`, after `retire`, and after `retire` with its acknowledgment lost, and replayed by a restarted bridge. A claim answer lost, then retried. In every case: one spawn at most (the launcher's counter), the stub provider's call log unchanged by the duplicate, the grant's counters unchanged, one answer at most |
 | Success, failure, cancel, timeout, restart and orphans | The outcome table | One test per row, each ending with no home and no canary, or with the home reported unresolved where the row says so. The orphan by `SIGKILL` on the parent |
@@ -564,6 +627,13 @@ So a per-reply home cannot be had inside that process without switching a proces
 | A cleanup failure is unresolved, never a deletion success | Step 5 | A deletion forced to fail: `retire` `failed`, purge pending and said so, retried at hello, never `checked` |
 | Withdrawal fences generation and publication, settles execution, cleans copies; a late result cannot restore content | The withdrawal paragraph | Withdrawal mid-run, output arriving after the stop, and the same output recovered from the journal after a restart: nothing published, stored scrubbed, home deleted, no canary left |
 | A fresh home or retry keeps the same Ask and cumulative allowance, reconciles an uncertain execution first, and cannot publish twice | The claim; the retry paragraph | A re-dispatched outbox row (no command written): the same request, the same reservations, one answer at most. A lost claim answer: `outcome_unknown`, no execution |
+| A reply-only projection; the goal wire unchanged (CX-0112) | "The parent's relay": the projection table and its schema | The stub runtime raises a 2,097,327-byte raw `turn/end`: the line is `{"reason":{"kind":"completed"}}` in its envelope. Each type at its maxima (`provider` and `model` of 200 units; the answer as below) serializes within the computed maximum and passes all three checks. **The answer's bounds, in code points (CC-0121):** 1 character publishes; 16,000 publish, both as 16,000 U+0001 (the worst storable text) and as 16,000 characters outside the BMP (32,000 UTF-16 units, PostgreSQL `length` 16,000); 16,001 of either kind is `oversize`, `failed`/`answer_too_long`; 0 characters, and a completed turn with no `assistant/message`, are `failed`/`answer_empty`. A lone high surrogate, and separately a U+0000, are the content-free `invalidText` item, `failed`/`answer_invalid_text`. In every refused case: nothing published, no message and no prefix of the text stored anywhere, usage recorded, and the items behind it in the same batch stored (no poisoned delivery). A child that emits such text anyway meets `relay_invalid` at the parent, and the API never receives a batch PostgreSQL refuses (22P02, 22P05). A goal attempt's observations are byte-identical to today's, and the existing goal suites pass unchanged |
+| A finite relay per reply, while delivery is blocked (CX-0108) | "The parent's relay": 64 items and 4 MiB, admitted only if they fit; backpressure | The observation route held failing by a fault-injection proxy (reserve and settle reachable), and a stub child emitting more than 64 items and more than 4 MiB. The reply's queued items and bytes, sampled after every enqueue, never exceed the caps, at the admission boundary included (the item that would cross a cap is held, not queued). The child's fd 3 write is observed blocked. When the route recovers, every journal key is recorded once, and usage once; one spawn |
+| An incremental fd 3 line bound before any parse | "The parent's relay": 1 MiB; the reply schema | A stub child writes a 2 MiB line with no newline: the reader's buffer never exceeds 1 MiB (instrumented), nothing is parsed, the request ends `failed`/`relay_invalid`, the reservation `uncertain`. A schema-invalid line: the same. The same entries in the journal leave the home unresolved |
+| A blocked delivery after a normal completion, and its withdrawal control (CX-0112) | `draining` | The observation route blocked; the stub reply completes (its answer and a `completed` `turn/end` queued); the child exits 0 and is reaped. Route unblocked: the answer is published exactly once, the request `answered`, usage once, and the home goes only after. **Control:** the same with a withdrawal committed while blocked: nothing published, everything stored scrubbed, the request `cancelled`. **Restart:** the parent killed while draining: nothing published, stored scrubbed with usage. **A full queue at the exit (CX-0113):** the queue at its caps, the `assistant/message` held, and the `completed` `turn/end` still unread in fd 3 when the child exits 0, before any acknowledgment. When the route resumes, the tail is read to end-of-file, exactly one answer is published, the relay `closed`, all eight conditions met and the home gone. Its withdrawal control publishes nothing, and the relay closes fenced |
+| Future and in-flight events fenced, not a one-time scrub | The relay's fence; the API's (§8.2.2) | Delivery blocked, a withdrawal committed, delivery resumed, for a live and for a draining relay: the queued items, a batch in flight at the fence and a line written after the stop are all stored scrubbed. A canary in the prompt and the answer is then found in no table, log, file or supervisor `log`, after cleanup |
+| A restart while delivery is blocked | Journal-before-emit; step 3 | The bridge killed with items queued: its memory is gone; step 3 recovers from the journal, scrubbed, each key once; the grant's counters unchanged; no spawn; then the home goes |
+| No deletion receipt while state is unpersisted or the parent holds a copy | Step 4's eight conditions | Each withheld in turn, a relay left non-empty while delivery is blocked among them: `retire` not `checked`, the home stays, the purge said pending |
 
 B-1's earlier options (file removal at the pinned layout, or a disclosed retention) are withdrawn. dsh `0.2.0-rc.2` still has no supported deletion of a persisted session: its store's `delete` is in memory only (`dsh-session lib/index.js:1771`). The home is deleted whole instead, so no undocumented layout is relied on. Backups and provider retention are disclosed separately (§5). Operational storage is never treated as a backup exception.
 
@@ -592,8 +662,367 @@ CON-01 itself shows only the Sophia allowance for replies (§8.4), labelled as s
 **The new test project.** The owner asked for a new project, not a seeded one. These are operations, each in OP-0001-r2, which stays `draft_not_authorized`:
 - created through `POST /api/v1/projects` (`projects.ts:73-84`);
 - its conversations enabled with `set_conversation_settings` (`0048:406-416`);
-- two actual Sophia subjects as members. Davide asked for a **second synthetic actual Sophia account**. Its setup path is Codex's draft [CON-01-OP-0002-r2](https://github.com/davidelaverga/Sophia/blob/f6e6d4a64a138a708598c9a4f6b9e5c5e1975b91/docs/coordination/CON-01/CON-01-OP-0002-r2.json) (`draft_not_authorized`; no approval, no expiry), and it uses the Studio's existing flows only: the project is created through Work, New project; one member invitation (Invite, Members, Send invitation) goes to an owner-controlled mailbox, with no reissue; signing in from it by email OTP (`shouldCreateUser: true`) creates at most one actual account; and accepting joins it to that project only. At most one project, one invitation and one account, each under a stable key. The editor role is still a proposal. No dashboard-created password account, direct auth SQL, synthetic JWT or admin key is used. The mailbox, the role and both subjects **remain unbound**. No credential has been entered and no account created; the batch allows no provider, native, deploy, schema or new spend. It is a draft setup path, not authorization (D-7);
+- two actual Sophia subjects as members. Davide asked for a **second synthetic actual Sophia account**. Its setup path is Codex's draft [CON-01-OP-0002-r2](https://github.com/davidelaverga/Sophia/blob/f6e6d4a64a138a708598c9a4f6b9e5c5e1975b91/docs/coordination/CON-01/CON-01-OP-0002-r2.json) (`draft_not_authorized`; no approval, no expiry), and it uses the Studio's existing flows only: the project is created through Work, New project; one member invitation (Invite, Members, Send invitation) goes to an owner-controlled mailbox, with no reissue; signing in from it by email OTP (`shouldCreateUser: true`) creates at most one actual account; and accepting joins it to that project only. At most one project, one invitation and one account, each under a stable key. The editor role is still a proposal. No dashboard-created password account, direct auth SQL, synthetic JWT or admin key is used. The owner-controlled test mailbox is an **owner-provided private reference**, held outside this repository: its address is never written here, in an issue or in a log. The mailbox, the role and both subjects **remain unbound**. No credential has been entered and no account created; the batch allows no provider, native, deploy, schema or new spend. It is a draft setup path, not authorization (D-7);
 - no grant until a route exists (§8.4).
+
+### 8.7 G2-S2 and G2-S3: the additive footprint (proposed; CX45, its compiler correction, the CC-0049 review, CX49 and the CC-0054 review; no number reserved; shared files held)
+
+**Status.** This is a design for review, not authorization. Nothing here reserves a migration number: each new migration's number is set by the final census (inventory §7.1). Nothing here touches a shared file (§2; inventory §7), adds a caller, grants EXECUTE, binds a route, credential, unit or live allowance, or claims an S3 pass from SQL alone. Provider usefulness, the publication fences and host cleanup are proved later, in their own steps.
+
+#### 8.7.1 S2: the reply ledger (CX45 correction 1)
+
+**Tables** (one new migration, `db/migrations/<census>_conversation_reply_ledger.sql`; no rows inserted):
+- **`conversation_grants`**: one row per project and lineage (`project_id`, `lineage_id`), at most one of them `current` (a partial unique index). Written only by the operator functions below. Its columns:
+  - `lineage_id`: the allowance's identity. A setter, a renewal or a route change keeps it.
+  - `unit`: fixed for the lineage. A trigger refuses any change to it. The counters and caps are in that unit only, so a priced amount is never added to a call or token count. A different unit is a new lineage (below).
+  - `grant_revision`: +1 at every set.
+  - `state`: `enabled` or `disabled`.
+  - The references, each an opaque, pattern-checked identifier and never a value: `route_id`, `credential_ref`, `owner_resource_ref` (the owner's own native resource the route uses) and `approval_ref`.
+  - `expires_at`: `NOT NULL`, finite.
+  - The caps: `max_calls_per_reply` (1 to 2), `reply_token_cap`, `total_token_cap` and `total_call_cap`, or `reply_cap` and `total_cap` for a priced unit.
+  - The counters, per dimension: `reserved_calls`, `reserved_tokens` and `reserved_price_micros`, the same three for `spent_*` and for `uncertain_*`. All are `bigint NOT NULL CHECK (≥ 0)`, so finite. A lineage that is no longer current keeps its counters as they are.
+- **`conversation_grant_subjects`** (`project_id`, `actor_id`, `lineage_id`, `added_revision`) lists the asking subjects the owner's resource is lent to.
+  - A project grant alone lends nobody anything: a reservation for an asker not listed is refused (`asker_not_authorized`).
+  - The asker is read from the reply row, never from the caller.
+- **`conversation_reservations`**:
+  - **Key:** the logical key (`project_id`, `reply_id`, `call_ordinal`), so a reply's calls are counted wherever its home is. `call_ordinal` is `CHECK BETWEEN 1 AND 2`, and at most the lineage's `max_calls_per_reply` when reserved.
+  - **Immutable fingerprint:** `route_id`, `credential_ref`, `owner_resource_ref`, `lineage_id`, `grant_revision`, `unit` and the amount. A `BEFORE UPDATE` trigger refuses any change to it.
+  - **The amount, typed by dimension:** `amount_calls` (always 1), `amount_tokens` and `amount_price_micros`, each `bigint NOT NULL CHECK (≥ 0)`.
+    - A `calls_tokens` lineage requires `amount_tokens > 0` and `amount_price_micros = 0`.
+    - A `usd` lineage requires `amount_price_micros > 0` and `amount_tokens = 0`.
+    - The used amount has the same three fields, null until the reservation ends, then non-negative.
+  - Also `state` (`reserved`, `settled`, `released`, `uncertain`), `proof_kind` and `proof_id` (below), `created_at` and `ended_at`.
+- **`conversation_reply_allowances`** (`project_id`, `reply_id` primary key, `lineage_id`, `unit`, `first_reserved_at`) binds a logical reply to its lineage. It is written at the reply's first reservation and never changed. Every later call of that reply must be on that lineage:
+  - A renewal or a route change keeps the lineage, so the reply goes on.
+  - A new lineage started since serves none of it. The call is refused (`lineage_changed`) and the reply fails visibly. Nothing is reset, and no amount crosses lineages or units.
+  - A new approval may open a new project allowance. It never rebases an Ask already under way.
+
+**Functions.** All are `SECURITY DEFINER` with `search_path=pg_catalog,sophia`. All take locks in one order: project → reply → grant → reservation, each function a suffix of it.
+- **`conversation_set_grant(project, spec)`** is operator-only and changes the current lineage.
+  - It takes the grant row `FOR UPDATE`, writes only configuration and `grant_revision`, and keeps `lineage_id` and `unit`. A spec naming another unit is refused (`unit_is_fixed`).
+  - It never writes `reserved`, `spent` or `uncertain`, and never touches a reservation. An outstanding reservation keeps the route, credential and revision it was made under, and settles against them.
+  - Lowering a cap below what is already used is allowed. It only refuses new reservations.
+- **`conversation_new_lineage(project, spec)`** is operator-only. It starts a lineage in a unit of its own, and only when the current lineage has no reservation `reserved` or `uncertain`, so nothing outstanding is reassociated. The old lineage stays with its counters, no longer current. Nothing converts one unit into another.
+- **Each approval is used once, across the project's whole history** (the #211 review). `conversation_grant_approvals` (`project_id`, `approval_ref` primary key, `lineage_id`, `used_by`, `spec_sha256`, `used_at`) records every approval ever used, at a lineage's creation or by a setter. Its rows never change.
+  - A new lineage under an approval in that record is refused (`approval_reused`). So A, then B, then A again mints nothing and resets nothing.
+  - The one exception is the same new-lineage call again, its answer lost: the same approval, the same spec digest, and its lineage still current. It returns that lineage.
+  - A setter takes another approval only if it was never used, and records it.
+- **The states:**
+
+  | From | To | By | What happens |
+  |---|---|---|---|
+  | `enabled` | `disabled` | setter | no new reservation |
+  | `disabled` | `enabled` | setter | only with `expires_at` still ahead |
+  | any | the same, renewed | setter (a later `expires_at`) | same lineage, `grant_revision` + 1 |
+  | any | the same, route changed | setter | outstanding reservations keep their fingerprint |
+  | current lineage | closed | `conversation_new_lineage` | only with nothing outstanding |
+
+  "Expired" is not a stored state: it is read at each reserve, after the lock. Settle, mark-uncertain, reconcile and replay work in every state.
+- **`conversation_reserve(project, reply, ordinal, call)`**:
+  1. Lock the reply `FOR SHARE`, then the grant `FOR UPDATE`. Only then sample `clock_timestamp()`, so a waiter that crossed `expires_at` while blocked is refused (`grant_expired`).
+  2. **Replay:** for an existing key, the call is compared field by field with the stored original fingerprint (`route_id`, `credential_ref`, `owner_resource_ref`, `lineage_id`, `unit`, amount). The stored `grant_revision` stays as it was; the grant's current revision is not compared, so a renewal or a route change since doesn't break a replay. An equal call returns the stored receipt in its current state (reserved, settled, released or uncertain), even after expiry or disable. A different one is refused (`key_reused`) and changes nothing.
+     - **No logical call is used twice.** A key that ended (settled, released or uncertain) only replays its receipt. A further call takes the next ordinal, and past the lineage's `max_calls_per_reply` it is refused (`calls_exhausted`). After an uncertain call, its ordinal is never reused.
+     - **No fresh call while one is uncertain** (the #211 review). While any call of the reply is `uncertain`, a new ordinal is refused (`uncertain_outstanding`) until an operator reconciles it. A reservation is accounting only, never permission to dispatch: the future dispatcher must also refuse fresh execution for a reply with an uncertain call, and keep §8.3's fences.
+  3. **A new key** needs:
+     - the current lineage `enabled` and unexpired;
+     - the call's route and credential reference equal to the grant's;
+     - the asker listed;
+     - the reply in this project and `running`;
+     - `ordinal ≤ max_calls_per_reply`;
+     - the reply's own cumulative usage plus this amount within the reply cap;
+     - `spent + reserved + uncertain + amount` within each total cap.
+
+     The per-reply sums come from the reservations themselves, so a fresh home, a restart or a retry never resets them.
+- **How the counters move.** Each transition moves every dimension exactly as below, in the lineage's counters and on the reservation:
+
+  | Transition | Reservation becomes | Lineage counters |
+  |---|---|---|
+  | reserve | `reserved`, with its amount | `reserved += amount` |
+  | `conversation_settle(…, used)` | `settled`, with `used` | `reserved -= amount`, `spent += used`. An overrun (`used > amount`) is recorded at what it used |
+  | `conversation_release(…, proof)` | `released`, `used = 0` | `reserved -= amount`. The ordinal stays consumed |
+  | `conversation_mark_uncertain` | `uncertain` | `reserved -= amount`, `uncertain += amount` |
+  | `conversation_reconcile(…, used, proof)` | `settled`, with `used` | `uncertain -= amount`, `spent += used` |
+
+  A repeated transition with the same outcome and the same proof returns the receipt and moves nothing. A different outcome for a reservation that already ended is refused.
+- **Release needs authoritative proof that the call never left.** The proof is a durable row read in the release transaction and named by `proof_kind` and `proof_id`:
+  - `create_rejected`: the runtime receipt recording that this attempt's create was rejected;
+  - `never_claimed`: the attempt's outbox row, still unclaimed under its lock. **Alone this proves only "not claimed yet"** (the CC-0054 review). So the release that names it does three things in the same transaction, under that lock:
+    - **Fences.** It terminally fences the exact outbox row and its attempt: the row is cancelled and the attempt ended, so no later claim or dispatch can take either.
+    - **Correlates.** The proof must name the reservation's own reply, `call_ordinal` and create identity, the outbox row's idempotency key for that call's create. Any other row's proof is refused.
+    - **Races.** Claim before release: the claim holds the row, so the release finds it claimed and is refused, and the reservation goes on to settle or become uncertain. Release before claim: the release fences the row, so the claim finds it cancelled and dispatches nothing. Both orders are tested in real PostgreSQL.
+
+  A timeout, a transport error or a lost answer is no proof. A reservation open at a terminal receipt without one becomes `uncertain`. Both proof sources, and the fence, are 0049's shared tables, so they are bound here and wired only in the shared window. **Until then `conversation_release` and `conversation_reconcile` refuse every call (`no_proof_source`),** and a reservation can only end settled or uncertain.
+- **`conversation_reconcile(project, reply, ordinal, used, proof)`** is operator-only. Its proof is the attempt's recorded usage row (a runtime usage observation, read in the transaction), with the operator's reference beside it. A replay with the same proof and `used` returns the receipt; anything else is refused. It, too, is wired to its shared source in the window.
+
+**Privileges and text.**
+- `REVOKE ALL` on every new table and function `FROM PUBLIC, sophia_api, sophia_worker`; no `GRANT` in S2.
+- No column can hold a credential or a token: the reference columns are pattern-checked identifiers.
+- No error message or log line carries a reference's value.
+
+**S2 tests** (real PostgreSQL, `packages/persistence/src/conversation-ledger.db.test.ts` plus the migration's SQL test):
+- **Replay and keys:**
+  - an exact replay is idempotent after expiry and after disable;
+  - the same key with a changed amount, route, credential or unit is refused, and every counter is unchanged.
+- **Setter, renewal and route change:**
+  - each keeps `lineage_id`, `unit`, `reserved`, `spent` and `uncertain`;
+  - a spec naming another unit is refused;
+  - an outstanding reservation keeps its old fingerprint and settles against it;
+  - an exact replay after a renewal returns the original receipt, with its original `grant_revision`.
+- **Approvals:**
+  - A, then B, then A again is refused, with no new lineage and nothing reset;
+  - a setter's used approval is refused, and a fresh one is recorded;
+  - the same new-lineage call again returns its lineage, while another spec under the approval is refused;
+  - approval rows can't change or go.
+- **The uncertain fence:** ordinal 2 is refused while ordinal 1 is uncertain, and no counter moves.
+- **A new lineage:**
+  - it is refused while a reservation is `reserved` or `uncertain`;
+  - started after everything settled, it keeps the old lineage's counters as they were;
+  - no amount crosses units.
+- **Ordinals:**
+  - 0 and 3 are refused by the check;
+  - past `max_calls_per_reply`, `calls_exhausted`;
+  - a released or uncertain key replays and is never reserved again.
+- **Per-reply ceilings:** they hold across a fresh home and a restart (ordinal 2 is refused past the reply's token cap, and ordinal 3 always).
+- **A reply bound to its lineage:**
+  - call 1 settles on lineage L1, a new lineage L2 starts, and call 2 of the same reply is refused `lineage_changed`: nothing is reserved, and L1's counters and the reply's sums are unchanged;
+  - a renewal or a route change between call 1 and call 2 doesn't refuse it.
+- **Dimensions:**
+  - a `usd` lineage's caps count price only, and a `calls_tokens` lineage's count calls and tokens only;
+  - an amount with the other unit's dimension non-zero is refused by the check.
+- **Each transition in the table:** the exact counter deltas, an overrun, a replay that moves nothing, and a different second outcome refused.
+- **Release:**
+  - without a proof, refused;
+  - with a proof id that names no row, or another attempt's row, refused;
+  - in S2 every release and every reconcile is refused (`no_proof_source`), and a timed-out call ends `uncertain`;
+  - in the shared window, with the proof wired: claim before release (the release refused) and release before claim (the claim dispatches nothing), and a proof naming another reply, ordinal or create refused.
+- **Reconcile:** a replay with the same proof moves nothing; a different `used` is refused.
+- **A waiter crossing expiry:** a holder keeps the grant locked, and `pg_stat_activity` shows the reserve waiting on the lock. `expires_at` passes; the holder commits; the waiter is refused `grant_expired`.
+- **The last allowance:** of two asks competing for it, one reserves and the other is refused `limit_reached`.
+- **The asker:** one not listed is refused, and so is a reply of another project.
+- **Privileges:** `has_*_privilege` is false on every new object for `PUBLIC`, `sophia_api` and `sophia_worker`.
+- **Columns:** the exact column list, with no free-text column.
+- **The migration:** it inserts no row.
+
+#### 8.7.2 S3: one canonical mission context, recorded atomically (CX45 corrections 2 and 3; compiler correction)
+
+**Selection: the existing compiler, reused, never re-implemented** (pack 04, «Input context contract» item 3). The current mission context is `readMissionContext` (`packages/persistence/src/mission-context.ts`, compiler `sophia.mission-context.v1`), imported unchanged. It is the only selector of the accepted mission (`projects.mission_revision` JOIN `project_revisions.frame`, through `readProject` and `missionFrame`), the accepted constraints (`accepted` `constraint` and `lesson` decisions, the newest 50), and the pending proposals (`proposed`, the newest 50, `stale` where proposed against an earlier mission).
+- CON writes no SQL that selects missions, decisions or notes.
+- A parity selector was considered and rejected: a second selector would drift from its owner's changes.
+- **Ownership:** `mission-context.ts` stays its owner's (SMC-M01). CON changes nothing in it without that owner and a window.
+- **Pinned identity:** CON accepts `sophia.mission-context.v1` only. Under any other compiler identity, assembly fails visibly (`context_compiler_changed`) until a reviewed CON change accepts the new one, with the parity tests below run again.
+
+**What CON renders from the compiled model** (renderer `sophia.conversation-context.v1`, a pure function in a new CON module). Nothing is re-read.
+- **`mission`:** its statement, purpose, destination and origin, and who accepted it and when.
+  - With no mission, the prompt says why: a withdrawn frame gives "no accepted mission"; `excluded.legacyFrame` gives "an older mission statement exists that is not an accepted decision; it is not used".
+- **`constraints`:** labelled accepted, newest first, each with when it was decided.
+- **`pending`:** labelled "proposed, not decided". Where `stale`, also "proposed against an earlier mission".
+- **`missing`:** stated as is. An empty mission or no constraints is said, never filled in.
+- **Not rendered:** `decided`, `entries`, `history`, `work`, `notePolicy` and `capabilities`. They are recorded as excluded. The quick asks need only the accepted mission and constraints and the pending proposals (pack 04, «Quick asks»); `decided` holds no current accepted decision those two don't.
+
+**Budgets: deterministic source ceilings, never a live allowance.** Budgets are in UTF-8 bytes of the rendered text. Items are whole, never cut.
+
+**Order.** `readDecisions` selects the newest 50 by `created_at DESC, id DESC`, then returns them ascending (`created_at, id`). CON reverses each compiled list to newest first (`created_at DESC, id DESC`, so ties are broken by id) before taking the newest 20 or 10. So the same snapshot gives the same bytes.
+
+| Section | Ceiling | Bound by | When over |
+|---|---|---|---|
+| The asking message | always whole | ≤ 4,000 characters (0048 `conversation_messages`) | never over |
+| Mission | always whole | statement ≤ 2,000 and each other field ≤ 1,000 characters (0018 `propose_mission_change`) | never over |
+| Constraints | newest 20, ≤ 16 KiB | the compiler's newest 50 | "N more accepted constraints not included". At the compiler's 50: "the 50 newest were read; there may be older ones" (no count inferred: the compiled model has none) |
+| Pending | newest 10, ≤ 8 KiB | the compiler's newest 50 | the same, for proposals |
+| Messages of this conversation | newest first from `cutoff_seq`, ≤ 40 and ≤ 32 KiB, contiguous (no skipping over a long one) | 0048 lengths (4,000 per member, 16,000 per Sophia answer) | "N earlier messages not included", and the range read |
+| Summary | none in S3: no summary projection exists yet (0048 has none) | | older messages are said not included |
+| The fixed prompt section | the hashed bundle asset (§8.3) | ≤ 4 KiB | |
+| **Whole prompt** | **≤ 128 KiB**: the sum of the section ceilings, asserted | | |
+
+The context record keeps each section's coverage (included, omitted, and "may be more"). No token count or allowance is inferred from bytes; tokens are S2's.
+
+**Assembly and record: one transaction, under the locks the writers take.**
+
+**Role and transaction.**
+- **The role:** assembly runs as `sophia_conversation_assembler`, a `NOLOGIN` role created by S3's migration.
+  - It is a member of `sophia_api`, for its `SELECT` grants and its RLS policies. It is not `BYPASSRLS` and owns no table, so RLS applies to every read the compiler makes.
+  - It is the only grantee of `EXECUTE` on `conversation_assembly_begin` and `conversation_record_context`. In S3, no login role is a member of it, so there is no caller.
+  - **Dormant only (CX49).** Membership in `sophia_api` also lends it that role's `SECURITY DEFINER` grants: create, work, approval and the rest. That is not the read-only privilege set a reply's execution needs.
+    - Enabling a caller (making any login a member) is blocked until a least-privilege `SELECT` and RLS path is agreed with the affected owners in the shared window.
+    - At that point a test shows the final execution identity can call no operational writer.
+    - No owner or superuser read stands in for it, and no one else's policy is edited silently.
+- **The transaction:** `BEGIN ISOLATION LEVEL REPEATABLE READ`, read-write, then `SET LOCAL ROLE sophia_conversation_assembler`. It is one snapshot, as the compiler assumes ("one connection, one REPEATABLE READ snapshot").
+  - `conversation-context.ts` opens it itself. `tx.ts`'s `withActor` can't: its read mode is read-only, and it sets the actor before the first statement. `tx.ts` is unchanged.
+  - Its first snapshot-taking statement is `conversation_assembly_begin`.
+  - The actor is then set transaction-locally to the asker the begin returned.
+  - A writer that committed between the snapshot and the lock makes the lock fail with `40001`. The assembly is retried, at most 3 times in all, then the reply fails visibly (`context_unstable`).
+- **Tests check the role itself:**
+  - `rolbypassrls` is false;
+  - it owns none of the compiled tables;
+  - a non-member actor reads a `null` context through it;
+  - a login role that isn't its member is refused `EXECUTE`.
+
+1. **`conversation_assembly_begin(reply)`** (`SECURITY DEFINER`) takes the project row `FOR SHARE`, then the reply row `FOR UPDATE`.
+   - **Post-lock rereads:** after both locks are held, it reads again everything it decides on: the reply's state and project, the asker's active membership, the conversation's state and `erasure_revision`, and the asking message. It never decides on a value read before the locks.
+   - **A record whose commit outcome wasn't known:** if the reply already has an undispatched record whose revisions still equal the project's, it returns that record and doesn't assemble again. If the revisions don't match, the record is marked `superseded` and its body scrubbed, and a new assembly follows. That counts toward the 3.
+   - It fails closed (nothing recorded; the reply is cancelled with the reason) unless:
+     - the reply is `pending` and in that project;
+     - the asker is still an active writer (`asker_removed`);
+     - the conversation is open with its `erasure_revision` unchanged (`conversation_erased`);
+     - the asking message is not withdrawn (`source_withdrawn`).
+   - It returns the reply's binding: project, conversation, asker, `cutoff_seq`, `erasure_revision` and the assembly number.
+2. **Read, in the same transaction**, with the actor set transaction-locally to that asker. The asker comes from the reply row, never from the model or an HTTP body.
+   - Read `readMissionContext(c, project, { actorId: asker, channel: 'studio' })` and this conversation's messages up to `cutoff_seq`. RLS holds both to the asker.
+   - A `null` context means the asker isn't a member: `asker_removed`.
+3. **Render** (pure). It returns the bytes and their ordered fragments. Each fragment is either a pinned template (by id) or one item: the mission decision, a constraint or pending decision, or a message, with the item's text as rendered.
+4. **`conversation_record_context(reply, assembly, bytes, fragments, identities)`** (`SECURITY DEFINER`, same transaction):
+   - **Exact fragment verification, not substring presence.**
+     - **The bytes:** they must equal the fragments concatenated, every byte accounted for.
+     - **A template fragment:** its text must equal the pinned string for that renderer version. The strings are stored in the migration, so any template change is a new renderer version.
+     - **An item fragment:** its text must equal a pinned prefix for its kind, then the item's exact values read from the database under the locks, then a pinned suffix. The values are a decision's statement (with purpose, destination and origin for the mission), a message's body and author's name, and decided or sent times, written as `to_char(… AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`, which is JavaScript's `toISOString()`.
+     - Any other byte, any unpinned template, or an item rendered with any other text is refused (`context_forged`).
+     - Formatting is not selection: what is selected stays the compiler's (above).
+   - **What SQL validates, and what it only trusts (CX49).**
+     - **Validated**, refusing on any difference (`context_forged`):
+       - every byte, as above;
+       - each item's kind, state and project;
+       - the accepted and proposed labels, from the decision's `state`;
+       - the `stale` label, exactly when `state = 'proposed'` and `base_mission_revision` is set and differs from the project's `mission_revision`;
+       - author names and times, in their serialization above;
+       - the message range and `cutoff_seq`;
+       - the four revisions, against the locked project;
+       - the compiler identity, against the pinned `sophia.mission-context.v1`;
+       - coverage arithmetic. Each section's `included` must equal its item fragments, `omitted` must be ≥ 0, and "may be more" may appear only where the compiled count is the compiler's 50.
+     - **Trusted only**, since checking them would be a second selector: which items the compiler selected, which prefix the budget kept, and the compiled counts. They come only from the trusted assembler:
+       - `conversation_record_context` is executable by `sophia_conversation_assembler` alone;
+       - the only code that runs as that role is `assembleReply(replyId)` in `conversation-context.ts`, which takes a reply id and nothing else;
+       - after activation, the role goes to the dispatch identity only. The record function stays unreachable from every other role.
+
+       The record marks them `trusted: selection, coverage`.
+     - **Not recorded:** the compiler's `digest`. SQL can't check it, and `context_hash` covers what the prompt used.
+   - **Project sources are derived, never supplied.** From the item ids, it reads under the locks the frame's `sourceId` and `sha256` from the locked project's current frame, and each decision's `body_source_id`. The caller supplies no source id, hash or revision.
+   - **Messages have their own provenance.** 0048's `conversation_messages` has no source object, so each recorded message is a row of `conversation_reply_messages`: reply, assembly, `message_id`, `seq` and the sha256 of its body as read. Each also carries the range read (`from_seq`..`cutoff_seq`) and `erasure_revision`.
+   - **Each item must be what it claims:**
+     - a decision of this project, in the state and kind claimed;
+     - the mission decision equal to the current frame's `decisionId`;
+     - a message of this conversation, at or before `cutoff_seq`, not withdrawn;
+     - every derived source within the full predicate (§8.3: project, `scope='project'`, `eligible`, `ready`).
+   - **The compiled revisions must equal the locked project's:** mission, ledger, eligibility and audience.
+   - **It computes `context_hash` itself:** sha256 over the bytes, the derived sources with their `sha256` and `eligibility_revision`, the recorded messages with their body hashes, the compiler and renderer identities, the source predicate's identity (`conversation-source-v1`) and those revisions.
+   - **Replay:** a repeated call for the same reply and assembly with the same `context_hash` returns the existing record. A different hash for that assembly is refused.
+   - **It writes the record:**
+     - `conversation_reply_contexts` (reply, assembly): the exact bytes in its own `body` column; the compiler identity `sophia.mission-context.v1`; the renderer and its budget version; the source predicate's identity; the four revisions; `erasure_revision`; the message range; each section's coverage and omissions; the byte length; `context_hash`; and `scrubbed_at` and `scrubbed_by`, both null until a scrub;
+     - `conversation_reply_sources` and `conversation_reply_messages`.
+
+**The context copy and its erasure.** The bytes are a persisted copy of message and mission text, so their erasure is bound and tested in S3.
+- **Why not a source object:** they are not stored through `put_text_source`, because `source_dependencies` alone scrubs nothing derived. 0041's `mission_erase_source` deletes only the source it names, then calls the research and design revokers.
+- **The scrub:** S3's migration adds two `AFTER` triggers. Each scrubs the body of every context that recorded the item: `body` becomes `NULL`, with `scrubbed_at` and `scrubbed_by`. The hash, ids and revisions stay, holding no text.
+  - On `conversation_messages`, when `body` becomes `NULL`. This covers `withdraw_conversation_message` (`scrubbed_by = 'message_withdrawn'`) and `erase_conversation`, which nulls every body (0048:388; `'conversation_erased'`). That table is CON's own.
+  - On `source_objects`, after an update that takes a row out of the full predicate, or a delete (`'source_withdrawn'`). No mission, research or design function is replaced (§8.3), but it changes a shared object's behaviour. So it is **held, with its footprint disclosed** (CX49):
+    - **The object:** `sophia.source_objects`, owned outside CON.
+    - **The trigger:** one trigger, `conversation_context_source_scrub`: `AFTER UPDATE OF eligible, state, scope, sha256, eligibility_revision OR DELETE`, `FOR EACH ROW`.
+    - **Its effect:** it calls one CON function, which updates only `conversation_reply_contexts` (`body = NULL`, `scrubbed_at`, `scrubbed_by`). It raises nothing, and reads only `conversation_reply_sources`.
+    - **Its gate:** S3's own migration doesn't create it. It is installed only in the shared candidate, with the source table's named owner and a window. Its scrub test (`withdraw_mission_entry`) runs there, and **no S3 claim covers a source withdrawal's scrub** until that owner and window have installed it.
+    - **Until then:** no context can be dispatched; there is no caller anyway.
+- **A superseded record** is scrubbed at once (`'superseded'`).
+- **What else is pending:** the dispatched create payload and the runtime's copies stay §8.5's inventory, scrubbed there.
+
+**Why this is atomic, and what still guards it.**
+- The project row is held `FOR SHARE` from before the compiler reads until the record commits. What serializes is each **public entry point** taking that lock. The helpers it calls (`mission_erase_source`, `put_text_source`, 0048's `conversation_append`) don't lock themselves; they rely on their callers. As read at the base, these public entry points lock the project row before their first write:
+  - the ledger writers in 0018–0020: `record_mission_entry`, `propose_mission_change`, `decide_mission_change`, `mission_commit` and `mission_accept`;
+  - `withdraw_mission_entry`, which locks the project (0018:447) before `mission_erase_source`. That function is the only SQL that takes a source out of the predicate: 0018's version, replaced by 0028 and then 0041, each its own `UPDATE … SET eligible=false, state='deleted'`;
+  - membership: the only SQL writer, `accept_room_invitation` (0010:328–330), updates the project row. No SQL function removes a member today.
+    - **The membership revocation protocol:** a future member removal must lock the project row `FOR UPDATE` and bump `audience_revision` before it changes `project_members`. The census below fails for any granted function that writes `project_members` without that.
+    - An asker made inactive by any other means is refused by the begin and record checks, and again at dispatch;
+  - the conversation writes in 0048, through `conversation_locked`.
+- **The caller-chain census (a test).**
+  - **Its scope:** every function with `EXECUTE` granted to `sophia_api` or `sophia_worker` that writes `source_objects`, `source_texts`, `decisions`, `mission_entries`, `project_revisions`, `projects`, `project_members`, `conversations` or `conversation_messages`, directly or through a helper.
+  - **Its list:** each must appear on a reviewed list with the line where it takes the project lock. A function granted later that isn't on the list fails the census until it is reviewed.
+  - **Concurrency:** a test holds each listed entry point against an assembly, in both orders.
+- **Dispatch and publication revalidation remain required** (§8.3). A decision accepted after the record and before dispatch makes the dispatch window's fence assemble again, at most 3 times, then fail visibly (`context_unstable`). So an ask dispatched after a decision is accepted sees that decision. One accepted after dispatch gives `contextChanged` at publication; a privacy withdrawal cancels and suppresses. Those fences are shared code, in the dispatch window, and not S3's.
+
+**S3 tests.**
+- **Parity with `readMissionContext`, for the same snapshot.** The rendered mission, constraint and pending items equal the compiled model's (its prefix under the budget, the omissions counted) in each of these cases:
+  - the current mission changed (a newly accepted mission, rendered at the next assembly);
+  - a superseded mission;
+  - a withdrawn frame;
+  - a legacy frame;
+  - an empty frame;
+  - 51 constraints and 51 pending, some sharing a `created_at`: the compiler's 50 reversed to newest first, ties by id descending, then the newest 20 or 10, and "may be older ones" said;
+  - a stale pending proposal.
+- **The record refuses a forgery** (`context_forged`, nothing recorded):
+  - bytes with an extra byte or line no fragment holds;
+  - a fragment whose text differs from its item's database values by one character;
+  - a template not pinned for the renderer version;
+  - an item of another conversation or project;
+  - a duplicated item;
+  - a message after `cutoff_seq`;
+  - an item claimed as another kind;
+  - a forged `stale` label, either way;
+  - an accepted label on a proposed decision, or the reverse;
+  - forged coverage arithmetic: `included` other than the fragments, or "may be more" below 50;
+  - a direct call of the record function by `sophia_api`, `sophia_worker`, `PUBLIC` or a login that isn't the assembler's member.
+- **The copy's erasure, in S3:**
+  - withdraw a recorded message, by its author and by an admin;
+  - erase the conversation.
+
+  The mission-source case (`withdraw_mission_entry`) runs with the held `source_objects` trigger, in the shared candidate.
+
+  After each: the body is `NULL`, `scrubbed_by` is set, the hash and ids stay, and a byte search of the record tables finds none of the text.
+- **Unknown commit:** a record committed whose answer was lost; begin then returns it, and assembles nothing new while the revisions hold.
+- **Fail closed, nothing recorded:**
+  - the asker removed;
+  - a wrong project;
+  - an erased conversation, or a changed `erasure_revision`;
+  - the asking message withdrawn;
+  - a reply not `pending`;
+  - an item claimed in another state or kind;
+  - a message after `cutoff_seq`;
+  - a source made private, ineligible or deleted;
+  - a compiler identity other than v1.
+- **Changes during assembly:** each writer above, concurrent with an assembly, in both orders. Before: the change is in the record, or the assembly refuses. After: it waits until the record commits, and the record names what the dispatch fence must then find invalid.
+- **Determinism and the hash:**
+  - the same snapshot gives the same bytes and hash;
+  - one changed byte, source revision or identity changes the hash;
+  - the record's hash is recomputed from its stored bytes.
+- **The canary:** the bytes hold no text of another conversation, of Personal or of the room.
+- **The role:** RLS applies through `sophia_conversation_assembler` (the checks under «Role and transaction»).
+- **An inherited summary source withdrawn (CX45 correction 3):** **not runnable in S3**, since no summary exists before a reply can be published. It is required, with the in-flight and published second-generation cases of §8.3, in the step that first stores a summary. S3 claims nothing for it.
+
+#### 8.7.3 Files
+
+| File | Step | Kind |
+|---|---|---|
+| `db/migrations/<census>_conversation_reply_ledger.sql` | S2 | new |
+| `db/migrations/<census>_conversation_reply_context.sql` (the role, the record tables, begin and record, the scrub trigger on `conversation_messages`) | S3 | new |
+| the `source_objects` scrub trigger | shared candidate | held: owner and window first |
+| `packages/persistence/src/conversation-ledger.db.test.ts` | S2 | new |
+| `packages/persistence/src/conversation-context.ts` (renderer and the assembly transaction; imports `readMissionContext`) | S3 | new |
+| `packages/persistence/src/conversation-context.test.ts` (renderer units) and `conversation-context.db.test.ts` | S3 | new |
+
+**Not touched:**
+- `mission-context.ts` and `tx.ts`;
+- `packages/persistence/src/index.ts` (the tests import the module directly);
+- 0048 and every applied migration;
+- 0049's six functions, and the A04 and A16 `RuntimeWorkBinding` wire;
+- `CONVERSATION_SCHEMA` and the contracts;
+- dsh-bundle, the registry and digests, the supervisor and launcher.
+
+No route, caller, grant or live value.
+
+### 8.8 Owners and windows the next crossing needs (CC-0110; unanswered)
+
+Each answer is needed before the matching write. None is answered here, no owner is assumed, and no shared file, schema, runtime or hook is activated by this file. §7.1's state stands: no accepted base, no named window, and the WBC-02/SDD-01 runtime owner not named.
+
+| # | To | Question |
+|---|---|---|
+| Q1 | The mission ledger's owner (A08: `withdraw_mission_entry`, `mission_erase_source`); no record names one | Do you acknowledge the writer protocol (the project FOR UPDATE before any source update) as binding on every future source writer, and a CON trigger and index on `source_objects` and `conversation_reply_sources` (§8.3)? |
+| Q2 | Research revocation's owner (0028, 0033); not named | Do you acknowledge that `source_out` runs in your revocation chain's transaction, after your locks? |
+| Q3 | Design lifecycle's owner (0041, SDD-01) | The same, for `design_revoke_source` |
+| Q4 | WBC-02's owner | Do you acknowledge coexistence with `source_objects_withdraw_work` (0042:1942) on the same table, independent, and run after the hook by name? |
+| Q5 | Luis (membership: S1-02, S1-04A) | Do you acknowledge the membership rule, and either name `add-member.ts`'s replacement or rule, or confirm it stays unused for CON? |
+| Q6 | Davide | Who owns the runtime (WBC-02/SDD-01)? Which `main` commit is the accepted base, and who holds the window, for which files, from when? |
+| Q7 | The runtime owner, once named | Do you acknowledge B-1's file list and the reply launcher, with the relay bound in §8.5? |
+| Q8 | Davide (LFE-00 profile rows, the runtime image) | Do you accept the reply profile, with its local credential store disabled, and the launcher in the image? |
+| Q9 | The renderer's owner | Is reusing `landlock-launch.py`'s reviewed pattern (ABI ≥ 4, `closerange`, `RLIMIT_CORE`, `pidfd`) acceptable for the reply launcher? |
+| Q10 | #190's owner (SDD-01 G7) | 0049 and the wire: can the window be named once #190's chain settles? |
+| Q11 | The census | Which migration numbers, for the hook and index, 0049, and the kind CHECK? |
+| Q12 | The runtime's owner (WBC-02/SDD-01), once named | Will you correct `reconcile_runtime_outbox` (0012:782-797; the worker's immediate re-pass at `apps/worker/src/runtime-dispatch.ts:98`) by a new migration, before 0049 or ahead of it in the same window? The correction needs both parts. **No starvation (required):** select only rows a pass can change, or prove a bounded fair traversal, so that no recoverable row waits behind older rows that can't change. **An honest count:** count only rows whose state changes. A count-only correction ends the spin but leaves the starvation. Its backlog recheck (L + 1 rows, at L = 2 and at the default 50) and CON's own reply cases are in G2_RUNTIME_PLAN §2.4.1. The spin and the starvation are pre-existing P2s that Codex reproduced (CX-0116 and its recheck); CON does not fix them |
 
 ## 9. Studio binding (G3)
 
@@ -701,14 +1130,25 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 | D-5 | The Conversations tab's gate (§9), with Luis | A dedicated build flag; `VISION` unchanged |
 | D-6 | Execution container (§8.2) | **Accepted, 2026-10-10** (source design, not live authorization): option C, each attempt owned by its reply request |
 | B-1 | Runtime host copies (§8.5) | **Accepted, 2026-10-10** (source design): a throwaway harness home per reply, on the existing pinned runtime, with Codex's qualifications, each bound in §8.5 |
-| D-7 | The new test project's two actual Sophia subjects and their roles (§8.6) | Davide asked for a second synthetic actual account. Its setup path is the draft CON-01-OP-0002-r2 (`draft_not_authorized`): the Studio's member invitation and email OTP sign-in, never a dashboard-created account. The mailbox, the role and the subjects **remain unbound**; they are bound in Codex's real-auth setup batch, not here |
+| D-7 | The new test project's two actual Sophia subjects and their roles (§8.6) | Davide asked for a second synthetic actual account. Its setup path is the draft CON-01-OP-0002-r2 (`draft_not_authorized`): the Studio's member invitation and email OTP sign-in, never a dashboard-created account. The mailbox (email OTP) is an owner-provided private reference, never published. The mailbox, the role and the subjects **remain unbound**; they are bound in Codex's real-auth setup batch, not here |
 | Q-1 | Moderation by editors (pack 03 §3 says editors/admins) | Admins only: every writer is an editor here, so editor moderation would let any writer erase anyone |
+| Q-2 | The next G2 crossing's owners and windows (§8.8, Q1–Q11) | **Open.** None answered; no write until each is |
 
 ## 14. Changes to this file
 
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-11 | CC-0129: Q12 corrected. The selection fix is required, not optional. Older rows the reconcile pass can't change fill its `ORDER BY created_at LIMIT p_limit` window on every pass, so a recoverable row behind them is never reached. A count-only correction ends the spin but keeps that starvation. Q12 now asks for both parts, with G2_RUNTIME_PLAN §2.4.1's L + 1 backlog recheck: the uncertain rows keep their state, their one command and their accounting, and no command is ever sent twice. Still the owner's new migration in its window; no CON fix and no shared change | CX-0116 recheck: Codex's third probe (`p_limit` 2, two answered rows ahead of one with no command) |
+| 2026-10-11 | CC-0127: §8.8 gains Q12, the shared dispatcher's reconcile spin (a pre-existing P2 in 0012 and the worker), as an owner dependency ahead of 0049. The exact boundary, the smallest owner correction, its recheck, and CON's own binding rules are in G2_RUNTIME_PLAN §2.4.1. No CON fix and no shared change | CX-0116 |
+| 2026-10-11 | CC-0121, proposed, CON-only: the reply projection's answer bound corrected from the goal path's 120,000 UTF-16 units to 0048's 1 to 16,000 characters as PostgreSQL counts them (0048:74; N4's publication, s4:342). An answer of 16,001 to 120,000 characters, or an empty one, would have crossed the relay and then made N4's publication raise inside the observation batch: a poisoned batch. Now each is refused without publication (`answer_too_long`, `answer_empty`), never sliced or replaced, with usage kept; the count is in code points, with astral tests. The largest line becomes about 100 KB; the 1 MiB envelope and the queue's caps are unchanged | Found by CC-0121 while preparing the CON-only source plan (CX-0113 asked for it) |
+| 2026-10-11 | CC-0120, proposed, CON-only, after CX-0113. A normal exit keeps the held item and reads fd 3's unread tail to end-of-file before the relay is classified; `draining` and `fenced` both end in `closed` (fd 3 at end-of-file and closed, nothing held, everything acknowledged, capture committed for a completion), which is step 4's eighth condition. Only storable text is forwarded: a lone surrogate or U+0000 (refused by `jsonb`, 22P02 and 22P05) makes the answer's item content-free and the reply `failed`/`answer_invalid_text`, with usage and no poisoned queue; the line bound's worst case is the worst storable unit (U+0001, 6 bytes). Required: the full-queue normal exit before acknowledgment, and its withdrawal control | CX-0113 |
+| 2026-10-11 | CC-0118, proposed, CON-only, correcting CC-0117 after CX-0112. (1) Today's wire bounds no observation's `data` (A04 `{}`; `summarize` passes `turn/*` and `step/*` raw), so §8.5 binds a reply-only projection: an exact whitelist of five types and their fields, the answer whole up to 120,000 UTF-16 code units or `oversize` (`failed`/`answer_too_long`, never truncated), a reply schema checked by the child, the parent and the API; the largest line derived (about 724 KB, 6 bytes per escaped unit), with 1 MiB as CON's envelope over it; an item admitted only if it fits, so the caps never overshoot; an invalid line ends `failed`/`relay_invalid`; the goal wire unchanged. (2) A normal completion drains with its text under the API's fences instead of being fenced at the child's exit, which could have scrubbed an eligible answer; privacy, failure and uncertain exits fence; with blocked-delivery, withdrawal and restart tests. Also "all eight" in the persist row, every hook and canary test labelled required and not run, and D-7's mailbox an owner-provided private reference, never published | CX-0112 |
+| 2026-10-11 | CC-0117, proposed, CON-only (no runtime, schema, hook or shared file written). §8.5: the parent's relay is finite per reply (an fd 3 line bound of 1 MiB counted before the newline and before any parse; a queue of 64 items and 4 MiB; backpressure, never a drop), overflow ends `failed`/`relay_overflow` with an open reservation `uncertain` and no duplicate or reset, queued and future items are fenced (not scrubbed once), and cleanup waits on eight conditions, the parent's own empty relay among them, so nothing is receipted as deleted before persistence. Also the per-child profile, the projection cache, diagnostics in the home instead of the supervisor's buffer, fixed-token errors, the transient buffers listed, attempt maps pruned at `retire`, and Landlock ABI 4. §8.3: the source hook (UPDATE only, the source-key index, NOWAIT stated exactly, the no-cycle claim scoped to the conversation crossings), the audience trigger withdrawn with joins kept, and `add-member.ts` excluded from CON's operations. §8.8: Q1–Q11, unanswered | CX-0108 (the remaining binding gap: RetainedQueue bounds each request, not its length); the CC-0107 review; CC-0110; CX-0111 asked for it now |
+| 2026-10-10 | §8.7, G2-S2 and G2-S3 footprint, normalized: the reply ledger's lineage, immutable fingerprint, expiry after the lock and lent subjects; S3 reuses `readMissionContext` (pinned `sophia.mission-context.v1`), with deterministic byte ceilings and one locked assembly-and-record that derives every source itself | CX45 (#198 6097962061) and its compiler correction; no number reserved, no shared file |
+| 2026-10-10 | §8.7 revised for the CC-0049 review: message provenance of its own and the context copy in the record, scrubbed in S3 by two additive triggers; compiled lists reversed to newest first, ties by id; the unit fixed per lineage, replay against the original fingerprint, ordinals never reused; a NOLOGIN assembler role in one REPEATABLE READ transaction, exact fragment verification; the public lock-taking writers' census, the membership revocation protocol, post-lock rereads and an unknown commit's replay | Codex's review of CC-0049 (five gaps); still no number, shared file, caller or grant |
+| 2026-10-10 | §8.7, CX49's three bindings and the CC-0054 review: typed per-dimension counters and amounts, a logical reply bound to its lineage (`lineage_changed`), the counter transfers, release and reconcile proofs (`never_claimed` fences the exact outbox row and attempt in the same transaction, correlated to reply, ordinal and create; both race orders), both refused until wired; the assembler dormant until a least-privilege path; the `source_objects` trigger held with its footprint; what SQL validates and what it only trusts; the digest not recorded | CX49 (#198 6098429475) and the CC-0054 review; still no number, shared file, caller or grant |
+| 2026-10-10 | §8.7.1, the #211 review: each approval used once across the project's history (`conversation_grant_approvals`; a lost new-lineage answer replays); no fresh call for a reply while one of its calls is uncertain, and a reservation is never dispatch permission | Codex's review of #211 at `f010577a` (approval A→B→A) |
 | 2026-10-10 | §8.6 and D-7: the second account's setup path is the draft CON-01-OP-0002-r2 (`draft_not_authorized`), the Studio's member invitation and email OTP sign-in, at most one project, one invitation and one account, no reissue; not the Supabase dashboard's Add user, and no direct auth SQL, synthetic JWT or admin key. The mailbox, the role and the subjects remain unbound. No binding changes | CX-0081 |
 | 2026-10-10 | The state lines brought up to date: revision 8, and D-6 and B-1 recorded as accepted source design, as §8 and §13 already said since revision 7; the inventory's state likewise. No binding changes | Codex's G2 documentation checkpoint |
 | 2026-10-10 | §8.2.1, the states' Studio part: it lands first as preparation (G2-S1), in CON-01's Studio files and the conversation fixture only. The SQL waits for an additive, coordinated migration; 0048 is applied and is never edited. The words for `outcome_unknown` are bound: the Ask's own, distinct from a lost Send's receipt, the accounting unsettled and still counted, nothing re-sent by itself. G2-S1 as first proposed edited 0048, and that is withdrawn | Codex on #198 (6096841147, 6096881830); WORKING_PROTOCOL §2 |
