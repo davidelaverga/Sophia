@@ -117,7 +117,7 @@
   margin-left: auto;
   padding-right: 6px;
   color: var(--text-2);
-  font: var(--type-label) / 1 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
 }
 /* The quick asks: one row of quiet chips under the empty field; on a narrow pane the row scrolls, never wraps. */
 .conv-quick {
@@ -236,7 +236,7 @@
   gap: 4px;
   margin-left: auto;
   color: var(--amber);
-  font: var(--type-label) / 1 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
 }
 .conv-open-flag::before {
   content: '';
@@ -287,7 +287,6 @@
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.015em;
-  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -392,7 +391,7 @@
 }
 .conv-output-v {
   color: var(--text-2);
-  font: var(--type-label) / 1.3 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
 }
 .conv-scroll {
   display: flex;
@@ -457,7 +456,7 @@
   text-align: center;
   margin: 10px 0 16px;
   color: var(--text-2);
-  font: var(--type-label) / 1.2 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -498,7 +497,6 @@
   margin: 0;
   white-space: pre-wrap;
   font-size: var(--type-body);
-  line-height: 1.55;
   overflow-wrap: anywhere;
 }
 .conv-msg-at {
@@ -506,7 +504,7 @@
   top: 50%;
   right: 0;
   color: var(--text-2);
-  font: var(--type-label) / 1 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity var(--fast) var(--ease);
@@ -542,7 +540,6 @@
 .conv-msg.sophia p {
   color: var(--core);
   font-size: var(--type-title);
-  line-height: 1.6;
 }
 /* Her words with their shape (sophia-text.ts): a lead in the second ink, a list with a quiet mark, the speaker named
    first in her own weight, a paragraph after a list a little apart. */
@@ -565,7 +562,6 @@
   padding-left: 16px;
   color: var(--core);
   font-size: var(--type-title);
-  line-height: 1.55;
   overflow-wrap: anywhere;
 }
 .sophia-list li::before {
@@ -634,7 +630,6 @@
 .conv-this-summary {
   margin: 0;
   font-size: var(--type-body);
-  line-height: 1.65;
 }
 .conv-mission {
   display: grid;
@@ -649,7 +644,6 @@
   color: var(--text);
   font-size: var(--type-title);
   font-weight: 600;
-  line-height: 1.45;
   text-wrap: balance;
 }
 .conv-decisions {
@@ -775,7 +769,7 @@
    waiting under it as quiet presses that fill it. */
 .conv-new .field-label {
   color: var(--text-2);
-  font: 500 var(--type-small) / 1.4 var(--sans);
+  font: 500 var(--type-small) / var(--lh-small) var(--sans);
   letter-spacing: 0;
   text-transform: none;
 }
@@ -822,7 +816,7 @@
   border-radius: var(--r-3);
   background: var(--plane);
   color: var(--text);
-  font: var(--type-body) / 1.5 var(--sans);
+  font: var(--type-body) / var(--lh-body) var(--sans);
   resize: vertical;
 }
 .conv-propose-acts {
@@ -892,7 +886,6 @@
   box-shadow: none;
   font: inherit;
   font-size: var(--type-body);
-  line-height: 1.5;
   resize: none;
   field-sizing: content;
 }
@@ -936,12 +929,12 @@
   margin: 0;
   padding: 0 4px;
   color: var(--text-2);
-  font: var(--type-small) / 1.3 var(--sans);
+  font: var(--type-small) / var(--lh-small) var(--sans);
 }
 /* The context's labels in words (C9): the app's sans, sentence case, the second ink; quieter than what they label. */
 .conv-context .eyebrow {
   color: var(--text-2);
-  font: 600 var(--type-small) / 1.4 var(--sans);
+  font: 600 var(--type-small) / var(--lh-small) var(--sans);
   letter-spacing: 0;
   text-transform: none;
 }
