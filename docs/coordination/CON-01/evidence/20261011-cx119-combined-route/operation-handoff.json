@@ -50,12 +50,13 @@
     "Full original150line route proposal and full corrected138line delta read; exact Git identities/blob/patch hashes checked.",
     "Read official Codex App Server documentation; existing Codex binary located only, no invocation/auth access.",
     "Read PR190/211 source and check-run metadata; no CI/PR mutation.",
-    "Guarded exactCON desktop correction/recheck messages delivered and visible. Existing author gate untouched. Signed-in IAB marked for handoff."
+    "Guarded exactCON desktop correction/recheck messages delivered and visible. Existing author gate untouched. Signed-in IAB marked for handoff.",
+    "Final separate154f09f0 route-docs delta23lines rechecked/hashesmatch; actual Studio/A08 source preservation checked, initial nonexistent A08 pathspec corrected with actual equal blob proof; exact-head bot comments reread."
   ],
   "results": "Independent local f0 passes138 conversation/10API tests; original runner census failure retained; corrected run clean. P1/P2 route proposal corrections scoped rechecked; no runtime/provider/cap/app qualification.",
   "unresolvedEffects": "No uncertain hosted effects. Same setup/cohort/route/finiteallowance/window/runtime integration/rollback holds; new pinned-wire cap qualification pending.",
   "rollback": "No CON deployment/setup mutation; no product source change. Dated tuple is not a qualified compatible rollback. Governed data must survive future rollback.",
-  "nextBoundedAction": "Independently review the separate telemetry/docs delta and existing f0 gate terminal/source/census; then require named Q7/Q12 runtime ownership before shared implementation. No restart or new live effects.",
+  "nextBoundedAction": "Independently read existing exactf0 gate terminal/source/census without restart/duplicate; require named Q7/Q12 runtime owner/window before shared implementation. Route qualification and live setup batch remain open.",
   "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
   "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
   "resourceUse": {
@@ -86,7 +87,7 @@
     "classification": "start_progress_only_not_terminal_pass",
     "authorPreconditions": "frozenofflineinstall/unchangedlock+packagefiles/clean;bothclustersdefaultDBs0otherclients",
     "state": "running",
-    "lastIndependentObservation": "2026-10-11T18:36Z exact CON UI still shows existing f0 gate running; author has provided partial progress only.",
+    "lastIndependentObservation": "2026-10-11T18:41Z: exactCON Background tasks panel shows Running / Run the combined gate on f0afe14b under the 12000s wrapper / Bash25m28s. Stop unused, panel restored.",
     "terminalResult": null
   }
 }

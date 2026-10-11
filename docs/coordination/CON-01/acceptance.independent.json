@@ -1121,7 +1121,7 @@
       "classification": "start_progress_only_not_terminal_pass",
       "authorPreconditions": "frozenofflineinstall/unchangedlock+packagefiles/clean;bothclustersdefaultDBs0otherclients",
       "state": "running",
-      "lastIndependentObservation": "2026-10-11T18:36Z exact CON UI still shows existing f0 gate running; author has provided partial progress only.",
+      "lastIndependentObservation": "2026-10-11T18:41Z: exactCON Background tasks panel shows Running / Run the combined gate on f0afe14b under the 12000s wrapper / Bash25m28s. Stop unused, panel restored.",
       "terminalResult": null
     }
   },
