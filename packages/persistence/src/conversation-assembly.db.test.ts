@@ -1681,6 +1681,27 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
           const head = p.fragments[0]
           if (head) head.extra = 1
         },
+        // CX99: a fragment whose item is JSON null, alone and as the cover for sections out of order.
+        null_item: (p) => {
+          const asking = p.fragments.at(-1)
+          if (asking) Object.assign(asking, { item: null })
+        },
+        null_item_sections_swapped: (p) => {
+          const asking = p.fragments.at(-1)
+          if (asking) Object.assign(asking, { item: null })
+          const [cs, ce] = section(p, 'constraints.head')
+          const [ps, pe] = section(p, 'pending.head')
+          const constraints = p.fragments.slice(cs, ce)
+          const pending = p.fragments.slice(ps, pe)
+          p.fragments.splice(cs, pe - cs, ...pending, ...constraints)
+        },
+        numeric_item: (p) => {
+          const asking = p.fragments.at(-1)
+          if (asking) Object.assign(asking, { item: 5 })
+        },
+        non_object_fragment: (p) => {
+          p.fragments.splice(1, 0, 'stray' as unknown as Fragment)
+        },
       }
       const refused: Record<string, string> = {}
       for (const [name, mutate] of Object.entries(cases)) {

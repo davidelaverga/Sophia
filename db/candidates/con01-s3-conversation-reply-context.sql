@@ -13,8 +13,8 @@
 -- * Begin and record run in one REPEATABLE READ transaction, so a writer that committed after its snapshot makes one of
 --   those locks fail with 40001. Claim and fail run in READ COMMITTED: each statement reads what has committed.
 -- * Validated against locked rows: every byte, template and item, the message window and count, the revisions, the
---   sources. Trusted from the compiler (`trusted: selection, coverage`): which decisions it selected, its counts, and
---   its notes and work facts.
+--   sources. Every refusal fails closed: a check that comes out NULL refuses. Trusted from the compiler
+--   (`trusted: selection, coverage`): which decisions it selected, its counts, and its notes and work facts.
 -- * When a message the context read loses its text, or the reply ends, the recorded body becomes NULL. Ids, seqs,
 --   revisions, source hashes and the context hash stay, as governed metadata. WAL, backups, and copies outside these rows
 --   are not covered.
@@ -541,8 +541,8 @@ BEGIN
  IF jsonb_typeof(p_coverage->'compiled') IS DISTINCT FROM 'number' OR (p_coverage->>'compiled') !~ '^(0|[1-9][0-9]?)$'
   THEN RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='compiled'; END IF;
  compiled:=(p_coverage->>'compiled')::integer;
- IF compiled>50 OR p_included>compiled OR p_included>p_items OR p_none<>(compiled=0) OR p_more<>(compiled>=50)
-    OR p_omitted IS DISTINCT FROM (CASE WHEN compiled>p_included THEN compiled-p_included END) THEN
+ IF coalesce(compiled>50 OR p_included>compiled OR p_included>p_items OR p_none<>(compiled=0) OR p_more<>(compiled>=50)
+    OR p_omitted IS DISTINCT FROM (CASE WHEN compiled>p_included THEN compiled-p_included END), true) THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='list coverage'; END IF;
  RETURN jsonb_build_object('compiled',compiled,'included',p_included,'omitted',compiled-p_included,'mayBeMore',compiled>=50);
 END $$;
@@ -581,20 +581,22 @@ BEGIN
 
  -- Each fragment's shape and every template's pinned text; the concatenation; the order.
  FOR e IN SELECT x FROM jsonb_array_elements(frags) WITH ORDINALITY a(x,o) ORDER BY o LOOP
-  IF jsonb_typeof(e) IS DISTINCT FROM 'object' OR jsonb_typeof(e->'text') IS DISTINCT FROM 'string'
-     OR jsonb_typeof(e->'id') IS DISTINCT FROM 'string'
-     OR (e->>'kind'='template' AND ((SELECT array_agg(f ORDER BY f COLLATE "C") FROM jsonb_object_keys(e) f)
-      <>'{args,id,kind,text}' OR sophia.conversation_context_template(e->>'id',e->'args') IS DISTINCT FROM e->>'text'))
-     OR (e->>'kind'='item' AND ((SELECT array_agg(f ORDER BY f COLLATE "C") FROM jsonb_object_keys(e) f)
-      <>'{id,item,kind,text}' OR e->>'item' NOT IN ('mission','constraint','pending','message','ask')))
-     OR e->>'kind' IS NULL OR e->>'kind' NOT IN ('template','item') THEN
+  -- A positive check, refused unless TRUE: a JSON null or a missing key where a string belongs never passes.
+  IF jsonb_typeof(e) IS DISTINCT FROM 'object' THEN
+   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='fragment'; END IF;
+  IF (jsonb_typeof(e->'text')='string' AND jsonb_typeof(e->'id')='string' AND CASE e->>'kind'
+      WHEN 'template' THEN (SELECT array_agg(f ORDER BY f COLLATE "C") FROM jsonb_object_keys(e) f)='{args,id,kind,text}'
+       AND sophia.conversation_context_template(e->>'id',e->'args')=e->>'text'
+      WHEN 'item' THEN (SELECT array_agg(f ORDER BY f COLLATE "C") FROM jsonb_object_keys(e) f)='{id,item,kind,text}'
+       AND jsonb_typeof(e->'item')='string' AND e->>'item' IN ('mission','constraint','pending','message','ask')
+      ELSE false END) IS NOT TRUE THEN
    RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='fragment'; END IF;
   shape:=shape||CASE WHEN e->>'kind'='template' THEN 't:'||(e->>'id') ELSE 'i:'||(e->>'item') END||';';
   joined:=joined||(e->>'text');
  END LOOP;
  IF joined IS DISTINCT FROM p_context->>'text' THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='text is not its fragments'; END IF;
- IF shape !~ sophia.conversation_context_grammar() THEN
+ IF (shape ~ sophia.conversation_context_grammar()) IS NOT TRUE THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='order'; END IF;
  bl:=octet_length(convert_to(joined,'UTF8'));
  IF bl>126976 THEN RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='whole ceiling'; END IF;
@@ -624,34 +626,38 @@ BEGIN
    s_sha:=s_sha||item.o_sha256; s_rev:=s_rev||item.o_revision;
   ELSIF e->>'item'='message' THEN
    msg_items:=msg_items||(e->>'id'); msg_texts:=msg_texts||(e->>'text');
-  ELSE
+  ELSIF e->>'item'='ask' THEN
    ask:=sophia.conversation_context_message(r,r.message_id,true);
    IF e->>'id' IS DISTINCT FROM r.message_id::text OR ask.o_text IS DISTINCT FROM e->>'text' THEN
     RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='ask'; END IF;
    m_id:=m_id||r.message_id; m_seq:=m_seq||ask.o_seq; m_role:=m_role||'ask'::text; m_sha:=m_sha||ask.o_sha256;
+  ELSE
+   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='item';
   END IF;
  END LOOP;
 
  -- The mission section and the missing facts it fixes; the trusted list counts, checked against what is shown.
- IF NOT (marks ? 'mission.none' OR marks ? 'mission.legacy') AND mission.o_shape<>'item'
+ IF coalesce(NOT (marks ? 'mission.none' OR marks ? 'mission.legacy') AND mission.o_shape<>'item'
     OR (marks ? 'mission.none' AND mission.o_shape<>'none') OR (marks ? 'mission.legacy' AND mission.o_shape<>'legacy')
     OR (marks ? 'missing.accepted_mission')<>(mission.o_shape<>'item')
     OR NOT (marks ? 'missing.none' OR marks ? 'missing.accepted_mission' OR marks ? 'missing.constraints'
-     OR marks ? 'missing.notes' OR marks ? 'missing.work') THEN
+     OR marks ? 'missing.notes' OR marks ? 'missing.work'), true) THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='mission or missing'; END IF;
  coverage:=jsonb_build_object(
   'constraints',sophia.conversation_context_list(p_context->'coverage'->'constraints',kc,20,
    (marks->>'constraints.omitted')::bigint,marks ? 'constraints.more',marks ? 'constraints.none'),
   'pending',sophia.conversation_context_list(p_context->'coverage'->'pending',kp,10,
    (marks->>'pending.omitted')::bigint,marks ? 'pending.more',marks ? 'pending.none'));
- IF (marks ? 'missing.constraints')<>((coverage->'constraints'->>'compiled')::integer=0)
-    OR (bytes->>'constraints')::integer>16384 OR (bytes->>'pending')::integer>8192 THEN
+ IF coalesce((marks ? 'missing.constraints')<>((coverage->'constraints'->>'compiled')::integer=0)
+    OR coalesce((bytes->>'constraints')::integer,0)>16384 OR coalesce((bytes->>'pending')::integer,0)>8192, true) THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='constraints'; END IF;
 
  -- The earlier messages: exactly the newest k of begin's window, oldest first; the count begin made; the marker it fixes.
  km:=cardinality(msg_items);
- IF km>cardinality(k.window_ids) OR (bytes->>'messages')::integer>32768 OR (marks ? 'messages.none')<>(k.earlier_count=0)
-    OR (marks->>'messages.omitted')::bigint IS DISTINCT FROM (CASE WHEN k.earlier_count>km THEN k.earlier_count-km END) THEN
+ IF coalesce(km>cardinality(k.window_ids) OR coalesce((bytes->>'messages')::integer,0)>32768
+    OR (marks ? 'messages.none')<>(k.earlier_count=0)
+    OR (marks->>'messages.omitted')::bigint IS DISTINCT FROM (CASE WHEN k.earlier_count>km THEN k.earlier_count-km END), true)
+ THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='message window'; END IF;
  FOR i IN 1..km LOOP
   IF msg_items[i] IS DISTINCT FROM k.window_ids[km-i+1]::text THEN
