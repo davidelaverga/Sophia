@@ -1,0 +1,38 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0114.md",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "3b9363dc86afe0b4c9f3dd3213aac4f009da6eb1",
+  "supplementalTree": "e0204c6b6bc0a2b8bceb344e9ec50709ddc1fcde",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Early proposed plan corrections reviewed through cfaf1295:1..16000codepoint/empty/astral refusal and required terminal body/hash scrub. StepsA/B scoped source preparation accepted, implementation not yet independently qualified. Prior combined3b129+12 scopedPASS retained;all36verdicts unchanged.",
+  "readiness": {
+    "source_ready": true,
+    "N4_source_ready": true,
+    "locally_verified": "Prior combined3b129+12 and Unicode boundaries retained; current checkpoint source/docs review only.",
+    "scoped_delta_reviewed": true,
+    "proposed_binding_corrections_reviewed": "Named bound/empty/astral and terminal-scrub plan corrections only; local source preparation accepted, runtime implementation unqualified",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized; approval/expiry null. Draft-only3b progression conditional on all ordinary steps passing and fresh review; no merge/live permission.",
+  "cleanup": "No new local cluster or hosted mutation. Prior three CX113 clusters and earlier resources remain settled.",
+  "next": "Primary early-publishes separate immutable CON-only StepA index source pin with before/after evidence; reviewer inspects actual delta and independently reruns affected PostgreSQL controls. StepB may follow separately; shared/runtime/live holds remain.",
+  "documentationCandidate": "cfaf12958989b5c7bf1d8f7308696a9c485a3905",
+  "documentationTree": "a5d046b2a310514d5ac145da84102873858cc4bd",
+  "evidence": "evidence/20261011-cx114-plan-review/",
+  "operationApproval": null,
+  "expiry": null,
+  "resourceUse": {
+    "newLocalPg": 0,
+    "sophiaProviderCalls": 0,
+    "hostedAppMutations": 0,
+    "reviewerHostedEffectSpend": 0,
+    "local": "Read-only immutable docs/source review; no tests rerun for docs alone.",
+    "codingAgentSubscriptionConsumption": "Normal authorized coordination; unmeasured/private."
+  }
+}

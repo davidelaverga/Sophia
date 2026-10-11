@@ -1,0 +1,9 @@
+{
+  "schema": "sophia.con01.hashed-artifacts.v1",
+  "record": "CX-0114.md",
+  "artifacts": {
+    "evidence/20261011-cx114-plan-review/acceptance-status-comparison.json": "2576f3d2e2d67cc9fbbf4f488a6c0c4ee24d80bd22919ea5a5bc3dd624758ee2",
+    "evidence/20261011-cx114-plan-review/operation-handoff.json": "e0449ea66045fa920640e7ea2357cd1706c957034a3e6aadc522d9a45cad8b30",
+    "evidence/20261011-cx114-plan-review/source-review.json": "5db92099527fd7d31fd33f3352113b07adab33d8c9901987baccca0d6c3c9ecd"
+  }
+}

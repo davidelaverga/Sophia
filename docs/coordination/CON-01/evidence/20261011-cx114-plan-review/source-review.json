@@ -1,0 +1,46 @@
+{
+  "candidate": "9e5489183b41f13a1350d5c74e8897884111a56b",
+  "tree": "e73b5266c0d6ade4ab98dbc5a4440ad0fc05d98a",
+  "rangeFrom": "c86fa8088b8825379da421346dca971364d73b90",
+  "read": [
+    "18827e09 BINDING_MAP +7/-6; full change, truncated middle reread",
+    "94fca513 full new plan104lines",
+    "9e548918 both-file +11/-10; full change, truncated qualification row reread"
+  ],
+  "authorReceipt": 6111125367,
+  "authorReceiptRead": "full",
+  "bindingReview": "Named1..16000codepoint/empty/astral terminal failure changes proposed-only acceptable; no runtime execution",
+  "stepA": "Scoped plan acceptable, separate CON-only review branch, no migration number/shared hook/grant/runner",
+  "stepB": "Corrected scoped plan accepted; implementation not qualified",
+  "findings": [
+    {
+      "severity": "P2",
+      "candidate": "94fca51327b5ea6d04b085703eeb5d9496c1f72b",
+      "boundary": "Empty answer missing from proposed bound",
+      "status": "Addressed proposed-only9e548918 with answer_empty and absence-of-message case; tests required not run"
+    },
+    {
+      "severity": "P2",
+      "candidate": "9e5489183b41f13a1350d5c74e8897884111a56b",
+      "boundary": "G2_CON_ONLY_PLAN running refusal/tests promise no context change",
+      "source": "S3 conversation_context_reply_scrub AFTER UPDATE OF state runs on failed; conversation_context_scrub clears body and message body_sha256",
+      "locations": [
+        "G2_CON_ONLY_PLAN.md:53",
+        "G2_CON_ONLY_PLAN.md:60",
+        "db/candidates/con01-s3-conversation-reply-context.sql:374",
+        "db/candidates/con01-s3-conversation-reply-context.sql:400"
+      ],
+      "reproducer": "Review planned running\u2192failed against installed S3 trigger WHEN NEW.state IN answered/failed/cancelled/blocked/outcome_unknown and OLD.state distinct; the proposed update necessarily triggers governed context scrub. Function StepB not implemented, so direct source contradiction, not executed new-function failure.",
+      "correction": "Preserve terminal trigger; plan/tests must require governed body/hash scrub, while no answer/message/suppression/native receipt is newly written.",
+      "status": "Addressed proposed-onlycfaf1295; actual new-function tests not run"
+    }
+  ],
+  "limits": "Current-main/shared native composition, owner/window/base and live authorization still unbound; no feature fix authored.",
+  "correctionCandidate": {
+    "sha": "cfaf12958989b5c7bf1d8f7308696a9c485a3905",
+    "tree": "a5d046b2a310514d5ac145da84102873858cc4bd",
+    "delta": "complete one-file +4/-2 read",
+    "verdict": "named_plan_correction_reviewed_proposed_only",
+    "result": "Required terminal body/hash scrub and enabled trigger preserved; governed metadata retained; replay scrubbed_at unchanged test; source preparation may proceed separately, no implementation/runtime/live qualification."
+  }
+}
