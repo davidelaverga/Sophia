@@ -25,9 +25,10 @@ function readCards(own: typeof OWN) {
     const ownEdge =
       ['data-changed', 'data-lit', 'data-waiting'].some((a) => card.hasAttribute(a)) || own.edge.includes(mark)
     return {
-      name: card.className
-        .replace(/\b(card-tile|card|live)\b/g, '')
-        .trim()
+      // Its own classes, the kit's left out (`report-card` keeps its name whole: a word-boundary cut it at the hyphen).
+      name: [...card.classList]
+        .filter((c) => !['card', 'card-tile', 'live'].includes(c))
+        .join(' ')
         .slice(0, 24),
       kind: card.classList.contains('card-tile') ? 'tile' : 'base',
       radius: cs.borderRadius,
