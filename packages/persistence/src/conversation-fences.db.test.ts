@@ -258,6 +258,22 @@ async function running(earlier = 3): Promise<Scene> {
   return s
 }
 
+/** E asks again in the scene's conversation; the request recorded (N2) and dispatched (running). */
+async function askAgain(s: Pick<Scene, 'conversationId'>, record = true): Promise<string> {
+  const asked = await asActor(E, (c) =>
+    sendConversationMessage(c, s.conversationId, randomUUID(), { text: 'And now?', askSophia: true }, 'Lucía'),
+  )
+  assert.ok(asked.replyId)
+  await owner(`UPDATE sophia.conversation_replies SET state='pending', reason=NULL, settled_at=NULL WHERE id=$1`, [
+    asked.replyId,
+  ])
+  if (record) {
+    assert.equal((await assembleReply(loginUrl, asked.replyId, LIMITS)).outcome, 'recorded')
+    await owner(`UPDATE sophia.conversation_replies SET state='running' WHERE id=$1`, [asked.replyId])
+  }
+  return asked.replyId
+}
+
 const publish = async (replyId: string, attempt: number, result: string, text: string, c?: pg.Client) => {
   const sql = 'SELECT sophia.conversation_publish_answer($1, $2, $3, $4) AS v'
   const params = [replyId, attempt, result, text]
@@ -347,6 +363,29 @@ const dependency = async (replyId: string, decision: string, attempt = 1) =>
       [replyId, attempt, decision],
     )
   )[0]
+const suppressionOf = async (replyId: string) =>
+  (
+    await owner<{ source_id: string; reason: string; tombstone: string | null; at: string }>(
+      `SELECT source_id, reason, tombstone, suppressed_at::text AS at FROM sophia.conversation_reply_suppressions
+        WHERE reply_id=$1`,
+      [replyId],
+    )
+  )[0]
+/** The sources and messages a reply's attempt read, as recorded. */
+const readsOf = async (replyId: string) => ({
+  sources: (
+    await owner<{ s: string }>(
+      'SELECT source_id::text AS s FROM sophia.conversation_reply_sources WHERE reply_id=$1 ORDER BY 1',
+      [replyId],
+    )
+  ).map((r) => r.s),
+  messages: (
+    await owner<{ m: string }>(
+      'SELECT message_id::text AS m FROM sophia.conversation_reply_messages WHERE reply_id=$1 ORDER BY 1',
+      [replyId],
+    )
+  ).map((r) => r.m),
+})
 const sourceRow = async (sourceId: string) =>
   (
     await owner<{ sha256: string; eligible: boolean; state: string; scope: string; eligibility_revision: string }>(
@@ -370,6 +409,48 @@ const ineligible = (sourceId: string) =>
   ])
 const erase = (projectId: string, sourceId: string) =>
   owner('SELECT sophia.mission_erase_source($1, $2)', [projectId, sourceId])
+
+// --- The allowance ledger (S2), set up by the owner: a lineage for the asker, and one call reserved then uncertain. ---
+
+const ledgerState = async (projectId: string, replyId: string) => ({
+  reservations: await owner(
+    'SELECT to_jsonb(r) AS r FROM sophia.conversation_reservations r WHERE reply_id=$1 ORDER BY call_ordinal',
+    [replyId],
+  ),
+  grant: await owner('SELECT to_jsonb(g) AS g FROM sophia.conversation_grants g WHERE project_id=$1', [projectId]),
+})
+const grantFor = (projectId: string) =>
+  owner('SELECT sophia.conversation_new_lineage($1, $2)', [
+    projectId,
+    JSON.stringify({
+      unit: 'calls_tokens',
+      routeId: 'route-a',
+      credentialRef: 'cred-a',
+      ownerResourceRef: 'owner-a',
+      approvalRef: `approval-${randomUUID()}`,
+      expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+      maxCallsPerReply: 2,
+      totalCallCap: 10,
+      replyTokenCap: 1000,
+      totalTokenCap: 5000,
+      subjects: [E],
+    }),
+  ])
+const reserveUncertain = async (s: Pick<Scene, 'projectId' | 'replyId'>) => {
+  await owner('SELECT sophia.conversation_reserve($1, $2, 1, $3)', [
+    s.projectId,
+    s.replyId,
+    JSON.stringify({
+      routeId: 'route-a',
+      credentialRef: 'cred-a',
+      ownerResourceRef: 'owner-a',
+      unit: 'calls_tokens',
+      tokens: 100,
+      priceMicros: 0,
+    }),
+  ])
+  await owner('SELECT sophia.conversation_mark_uncertain($1, $2)', [s.projectId, s.replyId])
+}
 
 // --- The catalog, before and after the candidate ----------------------------------------------------------------------
 
@@ -1160,6 +1241,121 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
     })
   })
 
+  describe('a source’s withdrawal, later and further (CX-0102)', () => {
+    const outOfPredicate: Array<[string, (id: string) => Promise<unknown>, string]> = [
+      ['made ineligible', (id) => ineligible(id), 'source_withdrawn'],
+      [
+        'made private',
+        (id) => owner(`UPDATE sophia.source_objects SET scope='private' WHERE id=$1`, [id]),
+        'source_out_of_scope',
+      ],
+    ]
+    for (const [name, change, reason] of outOfPredicate) {
+      it(`a source ${name}, then erased: the retained hash becomes a tombstone then, once; nothing else moves`, async () => {
+        const s = await running()
+        const v = await publish(s.replyId, 1, randomUUID(), 'Read from it.')
+        const dep = await must(dependency(s.replyId, s.constraint), 'dependency')
+        await change(dep.source_id)
+        await sourceOut(s.projectId, dep.source_id)
+        const first = await must(suppressionOf(s.replyId), 'suppression')
+        assert.deepEqual([first.reason, first.tombstone], [reason, null])
+        assert.equal((await must(dependency(s.replyId, s.constraint), 'dependency')).sha256, dep.sha256)
+        const erasure = await must(erasureOf(s.replyId), 'erasure')
+        const withdrawnEvents = await events(s.projectId, 'conversation.message_withdrawn')
+        // The source's text is erased now (0018): its hash changes, and the retained copy must not keep the old one.
+        await erase(s.projectId, dep.source_id)
+        await sourceOut(s.projectId, dep.source_id)
+        const now = await must(suppressionOf(s.replyId), 'suppression')
+        assert.ok(now.tombstone, 'the suppression takes a tombstone')
+        assert.deepEqual({ ...now, tombstone: null }, first, 'its reason and time stay')
+        const kept = await must(dependency(s.replyId, s.constraint), 'dependency')
+        assert.equal(kept.sha256, now.tombstone)
+        assert.notEqual(kept.sha256, dep.sha256)
+        assert.notEqual(kept.sha256, (await must(sourceRow(dep.source_id), 'source')).sha256)
+        assert.deepEqual(await erasureOf(s.replyId), erasure, 'the context’s erasure stays the first')
+        assert.equal((await must(messageOf(v.answerId), 'message')).body, null, 'nothing restored')
+        assert.equal(
+          await events(s.projectId, 'conversation.message_withdrawn'),
+          withdrawnEvents,
+          'nothing more withdrawn',
+        )
+        await sourceOut(s.projectId, dep.source_id)
+        assert.deepEqual(await suppressionOf(s.replyId), now, 'a third call changes nothing')
+        assert.equal((await must(dependency(s.replyId, s.constraint), 'dependency')).sha256, now.tombstone)
+      })
+    }
+
+    it('withdraws every answer derived from a withdrawn one, every hop, once; cancels what is open; leaves the ledger', async () => {
+      // R1 reads the first mission's source S and is answered.
+      const s = await running()
+      const a1 = await publish(s.replyId, 1, randomUUID(), 'R1, read from the first mission.')
+      const [mission] = await owner<{ source_id: string }>(
+        `SELECT source_id FROM sophia.conversation_reply_sources WHERE reply_id=$1 AND kind='mission'`,
+        [s.replyId],
+      )
+      assert.ok(mission)
+      // A new mission is accepted: what is asked from now on no longer reads S, only R1's answer.
+      await propose(s.projectId, A, { kind: 'mission', statement: 'Ship the list first', purpose: 'Find lists' }, A)
+      const r2 = await askAgain(s)
+      const reads2 = await readsOf(r2)
+      assert.ok(!reads2.sources.includes(mission.source_id), 'R2 does not read S')
+      assert.ok(reads2.messages.includes(a1.answerId), 'R2 reads R1’s answer')
+      await grantFor(s.projectId)
+      await reserveUncertain({ projectId: s.projectId, replyId: r2 })
+      const ledger = await ledgerState(s.projectId, r2)
+      const a2 = await publish(r2, 1, randomUUID(), 'R2, read from R1’s answer.')
+      const r3 = await askAgain(s)
+      assert.ok((await readsOf(r3)).messages.includes(a2.answerId), 'R3 reads R2’s answer')
+      const a3 = await publish(r3, 1, randomUUID(), 'R3, read from R2’s answer.')
+      const r4 = await askAgain(s, false)
+      const withdrawnEvents = await events(s.projectId, 'conversation.message_withdrawn')
+      // S is erased (0018), and its withdrawal reaches R1 directly, and through R1's answer, R2 and R3, and R4.
+      await erase(s.projectId, mission.source_id)
+      const v = await must(sourceOut(s.projectId, mission.source_id), 'source_out')
+      assert.deepEqual([v.suppressed, v.withdrawn], [1, 1], 'one direct dependency, one answer withdrawn directly')
+      for (const [reply, answerId, text] of [
+        [s.replyId, a1.answerId, 'R1, read from the first mission.'],
+        [r2, a2.answerId, 'R2, read from R1’s answer.'],
+        [r3, a3.answerId, 'R3, read from R2’s answer.'],
+      ] as const) {
+        const m = await must(messageOf(answerId), 'message')
+        const a = await must(answerOf(reply), 'answer')
+        assert.deepEqual(
+          [m.body, m.withdrawn_by, a.text_sha256, a.withdrawn_by],
+          [null, 'source', null, 'source'],
+          text,
+        )
+        const read = await withActor(
+          api,
+          E,
+          'read',
+          async (c) =>
+            (
+              await c.query<{ body: string | null }>('SELECT body FROM sophia.conversation_messages WHERE id=$1', [
+                answerId,
+              ])
+            ).rows[0]?.body,
+        )
+        assert.equal(read, null, `a member reads no text: ${text}`)
+        const replay = await publish(reply, 1, a.result_ref, text)
+        assert.deepEqual([replay.verdict, replay.visible], ['answer_withdrawn', false], `replay: ${text}`)
+        assert.equal(await sophiaMessages(reply), 1, `one message: ${text}`)
+      }
+      assert.deepEqual(await replyOf(r4), {
+        state: 'cancelled',
+        reason: 'source_withdrawn',
+        answer_id: null,
+        settled: true,
+      })
+      for (const reply of [r2, r3]) assert.equal((await must(erasureOf(reply), 'erasure')).reason, 'message_withdrawn')
+      assert.equal(await events(s.projectId, 'conversation.message_withdrawn'), withdrawnEvents + 1, 'one event')
+      assert.deepEqual(await ledgerState(s.projectId, r2), ledger, 'the uncertain call stays counted')
+      const again = await must(sourceOut(s.projectId, mission.source_id), 'source_out')
+      assert.deepEqual([again.suppressed, again.cancelled, again.withdrawn], [0, 0, 0])
+      assert.equal(await events(s.projectId, 'conversation.message_withdrawn'), withdrawnEvents + 1)
+    })
+  })
+
   describe('a rollback keeps read and erase access', () => {
     it('source_out rolled back: the answer stays readable by members, and withdrawable and erasable through 0048', async () => {
       const s = await running()
@@ -1316,47 +1512,6 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
 
   describe('the allowance ledger (S2) is never touched', () => {
     it('an uncertain reservation stays exactly as it was through publication, replay, source_out and re-eligibility', async () => {
-      const ledgerState = async (projectId: string, replyId: string) => ({
-        reservations: await owner(
-          'SELECT to_jsonb(r) AS r FROM sophia.conversation_reservations r WHERE reply_id=$1 ORDER BY call_ordinal',
-          [replyId],
-        ),
-        grant: await owner('SELECT to_jsonb(g) AS g FROM sophia.conversation_grants g WHERE project_id=$1', [
-          projectId,
-        ]),
-      })
-      const grantFor = (projectId: string) =>
-        owner('SELECT sophia.conversation_new_lineage($1, $2)', [
-          projectId,
-          JSON.stringify({
-            unit: 'calls_tokens',
-            routeId: 'route-a',
-            credentialRef: 'cred-a',
-            ownerResourceRef: 'owner-a',
-            approvalRef: `approval-${randomUUID()}`,
-            expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
-            maxCallsPerReply: 2,
-            totalCallCap: 10,
-            replyTokenCap: 1000,
-            totalTokenCap: 5000,
-            subjects: [E],
-          }),
-        ])
-      const reserveUncertain = async (s: Scene) => {
-        await owner('SELECT sophia.conversation_reserve($1, $2, 1, $3)', [
-          s.projectId,
-          s.replyId,
-          JSON.stringify({
-            routeId: 'route-a',
-            credentialRef: 'cred-a',
-            ownerResourceRef: 'owner-a',
-            unit: 'calls_tokens',
-            tokens: 100,
-            priceMicros: 0,
-          }),
-        ])
-        await owner('SELECT sophia.conversation_mark_uncertain($1, $2)', [s.projectId, s.replyId])
-      }
       const s = await running()
       await grantFor(s.projectId)
       await reserveUncertain(s)

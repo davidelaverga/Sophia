@@ -17,7 +17,9 @@
 --   every source writer locks the project FOR UPDATE before it changes a source. That protocol, and its owner's
 --   acknowledgment, come before any such trigger. Here `conversation_source_out` is only called directly.
 -- * Privacy dominates replay: once a reply has an answer, nothing is written for it again, and an answer whose text went
---   replays as withdrawn, for any input. A suppression is permanent: re-eligibility never revives what it reached. The
+--   replays as withdrawn, for any input. A suppression is permanent: re-eligibility never revives what it reached, and
+--   it only ever gains a tombstone. A source's withdrawal reaches the answers derived from an answer it withdraws, by
+--   0048's rule for a withdrawn message. The
 --   allowance ledger (S2) is never touched: no settlement, release or reconciliation, so an uncertain call stays counted.
 -- * N2's invariants change here and nowhere else (CC-0100 §3, CC-0101, CX-0101); N2's own file is unchanged.
 --   `conversation_context_kept()` is replaced, adding three rules, and the context length CHECK is replaced under its
@@ -68,14 +70,21 @@ CREATE TABLE sophia.conversation_context_erasures (
  FOREIGN KEY(project_id,reply_id,attempt) REFERENCES sophia.conversation_reply_contexts(project_id,reply_id,attempt)
 );
 
--- An answer's identity never changes; its hash goes only once, with when and by whom; a suppression never changes; nothing
--- here is deleted or truncated. A suppression and an erasure never change.
+-- An answer's identity never changes; its hash goes only once, with when and by whom. A suppression changes only once, to
+-- take a tombstone when the source it reached later stops holding the hash (CX-0102); an erasure never changes. Nothing
+-- here is deleted or truncated.
 CREATE FUNCTION sophia.conversation_fences_kept() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,sophia AS $$
 DECLARE was jsonb; now jsonb;
 BEGIN
- IF TG_OP IN ('DELETE','TRUNCATE') OR TG_TABLE_NAME<>'conversation_reply_answers' THEN
+ IF TG_OP IN ('DELETE','TRUNCATE')
+    OR TG_TABLE_NAME NOT IN ('conversation_reply_answers','conversation_reply_suppressions') THEN
   RAISE EXCEPTION 'fences_kept' USING ERRCODE='55000'; END IF;
  was:=to_jsonb(OLD); now:=to_jsonb(NEW);
+ IF TG_TABLE_NAME='conversation_reply_suppressions' THEN
+  IF ((was-'tombstone')=(now-'tombstone') AND OLD.tombstone IS NULL AND NEW.tombstone IS NOT NULL) IS NOT TRUE THEN
+   RAISE EXCEPTION 'fences_kept' USING ERRCODE='55000'; END IF;
+  RETURN NEW;
+ END IF;
  IF ((was-'text_sha256'-'withdrawn_at'-'withdrawn_by')<>(now-'text_sha256'-'withdrawn_at'-'withdrawn_by')
    OR (now->'text_sha256' IS DISTINCT FROM was->'text_sha256' AND jsonb_typeof(now->'text_sha256')<>'null')
    OR (OLD.withdrawn_at IS NOT NULL AND (was->'withdrawn_at',was->'withdrawn_by')
@@ -364,12 +373,16 @@ END $$;
 
 -- A source left its predicate: every reply attempt that read it, whatever its state and whether or not its context is
 -- already scrubbed, is suppressed once and for good. An open reply is cancelled (so its context is scrubbed); a published
--- answer loses its text; the context's digest and length are erased; a retained hash the source no longer holds becomes
--- a tombstone. Why is read from the source row, never given. The body a
--- held source_objects trigger would run, in the source writer's transaction; called directly here.
+-- answer loses its text, and so does every answer derived from it, by 0048's rule for a withdrawn message (N3's
+-- conversation_withdrawn_from): each Sophia answer in the conversation asked at or after it, every hop at once, and each
+-- open request that would read it is cancelled. The context's digest and length are erased; a retained hash the source
+-- no longer holds becomes a tombstone, at once or, for a suppression made while the source still held it, when a later
+-- call finds it gone (CX-0102). Why is read from the source row, never given. `withdrawn` counts the answers it reached
+-- directly; the derived ones show in their rows. The body a held source_objects trigger would run, in the source
+-- writer's transaction; called directly here.
 CREATE FUNCTION sophia.conversation_source_out(p_project uuid, p_source uuid) RETURNS jsonb LANGUAGE plpgsql
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE o sophia.source_objects; d record; r sophia.conversation_replies; why text; tomb text;
+DECLARE o sophia.source_objects; d record; r sophia.conversation_replies; why text; tomb text; aseq bigint;
  t timestamptz:=clock_timestamp(); moved uuid[]:='{}'; cv uuid; n_suppressed integer:=0; n_cancelled integer:=0;
  n_withdrawn integer:=0;
 BEGIN
@@ -378,14 +391,26 @@ BEGIN
  SELECT * INTO o FROM sophia.source_objects WHERE project_id=p_project AND id=p_source;
  IF NOT FOUND THEN RAISE EXCEPTION 'no_source' USING ERRCODE='22023'; END IF;
  why:=CASE WHEN o.scope IS DISTINCT FROM 'project' THEN 'source_out_of_scope' ELSE 'source_withdrawn' END;
- FOR d IN SELECT s.reply_id, s.attempt, bool_or(o.sha256 IS DISTINCT FROM s.sha256) AS hash_gone
+ FOR d IN SELECT s.reply_id, s.attempt, bool_or(o.sha256 IS DISTINCT FROM s.sha256) AS hash_gone,
+   (SELECT x.tombstone IS NULL FROM sophia.conversation_reply_suppressions x WHERE x.project_id=p_project
+     AND x.reply_id=s.reply_id AND x.attempt=s.attempt AND x.source_id=p_source) AS untombstoned
    FROM sophia.conversation_reply_sources s
   WHERE s.project_id=p_project AND s.source_id=p_source
    AND NOT coalesce(o.scope='project' AND o.eligible AND o.state='ready' AND o.sha256=s.sha256
     AND o.eligibility_revision=s.eligibility_revision, false)
-   AND NOT EXISTS(SELECT 1 FROM sophia.conversation_reply_suppressions x WHERE x.project_id=s.project_id
-    AND x.reply_id=s.reply_id AND x.attempt=s.attempt AND x.source_id=s.source_id)
   GROUP BY s.reply_id, s.attempt ORDER BY s.reply_id, s.attempt LOOP
+  -- Suppressed already: only a hash the source has since stopped holding can still go. The suppression's reason and
+  -- time stay, and nothing else is touched: nothing restored, nothing reset.
+  IF d.untombstoned IS NOT NULL THEN
+   IF d.untombstoned AND d.hash_gone THEN
+    tomb:=encode(sha256(convert_to(gen_random_uuid()::text||gen_random_uuid()::text,'UTF8')),'hex');
+    UPDATE sophia.conversation_reply_suppressions SET tombstone=tomb
+     WHERE project_id=p_project AND reply_id=d.reply_id AND attempt=d.attempt AND source_id=p_source AND tombstone IS NULL;
+    UPDATE sophia.conversation_reply_sources SET sha256=tomb
+     WHERE project_id=p_project AND reply_id=d.reply_id AND attempt=d.attempt AND source_id=p_source;
+   END IF;
+   CONTINUE;
+  END IF;
   SELECT * INTO r FROM sophia.conversation_replies WHERE project_id=p_project AND id=d.reply_id;
   PERFORM 1 FROM sophia.conversations WHERE project_id=p_project AND id=r.conversation_id FOR UPDATE;
   SELECT * INTO r FROM sophia.conversation_replies WHERE project_id=p_project AND id=d.reply_id FOR UPDATE;
@@ -400,9 +425,10 @@ BEGIN
    n_cancelled:=n_cancelled+1;
   ELSIF r.state='answered' THEN
    UPDATE sophia.conversation_messages SET body=NULL, author_name=NULL, withdrawn_at=t, withdrawn_by='source'
-    WHERE project_id=p_project AND id=r.answer_id AND withdrawn_at IS NULL;
+    WHERE project_id=p_project AND id=r.answer_id AND withdrawn_at IS NULL RETURNING seq INTO aseq;
    IF FOUND THEN
     n_withdrawn:=n_withdrawn+1;
+    PERFORM sophia.conversation_withdrawn_from(p_project,r.conversation_id,aseq,'source_withdrawn');
     IF NOT r.conversation_id=ANY(moved) THEN moved:=moved||r.conversation_id; END IF;
    END IF;
   END IF;
