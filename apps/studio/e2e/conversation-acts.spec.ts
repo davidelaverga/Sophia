@@ -157,17 +157,28 @@ test('acts · another’s acts stand at the message’s right on a desktop: insi
   )
   const other = others.nth(widths.indexOf(Math.min(...widths)))
   await other.hover()
-  const copy = other.getByRole('button', { name: 'Copy' })
-  await expect(copy).toBeVisible()
-  const read = await other.evaluate((li) => {
-    const r = (sel: string) => li.querySelector(sel)?.getBoundingClientRect() ?? null
-    return { row: r('.conv-acts'), by: r('.conv-msg-by'), li: li.getBoundingClientRect() }
-  })
+  await expect(other.getByRole('button', { name: 'Copy' })).toBeVisible()
   const pane = await page.locator('.conv-scroll').boundingBox()
-  expect(read.row && pane && read.row.left >= pane.x - 0.5 && read.row.right <= pane.x + pane.width + 0.5).toBe(true)
-  // Over no byline: the row's box and the name's box do not meet.
-  const apart = read.row && read.by ? read.row.bottom <= read.by.top || read.row.left >= read.by.right : false
-  expect(apart, JSON.stringify(read)).toBe(true)
-  // At the message's right edge, as one's own message keeps its acts at its bubble's corner.
-  expect(Math.abs((read.row?.right ?? 0) - (read.li.right + 12))).toBeLessThan(1.5)
+  // Every box as a number (NaN where a part is missing fails the comparison, as it should).
+  const read = await other.evaluate((li) => {
+    const box = (sel: string) => li.querySelector(sel)?.getBoundingClientRect() ?? new DOMRect(NaN, NaN, NaN, NaN)
+    const row = box('.conv-acts')
+    const by = box('.conv-msg-by')
+    return {
+      row: { left: row.left, right: row.right, bottom: row.bottom },
+      byRight: by.right,
+      byTop: by.top,
+      turnRight: box('.conv-turn').right,
+      bubbleTop: box('.conv-msg-body').top,
+    }
+  })
+  const paneLeft = pane?.x ?? NaN
+  const paneRight = paneLeft + (pane?.width ?? NaN)
+  expect(read.row.left).toBeGreaterThanOrEqual(paneLeft - 0.5)
+  expect(read.row.right).toBeLessThanOrEqual(paneRight + 0.5)
+  // Over no byline: the row starts to the right of the name, or ends above it.
+  expect(read.row.left >= read.byRight || read.row.bottom <= read.byTop, JSON.stringify(read)).toBe(true)
+  // At the turn's right edge, on the name's line, within reach of its bubble: never up at a day's label.
+  expect(Math.abs(read.row.right - (read.turnRight + 12))).toBeLessThan(1.5)
+  expect(read.bubbleTop - read.row.bottom).toBeLessThan(24)
 })
