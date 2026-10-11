@@ -62,6 +62,12 @@ test('dock · in a call, Tasks: the switches and Leave are in the header too', a
   const read = await dockRead(page)
   expect(read?.inEnd).toBe(true)
   expect(read?.withinTopbar).toBe(true)
+  // The views' nav still stands whole beside the live dock: nothing of it scrolls out of sight.
+  const nav = await page.evaluate(() => {
+    const el = document.querySelector('.view-nav')
+    return el ? { scroll: el.scrollWidth, client: el.clientWidth } : null
+  })
+  expect(nav?.scroll).toBeLessThanOrEqual(nav?.client ?? 0)
 })
 
 test('dock @phone · on a narrow screen the dock floats at the bottom right as before', async ({ page }) => {

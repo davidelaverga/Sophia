@@ -37,6 +37,10 @@ this handoff.
   specs that reach it by class or group name keep passing.
 - The helpers `headerDock` and `useDockPlace` outside `ProjectShell`: the shell's complexity sat at the limit.
 - Mounted by width in React (`useMedia`), not by CSS alone: a fixed child cannot leave a sticky, filtered header.
+- Measured locally in a call at 1280 (2026-10-11): the live dock is 189 px wide and the views' nav lost 64 px, so
+  «Resources» was clipped (press-answers.spec named it). Live, the dock says the room's state itself: the connection
+  pill yields its room (`.topbar-end:has(.mini-dock[data-live]) .connection`), and the spec reads that the nav's
+  scroll width is its width.
 
 ## Remaining obligations
 
