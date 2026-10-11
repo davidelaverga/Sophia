@@ -1,0 +1,37 @@
+{
+  "schema": "sophia.con01.ref-review.v1",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "PR199": {
+    "head": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "base": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+    "draft": true,
+    "state": "open",
+    "merged": false
+  },
+  "PR211": {
+    "head": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "base": "1cd18d1bd8a006aa1e04953d365cea65663a60fe",
+    "draft": true,
+    "state": "open",
+    "merged": false,
+    "immutableN2": null
+  },
+  "PR190": {
+    "head": "ceed13d8199166935a8a26cc47e98d21b2bc4d53",
+    "tree": "e42d241caf0b05820bdb240750d141cc79d1882d",
+    "base": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+    "draft": true,
+    "state": "open",
+    "merged": false
+  },
+  "review": "Fresh last10 reviews/last5 comments on199 retain prior6104392647 no-major-issues; no new result.211 comments since03:00 empty; no new bot request. Initial REST reviews page20 was oldest, corrected with GraphQL last10.",
+  "CI": {
+    "run": 38107154878,
+    "head": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "attempt": 1,
+    "status": "queued",
+    "conclusion": null,
+    "cause": "not established",
+    "manualRerun": false
+  }
+}

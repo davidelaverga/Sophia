@@ -1,0 +1,109 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0098",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "supplementalCandidate": "cb05645e37ae07632d26d9c6599752273c46bfef",
+  "supplementalTree": "d5cadf7370ca7a9f5ec24a63d59112cca490f781",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "classification": "Progress: actual mutation-harness evidence gaps returned; original loop interrupted by author, process settlement partly observed; local immutable N2 pin recovered, v2 outcomes attributed, broad gates active; full source/independent PG review pending.",
+  "readiness": {
+    "source_ready": true,
+    "N2_source_ready": false,
+    "locally_verified": "Earlier named N1/earlierCount L0 and S2/N3 PG scopes retained. CX98 independently observes author-run receipts only; no independent N2 execution.",
+    "scoped_delta_reviewed": "Actual mutation/wrapper evidence boundaries and current shared-source excerpts inspected; no full N2 source or combined review",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "coordination": {
+    "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "messages": [
+      478,
+      479,
+      481,
+      483
+    ],
+    "delivery": "478/479 acknowledged;481 acted upon by primary;483 normal queued requesting early immutable source handoff/short actual receipts. Reviewer did not interrupt or restart."
+  },
+  "independentN2Tests": 0,
+  "authorDraftRun4": {
+    "schema": "sophia.con01.author-run-observation.v1",
+    "record": "CX-0098",
+    "origin": "Independent read-only CUA expansion of actual completed author tool, not reviewer executing suite",
+    "tool": "Ran N2 tests (run 4) with census script",
+    "before": "2026-10-11T03:53:53Z",
+    "after": "2026-10-11T03:54:17Z",
+    "NodeExit": 0,
+    "tests": 37,
+    "pass": 37,
+    "fail": 0,
+    "cancelled": 0,
+    "duration_ms": 24594.278159,
+    "census": "Before/after same postgres/sophia_api/sophia_worker roles and maintenance/template DBs,1 client",
+    "processMatch": "1 generic command-name match; author says own shell and later corrected census; not an independently verified Node-process-absence receipt here",
+    "limitation": "Uncommitted draft, followed by two additional assertions; not exact final candidate or independently rerun qualification"
+  },
+  "mutationVerdicts": "Actual partial Node exits1/0/124 for m1/m2/m3; intended assertion/full counts/settlement uninspected; no behavioral-kill qualification",
+  "CI": {
+    "run": 38107154878,
+    "head": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "attempt": 1,
+    "status": "queued",
+    "conclusion": null,
+    "cause": "not established",
+    "manualRerun": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "newReviewerHostedEffects": 0,
+    "newReviewerPgClusters": 0,
+    "sophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "reviewAgentUsage": "unreported; no Sophia remaining subscription capacity proof"
+  },
+  "acceptance": "All36 full case statuses unchanged",
+  "cleanup": "No new reviewer app/browser/PG/native process. Prior82 reviewer app stacks/CX92 PG clusters settled. Original author Python and m4 node absence observed; fixture cleanup/final restoration tails uninspected, author claims clean. V2 done per author; final checks active. Earlier missing pre-drop census remains missing.",
+  "rollback": "No live rollback; CX92 governed uncertain-data/old-schema incompatibility retained",
+  "next": "Fetch immutable N2 source-only handoff, review complete SQL/module/tests and own actual-PG cases while broad gates run; independently inspect exact terminal restoration/cleanup receipts.",
+  "localN2": {
+    "commit": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "tree": "be5a822d7beeb841c92f31c818c8d51236f4b9cb",
+    "parent": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "source": "Actual completed commit tool output read in exact native mission",
+    "dirtyAfterCommit": 0,
+    "SQLsha256": "836f66e473b262f3c68dffd4503d88a4e228f275b8e48a6aeef93fe4daf39735",
+    "remote": "PR211 still cb at fresh API; local-only source not yet fetched/full-read",
+    "testHash": "truncated/unread"
+  },
+  "authorRun5": {
+    "NodeExit": 0,
+    "before": "2026-10-11T04:09:48Z",
+    "after": "2026-10-11T04:10:12Z",
+    "head": "cb05645e37ae07632d26d9c6599752273c46bfef",
+    "dirty": 3,
+    "actualRead": "Base roles/DBs before/after, no other locks before/after; pre-run test processes0. Tail truncates before final process/counts.",
+    "authorClaim": "37pass and clean census; counts/final process absence not independently read",
+    "scope": "Uncommitted immediately before local bbac commit; no independent N2 execution"
+  },
+  "originalLoopSettlement": {
+    "actor": "Primary author, not reviewer",
+    "firstSignal": "Actual tool explicitly corrects initial SIGINT to tool shell instead of Python",
+    "corrected": "Actual Python no longer alive; orphan m4 timeout/node remained",
+    "childSettlement": "Actual later output node alive:no",
+    "fixtureCensus": "Actual two fixture DB/role sets visible before exact named cleanup",
+    "cleanupLimit": "DROP results/final absence/complete pre-drop clients/locks truncated. Author claims clean; not independently credited from unseen lines.",
+    "originalVerdicts": "m1 exit1, m2 exit0, m3 exit124; m4 interrupted. m3/m4 invalid verdicts; m1 before/after base + Node0 independently read; m2 after tail partial."
+  },
+  "mutationV2": {
+    "authorClaim": "Finished8/9 intended kills; m2 survivor due project-row lock. hash-verified restores; census unchanged.",
+    "independentBoundary": "Actual v2 command/assertion/error/restoration/aggregate terminal receipts not yet read; no independent behavioral-kill qualification",
+    "source": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "finalChecks": "Actual active final-check background handle at exact local pin; results pending"
+  }
+}

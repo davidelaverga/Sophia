@@ -1,0 +1,29 @@
+{
+  "schema": "sophia.con01.shared-source-refresh.v1",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "readComplete": [
+    "Current execution entry/start/current baseline/sequence and ownership/WORKING_PROTOCOL at actual main",
+    "WBC-02 README plus progress owner/scope, Studio, known limits and remaining obligations excerpts",
+    "SDD parallel addendum at main"
+  ],
+  "selectedExcerpts": [
+    "SDD main/PR190 progress readiness/gates/known gaps, confirmed byte-identical full progress record hashes",
+    "PR190 G7 handoff default-off/source boundaries and lines72-116 shared migration/contracts/readiness/quiescence/owner operations obligations"
+  ],
+  "readLimits": "Long WBC CC0010 and PR190 voice plan outputs were limited; no complete-read/source-review/operational-qualification claim. Follow-up narrow excerpts supply actual shared constraints.",
+  "sourceHashes": {
+    "WBC-02.main.md": "aed4c89aeec70dc2b3316a7e7bf5a6e7a3e2f5f9efe119e3f3a9b6453dc55663",
+    "SDD-01.main.md": "665d4485c69286c70e4aa812f2f119afc2709a5d931c85689357ff9e15f06fe5",
+    "SDD-01.pr190.md": "665d4485c69286c70e4aa812f2f119afc2709a5d931c85689357ff9e15f06fe5",
+    "SDD-G7-handoff.md": "6a7733567474735695d15ad8d1088ff88eefe64613b77915a60eacce6ec14935"
+  },
+  "retained": [
+    "WBC source/local only, paid/live acceptance remains open; unanswered status effects need real instance DB-session fence, not elapsed time",
+    "Six historical completed-research running bindings and uncertain reservation/journals preserved; one existing runtime, no new installation or old batch rerun",
+    "PR190 A15/A17 and0046/0047/0051/0052 ownership preserved; regenerate shared contracts only on combined accepted base; numbered CON candidates await census",
+    "Voice flags/grant default off; readiness prerequisites apply even while feature flag off; migrate only under actual approved combined batch",
+    "0051 quiescence: no old-function call in flight; service-role permissions/connection limits/bridge grace and exact Studio build identity require actual verification",
+    "Historical target/readiness/spending prose not current live tuple or authorization"
+  ],
+  "effects": "Exact PR190 object fetched to existing Git database; no branch reset/merge/rebase, installation, shared edit or hosted operation"
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "sophia.con01.author-run-observation.v1",
+  "record": "CX-0098",
+  "origin": "Independent read-only CUA expansion of actual completed author tool, not reviewer executing suite",
+  "tool": "Ran N2 tests (run 4) with census script",
+  "before": "2026-10-11T03:53:53Z",
+  "after": "2026-10-11T03:54:17Z",
+  "NodeExit": 0,
+  "tests": 37,
+  "pass": 37,
+  "fail": 0,
+  "cancelled": 0,
+  "duration_ms": 24594.278159,
+  "census": "Before/after same postgres/sophia_api/sophia_worker roles and maintenance/template DBs,1 client",
+  "processMatch": "1 generic command-name match; author says own shell and later corrected census; not an independently verified Node-process-absence receipt here",
+  "limitation": "Uncommitted draft, followed by two additional assertions; not exact final candidate or independently rerun qualification"
+}

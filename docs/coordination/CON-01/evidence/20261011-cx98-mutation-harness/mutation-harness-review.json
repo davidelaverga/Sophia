@@ -1,0 +1,111 @@
+{
+  "schema": "sophia.con01.mutation-harness-review.v1",
+  "record": "CX-0098",
+  "source": "Actual complete mutation Python command and run4 n2-pg.sh command read through exact mission CUA",
+  "liveHandle": "Running nine candidate mutants through the suite",
+  "observedLive": "Original loop ended by primary; corrected exact Python stop and orphan Node stop observed. V2 finished per primary; final checks now active.",
+  "mutants": [
+    {
+      "name": "m1_no_reconcile",
+      "expectedBehavior": "lost-commit existing-context reconciliation",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m2_no_conversation_lock",
+      "expectedBehavior": "conversation lock boundary",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m3_no_stale_label",
+      "expectedBehavior": "stale proposed-mission label",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m4_no_lease_check",
+      "expectedBehavior": "expired claim lease fence",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m5_no_message_scrub",
+      "expectedBehavior": "withdrawn-message context scrub",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m6_no_replay_privacy",
+      "expectedBehavior": "current privacy before replay",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m7_no_reply_scrub",
+      "expectedBehavior": "terminal reply context scrub",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m8_window_41",
+      "expectedBehavior": "exact40 message window",
+      "actualVerdict": "not_qualified_pending"
+    },
+    {
+      "name": "m9_no_same_transaction",
+      "expectedBehavior": "begin and record in same transaction",
+      "actualVerdict": "not_qualified_pending"
+    }
+  ],
+  "findings": [
+    {
+      "id": "CX98-M1",
+      "severity": "review_evidence_gap",
+      "expected": "Each mutation demonstrably fails its intended behavioral assertion with actual Node exit; infrastructure/teardown failures kept distinct",
+      "observed": "Python uses subprocess check=False, records textual summaries/failing names but does not assert intended failure; shell wrapper records Node exit in census then returns final census/echo status",
+      "reproducer": "Inspect Python loop and shell command flow; a zero wrapper return does not establish zero Node exit, nor a nonzero result establish an intended behavioral failure",
+      "requiredEvidence": "Per-census Node exit, intended case, actual assertion/error, no survivor counted killed"
+    },
+    {
+      "id": "CX98-M2",
+      "severity": "execution_evidence_gap",
+      "expected": "Finite claimed bound includes connection/census/setup/teardown and aggregate, not just one Node child",
+      "observed": "Each Node call uses timeout600 and test-timeout300000; psql census has no observed connect/statement/outer bound; Python loop has no aggregate deadline",
+      "reproducer": "Read before/after psql calls outside timeout600 in n2-pg.sh and unbounded subprocess.run in Python loop",
+      "requiredEvidence": "Do not qualify whole script finite; accurate terminal/process/DB settlement receipt"
+    }
+  ],
+  "restoration": "Original restore equality claimed by primary but hash lines truncated; actual subsequent clean local commit pin recovered. V2 hash restore claims not yet independently read.",
+  "messages": [
+    478,
+    479,
+    481,
+    483
+  ],
+  "delivery": "478/479 acknowledged;481 acted upon by primary;483 normal queued requesting early immutable source handoff/short actual receipts. Reviewer did not interrupt or restart.",
+  "qualification": "No independent mutant behavioral-kill or N2 qualification advanced; m2 observed original survivor retained.",
+  "partialActualExitOutput": {
+    "tool": "Checked mutant progress again",
+    "completeRelevantOutputRead": true,
+    "m1_no_reconcile": 1,
+    "m2_no_conversation_lock": 0,
+    "m3_no_stale_label": 124,
+    "m4_no_lease_check": "no exit line yet",
+    "limits": "Intended assertions/full counts and post-m3 settlement not yet independently read; no intended behavioral-kill qualification"
+  },
+  "authorAssessment": {
+    "m1": "Reports intended failure, actual assertion not read",
+    "m2": "Reports survivor/coverage gap: project-row FOR SHARE already produces40001 for current writers; not independently reproduced, not asserted as product defect",
+    "m3": "Reports600s timeout, investigates infrastructure/teardown vs intended assertion; not counted killed"
+  },
+  "requiredBeforeRerun": "Keep behavioral assertion, teardown timeout and exact post-timeout settlement distinct; inspect potential orphan/setup contamination in later mutants, affected infrastructure failure cannot count as intended kill",
+  "originalLoopSettlement": {
+    "actor": "Primary author, not reviewer",
+    "firstSignal": "Actual tool explicitly corrects initial SIGINT to tool shell instead of Python",
+    "corrected": "Actual Python no longer alive; orphan m4 timeout/node remained",
+    "childSettlement": "Actual later output node alive:no",
+    "fixtureCensus": "Actual two fixture DB/role sets visible before exact named cleanup",
+    "cleanupLimit": "DROP results/final absence/complete pre-drop clients/locks truncated. Author claims clean; not independently credited from unseen lines.",
+    "originalVerdicts": "m1 exit1, m2 exit0, m3 exit124; m4 interrupted. m3/m4 invalid verdicts; m1 before/after base + Node0 independently read; m2 after tail partial."
+  },
+  "v2": {
+    "authorClaim": "Finished8/9 intended kills; m2 survivor due project-row lock. hash-verified restores; census unchanged.",
+    "independentBoundary": "Actual v2 command/assertion/error/restoration/aggregate terminal receipts not yet read; no independent behavioral-kill qualification",
+    "source": "bbac0502a4df14adde92221dbf8c9f9b63b81442",
+    "finalChecks": "Actual active final-check background handle at exact local pin; results pending"
+  }
+}
