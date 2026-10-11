@@ -84,6 +84,8 @@ import { bootTheme } from '../src/app/theme.ts'
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
+  /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
+  shutDoor: () => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
@@ -303,6 +305,7 @@ function floorMoves(actorId: string): void {
 
 const project = {
   revision: 1,
+  doorShut: false,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
   room,
   roomMoves: false,
@@ -470,6 +473,10 @@ installFixtureApi(project)
 
 window.fixture = {
   update: () => publish(project),
+  shutDoor: () => {
+    project.doorShut = true
+    publish(project)
+  },
   say: (text) => {
     project.messages.push(text)
     publish(project)
