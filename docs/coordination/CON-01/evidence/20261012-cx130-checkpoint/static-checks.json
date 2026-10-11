@@ -1,0 +1,47 @@
+{
+  "candidate": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+  "at": "2026-10-11T23:38:31.815742+00:00",
+  "scope": "Focused source static checks only, sanitized environment; no native/provider/hosted execution",
+  "commands": [
+    {
+      "label": "format",
+      "argv": [
+        "pnpm",
+        "exec",
+        "prettier",
+        "--check",
+        "packages/persistence/src/runtime.db.test.ts"
+      ],
+      "maxSeconds": 60,
+      "exit": 0,
+      "logSha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "label": "lint",
+      "argv": [
+        "pnpm",
+        "exec",
+        "oxlint",
+        "--type-aware",
+        "packages/persistence/src/runtime.db.test.ts"
+      ],
+      "maxSeconds": 60,
+      "exit": 0,
+      "logSha256": "0d85a012a5f3bf4f3c39ed82838763bcc5008939e007c81a4941ee598cf10124"
+    },
+    {
+      "label": "typecheck",
+      "argv": [
+        "pnpm",
+        "--filter",
+        "@sophia/persistence",
+        "run",
+        "typecheck"
+      ],
+      "maxSeconds": 60,
+      "exit": 0,
+      "logSha256": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d"
+    }
+  ],
+  "sourceCleanAfter": true
+}

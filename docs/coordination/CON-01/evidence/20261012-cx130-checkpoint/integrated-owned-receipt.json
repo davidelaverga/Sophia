@@ -1,0 +1,44 @@
+{
+  "schema": "sophia.con01.private-owned-pg-run.v1",
+  "candidate": "bc3968fecfd8598be3702dcc6fbb1b0ab3859c32",
+  "tree": "640414cd70f1b487ee4684e0d54f0d900fa9dfb5",
+  "at": "2026-10-11T23:47:10.789558+00:00",
+  "postgresVersion": "postgres (PostgreSQL) 17.6",
+  "scope": "Owned local synthetic PG only; no app/native/provider/hosted execution",
+  "hashes": {
+    "db/migrations/0012_runtime_service.sql": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+    "apps/worker/src/runtime-dispatch.ts": "f6e0e92edfc75d724e226189ddc7d531314e7179f3fa29ba07aba9e62905c8e8",
+    "packages/persistence/src/dispatch.ts": "e004d398ded2b42f78b5fc83bccf88f164fa774e9654c289f3e3ada72e991de2",
+    "db/migrations/0053_runtime_outbox_reconcile.sql": "bf403b7eff741a5d2056b484c802cdc4cbe382f23bc00ee5826315beedc4bae7"
+  },
+  "operatorHarnessHash": "8f1a86883375d13310055f8e9f0f128f117fe01f600e9840c967e2f3f0d7eac3",
+  "probeHash": "971f4c8feeb603bbd6a409b58c09064a2b54af85111e83ee0b09b0c5cf773063",
+  "commands": [
+    {
+      "label": "dispatch-probe",
+      "command": [
+        "node",
+        "/Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx130-integrated/dispatch-probe.mjs"
+      ],
+      "outerSeconds": 180,
+      "timedOut": false,
+      "expectedExit": 0,
+      "exit": 0
+    }
+  ],
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "otherClients": 0
+  },
+  "checkoutCleanAfter": true,
+  "privateReceiptSha256": "7d4c091be666342b9dddd230f01072a54908e9d7404231760f6f47d757110dca"
+}

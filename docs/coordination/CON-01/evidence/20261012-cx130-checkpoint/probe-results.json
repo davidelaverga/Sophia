@@ -1,0 +1,150 @@
+{
+  "schema": "sophia.con01.independent-phase-a-pg.v1",
+  "candidate": "bc3968fecfd8598be3702dcc6fbb1b0ab3859c32",
+  "scope": "Owned local PostgreSQL only; real API/worker logins and admission/receipt paths; explicit owned uncertainty/clock fixtures; synthetic receipts; no native/provider or hosted execution",
+  "checks": [
+    {
+      "name": "L2: recoverable tail reached first pass and honest changed counts",
+      "pass": true
+    },
+    {
+      "name": "L2: no-command tail becomes pending",
+      "pass": true
+    },
+    {
+      "name": "L2: uncertain heads entirely unchanged",
+      "pass": true
+    },
+    {
+      "name": "L2: all other Sophia tables unchanged during reconciliation",
+      "pass": true
+    },
+    {
+      "name": "L2: recovered row enqueues exactly once",
+      "pass": true
+    },
+    {
+      "name": "L2: repeated dispatch creates no duplicate command",
+      "pass": true
+    },
+    {
+      "name": "L2: real dispatcher idles with unchanged uncertain rows",
+      "pass": true
+    },
+    {
+      "name": "L50: recoverable tail reached first pass and honest changed counts",
+      "pass": true
+    },
+    {
+      "name": "L50: no-command tail becomes pending",
+      "pass": true
+    },
+    {
+      "name": "L50: uncertain heads entirely unchanged",
+      "pass": true
+    },
+    {
+      "name": "L50: all other Sophia tables unchanged during reconciliation",
+      "pass": true
+    },
+    {
+      "name": "L50: recovered row enqueues exactly once",
+      "pass": true
+    },
+    {
+      "name": "L50: repeated dispatch creates no duplicate command",
+      "pass": true
+    },
+    {
+      "name": "L50: real dispatcher idles with unchanged uncertain rows",
+      "pass": true
+    },
+    {
+      "name": "API execution of worker reconciliation remains denied",
+      "pass": true
+    },
+    {
+      "name": "No-argument default call preserves five recoverable transitions",
+      "pass": true
+    },
+    {
+      "name": "Original recoverable state mapping preserved",
+      "pass": true
+    },
+    {
+      "name": "Recoverable reconciliation preserves all other tables",
+      "pass": true
+    },
+    {
+      "name": "Reconciliation clears owned leases",
+      "pass": true
+    }
+  ],
+  "details": [
+    {
+      "label": "fairness-2",
+      "counts": [
+        1,
+        0,
+        0
+      ],
+      "tailState": "pending",
+      "uncertainHeads": 2,
+      "accountingBefore": "03e988a3beef5842a873ac2e8de89b7de64673a2e90b94c2686c7a1c92f053c2",
+      "accountingAfter": "03e988a3beef5842a873ac2e8de89b7de64673a2e90b94c2686c7a1c92f053c2"
+    },
+    {
+      "label": "idle-2",
+      "intervalMs": 80,
+      "observedMs": 260,
+      "passes": 4,
+      "minimumGapMs": 82.225458
+    },
+    {
+      "label": "fairness-2",
+      "databaseDropped": true,
+      "clientEndEventsSettled": true
+    },
+    {
+      "label": "fairness-50",
+      "counts": [
+        1,
+        0,
+        0
+      ],
+      "tailState": "pending",
+      "uncertainHeads": 50,
+      "accountingBefore": "f05683496338e7264e5fb56ae51feac5a6cfb5e6a5d3e87b46aa3f8e43ba8697",
+      "accountingAfter": "f05683496338e7264e5fb56ae51feac5a6cfb5e6a5d3e87b46aa3f8e43ba8697"
+    },
+    {
+      "label": "idle-50",
+      "intervalMs": 80,
+      "observedMs": 260,
+      "passes": 4,
+      "minimumGapMs": 82.01412499999992
+    },
+    {
+      "label": "fairness-50",
+      "databaseDropped": true,
+      "clientEndEventsSettled": true
+    },
+    {
+      "label": "catalog",
+      "prosecdef": true,
+      "proconfig": [
+        "search_path=pg_catalog, sophia"
+      ],
+      "arguments": "p_limit integer DEFAULT 50",
+      "proacl": "{postgres=X/postgres,sophia_worker=X/postgres}"
+    },
+    {
+      "label": "state-and-permission-preservation",
+      "databaseDropped": true,
+      "clientEndEventsSettled": true
+    }
+  ],
+  "fatal": null,
+  "passed": 19,
+  "failed": 0
+}

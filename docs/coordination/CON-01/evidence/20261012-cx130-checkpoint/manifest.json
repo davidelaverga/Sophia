@@ -1,0 +1,12 @@
+{
+  "dispatch-probe.log": "ae0bee38abf5bf0a2668cf61ce42b9f3636b4b6c695b4c2f2d202b0ea37cd970",
+  "official-docs-fetch.json": "67ba76ca47c385c24a8baeaa7af275c87d829d1528cf273e0f8478d804e69624",
+  "source-binding.json": "21cb1d3d266e5f7a6fc44256ed68955086a0074d3092fd754e80fa0003596fe5",
+  "integrated-provenance.json": "ed0cd2a936852ab6c1fbc3812d64b622d30ff98a0e383272e96385accf4fe2fc",
+  "format.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20",
+  "lint.log": "0d85a012a5f3bf4f3c39ed82838763bcc5008939e007c81a4941ee598cf10124",
+  "typecheck.log": "3d3c45ecc39fd091f458f3c9ac69950e524cbbf36b64ebe261d051ca9be68c6d",
+  "probe-results.json": "7e8eac3b8841b264b1a5dbff6cb1384d06eef41a59c1eff16ec9c9995d1da986",
+  "static-checks.json": "9d243174039daed35b9850cd78cee197a694fb7d3ffdcb201eece5a77dc0a755",
+  "integrated-owned-receipt.json": "1cd1ae67a51f4cc67c9c7ac556923eaf2c06cda3212f8a1442c9d80b2213c385"
+}

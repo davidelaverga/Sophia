@@ -1,0 +1,12 @@
+{
+  "scope": "Local synthetic integration snapshot, no feature edits/source merge/deployment",
+  "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+  "candidate": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+  "testedCommit": "bc3968fecfd8598be3702dcc6fbb1b0ab3859c32",
+  "testedTree": "640414cd70f1b487ee4684e0d54f0d900fa9dfb5",
+  "localPreservedRef": "refs/con01-review/cx130-integration",
+  "command": "git merge-tree --write-tree e0200f1a382379fff795f4ccb78bf6eda62c5da8 93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9; git commit-tree with both parents; own clean detached checkout; unchanged CX129 run-owned.py +dispatch-probe.mjs",
+  "probeSha256": "971f4c8feeb603bbd6a409b58c09064a2b54af85111e83ee0b09b0c5cf773063",
+  "harnessSha256": "8f1a86883375d13310055f8e9f0f128f117fe01f600e9840c967e2f3f0d7eac3",
+  "cleanup": "stop0/postmaster absent/cluster removed,3DBs dropped/clientend events settled; source restored clean93e"
+}
