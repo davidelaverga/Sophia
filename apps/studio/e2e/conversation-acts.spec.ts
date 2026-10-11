@@ -146,11 +146,16 @@ test('@phone · acts · on another’s message the presses start at its left and
   expect(acts && pane && acts.x >= pane.x && acts.x + acts.width <= pane.x + pane.width).toBe(true)
 })
 
-test('acts · another’s acts stand at the row’s right on a desktop: inside the pane, over no byline, aligned with one’s own', async ({
+test('acts · another’s acts stand at the message’s right on a desktop: inside the pane, over no byline, even on its shortest bubble', async ({
   page,
 }) => {
   await page.goto(PAGE)
-  const other = open(page).locator('li.conv-msg:not(.mine):not(.sophia)').first() // a message of another member
+  // The shortest of another member's messages: where a row anchored to a short bubble would run past the pane.
+  const others = open(page).locator('li.conv-msg:not(.mine):not(.sophia)')
+  const widths = await others.evaluateAll((els) =>
+    els.map((el) => el.querySelector('.conv-msg-body')?.getBoundingClientRect().width ?? 0),
+  )
+  const other = others.nth(widths.indexOf(Math.min(...widths)))
   await other.hover()
   const copy = other.getByRole('button', { name: 'Copy' })
   await expect(copy).toBeVisible()
@@ -163,6 +168,6 @@ test('acts · another’s acts stand at the row’s right on a desktop: inside t
   // Over no byline: the row's box and the name's box do not meet.
   const apart = read.row && read.by ? read.row.bottom <= read.by.top || read.row.left >= read.by.right : false
   expect(apart, JSON.stringify(read)).toBe(true)
-  // At the row's right, where one's own message keeps its acts.
+  // At the message's right edge, as one's own message keeps its acts at its bubble's corner.
   expect(Math.abs((read.row?.right ?? 0) - (read.li.right + 12))).toBeLessThan(1.5)
 })
