@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-10-11T13:11:46.816856+00:00",
+  "pr211": {
+    "headRefOid": "b5c475824ae47a01030d07c871a9de0778c5686f",
+    "isDraft": true,
+    "updatedAt": "2026-10-11T13:10:18Z"
+  },
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "request": {
+    "id": 6109366081,
+    "url": "https://github.com/davidelaverga/Sophia/pull/211#issuecomment-6109366081",
+    "bodySha256": "7b3f43c8e5b45bd529337321c0719cf08618d7ccb1c0d7aa783e7d5ae73c6cd6",
+    "readInFull": true
+  },
+  "summary": {
+    "id": 6104725869,
+    "updatedAt": "2026-10-11T13:10:18Z",
+    "status": "running atb5c4758, no approval"
+  },
+  "authorClaims": "11/11mutantskilled; broadb5gatesnotstarteduntil923pnpmcheckfinishes. Attributed, not independent execution."
+}
