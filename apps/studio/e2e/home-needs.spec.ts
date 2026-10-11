@@ -90,18 +90,21 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
     /Marco Pereira is in the lobbyFixture project · Waiting 2 min/,
     /Sophia replied about the launch dateYesterday/,
   ])
-  await rows.nth(0).click() // a decision lives in Tasks (no address of its own yet)
+  await rows.nth(0).click() // a decision at the task that holds it, named in Tasks' fragment
   await rows.nth(1).click() // a permission at its task, named in Tasks' fragment
   await rows.nth(2).click() // a review at its version, in Knowledge's viewer
   await rows.nth(3).click() // a guest at the room
   await rows.nth(4).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
-    'open work 00000000-0000-4000-8000-0000000000aa',
+    'open work 00000000-0000-4000-8000-0000000000aa #task-00000000-0000-4000-8000-0000000000c3',
     'open work 00000000-0000-4000-8000-0000000000aa #task-w1',
     'open knowledge 00000000-0000-4000-8000-0000000000aa report 00000000-0000-4000-8000-0000000000b1 00000000-0000-4000-8000-0000000000b2',
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
+    'seen reply:t9', // a reply has no answer of its own: opening it is its seen mark, and it leaves the list
   ])
+  await expect(rows).toHaveCount(4)
+  await expect(rows.filter({ hasText: 'Sophia replied' })).toHaveCount(0)
 })
 
 test('home · needs you behind a shut padlock: nothing is read, nothing is shown', async ({ page }) => {
