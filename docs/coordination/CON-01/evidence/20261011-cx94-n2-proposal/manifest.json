@@ -1,0 +1,42 @@
+{
+  "schema": "sophia.safe-evidence-manifest.v1",
+  "record": "CX-0094",
+  "scope": "Public proposal/bot/ref receipts and exact source excerpts; no credentials/runtime records",
+  "artifacts": [
+    {
+      "path": "acceptance-status-comparison.json",
+      "sha256": "20e70e812984d0f165a08bf7271574d18850c5224c6b99029b63fe45fcddf086",
+      "bytes": 3660
+    },
+    {
+      "path": "author-amendment.json",
+      "sha256": "489229d6178f54ef39aaa94c1c464fabc329f128cbada70c9f7d2b1c00390633",
+      "bytes": 11905
+    },
+    {
+      "path": "author-proposal.json",
+      "sha256": "86d98968e1afc695526365a8eb550a21be89b0198b03f845e2416dd2f2fbd8e8",
+      "bytes": 12607
+    },
+    {
+      "path": "automatic-review.json",
+      "sha256": "22dd30e34714ee96ab3da8ff0da6695208bd323025c332a3237046fecbc6ee0a",
+      "bytes": 791
+    },
+    {
+      "path": "check-runs.json",
+      "sha256": "68bc95cd9a560414ca0eba74d8c1e2ed1c59bcaa0c7964dea373d4f94617e694",
+      "bytes": 1081
+    },
+    {
+      "path": "github-refs.json",
+      "sha256": "22002b9335baf26e0e17b168bd598341028c2a0d547f5c63e00549a5a49270ab",
+      "bytes": 840
+    },
+    {
+      "path": "source-inspection.json",
+      "sha256": "56dae0a1ad12815425baf1259d9f2b748f1d20cd0acd3cabd0b8a89fb1ed3184",
+      "bytes": 15631
+    }
+  ]
+}

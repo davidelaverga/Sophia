@@ -1,0 +1,70 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0094",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "main": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "supplementalCandidate": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+  "supplementalTree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
+  "classification": "progress: complete N2 proposal independently reviewed and amended; dormant source preparation selected with remaining proof obligations",
+  "proposal": 6104736474,
+  "findings": {
+    "N2-identity": "proposal corrected in CC93; actual candidate validation pending",
+    "N2-retry": "durable claim direction proposed in CC93; actual PostgreSQL/restart/uncertainty qualification pending",
+    "N2-privacy": "overclaims withdrawn in CC93; actual scrub/copy governance qualification pending"
+  },
+  "coordination": {
+    "mission": "claude.ai/epitaxy/session_01KUDtFK9gWthsXSrepcLQz3",
+    "message": 462,
+    "selection": "Separate earlierCount amendment then dormant CON-only N2 candidate/module/disposable-PG tests; no shared/live activation",
+    "authorHandback": {
+      "comment": 6104800943,
+      "createdAt": "2026-10-11T02:55:41Z",
+      "updatedAt": "2026-10-11T02:56:14Z",
+      "characters": 11534,
+      "fullRead": true
+    },
+    "messages": [
+      462,
+      464
+    ]
+  },
+  "automaticReview": {
+    "comment": 6104747456,
+    "commit": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+    "createdAt": "2026-10-11T02:47:46Z",
+    "result": "No major issues; bot comment only, no approval/acceptance"
+  },
+  "checks": "6 exact36d checks queued; no manual rerun",
+  "readiness": {
+    "source_ready": true,
+    "locally_verified": "Earlier corrected N1 L0 and N3/S2 named PostgreSQL scopes retained; CX94 static proposal review only",
+    "scoped_delta_reviewed": "N2 proposal amended after independent findings; dormant source preparation selected, actual candidate pending",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": {
+    "OP1r2": "draft_not_authorized",
+    "OP2r2": "draft_not_authorized",
+    "approval": null,
+    "expiry": null,
+    "newHostedEffects": 0,
+    "newSophiaProviderCalls": 0,
+    "missionSpend": 0,
+    "newGithubReviewRequests": 0,
+    "newAppStacks": 0,
+    "newPgClusters": 0,
+    "reviewAgentResourceUse": "not reported; no Sophia subscription-capacity proof"
+  },
+  "acceptance": "all36 full status values unchanged",
+  "rollback": "No live rollback executed/qualified; CX92 old-schema incompatibility after terminal uncertain data retained",
+  "cleanup": "No new browser/app/PG/native execution. Exact feature worktrees retained; all82 prior app stacks and CX92 PG clusters remain settled. Source commands terminal. Claude bounded source preparation selected, no returned new source candidate yet.",
+  "next": "Independent immutable earlierCount and dormant N2 source/adversarial/real-PG review at actual returned-candidate checkpoint",
+  "remainingCandidateObligations": [
+    "Finite whole-transaction/idle/statement/lock bounds, cancellation, settlement and failed connection disposal",
+    "Project/reply lock order and post-lock validation; expired tokens fenced; current privacy checked on replay; unknown commit reconciled before claim"
+  ]
+}

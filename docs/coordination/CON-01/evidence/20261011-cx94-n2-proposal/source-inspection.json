@@ -1,0 +1,110 @@
+{
+  "schema": "sophia.con01.proposal-source-inspection.v1",
+  "observedAt": "2026-10-11T02:54:36.761937+00:00",
+  "candidate": "36d51821c8f7487103915df7eb2e6243d4bc4935",
+  "tree": "5b325a2cdfc614db75bdc5d1ac19be8ec5d60d0e",
+  "scope": "Static exact-source inspection and proposal comparison only; no new SQL execution, tests, application or native/provider run.",
+  "proposal": {
+    "comment": 6104736474,
+    "implementation": false
+  },
+  "files": {
+    "db/migrations/0001_core.sql": {
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e",
+      "excerpts": [
+        {
+          "from": 10,
+          "through": 26,
+          "text": "10: CREATE TABLE sophia.projects (\n11:  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), title text NOT NULL CHECK(length(title) BETWEEN 1 AND 180),\n12:  created_by uuid NOT NULL, mission_revision bigint NOT NULL DEFAULT 1 CHECK(mission_revision>0),\n13:  audience_revision bigint NOT NULL DEFAULT 1 CHECK(audience_revision>0),\n14:  eligibility_revision bigint NOT NULL DEFAULT 1 CHECK(eligibility_revision>0),\n15:  event_sequence bigint NOT NULL DEFAULT 0 CHECK(event_sequence>=0), created_at timestamptz NOT NULL DEFAULT now()\n16: );\n17: CREATE TABLE sophia.project_members (\n18:  project_id uuid NOT NULL REFERENCES sophia.projects(id), actor_id uuid NOT NULL,\n19:  role text NOT NULL CHECK(role IN ('admin','editor','viewer')), active boolean NOT NULL DEFAULT true,\n20:  revision bigint NOT NULL DEFAULT 1 CHECK(revision>0), PRIMARY KEY(project_id,actor_id)\n21: );\n22: CREATE TABLE sophia.project_revisions (\n23:  project_id uuid NOT NULL REFERENCES sophia.projects(id), revision bigint NOT NULL CHECK(revision>0),\n24:  frame jsonb NOT NULL CHECK(jsonb_typeof(frame)='object'), accepted_by uuid NOT NULL,\n25:  created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(project_id,revision)\n26: );"
+        }
+      ]
+    },
+    "db/migrations/0048_project_conversations.sql": {
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "excerpts": [
+        {
+          "from": 83,
+          "through": 101,
+          "text": "83: CREATE TABLE sophia.conversation_replies (\n84:  project_id uuid NOT NULL, conversation_id uuid NOT NULL, id uuid NOT NULL DEFAULT gen_random_uuid(),\n85:  message_id uuid NOT NULL,\n86:  asked_by uuid NOT NULL,\n87:  cutoff_seq bigint NOT NULL CHECK(cutoff_seq>0),\n88:  state text NOT NULL CHECK(state IN ('pending','running','answered','failed','cancelled','blocked','outcome_unknown')),\n89:  reason text CHECK(reason IS NULL OR reason ~ '^[a-z][a-z_]{0,62}$'),\n90:  answer_id uuid,\n91:  created_at timestamptz NOT NULL DEFAULT now(),\n92:  settled_at timestamptz,\n93:  PRIMARY KEY(project_id,id), UNIQUE(project_id,message_id),\n94:  FOREIGN KEY(project_id,conversation_id) REFERENCES sophia.conversations(project_id,id),\n95:  FOREIGN KEY(project_id,message_id) REFERENCES sophia.conversation_messages(project_id,id),\n96:  FOREIGN KEY(project_id,answer_id) REFERENCES sophia.conversation_messages(project_id,id),\n97:  CHECK((state='answered')=(answer_id IS NOT NULL)),\n98:  CHECK((state IN ('answered','failed','cancelled','blocked'))=(settled_at IS NOT NULL))\n99: );\n100: CREATE UNIQUE INDEX conversation_replies_by_id ON sophia.conversation_replies(id);\n101: CREATE INDEX conversation_replies_open ON sophia.conversation_replies(project_id,conversation_id,cutoff_seq)"
+        }
+      ]
+    },
+    "packages/persistence/src/mission-context.ts": {
+      "sha256": "a7475f9fc6585ad7e2727d940cc811f641ab7a32186dacbd9fc3ff06fae92c2e",
+      "excerpts": [
+        {
+          "from": 86,
+          "through": 94,
+          "text": "86: async function readProject(c: pg.PoolClient, projectId: string, actorId: string): Promise<ProjectRow | undefined> {\n87:   const { rows } = await c.query<ProjectRow>(\n88:     `SELECT p.id, p.title, p.mission_revision, p.ledger_revision, p.eligibility_revision, r.frame, r.accepted_by,\n89:             r.created_at AS accepted_at,\n90:             (SELECT m.role FROM sophia.project_members m WHERE m.project_id = p.id AND m.actor_id = $2 AND m.active) AS role\n91:        FROM sophia.projects p\n92:        JOIN sophia.project_revisions r ON r.project_id = p.id AND r.revision = p.mission_revision\n93:       WHERE p.id = $1`,\n94:     [projectId, actorId],"
+        },
+        {
+          "from": 103,
+          "through": 125,
+          "text": "103: function missionFrame(p: ProjectRow): { mission: MissionFrame | null; legacy: boolean } {\n104:   const f = p.frame\n105:   if (f.withdrawn === true) return { mission: null, legacy: false }\n106:   const statement = text(f.statement)\n107:   const decisionId = text(f.decisionId)\n108:   const sourceId = text(f.sourceId)\n109:   const sha256 = text(f.sha256)\n110:   if (statement === null || decisionId === null || sourceId === null || sha256 === null) {\n111:     return { mission: null, legacy: Object.keys(f).length > 0 }\n112:   }\n113:   return {\n114:     mission: {\n115:       revision: safeInt(p.mission_revision, 'missionRevision'),\n116:       statement,\n117:       purpose: text(f.purpose),\n118:       destination: text(f.destination),\n119:       origin: text(f.origin),\n120:       decisionId,\n121:       acceptedBy: p.accepted_by,\n122:       acceptedAt: iso(p.accepted_at),\n123:       sourceId,\n124:       sha256,\n125:     },"
+        },
+        {
+          "from": 336,
+          "through": 343,
+          "text": "336: function missing(ctx: Pick<MissionContext, 'mission' | 'constraints' | 'entries' | 'work'>): MissionContext['missing'] {\n337:   const gaps: Array<MissionContext['missing'][number]> = []\n338:   if (!ctx.mission) gaps.push('accepted_mission')\n339:   if (ctx.constraints.length === 0) gaps.push('constraints')\n340:   if (ctx.entries.length === 0) gaps.push('notes')\n341:   if (ctx.work.length === 0) gaps.push('work')\n342:   return gaps\n343: }"
+        }
+      ]
+    },
+    "packages/persistence/src/tx.ts": {
+      "sha256": "cf5b8bdec723c7c3e6a0ea8fb00660976a6c49e7e899fdc3a32a7f5a494a3654",
+      "excerpts": [
+        {
+          "from": 54,
+          "through": 81,
+          "text": "54: /**\n55:  * One connection, one transaction. Reads use REPEATABLE READ READ ONLY so a snapshot and its cursor are\n56:  * consistent. A failure while committing a write leaves its outcome unknown: the client must retry with\n57:  * the same Idempotency-Key, never a new one.\n58:  */\n59: async function transaction<T>(pool: pg.Pool, opts: TxOptions, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {\n60:   const client = await pool.connect().catch((err: unknown) => {\n61:     throw new DomainError('unavailable', 'Database unavailable', { cause: err })\n62:   })\n63:   let committing = false\n64:   try {\n65:     await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')\n66:     if (opts.actorId !== null) await client.query(\"SELECT set_config('sophia.actor_id', $1, true)\", [opts.actorId])\n67:     const result = await fn(client)\n68:     committing = true\n69:     await client.query('COMMIT')\n70:     return result\n71:   } catch (err) {\n72:     if (!committing) await client.query('ROLLBACK').catch(() => undefined)\n73:     if (committing && opts.mode === 'write')\n74:       throw new DomainError('outcome_unknown', 'Commit outcome unknown', { cause: err })\n75:     throw err instanceof DomainError ? err : classifyDbError(err)\n76:   } finally {\n77:     client.release()\n78:   }\n79: }\n80: \n81: /**"
+        }
+      ]
+    },
+    "docs/coordination/CON-01/BINDING_MAP.md": {
+      "sha256": "8de7d5c22ab565125a03901cf008837a077d87d5f2c536181aa1f587789ec5a8",
+      "excerpts": [
+        {
+          "from": 725,
+          "through": 733,
+          "text": "725: #### 8.7.2 S3: one canonical mission context, recorded atomically (CX45 corrections 2 and 3; compiler correction)\n726: \n727: **Selection: the existing compiler, reused, never re-implemented** (pack 04, \u00abInput context contract\u00bb item 3). The current mission context is `readMissionContext` (`packages/persistence/src/mission-context.ts`, compiler `sophia.mission-context.v1`), imported unchanged. It is the only selector of the accepted mission (`projects.mission_revision` JOIN `project_revisions.frame`, through `readProject` and `missionFrame`), the accepted constraints (`accepted` `constraint` and `lesson` decisions, the newest 50), and the pending proposals (`proposed`, the newest 50, `stale` where proposed against an earlier mission).\n728: - CON writes no SQL that selects missions, decisions or notes.\n729: - A parity selector was considered and rejected: a second selector would drift from its owner's changes.\n730: - **Ownership:** `mission-context.ts` stays its owner's (SMC-M01). CON changes nothing in it without that owner and a window.\n731: - **Pinned identity:** CON accepts `sophia.mission-context.v1` only. Under any other compiler identity, assembly fails visibly (`context_compiler_changed`) until a reviewed CON change accepts the new one, with the parity tests below run again.\n732: \n733: **What CON renders from the compiled model** (renderer `sophia.conversation-context.v1`, a pure function in a new CON module). Nothing is re-read."
+        },
+        {
+          "from": 766,
+          "through": 788,
+          "text": "766:     - At that point a test shows the final execution identity can call no operational writer.\n767:     - No owner or superuser read stands in for it, and no one else's policy is edited silently.\n768: - **The transaction:** `BEGIN ISOLATION LEVEL REPEATABLE READ`, read-write, then `SET LOCAL ROLE sophia_conversation_assembler`. It is one snapshot, as the compiler assumes (\"one connection, one REPEATABLE READ snapshot\").\n769:   - `conversation-context.ts` opens it itself. `tx.ts`'s `withActor` can't: its read mode is read-only, and it sets the actor before the first statement. `tx.ts` is unchanged.\n770:   - Its first snapshot-taking statement is `conversation_assembly_begin`.\n771:   - The actor is then set transaction-locally to the asker the begin returned.\n772:   - A writer that committed between the snapshot and the lock makes the lock fail with `40001`. The assembly is retried, at most 3 times in all, then the reply fails visibly (`context_unstable`).\n773: - **Tests check the role itself:**\n774:   - `rolbypassrls` is false;\n775:   - it owns none of the compiled tables;\n776:   - a non-member actor reads a `null` context through it;\n777:   - a login role that isn't its member is refused `EXECUTE`.\n778: \n779: 1. **`conversation_assembly_begin(reply)`** (`SECURITY DEFINER`) takes the project row `FOR SHARE`, then the reply row `FOR UPDATE`.\n780:    - **Post-lock rereads:** after both locks are held, it reads again everything it decides on: the reply's state and project, the asker's active membership, the conversation's state and `erasure_revision`, and the asking message. It never decides on a value read before the locks.\n781:    - **A record whose commit outcome wasn't known:** if the reply already has an undispatched record whose revisions still equal the project's, it returns that record and doesn't assemble again. If the revisions don't match, the record is marked `superseded` and its body scrubbed, and a new assembly follows. That counts toward the 3.\n782:    - It fails closed (nothing recorded; the reply is cancelled with the reason) unless:\n783:      - the reply is `pending` and in that project;\n784:      - the asker is still an active writer (`asker_removed`);\n785:      - the conversation is open with its `erasure_revision` unchanged (`conversation_erased`);\n786:      - the asking message is not withdrawn (`source_withdrawn`).\n787:    - It returns the reply's binding: project, conversation, asker, `cutoff_seq`, `erasure_revision` and the assembly number.\n788: 2. **Read, in the same transaction**, with the actor set transaction-locally to that asker. The asker comes from the reply row, never from the model or an HTTP body."
+        },
+        {
+          "from": 807,
+          "through": 819,
+          "text": "807:        - the four revisions, against the locked project;\n808:        - the compiler identity, against the pinned `sophia.mission-context.v1`;\n809:        - coverage arithmetic. Each section's `included` must equal its item fragments, `omitted` must be \u2265 0, and \"may be more\" may appear only where the compiled count is the compiler's 50.\n810:      - **Trusted only**, since checking them would be a second selector: which items the compiler selected, which prefix the budget kept, and the compiled counts. They come only from the trusted assembler:\n811:        - `conversation_record_context` is executable by `sophia_conversation_assembler` alone;\n812:        - the only code that runs as that role is `assembleReply(replyId)` in `conversation-context.ts`, which takes a reply id and nothing else;\n813:        - after activation, the role goes to the dispatch identity only. The record function stays unreachable from every other role.\n814: \n815:        The record marks them `trusted: selection, coverage`.\n816:      - **Not recorded:** the compiler's `digest`. SQL can't check it, and `context_hash` covers what the prompt used.\n817:    - **Project sources are derived, never supplied.** From the item ids, it reads under the locks the frame's `sourceId` and `sha256` from the locked project's current frame, and each decision's `body_source_id`. The caller supplies no source id, hash or revision.\n818:    - **Messages have their own provenance.** 0048's `conversation_messages` has no source object, so each recorded message is a row of `conversation_reply_messages`: reply, assembly, `message_id`, `seq` and the sha256 of its body as read. Each also carries the range read (`from_seq`..`cutoff_seq`) and `erasure_revision`.\n819:    - **Each item must be what it claims:**"
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "id": "N2-identity",
+      "severity": "P2 proposal",
+      "expected": "Accepted identity and timestamp from current project_revisions row joined on projects.mission_revision",
+      "observed": "CC92 section4 names nonexistent projects.accepted_by",
+      "reproducer": "Compare proposal4 to 0001_core lines10-26 and canonical readProject/missionFrame."
+    },
+    {
+      "id": "N2-retry",
+      "severity": "P2 proposal gap",
+      "expected": "At most3 in all under BINDING_MAP with explicit restart/rollback/unknown-commit accounting",
+      "observed": "One RR assembly transaction and next assembly number do not specify a durable counter/claim for rollback or restart; failure receipt persistence unspecified. No implemented defect asserted."
+    },
+    {
+      "id": "N2-privacy",
+      "severity": "P2 proposal claim",
+      "expected": "Logical DB body scrub scoped separately from retained metadata, native copies and provider/backups",
+      "observed": "CC92 section7 overclaims no copy outlives request and content-free hash receipt."
+    }
+  ],
+  "clarifications": [
+    "Count scan grows with all earlier eligible rows; newest40 bounds returned bodies only. Finite DB work/lock/transaction limits and failure handling needed.",
+    "Do not independently select constraints to validate missing: compiler missing derives constraints.length.",
+    "Global role and inherited operational grants are shared ownership, dormant only; numbering is not the sole integration overlap.",
+    "asked_by exists; reason is regex text; no enum/schema correction requested."
+  ]
+}
