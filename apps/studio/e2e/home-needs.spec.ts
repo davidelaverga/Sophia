@@ -85,25 +85,22 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
   const rows = list(page).getByRole('button')
   await expect(rows).toHaveText([
     /Ship the retry with the hotfix\?Fixture project · expires in 20 min/,
-    /Claude Code asks to run the export testsFixture project · expires in 2 h/,
-    /Q3 retention report, v3Fixture project · Davide asks/,
+    /Claude Code asks to run the export testsFixture project · Asked 10 min ago/, // a wait has no expiry
     /Marco Pereira is in the lobbyFixture project · Waiting 2 min/,
     /Sophia replied about the launch dateYesterday/,
   ])
   await rows.nth(0).click() // a decision at the task that holds it, named in Tasks' fragment
-  await rows.nth(1).click() // a permission at its task, named in Tasks' fragment
-  await rows.nth(2).click() // a review at its version, in Knowledge's viewer
-  await rows.nth(3).click() // a guest at the room
-  await rows.nth(4).click() // a reply in the personal space
+  await rows.nth(1).click() // a permission at the task that holds its wait
+  await rows.nth(2).click() // a guest at the room
+  await rows.nth(3).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
     'open work 00000000-0000-4000-8000-0000000000aa #task-00000000-0000-4000-8000-0000000000c3',
     'open work 00000000-0000-4000-8000-0000000000aa #task-00000000-0000-4000-8000-0000000000c1',
-    'open knowledge 00000000-0000-4000-8000-0000000000aa report 00000000-0000-4000-8000-0000000000b1 00000000-0000-4000-8000-0000000000b2',
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
     'seen reply:t9', // a reply has no answer of its own: opening it is its seen mark, and it leaves the list
   ])
-  await expect(rows).toHaveCount(4)
+  await expect(rows).toHaveCount(3)
   await expect(rows.filter({ hasText: 'Sophia replied' })).toHaveCount(0)
 })
 
@@ -116,7 +113,7 @@ test('home · needs you when the read fails: Home says so, Try again reads it', 
   expect(failed).toBeGreaterThanOrEqual(1)
   await page.evaluate(() => window.homeFixture?.recover()) // the service is back
   await note.getByRole('button', { name: 'Try again' }).click()
-  await expect(list(page).getByRole('button')).toHaveCount(5)
+  await expect(list(page).getByRole('button')).toHaveCount(4)
   await expect(note).toHaveCount(0)
   expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(failed + 1)
 })

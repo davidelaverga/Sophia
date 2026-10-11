@@ -356,17 +356,9 @@ export function needsAnswer(now = Date.now()) {
   return {
     readAt: new Date(now).toISOString(),
     needs: [
-      need('review:v3', 'review', 'Q3 retention report, v3', {
-        detail: 'Davide asks',
-        at: at(-120),
-        ref: needRef(
-          'artifact_version',
-          '00000000-0000-4000-8000-0000000000b2',
-          '00000000-0000-4000-8000-0000000000b1',
-        ),
-      }),
       need('permission:wait-w1', 'permission', 'Claude Code asks to run the export tests', {
-        expiresAt: at(130),
+        // A wait has no expiry (A13): a permission says how long it has waited instead.
+        detail: 'Asked 10 min ago',
         at: at(-10),
         ref: needRef('work_wait', 'wait-w1', '00000000-0000-4000-8000-0000000000c1'), // the wait, and the work item that holds it
       }),
