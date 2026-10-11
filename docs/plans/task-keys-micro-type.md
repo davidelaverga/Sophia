@@ -19,7 +19,8 @@
 
 - **The sheet's keys** (`TaskSheet`, the same listener as J and K, off inside a field): `H` presses Hold, or Resume
   when that is what is offered; `S` presses Stop, which asks first and gives the safe answer the focus, so a second
-  Enter never stops by accident, and `S` again while it asks does nothing. The foot says «J K the next and the one
+  Enter never stops by accident, and `S` again while it asks does nothing. A key held down repeats; a repeat is not a press
+  (`e.repeat`, as `shortcuts.ts` does), so a Hold never meets the Resume it brings. The foot says «J K the next and the one
   before · H hold or resume · S stop» while the plan is in force. A decision's choices are buttons already: Enter on
   one answers it.
 - **Labels at 12** (`--type-small`), mono, uppercase as before: `.field-label`; Updates' heads; the palette's group

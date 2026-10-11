@@ -159,7 +159,9 @@ const KEYS: Readonly<Record<string, (sheet: HTMLElement, onStep: Props['onStep']
 function useSteps(onStep: Props['onStep']) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A key held down repeats: one press is one act (a Hold must not meet the Resume it brings; shortcuts.ts does the same).
       if (
+        e.repeat ||
         e.metaKey ||
         e.ctrlKey ||
         e.altKey ||
