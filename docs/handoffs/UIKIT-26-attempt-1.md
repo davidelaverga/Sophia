@@ -59,3 +59,6 @@ in informe-ui-premium §7), Hold/Stop as text buttons, the dock to the header.
   reads the tile at 13/500, CONTRIBUTING's scale line names the heads' 15 and the view's 28. Measured on both Tasks
   fixtures (`room.html?demo=1&place=work`, `work.html?viewer=davide&tight=1&unplanned=1`): five sizes; the tile 13/500;
   the question 15/20 at 400.
+- **If the PR is squashed at merge**, one commit will carry everything named above (the change, these notes, the
+  base stack's merges) under an id this file cannot know before it exists; its tree and file set are then the PR's
+  «Files changed», and the commits named here are the history that produced it, kept on the branch.
