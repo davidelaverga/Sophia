@@ -3,7 +3,7 @@
 // that don't match step back, as a lens does: nothing moves.
 import { createContext, useRef } from 'react'
 import { Search } from '@sophia/ui'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 
 /** What Tasks is searched for, as typed; empty when nothing is. */
 export const SearchQuery = createContext('')
@@ -17,7 +17,9 @@ export function answers(query: string, ...texts: readonly (string | null | undef
 
 export function TaskSearch({ query, onChange }: { query: string; onChange: (query: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
-  useShortcuts({ '/': () => input.current?.focus() })
+  useCommands([
+    { id: 'search-tasks', words: 'Search goals and tasks', group: 'view', key: '/', run: () => input.current?.focus() },
+  ])
   return (
     <Search
       ref={input}

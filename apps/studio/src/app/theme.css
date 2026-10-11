@@ -2948,6 +2948,9 @@ button.contribution-quote:hover {
 .palette .palette-field {
   width: 100%;
 }
+.palette .sheet-call {
+  padding: 4px 6px 8px;
+}
 .palette-list {
   margin: 0;
   padding: 0;
