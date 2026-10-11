@@ -50,6 +50,9 @@ own 241–373). That is the completed code state of this PR.
 - `↑` left alone: nothing in the API edits a message; a resend dressed as an edit would lie.
 - After the review (Codex on #240, 2026-10-11): only the latest Copy press's outcome is said (each press takes a
   number); an earlier write refused late changes nothing. conversation-acts.spec holds it with a hung first write.
+- After the review (Codex on #240, round 2): one clipboard for the page (the writes queue, the presses count across
+  every message), and another's acts start at the bubble's left on every pointer (the message's outer corner), so a
+  short message keeps its Copy inside the pane; conversation-acts.spec reads it on a desktop.
 
 ## Remaining obligations
 
