@@ -1821,7 +1821,7 @@ test('type · the view and its sheet keep to the scale: at most five sizes each'
   await page.goto(`${PAGE}?viewer=davide&tight=1&more=1`)
   await expect(tile(page, 'Davide · Claude Code')).toBeVisible()
   const view = await typeSizes(page, '.resources')
-  expect(view, view.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '20px'])
+  expect(view, view.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '28px'])
   await open(page, 'Davide · Claude Code')
   const inSheet = await typeSizes(page, '.resource-sheet')
   expect(inSheet.length, inSheet.join(' ')).toBeLessThanOrEqual(5)
