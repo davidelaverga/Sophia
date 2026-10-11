@@ -103,5 +103,11 @@
     "exactReadback": true,
     "docsCommit": "d7302b9bbe4666343e9a22b48658b6d723c0df7c",
     "followup": "New local deletion/posthoc evidence appended after original publication"
+  },
+  "sharedFollowup": {
+    "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6105063536",
+    "exactReadback": true,
+    "docsCommit": "6ad25689",
+    "scope": "Deletion-before-check, partial posthoc origin/PID corroboration and explicit missing pre-drop census correction; no new qualification"
   }
 }
