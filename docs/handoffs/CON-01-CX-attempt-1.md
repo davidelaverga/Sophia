@@ -787,3 +787,8 @@ See [CX-0120](../coordination/CON-01/CX-0120.md). Author exactf0 gate terminal0;
 CX120 fresh review update: exactf0 P2r4242793043 confirmed independently in fullS3/PG17.6 with two failed directgrant/ownership boundary cases andcleancontrol. Firstaliasfailure beforetest retained; correctedrepeat0/censusclean/bothclusterscleaned. Affectedreviewreopened; primaryseparatefixpending. Next bounded action immutablefixreview/affectedPGrechecks, PR211held.
 
 CX120 correction recheck: primary7d8/eef3 fully reviewed/89linedelta hashesmatch; independentrealPG139/139+3negative/controlPASS, rightsunchanged/nopartialobjects/censusclean/thirdclustercleaned. P2scopedverified, ordinarycheckspending, PR211f0held. Onefinite exact7d8 pnpmcheck/testsql batch permitted, start/resultnotobserved. Next its terminal/source/artifact/census andboundedPRdecision.
+
+
+## CX-0121 existing check and quota-source checkpoint
+
+[CX-0121](../coordination/CON-01/CX-0121.md): same7d8 n4l task independentlyRunning, no restart/duplicate; actual localCodexquota schema source observed privately, Sophiaactor/display/routeunqualified. PR190/WBC/SDD refreshed/no currentownerwindow. ActualIABreachable/no mutation; full36caseverdicts unchanged and liveapprovalNULL. Next samecheckterminal/source/artifact/census.

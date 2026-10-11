@@ -1,0 +1,18 @@
+{
+  "schema": "sophia.con01.evidence-manifest.v1",
+  "files": [
+    {
+      "path": "integration-refresh.json",
+      "sha256": "c778a9bd01d4523e60608fa23abab535b30c948fe63b84a7975d8c402c1da768"
+    },
+    {
+      "path": "operation-handoff.json",
+      "sha256": "90a7014f8b92163755907c814d11ba4acbba902e9f06a75913f29f2d6758a770"
+    },
+    {
+      "path": "quota-source.json",
+      "sha256": "e5d8ea4293682fe81269c69e4d69972dbb2551dc21b8107f31855befd3ea7146"
+    }
+  ],
+  "privacy": "Schema-only source evidence; no private accountID/quota/credit/contact/credential values."
+}

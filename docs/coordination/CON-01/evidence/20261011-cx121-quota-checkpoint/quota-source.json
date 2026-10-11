@@ -1,0 +1,21 @@
+{
+  "observedAt": "CX121 read-only tool call, approximately19:12Z; exact response timestamp not exposed",
+  "surface": "Existing Codex desktop account; get_usage_limits read-only",
+  "readSucceeded": true,
+  "fieldsObserved": [
+    "accountId",
+    "rateLimitsByLimitId",
+    "rateLimits",
+    "usedPercent",
+    "windowDurationMins",
+    "resetsAt"
+  ],
+  "perLimitViewPresent": true,
+  "primaryWindowPresent": true,
+  "secondaryWindowPresent": false,
+  "accountBoundToSophia": false,
+  "privateValuesPublished": false,
+  "resetOrCreditsRedeemed": false,
+  "nativeProcessStarted": false,
+  "scope": "Host telemetry source observed only; no Sophia actor identity/topology/display/route/cap enforcement qualification."
+}

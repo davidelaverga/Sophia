@@ -1,0 +1,154 @@
+{
+  "observedAt": "2026-10-11T19:16:38.836480+00:00",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "PR211": {
+    "head": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+    "actualBase": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "baseRef": "claude/con01-project-conversations",
+    "draft": true,
+    "merged": false,
+    "mergeState": "unstable",
+    "exactF0Checks": [
+      {
+        "name": "Media bridge against a real LiveKit server",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Live auth on local Supabase",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "SQL, persistence and API on PostgreSQL 16",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Confined PDF renderer on a real Chromium",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "runtime-unit",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "runtime-unit",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Confined PDF renderer on a real Chromium",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Live auth on local Supabase",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "SQL, persistence and API on PostgreSQL 16",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Media bridge against a real LiveKit server",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "SQL, persistence and API on PostgreSQL 16",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Media bridge against a real LiveKit server",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "The room in Chromium, on its fixture page",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "runtime-unit",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Live auth on local Supabase",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      },
+      {
+        "name": "Confined PDF renderer on a real Chromium",
+        "status": "queued",
+        "conclusion": null,
+        "head_sha": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6"
+      }
+    ]
+  },
+  "PR190": {
+    "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+    "base": "fec45a0e96c4679a09da02be979503910a623c5c",
+    "draft": true,
+    "checks": "13SUCCESS, separately read ghprview",
+    "openThreads": [
+      4232295959,
+      4235198833
+    ]
+  },
+  "mergedWbcSddChain": {
+    "107": {
+      "head": "953a4ca2ecd53b85826e405d6aac40233dd6481e",
+      "merged": true,
+      "mergedAt": "2026-10-09T10:51:34Z",
+      "title": "Integrate native design specialist and Paperclip source reviews"
+    },
+    "117": {
+      "head": "59f9881b0db9813d6a7155ccd87164d7e2ebb903",
+      "merged": true,
+      "mergedAt": "2026-10-07T09:55:23Z",
+      "title": "SDD-01-CX-0019: delivered-capture credit by receipt, designer inspection, every overview tile, citation and attribute text, edit replay"
+    },
+    "104": {
+      "head": "8136ef4d21c7d8afafd3b5a073b4a35219c0f0ed",
+      "merged": true,
+      "mergedAt": "2026-10-06T00:23:34Z",
+      "title": "SDD-01: native dsh HTML design, independent visual review and iteration"
+    }
+  },
+  "missionRecords": "WBC02CC0010 jointPR107 record read scoped; issue74updatedOct5/issue103updatedOct6 and latesttwo comments each read. Their historical instructions are not CON authority/current Q7/Q12 ownership acknowledgment. Exact-title issue searchWBC02 returnednone; does not establish no WBC02 mission.",
+  "authority": "No current sharedowner/base/window inferred; no merge/CIrerun/cancel/productionbatch."
+}
