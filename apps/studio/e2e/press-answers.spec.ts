@@ -21,8 +21,18 @@ const PAGES = [
   ['the work space', '/work.html', DRAWN.work],
 ] as const
 
-/** A press a person can see and may press: a button, a link, anything in the button, tab or menu item role. */
-const PRESSES = 'button, a[href], [role="button"], [role="tab"], [role="menuitem"], [role="menuitemradio"]'
+/**
+ * A press a person can see and may press: a button, a link, anything in the button, tab or menu item role; not the
+ * one that is already on (the page's own link, the chosen tab or option), which a press would not change.
+ */
+const PRESSES = [
+  'button:not([aria-checked="true"]):not([aria-selected="true"])',
+  'a[href]:not([aria-current])',
+  '[role="button"]',
+  '[role="tab"]:not([aria-selected="true"])',
+  '[role="menuitem"]',
+  '[role="menuitemradio"]:not([aria-checked="true"])',
+].join(', ')
 
 /** In the page: the presses on screen, each with its index in the page's order, its name and its centre. */
 function listPresses(selector: string) {
@@ -103,6 +113,8 @@ for (const [name, url, parts] of PAGES) {
     await page.goto(url)
     // The page has drawn: each of its reads (drawn.ts), never «the network is idle».
     await drawn(page, parts)
+    // The door's one press waits for a name: given one, it is a press a person can see.
+    if (name === 'the door') await page.getByPlaceholder('Your name').fill('Ana')
     expect(await unanswering(page)).toEqual([])
   })
 }
@@ -112,13 +124,21 @@ test('answers · pressed, the kit’s four kinds sink half a pixel: a pill, a gh
 }) => {
   await page.goto('/room.html?demo=1&conversations=1&place=conversations')
   await drawn(page, DRAWN.conversations)
-  for (const kind of ['.pill', '.ghost', '.round', '.text-button']) {
-    const press = page.locator(`${kind}:not(:disabled):not([aria-disabled="true"])`).first()
+  // One press of each kind that opens nothing over the page while held (a sheet's backdrop would take the pointer).
+  const kinds: [string, () => ReturnType<typeof page.locator>][] = [
+    ['.pill', () => page.getByRole('button', { name: /^Join the room/ })],
+    ['.ghost', () => page.getByRole('button', { name: 'Invite' })],
+    ['.round', () => page.getByRole('button', { name: 'Account' })],
+    ['.text-button', () => page.getByRole('button', { name: 'Earlier messages' })],
+  ]
+  for (const [kind, find] of kinds) {
+    const press = find().first()
     await press.scrollIntoViewIfNeeded()
     await press.hover()
     await page.mouse.down()
     await expect(press, kind).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0.5)')
     await page.mouse.up()
     await page.keyboard.press('Escape')
+    await expect(page.getByRole('menu')).toHaveCount(0)
   }
 })

@@ -464,15 +464,23 @@ test('arrow keys move across the tiles; Tab leaves the grid in one step', async 
     .getByRole('button')
     .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label') ?? ''))
   const at = (i: number) => tile(page, names[i] ?? '')
+  // How many tiles stand in a row at this width: the grid says (the page's column is 1280 at 1280 and up).
+  const perRow = await grid(page)
+    .getByRole('button')
+    .evaluateAll((ts) => {
+      const top = ts[0]?.getBoundingClientRect().top
+      return ts.filter((t) => Math.abs(t.getBoundingClientRect().top - (top ?? 0)) < 2).length
+    })
+  const last = names.length - 1
   await at(0).focus()
   await page.keyboard.press('ArrowRight')
   await expect(at(1)).toBeFocused()
-  await page.keyboard.press('ArrowDown') // three tiles to a row at this width
-  await expect(at(4)).toBeFocused()
+  await page.keyboard.press('ArrowDown') // one row down, or the last tile when the row below is shorter
+  await expect(at(Math.min(1 + perRow, last))).toBeFocused()
   await page.keyboard.press('Home')
   await expect(at(0)).toBeFocused()
   await page.keyboard.press('End')
-  await expect(at(4)).toBeFocused()
+  await expect(at(last)).toBeFocused()
   await page.keyboard.press('ArrowRight') // the last stays the last
   await expect(at(4)).toBeFocused()
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
@@ -575,7 +583,8 @@ test('each session’s model shows as people say it, in its family’s colour; n
   await expect(chip('Davide · Codex')).toHaveText('GPT-6.1 Sol')
   await expect(chip('Davide · Grok')).toHaveText('Grok 4')
   await expect(chip('Luis · Claude Code')).toHaveCount(0) // its host reported no model: none is made up
-  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--model').trim())
+  // The kit's data chip carries its family's ink as `--chip-ink` (ModelChip sets the family; resources.css the ink).
+  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--chip-ink').trim())
   const colours = await Promise.all(
     ['Davide · Claude Code', 'Luis · Gemini CLI', 'Davide · Codex', 'Davide · Grok'].map(colour),
   )
