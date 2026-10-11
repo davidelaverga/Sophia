@@ -82,17 +82,14 @@ test('home · no projects: Sophia invites, one row starts the first; loading cla
     .click()
   expect(await pressed(page)).toEqual(['new project'])
   await page.goto(`${PAGE}?projects=loading`)
-  await expect(page.locator('.hw-row.placeholder')).toHaveCount(3)
-  expect(
-    await page
-      .locator('.hw-row.placeholder')
-      .first()
-      .evaluate((el) => getComputedStyle(el).pointerEvents),
-  ).toBe('none')
+  // The kit's skeleton rows (Skeleton kind="row"): three shapes under a busy box that says what is read, no press in it.
+  const reading = page.locator('[aria-busy="true"]').filter({ hasText: 'Reading your projects…' })
+  await expect(reading.locator('.skeleton-shape')).toHaveCount(3)
+  await expect(reading.getByRole('button')).toHaveCount(0)
   await expect(page.locator('.hw-says')).toHaveCount(0)
   await page.goto(`${PAGE}?projects=failed`)
   await expect(page.getByText('Couldn’t load your projects.')).toBeVisible()
-  await expect(page.locator('.hw-row.placeholder')).toHaveCount(0)
+  await expect(page.locator('.skeleton-shape')).toHaveCount(0)
 })
 
 test('home · “/” reaches the line; your words go to her conversation, which sends them as its own', async ({
