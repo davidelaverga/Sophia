@@ -30,8 +30,8 @@
           "title": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 400,
-            "description": "What it is about, in the record's own words: the decision's statement, what the agent asks to do, the report's title, the guest's name, the first words of Sophia's reply."
+            "maxLength": 1200,
+            "description": "What it is about, in the record's own words, whole: a decision's statement is up to 1200 characters (A13 WorkDecision.question), what the agent asks to do, the report's title, the guest's name, the first words of Sophia's reply. The Studio cuts a long one for the eye; the record keeps it."
           },
           "projectId": {
             "anyOf": [

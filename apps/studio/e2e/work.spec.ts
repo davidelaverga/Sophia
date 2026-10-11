@@ -396,6 +396,26 @@ test('five lanes under 1221 px stand three and two, each 220 and up; a thread fo
   expect(onEdge, `${JSON.stringify(end)} on ${JSON.stringify(to)}`).toBe(true)
 })
 
+test('a decision named in the address (#decision-, from Home) is scrolled to and its first choice takes the focus', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`) // Davide decides: his decision stands on the board
+  await settled(page)
+  const asked = board(page).locator('[data-decision]').first()
+  await expect(asked).toBeVisible()
+  const id = (await asked.getAttribute('data-decision')) ?? ''
+  expect(id).not.toBe('')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  // The focus lands on its first open choice; the address lets the decision go once it is reached.
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('')
+})
+
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
   await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
   const held = lane(page, 'Blocked')
