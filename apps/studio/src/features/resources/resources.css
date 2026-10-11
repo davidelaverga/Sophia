@@ -383,7 +383,7 @@
   color: var(--text-2);
 }
 .effort[data-look='claude'][data-alive] .effort-label {
-  color: #b3a3f5;
+  color: var(--claude-ink);
 }
 /* Below its top, each tool's bar is plain, as its own picker is: a quiet track, a fill, a mark at each stop. Its own
    look is kept for its top alone: Claude's lavender dots and their glint in ultracode, GPT's violet gradient and its
