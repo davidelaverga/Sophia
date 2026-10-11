@@ -644,7 +644,7 @@
   margin: -8px 0 0 -8px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 1px 4px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   transition: left var(--fast) var(--ease);
 }
 .effort-picker-foot {

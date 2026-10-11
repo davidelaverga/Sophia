@@ -166,7 +166,7 @@
   --measure: 34rem;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
-  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.35);
+  box-shadow: -24px 0 48px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
   animation: rp-slide var(--base) var(--ease);
 }
 .report-pane[data-size='full'] {
@@ -799,7 +799,7 @@
   overflow: hidden;
   border-radius: var(--r-2) var(--r-2) 0 0;
   background: #f8f6f1;
-  box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -1px 12px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
 }
 /* Its words run on past the cover's foot, as a page does: they fade into the paper, never cut through a line. */
 .report-cover-page::after {
@@ -1338,7 +1338,7 @@
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
     var(--lift),
-    0 12px 32px rgba(0, 0, 0, 0.45);
+    0 12px 32px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   animation: rise var(--fast) var(--ease) both;
 }
 .passage-bar button {
@@ -1421,7 +1421,7 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   color: var(--text);
   font: 500 12px/1.35 var(--sans);
   text-align: left;
