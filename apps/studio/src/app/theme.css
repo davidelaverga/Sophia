@@ -476,7 +476,7 @@ select option {
   border: 0;
   background: none;
   padding: 2px 0;
-  line-height: round(down, 1.55em, 4px); /* 20 at its 13 px; a smaller one (a lane's why, 12 px) finds 16 */
+  line-height: 20px; /* a control: its words centred in its 24 px box, at 13 px as at 12 (control-heights.spec) */
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
@@ -3985,6 +3985,9 @@ button.contribution-quote:hover {
   cursor: pointer;
   color: var(--text-2);
   font-size: 12px;
+}
+.mission-more > summary:hover {
+  color: var(--text);
 }
 .mission-more[open] {
   display: grid;
