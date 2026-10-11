@@ -1,0 +1,196 @@
+{
+  "checkpoint": "CON-01-CX-0128",
+  "classification": "owner decisions recorded; permitted implementation resumed; independent binding review and bounded owner coordination",
+  "owner_authority": "OWNER_DECISIONS_20261012.md",
+  "goal_status_observed": "active",
+  "main": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "held_PR211": {
+    "sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+    "base": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "cross_database_P2": "r4242913900 open; policy selected, technical fix/qualification incomplete",
+    "withdrawal_thread": "r4241643135 open; policy accepted, Studio disclosure source gap remains"
+  },
+  "binding_reviews": [
+    {
+      "sha": "f47128a1036a120129fb02d8961101aa95810862",
+      "tree": "bcdf197c209c5620cd0f243522c84e1a4e80bc15",
+      "parent": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
+      "scope": "complete one-file BINDING_MAP delta +29/-6; three small corrections requested",
+      "diff_check": 0
+    },
+    {
+      "sha": "3b1af9b94413a409214b05203d5fbdf5088435c1",
+      "tree": "34f9d8949d31d69963f52a90d8f8b8deac3f0a12",
+      "parent": "f47128a1036a120129fb02d8961101aa95810862",
+      "scope": "complete correction delta read; D4 account eligibility and D9 all-other-human-message wording corrected; current operation links corrected. Residual section8.6 incorrectly describes new setup/human-chat draft as allowing no deploy/schema; correct that sentence before docs closure. No feature qualification.",
+      "diff_check": 0
+    }
+  ],
+  "shared_runtime": {
+    "operator_thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
+    "authorized_request_sent": true,
+    "owner_ack_observed": "Actual joint implementer chat acknowledgement inspected; local AX SHA256 matches sealed response. Conditional freeze only; CON acknowledgement/census/exact start tuple pending.",
+    "window_active": false,
+    "remaining_start_conditions": [
+      "exact ack record and CON acknowledgement",
+      "fresh migration number reservation",
+      "exact file/function/base/order/handback record",
+      "Phase B names and tests"
+    ],
+    "preserve": [
+      "PR190 dispatchOnce voice-receipt and call-key expiry sweeps",
+      "PR255 proceeds independently; no runtime path overlap reported",
+      "other mission current runtime/contract ownership"
+    ],
+    "dispatcher_prerequisite": "honest changed count plus fair selection; L+1 at limits2 and50; one writer",
+    "sealed_record": "SHARED_RUNTIME_FREEZE_20261012.r1.json",
+    "metadata_correction": {
+      "embedded_PR211_base_SHA": "1cd18d1bd8a006aa1e04953d365cea65663a60fe is stale connector metadata",
+      "actual_base_ref": "claude/con01-project-conversations",
+      "fresh_base_ref_SHA": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "current_main": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "held_head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "main_is_head_ancestor": true,
+      "merge_base_ancestor_exit": 0,
+      "merge_tree_result": "eef30089d88be4747e3e34b6bca00329d38b2b7c, unchanged held head tree",
+      "effect": "PhaseA main-only base remains required to avoid carrying unaccepted CON payload. Stale embedded base does not prove current main is missing from CON head. Joint operator correction requested; original preserved below."
+    },
+    "owner_attestation_limit": "No in-flight/unpublished cloud writes is owner attestation, not reviewer cloud filesystem proof; raw scratch artifact was inaccessible without permission bypass, actual chat ACK was inspected instead."
+  },
+  "primary_coordination": {
+    "exact_session": "session_01KUDtFK9gWthsXSrepcLQz3",
+    "decisions_delivered": true,
+    "first_pin_published_and_independently_reviewed": true,
+    "small_corrections_delivered": true,
+    "q13_engineering_boundary_message": "Visible queued Message633; helper initially could not reconcile, fresh exact UI showed message and Send now; no resend or forced send.",
+    "q13_inventory": "Author reports compiler read-policy dependency; independent source inspection confirms direct compiler SELECTs and TO sophia_api policies. Exact proposed narrow read path and fresh DB evidence pending. No new owner low-level policy-mechanics question."
+  },
+  "independent_plan": "Q13_INDEPENDENT_QUALIFICATION.md",
+  "source_finding": {
+    "severity": "P2 existing withdrawal disclosure gap",
+    "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "path": "apps/studio/src/features/conversations/WithdrawHere.tsx",
+    "lines": [
+      174,
+      175
+    ],
+    "observed": "Confirmation says only Sophia answers that read it leave.",
+    "expected": "Explicit later-same-conversation removal even without use, preserve other human messages/conversations/independent decisions, no automatic regeneration.",
+    "reproducer": "Open Withdraw/Remove confirmation for eligible synthetic message.",
+    "origin": "source inspection; no new browser fixture execution",
+    "implementer": "Claude; no reviewer feature fix"
+  },
+  "ci": {
+    "run": 38168148111,
+    "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "jobs": [
+      114554922829,
+      114554922957,
+      114554922973,
+      114554922974,
+      114554923056,
+      114554923137
+    ],
+    "status": "all six queued in purpose-built diagnostic read",
+    "rerun": false,
+    "cancelled": false
+  },
+  "operation": {
+    "requests": [
+      "CON-01-OP-0002-r4",
+      "CON-01-OP-0001-r3"
+    ],
+    "status": "draft_not_authorized",
+    "approval_ready": false,
+    "approval": null,
+    "expiry": null,
+    "candidates_and_artifacts": "unbound; review-reference pins are not deployment candidates",
+    "setup_human_chat": "bounded proposed cohort/setup and human-chat only; zero native/model calls; Ask disabled",
+    "Ask": "separate qualified one-subscription-route batch; missing finite execution allowance/expiry blocks provider execution",
+    "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+    "lastObservedTuple": {
+      "API": {
+        "service": "srv-daqrn08473hc73flhi8g",
+        "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "runtime": {
+        "service": "srv-darvmse0tbcc73d8kh3g",
+        "liveDeployment": "dep-db02hcou01pc738k4atg",
+        "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+      },
+      "worker": {
+        "service": "srv-darv7snpn0mc73e6c240",
+        "liveDeployment": "dep-db5dos8473hc73apq6b0",
+        "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+        "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+      },
+      "bridge": {
+        "service": "srv-darvcigu01pc73e24o4g",
+        "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "Studio": {
+        "project": "sophia-30911edf/sophia-studio",
+        "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+        "status": "Ready",
+        "source": "manual vercel deploy; Git unconnected; SHA unknown",
+        "domains": [
+          "studio.sophia-ei.com",
+          "sophia-studio.vercel.app"
+        ]
+      }
+    },
+    "tuple_limits": "Dated observation, not refreshed or qualified rollback."
+  },
+  "readiness": {
+    "source_ready": "Dormant bounded candidates only; full native/runtime implementation incomplete.",
+    "locally_verified": "Prior scoped L1 evidence retained; only new document/JSON checks this checkpoint.",
+    "binding_delta_reviewed": "D4/D9 corrections scoped-reviewed; residual setup sentence correction requested.",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "changed": false,
+    "fullVerdicts": "acceptance.independent.json",
+    "sha256": "689fe686ebe535868665b98cc5fb6aae56e740a9ff46e8ad9c32ac9c10608b22"
+  },
+  "actual_actions_results": [
+    "git status/rev-parse/ls-remote and fetch of exact decision ref; no checkout reset",
+    "Complete original/corrected binding diffs read; both git diff --check exit0",
+    "Owner decisions and Q13 qualification plan/two operation drafts committed and pushed on reviewer branch",
+    "Both new operation JSON documents parsed and null approval/candidate/execution guards passed",
+    "Authorized coordination to existing joint operator and exact CON Claude; uncertain last message reconciled as queued without resend",
+    "Source inspection found withdrawal confirmation disclosure gap and direct compiler/RLS dependency; no feature change",
+    "Purpose-built exact-head CI read: six existing jobs queued, no rerun/cancel",
+    "Issue198 owner record6114788738 and first review6114833701 posted and fetched back by exact IDs/commit identities",
+    "Read sealed shared-owner response and actual chat ACK bytes; matched SHA256. Independently reverified current main ancestor of held CON head and unchanged merge-tree; returned stale embedded-base correction to joint operator."
+  ],
+  "resource_use": {
+    "reviewer_source_tests": 0,
+    "local_owned_clusters_started": 0,
+    "target_database_connections": 0,
+    "sophia_provider_calls": 0,
+    "real_native_executions": 0,
+    "hosted_app_mutations": 0,
+    "account_or_project_creations": 0,
+    "emails_sent": 0,
+    "deployment_actions": 0,
+    "grants_changed": 0,
+    "sessions_terminated": 0,
+    "new_spend": 0,
+    "coding_agent_coordination_usage": "Unmeasured/private; not Sophia quota qualification."
+  },
+  "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
+  "cleanup": "No new reviewer cluster/process/target session. Existing hosted IAB retained. No uncertain hosted/provider effect introduced; last native coordination is visible queued, not a duplicated send. Author owned test execution/cleanup remains author evidence until returned.",
+  "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
+  "next_bounded_action": "Review immutable narrow Q13 proposal/test evidence and sealed conditional owner reservation; require complete one-writer start conditions, then independently recheck smallest source/Studio correction. No broader mission or product completion."
+}

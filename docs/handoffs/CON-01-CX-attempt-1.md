@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0083
+# Current checkpoint — CX-0128
+
+[Decision, review and operations handoff](../coordination/CON-01/CX-0128.md), [structured evidence](../coordination/CON-01/CX-0128.evidence.json). Owner Q13 A/conservative withdrawal settled; C/disposable reply home retained. Goal active. Authorized exact CON/shared-owner coordination resumed. First immutable binding independently reviewed and small corrections rechecked at `3b1af9b9`; residual setup-scope sentence and Studio disclosure remain. Shared conditional freeze acknowledged; no active one-writer window until complete sealed start conditions. Narrow Q13 read-policy proposal/owned tests pending. OP0002-r4 setup/human-chat and OP0001-r3 Ask remain draft_not_authorized/not approval-ready. No live effects or readiness promotion; all 36 acceptance verdicts retained. Next bounded action: exact Q13 proposal/qualification and shared reservation review, then affected independent correction checks. Davide retains product acceptance; other missions open.
+
+# Historical checkpoint — CX-0083
 
 [Independent correction crossings](../coordination/CON-01/CX-0083.md), [structured evidence](../coordination/CON-01/CX-0083.evidence.json). Exacta7044690/tree523bb586/parenta1dd; review-onlybranch/noPR; main0ccc/#199a1dd/#2263b1a unchanged. Complete4filedelta read/install0/TSC0. Actualepisode75Studio/API/PG17.6: originallist-first403/503control/remount/exactdraftrecovery/newformfields/unknownsamekeyerase scopedPASS. Late200bufferedafternewfence clientclosed, INCONCLUSIVEforbrowserordering. Currentcombinedstilloldsource/P1held, authorfullterminal/failbeforeafterpending. No reviewerfeaturefix.
 
