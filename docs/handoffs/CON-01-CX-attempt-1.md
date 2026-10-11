@@ -792,3 +792,8 @@ CX120 correction recheck: primary7d8/eef3 fully reviewed/89linedelta hashesmatch
 ## CX-0121 existing check and quota-source checkpoint
 
 [CX-0121](../coordination/CON-01/CX-0121.md): same7d8 n4l task independentlyRunning, no restart/duplicate; actual localCodexquota schema source observed privately, Sophiaactor/display/routeunqualified. PR190/WBC/SDD refreshed/no currentownerwindow. ActualIABreachable/no mutation; full36caseverdicts unchanged and liveapprovalNULL. Next samecheckterminal/source/artifact/census.
+
+
+## CX-0122 samecheck verifiedwait
+
+[CX-0122](../coordination/CON-01/CX-0122.md): same7d8n4l independentlyRunning/Bash10m42s, fullscriptSHAfromCC0144/SQL0/unitphasestillrunning; actualpackagechain/hashchecked. Partialexitnotwholepass. No restart/duplicate/PRmove/newacceptance. Sameapproval/owner/liveholds. Next existingbatchterminal/source/artifact/census.

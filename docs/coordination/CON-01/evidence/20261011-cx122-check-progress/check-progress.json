@@ -1,0 +1,36 @@
+{
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "authorReceipt": 6112753324,
+  "receiptBodySha256": "74c42fd44d40a22039aec698a031b1c0ff1695bdec6b0c1aa66c4cc16f8e96be",
+  "script": "n4l-check.sh",
+  "scriptSha256": "a6232e682490f740b26c05ea4d84a93dc09fc67678c6957298a0adf39d074959",
+  "scriptHashScope": "Full author attestation now read, matching priorprefix; raw script bytes not independently accessed.",
+  "start": "2026-10-11T19:08:16Z",
+  "wrapperSeconds": 12000,
+  "commands": [
+    {
+      "step": "pnpm test:sql",
+      "innerSeconds": 1200,
+      "authorExit": 0,
+      "authorAt": "2026-10-11T19:09:12Z"
+    },
+    {
+      "step": "pnpm check",
+      "innerSeconds": 3600,
+      "authorExit": null,
+      "state": "running"
+    }
+  ],
+  "authorProgress": "At19:20Z cleanexactsource/tree; unit-test phase/loglastwritten19:19:30Z, artifacts/integration pending. Empty wrapperlog is redirected output not terminalfailure.",
+  "independentNativeObservation": "ExactCON Backgroundtasks same namedtaskRunning/Bash10m42s; same command timeout12000bashn4l-check.sh\u2192n4l-check.wrapper.log. OutputviewerLoading, notterminal. Stopunused/panelrestored.",
+  "independentPackageSource": {
+    "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+    "check": "pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration",
+    "testSql": "node scripts/db-test.ts",
+    "scope": "Actual exact7d8 source chain independently read; author ordering matches. Reaching phase is not fullcheckexit or productacceptance."
+  },
+  "classification": "verified_wait; fullscriptpin/progress evidence added, not completedcheck",
+  "effects": "No new script/source/PR/gate/CI/runtime/provider/auth/live action. One bounded readonly progress handback requested/delivered/read.",
+  "priorIndependentFixEvidence": "CX120 exact7d8PG139/139+threecorrectednegative/controlprobes; preserved, not rerun."
+}

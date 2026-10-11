@@ -1,0 +1,18 @@
+{
+  "schema": "sophia.con01.evidence-manifest.v1",
+  "files": [
+    {
+      "path": "check-progress.json",
+      "sha256": "5f063c8dd6dd97e2e924399c4088933a18d0e76f92def14c111736d5163a6a6a"
+    },
+    {
+      "path": "dependency-path-inventory.json",
+      "sha256": "3a74f8f2b51d99d7c8a7a9e9e58e39a6b95d62dbbeeb2e2782103f20a7fc0bb5"
+    },
+    {
+      "path": "operation-handoff.json",
+      "sha256": "f208e5849ae7a89afb8a156d181c599ac71753ff966a0b2e8cd8d5c2468a53b2"
+    }
+  ],
+  "privacy": "Safe identities/phase/source/path/operation summaries only; no private quota/contact/account/credentials/rawlogs."
+}

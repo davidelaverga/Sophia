@@ -1,0 +1,135 @@
+{
+  "operationRequests": [
+    "CON-01-OP-0001-r2",
+    "CON-01-OP-0002-r3"
+  ],
+  "status": "draft_not_authorized",
+  "approval": null,
+  "expiry": null,
+  "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+  "lastObservedTuple": {
+    "API": {
+      "service": "srv-daqrn08473hc73flhi8g",
+      "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "runtime": {
+      "service": "srv-darvmse0tbcc73d8kh3g",
+      "liveDeployment": "dep-db02hcou01pc738k4atg",
+      "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+    },
+    "worker": {
+      "service": "srv-darv7snpn0mc73e6c240",
+      "liveDeployment": "dep-db5dos8473hc73apq6b0",
+      "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+      "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+    },
+    "bridge": {
+      "service": "srv-darvcigu01pc73e24o4g",
+      "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+      "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+    },
+    "Studio": {
+      "project": "sophia-30911edf/sophia-studio",
+      "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+      "status": "Ready",
+      "source": "manual vercel deploy; Git unconnected; SHA unknown",
+      "domains": [
+        "studio.sophia-ei.com",
+        "sophia-studio.vercel.app"
+      ]
+    }
+  },
+  "tupleLimits": "Dated CX100/CX115/CX117 observations retained, not freshly observed or deployed thischeckpoint.",
+  "limits": "subscription-only owner direction; noPAYG/extra-credit fallback. Route/topology/credential reference/finite cap/expiry/current window/cohort subjects/role not bound. Quota values and test inbox stay private.",
+  "actualCommands": [
+    "Fresh exactCON Backgroundtasks live observation/open same task command/outputstate; Stopunused/panelrestored.",
+    "One bounded readonlyprogress request to primary; CC0144/6112753324 fullyread and fullscriptpin recorded; partialexitnotwholepass.",
+    "git show exact7d8:package.json; independently read ordinarycheck&&chain/hash, noexecution.",
+    "Read-only PR255 head/path metadata for sharedownershipinventory only; unrelated mission untouched."
+  ],
+  "results": "Same existingbatch live; authorSQL0, pnpmcheckunitphase stillrunning. FullscriptSHAattestation recovered and actualpackagechain confirms ordering. No new independenttest/app/native/provideracceptance.",
+  "unresolvedEffects": "No uncertain hosted effects. Same setup/cohort/route/finiteallowance/window/runtime integration/rollback holds; new pinned-wire cap qualification pending.",
+  "rollback": "No CON deployment/setup mutation; no product source change. Dated tuple is not a qualified compatible rollback. Governed data must survive future rollback.",
+  "nextBoundedAction": "Read terminal/source/artifact/census of the same existing exact7d8 n4l-check task, without restart/duplicate, then decide bounded draftPR advance/freshreview. Q7/Q12/livebindingshold.",
+  "liveDbMetadataAt": "2026-10-11T16:41:26.800Z",
+  "liveDbMetadata": "PG17.6/read_onlyon;ledger36/last0036/no drift vs reviewer0001-0045;pending0037-0045;CON tables absent;running m03bindings6,settled s1-03bindings2. Not safe-drain or installed-composition proof.",
+  "resourceUse": {
+    "ownedLocalPgClusters": 0,
+    "testCommands": 0,
+    "sophiaProviderCalls": 0,
+    "realNativeExecutions": 0,
+    "hostedAppMutations": 0,
+    "productionConnections": 0,
+    "mailboxMessagesRead": 0,
+    "emailsSent": 0,
+    "quotaMetadataReads": 0,
+    "resetCreditsRedeemed": 0,
+    "reviewerEffectSpending": 0,
+    "codingAgentCoordinationConsumption": "Unmeasured/private"
+  },
+  "cleanup": "No new reviewerprocess/cluster/nativeexecution. Sameauthorbatchindependentlylive, not reviewer-ownedcleanup; no restart/duplicate. Priorownedclusterscleaned; IABmarkedhandoff. No uncertainhostedeffect.",
+  "combinedLocalGate": {
+    "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+    "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+    "receipt": 6112417689,
+    "receiptArtifact": 6112458502,
+    "script": "n4k-final.sh",
+    "scriptSha256": "e4946ca906ac8bcff49cdd26cebbf6314719f87e4163b47e1bf61edc2ef06c7d",
+    "wrapperSeconds": 12000,
+    "start": "2026-10-11T18:15:42Z",
+    "end": "2026-10-11T18:45:08Z",
+    "authorWrapperExit": 0,
+    "authorClusters": "PostgreSQL16.15 C.UTF-8/55432 and ICU en-US/55435",
+    "eachCluster": {
+      "N4": "46/46 exit0",
+      "composedN2N4": "36/39 exit1, intended three differences; restored clean",
+      "fiveConversationSuites": "138/138 exit0",
+      "allDbTests": "748/748 exit0; no async errors",
+      "testSql": "exit0,46 migrations/5 files",
+      "pnpmCheck": "exit0; unit2331pass1skip; integration86pass2skip"
+    },
+    "closingCensus": "Author reports only postgres/template0/template1; roles postgres/sophia_api/sophia_worker;0otherclients/testprocesses; sourceclean",
+    "independentScope": "Entire terminal receipt read;19 source hashes/3 blobs/seven expected artifact identities and report/built-line reconstruction match. No raw author gate execution/log/archive reproduction claimed. Prior CX119 independent exactf0 PG17.6 138/138+API10/10 retained.",
+    "composedS3LfN4Sha256": "1c28b369a560d7d1d904b712f388354414dec39f25a7fd2094f29a76bc735bf2",
+    "nativeQualification": false,
+    "observedBeforeTerminal": "Same existing Running task independently seen at start; read-only task command/redirect inspected, Stop unused, panel restored. No restart or duplicate."
+  },
+  "ordinaryCheckBatch": {
+    "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "tree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+    "authorReceipt": 6112753324,
+    "receiptBodySha256": "74c42fd44d40a22039aec698a031b1c0ff1695bdec6b0c1aa66c4cc16f8e96be",
+    "script": "n4l-check.sh",
+    "scriptSha256": "a6232e682490f740b26c05ea4d84a93dc09fc67678c6957298a0adf39d074959",
+    "scriptHashScope": "Full author attestation now read, matching priorprefix; raw script bytes not independently accessed.",
+    "start": "2026-10-11T19:08:16Z",
+    "wrapperSeconds": 12000,
+    "commands": [
+      {
+        "step": "pnpm test:sql",
+        "innerSeconds": 1200,
+        "authorExit": 0,
+        "authorAt": "2026-10-11T19:09:12Z"
+      },
+      {
+        "step": "pnpm check",
+        "innerSeconds": 3600,
+        "authorExit": null,
+        "state": "running"
+      }
+    ],
+    "authorProgress": "At19:20Z cleanexactsource/tree; unit-test phase/loglastwritten19:19:30Z, artifacts/integration pending. Empty wrapperlog is redirected output not terminalfailure.",
+    "independentNativeObservation": "ExactCON Backgroundtasks same namedtaskRunning/Bash10m42s; same command timeout12000bashn4l-check.sh\u2192n4l-check.wrapper.log. OutputviewerLoading, notterminal. Stopunused/panelrestored.",
+    "independentPackageSource": {
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "check": "pnpm toolchain:check && pnpm format:check && pnpm lint && pnpm build && pnpm typecheck && pnpm contracts:check && pnpm test && pnpm artifacts && pnpm test:integration",
+      "testSql": "node scripts/db-test.ts",
+      "scope": "Actual exact7d8 source chain independently read; author ordering matches. Reaching phase is not fullcheckexit or productacceptance."
+    },
+    "classification": "verified_wait; fullscriptpin/progress evidence added, not completedcheck",
+    "effects": "No new script/source/PR/gate/CI/runtime/provider/auth/live action. One bounded readonly progress handback requested/delivered/read.",
+    "priorIndependentFixEvidence": "CX120 exact7d8PG139/139+threecorrectednegative/controlprobes; preserved, not rerun."
+  },
+  "checkpoint": "CX-0122.md"
+}

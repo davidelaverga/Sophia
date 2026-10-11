@@ -1,0 +1,57 @@
+{
+  "schema": "sophia.con01.independent-evidence.v1",
+  "record": "CX-0122.md",
+  "at": "2026-10-11T19:23:37.528264+00:00",
+  "candidate": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "tree": "72b89db438b57e7eaaeb6be802dc1ae4049c8b6d",
+  "combinedCandidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "combinedTree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "fixCandidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "fixTree": "eef30089d88be4747e3e34b6bca00329d38b2b7c",
+  "routeProposalCandidate": "154f09f037b8d5b85357ba151219cda703bc60f3",
+  "currentMain": "fec45a0e96c4679a09da02be979503910a623c5c",
+  "statement": "Same existing exact7d8check independentlylive. Author fullscriptSHA/SQL0/unitphaseprogress now fullyread; actualpackagechain independentlymatches. No wholecheck/app acceptance.",
+  "readiness": {
+    "source_ready": "Separate7d8 correction scopedreviewed; ordinarychecks pending. Sharedruntime incomplete.",
+    "locally_verified": "Priorf0PG/API and artifactreceipt remain scoped; NEW f0 two boundaryFAIL/controlPASS, corrected7d8 actualPG139/139+threeindependentcasesPASS/no partial objects/rightsunchanged.",
+    "scoped_delta_reviewed": true,
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "operation": "OP1r2/OP2r3 draft_not_authorized;approval/expiry null",
+  "operationApproval": null,
+  "expiry": null,
+  "next": "Read terminal/source/artifact/census of the same existing exact7d8 n4l-check task, without restart/duplicate, then decide bounded draftPR advance/freshreview. Q7/Q12/livebindingshold.",
+  "cleanup": "No new reviewerprocess/cluster/nativeexecution. Sameauthorbatchindependentlylive, not reviewer-ownedcleanup; no restart/duplicate. Priorownedclusterscleaned; IABmarkedhandoff. No uncertainhostedeffect.",
+  "resourceUse": {
+    "ownedLocalPgClusters": 0,
+    "testCommands": 0,
+    "sophiaProviderCalls": 0,
+    "realNativeExecutions": 0,
+    "hostedAppMutations": 0,
+    "productionConnections": 0,
+    "mailboxMessagesRead": 0,
+    "emailsSent": 0,
+    "quotaMetadataReads": 0,
+    "resetCreditsRedeemed": 0,
+    "reviewerEffectSpending": 0,
+    "codingAgentCoordinationConsumption": "Unmeasured/private"
+  },
+  "acceptanceCases": {
+    "record": "acceptance.independent.json",
+    "caseCount": 36,
+    "counts": {
+      "partial_L1": 18,
+      "passed_L1": 3,
+      "not_run": 15
+    },
+    "fullCasesSha256": "50bdbf7d40739dfe979a036b3bca3047e54d563c4d4fe3ea732d76fa5aab6eb7",
+    "verdictChanges": 0
+  },
+  "evidence": "evidence/20261011-cx122-check-progress/",
+  "gateState": "running_not_terminal_pass",
+  "gateLastIndependentObservation": "ExactCON Backgroundtasks same namedtaskRunning/Bash10m42s; same command timeout12000bashn4l-check.sh\u2192n4l-check.wrapper.log. OutputviewerLoading, notterminal. Stopunused/panelrestored."
+}

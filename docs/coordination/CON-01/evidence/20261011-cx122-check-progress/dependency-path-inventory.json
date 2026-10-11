@@ -1,0 +1,12 @@
+{
+  "PR255": {
+    "state": "OPEN",
+    "head": "bf6fd711faafef96dbad1b8987c27e3d033f8e93",
+    "base": "main",
+    "sharedPathsOnly": [
+      "apps/worker/src/coordination-dispatch.test.ts"
+    ],
+    "scope": "Read-only path/head dependency inventory only; no review of unrelated product, messaging, sourcechange, ownership or integrationapproval."
+  },
+  "sharedOwnerWindow": "No new namedQ7/Q12owner/window acknowledgment supplied. Existingholdsunchanged."
+}
