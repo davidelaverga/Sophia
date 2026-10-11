@@ -790,6 +790,66 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       assert.equal(await graph(), was, 'nothing revoked, granted or normalized')
     })
 
+    it('adopts its sophia_api membership only when the edge inherits: INHERIT FALSE refused in either form, SET either way (PR #211 review)', async () => {
+      // The edge's own options, and the role's INHERIT apart: that only sets the default for a grant made later.
+      const edge = `SELECT (SELECT coalesce(string_agg(format('inherit=%s set=%s admin=%s', m.inherit_option::text, m.set_option::text,
+                      m.admin_option::text), ', '), '') FROM pg_auth_members m
+                      WHERE m.member = '${ROLE}'::regrole AND m.roleid = 'sophia_api'::regrole)
+                    || ' rolinherit=' || (SELECT rolinherit FROM pg_roles WHERE rolname = '${ROLE}') AS s`
+      const was = (await onAdmin<{ s: string }>(edge))[0]?.s
+      assert.equal(was, 'inherit=true set=true admin=false rolinherit=true', 'as this file left it')
+      const other = await createTestDatabase()
+      const c = new pg.Client({ connectionString: other.ownerUrl })
+      await c.connect()
+      // Each case: the edge its setup left, as S3 then finds it, and what S3 did.
+      const apply = async (setup: string) => {
+        await c.query('BEGIN')
+        try {
+          await c.query(setup)
+          const found = (await c.query<{ s: string }>(edge)).rows[0]?.s
+          try {
+            await c.query(candidate(CANDIDATES[2] ?? ''))
+            return `${found}: applied`
+          } catch (err) {
+            return `${found}: ${err instanceof Error ? err.message : String(err)}`
+          }
+        } finally {
+          await c.query('ROLLBACK')
+        }
+      }
+      const unexpected = 'sophia_conversation_assembler exists with unexpected memberships'
+      const alone = `REVOKE ${ROLE} FROM ${loginRole}`
+      try {
+        await withClusterMigrationLock(async () => {
+          for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
+          // Every case runs, and all are compared at once.
+          const cases: [string, string][] = [
+            ['the edge granted WITH INHERIT FALSE', `GRANT sophia_api TO ${ROLE} WITH INHERIT FALSE`],
+            [
+              'the edge granted while the role was NOINHERIT',
+              `REVOKE sophia_api FROM ${ROLE}; ALTER ROLE ${ROLE} NOINHERIT; GRANT sophia_api TO ${ROLE}`,
+            ],
+            ['INHERIT TRUE, SET FALSE', `GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE, SET FALSE`],
+            ['INHERIT TRUE, SET TRUE', `GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE, SET TRUE`],
+            ['the role NOINHERIT, its edge inheriting', `ALTER ROLE ${ROLE} NOINHERIT`],
+          ]
+          const outcomes: string[] = []
+          for (const [name, setup] of cases) outcomes.push(`${name} | ${await apply(`${alone}; ${setup}`)}`)
+          assert.deepEqual(outcomes, [
+            `the edge granted WITH INHERIT FALSE | inherit=false set=true admin=false rolinherit=true: ${unexpected}`,
+            `the edge granted while the role was NOINHERIT | inherit=false set=true admin=false rolinherit=false: ${unexpected}`,
+            'INHERIT TRUE, SET FALSE | inherit=true set=false admin=false rolinherit=true: applied',
+            'INHERIT TRUE, SET TRUE | inherit=true set=true admin=false rolinherit=true: applied',
+            'the role NOINHERIT, its edge inheriting | inherit=true set=true admin=false rolinherit=false: applied',
+          ])
+        })
+      } finally {
+        await c.end()
+        await other.drop()
+      }
+      assert.equal((await onAdmin<{ s: string }>(edge))[0]?.s, was, 'nothing revoked, granted or normalized')
+    })
+
     it('lets only the assembler execute the five entry points, and nobody read or write its tables', async () => {
       const grants = await owner<{ role: string; fn: string }>(
         `SELECT g.role, p.oid::regprocedure::text AS fn FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace,
