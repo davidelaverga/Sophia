@@ -755,13 +755,8 @@
   align-items: center;
   gap: 6px;
 }
-/* The acts sit at the message's outer corner: one's own at the right, another's at the left. Another's message sits at
-   the pane's left, and three presses anchored to a short bubble's right would run past the pane's edge, on a desktop as
-   on a phone (Codex on #240). */
-.conv-msg:not(.mine) .conv-acts {
-  right: auto;
-  left: -12px;
-}
+/* The acts stand at the row's right edge for every message (the row, not the bubble, is their box): one's own at its
+   bubble's corner, another's across the row from its bubble, never over the byline, never past the pane. */
 .conv-propose {
   display: flex;
   align-items: center;
@@ -846,6 +841,12 @@
   .conv-withdraw {
     top: -20px;
     right: 34px;
+  }
+  /* Another's message sits at the pane's left: three 40 px presses anchored to the row's right would stand far from a
+     short bubble under a thumb, so on a touch screen they start at the bubble's left and run right. */
+  .conv-msg:not(.mine) .conv-acts {
+    right: auto;
+    left: -12px;
   }
   .conv-propose-press,
   .conv-act {
