@@ -1,0 +1,17 @@
+{
+  "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+  "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+  "parent": "ba8c0b35eb65de35059b77aa843e9b533e486668",
+  "receipt": 6112119549,
+  "files": [
+    "docs/coordination/CON-01/BINDING_MAP.md"
+  ],
+  "deltaSha256": "899f36a3b960f149f25e3f4b097de18af178b9b53526324d983cb33e9c192bc6",
+  "fileSha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+  "fullDeltaRead": true,
+  "historical25RowsUnchangedAndOrdered": true,
+  "currentRows": 26,
+  "finding": "P2OP2r3/private-mailbox-ref status scoped resolved",
+  "gatePermission": "One existing ordered local combined gate only, exactf0; no PRheadadvance/sharedruntimeedit/live/provider effect; terminal source/exits/census required.",
+  "wholeReadiness": false
+}

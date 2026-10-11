@@ -28,9 +28,15 @@
     "authorEvidenceOnly": true
   },
   "integration": {
-    "candidate": "ba8c0b35eb65de35059b77aa843e9b533e486668",
-    "tree": "ad8961bab9cf47a2b3b0e50f9db24d1243a0e36a",
-    "receipt": 6112075853,
-    "status": "composition_reviewed_scoped_docs_correction_required_before_gate"
+    "candidate": "f0afe14b8dbe11469cb5b42bbc35a57d8b810bc6",
+    "tree": "f240ed87fc73223070ba5e7f410c6dcdc086c245",
+    "parent": "ba8c0b35eb65de35059b77aa843e9b533e486668",
+    "receipt": 6112119549,
+    "status": "docs_correction_independently_rechecked_one_local_gate_permitted_start_not_yet_observed"
+  },
+  "routeProposal": {
+    "pinPrefix": "aa4b7630",
+    "reviewed": false,
+    "requiresIndependentFullRead": true
   }
 }
