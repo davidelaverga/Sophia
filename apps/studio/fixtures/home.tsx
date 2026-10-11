@@ -30,18 +30,24 @@ import { DEMO, DEMO_LABEL, HOME_PROJECT } from './demo.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useNeeds } from '../src/features/personal/useNeeds.ts'
+import { needsAnswer } from './fixture-api.ts'
 
 declare global {
   interface Window {
-    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null }
+    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null; needsReads: () => number }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 const pressed: string[] = []
+/** How many times the needs' route was read (`needs=api`): none behind a shut padlock. */
+let needsReads = 0
 window.homeFixture = {
   pressed,
+  needsReads: () => needsReads,
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
@@ -140,6 +146,21 @@ const NEEDS: Record<string, Need[] | undefined> = {
   none: [],
 }
 const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undefined
+/** `needs=api`: the Studio's own read of GET /api/v1/me/needs (api/needs.ts), answered here as the fixture's API would. */
+const viaApi = query.get('needs') === 'api'
+if (viaApi) {
+  const real = window.fetch.bind(window)
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    if (new URL(url, window.location.href).pathname === '/api/v1/me/needs') {
+      needsReads += 1
+      const body = JSON.stringify(needsAnswer())
+      return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
+    }
+    return real(input, init)
+  }
+}
+const client = new QueryClient()
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
 // The demo's Personal: its last words minutes ago, as Home's «Continue» says them.
@@ -204,6 +225,18 @@ const say = (text: string) => pressed.push(`say ${text}`)
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
+  const fromApi = useNeeds(
+    'fixture-token',
+    {
+      project: (projectId, view, where) => {
+        const task = where.taskId ? ` #task-${where.taskId}` : ''
+        const report = where.report ? ` report ${where.report.artifactId} ${where.report.versionId}` : ''
+        pressed.push(`open ${view} ${projectId}${task}${report}`)
+      },
+      personal: () => pressed.push('personal'),
+    },
+    { enabled: viaApi, locked },
+  )
   return (
     <div className="places" data-place="home">
       {/* The check's own control: not part of a demo's recording. */}
@@ -227,7 +260,7 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           hidden={away}
-          needs={needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined}
+          needs={fromApi ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)}
           actions={{
             personal: () => pressed.push('personal'),
             notes: () => pressed.push('notes'),
@@ -251,6 +284,8 @@ createRoot(root).render(
     <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
       {DEMO ? DEMO_LABEL : 'Simulated — Home over labelled projects, no account'}
     </p>
-    <Home />
+    <QueryClientProvider client={client}>
+      <Home />
+    </QueryClientProvider>
   </StrictMode>,
 )

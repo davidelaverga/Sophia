@@ -30,7 +30,7 @@ import {
   idOf,
 } from './data.ts'
 import { missionWritten } from './mission-writes.ts'
-import { DEMO, DEMO_ORIGINS } from './demo.ts'
+import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -337,13 +337,75 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
   })
 }
 
+/** A need's ref; a version's names its report too (A15 after Codex on #245), so the Studio opens that version. */
+const needRef = (kind: string, id: string, artifactId: string | null = null) => ({ kind, id, artifactId })
+
+/** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
+export function needsAnswer(now = Date.now()) {
+  const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString()
+  const here = { projectId: PROJECT, projectTitle: PROJECT_NAME }
+  const need = (id: string, kind: string, title: string, over: Record<string, unknown>) => ({
+    id,
+    kind,
+    title,
+    ...here,
+    expiresAt: null,
+    detail: null,
+    ...over,
+  })
+  return {
+    readAt: new Date(now).toISOString(),
+    needs: [
+      need('review:v3', 'review', 'Q3 retention report, v3', {
+        detail: 'Davide asks',
+        at: at(-120),
+        ref: needRef(
+          'artifact_version',
+          '00000000-0000-4000-8000-0000000000b2',
+          '00000000-0000-4000-8000-0000000000b1',
+        ),
+      }),
+      need('permission:w1', 'permission', 'Claude Code asks to run the export tests', {
+        expiresAt: at(130),
+        at: at(-10),
+        ref: needRef('work_item', 'w1'),
+      }),
+      need('guest:g1', 'guest', 'Marco Pereira is in the lobby', {
+        detail: 'Waiting 2 min',
+        at: at(-2),
+        ref: needRef('lobby_entry', 'g1'),
+      }),
+      need('decision:d1', 'decision', 'Ship the retry with the hotfix?', {
+        expiresAt: at(20),
+        at: at(-60),
+        ref: needRef('mission_decision', 'd1'),
+      }),
+      need('reply:t9', 'reply', 'Sophia replied about the launch date', {
+        projectId: null,
+        projectTitle: null,
+        detail: 'Yesterday',
+        at: at(-1440),
+        ref: needRef('personal_turn', 't9'),
+      }),
+    ],
+  }
+}
+
+/** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
+function ownRead(project: Project, url: URL) {
+  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
+  return undefined
+}
+
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
-  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  const own = ownRead(project, url)
+  if (own !== undefined) return own
   const reviews = REVIEWS_OF.exec(url.pathname)
   if (reviews?.[2]) return reviewsRead(project, reviews[2])
   const tasksOf = TASKS_OF.exec(url.pathname)?.[1]

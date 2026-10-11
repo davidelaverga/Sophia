@@ -1,0 +1,195 @@
+{
+  "id": "A15",
+  "goal": "F2",
+  "title": "What needs the calling person, across their projects and their personal space, in one read (Needs you)",
+  "why": [
+    "Informe-30 F2 and informe-pasada-3 (2026-10-10/11): what needs a person today is spread over a project's Tasks (a decision waiting on them, with an expiry), a task's sheet (a native permission an agent asks for), Knowledge (a review asked of them), a room's lobby (a guest waiting) and their personal space (Sophia's reply they have not read). A power user starting the day visits each to learn nothing is waiting. Home's right half shows the list already (Studio PR #237, behind the vision flag, on fixture data); this names the read that fills it.",
+    "One route for the calling person, owner-only as the personal space is (A10): nothing of another person is in it, and a project is in it only through the person's membership. Each need says what it is, where it lives and, for a decision or a permission, when it stops waiting; the reader opens it where it lives (the Studio names the view by its kind). The service builds it from what it already keeps: the mission ledger's proposed decisions whose respondent is the person (A08), the work board's waits of kind native_permission naming them (A13), the artifact reviews asked of them (A11), the lobby entries waiting in rooms of projects they admit to (A02, A03), and the personal turns Sophia answered after the person's last read (A10). Each is identified by its own record (ref), so the Studio never guesses, and the list is sorted by urgency on the Studio's side (the expiring first).",
+    "Not in this amendment: marking a need read, or dismissing it; a badge count is the list's length. A need leaves the list when its record is answered where it lives (the decision decided, the permission granted or refused, the review done, the guest let in or declined, the turn read)."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/Need",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One thing that needs the calling person, where it lives.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Stable for the record it names: `<kind>:<ref.id>`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["decision", "permission", "review", "guest", "reply"]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "What it is about, in the record's own words: the decision's statement, what the agent asks to do, the report's title, the guest's name, the first words of Sophia's reply."
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project it is in; null for the personal space (a reply)."
+          },
+          "projectTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it stops waiting (a decision's or a permission's expiry); null when it does not expire."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A word on it when nothing expires: who asks (`Davide asks`), how long a guest has waited."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it came to need the person: the proposal, the ask, the knock, the reply."
+          },
+          "ref": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The record it names, so the Studio opens that one and never guesses.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["mission_decision", "work_item", "artifact_version", "lobby_entry", "personal_turn"]
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "artifactId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "For an artifact_version: the report the version belongs to, so the Studio opens that version in Knowledge. Null for every other kind."
+              }
+            },
+            "required": ["kind", "id", "artifactId"]
+          }
+        },
+        "required": ["id", "kind", "title", "projectId", "projectTitle", "expiresAt", "detail", "at", "ref"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/NeedList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "needs": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/Need"
+            },
+            "description": "In no promised order; the Studio sorts by urgency (the expiring first, soonest first)."
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The service's clock when it answered: expiries are compared against it, never against the reader's clock."
+          }
+        },
+        "required": ["needs", "readAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1needs",
+      "value": {
+        "get": {
+          "operationId": "listNeeds",
+          "tags": ["personal"],
+          "summary": "What needs the calling person now, across the projects they belong to and their personal space: decisions waiting on them (with their expiry), native permissions agents ask of them, reviews asked of them, guests waiting in lobbies they admit to, Sophia's replies they have not read. Owner-only: built from the person's own memberships and space; nothing of another person is in it. A need leaves the list when its record is answered where it lives.",
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/NeedList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no needs of their own)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

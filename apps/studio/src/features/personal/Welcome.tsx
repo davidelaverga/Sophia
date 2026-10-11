@@ -16,6 +16,9 @@ import { useDictation } from './dictation.ts'
 import { moveInIndex } from './index-keys.ts'
 import type { Need } from './needs-you.ts'
 import { NeedsYou } from './NeedsYou.tsx'
+
+/** Now on the service's clock: the needs' expiries compare on it (A15's `readAt`), not on the browser's. */
+const onService = (now: Date, skew = 0): Date => (skew === 0 ? now : new Date(now.getTime() + skew))
 import { homeRows, notesLabel, rowNote, type HomeAction, type HomeRow, type Said, type YouDoor } from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 
@@ -46,7 +49,7 @@ interface Props {
    * What needs you (needs-you.ts) and what opens one: undefined until an API serves it, and the right half is her
    * light alone. The opener comes with the items, so no row is ever offered that leads nowhere.
    */
-  needs?: { items: readonly Need[]; open: (need: Need) => void } | undefined
+  needs?: { items: readonly Need[]; open: (need: Need) => void; skew?: number } | undefined
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -446,7 +449,7 @@ export function Welcome(props: Props) {
       {props.needs ? (
         <aside className="hw-side" aria-label="What needs you">
           <Light talk={talk} line={line} hidden={props.hidden} large />
-          <NeedsYou needs={props.needs.items} now={props.now} onOpen={props.needs.open} />
+          <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
         </aside>
       ) : (
         <Light talk={talk} line={line} hidden={props.hidden} />
