@@ -1,0 +1,72 @@
+{
+  "at": "2026-10-12T03:02:05.799149+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_ENGINEERING_ACK_OR_WRITE_GO",
+  "proposal": {
+    "commit": "1c404b44e35be65eee35e5d2f3442ab1f2e79ef9",
+    "tree": "226baffa2a3aa1701b47e1c07b3f73646d47aa01",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "b088c4d0c8e20e5aabd91814994be21e1d388807220550d8a9f4fb52542c15e5",
+    "lines": 442,
+    "readComplete": true
+  },
+  "ownershipAssessment": {
+    "direction": "Choice(c), bridge owns logical reply control/relay and supervisor owns launcher/profile/sweep, is a reasonable proposed direction for own shared runtime surfaces. No full lifecycle ACK at this pin.",
+    "fd3": "One duplex bounded fd3 plus fd0/dev/null is conditionally compatible with avoiding an additional prompt-carrying parent; amend binding copy/buffer/descriptor tables and tie to exact corrected proposal before agreement.",
+    "authority": "This lane reviews own WBC02/SDD01 bridge/supervisor/runtime preservation only. Core/runtime SQL/0049 ledger reconciliation, Luis integration, accepted source base and Q13 remain with named owners; no exclusive whole-runtime ownership claimed.",
+    "unchanged": "Other goals/Paperclip/design roles/pins/historicalbindings/uncertainallowances preserved. No production resource/path change or new Linux host inferred; future host check must target the actual selected Render unit."
+  },
+  "confirmedP1s": [
+    {
+      "id": "Q7-A",
+      "title": "Numeric ChildProcess.kill is not a kernel identity handle",
+      "proposalLines": [
+        71,
+        183,
+        184,
+        188,
+        233,
+        244
+      ],
+      "evidence": "Pinned libuv process.c1097\u20131104: uv_process_kill calls uv_kill(process->pid), which calls kill(pid). Reaper131 then149\u2013174 reaps/queues children before delivering callbacks. Node24.21 docs explicitly warn reusedPID can receive signal. Post-exit false probe does not prove absence of intervening reuse.",
+      "required": "Safely acquire and retain a stable kernel identity before child execution/unsafe signalling, covering acquisition, earlyexit, reap, stop/dispose/sweep and no-lease cases. No numeric fallback; name amended topology if a guardian is needed. Stub/owned-process tests only; no hosted/unrelated signals."
+    },
+    {
+      "id": "Q7-B",
+      "title": "Ready does not order committed delivered receipt before reservation",
+      "proposalLines": [
+        232,
+        264
+      ],
+      "evidence": "Actual bridge dispatch execute.then(send) at667 and send only pushes receiptQueue at684\u2013690. Binding242/268 transitions pending\u2192running only with delivered receipt; S2 reserve311 rejects any non-running request. Childready/immediateprompt can race delayed receiptHTTPcommit.",
+      "required": "A durable exact-generation delivery gate before any agentstep/providerreserve, with lost-ack reconciliation under same request/claim/epoch, withdrawal-before-go and no duplicate call. Do not await a receipt inside execute that dispatch only enqueues after execute returns; design asynchronous handoff explicitly."
+    },
+    {
+      "id": "Q7-C",
+      "title": "Restart replay cannot settle an uncertain reservation through current settle",
+      "proposalLines": [
+        279,
+        309,
+        329
+      ],
+      "evidence": "Proposal hello marks open reservations uncertain; S2 settle364\u2013366 accepts reserved or identicalsettled only, uncertain conflicts. S2 reconcile407\u2013410 is no_proof_source stub.",
+      "required": "Exact recovery table for reserved/identicalsettled/uncertain, authenticate/persist lateusage once under correct keys, preserve terminal/withdrawal scrub fences, bind separately authorized owner reconciliation to0049proofsource. No reset/release/newcall or silent state revival. Cleanup only under actual full barrier, not a generic settle-success assumption."
+    }
+  ],
+  "additionalRequiredOwnershipCorrections": [
+    {
+      "id": "Q7-D",
+      "issue": "Proposal375 admits reply child may signal any same-uid process; calling denial optional is incompatible with existing other-mission preservation. Parent pidfd repair alone does not confine child-originated signalling.",
+      "required": "Specify and qualify actual child cross-process signal containment including alternative signal syscalls and required self/thread runtime behavior, failclosed on unsupported kernel/policy. Low-level mechanism is engineering work, not a new question for Davide.",
+      "proposalLine": 375
+    },
+    {
+      "id": "Q7-profile",
+      "issue": "Proposal145 refuses all symlinks while cited Darwin offline-pnpm copy preserves them; that evidence is not symlink-free Linux reply-profile qualification.",
+      "required": "Name a self-contained validated profile-copy recipe, exact relative-link/file policy and tree digest. Keep Darwin baseline/role readiness and realLinuxreplycontainment qualification separate."
+    }
+  ],
+  "gateDecision": "CHANGES_REQUIRED. Accept only proposed ownership direction, not the six-point agreement/lifecycle/sourceimplementation. Corrected immutable pin needs independent review and exact joint/core/ledger/integration owner agreement before PhaseB. PhaseA93e remains compatible prerequisite pending actual integration-owner acceptance. PR190billing/production/G7/PhaseB/Q13 gates unchanged.",
+  "effects": "Read public/published exact sources; fetch Git objects into unsealed review checkout without checkout/source change; local journal. No new tests/runs/hosted/provider/access/spending/migration/deployment.",
+  "sourceRecordSHA256": "e24c0cf58657fd7348ae96c491b2c914ddd9c971bfb852adb4549d9989078429",
+  "profileQualificationCorrection": "Historical r1 review hypothesis only. Independent CX142 actual Darwin install had0symlinks/0special. No symlink mismatch established; actual Linux template qualification pending."
+}

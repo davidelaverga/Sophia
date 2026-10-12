@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-12T03:04:58.136Z",
+  "endedAt": "2026-10-12T03:05:12.620Z",
+  "kind": "local_Darwin_profile_only_copy_startup_no_provider",
+  "source": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "helpersIdenticalTo": "7d8f415f",
+  "network": "sandbox-exec deny network* inherited",
+  "credentialNamesPassed": [],
+  "node": "v24.21.0",
+  "status": 0,
+  "signal": null,
+  "error": null,
+  "templateDigest": "sophia-tree-v2:sha256:108d23ed611cea043958290a4a198ae363851d6ea6ef6d60e43dcedfac46d9a7",
+  "copyDigest": "sophia-tree-v2:sha256:108d23ed611cea043958290a4a198ae363851d6ea6ef6d60e43dcedfac46d9a7",
+  "entryCount": 86,
+  "digestsEqual": true,
+  "drift": [],
+  "boot": {
+    "status": 0,
+    "signal": null,
+    "timedOut": true,
+    "bridgeLoaded": true,
+    "notReady": true,
+    "ready": false,
+    "diagnosticCount": 0
+  },
+  "artifactsReassertedAfterBoot": true,
+  "cleanup": "owned_root_removed_after_process_return"
+}
