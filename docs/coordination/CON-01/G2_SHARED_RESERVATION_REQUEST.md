@@ -1,11 +1,18 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 4 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 5 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
 
-**Revision 4, after CX-0159.** The joint review of revision 3 (`34397f7e`) and Codex's root review find:
+**Revision 5, after CX-0161.** The joint review of revision 4 (`a31c023f`) and Codex's root review find all three PB3 corrections addressed at proposal scope. They also judge A-1's and A-2's directions compatible. One bounded P2 remains, a gap in the exact manifest rather than an observed failure, with the verdict `CHANGES_REQUIRED_ONE_BOUNDED_P2_EXACT_R4_K1C_NOT_SUPPLIED_NO_WRITE_GO`. It is accepted:
+
+| Finding | Disposition | Where |
+|---|---|---|
+| PB4-CANCELLATION-CAUSE-INPUT | **Accepted.** Revision 4 promised a cancellation row naming its actual caller and cause. But `conversation_cancel` took only the project, request, reason and time. S4's call dropped its source, and S1's loop carried no conversation or seq. Revision 5 carries a **typed immediate cause** through the helper and both call sites:<ul><li>`conversation_cancel` gains `p_cause_kind`, `p_cause_conversation`, `p_cause_seq`, `p_cause_message` and `p_cause_source`;</li><li>`conversation_source_out` passes `'source_out'` and its own `p_source`;</li><li>`conversation_withdrawn_from` types its cause once, from its own inputs and one unique, locked lookup, then passes it for every request it cancels. The lookup is the message at `(conversation, seq)`, under 0048's `UNIQUE(conversation_id, seq)`, which its caller has just withdrawn in the same transaction.</li></ul>The row keeps the first cancelling input, immutably, one per request: a later input finds the request terminal and writes nothing. It holds no text, and its ACL is closed. Nothing is inferred from a latest message or timestamp. S4's exact replacement and its equality restoration are updated to match | §3.1(d), (e), (f); tests |
+| The precision notes | **Accepted:**<ul><li>A-2's tests read internal provenance, and never call an authenticated entry point with a `create` that doesn't exist;</li><li>A-2's "no runtime command" proof is historical, recorded under the lock at cancellation, not merely a current absence;</li><li>B-2's shorthand that every cleanup has a `runtime_commands` row is narrowed by A-2's explicit counts</li></ul> | §2 B-2; §3.1(f); tests |
+
+**Revision 4, after CX-0159.** Its dispositions stand, unchanged below. The joint review of revision 3 (`34397f7e`) and Codex's root review find:
 - CX-0155's four findings still addressed;
 - CX-0157's `stop` delivery and source-out fixes standing;
 - the first `reserved` recovery settle fixed.
@@ -51,6 +58,9 @@ What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consume
 | Codex's root review of revision 2 | [CX-0157](https://github.com/davidelaverga/Sophia/blob/7b93140ad327617aad34f07634e76f7d311bd6cd/docs/coordination/CON-01/CX-0157.md) at `7b93140a`; [#198 comment 6118950446](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6118950446) |
 | The joint review of revision 3 | [`joint-phase-b-r3-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/2080f1d1945ae0d9d42a96933186c1828c466884/docs/coordination/CON-01/evidence/20261012-cx159-reservation-r3/joint-phase-b-r3-review.safe.json) at `2080f1d1`, SHA-256 `52ba6691dc9c12fb…` (original `13d622f405f19b73…`). Three P2s; K-1c not supplied |
 | Codex's root review of revision 3 | [CX-0159](https://github.com/davidelaverga/Sophia/blob/2080f1d1945ae0d9d42a96933186c1828c466884/docs/coordination/CON-01/CX-0159.md) at `2080f1d1`; [#198 comment 6119240597](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119240597) |
+| The joint review of revision 4 | [`joint-phase-b-r4-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/a2118b1b7adac79c39eed93c3e29a3da4731f085/docs/coordination/CON-01/evidence/20261012-cx161-reservation-r4/joint-phase-b-r4-review.safe.json) at `a2118b1b`, SHA-256 `f37c213baff3bce3…` (original `9a9a9832c666c83f…`). One P2; K-1c not supplied |
+| Codex's root review of revision 4 | [CX-0161](https://github.com/davidelaverga/Sophia/blob/a2118b1b7adac79c39eed93c3e29a3da4731f085/docs/coordination/CON-01/CX-0161.md) at `a2118b1b`; [#198 comment 6119498696](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119498696) |
+| Revision 4 of this file | `a31c023f5fe3ccd7c1731fd54aedb4877cfbc96e`, tree `31b660ea`, SHA-256 `b300b0a223933f6c…`, 635 lines |
 | Revision 3 of this file | `34397f7e7ee461949c3048918db68759e433f3cd`, tree `d659eaa2`, SHA-256 `68c924f0e83b558b…`, 541 lines |
 | Revision 2 of this file | `b6ee23a47188f94c291e0516643dce3f62309601`, tree `f71a9c7a`, SHA-256 `040c2041bd6aba50…`, 437 lines |
 | Revision 1 of this file | `57f66b5067a4e50cc0df0190d491947f2624596b`, tree `7a571790`, SHA-256 `6aee5c9e789b23ea…`, 232 lines |
@@ -98,7 +108,7 @@ Each item is an existing Q7 r8 obligation that the joint ACK left to the core an
 | # | The decision | CON's recommendation | Bound by | Q7 r8 |
 |---|---|---|---|---|
 | B-1 | **Hello's lease-loss table:** keep it or drop it | **Keep it.** It ends a lease-lost request at the hello, whatever the new bridge answers to the replay. And it keeps a busy or replies-off bridge's `rejected` from releasing a reservation the old execution may have used. **If it is dropped,** the required alternative is accounting-safe: the bridge asks the claim before ever answering a replayed `create` `rejected`. Tests exist for both. P1-E stays withdrawn either way | S1-05A/BASE. SMC-M03 confirms that `runtime_hello`'s goal and research branch is preserved | §6, the table and "Why a table at all"; §10 |
-| B-2 | **The cleanup commands, `stop` and `retire`: their writers, keys and delivery.** Exactly one `retire` per attempt. One `stop` per attempt that was claimed, then cancelled. Each comes with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **Two writers, using only existing unique constraints:**<ul><li>`conversation_cancel` writes the `stop`. Its `commands` row has key `conversation-stop:<attemptId>`, with the request's asker as its actor. Its one `outbox` row is `native.stop`, `binding/<bindingId>`, `cleanup` true, at epoch 2;</li><li>`conversation_retire` writes the `retire`. Its key is `conversation-retire:<attemptId>`, with the same actor. Its `outbox` row is `native.retire`, `binding/<bindingId>`, `cleanup` true, at the attempt's current epoch.</li></ul>The constraints are 0001's `UNIQUE(project_id, actor_id, idempotency_key)` and `UNIQUE(project_id, command_id, destination_key)`, and 0012's `UNIQUE(project_id, outbox_id)`. The actor is fixed per attempt, so each key stays unique per attempt whoever cancels. Each insert is `ON CONFLICT DO NOTHING`, **then the existing row is read back by its key and verified** (the same attempt, kind and epoch) before any dependent row. A mismatch refuses. So a repeated hello, receipt, withdrawal, erasure or source-out writes nothing new. **Precedence (PB3):** while an attempt's own `stop` has no recorded `checked` answer, `conversation_retire` writes nothing, whichever caller asks; that `checked` answer is the only path to such an attempt's `retire`. Both destinations stay inside the `native.%` reconcile filter, and the `create`'s rows are never reused. The owner may name other keys | S1-02 (the `commands` and `outbox` rows and keys); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §7, "Withdrawal"; §10's delivery counts |
+| B-2 | **The cleanup commands, `stop` and `retire`: their writers, keys and delivery.** Exactly one `retire` per attempt. One `stop` per attempt that was claimed, then cancelled. Each comes with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). The `runtime_commands` row exists only when a runtime is told: A-2's local retirement has none (§3.1(d)'s counts). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **Two writers, using only existing unique constraints:**<ul><li>`conversation_cancel` writes the `stop`. Its `commands` row has key `conversation-stop:<attemptId>`, with the request's asker as its actor. Its one `outbox` row is `native.stop`, `binding/<bindingId>`, `cleanup` true, at epoch 2;</li><li>`conversation_retire` writes the `retire`. Its key is `conversation-retire:<attemptId>`, with the same actor. Its `outbox` row is `native.retire`, `binding/<bindingId>`, `cleanup` true, at the attempt's current epoch.</li></ul>The constraints are 0001's `UNIQUE(project_id, actor_id, idempotency_key)` and `UNIQUE(project_id, command_id, destination_key)`, and 0012's `UNIQUE(project_id, outbox_id)`. The actor is fixed per attempt, so each key stays unique per attempt whoever cancels. Each insert is `ON CONFLICT DO NOTHING`, **then the existing row is read back by its key and verified** (the same attempt, kind and epoch) before any dependent row. A mismatch refuses. So a repeated hello, receipt, withdrawal, erasure or source-out writes nothing new. **Precedence (PB3):** while an attempt's own `stop` has no recorded `checked` answer, `conversation_retire` writes nothing, whichever caller asks; that `checked` answer is the only path to such an attempt's `retire`. Both destinations stay inside the `native.%` reconcile filter, and the `create`'s rows are never reused. The owner may name other keys | S1-02 (the `commands` and `outbox` rows and keys); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §7, "Withdrawal"; §10's delivery counts |
 | B-3 | **The cursor rule** for `stop` and `retire`: replayed once per hello until a `checked` answer is recorded | A new version of `runtime_cursor` in 0049, with the same signature, owner, security, `search_path` and privileges. It is defined at 0012:399, and 0012 is not edited. Its only caller is `runtime_hello` (0028:105), so a `stop` or `retire` without a `checked` answer is replayed at each hello, and never in a loop within one connection. `runtime_poll` (0016:114) is not edited | S1-05A/BASE | §6, the `stopping` row |
 | B-4 | **BINDING_MAP §8.2.1:297 and :299,** which say "no second … outbox row or runtime command" beside "one `retire`" | Replaced in the accepted window by: "no second attempt, reservation, `create` or execution. Exactly one cleanup `retire`, with its own command and delivery rows; none on replay". CON edits its own binding only in that window, after B-2 is bound | CON, after B-2 | §6, "Owned by the core owner" |
 | B-5 | **The run gate, the claim, and whose lease each call needs** | `runtime_conversation_claim` and `runtime_conversation_go` (§3.1(c)) call `runtime_lease` first. A superseded bridge is refused with `40001`. The lease is the authenticated `bridgeInstanceId`; a body whose `leaseId` differs is refused. Then the request's row is locked, and `conversation_execution_claim` and `conversation_execution_go` run. One atomic `pending` → `running` transition, replayed for the same lease and command. **Claim, go and reserve act only for the claim's own lease. Settle also has Q7 r8's one recovery case:** the current bridge of the same runtime may resend a journaled settle for a request that capture ended, while its ordinal is `reserved`, or `settled` for an identical replay (§3.1(c)) | S1-05A/BASE (the entry points and `runtime_lease`); CON (the claim's table and functions, and S2's ledger) | §6, "The API and 0049"; §7's ledger table (r8:775) and "After a restart" |
@@ -193,13 +203,24 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 
 **(d) CON's new internal objects.** None has a grant: `REVOKE ALL ... FROM PUBLIC, sophia_api, sophia_worker`; each table has row security on and no policy.
 - **The table `sophia.conversation_executions`:** one row per attempt (`UNIQUE (project_id, attempt_id)`). It holds the request, the command, the lease (`bridgeInstanceId`), the epoch and the claim's outcome (`claimed`, `running` or `lost`). For a lease loss, it also holds the hello's instance that recorded it (B-6's `terminalWriter`).
-- **The table `sophia.conversation_cancellations` (new; addendum A-1):** one row per cancelled request (`UNIQUE (project_id, reply_id)`). `conversation_cancel` writes it in the same transaction as the `cancelled` state, and it is never changed afterwards. It records:
-  - the request, and its attempt if there is one;
-  - the reason and the time;
-  - the caller (`conversation_withdrawn_from` or `conversation_source_out`) and its cause: the withdrawn message's conversation and seq, the erasure, or the source;
-  - the epoch it raised;
-  - whether a claim existed, and the `stop` command it wrote, if any;
-  - what became of the `create`: superseded, left to dispatch's denial, or already dispatched.
+- **The table `sophia.conversation_cancellations` (new; addendum A-1):** one row per cancelled request (`UNIQUE (project_id, reply_id)`). `conversation_cancel` writes it in the same transaction as the `cancelled` state.
+  - **Immutable:** a new trigger function, `conversation_cancellations_kept()`, refuses `UPDATE`, `DELETE` and `TRUNCATE` through two triggers, as S2 to S4 do for their tables. It is closed like every other new function.
+  - **It records:**
+    - the request, and its attempt if there is one;
+    - the reason, and the real cancellation time (`p_at`);
+    - the caller: `conversation_withdrawn_from` or `conversation_source_out`;
+    - **the typed immediate cause (PB4):**
+      - `cause_kind`: `member_withdrawal`, `source_answer_withdrawal`, `conversation_erasure` or `source_out`;
+      - `cause_conversation_id`, `cause_seq` and `cause_message_id`: for the two withdrawals, the withdrawn message; for the erasure, the conversation and seq 1, with no message;
+      - `cause_source_id`: for `source_out` only;
+    - the epoch it raised;
+    - whether a claim existed, and the `stop` command it wrote, if any;
+    - what became of the `create`, read under the request lock: `superseded` or `left_to_dispatch` (no runtime command existed yet), `dispatched`, or `none`.
+  - **The CHECKs:**
+    - each `cause_kind` has exactly its own fields set, and the others NULL;
+    - `source_out` goes with the caller `conversation_source_out`, and the other three kinds with `conversation_withdrawn_from`.
+  - **No text:** ids, seqs, kinds and times only. No message or source text is copied.
+  - **The first cause only:** the first input that cancels a request writes its row. A later one finds the request terminal, so `conversation_cancel` writes nothing; the unique key is only a backstop.
 
   It is the cancelled request's `terminalWriter` (B-6).
 - **The claim and go:** `conversation_execution_claim` and `conversation_execution_go` (B-5).
@@ -211,12 +232,12 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - **`conversation_delivery_ineligible(o)`:**
     - for `native.create`, the inventory's §4.2 conditions;
     - for a cleanup row, only that the row's epoch is the attempt's current one and the binding isn't `retired`.
-- **Cancelling: `conversation_cancel(p_project uuid, p_reply uuid, p_reason text, p_at timestamptz)`.**
+- **Cancelling: `conversation_cancel(p_project uuid, p_reply uuid, p_reason text, p_at timestamptz, p_cause_kind text, p_cause_conversation uuid, p_cause_seq bigint, p_cause_message uuid, p_cause_source uuid)`.** The cause is typed by its caller (below), and checked against the row's CHECKs. A malformed cause refuses, before any state changes.
   - **Locks first:** its caller already holds the project and conversation locks. It locks the request's row, and does nothing unless the request is `pending` or `running`.
   - **Then reads:** the request's attempt, binding and claim, and whether the `create` has a runtime command. All of this is read **before** any state changes.
   - **Then, in every case:**
     - the request becomes `cancelled`, with the reason and `settled_at`, and the attempt's epoch rises to 2;
-    - its `conversation_cancellations` row is written in the same transaction (A-1);
+    - its `conversation_cancellations` row is written in the same transaction, with the caller's typed cause (A-1);
     - if a runtime command holds the `create`'s payload, it is scrubbed in place (Q7 r8's `payloadScrubbed`).
   - **What else depends on the claim:**
     - **No claim yet.** No execution exists, and none can start: a claim needs `pending` under this same lock.
@@ -258,7 +279,20 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **`conversation_acknowledged`:** B-6.
 - **Replaced from 0048, keeping each one's owner, security, `search_path` and privileges:**
   - `conversation_ask`, the admission (the inventory, §4.1);
-  - `conversation_withdrawn_from(uuid, uuid, bigint, text)`: S1's body, except its cancelling `UPDATE` (S1:51-53). That becomes a loop which first selects the open requests (`pending` or `running`, `cutoff_seq >= p_seq`) `FOR UPDATE` in id order, then calls `conversation_cancel` for each. No state is updated before its attempt is identified.
+  - `conversation_withdrawn_from(uuid, uuid, bigint, text)`: S1's body, except its cancelling `UPDATE` (S1:51-53). Its signature is unchanged, so 0048's two callers are untouched. In place of that `UPDATE`:
+    1. **It types the cause once,** from its own inputs and one unique, locked lookup:
+       - `p_reason = 'conversation_erased'` (only `erase_conversation` passes it, 0048:390): `conversation_erasure`, with `p_conversation` and seq 1;
+       - otherwise, the message at `(p_conversation, p_seq)`, read `FOR SHARE` under 0048's `UNIQUE(conversation_id, seq)`. Its caller has just withdrawn that message in the same transaction: `withdraw_conversation_message` (0048:366) or S4's answered branch (S4:459-463). Its `withdrawn_by` decides the kind:
+         - `author` or `admin` gives `member_withdrawal`;
+         - `source` gives `source_answer_withdrawal`.
+
+         In both cases the cause holds the conversation, seq and message id.
+       - **Fails closed:** a message that isn't there, or isn't withdrawn, refuses. Nothing is inferred from another message or a timestamp.
+    2. **It takes one time,** `clock_timestamp()`, for every request it cancels.
+    3. **It selects the open requests,** `pending` or `running` with `cutoff_seq >= p_seq`, `FOR UPDATE` in id order.
+    4. **It calls `conversation_cancel` for each,** with that typed cause.
+
+    No state is updated before each request's attempt is identified.
 
 **(e) S1–S4, promoted into 0049 from `7d8f415f`.** Each comes with its exact objects and its closed ACL. The only differences from the candidates are the ones named in this subsection and in (d).
 
@@ -277,7 +311,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - S3's five entry points (`conversation_assembly_claim`, `_begin`, `_close`, `_fail` and `conversation_record_context`) have **no grantee** in Phase B. Only their owner can execute them.
 - **The `REVOKE` lists change to match.** S3:734-735's and S4:485-486's table `REVOKE`, and S4:487-495's function `REVOKE`, drop `sophia_conversation_assembler` from their role lists. A `REVOKE` from a role that doesn't exist fails, and nothing else in those lists changes.
 - **S4's `conversation_source_out` gets one insertion, its only change (PB2-SOURCE-OUT-CANCEL).** Its open-request branch (:452-456) set the request `cancelled` directly, so a running attempt was never stopped.
-  - **The replacement:** that branch's `UPDATE` (:454-455) becomes `PERFORM sophia.conversation_cancel(p_project, r.id, why, t)`, between marker comments.
+  - **The replacement:** that branch's `UPDATE` (:454-455) becomes `PERFORM sophia.conversation_cancel(p_project, r.id, why, t, 'source_out', NULL, NULL, NULL, p_source)`, between marker comments. Its typed cause is its own `p_source`, the source whose suppression it has just written (:446-447).
   - **When it runs:**
     - under the locks the function already holds: the project (:416), the conversation (:442) and the request (:443);
     - while the request is still `pending` or `running`, so its attempt and claim are read before any state changes;
@@ -308,7 +342,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **Why that is not enough:** a cancelled request becomes terminal in `conversation_cancel`'s own transaction, before any `stop` is answered.
   - Naming the later stop's `checked` would name something that did not cause it.
   - An unclaimed cancellation has no `stop` at all.
-- **The addendum:** for a cancelled request, `terminalWriter` is its `conversation_cancellations` row (§3.1(d)), with its true cause, time and caller. The row is written under the same locks as the `cancelled` state.
+- **The addendum:** for a cancelled request, `terminalWriter` is its `conversation_cancellations` row (§3.1(d)), with its typed immediate cause, real time and caller. The row is written under the same locks as the `cancelled` state, from the inputs its caller passes, never inferred afterwards.
   - The stop's `checked` answer settles the binding, and is recorded as that.
   - The other seven predicates are unchanged, and none is skipped.
 
@@ -322,10 +356,12 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **The settlement:** `conversation_dispatch` settles the attempt's `native.retire` row locally. That is what the goal path already does for a cleanup row whose binding has no runtime command (0042:1830-1837).
   - **When:** in the dispatch transaction, under the project, outbox and binding locks.
   - **Only if all of these hold:**
-    - no `runtime_commands` row has ever existed for the binding;
+    - the request is `cancelled`, and its `conversation_cancellations` row recorded the `create` as `superseded` or `left_to_dispatch`. That was read under the request lock at cancellation, so no runtime command existed then;
+    - the `create`'s outbox row is now final and undispatched: `superseded` or `denied`;
     - no `conversation_executions` row exists for the attempt;
-    - the request is `cancelled`, with its `conversation_cancellations` row;
-    - the `create`'s outbox row is final and undispatched: `superseded` or `denied`.
+    - no `runtime_commands` row exists for the binding.
+
+    **The proof is historical, not a current absence.** A runtime command is written only in the same transaction that moves its outbox row to `acknowledged` (0012:768-770), and `conversation_dispatch` keeps that rule. A row that ended `superseded` or `denied` was never acknowledged, so no runtime command was ever written for it. The cancellation row records what held at cancellation. No migration in the base or in this manifest deletes `runtime_commands` rows. A test asserts that the recorded and final states agree, rather than relying on absence alone.
 - **What it writes:** the binding `retired`, the attempt `stopped`, the `retire`'s outbox row `settled`, and its `commands` row `checked`.
 - **What it never writes:** no `runtime_commands` row, no runtime receipt, no `create` answer, no claim, no `stop` and no call. The `create`'s `commands` row stays as the supersession or dispatch's denial left it. It is never marked answered.
 - **Fail closed:**
@@ -371,7 +407,13 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - Its `outcome_unknown` answer leaves the binding `stopping`, and the next hello replays the same `stop` with no new row;
   - repeated withdrawal, erasure and source-out, a repeated hello and a replayed receipt: no new row;
   - a key found with a different attempt, kind or epoch: refused, before any dependent row;
-  - in every cancelled case, `conversation_acknowledged` names the cancellation row as `terminalWriter` (A-1), never a stop's answer. Where a runtime did take the `create`, it names that runtime's real answer as `createAnswered`;
+  - in every cancelled case that a runtime took, `conversation_acknowledged` (through the real entry point and the real `create`) names the cancellation row as `terminalWriter` (A-1), never a stop's answer, and the runtime's real answer as `createAnswered`. A-2's case is checked by reading internal provenance only. No entry point is called with a `create` that doesn't exist;
+  - **the cancellation cause (PB4-CANCELLATION-CAUSE-INPUT):**
+    - **several eligible inputs:** two messages below one request's cutoff, withdrawn in separate transactions; or a withdrawal, then the erasure; or two sources out for one running request. Each row keeps exactly the first input that cancelled it, by its kind and keys, and the later inputs leave it unchanged;
+    - **the answered propagation:** a source-out withdraws an answer, and a later open request in the same conversation is cancelled through `conversation_withdrawn_from`. Its row reads `source_answer_withdrawal`, with that answer's conversation, seq and message;
+    - **replays:** the same withdrawal (0048's key returns its prior receipt), the same erasure and the same source-out leave every row unchanged;
+    - **refusals:** a malformed cause, or a `(conversation, seq)` with no withdrawn message, refuses, and nothing changes;
+    - **the paths around it:** each case runs through both claimed and never-dispatched cleanup, in SQL and through the stub bridge, with no new execution, reservation, call or allowance reset, and every barrier intact;
   - in every case, no new execution, attempt, reservation, call or allowance reset.
 - **Source-out (PB2-SOURCE-OUT-CANCEL).** A running request has a recorded context and a claimed attempt. Its source becomes ineligible, and `conversation_source_out` runs. The cases show:
   - the request `cancelled` (`source_withdrawn` or `source_out_of_scope`) and the epoch 2;
