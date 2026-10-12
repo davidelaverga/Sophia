@@ -1,9 +1,24 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 9 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 10 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
+
+**Revision 10, after CX-0168 (reviewer `1706f438`): one docs-only correction to A-3.** Codex's root review of exact revision 9 (`1bd83eec`) finds its corrections to the deferral, the denial, D4's preflight and the citations responsive at proposal scope. It confirms A-1, A-2, §3.2 and §3.3 are unchanged. One new P2 remains, and it is accepted:
+
+| Finding | Disposition | Where |
+|---|---|---|
+| PB9-A3-FALLBACK-TERMINAL-WRITER (P2; `a3-fallback-finding.safe.json` at `1706f438`) | **Accepted.** Revision 9's A-3 kept steps 1 to 3 when evidence defeated its local retirement: the request `failed` (`not_dispatched`), then a full retirement. But nothing in frozen Q7 r8's table (r8:860-870) can be that request's `terminalWriter`: no receipt, capture, hello or A-1 cancellation ended it, and a later receipt can't be named as the earlier writer. So "never reaches the predicates" didn't hold for the fallback. **Revision 10 removes the fallback.** A-3's conditions are checked first, under the dispatch's locks, before any write. They now include no reservation of any state. If any fails, `conversation_dispatch` refuses (55000): the transaction rolls back and nothing is written. No denial, `failed`, `not_dispatched`, `retire`, receipt, cancellation, release, deletion or reset. The request stays `pending`, and the contradiction stays visible for its owner. A-3 then has only two outcomes, local retirement or nothing, so it never reaches B-6's predicates. The runtime-command, execution and reservation (`reserved`, `uncertain`) cases are named as adverse tests that prove the refusal changes nothing | §3.1(d), case (B); §3.1(f), A-3; the counts; tests |
+
+- **Unchanged from revision 9:**
+  - the typed-NULL deferral, the CON-only denial, D4's preflight and validated CHECKs, and the citations;
+  - A-1 and A-2, byte for byte;
+  - §3.2 and §3.3, byte for byte;
+  - cumulative accounting and the privacy barriers.
+- **The joint consumer review of revision 9 reports the same gap.** Its final record, and the owner's review of revision 9, were still in progress at CX-0168. Neither is counted here.
+- **Rechecks owed, for this exact revision:** Codex's independent recheck, the joint consumer recheck (K-1c), the owner's review under K-2d, and A-3's explicit review (K-1b).
+- **Nothing is opened:** no executable SQL, test run, source window, Studio edit or operational authority.
 
 **Revision 9, after CX-0166 (reviewer `8bff1a41`) and the owner's incorporation review (#198 comment 6120514429): one docs-only amendment, to §3.1, with §1, §2, §5 and §6 kept consistent.**
 - **The joint review withholds K-1c for exact revision 8** (`960f262f`). Its verdict is `CHANGES_REQUIRED_ONE_BOUNDED_P2_PLUS_MIGRATION_QUALIFICATION_GAP` (`joint-r8-review.safe.json` at `8bff1a41`; original record `f0f8a320978c759b…`). Codex's root review agrees. It verified all 65 immutable Git input hashes, all 65 extracted ones, and 5 evidence-record hashes. The review keeps D1, D2 and N1, D3's enqueue, D4's direction, C1 to C4 and D5's preservation plan compatible at proposal scope.
@@ -141,6 +156,8 @@ What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consume
 | The joint review of revision 5 | [`joint-phase-b-r5-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/evidence/20261012-cx162-reservation-r5/joint-phase-b-r5-review.safe.json) at `2cb08a7b`, SHA-256 `86f1614cd3d98912…` (original `75904e556aead0be…`). `BOUNDED_CONSUMER_COMPATIBILITY_ACK_EXACT_PHASE_B_R5_K1C_ONLY_NO_WRITE_GO`; findings empty |
 | Codex's root review of revision 5 | [CX-0162](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/CX-0162.md) at `2cb08a7b`; [#198 comment 6119717658](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119717658) |
 | Codex's K-3 disposition | CX-0164 at `c4389f844b15599850d490cf85abc1dceafad591`, with `evidence/20261012-cx164-owner-coordination/actual-owner-handback.safe.json` (SHA-256 `cca6dacb49a80f18…`); #198 comment 6119717658, updated. It counts 6120100817 as a narrow K-3 for exact revision 5 (and revision 6, unchanged in §1 to §4) |
+| Codex's root review of revision 9 | CX-0168 at `1706f438c574a17fee492c5cfba072cb7678bc1c`, with `evidence/20261012-cx168-reconciliation/a3-fallback-finding.safe.json` (PB9-A3-FALLBACK-TERMINAL-WRITER); #198 comment 6119717658 and #199 comment 6116157885, updated. Revision 9's other corrections are responsive at proposal scope |
+| Revision 9 of this file | `1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5`, tree `57e7752e`, SHA-256 `790e79c996e6024c…`, 916 lines |
 | Codex's review of revision 8, and the joint review | [CX-0166](https://github.com/davidelaverga/Sophia/blob/8bff1a4131c7e633ccd7cbff98efb553ecbd5bb8/docs/coordination/CON-01/CX-0166.md) at `8bff1a41`, with [`joint-r8-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/8bff1a4131c7e633ccd7cbff98efb553ecbd5bb8/docs/coordination/CON-01/evidence/20261012-cx166-r8-review/joint-r8-review.safe.json) (original record `f0f8a320978c759b…`); #198 comment 6119717658, updated. K-1c is withheld for exact `960f262f`: one P2 and one qualification gap |
 | The owner's incorporation review of revision 8 | [#198 comment 6120514429](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120514429), from the joint WBC-02/SDD-01 implementer `session_0155SjcXhv87RErnWEBWxfBM`, measured against 6120057551. It acknowledges D1 to D3, D5, C1 to C4, N1, the ACLs and D4's CHECK as incorporated, with two corrections and a citation fix. It restates K-3 as covering §3.2 and §3.3 unchanged. It attests no source write in flight and its freeze unchanged, and appoints no substitute owner |
 | Revision 8 of this file | `960f262f1e51dfb46eb2e16fb093ad1f90eecb11`, tree `0ab2cc13`, SHA-256 `39fd1fc8d62403e2…`, 792 lines |
@@ -362,8 +379,8 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - **What else a denial does, by case** (enumerated for review):
       - **(A) A `create` whose request is no longer `pending`** (cancelled, under the request lock). Nothing else: the request keeps its `cancelled` state and its cancellation row (A-1), and A-2 settles the attempt's existing `retire`.
       - **(B) A `create` whose request is still `pending`, but ineligible** (`conversation_delivery_ineligible`: the asker no longer writes, the conversation isn't open, a source fails the predicate, or the grant is disabled or expired). **New in revision 9, for review.**
-        - The request ends `failed`, reason `not_dispatched`.
-        - The attempt is retired locally, in the same transaction (addendum A-3, §3.1(f)).
+        - A-3's conditions are checked first, before any write (§3.1(f)). If they hold, the request ends `failed`, reason `not_dispatched`, and the attempt is retired locally in the same transaction (addendum A-3).
+        - **If any fails, the dispatch refuses (55000) and writes nothing** (revision 10, PB9-A3-FALLBACK-TERMINAL-WRITER). There is no denial, no `failed` and no `retire`, so no fallback ever needs a `terminalWriter`.
         - Revision 8 named no denial form here. Had the shared helper been used, it would have settled the binding and failed the attempt, goal-style, and left the request `pending`.
       - **(C) A cleanup row at a stale epoch, or one for a `retired` binding.** Nothing else: the attempt's current-epoch rows govern it.
     - **A-2's local settlement** uses the goal path's own cleanup outcome: the outbox row `settled`, and the command `checked` (0042:1832-1835).
@@ -421,6 +438,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   | Not cancelled: capture, a terminal receipt, or the hello's lease-loss rows | 1 / 1 / 1 | 0 | 1 / 1 / 1 |
   | Cancelled before any claim, the `create` never dispatched | 1 / 1 (superseded or denied) / 0 | 0 | 1 / 1 / 0: settled locally, no runtime told (A-2) |
   | Denied at dispatch while the request is still `pending` | 1 / 1 (denied) / 0 | 0 | 1 / 1 / 0: settled locally in the same transaction, no runtime told (A-3) |
+  | The same, but A-3's conditions fail on contradictory evidence | +0: the dispatch refuses and rolls back | +0 | +0 |
   | Cancelled before any claim, the `create` already dispatched | 1 / 1 / 1 | 0 | 1 / 1 / 1 |
   | Cancelled after a claim, before or after `go` | 1 / 1 / 1 | 1 / 1 / 1, at epoch 2 | 1 / 1 / 1, written only by the stop's own `checked` |
   | An identical replay: hello, receipt, withdrawal, erasure, source-out | +0 | +0 | +0 |
@@ -521,29 +539,39 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **Before it settles:** the hello may still list the binding `stopped` (r8's table). A bridge that never held it finds no home, and asks nothing.
 - **Unchanged:** every other attempt's `retire`, with r8's full barrier: process, future writer, relay, journal, observations, usage and reservations.
 
-**A-3: a request whose `create` is denied at dispatch, while the request is still `pending`, is retired locally.** New in revision 9, for explicit review.
+**A-3: a request whose `create` is denied at dispatch, while the request is still `pending`, is retired locally.** New in revision 9, for explicit review. Its fallback was removed in revision 10 (PB9-A3-FALLBACK-TERMINAL-WRITER).
 - **The case:** §3.1(d)'s denial case (B). `conversation_dispatch` holds the `create`'s live lease and the request is still `pending`, but `conversation_delivery_ineligible` gives a reason.
 - **Why nothing exists to clean:**
-  - In this transaction the `create`'s row goes from `dispatching` to `denied`. It is never `acknowledged`.
+  - The `create`'s row is `dispatching` under this live lease, past D1's checks, so it was never `acknowledged`.
   - A runtime command is written only in the transaction that acknowledges its row (0042:1893-1895). 0053's reconcile re-dispatches only a row with no runtime command. So no runtime was ever told.
   - With no runtime command there is no claim (§3.1(c)), no home, and no reservation (S2:311).
-- **What the one transaction writes,** under the dispatch's locks, in this order:
+- **Checked first,** under the dispatch's locks, before any write. All of these must hold:
+  - the `create`'s row is `dispatching` under this transaction's live lease (D1);
+  - no `runtime_commands` row exists for the binding;
+  - no `conversation_executions` row exists for the attempt;
+  - no `conversation_reservations` row exists for the request, in any state: `reserved`, `settled`, `released` or `uncertain`.
+
+  **The proof is in the transaction itself,** not a later absence.
+- **Only then does the one transaction write,** in this order:
   1. the CON-only denial: the `create`'s outbox row and its command, both `denied`, with the ineligibility as the outbox's reason;
   2. the request `failed`, reason `not_dispatched`, `settled_at = clock_timestamp()`, and only from `pending`;
   3. `conversation_retire`'s one `retire`, under B-2's key, read back and verified. No `stop` exists, so the precedence guard doesn't hold it back;
   4. its local settlement, with A-2's writes: the binding `retired`, the attempt `stopped`, the `retire`'s outbox row `settled` and its command `checked`.
-- **Only if all of these hold, in the same transaction:**
-  - step 1 moved the `create`'s row to `denied`;
-  - no `conversation_executions` row exists for the attempt;
-  - no `runtime_commands` row exists for the binding.
-
-  **The proof is in the transaction itself,** not a later absence. If any of these doesn't hold, A-3 doesn't apply: steps 1 to 3 stand, and the `retire` is delivered and acknowledged in full.
+- **If any check fails, it refuses, and writes nothing** (revision 10). `conversation_dispatch` raises `55000`, with a fixed message and nothing from any row. The name is a proposal; S1-05A/BASE may rename it.
+  - The transaction rolls back. The `create`'s row stays as it was, the request stays `pending`, and every row is unchanged.
+  - **What it doesn't do:**
+    - no denial, no `failed` and no `not_dispatched`;
+    - no `retire`, local settlement or full retirement;
+    - no receipt, cancellation, claim, execution or call;
+    - no reservation release, settlement or `uncertain` change, no counter or allowance change, and no reset or deletion.
+  - **Why this is the truthful outcome:** contradictory evidence means the case isn't A-3's. Nothing here could name a `terminalWriter` for a `failed` request (r8:860-870): no receipt, capture, hello or A-1 cancellation ended it. So nothing is ended.
+  - **What happens next:** the row is handled like any undelivered row: D1's lease-expiry step, then 0053's reconcile. Each later dispatch refuses the same way while the contradiction stands. Resolving it is for its owner; nothing repairs it automatically.
 - **What it never writes:**
   - no runtime command, receipt, `create` answer, claim, `stop` or call;
   - no `conversation_cancellations` row, since this isn't a cancellation;
   - no `jobs`, goal or `project_events` row;
   - no reservation, counter or allowance change.
-- **The predicates:** like A-2's attempt, this one never reaches B-6's eight predicates. Its record is the request's `failed` state and A-3's rows.
+- **The predicates:** like A-2's attempt, this one never reaches B-6's eight predicates. Its record is the request's `failed` state and A-3's rows. A-3 has only two outcomes, local retirement or a refusal that writes nothing, so no A-3 path ever needs a `terminalWriter` or a full retirement.
 - **Not changed:** A-1 and A-2, byte for byte. Every other attempt's `retire` keeps r8's full barrier.
 
 **Not edited:**
@@ -573,7 +601,16 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - one transaction gives exactly A-3's four steps: the `create` row and its command `denied`; the request `failed` (`not_dispatched`); and one `retire`, settled locally (binding `retired`, attempt `stopped`, outbox `settled`, command `checked`);
     - no runtime command, receipt, claim, reservation, cancellation row, `jobs` row or project event;
     - the next hello doesn't list the binding, and a replayed dispatch writes nothing;
-    - **fail closed:** with a `runtime_commands` row seeded for the binding, A-3 doesn't apply, and the `retire` is delivered in full;
+    - **fail closed on contradictory evidence (PB9-A3-FALLBACK-TERMINAL-WRITER).** Each case is seeded, catalog-valid, while the request is still `pending` and its `create` row is `dispatching` under a live lease:
+      - **the cases:**
+        - a `runtime_commands` row for the binding;
+        - a `conversation_executions` row for the attempt;
+        - a `conversation_reservations` row for the request, once `reserved` and once `uncertain`, with its grant's reserved and uncertain counters to match;
+      - in each, the dispatch refuses (`55000`) and the transaction rolls back;
+      - **every row is unchanged,** by a digest of each table's rows before and after: `outbox`, `commands`, `conversation_replies`, `work_attempts`, `execution_bindings`, `runtime_commands`, `conversation_executions`, `conversation_reservations`, the grant's counters and `project_events`;
+      - **nothing is written:** no `failed`, `not_dispatched`, denial, `retire`, receipt, cancellation, claim or call; no reservation release, settlement or `uncertain` change, no allowance reset, and no deletion;
+      - a later dispatch of the same row refuses the same way;
+      - no case reaches B-6's predicates, and none needs a `terminalWriter`;
   - cancelled after the `create` reached a runtime, before any claim: the claim refused `not_pending`, no `stop`, and one `retire`;
   - **cancelled after the claim, before `go` (PB3-STOPPING-RETIRE-PRECEDENCE),** with the launcher held so that there is no process proof:
     - a late `create` `rejected`, `failed` or `outcome_unknown`, both before and after a `stop` `outcome_unknown`;
@@ -641,7 +678,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
       - a later final denial of the `create` lets exactly one local settlement happen;
       - the receipt claims only that no job row is locked or changed, never zero access: the helper's `UPDATE` does run on `sophia.jobs`;
     - **the CON-only denial,** in each of §3.1(d)'s cases. Case (A) is a cancelled request's `create`; (B), A-3's still-`pending` `create`; (C), a stale-epoch cleanup row and one for a `retired` binding:
-      - the denial writes exactly the outbox row (`denied`, `lease_until` NULL, the reason) and the reply's own command (`denied`, from `admitted` or `dispatching`). In case (B), it also writes A-3's enumerated rows, and nothing more;
+      - the denial writes exactly the outbox row (`denied`, `lease_until` NULL, the reason) and the reply's own command (`denied`, from `admitted` or `dispatching`). In case (B), it also writes A-3's enumerated rows when A-3's checks hold, and nothing more. When they fail, the denial isn't made at all;
       - with the same adverse `jobs` seed, keyed to the `create`'s command, no `jobs`, `execution_bindings`, `work_attempts` or `project_events` row changes beyond those named: no `cancelled` job, and no `command.denied` or `native_task.denied` event;
       - `conversation_dispatch`'s definition calls neither `deny_native_delivery` nor a denial with a NULL command;
     - no goal or job **row** is locked. The deferral's relation-level lock on `sophia.jobs` is expected, and isn't counted as one.
@@ -858,20 +895,20 @@ Any of these stops the writer and goes back to Codex.
 
 | # | From | Acknowledges | State |
 |---|---|---|---|
-| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 9) |
-| K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1, A-2 and A-3, which the r8 design ACK does not cover. A-3 is new in revision 9 | **not recorded** (evidence below) |
-| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). **A consumer ACK only.** **Withheld for exact revision 8** (`960f262f`; CX-0166 at `8bff1a41`; `joint-r8-review.safe.json`): one P2, PB8-A2-DEFER-HELPER-SCOPE, and one qualification gap, PB8-D4-EXISTING-ROW-INVENTORY. The review found D1, D2 and N1, D3's enqueue, D4's direction, C1 to C4 and D5's plan compatible at proposal scope. Revision 9 answers both, so its **recheck is owed**. The exact-revision-5 ACK stays as it is, and isn't extended |
+| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 10) |
+| K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1, A-2 and A-3, which the r8 design ACK does not cover. A-3 is new in revision 9, and its fallback was removed in revision 10 | **not recorded** (evidence below) |
+| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). **A consumer ACK only.** **Withheld for exact revision 8** (`960f262f`; CX-0166 at `8bff1a41`; `joint-r8-review.safe.json`): one P2, PB8-A2-DEFER-HELPER-SCOPE, and one qualification gap, PB8-D4-EXISTING-ROW-INVENTORY. The review found D1, D2 and N1, D3's enqueue, D4's direction, C1 to C4 and D5's plan compatible at proposal scope. Revision 9 answers both. **Exact revision 9** (`1bd83eec`) **is changes-required at root** (CX-0168: PB9-A3-FALLBACK-TERMINAL-WRITER). The joint consumer's review of it reports the same gap; its final record wasn't in at CX-0168. Revision 10 answers that finding, so its **recheck is owed**. The exact-revision-5 ACK stays as it is, and isn't extended |
 | K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | **not recorded** |
 | K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | **not recorded** |
 | K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | **not recorded** |
-| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **conditional, against exact revision 5** (#198 comment 6120057551; its author is verified by Codex). The conditions are D1 to D5, C1 to C4 and N1, now in §3.1. **The owner's incorporation review of revision 8** (#198 comment 6120514429) acknowledges D1 to D3, D5, C1 to C4, N1, the ACLs and D4's CHECK as incorporated. It adds two corrections and a citation fix, which revision 9 makes: the explicit deferral and denial forms, and D4's preflight. **The owner's review of revision 9's corrections, and of A-3, is owed.** None of this is K-1c, or a write GO |
+| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **conditional, against exact revision 5** (#198 comment 6120057551; its author is verified by Codex). The conditions are D1 to D5, C1 to C4 and N1, now in §3.1. **The owner's incorporation review of revision 8** (#198 comment 6120514429) acknowledges D1 to D3, D5, C1 to C4, N1, the ACLs and D4's CHECK as incorporated. It adds two corrections and a citation fix, which revision 9 makes: the explicit deferral and denial forms, and D4's preflight. **The owner's review of revision 9's corrections, and of A-3, is owed.** At CX-0168 the owner's review of revision 9 was in progress, and it isn't accepted or counted here. That review, or a fresh one, is owed for revision 10's A-3. None of this is K-1c, or a write GO |
 | K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **supplied, narrowly:** #198 comment 6120100817, from the retained source coordinator `session_0155SjcXhv87RErnWEBWxfBM` in its own source-coordination remit, against exact revision 5 (revision 6 unchanged in §1 to §4). Codex accepted it (CX-0164 at `c4389f84`; 6119717658). It covers the overlap and the order of regeneration only. It is not from `aca33481`, and it is no billing, product, merge or deploy approval. §3.2 and §3.3 are unchanged since revision 5, but K-3 is not extended to later revisions by this record. The same coordinator's 6120514429 restates that its K-3 covers revision 8's §3.2 and §3.3, byte-identical to revision 5's. They stay byte-identical in revision 9, as a fact rather than an extension. K-3 still covers only the overlap and the order |
 | K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | **not recorded.** #256 is a draft at `93e9313d` (mergeable). Luis's acceptance is pending in Codex's existing handoff (#256 comment 6116716003). #199 is a draft at `d527f385` (conflicting), pending Luis's Studio handback |
 | K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | **not started:** it waits on K-1b to K-4 |
 
 **Until all of them are recorded, nothing in §3 is written.** An owner that replaces a recommendation in §2 or §3 is recorded with its replacement. The affected rows are amended and acknowledged again.
 
-**The evidence for the state above.** Revision 6 searched through the newest comment at 07:26:57Z. Revision 7 adds only the two comments named in K-2d and K-3, revision 8 only Codex's K-3 disposition, and revision 9 only CX-0166 and the owner's 6120514429. No new inventory was made. The owner holds no evidenced route to the other owners beyond the planning record (S1-02 Luis; S1-05A and SMC-M01 Davide and Luis; SMC-M03 an unnamed implementer), and appoints no substitute. Revision 6's search:
+**The evidence for the state above.** Revision 6 searched through the newest comment at 07:26:57Z. Revision 7 adds only the two comments named in K-2d and K-3, revision 8 only Codex's K-3 disposition, revision 9 only CX-0166 and the owner's 6120514429, and revision 10 only CX-0168. No new inventory was made. The owner holds no evidenced route to the other owners beyond the planning record (S1-02 Luis; S1-05A and SMC-M01 Davide and Luis; SMC-M03 an unnamed implementer), and appoints no substitute. Revision 6's search:
 - **What was searched:** every comment created or edited from 05:00Z on (the request was first published at 05:36Z), in:
   - issue #198, all five pages;
   - PR #256: its comments, reviews and review threads;
