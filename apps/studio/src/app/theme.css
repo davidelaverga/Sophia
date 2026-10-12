@@ -866,7 +866,7 @@ button.mark:hover {
   display: flex;
   align-items: center;
   flex: none;
-  padding: 0 10px;
+  padding: 0 8px; /* the seven views whole at 1280 with the room idle: 500 px in 515 (docs/plans/nav-fits-1280.md) */
   color: var(--text-3);
   font-size: 13px;
   font-weight: 500;
@@ -4031,7 +4031,7 @@ button.contribution-quote:hover {
     flex-basis: 100%;
     height: 44px;
     margin: 0 calc(-1 * var(--gutter));
-    padding: 0 calc(var(--gutter) - 10px);
+    padding: 0 calc(var(--gutter) - 8px); /* the links' 8 px: the first word starts at the gutter (Codex on #259) */
   }
   /* The fades where more views hide are the row's at any width (above). */
   .presence {
@@ -4936,7 +4936,7 @@ button.contribution-quote:hover {
   margin: 0;
   color: var(--text-2);
   font: 500 var(--type-small) / var(--lh-small) var(--mono);
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em; /* the token's (docs/plans/eyebrows.md): Updates had a third more */
   text-transform: uppercase;
 }
 .updates-part > .recap-section h4 {
