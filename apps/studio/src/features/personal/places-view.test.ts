@@ -17,6 +17,7 @@ import {
   otherWaysShown,
   rowNote,
   sophiaSays,
+  homeNextAsk,
   projectCard,
   readState,
   roomCaption,
@@ -180,6 +181,27 @@ describe('home, as a place that knows where you’ll go', () => {
     assert.equal(homeRows([live], NOW, id(5))[0]?.action, 'back')
     assert.equal(HOME_ACTION.back, 'Back to the room')
     assert.equal(homeRows([project()], NOW, null)[0]?.action, 'open')
+  })
+
+  it('her line suggests the next ask: a session soon first, then the busiest room, else nothing', () => {
+    assert.equal(homeNextAsk(undefined, NOW), null)
+    assert.equal(homeNextAsk([], NOW), null)
+    assert.equal(homeNextAsk([project()], NOW), null)
+    assert.deepEqual(homeNextAsk(four, NOW), {
+      words: 'Help me get ready for Pitch run in Weekly standup',
+      why: 'Because it starts in 10 min',
+    })
+    const live = project({
+      projectId: id(5),
+      title: 'Pitch deck',
+      room: { people: ['davide@sophia.test'], sophia: true },
+    })
+    assert.deepEqual(homeNextAsk([project(), live], NOW), {
+      words: 'Catch me up on Pitch deck',
+      why: 'Because Davide and Sophia are there now',
+    })
+    const alone = project({ projectId: id(6), title: 'Solo', room: { people: ['luis@sophia.test'], sophia: false } })
+    assert.equal(homeNextAsk([alone], NOW)?.why, 'Because Luis is there now')
   })
 
   it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {

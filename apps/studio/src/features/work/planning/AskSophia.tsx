@@ -8,7 +8,8 @@
 // the way to the conversation is offered; no answer is made up. A question that failed is asked again only while the
 // view allows asking about its task and a conversation is connected (askBlocked), the same rule as a first question;
 // until then it is kept, with why.
-import { useState, useSyncExternalStore } from 'react'
+import { useId, useState, useSyncExternalStore, type KeyboardEvent } from 'react'
+import { NextAskHint, nextAskKey } from '@sophia/ui'
 import {
   againOf,
   askBlocked,
@@ -173,9 +174,34 @@ interface Props {
   onOpenConversation?: (() => void) | undefined
 }
 
+/**
+ * The field's suggestion (docs/plans/next-ask-places.md): the first question the task invites, while the field is empty
+ * and it is not put away; its key cap while the field is focused. Tab or → puts it in; Esc puts it away for the sheet.
+ */
+function useFieldNext(first: string | undefined, question: string, setQuestion: (q: string) => void) {
+  const [away, setAway] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const id = useId()
+  const shown = !away && question === '' ? (first ?? null) : null
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    const { key, shiftKey, altKey, ctrlKey, metaKey } = e
+    const move = nextAskKey(
+      { key, shiftKey, altKey, ctrlKey, metaKey, isComposing: e.nativeEvent.isComposing },
+      question,
+      shown !== null,
+    )
+    if (!move || shown === null) return
+    e.preventDefault()
+    if (move === 'accept') setQuestion(shown)
+    else setAway(true)
+  }
+  return { id, shown, cap: focused ? shown : null, onKey, setFocused }
+}
+
 /** The questions the task invites, and one's own, to ask. */
 function Asking({ row, viewerId, onAsk }: { row: PlanRow; viewerId: string | null; onAsk: (text: string) => boolean }) {
   const [question, setQuestion] = useState('')
+  const next = useFieldNext(invited(row, viewerId)[0], question, setQuestion)
   return (
     <>
       <div className="ask-chips">
@@ -195,10 +221,21 @@ function Asking({ row, viewerId, onAsk }: { row: PlanRow; viewerId: string | nul
       >
         <input
           aria-label="Ask Sophia about this task"
-          placeholder="Ask about this task…"
+          placeholder={next.shown ?? 'Ask about this task…'}
+          aria-describedby={next.cap ? next.id : undefined}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={next.onKey}
+          onFocus={() => next.setFocused(true)}
+          onBlur={() => next.setFocused(false)}
         />
+        {next.cap && (
+          <NextAskHint
+            id={next.id}
+            why="The first question its state invites"
+            description={`Suggested: ${next.cap}. Tab puts it in the field; Escape puts it away.`}
+          />
+        )}
         <button type="submit" className="pill" disabled={!question.trim()}>
           Ask
         </button>

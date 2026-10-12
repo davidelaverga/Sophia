@@ -259,6 +259,31 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 
+/**
+ * The next ask Home's line suggests (docs/plans/next-ask-places.md), read as `sophiaSays` reads: a session about to
+ * start first, then the busiest room; nothing otherwise.
+ */
+export function homeNextAsk(
+  projects: readonly ProjectSummary[] | undefined,
+  now: Date,
+): { words: string; why: string } | null {
+  if (!projects || projects.length === 0) return null
+  const starting = workOrder(projects, now).find((p) => p.nextSession && soon(p, now))
+  const when = starting ? sessionWhen(starting, now) : null
+  if (starting?.nextSession && when)
+    return {
+      words: `Help me get ready for ${starting.nextSession.title} in ${starting.title}`,
+      why: `Because it ${when}`,
+    }
+  const busiest = projects.toSorted((a, b) => peopleIn(b) - peopleIn(a))[0]
+  if (!busiest?.room || peopleIn(busiest) === 0) return null
+  const one = busiest.room.people.length === 1 && !busiest.room.sophia
+  return {
+    words: `Catch me up on ${busiest.title}`,
+    why: `Because ${roomNames(busiest.room)} ${one ? 'is' : 'are'} there now`,
+  }
+}
+
 /** Projects with a session about to start come first, the soonest first; then the rest as listed. */
 export function workOrder(projects: readonly ProjectSummary[], now: Date): ProjectSummary[] {
   const starts = (p: ProjectSummary) =>
