@@ -68,3 +68,8 @@ literal, so a change of words is caught twice. Format, lint, typecheck, `auth-wo
 - `signin-lede.spec` (+3, and one line asserted at both widths): the 48 px between the title and the providers with the
   title unmoved; the late font, held by the test and released after the lede reflows, with her attention on the
   field; at the boundary height, the rest lifted by the fallback and back down when the font arrives.
+
+## Post-review, round 3 (Codex on #247)
+
+- The sentence shortened to «Where your team and Sophia think together.» so it holds one line at 320 px (281 of 288
+  px); `auth-words.ts` owns it, its node test and signin-lede.spec (now at 1280, 375 and 320) read it.
