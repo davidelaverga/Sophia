@@ -29167,12 +29167,26 @@
                   }
                 ],
                 "description": "The record that holds it, when the Studio's address needs it: a decision's or a wait's work item (work_decision, work_wait). Null otherwise."
+              },
+              "resourceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The resource whose native tool holds a wait's request (work_wait of kind native_permission: A13's reference_id names the request, this names the resource it was made on), so the Studio opens the request in Resources, where its owner finds how to answer it and the tool's own link. Null otherwise."
               }
             },
             "required": [
               "kind",
               "id",
-              "within"
+              "within",
+              "resourceId"
             ]
           }
         },
