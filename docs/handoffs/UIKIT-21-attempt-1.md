@@ -1,0 +1,57 @@
+# Implementation-session handoff
+
+Goal and attempt: UIKIT-21 (the places' keys as commands, the host in the places' bar, the light by a key), attempt 1
+Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-kit`
+Native session: unknown
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/places-commands` from `ui/lens-address` at
+`b93d39f3` (stacked on PR #242 → #241 → … → #220; the base retargets as each merges)
+Ending commit/tree: `bf817a62906d` (tree `0a93ac551f67`), the last commit of `ui/places-commands`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/lens-address` at that commit: `e2e/app-auth.spec.ts`, `e2e/commands.spec.ts`, `src/app/AccountMenu.tsx`, `src/app/CommandsHost.tsx`, `src/features/personal/Find.tsx`, `src/features/personal/Places.tsx`, `src/features/personal/PlacesBar.tsx`, `docs/handoffs/UIKIT-21-attempt-1.md`, `docs/plans/commands.md`, `docs/plans/places-commands.md`. The review notes below name the commit of each later change.
+
+## Outcome
+
+- `Places`: `h p w d l t` as commands (Home · Personal · Your projects; Your data · Lock / Unlock your space by the
+  lock's state · Your notes), the same `free` gate; Find's `⌘F` as «Find in the conversation». No `useShortcuts`
+  binding is left outside `CommandsHost`.
+- `PlacesBar` mounts `CommandsHost`: `⌘K`, `⌘/` and `?` at Home, in Personal and in Work; the account menu offers
+  «Keyboard shortcuts» everywhere. A host answers a control's ask only while its part is in scope.
+- The light by a key: «Switch to the light page» / «Switch to the dark room» on `⌘⇧L` (`Ctrl+Shift+L`), by what the
+  page shows, setting the choice as the menu's radios do.
+- `commands.spec.ts` (+1): the key puts the light page on the root and the dark room again, the palette's words say
+  which comes next. `app-auth.spec.ts` (+1): signed in at Home, the palette offers the six places' commands, the
+  index lists them with their keys, the account menu offers «Keyboard shortcuts».
+- Unverified here: the Playwright run (the local guard); the places' commands have no fixture page (the Home fixture
+  renders Welcome alone), so their measure is the app-level check in CI.
+
+## Evidence
+
+- `pnpm format`, `pnpm lint` (type-aware), `pnpm typecheck`: clean; app + personal unit tests 254 pass.
+- Measured in the page (the pane at 1280×800, the room fixture, where the project's host is): the palette on «light»
+  offers «Switch to the light page Ctrl+Shift+L»; `Ctrl+Shift+L` → root `data-theme="light"`, `sophia.theme` light;
+  again → the room; the account menu offers «Keyboard shortcuts».
+
+## Decisions and changes
+
+- `⌘⇧L`, not `Shift+L`: a single key with Shift is the same key to `shortcutKey` (L is the padlock in Places).
+- The host's `askCommands` target is the host in scope: a project kept out of sight (its call going on) never answers
+  the account menu's press.
+- Enter on Home keeps its own listener (the home key's logic is not a command: it goes where the person last was).
+- `commands.spec` after a local run (2026-10-11): the index on Tasks names the appearance's command too
+  (`Ctrl+Shift+L`, from anywhere). On the Studio view with its chat shut nothing takes stray typing, so `?` opens the
+  index; the chat open (`c`), its message bar takes `?` as text. The key is pressed as itself: `Shift+/` reaches the
+  page as `/` (the search's key) on a synthesized keyboard.
+
+## Remaining obligations
+
+- Watch CI for `app-auth.spec.ts`'s new check and `commands.spec.ts`; the independent review (Codex) with no P1/P2
+  before merge. The base is `ui/lens-address` until #242 merges.
+
+## Next bounded action
+
+UIKIT-22: the board's «why blocked» on the lane's head (opens the blocker) and the blocked count on the goal's chip.
+
+## Post-review (Codex on #243, later rounds)
+
+- The places' `CommandsHost` is mounted beside the bar, not inside it: `.topbar`'s backdrop-filter made it the
+  containing block of the fixed veil, which dimmed 48 px. app-auth.spec reads the veil at the viewport's size at Home.

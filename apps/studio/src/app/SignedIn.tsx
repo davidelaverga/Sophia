@@ -1,5 +1,6 @@
 // The signed-in Studio (docs/plans/signed-in-later.md): Home, the personal space and the projects, with what keeps
 // them together. Its own chunk: a sign-in page never downloads it; App loads it once a session is there.
+import { withoutResources } from '../api/needs.ts'
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { callEnded, NOTICE } from '../features/personal/notice-view.ts'
@@ -194,6 +195,7 @@ function ProjectShells(props: ShellsProps) {
               onWork={() => goTo('work')}
               onSignOut={onSignOut}
               background={id !== onScreen}
+              routed={id === route.projectId}
               onCall={(next, note) => onCall(id, next, note)}
               joinOnOpen={joining === id}
               onJoinHandled={onJoinHandled}
@@ -211,7 +213,7 @@ function ProjectShells(props: ShellsProps) {
  * so a result is said the same way in a project and in the places, and a call that ends out of sight says why.
  */
 function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedInProps) {
-  const { route, open, leave, goTo } = routing
+  const { route, open, openAt, leave, goTo } = routing
   const toast = useToast()
   const ended = useRef<OnEnded | null>(null)
   const [call, reportCall] = useCall(ended)
@@ -258,6 +260,11 @@ function SignedIn({ identity, notice, routing, onChooseDev, onSignOut }: SignedI
           onOpened={sheets.opened}
           onGo={goTo}
           onOpenProject={openProject}
+          onOpenView={(projectId, view, at) => {
+            // No served Resources yet in the signed-in app: a permission opens its task (withoutResources).
+            const where = withoutResources(view, at)
+            openAt(projectId, where.view, where.at)
+          }}
           onChooseDev={onChooseDev}
           onSignOut={onSignOut}
         />

@@ -4,6 +4,7 @@
 //
 // Whatever this person is sending is shown here with its off switch (CallSwitches): a camera or a shared screen is
 // never on out of sight just because the view changed. The room's keys work only on the stage, so these tips show none.
+import { useEffect, useRef } from 'react'
 import { Tip } from '@sophia/ui'
 import { CallSwitches, sendingOf } from './CallSwitches.tsx'
 import { joinTip, TextMode } from './RoomDock.tsx'
@@ -45,20 +46,50 @@ export function RoomSwitches({ room, side = 'top' }: { room: ProjectRoom; side?:
   )
 }
 
+/**
+ * In the header, what the dock says hangs under it where the door's lobby stands: its height (and the gap) is kept as
+ * `--dock-notes-h` on the root, so the lobby starts under it (theme.css; Codex on #254). Floating, it says nothing.
+ */
+function useNotesHeight() {
+  const notes = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = notes.current
+    if (!el) return undefined
+    const root = document.documentElement.style
+    const keep = () => {
+      const h = el.closest('.topbar') ? el.getBoundingClientRect().height : 0
+      if (h > 0) root.setProperty('--dock-notes-h', `${String(Math.ceil(h) + 10)}px`)
+      else root.removeProperty('--dock-notes-h')
+    }
+    keep()
+    const sized = new ResizeObserver(keep)
+    sized.observe(el)
+    return () => {
+      sized.disconnect()
+      root.removeProperty('--dock-notes-h')
+    }
+  }, [])
+  return notes
+}
+
 export function MiniDock({ room, looking, onOpen }: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const note = room.mediaError ?? room.error
+  const notes = useNotesHeight()
   return (
     <div className="mini-dock" role="group" aria-label="Project room" data-live={live || undefined}>
-      <LookingIndicator text={looking} />
-      {note && (
-        <p className="dock-note mini-note" role="alert">
-          {note}
-        </p>
-      )}
+      {/* What the dock says, stacked by its own height: a note (a join or device error) first, her looking under it. */}
+      <div className="dock-notes" ref={notes}>
+        {note && (
+          <p className="dock-note mini-note" role="alert">
+            {note}
+          </p>
+        )}
+        <LookingIndicator text={looking} />
+      </div>
       {live ? (
         <>
-          <button type="button" className="pill has-tip" onClick={onOpen}>
+          <button type="button" className="pill has-tip" data-dock-key="room" onClick={onOpen}>
             <span className="pill-dot" data-live aria-hidden />
             In the room · {room.participants.length}
             <Tip label="Open the room" />
@@ -72,6 +103,8 @@ export function MiniDock({ room, looking, onOpen }: Props) {
             className="pill has-tip"
             // Where text mode's pill hands the focus once pressed (TextMode).
             data-call-anchor
+            // The same control before and after a join, whatever its words say (useDockFocus).
+            data-dock-key="room"
             disabled={room.status === 'joining' || !room.ready}
             onClick={() => void room.join()}
           >

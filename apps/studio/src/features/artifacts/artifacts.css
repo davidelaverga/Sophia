@@ -11,14 +11,16 @@
   border-radius: var(--r-2);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
-  color: var(--void);
-  background: var(--teal);
+  color: var(--on-teal);
+  background: var(--teal-fill);
 }
 .report-tile[data-format='pdf'] {
-  background: var(--rose);
+  color: var(--on-rose);
+  background: var(--rose-fill);
 }
 .report-tile[data-format='html'] {
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
 }
 .report-meta {
   color: var(--text-2);
@@ -844,16 +846,18 @@
   width: 44px;
   height: 44px;
   border-radius: var(--r-2);
-  color: var(--void);
-  background: var(--teal);
+  color: var(--on-teal);
+  background: var(--teal-fill);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
 }
 .report-cover-mark[data-format='pdf'] {
-  background: var(--rose);
+  color: var(--on-rose);
+  background: var(--rose-fill);
 }
 .report-cover-mark[data-format='html'] {
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
 }
 .report-cover-open {
   position: absolute;
@@ -881,8 +885,8 @@
 .report-cover-tag {
   padding: 3px 6px;
   border-radius: var(--r-1);
-  color: var(--void);
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
 }
@@ -900,7 +904,7 @@
   border: 0;
   background: none;
   color: var(--text);
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
   text-align: left;
   -webkit-box-orient: vertical;
@@ -996,7 +1000,7 @@
   }
   .shell:has(> .report-pane[data-size='side']) .lobby,
   .shell:has(> .report-pane[data-size='side']) .wait-note,
-  .shell:has(> .report-pane[data-size='side']) .mini-dock {
+  .shell:has(> .report-pane[data-size='side']) .mini-dock:not(.topbar .mini-dock) {
     right: calc(var(--report-w) + var(--gutter));
   }
   /* And never wider than the room left beside the pane (a 761 px window leaves under 300). */
@@ -1525,4 +1529,11 @@
   overflow-wrap: anywhere;
   color: var(--text-2);
   font-size: var(--type-small);
+}
+
+/* The header holds the room's dock (a wide screen, a view other than the Studio): it stays in sight over a full or
+   narrow pane, so the pane does not repeat its switches and note with the same names (Codex on #254). */
+.shell:has(.topbar .mini-dock) .report-pane .report-pane-call,
+.shell:has(.topbar .mini-dock) .report-pane .report-pane-note {
+  display: none;
 }

@@ -95,6 +95,116 @@ test('home · needs you: by the side’s width a row takes two lines; under 1100
     .toBe(true)
 })
 
+test('home · needs you from the read (A15): the Studio’s client, the rows in urgency order, each opening where it lives', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveText([
+    /Ship the retry with the hotfix\?Fixture project · expires in 20 min/,
+    /Claude Code asks to run the export testsFixture project · Asked 10 min ago/, // a wait has no expiry
+    /Marco Pereira is in the lobbyFixture project · Waiting 2 min/,
+    /Sophia replied about the launch dateYesterday/,
+  ])
+  await rows.nth(0).click() // a decision at its own choice on the board
+  await rows.nth(1).click() // a permission at its request in Resources, where its owner answers it in the tool
+  await rows.nth(2).click() // a guest at the room
+  await rows.nth(3).click() // a reply in the personal space
+  expect(await pressed(page)).toEqual([
+    'open work 00000000-0000-4000-8000-0000000000aa #decision-d1', // the decision's own choice on the board, not the task's sheet
+    // The request with its resource (two resources may hold one request id: Codex on #245), not only the task that waits.
+    'open resources 00000000-0000-4000-8000-0000000000aa #request-davide-claude/action-1',
+    'open studio 00000000-0000-4000-8000-0000000000aa',
+    'personal',
+    'seen reply:t9', // a reply has no answer of its own: opening it is its seen mark, and it leaves the list
+  ])
+  await expect(rows).toHaveCount(3)
+  await expect(rows.filter({ hasText: 'Sophia replied' })).toHaveCount(0)
+})
+
+test('home · needs you: a reply is marked seen once its turn is in sight; a turn below the fold is brought into it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api&turns=log`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await rows.nth(3).click()
+  await expect.poll(() => pressed(page)).toContain('seen reply:t9')
+  const read = await page.evaluate(() => {
+    const log = document.querySelector('.fixture-log')
+    const turn = log?.querySelector('.msg[data-turn="t9"]')
+    if (!log || !turn) return null
+    const t = turn.getBoundingClientRect()
+    const l = log.getBoundingClientRect()
+    return { inSight: t.bottom > l.top && t.top < l.bottom, scrolled: log.scrollTop > 0 }
+  })
+  expect(read).toEqual({ inSight: true, scrolled: true })
+})
+
+test('home · needs you: a reply whose turn never shows (the space hidden) is not marked seen, and stays', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api&turns=hidden`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await rows.nth(3).click()
+  await page.waitForTimeout(900) // the fixture's hidden log gives up after 400 ms
+  expect(await pressed(page)).toEqual(['personal'])
+  await expect(rows).toHaveCount(4)
+})
+
+test('home · needs you when the read fails: Home says so, Try again reads it', async ({ page }) => {
+  await page.goto(`${PAGE}?needs=api&needsFail=1`)
+  const note = page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })
+  await expect(note).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  const failed = await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)
+  expect(failed).toBeGreaterThanOrEqual(1)
+  await page.evaluate(() => window.homeFixture?.recover()) // the service is back
+  await note.getByRole('button', { name: 'Try again' }).click()
+  await expect(list(page).getByRole('button')).toHaveCount(4)
+  await expect(note).toHaveCount(0)
+  expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(failed + 1)
+})
+
+test('home · needs you when a later read fails: the rows read last stay, and the note says so beside them', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await page.evaluate(() => window.homeFixture?.breakNeeds())
+  // The window coming back reads again (the query is stale at once; the query library hears `visibilitychange`):
+  // this read fails.
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  const note = page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })
+  await expect(note).toBeVisible()
+  await expect(rows).toHaveCount(4)
+  await page.evaluate(() => window.homeFixture?.recover())
+  await note.getByRole('button', { name: 'Try again' }).click()
+  await expect(note).toHaveCount(0)
+  await expect(rows).toHaveCount(4)
+})
+
+test('home · needs you behind a shut padlock: nothing is read, nothing is shown', async ({ page }) => {
+  await page.goto(`${PAGE}?needs=api&locked=1`)
+  await expect(page.getByText('Product launch').first()).toBeVisible()
+  await expect(list(page)).toHaveCount(0)
+  expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(0)
+})
+
+test('home · needs you refused after a good read: the rows read before are not shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await page.evaluate(() => window.homeFixture?.refuseNeeds())
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })).toBeVisible()
+  await expect(rows).toHaveCount(0)
+})
+
 test('home · a need with a long note stays inside its column, wide or narrow (Codex on #237)', async ({ page }) => {
   for (const width of [1440, 1000]) {
     await page.setViewportSize({ width, height: 900 })

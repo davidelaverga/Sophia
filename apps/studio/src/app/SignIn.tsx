@@ -8,6 +8,7 @@ import type { Point } from '../features/light/motion.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
+import { SIGN_IN_LEDE } from './auth-words.ts'
 import { CodeField } from './CodeField.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { startOver } from './link-accept.ts'
@@ -229,7 +230,19 @@ function useListening(field: React.RefObject<HTMLInputElement | null>, email: st
     input.addEventListener('focus', focus)
     input.addEventListener('blur', blur)
     window.addEventListener('resize', aim)
+    // The field moves without the window changing: the font arriving reflows the lede above it (two lines to one) and
+    // the centred body with it. Her attention follows the field, not where it stood; once the form is gone (the email
+    // sent while the font loads), the detached field measures nothing (Codex on #247).
+    let live = true
+    void document.fonts.ready.then(() => {
+      if (live && input.isConnected) aim()
+    })
+    const moved = new ResizeObserver(aim)
+    const body = input.closest('.screen-body')
+    if (body) moved.observe(body)
     return () => {
+      live = false
+      moved.disconnect()
       input.removeEventListener('focus', focus)
       input.removeEventListener('blur', blur)
       window.removeEventListener('resize', aim)
@@ -291,6 +304,8 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
   }
   return (
     <Centered title="Sign in to Sophia" light={listening}>
+      {/* What opens, in the door's voice (auth-words.ts, docs/plans/sign-in-lede.md): the first screen says what Sophia is. */}
+      <p className="screen-lede">{SIGN_IN_LEDE}</p>
       {notice && (
         <p className="form-error" role="alert">
           {notice}

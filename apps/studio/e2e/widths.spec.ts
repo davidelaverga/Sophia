@@ -168,3 +168,58 @@ test('widths · at 1920 the composer’s hint keeps the column of its field and 
   expect(Math.abs((await left('.conv-quick')) - field)).toBeLessThan(1)
   expect(Math.abs((await left('.conv-compose-hint')) - field)).toBeLessThan(1)
 })
+
+for (const [name, url, parts] of [
+  ['Updates', '/room.html?demo=1&place=updates', DRAWN.updates],
+  ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
+  // A viewer's header carries «Copy project link», wider than Invite (Codex on #259).
+  ['Updates, as a viewer', '/room.html?demo=1&place=updates&role=viewer', DRAWN.updates.slice(1)],
+] as const) {
+  test(`widths · at 1280 the seven views stand whole in the nav on ${name}, the room idle`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto(url)
+    // Measured with the header whole (its actions come with the snapshot and take width from the nav), the app's
+    // fonts in (a fallback face is narrower), and the nav's own overflow read.
+    await drawn(page, parts)
+    if (url.includes('role=viewer')) await expect(page.locator('.copy-link')).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const read = () =>
+      page.evaluate(() => {
+        const nav = document.querySelector('.view-nav')
+        if (!nav) return null
+        const links = [...nav.querySelectorAll('a')]
+        const box = nav.getBoundingClientRect()
+        const first = links[0]?.getBoundingClientRect()
+        const last = links.at(-1)?.getBoundingClientRect()
+        return {
+          fits: nav.scrollWidth <= nav.clientWidth,
+          moreStart: nav.hasAttribute('data-more-start'),
+          moreEnd: nav.hasAttribute('data-more-end'),
+          whole: !!first && !!last && first.left >= box.left - 0.5 && last.right <= box.right + 0.5,
+        }
+      })
+    await expect.poll(read).toEqual({ fits: true, moreStart: false, moreEnd: false, whole: true })
+  })
+}
+
+test('widths @phone · the nav’s first word starts at the page gutter, as the header’s mark does', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  // The first view open: its link is the row's first, so nothing scrolls it out of the gutter (Codex on #259).
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
+  await page.evaluate(() => document.fonts.ready)
+  const read = await page.evaluate(() => {
+    const topbar = document.querySelector('.topbar')
+    const nav = document.querySelector<HTMLElement>('.view-nav')
+    const first = nav?.querySelector('a')
+    if (!topbar || !nav || !first) return null
+    // The row rests on the current view (scrolled to it): measured at its start, where the first word is.
+    nav.style.scrollBehavior = 'auto'
+    nav.scrollLeft = 0
+    const range = document.createRange()
+    range.selectNodeContents(first)
+    return { gutter: parseFloat(getComputedStyle(topbar).paddingLeft), word: range.getBoundingClientRect().left }
+  })
+  expect(read?.gutter).toBeGreaterThan(0)
+  expect(Math.abs((read?.word ?? NaN) - (read?.gutter ?? 0))).toBeLessThanOrEqual(0.5)
+})

@@ -5,6 +5,7 @@
 import { useLayoutEffect, useRef, type RefObject } from 'react'
 import { Icon, Tip, Segmented, usePopover } from '@sophia/ui'
 import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
+import { CommandsHost } from '../../app/CommandsHost.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
@@ -206,6 +207,18 @@ function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
 }
 
 export function PlacesBar(props: Props) {
+  return (
+    <>
+      <PlacesHeader {...props} />
+      {/* The palette and the index of keys, here as in a project (docs/plans/places-commands.md). Beside the bar, not
+          in it: the bar's backdrop-filter holds fixed children to its own 48 px, so the veil would dim the bar alone
+          (Codex on #243). */}
+      <CommandsHost />
+    </>
+  )
+}
+
+function PlacesHeader(props: Props) {
   const { place, locked, newInWork, identity, call, chip, actions } = props
   return (
     <header className="topbar places-bar">

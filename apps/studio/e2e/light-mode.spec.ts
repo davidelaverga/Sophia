@@ -131,7 +131,7 @@ test('light · the states the at-rest scan does not see read on paper: a note th
   ).toBeGreaterThanOrEqual(3)
   const primary = page.getByRole('button', { name: 'Email me a link' })
   await primary.hover()
-  await expect(primary).toHaveCSS('background-color', 'rgb(26, 19, 64)')
+  await expect(primary).toHaveCSS('background-color', 'rgb(74, 60, 166)') // the brand's violet, hovered (light-fills.md)
   expect(await ratio(page, '.pill.primary', 'rgb(251, 248, 243)')).toBeGreaterThanOrEqual(4.5)
 })
 

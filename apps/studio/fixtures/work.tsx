@@ -64,6 +64,7 @@ import {
   firstGoal,
   fixtureParts,
   goal,
+  manyBlockers,
   manyTasks,
   moreGoals,
   moreViews,
@@ -425,6 +426,7 @@ const attemptless: Change = (g) =>
 function opening(viewer: Viewer): GoalView {
   let g = attemptless(inCase(scenario, firstGoal(viewer), viewer))
   if (query.get('many') === '1') g = manyTasks(g)
+  if (query.get('waits') === '1') g = manyBlockers(g)
   g = decisionsAsked(g)
   const current = g.current_plan
   if (current && query.get('proposed') === '1') {
@@ -818,6 +820,7 @@ function slot(g: GoalView, shared: Shared, onCommand: SendCommand | undefined) {
     tab: <PlanTab goal={g} resources={resources} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
+    decisions: g.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, g.decisions, viewerId, now),
   }
 }

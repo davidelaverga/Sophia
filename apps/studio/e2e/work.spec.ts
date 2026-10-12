@@ -396,6 +396,98 @@ test('five lanes under 1221 px stand three and two, each 220 and up; a thread fo
   expect(onEdge, `${JSON.stringify(end)} on ${JSON.stringify(to)}`).toBe(true)
 })
 
+test('a decision named in the address (#decision-, from Home) is scrolled to and its first choice takes the focus', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`) // Davide decides: his decision stands on the board
+  await settled(page)
+  const asked = board(page).locator('[data-decision]').first()
+  await expect(asked).toBeVisible()
+  const id = (await asked.getAttribute('data-decision')) ?? ''
+  expect(id).not.toBe('')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  // The focus lands on its first open choice; the address lets the decision go once it is reached.
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('')
+  // Handled once: the focus moved on stays where it went (the address is not read again on a later render).
+  await page.keyboard.press('Tab')
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  await page.waitForTimeout(400)
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  // With the slot shut, the address opens it: the pill shuts the decisions, the address names one again, they show.
+  await board(page).locator('.decision-pill').first().click()
+  await expect(board(page).locator('[data-decision]')).toHaveCount(0)
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
+})
+
+/** A tile's doer and chip, and the blocker's press, as laid out (the alignment of #258, at any width). */
+async function tileAlignment(page: Page, longUnder = true) {
+  // The tile that waits on a permission: its chip is the longest state the board says.
+  const waiting = board(page)
+    .locator('.task-tile', { has: page.locator('.task-tile-meta .tag') })
+    .first()
+  const read = await waiting.evaluate((el) => {
+    const name = el.querySelector<HTMLElement>('.task-tile-name')
+    const chip = el.querySelector<HTMLElement>('.task-tile-meta .tag')
+    if (!name || !chip) return null
+    return {
+      width: name.getBoundingClientRect().width,
+      words: name.scrollWidth, // what its words need
+      under: chip.getBoundingClientRect().top > name.getBoundingClientRect().bottom - 1,
+      // Beside it, clear of its words: where the tile is wide enough (a phone's single lane) the long chip fits there.
+      beside: chip.getBoundingClientRect().left >= name.getBoundingClientRect().right - 1,
+    }
+  })
+  // The name holds its words whole (not cut to a letter), and the long chip stands under it.
+  expect(read?.width ?? 0).toBeGreaterThanOrEqual((read?.words ?? Infinity) - 1)
+  if (longUnder) expect(read?.under).toBe(true)
+  else expect(read?.under || read?.beside).toBe(true)
+  // A short name keeps its chip beside it: «Luis · Ready for review» is one line.
+  const short = board(page).locator('.task-tile', { hasText: 'Ready for review' }).first()
+  const beside = await short.evaluate((el) => {
+    const name = el.querySelector('.task-tile-name')
+    const chip = el.querySelector('.task-tile-meta .tag')
+    return !!name && !!chip && Math.abs(name.getBoundingClientRect().top - chip.getBoundingClientRect().top) < 4
+  })
+  expect(beside).toBe(true)
+  // The blocker's press: left-aligned, its lines (when it wraps) on one left edge.
+  const why = board(page).locator('.lane-why .text-button').first()
+  await expect(why).toHaveCSS('text-align', 'left')
+  const lines = await why.evaluate((el) => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return [...range.getClientRects()].map((r) => Math.round(r.left))
+  })
+  expect(new Set(lines).size).toBe(1)
+}
+
+test('a tile’s doer keeps its name whole, beside a short chip or above a long one; a wrapping blocker keeps its left edge', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tileAlignment(page)
+})
+
+test('@phone · at a phone’s width the doer’s name stays whole beside or above its chip, the blocker’s lines on one edge (Codex on #258)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tileAlignment(page, false)
+})
+
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
   await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
   const held = lane(page, 'Blocked')
@@ -662,7 +754,7 @@ test('type · the board, a goal without a plan, and a task’s sheet keep to the
   await expect(tile(page, 'work-1')).toBeVisible()
   await expect(page.locator('.goal').filter({ hasText: 'Exports keep their fonts' })).toBeVisible()
   const onBoard = await typeSizes(page, '.goals')
-  expect(onBoard, onBoard.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '20px'])
+  expect(onBoard, onBoard.join(' ')).toEqual(['10.5px', '12px', '13px', '15px', '28px'])
   await tile(page, 'work-1').click()
   const sheet = await typeSizes(page, '.task-sheet')
   expect(
@@ -3561,4 +3653,64 @@ test('with a report beside Tasks the lanes follow the narrower board, not the wi
   })
   const columns = await lanesBox.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
   expect(columns).toBeLessThanOrEqual(1)
+})
+
+test('the sheet’s H works with Caps Lock or Shift, and its controls say H and S in their tips (Codex on #241)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: /^Hold/ }).locator('.tip kbd')).toHaveText('H')
+  await expect(sheet.getByRole('button', { name: /^Stop/ }).first().locator('.tip kbd')).toHaveText('S')
+  // Shift held (or Caps Lock on) gives «H», not «h»: the sheet's key is the letter, whatever its case.
+  await sheet.focus()
+  await page.keyboard.press('Shift+H')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  // S asks Stop's question, its tip («Stop · S») not mistaken for its words (Codex on #241).
+  await sheet.focus()
+  await page.keyboard.press('s')
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
+})
+
+test('a decision named in the address chooses the goal that holds it, another goal shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&goals=6`)
+  await settled(page)
+  const theirs = board(page).locator('[data-decision]').first()
+  await expect(theirs).toBeVisible()
+  const id = (await theirs.getAttribute('data-decision')) ?? ''
+  const first = page.getByRole('tab', { name: /Reports export to PDF reliably/ })
+  // Another goal chosen from the rail: the decision's board is no longer mounted.
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(first).toHaveAttribute('aria-selected', 'false')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(first).toHaveAttribute('aria-selected', 'true')
+  await expect(board(page).locator(`[data-decision="${id}"] .plan-choice:not(:disabled)`).first()).toBeFocused()
+})
+
+test('the sheet’s H is not pressed while the meeting’s recap covers it (Codex P1 on #241)', async ({ page }) => {
+  // In a call, a task's sheet open; leaving the call from the sheet brings the meeting's recap over it.
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await page.locator('.task-tile').first().click()
+  const sheet = page.locator('.task-sheet')
+  await expect(sheet).toBeVisible()
+  const hold = sheet.locator('.task-actions').getByRole('button', { name: /^(Hold|Resume)/ })
+  const offered = (await hold.count()) > 0
+  const before = offered ? ((await hold.first().textContent()) ?? '') : ''
+  await page.getByRole('dialog').getByRole('button', { name: 'Leave the room' }).first().click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toBeVisible()
+  await page.keyboard.press('h')
+  await page.keyboard.press('s')
+  await page.waitForTimeout(300)
+  // The covered sheet pressed nothing: its Hold says what it said, and Stop asks no question.
+  if (offered) await expect(hold.first()).toHaveText(before)
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(0)
+  await expect(recap).toBeVisible()
 })

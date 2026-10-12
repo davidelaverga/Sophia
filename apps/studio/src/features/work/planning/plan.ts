@@ -405,6 +405,15 @@ const blockedIn = (row: PlanRow, rows: readonly PlanRow[]) =>
     return blocker !== undefined && LANE[blocker.status.mark] !== 'complete'
   })
 
+/**
+ * The items of the plan that `blocked` rows wait on and that are not complete, once each, in the plan's order (not
+ * the order a dependent lists them in: Codex on #244).
+ */
+export function blockersOf(blocked: readonly PlanRow[], rows: readonly PlanRow[]): PlanRow[] {
+  const ids = new Set(blocked.flatMap((r) => r.item.blocked_by))
+  return rows.filter((r) => ids.has(r.item.id) && LANE[r.status.mark] !== 'complete')
+}
+
 /** The lane a row sits in: its mark's; Blocked when it is up next but waits on an item of its plan not done yet. */
 export const laneOf = (row: PlanRow, rows: readonly PlanRow[]): Lane => {
   const lane = LANE[row.status.mark]

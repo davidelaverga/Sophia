@@ -151,8 +151,10 @@
 }
 .plan-tab {
   display: flex;
+  flex-wrap: wrap; /* faces, count, «blocked» and «for you» in a 208 px chip: a second row, never an overflow (Codex on #244) */
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
+  min-width: 0;
   color: var(--text-3);
   font-size: var(--type-small);
 }
@@ -168,6 +170,9 @@
 }
 .plan-tab-faces + .plan-tab-count {
   margin-left: 6px;
+}
+.plan-tab-blocked {
+  color: var(--amber);
 }
 .plan-tab-mine {
   display: inline-flex;
@@ -260,6 +265,31 @@
 }
 .lane-head .plan-mark::after {
   display: none;
+}
+/* Under the Blocked lane's head: what it waits on, each a press (docs/plans/board-why-blocked.md). */
+.lane-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: -4px 0 0;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.lane-why .text-button {
+  font-size: var(--type-small);
+  /* A purpose may hold a long unbroken token (a URL, an id): it wraps inside the lane (Codex on #244). */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left; /* a blocker's name that wraps keeps the left edge of «Waiting on», not a centred second line */
+}
+/* On a coarse pointer each press's target reaches 7 px above and below its words (theme.css): rows of blockers keep
+   14 px between them, so no two targets meet (Codex on #244). */
+@media (pointer: coarse) {
+  .lane-why {
+    row-gap: 14px;
+  }
 }
 .lane-head .count {
   margin-left: auto;
@@ -436,21 +466,28 @@
 .task-tile-title {
   display: -webkit-box;
   overflow: hidden;
-  font-size: var(--type-title);
+  /* A card in a lane, under the heads (15) and the view's title (28): the body's size, carried by its weight, so the
+     screen keeps to five sizes (CONTRIBUTING, Codex on #248). */
+  font-size: var(--type-body);
   font-weight: 500;
   letter-spacing: -0.008em;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+/* The doer's name and the state chip share a line while both fit at their own size; past that the chip drops under
+   the name rather than squeeze it to a letter (docs/plans/tasks-polish.md). */
 .task-tile-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
   font-size: var(--type-small);
 }
 .task-tile-name {
+  flex: 0 1 auto; /* never grows past its words, so a short name keeps the chip beside it */
+  min-width: 0;
   overflow: hidden;
   color: var(--text-3);
   white-space: nowrap;
@@ -552,6 +589,24 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 12px;
+}
+/* Next up (docs/plans/next-up.md): one line under the bar after an answer; its press a text press with an arrow, in the
+   halo's ink, as a way on. */
+.next-up {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
+}
+.next-up .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--halo-text);
+  font-size: var(--type-body);
+}
+.next-up .text-button:hover {
+  color: var(--text);
 }
 .board-lens {
   width: fit-content;
@@ -947,7 +1002,7 @@
 .task-sheet-activity .muted {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-label); /* a time: the 10.5 px data scale (Codex on #241) */
 }
 
 /* ---- While you were away: one sentence from Sophia's light, over the board. ---- */
@@ -962,7 +1017,8 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 4px 10px;
-  font-size: var(--type-title);
+  /* The plan's next step, under the goal's head: the body's size (five sizes on the screen, Codex on #248). */
+  font-size: var(--type-body);
 }
 .plan-next > .field-label {
   color: var(--halo-text);
@@ -1064,7 +1120,7 @@
 }
 .board .plan-ask-question {
   grid-area: question;
-  font-size: var(--type-title);
+  font-size: var(--type-head);
 }
 .board .plan-choices,
 .board .plan-ask-choices {
@@ -1348,7 +1404,7 @@
   border-bottom: 0;
 }
 .goal.compact .goal-title {
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   letter-spacing: -0.02em;
 }
 .goal.compact > :not(.controls) {

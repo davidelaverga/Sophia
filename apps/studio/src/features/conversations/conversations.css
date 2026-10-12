@@ -78,13 +78,15 @@
 }
 
 /* ---- the list: a quiet plane, rows without boxes ---- */
+/* One line of boxes at 8 (the filter, a row) and one line of words at 20 (the title, Open and Mine, a row's title):
+   docs/plans/conversations-polish.md. */
 .conv-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
   min-height: 0;
-  padding: 18px 10px 0;
+  padding: 18px 8px 0;
   background: var(--plane);
 }
 .conv-list-head {
@@ -92,14 +94,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 6px 4px 8px;
+  padding: 0 12px 4px; /* the title at 20 with a row's title; the «+» press ending at 280 with a row's date */
 }
 /* «Open» and «Mine»: two quiet toggles under the title filter, pressed on a raised plane; how many show, beside them. */
 .conv-show {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 2px 4px;
+  padding: 8px 2px 4px; /* a ghost's 10 px lead makes its words start at 20 */
 }
 /* «Open» and «Mine»: ghosts (28 px) in the small type. */
 .conv-show button {
@@ -135,6 +137,10 @@
 .conv-quick[data-away] {
   visibility: hidden;
 }
+/* Emptied (every quick ask asked lately or suggested in the field), the row keeps a chip's height: nothing jumps. */
+.conv-quick {
+  min-height: 28px;
+}
 .conv-quick button {
   flex: none;
   min-height: 28px;
@@ -162,8 +168,9 @@
 }
 .conv-list-head h2 {
   margin: 0;
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
+  letter-spacing: -0.015em; /* the 15 px heads' tracking (the goal's, the card's, the open conversation's), not the view title's */
 }
 /* The title filter: the kit's search (36 px, its magnifier), as wide as the list. */
 .conv-filter {
@@ -175,7 +182,7 @@
   gap: 2px;
   flex: 1;
   min-height: 0;
-  margin: 0 -10px;
+  margin: 0 -8px;
   padding: 2px 8px 24px;
   overflow: auto;
   list-style: none;
@@ -290,7 +297,9 @@
 .conv-head h3 {
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: var(
+    --type-head
+  ); /* the open conversation's title is a section head: five sizes on the view (Codex on #248) */
   font-weight: 600;
   letter-spacing: -0.015em;
   text-overflow: ellipsis;
@@ -328,6 +337,22 @@
 }
 .conv-face.sophia {
   background: #16131f;
+}
+/* On paper the disc is the warm tint (the own bubble's plane) with the warm ink, ringed in what the head stands on:
+   the head and the pane are see-through, so that is the page (`--void`), as in the dark; the plane's ring drew a
+   second beige disc (Codex on #257). In the room's fixed dark disc the initial did not read
+   (docs/plans/conversations-polish.md). */
+:root[data-theme='light'] .conv-face {
+  /* A disc the eye sees (1.6:1 on paper; the bubble's 8.5 % would vanish): the warm at 32 % over the paper, mixed once
+     and opaque, so two faces that overlap keep their colour (a tint over a tint drew a darker crescent: Codex on #257). */
+  background: #dbc3b2;
+  color: var(--warm);
+  box-shadow: 0 0 0 2px var(--void);
+}
+/* Sophia's disc in the core's tint, at the warm's 32 %: 1.7:1 on paper, a disc the eye sees (12 % was 1.2:1: Codex on
+   #257). */
+:root[data-theme='light'] .conv-face.sophia {
+  background: #c6bfe0; /* the core at 32 % over the paper, opaque (Codex on #257) */
 }
 .conv-face .umbral {
   width: 11px;
@@ -424,7 +449,7 @@
 .conv-earlier .text-button {
   padding: 0 10px;
   color: var(--text-2);
-  font: var(--type-label) / 24px var(--mono);
+  font: var(--type-small) / 24px var(--mono);
   text-decoration: none;
 }
 .conv-messages {
@@ -462,8 +487,9 @@
   text-align: center;
   margin: 10px 0 16px;
   color: var(--text-2);
+  /* A date: data at the label size (Codex on #241), in the eyebrows' tracking (docs/plans/eyebrows.md). */
   font: var(--type-label) / var(--lh-small) var(--mono);
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .conv-msg-by {
@@ -866,6 +892,30 @@
 .conv-new .conv-question input:not([type='checkbox']) {
   font-size: var(--type-title);
 }
+/* The same question asked here already (docs/plans/same-question.md): one quiet line under the question, a way to it. */
+.conv-same {
+  margin: -4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  line-height: var(--lh-small);
+}
+/* Inline, so a long title wraps with the line; a token with no break (a URL, an id) breaks inside the form (Codex on
+   #266: as an inline-flex it kept its whole width and the form clipped it on a phone). */
+.conv-same .text-button {
+  display: inline;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
+  color: var(--halo-text);
+  font-size: var(--type-small);
+}
+.conv-same .text-button svg {
+  margin-left: 4px;
+  vertical-align: -2px;
+}
+.conv-same .text-button:hover {
+  color: var(--text);
+}
 .conv-starters {
   display: flex;
   flex-wrap: wrap;
@@ -1068,7 +1118,7 @@
 }
 .conv-new > h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--type-head);
   font-weight: 600;
 }
 .conv-field {
@@ -1235,7 +1285,7 @@
     padding: 10px 14px 6px;
   }
   .conv-head h3 {
-    font-size: var(--type-title);
+    font-size: var(--type-head); /* a section head on a phone too (Codex on #248) */
   }
   .conv-head .conv-faces,
   .conv-output-words {
@@ -1293,6 +1343,7 @@
     height: 40px;
   }
   .conv-show button,
+  .conv-quick,
   .conv-quick button {
     min-height: 40px;
   }

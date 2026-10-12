@@ -29,7 +29,7 @@
 .plan-ask-due {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-label); /* an expiry: data (Codex on #241) */
 }
 /* Its decider's choices: two equal buttons, neither chosen for them; the one pressed keeps a ring while it is sent. */
 .plan-choices {
@@ -85,7 +85,8 @@
   color: var(--amber);
 }
 .plan-ask-question {
-  font-size: var(--type-title);
+  /* The question to decide heads its block: the heads' step, a notch lighter (five sizes on Tasks, Codex on #248). */
+  font-size: var(--type-head);
   letter-spacing: -0.01em;
 }
 .plan-ask-choices {
