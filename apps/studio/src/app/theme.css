@@ -8,6 +8,10 @@
   --type-body: 13px;
   --type-small: 12px;
   --type-label: 10.5px;
+  /* Their leadings, on the 4 px grid: labels and small 16, body and titles 20, a lead and a heading 24. */
+  --lh-small: 16px;
+  --lh-body: 20px;
+  --lh-head: 24px;
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
@@ -60,12 +64,18 @@ html {
 * {
   scrollbar-width: thin;
 }
+/* Every size's leading on the 4 px grid (docs/plans/type-leading.md): set per element, so each size finds its own
+   step (10.5 and 12 → 16, 13 and 14 → 20, 15 → 20, 16 and 18 → 24, 22 → 32); a rule that names a leading wins. */
+/* Every word's leading on the 4 px grid; a report's page keeps its own reading voice (.md, 17/1.6). */
+:where(*:not(.md, .md *)) {
+  line-height: round(down, 1.55em, 4px);
+}
 body {
   margin: 0;
   min-height: 100dvh;
   background: var(--void);
   color: var(--text);
-  font: 400 var(--type-body) / 1.5 var(--sans);
+  font: 400 var(--type-body) / var(--lh-body) var(--sans);
   letter-spacing: -0.003em;
   font-kerning: normal;
   -webkit-font-smoothing: antialiased;
@@ -143,7 +153,7 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 .mono {
-  font-size: 11.5px;
+  font-size: var(--type-small);
   color: var(--text-3);
 }
 kbd {
@@ -158,7 +168,6 @@ kbd {
   color: var(--text-2);
   font-size: 10.5px;
   font-weight: 500;
-  line-height: 1;
 }
 /* Small labels: mono capitals, the one place letters are spaced. */
 .eyebrow,
@@ -210,6 +219,9 @@ input,
 select,
 textarea {
   font: inherit;
+  /* The shorthand inherits the parent's leading too: a control at its own size (a small ghost in a card) finds its own
+     step again (Codex on #231). */
+  line-height: round(down, 1.55em, 4px);
   color: inherit;
   letter-spacing: inherit;
 }
@@ -372,7 +384,7 @@ select option {
   border: 0;
   background: none;
   padding: 2px 0;
-  line-height: 20px;
+  line-height: 20px; /* a control: its words centred in its 24 px box, at 13 px as at 12 (control-heights.spec) */
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
@@ -612,8 +624,8 @@ button.mark:hover {
 }
 .crumb-sep {
   color: var(--text-4);
-  font-size: 15px;
-  font-weight: 300;
+  font-size: var(--type-body);
+  font-weight: 400;
 }
 /* Work, between the mark and the project: where the project lives, and the way back to the other projects. */
 .crumb {
@@ -973,7 +985,7 @@ img.avatar {
 }
 .screen-title {
   font-size: clamp(22px, 2.2vw, 26px);
-  line-height: 1.2;
+  line-height: 32px;
   letter-spacing: -0.025em;
 }
 .screen-body p {
@@ -1064,7 +1076,7 @@ img.avatar {
 }
 .passkey-text strong {
   color: var(--text);
-  font-weight: 560;
+  font-weight: 600;
 }
 .or {
   display: grid;
@@ -1073,7 +1085,7 @@ img.avatar {
   gap: 10px;
   width: 100%;
   color: var(--text-3);
-  font: 500 10.5px/1 var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1617,7 +1629,6 @@ img.avatar {
   -webkit-line-clamp: 2;
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.5;
   text-wrap: pretty;
 }
 .made-facts {
@@ -1714,7 +1725,6 @@ img.avatar {
   margin: 0;
   color: var(--text);
   font-size: 15px;
-  line-height: 1.45;
   text-wrap: balance;
   transition: color var(--base) var(--ease);
 }
@@ -2588,7 +2598,6 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   color: var(--text-2);
   font-size: var(--type-small);
-  line-height: 1.45;
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
@@ -2929,7 +2938,6 @@ button.contribution-quote:hover {
 .sheet-lead {
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.55;
 }
 /* A tab's body in a sheet (the Invite's panels): the body's column and gap, without its padding or its arrival, which
    the body around it already gives (Codex on #224: a body in the body padded and arrived twice). Not `.sheet-section`,
@@ -2970,7 +2978,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: var(--type-label) / 1.5 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -2990,7 +2998,7 @@ button.contribution-quote:hover {
 }
 .link-limits {
   color: var(--text-3);
-  font: 500 10.5px/1 var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.02em;
 }
 .sheet-form {
@@ -3141,7 +3149,7 @@ button.contribution-quote:hover {
 }
 .view-head h2 {
   font-size: 20px;
-  line-height: 1.2;
+  line-height: var(--lh-head);
 }
 .count {
   color: var(--text-3);
@@ -3168,7 +3176,6 @@ button.contribution-quote:hover {
 }
 .goal-title {
   font-size: 15px;
-  line-height: 1.35;
   letter-spacing: -0.015em;
 }
 .goal-outcome {
@@ -4058,7 +4065,7 @@ button.contribution-quote:hover {
 .chat-spoken {
   margin-left: 8px;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .chat-message.spoken.user {
   border-style: dashed;
@@ -4263,7 +4270,7 @@ button.contribution-quote:hover {
 }
 .report-main-meta {
   color: var(--text-3);
-  font: 500 var(--type-label) / 1.3 var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -4423,7 +4430,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-2);
   background: transparent;
   color: var(--text-2);
-  font: 500 var(--type-small) / 1 var(--sans);
+  font: 500 var(--type-small) / var(--lh-small) var(--sans);
   white-space: nowrap;
 }
 .message-bar[data-target='sophia'] .bar-target {
@@ -4462,7 +4469,7 @@ button.contribution-quote:hover {
 }
 .recap-section h3 {
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -4483,7 +4490,6 @@ button.contribution-quote:hover {
 .recap-line {
   overflow-wrap: anywhere;
   font-size: 14px;
-  line-height: 1.5;
 }
 .recap-by {
   grid-column: 1;
@@ -4524,6 +4530,7 @@ button.contribution-quote:hover {
 .updates > h2 {
   grid-column: 1 / -1;
   font-size: 20px;
+  line-height: var(--lh-head);
 }
 @media (max-width: 900px) {
   .updates {
@@ -4539,7 +4546,7 @@ button.contribution-quote:hover {
 .updates-part > .recap-section h4 {
   margin: 0;
   color: var(--text-2);
-  font: 500 var(--type-label) / 1.2 var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -4695,7 +4702,6 @@ button.contribution-quote:hover {
   overflow-wrap: anywhere;
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.45;
 }
 .search-hit-source {
   color: var(--text-3);

@@ -698,7 +698,6 @@
   display: flex;
   align-items: baseline;
   gap: 8px;
-  line-height: 1.35;
   letter-spacing: -0.015em;
 }
 .resource-vendor,

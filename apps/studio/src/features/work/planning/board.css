@@ -263,6 +263,8 @@
   border-radius: 999px;
   background: rgba(236, 235, 241, 0.05);
   font-size: var(--type-label);
+  /* The count is data at 500, not the heading's bold. */
+  font-weight: 500;
 }
 .task-grid {
   display: grid;
@@ -432,7 +434,6 @@
   overflow: hidden;
   font-size: var(--type-title);
   font-weight: 500;
-  line-height: 1.35;
   letter-spacing: -0.008em;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -1304,7 +1305,6 @@
   max-width: 95%;
   color: var(--text);
   font-size: var(--type-body);
-  line-height: 1.55;
 }
 .ask-a .ask-light {
   margin-top: 6px;
