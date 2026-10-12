@@ -1,0 +1,857 @@
+{
+  "at": "2026-10-12T09:04:08.086718+00:00",
+  "status": "CHANGES_REQUIRED_ONE_BOUNDED_P2_EXACT_R9_K1C_NOT_SUPPLIED_NO_WRITE_GO",
+  "candidate": {
+    "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+    "tree": "57e7752e4cbbe8d01bd82d92d449242b062afb94",
+    "parent": "7c36aa8c90d2070ee165b409910e3f39e114f171",
+    "sha256": "790e79c996e6024c6f2a4745d88aeca51f1206c8ff21d5746258cc5287b7f0db",
+    "lines": 916
+  },
+  "documentPath": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+  "scope": "One exact-r9 affected independent WBC02/SDD01 consumer source-design review only. Full304-line r8-to-r9 proposal diff read in bounded chunks; changed A3, denial/defer, D4, owner/checklist/Studio boundary context and actual source bodies read. No executable candidate implementation or executed SQL/process proof. No K1b or other owner authority.",
+  "inputs": [
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "local": "candidate/docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "sha256": "790e79c996e6024c6f2a4745d88aeca51f1206c8ff21d5746258cc5287b7f0db",
+      "lines": 916,
+      "sameAsPriorReviewedBlob": false
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "local": "candidate/docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "local": "candidate/docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "sha256": "7b7e89a6a222eb9302c947745c59f0459498d7b3260123526a2195cecca4236c",
+      "lines": 128,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "local": "candidate/db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "local": "candidate/db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+      "lines": 754,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/runtime.ts",
+      "local": "candidate/packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "apps/api/src/routes/runtime.ts",
+      "local": "candidate/apps/api/src/routes/runtime.ts",
+      "sha256": "2cee9da14f99ebfff047831f4f529e097d6e93350cfc3646429eaf0ee69757c0",
+      "lines": 227,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "local": "candidate/packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "local": "candidate/packages/contracts/scripts/generate-validators.ts",
+      "sha256": "97f1af3c814b7715047b1c880666a4b37a5004ff12e92f460e9d0d1db1e3eeda",
+      "lines": 126,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "local": "candidate/packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/src/role-registry.ts",
+      "local": "candidate/packages/dsh-bundle/src/role-registry.ts",
+      "sha256": "b1c58652c90dc80dc6f7a243720d0849be0ccf92f1dabe6f3ac3d13d02b40228",
+      "lines": 109,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "config/runtime-unit.json",
+      "local": "candidate/config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "package.json",
+      "local": "candidate/package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "local": "candidate/docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "local": "candidate/docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "local": "candidate/docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "local": "candidate/docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "7dc23203eeaef3e91e4515f36127e1f86318d7c4",
+      "path": "docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "local": "reviewer/docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+      "lines": 205,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "local": "main/docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/persistence/src/runtime.ts",
+      "local": "main/packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "local": "main/packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "local": "main/packages/contracts/scripts/generate-validators.ts",
+      "sha256": "1336ba1b8e61818ccba166af996d930c6db5a236a51fa1054c72e519f84e8ec6",
+      "lines": 120,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "local": "main/packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "config/runtime-unit.json",
+      "local": "main/config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "package.json",
+      "local": "main/package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "local": "candidate/db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "lines": 55,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "local": "candidate/db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "lines": 495,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/contracts/amendments/A16-project-conversations.json",
+      "local": "candidate/packages/contracts/amendments/A16-project-conversations.json",
+      "sha256": "c5a60040129bcf2c86821d72410a086ffcde026f74c16f01abf5c875bea34b5d",
+      "lines": 1415,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "scripts/build-artifacts.mjs",
+      "local": "candidate/scripts/build-artifacts.mjs",
+      "sha256": "7d27eaceca5cd53f9ad8b08f0e21bd9a8d8d2e58ba8f8506fe100e0ff0867279",
+      "lines": 65,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "scripts/lib/artifacts.mjs",
+      "local": "candidate/scripts/lib/artifacts.mjs",
+      "sha256": "7df38a1f0a69b429973335424e33ccea8dda1cacdf1925c177684c799a5c0ba6",
+      "lines": 142,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "config/dsh/base-rows.reviewed.json",
+      "local": "candidate/config/dsh/base-rows.reviewed.json",
+      "sha256": "24ccd633f607b658c8ad8a052c107688dc25eaae86bee5cd2a52af707342e772",
+      "lines": 384,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "config/dsh/profile/cordis.patch.yml",
+      "local": "candidate/config/dsh/profile/cordis.patch.yml",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "lines": 1,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/contracts/package.json",
+      "local": "candidate/packages/contracts/package.json",
+      "sha256": "5fab2a20db2bbb5d8f6c0dc3a5ed813811e5c63c187e776b7aece91c4a8889cd",
+      "lines": 21,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0012_runtime_service.sql",
+      "local": "main/db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0041_design_lifecycle.sql",
+      "local": "main/db/migrations/0041_design_lifecycle.sql",
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "lines": 650,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0042_source_review_coordination.sql",
+      "local": "main/db/migrations/0042_source_review_coordination.sql",
+      "sha256": "9e6064b7b78bf55342cd6f23e62ccaaa96a3a28ad8c8b48136af6557c89e408b",
+      "lines": 1980,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0001_core.sql",
+      "local": "main/db/migrations/0001_core.sql",
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e",
+      "lines": 248,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/BASE.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/BASE.md",
+      "sha256": "d58298a699f5d6ab83a4e3d3818ace1c7b7f7d196e4b116d8fb7e612e971f043",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/progress/SMC-M01-contract-binding.md",
+      "local": "main/docs/progress/SMC-M01-contract-binding.md",
+      "sha256": "8b508a253b26636f354968c22e1e195e1df2e6fdd0eeea5d442d53684eb3004f",
+      "lines": 208,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "local": "candidate/packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/research.ts",
+      "local": "candidate/packages/persistence/src/research.ts",
+      "sha256": "10100ddb7bbafc125fb00f6020387a90c96f87f545324bfa1d61eb742b6e3b5a",
+      "lines": 228,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "01777c5ca32b8a92f2214db9eb91d4a039e6e60f",
+      "path": "docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "local": "freeze/docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+      "lines": 272,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/migrations/0048_project_conversations.sql",
+      "local": "candidate/db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "lines": 430,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "local": "candidate/docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/contracts/src/validate.ts",
+      "local": "candidate/packages/contracts/src/validate.ts",
+      "sha256": "ab7c1b6afed6a89db29d989a73d4a77a56bac44d6bc80ee802ddb5c6fa2161bd",
+      "lines": 144,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "config/roles.json",
+      "local": "candidate/config/roles.json",
+      "sha256": "1e6fead81e3549f332cca788775cb546ad546dab2f46cf70323bbefff84dae19",
+      "lines": 114,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/src/protocol.ts",
+      "local": "candidate/packages/dsh-bundle/src/protocol.ts",
+      "sha256": "54f72e7b9837aeaa09dab19358178a6d86d1e3e40045160d8189807d72a744e7",
+      "lines": 67,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/src/index.ts",
+      "local": "candidate/packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "lines": 273,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/tsconfig.json",
+      "local": "candidate/packages/dsh-bundle/tsconfig.json",
+      "sha256": "8fc06816a9592dde59fe000b6c9e4eabadf6e647700970c2fd171c2fb61a4dba",
+      "lines": 16,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/package.json",
+      "local": "candidate/packages/dsh-bundle/package.json",
+      "sha256": "a66620892548928e6a5f85dc09885aac336deecb952c924234a986e6fc3057f7",
+      "lines": 57,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "scripts/lib/profile.mjs",
+      "local": "candidate/scripts/lib/profile.mjs",
+      "sha256": "cfd710cbc5d7e9d7f6e6afc1f1291763128d4c4d60d062e00d23c290c3730c00",
+      "lines": 186,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/conversation-context.ts",
+      "local": "candidate/packages/persistence/src/conversation-context.ts",
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739",
+      "lines": 456,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/conversation-context.test.ts",
+      "local": "candidate/packages/persistence/src/conversation-context.test.ts",
+      "sha256": "9123b01de94f790b6277e58113e6c2c786a8b74248decfc71903ee6a6e6815e7",
+      "lines": 708,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/conversation-assembly.ts",
+      "local": "candidate/packages/persistence/src/conversation-assembly.ts",
+      "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "lines": 455,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/conversation-assembly.db.test.ts",
+      "local": "candidate/packages/persistence/src/conversation-assembly.db.test.ts",
+      "sha256": "5b5121033a54b06505030631de2b44d2f90cffe5308f6b31fef406f2a7d39996",
+      "lines": 2360,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/persistence/src/conversation-fences.db.test.ts",
+      "local": "candidate/packages/persistence/src/conversation-fences.db.test.ts",
+      "sha256": "fe9e536f1e1e35063b22e97683799d059527e410da6e3c6fa10559e2d5298ed3",
+      "lines": 2088,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/migrations/0028_research_revocation.sql",
+      "local": "candidate/db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "local": "candidate/docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "sha256": "82ff0856fd6a5a6da96e1648f5e5bb4db755638e85f75dfc15ffa51afe87cd8a",
+      "lines": 1298,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "packages/dsh-bundle/src/control-bridge.ts",
+      "local": "candidate/packages/dsh-bundle/src/control-bridge.ts",
+      "sha256": "09d8d162921806bbd4d94d56751d399928194737432b2d1ef28e3ec88fd9d37c",
+      "lines": 1498,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "db/migrations/0016_review_fences.sql",
+      "local": "candidate/db/migrations/0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c",
+      "lines": 263,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0037_amendment_preservation.sql",
+      "local": "main/db/migrations/0037_amendment_preservation.sql",
+      "sha256": "d1f9ed1231ae52578f9ed3fe5d271273319a87b7d3b5005374a09341d37aa527",
+      "lines": 994,
+      "purpose": "Additional affected ACL/capture caller evidence read this turn",
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0023_usage_cache.sql",
+      "local": "main/db/migrations/0023_usage_cache.sql",
+      "sha256": "f4b255d3361ad34250aae7803f364850c6412b557503e9a1715f5c12f3119d48",
+      "lines": 53,
+      "purpose": "Additional affected ACL/capture caller evidence read this turn",
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+      "path": "db/migrations/0053_runtime_outbox_reconcile.sql",
+      "local": "phaseA/db/migrations/0053_runtime_outbox_reconcile.sql",
+      "sha256": "bf403b7eff741a5d2056b484c802cdc4cbe382f23bc00ee5826315beedc4bae7",
+      "lines": 43,
+      "additionalInputForA3": true
+    },
+    {
+      "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+      "path": "docs/handoffs/CON-01-attempt-1.md",
+      "local": "candidate/docs/handoffs/CON-01-attempt-1.md",
+      "sha256": "c3973f02f84f0383049e563c12d0f07fa9300eea190783c4a23c5dd88d0daf59",
+      "lines": 197,
+      "additionalInputForBoundaryOnly": true
+    }
+  ],
+  "inputVerification": {
+    "immutableGitBlobsAndExtractedCopiesVerified": 67,
+    "inheritedR8Inputs": 65,
+    "inheritedChanges": [
+      "candidate/docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md"
+    ],
+    "additional": [
+      "phaseA/db/migrations/0053_runtime_outbox_reconcile.sql",
+      "candidate/docs/handoffs/CON-01-attempt-1.md"
+    ]
+  },
+  "delta": {
+    "parentToR9": "sole reservation document +147/-23; independently verified",
+    "r8ToR9": "reservation document +147/-23 plus prior parent handoff +69/-0; handoff boundary read, no source edits",
+    "proposalDiffLines": 304,
+    "readChunks": [
+      "1-64",
+      "65-125",
+      "126-165",
+      "166-210",
+      "211-255",
+      "256-304"
+    ],
+    "priorTruncatedReads": "Replaced by bounded reads. No full916-line unchanged-document reread claimed."
+  },
+  "priorReview": {
+    "path": "<operator-journal>/shared-runtime-CON01-WBC02-SDD01-PhaseB-960f262f-affected-consumer-review-20261012.json",
+    "sha256": "f0f8a320978c759bb4942aeaf12945ca18575a222d96c1f07e54514642d4d6c2"
+  },
+  "dispositions": [
+    {
+      "id": "PB8-A2-DEFER-HELPER-SCOPE",
+      "status": "ADDRESSED_AT_PROPOSAL_SCOPE",
+      "lines": [
+        346,
+        347,
+        348,
+        349,
+        350,
+        634,
+        635,
+        636,
+        637,
+        638,
+        639,
+        640,
+        641,
+        642,
+        643
+      ],
+      "assessment": "Every reply deferral exactly defer_native_delivery(o,NULL::sophia.commands,fixed_reason), real project-locked outbox FOR UPDATE. Actual0012:694-705 is not STRICT; command_id=c.id with null composite matches neither adversarial matching command nor NULL command_id job. No row lock/mutation/waiting event; ordinary jobs relation lock/access acknowledged. Same pending/reset/backoff/reason/return; shared helper unchanged. Proposed adverse two-row NOWAIT/xmin/event-sequence checks meaningful, not run."
+    },
+    {
+      "id": "PB8-D4-EXISTING-ROW-INVENTORY",
+      "status": "DOCUMENTATION_AND_QUALIFICATION_PLAN_GAP_ADDRESSED; EXECUTION_STILL_OWED",
+      "lines": [
+        231,
+        237,
+        238,
+        239,
+        240,
+        241,
+        242,
+        620,
+        621,
+        622,
+        623,
+        624,
+        625,
+        626,
+        627,
+        628,
+        629
+      ],
+      "assessment": "Producer expectation distinguished from stored inventory. Explicit EXISTS native.retire preflight with23514/count beforeDDL, validated allCHECKs, no NOTVALID/backfill/UPDATE/DELETE. Incompatible rows refuse transaction; no automatic cleanup. Seed bothcleanupflags rollback/digests/objectabsence, clean case, convalidated, normal goal and reply paths. Source-only plan; no actual DB census or migration qualification."
+    },
+    {
+      "id": "CON-ONLY-DENIAL",
+      "status": "TWO-ROW_FORM_COMPATIBLE; A3_FALLBACK_HAS_NEW_FINDING",
+      "lines": [
+        351,
+        352,
+        353,
+        354,
+        356,
+        357,
+        358,
+        360,
+        361,
+        362,
+        363,
+        364,
+        365,
+        366,
+        367,
+        368
+      ],
+      "assessment": "Actual0012:661-679 shared deny has wider goal/job/event effects. R9 bans shared helper and NULL denial, specifies scoped own outbox denied/lease_untilNULL/reason and own nonNULL command admitted|dispatching to denied; fixed return. CaseA cancellation cause retained and A2 cleanup; CaseC current-epoch/retired-binding denial no extra effects. CaseB explicitly lists new ownstate transitions rather than inheriting goal writes; normal A3 direction compatible, fallback incomplete below."
+    },
+    {
+      "id": "GOAL-CITATION",
+      "status": "CORRECTED",
+      "lines": [
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250,
+        251,
+        252
+      ],
+      "assessment": "Actual0042:437work_control and458-461onlyhold/stop native.stop, called835/1244/1918. control.settle writers actual0012:327-328,0041:323-327,0042:485-487 and dispatch1822 branch precedes kindderivation. D4CHECK remains protective forgoalnative.retire bothcleanupflags; no new legitimategoalretireproducer or widenedgoalguard inferred."
+    },
+    {
+      "id": "A3-NORMAL-LOCAL-CASE",
+      "status": "COMPATIBLE_DIRECTION_CONDITIONAL_ON_PROOF",
+      "lines": [
+        524,
+        525,
+        526,
+        527,
+        528,
+        529,
+        530,
+        531,
+        532,
+        533,
+        534,
+        535,
+        536,
+        537,
+        538,
+        541,
+        542,
+        543,
+        544,
+        545,
+        546,
+        571,
+        572,
+        573,
+        574,
+        575
+      ],
+      "assessment": "Under all locked positive premises, terminal denial cannot tell runtime; actual0042:1893-1895 atomicruntimeinsert/ack and PhaseA0053:noRC-onlypending prevent normal redispatch after command. Runtimeclaim scope requires actualcreatecommand; home onlyafterclaimspawn, S2:311 reserveonlyrunning aftergo. pending->failed/not_dispatched plus one B2retire locally settled in same transaction conserves accounting; no cancellation or fabricatedreceipt/APIpredicate. New causal terminalrecord is acceptable only within the proved local exemption. No release/reconcile/uncertainty reset introduced; full-path exception finding separate."
+    }
+  ],
+  "preserved": {
+    "sectionEquivalence": [
+      {
+        "label": "A1A2",
+        "boundaries": {
+          "startInclusive": "**A-1:",
+          "endExclusive": "**A-3:",
+          "normalization": "rstrip trailing section whitespace only"
+        },
+        "equal": true,
+        "sha256": "b509b908ce8e3c8cb4e7b80d007bbfbe3a87937f56f4d5a906bb5b616cab249b",
+        "priorSha256": "b509b908ce8e3c8cb4e7b80d007bbfbe3a87937f56f4d5a906bb5b616cab249b",
+        "rawEqual": true,
+        "rawSha256": "8195bd82d0cd5a9b9968f03805fd780d0e4d441c25cc2d091e0962dce109ef2c",
+        "rawPriorSha256": "8195bd82d0cd5a9b9968f03805fd780d0e4d441c25cc2d091e0962dce109ef2c"
+      },
+      {
+        "label": "K3 r8",
+        "boundaries": {
+          "startInclusive": "### 3.2",
+          "endExclusive": "### 3.4",
+          "normalization": "rstrip trailing section whitespace only"
+        },
+        "equal": true,
+        "sha256": "181f6bd6123d0ea584c63b7e4bdfb15d98ecdf4ecf005ba5922c45047d4a0e28",
+        "priorSha256": "181f6bd6123d0ea584c63b7e4bdfb15d98ecdf4ecf005ba5922c45047d4a0e28",
+        "rawEqual": true,
+        "rawSha256": "66362753ab912851e0c3b00233b32416cbabfea3ee62c370b1e1b3e5f61cafbf",
+        "rawPriorSha256": "66362753ab912851e0c3b00233b32416cbabfea3ee62c370b1e1b3e5f61cafbf"
+      },
+      {
+        "label": "K3 r5",
+        "boundaries": {
+          "startInclusive": "### 3.2",
+          "endExclusive": "### 3.4",
+          "normalization": "rstrip trailing section whitespace only"
+        },
+        "equal": true,
+        "sha256": "181f6bd6123d0ea584c63b7e4bdfb15d98ecdf4ecf005ba5922c45047d4a0e28",
+        "priorSha256": "181f6bd6123d0ea584c63b7e4bdfb15d98ecdf4ecf005ba5922c45047d4a0e28",
+        "rawEqual": true,
+        "rawSha256": "66362753ab912851e0c3b00233b32416cbabfea3ee62c370b1e1b3e5f61cafbf",
+        "rawPriorSha256": "66362753ab912851e0c3b00233b32416cbabfea3ee62c370b1e1b3e5f61cafbf"
+      }
+    ],
+    "A1A2": "Raw subsection equality independently verified r8->r9; immediate causal cancellation inputs and historicalneverdispatch proof retained. No new A1/A2 owner authority.",
+    "D1D2D3D5C1C4N1": "Existing project/outbox lease+expiry placement, nullgoalguard, one globalruntime sequence and atomicenqueue, capture exactbinding/turnend idempotence, goalbody/ACL preservation plan unchanged beyond nowprecise denial/defer. Actual shared source bytes remain inherited exactmain3c40.",
+    "accounting": "S2 immutableblobunchanged. Openordinals uncertain remaincounted, identical settle replay read-only, recoveryonlycapture and neversettle uncertain/released. A3normalpending has no reachable reservation; no actual unsafe-spend demonstrated.",
+    "K3": "Exact3.2/3.3 rawbytes equalr8 andr5. Owner6120514429 restates narrowr8 coverage; thisreview supplies no expansion/productbilling/merge/deployapproval.",
+    "Studio": "Parent7c36 handoff andr9\u00a76explicitsevenpaths+contracts; Luisd96626acpreparedonly, no acceptedcombinedbase or transfer. Studio separatelyheld."
+  },
+  "findings": [
+    {
+      "id": "PB9-A3-FALLBACK-TERMINAL-WRITER",
+      "severity": "P2",
+      "classification": "PROPOSED_DEFENSIVE_FALLBACK_IS_NOT_CLOSED; NOT_AN_OBSERVED_RUNTIME_FAILURE",
+      "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "lines": [
+        532,
+        535,
+        536,
+        537,
+        538,
+        540,
+        546,
+        576
+      ],
+      "title": "Reject contradictory A3 evidence before committing a new unsupported terminal state",
+      "evidence": "A3 normal local case is coherent: live dispatch moves an undispatched create to denied, request pending, no execution or runtime command, hence no claim/home/reservation. But line540 expressly says if any proof condition fails, steps1-3 stand: create denied, request failed/not_dispatched, and retire written, then delivered and acknowledged in full. The new test576 explicitly seeds a runtime command and requires that fallback. This new failed transition is caused by dispatch; it is neither a runtime receipt, capture, hello lease-loss transition nor A1 cancellation. B6 and unchanged frozen Q7r8:869 require a real causal terminalWriter of precisely those forms. A3:546 supplies its own rows only for the local no-runtime exemption, not for a delivered retirement. Q7r8:795-805/836/844 requires the barrier even for a proven-absent home. A later create receipt records an answer but cannot be called the record that already made this request failed; Q7r8:713,725-726 preserves an already-terminal request and provides no new writer. Thus the required seeded fallback has no supported terminalWriter and cannot truthfully finish its full barrier. A bare execution row without a runtime command additionally lacks the authenticated create scope at proposal282. This is an explicit proposal/test inconsistency on contradictory evidence, not proof that ordinary atomic dispatch reaches it.",
+      "smallestCorrection": "Check every A3 proof condition under the existing project/outbox/request/binding locks before committing any A3 denial/failed/retire writes. If the proof is contradictory (an execution/runtime command already exists, or the expected create transition cannot happen), refuse the whole A3 transaction with a fixed CON-only diagnostic and no mutation; do not leave steps1-3 standing or promise full acknowledgement. Let existing delivered-create receipt/capture/hello/cancellation paths supply their real terminal writer and full retirement. Preserve the ordinary proved-never-dispatched A3 local case, its no-counter/no-call/no-fabricated-receipt rule, A1/A2 and the complete full barrier. A deliberate new dispatch-terminalWriter form would instead be a separately enumerated material addendum requiring its actual owners; it is not supplied by this review.",
+      "futureQualification": "Keep grant-expired/asker-no-longer-writes/source-ineligible positive A3 cases with all four atomic writes, no runtime/create-answer/claim/reservation/cancellation/job/event, exact one retire and replay +0. Replace seeded-runtime fallback expectation with fixed refusal and transaction rollback: request/create command/outbox/attempt/binding/retire and any existing accounting unchanged. Add an execution-only contradictory seed and a failed expected-state transition; neither may retire locally, invent scope/writer, settle/release/reset an ordinal or create a call. Separately retain the genuine delivered-create-before-claim full-retirement case and verify its actual receipt/hello writer, real create answer, scrubbed payload, all eight predicates and process/relay proof. Under reachable pending, S2:311 forbids reserve before go; no unsafe-spend case is asserted. No test executed or new run authorized."
+    }
+  ],
+  "qualificationGaps": [],
+  "consumerDecision": {
+    "K1cForR9": "WITHHELD for exact1bd83eec because explicit A3 fallback cannot satisfy unchanged terminalWriter barrier. R8 defer/census corrections accepted as proposal dispositions; exact-r5 K1c retained.",
+    "K1b": "NOT SUPPLIED; actual retainedcore/runtimeowners must reviewA1/A2/A3 andtheirnamed surfaces.",
+    "K2d": "Actualowner6120514429 incorporationreviewread directly, recognizesr8conditionswithcorrections; actualr9corrections/A3ownreviewstillowed. Not substituted byconsumerverdict.",
+    "K3": "Unchanged narrow scope; no extension granted.",
+    "K4K5": "No acceptedcombinedbase/Studiohandback or census/solewriter/windowGO."
+  },
+  "publicEvidence": {
+    "metadataPath": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/github-metadata.json",
+    "freshRefs": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5\trefs/heads/claude/con01-g2-phase-b-request\n3c40b1c64eadaef56537a9e9123e71557cfd2a7b\trefs/heads/main\n",
+    "comments": [
+      {
+        "id": 6120866358,
+        "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120866358",
+        "user": "davidelaverga",
+        "createdAt": "2026-10-12T08:47:31Z",
+        "updatedAt": "2026-10-12T08:47:31Z",
+        "bodySHA256": "04c0d9b21cd7304f1572ae3d0487fa040b1a770e820059f8958a42f6a91faed3"
+      },
+      {
+        "id": 6120514429,
+        "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120514429",
+        "user": "davidelaverga",
+        "createdAt": "2026-10-12T08:23:48Z",
+        "updatedAt": "2026-10-12T08:23:48Z",
+        "bodySHA256": "dd01c7e62bca633396fb1ab08e8bb5185a764f0f573b2b3aaffca72e5786d522"
+      }
+    ],
+    "limit": "Public author/session assertions read as source evidence, no native session opened or messaged, no operative authority inferred."
+  },
+  "evidenceFiles": [
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/inputs.json",
+      "sha256": "470c85ca2dfd79edb32b9aa288b32704779eb321c167065ec6a2bd370aca93da"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/candidate-identity.json",
+      "sha256": "5fece5f9b3083b7485742223c34d7000a321544c75c06a28fab187a2d0ba5cd9"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/github-metadata.json",
+      "sha256": "a1b8c9d845818a70706a5e623f3a92d59ca4402062a2aeb5f641e0392ed7655b"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/r8-diff.patch",
+      "sha256": "b39fab137088e18d164b6a2f3cac6c64d7da7d137ed1a539ff3eafe418f2488f"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/parent-diff.patch",
+      "sha256": "b39fab137088e18d164b6a2f3cac6c64d7da7d137ed1a539ff3eafe418f2488f"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/r5-diff.patch",
+      "sha256": "09a565ad727b02dff6678bd00a0ca2a8e75bd6ab6ceac8bdf02dfcb9368ba0da"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/handoff-diff.patch",
+      "sha256": "a407db560fdd81616ecc5c83a0ae8385c8f239d0d52f399c5a6eed11c9be95b4"
+    },
+    {
+      "path": "<operator-journal>/resume-phaseB-1bd83eec-joint-reservation-review/section-equivalence.json",
+      "sha256": "4180b63b3e35fe4915427cf9b070c3f6ddcc7507678c0c108596c96688f88f61"
+    }
+  ],
+  "holds": "Mission incomplete. Ask off/no_grant,G7off;0053reserved/priorwindowended;PhaseB/Q13/LuisStudio held;actualowner/base/census/solewriter/window prerequisites retained. No fresh hostedSupabase approval; r5-r3 andproductionresource/access/billing/deploymentgates retained. Render support unsent; temporary follow-up paused.",
+  "effects": "Immutable Git extraction/fetch/read/hash, two read-only publiccomments+refs, local safeevidence/review only. No checkout/sourcewrites, executableSQL/tests/build/CIrerun/probes/DBaccess, provider/auth/credentials/model/image/nativeAsk/spend/merge/deploy/migration/grant/actions. No new task/subagent/session/automation or cross-thread/native messages.",
+  "reviewCheckout": {
+    "path": "/Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-review",
+    "startHead": "da95f7ffb0fa7012efeb96b90b143c8b87c5b5fe",
+    "endHead": "1706f438c574a17fee492c5cfba072cb7678bc1c",
+    "trackedStatus": "",
+    "changedByReviewer": false
+  },
+  "handback": "One terminal exactr9 boundedaffectedconsumerreview. Address theA3 contradictory-prooffallback only; do not reopen acceptedR8 corrections orwidenowner/windowauthority.",
+  "originalRecordSHA256": "43fbd6e5d1544bdc3141e1d0edfbc3f84786f9e7e12210761d6010ba7cd23f74",
+  "rootVerification": {
+    "git_inputs": 67,
+    "extracted_inputs": 67,
+    "evidence_files": 8
+  }
+}
