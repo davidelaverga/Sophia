@@ -18,10 +18,10 @@ export function NextAskHint({ id, description, why }: NextAskHintProps) {
     <span className="next-ask has-tip">
       <kbd aria-hidden>Tab</kbd>
       <Tip label={why} align="end" />
-      {/* Why, too: the tip is the pointer's; the field's description is the keyboard's and the screen reader's (Codex on
-          #262). */}
+      {/* The description says why too (the caller words it): the tip is the pointer's; the field's description is the
+          keyboard's and the screen reader's (Codex on #262). */}
       <span id={id} className="sr-only">
-        {description} {why}.
+        {description}
       </span>
     </span>
   )
