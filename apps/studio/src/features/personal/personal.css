@@ -524,6 +524,12 @@
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
+/* On paper the light is laid on the page as drawn: its halo is ink, not light, and screen would wash it into the paper
+   (Codex on #234). Home and Talk alike. */
+:root[data-theme='light'] .places .hw-light .light,
+:root[data-theme='light'] .places .c3-talk-light .light {
+  mix-blend-mode: normal;
+}
 /* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
    it on the same hairlines as the projects'. */
 .places .hw-side {
