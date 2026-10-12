@@ -98,3 +98,21 @@ export function sameQuestion<C extends { id: string; title: string; lastAt: stri
     .toSorted((a, b) => b.shared - a.shared || Date.parse(b.c.lastAt) - Date.parse(a.c.lastAt))
   return scored[0]?.c ?? null
 }
+
+/** How long a question may be (A18's limit, the form's `maxLength`). */
+export const QUESTION_LIMIT = 120
+
+/** Words given as a question, fitted to its limit: cut at a word with an ellipsis when longer (docs/plans/ask-instead.md). */
+export function fitQuestion(words: string): string {
+  const text = words.trim()
+  if (text.length <= QUESTION_LIMIT) return text
+  // Whole characters up to the limit (the field's, counted in UTF-16 units), never half of one: an emoji or a joined
+  // sequence crossing the cut is left out whole (Codex on #267).
+  let cut = ''
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
+    if (cut.length + segment.length > QUESTION_LIMIT - 1) break
+    cut += segment
+  }
+  const at = cut.lastIndexOf(' ')
+  return `${(at > 0 ? cut.slice(0, at) : cut).trimEnd()}…`
+}

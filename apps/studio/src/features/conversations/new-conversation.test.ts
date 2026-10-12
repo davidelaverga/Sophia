@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MissionDecision } from '@sophia/contracts'
-import { askOf, sameQuestion, startable, startersOf } from './new-conversation.ts'
+import { askOf, fitQuestion, QUESTION_LIMIT, sameQuestion, startable, startersOf } from './new-conversation.ts'
 
 const pending = (statement: string, day = 1) =>
   ({ statement, state: 'proposed', createdAt: `2026-10-0${String(day)}T09:00:00.000Z` }) as unknown as MissionDecision
@@ -73,6 +73,17 @@ describe('the same question, already asked here', () => {
   })
 })
 
+describe('words given as a question', () => {
+  it('fit its limit: as they are when short, cut at a word with an ellipsis when longer', () => {
+    assert.equal(fitQuestion('  zebra crossings  '), 'zebra crossings')
+    const long = Array.from({ length: 40 }, (_, i) => `word${String(i)}`).join(' ')
+    const fitted = fitQuestion(long)
+    assert.ok(fitted.length <= QUESTION_LIMIT, String(fitted.length))
+    assert.ok(fitted.endsWith('…'))
+    assert.ok(long.startsWith(fitted.slice(0, -1)))
+  })
+})
+
 describe('the same question, its turning words (Codex on #266)', () => {
   const here = [
     asked('a', 'Should we enable dark mode?', '2026-10-01T00:00:00Z'),
@@ -84,5 +95,14 @@ describe('the same question, its turning words (Codex on #266)', () => {
     assert.equal(sameQuestion('Ship the export after the review?', here), null)
     assert.equal(sameQuestion('Should we enable the dark mode?', here)?.id, 'a')
     assert.equal(sameQuestion('Ship export before review?', here)?.id, 'b')
+  })
+})
+
+describe('words given as a question, whole characters (Codex on #267)', () => {
+  it('never keeps half of a character crossing the cut', () => {
+    const fitted = fitQuestion(`${'a'.repeat(118)}\u{1F600}${'b'.repeat(20)}`)
+    assert.ok(fitted.length <= QUESTION_LIMIT)
+    assert.ok(fitted.isWellFormed(), 'no lone surrogate')
+    assert.ok(fitted.endsWith('…'))
   })
 })

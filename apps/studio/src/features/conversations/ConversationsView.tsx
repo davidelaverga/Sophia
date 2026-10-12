@@ -29,7 +29,18 @@ import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
+import { fitQuestion } from './new-conversation.ts'
 import './conversations.css'
+
+/**
+ * The new conversation's form on a question, Sophia asked; a form whose words are on their way keeps them. Words longer
+ * than a question may be are cut at a word to fit, with an ellipsis (Codex on #267).
+ */
+function beginOn(talk: ReturnType<typeof useTalk>, question: string) {
+  if (talk.kept.start.held) return
+  const title = fitQuestion(question)
+  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title, text: '', askSophia: true } } }))
+}
 
 /** Newest activity first: sorted once per answer. */
 const sorted = (answer: { conversations: readonly ConversationSummary[] }) => byActivity(answer.conversations)
@@ -61,21 +72,49 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
   return { list, all: list.data ?? [], settled: list.isSuccess && !list.isFetching }
 }
 
+/** The new conversation's question, focused two frames on: after a closing sheet hands the focus back to its opener. */
+const focusQuestion = () =>
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.conv-new .conv-question input')?.focus()),
+  )
+
+/** What another view asked Conversations to open (project-go.tsx): a conversation, or words to ask Sophia. */
+function useArrivals(
+  ask: (id: string) => void,
+  writer: boolean | undefined,
+  talk: ReturnType<typeof useTalk>,
+  start: ReturnType<typeof useStart>,
+  show: () => void,
+) {
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
+  // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
+  useArrival('conversations', (to) => {
+    // Words to ask wait for the membership: a member gets the form, a confirmed viewer the list (Codex on #267).
+    if ('ask' in to && writer === undefined) return false
+    if (!('ask' in to)) ask(to.conversationId)
+    else if (writer) {
+      beginOn(talk, to.ask)
+      if (!start.starting) start.toggle()
+      // Already open, the form is not mounted anew, so its own focus does not run: its question takes the focus, after
+      // the sheet that asked has given its own back (Codex on #267).
+      else focusQuestion()
+    }
+    show()
+    return undefined
+  })
+}
+
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const { me, writer } = readerOf(membership)
   const { list, all, settled } = useList(projectId, identity, cursor)
   const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
-  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
-  useArrival('conversations', (to) => {
-    ask(to.conversationId)
-    panes.show()
-  })
   const talk = useTalk(projectId, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
     panes.show()
   })
+  useArrivals(ask, writer, talk, start, panes.show)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
   // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
