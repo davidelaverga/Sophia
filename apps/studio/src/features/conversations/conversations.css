@@ -78,13 +78,15 @@
 }
 
 /* ---- the list: a quiet plane, rows without boxes ---- */
+/* One line of boxes at 8 (the filter, a row) and one line of words at 20 (the title, Open and Mine, a row's title):
+   docs/plans/conversations-polish.md. */
 .conv-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
   min-height: 0;
-  padding: 18px 10px 0;
+  padding: 18px 8px 0;
   background: var(--plane);
 }
 .conv-list-head {
@@ -92,14 +94,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 6px 4px 8px;
+  padding: 0 12px 4px; /* the title at 20 with a row's title; the «+» press ending at 280 with a row's date */
 }
 /* «Open» and «Mine»: two quiet toggles under the title filter, pressed on a raised plane; how many show, beside them. */
 .conv-show {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 2px 4px;
+  padding: 8px 2px 4px; /* a ghost's 10 px lead makes its words start at 20 */
 }
 /* «Open» and «Mine»: ghosts (28 px) in the small type. */
 .conv-show button {
@@ -175,7 +177,7 @@
   gap: 2px;
   flex: 1;
   min-height: 0;
-  margin: 0 -10px;
+  margin: 0 -8px;
   padding: 2px 8px 24px;
   overflow: auto;
   list-style: none;
@@ -330,6 +332,16 @@
 }
 .conv-face.sophia {
   background: #16131f;
+}
+/* On paper the disc is the warm tint (the own bubble's plane) with the warm ink, ringed in the head's plane: in the
+   room's fixed dark disc the initial did not read (docs/plans/conversations-polish.md). */
+:root[data-theme='light'] .conv-face {
+  background: rgb(var(--warm-rgb) / 0.32); /* a disc the eye sees (1.6:1 on paper): the bubble's 8.5 % would vanish */
+  color: var(--warm);
+  box-shadow: 0 0 0 2px var(--plane);
+}
+:root[data-theme='light'] .conv-face.sophia {
+  background: rgb(var(--core-rgb) / 0.12);
 }
 .conv-face .umbral {
   width: 11px;
