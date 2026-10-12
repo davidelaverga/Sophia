@@ -7,11 +7,9 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/light-breath` from `ui/light-fills` at
 `4a55180b` (+ `e8954db1`, the fills spec typed; stacked on PR #250 → #249 → … → #220; the base retargets as each
 merges)
-Ending commit/tree: `2210cd6d` (tree `c470d05c36af`): 10 files: `theme.css` (the halo on `.light::after`, `paper-breathe`, reduced motion, the trace
-above), `personal.css` (Home's light `multiply` on paper), `theme.ts` (`onPaper`, `usePaper`), `trace.ts`
-(`TraceInks`, `ROOM_INKS`, `PAPER_INKS`, `inksFor`; the draws take inks), `engine.ts` (`setPaper`), `SophiaLight.tsx`
-(follows the root), `trace.test.ts` (+2), `e2e/light-breath.spec.ts` (new, 5), `e2e/light-mark.spec.ts` (reads the
-pseudo-element), `docs/plans/light-breath.md`. The commit after it adds only this handoff.
+Ending commit/tree: `8257d14bec7c` (tree `2667cbabcd42`), the last commit of `ui/light-breath`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 11 files changed against
+`ui/light-fills` at that commit: `e2e/light-breath.spec.ts`, `e2e/light-mark.spec.ts`, `src/app/theme.css`, `src/app/theme.ts`, `src/features/light/SophiaLight.tsx`, `src/features/light/engine.ts`, `src/features/light/trace.test.ts`, `src/features/light/trace.ts`, `src/features/personal/personal.css`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/plans/light-breath.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

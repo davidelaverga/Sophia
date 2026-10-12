@@ -5,9 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/board-why` from `ui/places-commands` at
 `7234a98c` (stacked on PR #243 → #242 → … → #220; the base retargets as each merges)
-Ending commit/tree: the branch's head as merged (`ui/board-why`); the first delivery was `70d8d558` (tree
-`6db658eb7e4e`, 7 files), and every later change is listed with its commit in the decisions and post-review notes below
-(Codex on #244: the record names the state delivered).
+Ending commit/tree: `90b12ee58402` (tree `0d25920da49b`), the last commit of `ui/board-why`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 11 files changed against
+`ui/places-commands` at that commit: `e2e/board-why.spec.ts`, `fixtures/work-data.ts`, `fixtures/work.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/PlanTab.tsx`, `src/features/work/planning/TaskSheet.tsx`, `src/features/work/planning/board.css`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `docs/handoffs/UIKIT-22-attempt-1.md`, `docs/plans/board-why-blocked.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

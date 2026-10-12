@@ -6,9 +6,9 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/widths` from `ui/press-answers` at `bcd49b22`
 (stacked on PR #232 → #231 → #230 → #229 → #228 → #227 → #224 → #223 → #222 → #221 → #220; the base retargets as
 each merges)
-Ending commit/tree: the branch's head as merged (`ui/widths`); the first delivery was `45263d04`, and every later
-change (the composer's hint on the field's column at 1920, and those below) is listed with its commit in the
-post-review sections (Codex on #233: the record names the state delivered).
+Ending commit/tree: `72a12b0177a3` (tree `ecb41cf52c2e`), the last commit of `ui/widths`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`ui/press-answers` at that commit: `e2e/resources.spec.ts`, `e2e/widths.spec.ts`, `e2e/work.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/studio/ViewNav.tsx`, `docs/handoffs/UIKIT-11-attempt-1.md`, `docs/plans/widths.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

@@ -6,9 +6,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/view-titles` from `ui/needs-api` at `93e6f229`
 (stacked on PR #245 → #244 → … → #220; the base retargets as each merges)
-Ending commit/tree: `77b6c727` (tree `eb04708c9a8b`): 7 files: `theme.css` (tokens `--type-view`, `--lh-view`; the
-two rules), `e2e/view-titles.spec.ts` (new, 12 tests), `type-scale.spec.ts`, `work.spec.ts`, `resources.spec.ts`,
-`updates-quiet.spec.ts` (the pinned scale), `docs/plans/view-titles.md`. The commit after it adds only this handoff.
+Ending commit/tree: `1d9da1a1f495` (tree `9913a41593e3`), the last commit of `ui/view-titles`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`ui/needs-api` at that commit: `CONTRIBUTING.md`, `e2e/resources.spec.ts`, `e2e/type-scale.spec.ts`, `e2e/updates-quiet.spec.ts`, `e2e/view-titles.spec.ts`, `e2e/work.spec.ts`, `src/app/theme.css`, `docs/handoffs/UIKIT-24-attempt-1.md`, `docs/plans/view-titles.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
