@@ -517,7 +517,13 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     // The floating dock is under the panel; the header's (721 px and up) stands above it and stays in reach.
     const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')].filter((el) => !el.closest('.topbar'))
     const cover = () => {
-      for (const el of [...behind, ...docks()]) el.inert = true
+      const covered = [...behind, ...docks()]
+      // A control of the dock that has the focus (restored after the dock moved) would lose it to the page once inert:
+      // the panel takes it first (Codex on #254).
+      const at = document.activeElement
+      if (at instanceof HTMLElement && covered.some((el) => el.contains(at)))
+        document.getElementById('conv-context')?.focus({ preventScroll: true })
+      for (const el of covered) el.inert = true
     }
     cover()
     // The room's dock is mounted anew when the width crosses the header's breakpoint: covered again (Codex on #254).

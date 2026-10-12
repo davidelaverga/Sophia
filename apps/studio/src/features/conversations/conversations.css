@@ -852,14 +852,20 @@
 }
 /* A finger's target: 40 px, as every icon control on a touch screen. */
 @media (pointer: coarse) {
-  /* Within the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
+  /* Under a thumb the row stands below the bubble, in room the pressed message keeps for it (44 px: the 40 px presses
+     and 4 px clear): above the bubble it covered the name, and the bubble before it in a run (Codex on #240). Within
+     the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
   .conv-acts {
-    bottom: calc(100% + 4px);
+    top: auto;
+    bottom: 0;
     right: -12px;
   }
   .conv-withdraw {
     top: -20px;
     right: 34px;
+  }
+  .conv-msg:is([data-pressed], :focus-within) .conv-turn {
+    padding-bottom: 44px;
   }
   /* Another's message sits at the pane's left: three 40 px presses anchored to the row's right would stand far from a
      short bubble under a thumb, so on a touch screen they start at the bubble's left and run right. */
