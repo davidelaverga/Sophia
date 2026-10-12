@@ -143,3 +143,137 @@ test('light · a kept choice is on the root before the app runs (entry.js), so t
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(251, 248, 243)')
 })
+
+/** A colour's contrast on a ground, as the words' checks read it (an RGB string). */
+const edgeRatio = (ink: string, ground: string) =>
+  contrastOf({ words: 'edge', size: 13, ink, opacity: 1, grounds: [ground, 'rgb(251, 248, 243)'] })
+
+test('light · the browser’s chrome follows the theme, and a choice made in another tab is shown here', async ({
+  page,
+}) => {
+  // The Studio's own page carries the chrome's colour (the opening's page is index.html).
+  await page.goto('/opening.html?theme=light')
+  await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#fbf8f3')
+  await page.goto('/home.html')
+  await drawn(page, DRAWN.home)
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
+  await page.evaluate(() => {
+    localStorage.setItem('sophia.theme', 'light')
+    window.dispatchEvent(new StorageEvent('storage', { key: 'sophia.theme', newValue: 'light' }))
+  })
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+})
+
+test('light · on paper no WebGL frame is drawn: the halo is CSS', async ({ page }) => {
+  await page.addInitScript(() => {
+    // Every WebGL draw counted, on either context's prototype.
+    const counted = { n: 0 }
+    Reflect.set(window, 'webglDraws', counted)
+    const wrap = (proto: WebGLRenderingContext | WebGL2RenderingContext) => {
+      const draw: unknown = Reflect.get(proto, 'drawArrays')
+      if (typeof draw !== 'function') return
+      Reflect.set(proto, 'drawArrays', function (this: unknown, ...args: unknown[]) {
+        counted.n++
+        Reflect.apply(draw, this, args)
+      })
+    }
+    wrap(WebGLRenderingContext.prototype)
+    wrap(WebGL2RenderingContext.prototype)
+  })
+  await page.goto('/signin.html?theme=light')
+  await drawn(page, DRAWN.signin)
+  await page.waitForTimeout(600)
+  expect(await page.evaluate(() => JSON.stringify(Reflect.get(window, 'webglDraws')))).toBe('{"n":0}')
+})
+
+test('light · the controls’ cues read on paper: the magnifier, the chevron, the focus edge, a primary press’s tip key', async ({
+  page,
+}) => {
+  await page.goto('/resources.html?theme=light')
+  await drawn(page, DRAWN.resources)
+  const glyph = await page
+    .locator('.search > input')
+    .first()
+    .evaluate((el) => getComputedStyle(el).backgroundImage)
+  expect(glyph).toContain('6b6874')
+  await page.goto('/signin.html?theme=light')
+  await drawn(page, DRAWN.signin)
+  await page.keyboard.press('Tab')
+  const field = page.locator('.field:focus-within, input:focus-visible').first()
+  await expect(field).toHaveCount(1)
+  const edge = await field.evaluate((el) => {
+    el.getAnimations().forEach((a) => a.finish())
+    return [getComputedStyle(el).borderTopColor, getComputedStyle(el).backgroundColor]
+  })
+  expect(edgeRatio(edge[0] ?? '', edge[1] ?? ''), edge.join(' on ')).toBeGreaterThanOrEqual(3)
+  await page.goto('/room.html?demo=1&theme=light')
+  await drawn(page, DRAWN.room)
+  const join = page.getByRole('button', { name: /^Join the room/ }).first()
+  await join.hover()
+  const key = join.locator('.tip kbd')
+  if ((await key.count()) > 0) {
+    const [ink, bg] = await key.evaluate((el) => [
+      getComputedStyle(el).color,
+      getComputedStyle(el.closest('.tip') ?? el).backgroundColor,
+    ])
+    expect(
+      contrastOf({ words: 'tip key', size: 11, ink, opacity: 1, grounds: [bg, 'rgb(255, 255, 255)'] }),
+    ).toBeGreaterThanOrEqual(4.5)
+  }
+})
+
+test('light · a dependency drawn on the board is in the halo’s ink on paper', async ({ page }) => {
+  await page.goto('/work.html?theme=light')
+  await page.locator('.task-tile').first().waitFor()
+  const stroke = await page.evaluate(() => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('class', 'thread')
+    const svg =
+      document.querySelector('svg.threads') ??
+      document.body.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg'))
+    svg.appendChild(path)
+    const read = getComputedStyle(path).stroke
+    path.remove()
+    return read
+  })
+  expect(stroke).toBe('rgb(85, 70, 184)')
+})
+
+test('light · Personal’s ready session note reads on paper', async ({ page }) => {
+  await page.goto('/personal.html?talk=new&ready=1&theme=light')
+  const note = page.locator('.c3-way-note').first()
+  await expect(note).toBeVisible()
+  expect(await ratio(page, '.c3-way-note', 'rgb(251, 248, 243)')).toBeGreaterThanOrEqual(4.5)
+})
+
+test('light · the opening on paper: the brand’s paper inks, its words readable', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'light'))
+  await page.goto('/opening.html')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  const read = await page.evaluate(() => ({
+    her: getComputedStyle(document.querySelector('#entry-her-ink stop') ?? document.body).stopColor,
+    you: getComputedStyle(document.querySelector('#entry-you-ink stop') ?? document.body).stopColor,
+    step: getComputedStyle(document.querySelector('.entry-step') ?? document.body).color,
+  }))
+  expect(read.her).toBe('rgb(132, 104, 238)')
+  expect(read.you).toBe('rgb(22, 21, 27)')
+  expect(
+    contrastOf({ words: 'step', size: 13, ink: read.step, opacity: 1, grounds: ['rgb(251, 248, 243)'] }),
+  ).toBeGreaterThanOrEqual(4.5)
+})
+
+test('light @phone · held sideways, the account menu stays inside the screen, its last row reachable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 844, height: 390 })
+  await page.goto('/room.html?demo=1&theme=light')
+  await drawn(page, DRAWN.room)
+  await page.getByRole('button', { name: 'Account' }).first().click()
+  const menu = page.getByRole('menu')
+  await expect(menu).toBeVisible()
+  const box = await menu.boundingBox()
+  expect((box?.y ?? 0) + (box?.height ?? 999)).toBeLessThanOrEqual(390)
+  const last = menu.getByRole('menuitem').last()
+  await last.scrollIntoViewIfNeeded()
+  await expect(last).toBeInViewport()
+})

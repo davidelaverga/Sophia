@@ -1087,7 +1087,7 @@
 }
 /* The session about to start, said as Home says it: amber, quiet, mono. */
 .places .c3-way-note {
-  color: color-mix(in srgb, #e8c48d 85%, transparent);
+  color: color-mix(in srgb, var(--soon) 85%, transparent);
   font: var(--type-label) / var(--lh-small) var(--mono);
 }
 .places .c3-starters button:focus-visible {
@@ -1723,6 +1723,10 @@
     padding: 0 3px 0 12px;
     background: #16120f;
   }
+  /* On paper the strip is the paper's raised plane, under the light ink (Codex on #234). */
+  :root[data-theme='light'] .places .room-pill {
+    background: var(--plane-2);
+  }
   .places .room-pill .t {
     margin-right: auto;
   }
@@ -2235,4 +2239,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+/* On paper the session note is the soon ink whole: 85 % of it fell under 4.5:1 (Codex on #234). */
+:root[data-theme='light'] .places .c3-way-note {
+  color: var(--soon);
 }
