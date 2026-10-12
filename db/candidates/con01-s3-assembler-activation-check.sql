@@ -50,6 +50,24 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
       ('sophia.is_member(uuid)','73e40f4a2d8d6af95f8d414c6c2ee784'),
       ('sophia.is_task_kind(text)','ab5390873bf78035cc94d99466f49d12'),
       ('sophia.mission_capture_default()','d3212aa604efc9363d7d30e4ee0777a5')),
+     -- Exact grantees, grantors and options for the entire reviewed callable chain, not only the assembler's
+     -- negative allowlist. Extra API/PUBLIC/peer grants on a SECURITY DEFINER entry point are authority too;
+     -- missing required grants must hold instead of making a negative scan silently empty (automatic review).
+     fn_acl_expected(f,grantee,grantor,privilege_type,is_grantable) AS (
+      SELECT f,'postgres'::text,'postgres'::text,'EXECUTE'::text,false FROM fn_defs
+      UNION ALL SELECT 'sophia.'||replace(f,' ',''),'sophia_conversation_assembler','postgres','EXECUTE',false FROM fns
+      UNION ALL SELECT f,'sophia_api','postgres','EXECUTE',false FROM fn_defs
+       WHERE f IN ('sophia.actor_id()','sophia.is_member(uuid)','sophia.is_task_kind(text)','sophia.mission_capture_default()')
+      UNION ALL SELECT f,'sophia_worker','postgres','EXECUTE',false FROM fn_defs
+       WHERE f IN ('sophia.actor_id()','sophia.is_member(uuid)','sophia.is_task_kind(text)')),
+     fn_acl_actual(f,grantee,grantor,privilege_type,is_grantable) AS (
+      SELECT e.f,CASE x.grantee WHEN 0 THEN 'PUBLIC' ELSE x.grantee::regrole::text END,
+       x.grantor::regrole::text,x.privilege_type,x.is_grantable
+      FROM fn_defs e JOIN pg_proc p ON p.oid=to_regprocedure(e.f)
+       CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) x),
+     fn_acl_delta AS (
+      (SELECT * FROM fn_acl_expected EXCEPT SELECT * FROM fn_acl_actual)
+      UNION ALL (SELECT * FROM fn_acl_actual EXCEPT SELECT * FROM fn_acl_expected)),
      trigger_defs(n,r,h) AS (VALUES
       ('conversation_assembly_claims_kept','conversation_assembly_claims','6671e60cf3e32d6eb960205d7d44c3f6'),
       ('conversation_context_message_scrub','conversation_messages','89f7af8328ab7282490c0db0aed9c79d'),
@@ -190,6 +208,14 @@ UNION ALL SELECT 'hold', 'the assembler holds something of another kind in '||de
 UNION ALL SELECT 'hold', 'effective: '||string_agg(who, ' and ' ORDER BY who DESC)||' may '||what
    ||CASE WHEN bool_or(pub) THEN ' (PUBLIC)' ELSE '' END
  FROM eff GROUP BY what
+-- Positive availability and complete callable ACL equality supplement the excess-authority checks above.
+UNION ALL SELECT 'hold','required: function ACL changed: '||f||' / '||grantee FROM fn_acl_delta
+UNION ALL SELECT 'hold','required: assembler SELECT on sophia.'||r.r
+ FROM rels r CROSS JOIN a LEFT JOIN pg_namespace n ON n.nspname='sophia'
+ LEFT JOIN pg_class c ON c.relnamespace=n.oid AND c.relname=r.r
+ WHERE c.oid IS NULL OR NOT has_table_privilege(a.oid,c.oid,'SELECT')
+UNION ALL SELECT 'hold','required: assembler USAGE on schema sophia'
+ FROM a WHERE NOT EXISTS(SELECT FROM pg_namespace n WHERE n.nspname='sophia' AND has_schema_privilege(a.oid,n.oid,'USAGE'))
 -- Those defaults are kept, not widened: a function PostgreSQL withholds from PUBLIC executable by PUBLIC, PUBLIC
 -- writing a system relation (pg_settings aside), or reading one PostgreSQL keeps from PUBLIC (as on 16).
 UNION ALL SELECT 'hold', 'PUBLIC may EXECUTE '||n.nspname||'.'||p.proname||'('||oidvectortypes(p.proargtypes)||')'

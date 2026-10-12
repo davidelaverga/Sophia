@@ -184,6 +184,63 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
     }
   })
 
+  it('rejects unreviewed grantees on assembly entry points and their private helpers', async () => {
+    const claim = 'sophia.conversation_assembly_claim(uuid,integer)'
+    for (const principal of ['sophia_api', 'sophia_worker', 'PUBLIC', login, peer])
+      await activationCase(`GRANT EXECUTE ON FUNCTION ${claim} TO ${principal}`, /required:.*function ACL/)
+    await activationCase(
+      `CREATE ROLE con01_q13_callable; GRANT EXECUTE ON FUNCTION ${claim} TO con01_q13_callable`,
+      /required:.*function ACL/,
+    )
+    for (const fn of [
+      'sophia.conversation_assembly_project()',
+      'sophia.conversation_assembly_locked(uuid,boolean)',
+      'sophia.conversation_context_current(sophia.conversation_reply_contexts)',
+    ])
+      await activationCase(`GRANT EXECUTE ON FUNCTION ${fn} TO sophia_api`, /required:.*function ACL/)
+    for (const fn of [
+      'sophia.conversation_assembly_begin(uuid,integer,uuid)',
+      'sophia.conversation_assembly_close(uuid,integer,uuid,text)',
+      'sophia.conversation_assembly_fail(uuid,integer,uuid,text)',
+      'sophia.conversation_record_context(uuid,integer,uuid,jsonb)',
+    ])
+      await activationCase(`GRANT EXECUTE ON FUNCTION ${fn} TO sophia_api`, /required:.*function ACL/)
+    await activationCase(
+      `UPDATE pg_catalog.pg_proc SET proacl=NULL WHERE oid='${claim}'::regprocedure`,
+      /required:.*function ACL/,
+    )
+    await activationCase(`GRANT EXECUTE ON FUNCTION ${claim} TO ${ROLE} WITH GRANT OPTION`, /required:.*function ACL/)
+  })
+
+  it('requires every assembly callable, relation read and schema usage grant', async () => {
+    for (const fn of [
+      'actor_id()',
+      'is_member(uuid)',
+      'is_task_kind(text)',
+      'mission_capture_default()',
+      'conversation_assembly_project()',
+      'conversation_assembly_claim(uuid,integer)',
+      'conversation_assembly_begin(uuid,integer,uuid)',
+      'conversation_assembly_close(uuid,integer,uuid,text)',
+      'conversation_assembly_fail(uuid,integer,uuid,text)',
+      'conversation_record_context(uuid,integer,uuid,jsonb)',
+    ])
+      await activationCase(`REVOKE EXECUTE ON FUNCTION sophia.${fn} FROM ${ROLE}`, /required:.*function ACL/)
+    const rels = await target.query<{ name: string }>(
+      `SELECT c.relname AS name FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+       WHERE n.nspname='sophia' AND has_table_privilege('${ROLE}',c.oid,'SELECT') ORDER BY c.relname`,
+    )
+    assert.equal(rels.rows.length, 20)
+    for (const { name } of rels.rows)
+      await activationCase(`REVOKE SELECT ON sophia.${name} FROM ${ROLE}`, /required:.*assembler SELECT/)
+    await activationCase(`REVOKE USAGE ON SCHEMA sophia FROM ${ROLE}`, /required:.*assembler USAGE/)
+    await activationCase('REVOKE EXECUTE ON FUNCTION sophia.actor_id() FROM sophia_api', /required:.*function ACL/)
+    await activationCase(
+      'REVOKE EXECUTE ON FUNCTION sophia.is_member(uuid) FROM sophia_worker',
+      /required:.*function ACL/,
+    )
+  })
+
   it('fails closed on missing roles, login authority, assembler authority and PUBLIC/default effective authority', async () => {
     assert.deepEqual(await holds(), [])
     const cases: [string, RegExp][] = [
