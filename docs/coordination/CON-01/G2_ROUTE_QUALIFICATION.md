@@ -239,3 +239,57 @@ Codex asked for one supported subscription-only route, or the exact incompatibil
 **What would change this** lies outside CON-01, and is neither proposed nor asked:
 - a vendor-documented flow for a hosted, multi-member service, with a documented hard bound, terminal semantics, refresh lifecycle and remaining-limit source;
 - an adapter implementing it, qualified by the runtime owner (Q6, Q7).
+
+## 5. Codex's installed-adapter wire capture: bounded independent evidence (CX-0151)
+
+Codex ran the actual installed pi-ai 0.87.1 serializers offline, and asked that the result be added here as bounded independent evidence, with its limits ([CX-0151](https://github.com/davidelaverga/Sophia/blob/73f0fff8a9f95147ffc606cd8e4fad4bc33217cc/docs/coordination/CON-01/CX-0151.md); [#198 comment 6117873422](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6117873422)). **It is Codex's evidence.** CON did not run it, and nothing here re-runs or extends it.
+
+**What was run:**
+- **The probe and its receipt:**
+  - the probe, `adapter-wire-probe.mjs`, SHA-256 `470f2f41b8c45855bdec93a66d2718136c8f0446cd25e738233f40ff0fa6a4ab`;
+  - its receipt, `adapter-wire-receipt.safe.json`, SHA-256 `6e41d2123dae25aa60022594da6224ac9782f02372e15bade106418b52eaa153`.
+- **The environment:** Node 24.21.0 on Darwin, with an empty process environment. All five assertions passed, exit 0.
+- **The installed modules,** imported from the existing candidate's `.artifacts/runtime` (`3b1a7ea6`, left clean):
+  - `api/openai-codex-responses.js` `6e69310d77278231cfc87d7f03ee815d4a0f2ff273e6c43fcee6835e7df2b0c7`;
+  - `api/openai-responses.js` `3e95145f94ac2a255d1adc0ae65cf02c2e6d479f7a2dbf5c466db21885c29ec6`;
+  - `utils/transcript.js` `cd63514661b4036c3bcdda11a108f6be853f790a01216bf30fa80121e4fd320f`.
+
+  The first two match the hash prefixes §4 recorded for the files it read.
+- **The inputs:**
+  - a synthetic model, which selects no route;
+  - an unsigned synthetic token that pi only decodes structurally. It is not a credential and was never sent;
+  - forced SSE, and `maxRetries` 0;
+  - one injected `fetch` per case. It captured the request and answered with a local 400 sentinel.
+
+  A guard on the global `fetch` saw 0 calls.
+
+**What it captured:**
+
+| Adapter | Requested `maxTokens` | `max_output_tokens` on the wire |
+|---|---:|---:|
+| `openai-codex`, SSE | 16 | absent |
+| `openai-codex`, SSE | 512 | absent |
+| public Responses, default compatibility | 512 | 512 |
+| public Responses, `supportsMaxOutputTokens: false` | 512 | absent |
+| public Responses, default compatibility | 1 | 16 |
+
+- **The URLs** were constructed and captured, never contacted: `https://chatgpt.com/backend-api/codex/responses` and `https://api.openai.com/v1/responses`.
+- **Every captured body** equalled `onPayload`'s, with `store: false`, `stream: true`, an array input and no tools. The Codex body was zstd-compressed, and was decompressed for inspection.
+
+**What it corroborates here:**
+- **§1's "No wire cap" for `openai-codex`,** now through the actual serializer and an injected fetch. §1's earlier capture threw in `onPayload` before any fetch. The body carries no `max_output_tokens` at either requested value.
+- **§4's §2.2 row,** for the public provider:
+  - it sends `max_output_tokens` under its default compatibility, and omits it with `supportsMaxOutputTokens: false`;
+  - Codex's fresh reading of the preview-limitations page (2026-10-12) still excludes `max_output_tokens`, so the default serialization conflicts with that documented field requirement;
+  - omitting the field establishes no hard output bound.
+- **One detail, recorded only:** under its default compatibility, the public adapter raised a request of 1 to 16. Nothing further is concluded from it here.
+
+**What it doesn't establish** (Codex's limits, kept as stated):
+- **It is not a provider's rejection, a useful answer, or account authorization.** The 400 was injected locally.
+- **It qualifies none of these:** sign-in or OAuth, the credential lifecycle, account eligibility or topology, a quota source or telemetry, uncertainty accounting, or a supported finite execution bound.
+- **The WebSocket transport was not captured,** since the Codex cases forced SSE. So it says nothing about §2.2(b)'s WebSocket resends (CODEX:220-227).
+- **It doesn't widen §4.** §4's result stays a result about the pinned adapter and the hosted topology, as read. Beyond the pinned adapter, neither this capture nor §4 shows that every supported route, topology or execution bound is impossible. §1–§2.5 name what a different, qualified flow and adapter would need.
+
+**Unchanged:**
+- D-4 binds no route, and Asks stay `blocked` (`no_grant`). Ask stays disabled.
+- No fallback, no provider switch, no new harness, no provider execution.
