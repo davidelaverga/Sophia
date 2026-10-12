@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-12",
+  "candidate": {
+    "commit": "193badb41cd5919bd863429b6ac07e2ac2bc7311",
+    "tree": "6304b5be9bddf98740047bf35d819091d43d773d",
+    "parent": "b975bbe2409cce9d3349c049e2de5569b164b648",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "lines": 712,
+    "sha256": "9b04335e14f5f84c49074c77b68f7c0f7c4513e2f09d9dbee45fb401c429dc87",
+    "changedPaths": [
+      "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md"
+    ]
+  },
+  "manifestSections1Through4": {
+    "byteIdentical": true,
+    "sha256": "3615f01fd735487235d7e0d518bcd4fc0a3eed5f1731d7bf57f46ca687d948d0"
+  },
+  "operationPointerHashVerification": {
+    "CON-01-OP-0002-r6.json": "4ea475e83a44410c541f5e1f346545480faabc503c8c06d6b295672f44779206",
+    "CON-01-OP-0001-r4.json": "661b196bb87f23bd52a683ad34921a3030010d6f9763a8d666b0d431bd3abdbf"
+  },
+  "review": "Complete parent diff independently read. Header/evidence table/acknowledgement states/operation pointers only; no executable source or engineering manifest change. Exact-r5 consumer ACK remains exact-only evidence for that unchanged manifest; no new whole-r6 owner approval invented.",
+  "ownerState": "K1a recorded; K1c supplied for exact r5; K1b/K2a-K2d/K3/K4 not recorded; K5 not started. Current fresh GitHub inventories consistent with absence, not an invented owner refusal.",
+  "effects": "Read-only Git/GitHub/native task observation and reviewer documentation only. No shared feature source, test/probe/CI rerun, merge, hosted/account/grant/provider/spend/deployment effect. Ask off."
+}
