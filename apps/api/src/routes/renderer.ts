@@ -20,6 +20,7 @@ import {
 } from '@sophia/persistence'
 import { ByteStoreError, objectPath, storedKey, WriteClaimError, type ByteStore } from '../byte-store.ts'
 import { sha256Hex } from '../s3-sign.ts'
+import { rendererUploadHooks, withRendererUpload } from '../renderer-upload-admission.ts'
 
 /** Exact routes that take a render runner capability instead of a member token. */
 export const RENDERER_ROUTES: ReadonlySet<string> = new Set([
@@ -191,10 +192,11 @@ function captureRoutes(app: FastifyInstance, deps: Deps): void {
   app.put<{ Params: { jobId: string; name: string }; Body: unknown }>(
     '/v1/renderer/jobs/:jobId/captures/:name',
     {
+      ...rendererUploadHooks(CAPTURE_OUTPUT_LIMIT),
       bodyLimit: CAPTURE_OUTPUT_LIMIT,
       schema: { params: captureParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderCaptureOutput#' } } },
     },
-    async (req) => storeCapture(deps, req),
+    async (req) => withRendererUpload(req, () => storeCapture(deps, req)),
   )
 }
 
@@ -228,10 +230,11 @@ export function rendererRoutes(app: FastifyInstance, deps: Deps): void {
   app.put<{ Params: { jobId: string }; Body: unknown }>(
     '/v1/renderer/jobs/:jobId/output',
     {
+      ...rendererUploadHooks(RENDER_OUTPUT_LIMIT),
       bodyLimit: RENDER_OUTPUT_LIMIT,
       schema: { params: jobParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderOutput#' } } },
     },
-    async (req) => storeOutput(deps, req),
+    async (req) => withRendererUpload(req, () => storeOutput(deps, req)),
   )
   app.post<{ Params: { jobId: string }; Body: RenderSettleRequest }>(
     '/v1/renderer/jobs/:jobId/settle',

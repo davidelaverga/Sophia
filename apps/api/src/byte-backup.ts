@@ -28,6 +28,16 @@ export interface ByteWriteContext {
   /** Only the API's validated renderer lease routes provide this stable job identity. */
   rendererJobId: string
 }
+export interface ByteWriteControl {
+  signal: AbortSignal
+  deadline: number
+}
+export function byteWriteExpired(
+  control: ByteWriteControl | undefined,
+  deadline = control?.deadline ?? Infinity,
+): boolean {
+  return Boolean(control?.signal.aborted) || performance.now() >= deadline
+}
 export type ByteBackup = (key: string, bytes: Uint8Array, context?: ByteWriteContext) => Promise<void>
 
 /** Mount presence is a misconfiguration guard; the provider volume identity and restart persistence remain live checks. */
@@ -171,19 +181,26 @@ export async function boundedByteBackup(
   key: string,
   bytes: Uint8Array,
   context?: ByteWriteContext,
+  control?: ByteWriteControl,
 ): Promise<void> {
-  const deadline = performance.now() + BACKUP_WRITE_MS
+  const deadline = Math.min(performance.now() + BACKUP_WRITE_MS, control?.deadline ?? Infinity)
+  const timedOut = () => new ByteBackupError(503, 'report backup timed out')
+  if (byteWriteExpired(control, deadline)) throw timedOut()
   let timer: ReturnType<typeof setTimeout> | undefined
+  let abort: (() => void) | undefined
   const expired = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => reject(new ByteBackupError(503, 'report backup timed out')), BACKUP_WRITE_MS)
+    timer = setTimeout(() => reject(timedOut()), Math.max(0, deadline - performance.now()))
+    abort = () => reject(timedOut())
+    control?.signal.addEventListener('abort', abort, { once: true })
   })
   try {
     await Promise.race([backup(key, bytes, context), expired])
-    if (performance.now() >= deadline) throw new ByteBackupError(503, 'report backup timed out')
+    if (byteWriteExpired(control, deadline)) throw timedOut()
   } catch (error) {
     if (error instanceof ByteBackupError) throw error
     throw new ByteBackupError(503, 'report backup unavailable')
   } finally {
     clearTimeout(timer)
+    if (abort) control?.signal.removeEventListener('abort', abort)
   }
 }

@@ -72,11 +72,11 @@ function awaitWorker(worker: Worker, release: () => void): Promise<BackupQuotaSt
   })
 }
 
-/** At most eight workers remain admitted, including a timed-out worker until it actually exits. No waiting queue. */
+/** At most two workers remain admitted, including a timed-out worker until it actually exits. No waiting queue. */
 export function quotaAdmission(createWorker: (request: BackupReservation) => Worker) {
   let active = 0
   return (request: BackupReservation): Promise<BackupQuotaStatus> => {
-    if (active >= 8) return Promise.resolve(503)
+    if (active >= 2) return Promise.resolve(503)
     active += 1
     const release = () => {
       active -= 1

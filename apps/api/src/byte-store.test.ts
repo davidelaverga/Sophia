@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ByteStoreError, memoryByteStore, objectPath, s3ByteStore, storedKey } from './byte-store.ts'
+import { setImmediate as nextTurn } from 'node:timers/promises'
+import { BACKUP_WRITE_MS } from './byte-backup.ts'
+import { ByteStoreError, memoryByteStore, objectPath, s3ByteStore, storedKey, withByteBackup } from './byte-store.ts'
 import { authorization, presignedUrl } from './s3-sign.ts'
 import { reportFilename } from './routes/sources.ts'
 
@@ -187,4 +189,56 @@ describe('report byte store (D5)', () => {
     assert.equal(reportFilename('***', null, 'markdown'), 'report.md')
     assert.equal(reportFilename('x'.repeat(200), 3, 'pdf'), `${'x'.repeat(80)}-v3.pdf`)
   })
+})
+
+it('never starts a late S3 PUT after a timed-out HEAD that ignores cancellation', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let finish: ((response: Response) => void) | undefined
+  const methods: string[] = []
+  const store = withByteBackup(
+    s3ByteStore(
+      config,
+      (_input, init) => {
+        methods.push(init?.method ?? '')
+        return new Promise<Response>((resolve) => {
+          finish = resolve
+        })
+      },
+      clock,
+    ),
+    () => Promise.resolve(),
+  )
+  const rejected = assert.rejects(store.put(objectPath(P, S), new Uint8Array([1]), 'application/pdf'))
+  await nextTurn()
+  assert.deepEqual(methods, ['HEAD'])
+  assert.ok(finish)
+  t.mock.timers.tick(BACKUP_WRITE_MS)
+  assert.equal(await Promise.race([rejected.then(() => 'refused'), nextTurn('sentinel')]), 'refused')
+  finish(new Response(null, { status: 404 }))
+  await nextTurn()
+  assert.deepEqual(methods, ['HEAD'], 'expired HEAD cannot initiate PUT')
+})
+
+it('rechecks the monotonic deadline after signing before starting provider I/O', async (t) => {
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  let requests = 0
+  const store = s3ByteStore(
+    config,
+    () => {
+      requests += 1
+      return Promise.resolve(new Response(null, { status: 404 }))
+    },
+    () => {
+      now = 11
+      return NOW
+    },
+  )
+  await assert.rejects(
+    store.put(objectPath(P, S), new Uint8Array([1]), 'application/pdf', undefined, {
+      signal: new AbortController().signal,
+      deadline: 10,
+    }),
+  )
+  assert.equal(requests, 0, 'signing crossed expiry; no HEAD or PUT starts')
 })

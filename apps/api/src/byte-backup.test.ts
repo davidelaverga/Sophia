@@ -12,7 +12,14 @@ import {
   diskByteBackup,
   hasDedicatedDiskMount,
 } from './byte-backup.ts'
-import { ByteStoreError, byteStoreFromEnv, memoryByteStore, withByteBackup, writeOnce } from './byte-store.ts'
+import {
+  BACKUP_ACTIVE_BYTES,
+  ByteStoreError,
+  byteStoreFromEnv,
+  memoryByteStore,
+  withByteBackup,
+  writeOnce,
+} from './byte-store.ts'
 
 const PROJECT = '00000000-0000-4000-8000-000000000044'
 const SOURCE = '00000000-0000-4000-8000-000000000001'
@@ -94,7 +101,7 @@ describe('private immutable report-byte copies', () => {
       claims.add(key)
       return Promise.resolve(true)
     })
-    await assert.rejects(store.put(KEY, new Uint8Array([3]), MIME), /remote lost/u)
+    await assert.rejects(store.put(KEY, new Uint8Array([3]), MIME), unavailable)
     await assert.rejects(store.put(KEY, new Uint8Array([3]), MIME), conflict)
     assert.equal(uploads, 1)
     assert.equal(claims.size, 1)
@@ -202,6 +209,148 @@ describe('private immutable report-byte copies', () => {
       assert.equal(await store.signedUrl(KEY, 10, 'report.pdf'), await remote.signedUrl(KEY, 10, 'report.pdf'))
       remote.objects.clear()
     }
+  })
+
+  it('admits bytes before snapshotting and holds a shared permit through slow remote completion', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const remote = memoryByteStore()
+    let finish: (() => void) | undefined
+    const slow = withByteBackup(
+      {
+        ...remote,
+        put: () =>
+          new Promise<void>((resolve) => {
+            finish = resolve
+          }),
+      },
+      () => Promise.resolve(),
+    )
+    const other = withByteBackup(remote, () => Promise.resolve())
+    const first = assert.rejects(slow.put(KEY, new Uint8Array(BACKUP_ACTIVE_BYTES), MIME), unavailable)
+    await nextTurn()
+    assert.ok(finish, 'the remote write started')
+    let snapshots = 0
+    const refused = new Uint8Array([2])
+    refused[Symbol.iterator] = () => {
+      snapshots += 1
+      return [2].values()
+    }
+    await assert.rejects(other.put('other', refused, MIME), unavailable)
+    assert.equal(snapshots, 0, 'capacity is checked before making another payload copy')
+    t.mock.timers.tick(BACKUP_WRITE_MS)
+    assert.equal(await Promise.race([first.then(() => 'refused'), nextTurn('sentinel')]), 'refused')
+    await assert.rejects(other.put('other', refused, MIME), unavailable)
+    assert.equal(snapshots, 0, 'a timeout does not release bytes still held by remote I/O')
+    finish()
+    await nextTurn()
+    await other.put('other', refused, MIME)
+    assert.equal(snapshots, 1, 'actual settlement releases capacity')
+  })
+
+  it('holds the count cap across backup timeouts and never starts remote writes on late copies', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const remote = memoryByteStore()
+    const completions: (() => void)[] = []
+    const backup = () =>
+      new Promise<void>((resolve) => {
+        completions.push(resolve)
+      })
+    const store = withByteBackup(remote, backup)
+    const first = assert.rejects(store.put('first', new Uint8Array(), MIME), unavailable)
+    const second = assert.rejects(store.put('second', new Uint8Array(), MIME), unavailable)
+    assert.equal(completions.length, 2)
+    await assert.rejects(withByteBackup(remote, backup).put('third', new Uint8Array(), MIME), unavailable)
+    assert.equal(completions.length, 2, 'a refused write starts no backup')
+    t.mock.timers.tick(BACKUP_WRITE_MS)
+    assert.equal(
+      await Promise.race([Promise.all([first, second]).then(() => 'refused'), nextTurn('sentinel')]),
+      'refused',
+    )
+    await assert.rejects(store.put('third', new Uint8Array(), MIME), unavailable)
+    for (const complete of completions) complete()
+    await nextTurn()
+    assert.equal(remote.objects.size, 0, 'late backups never continue to S3')
+    await withByteBackup(remote, () => Promise.resolve()).put('third', new Uint8Array(), MIME)
+    assert.equal(remote.objects.size, 1)
+  })
+
+  it('releases admission after a failed backup or remote write', async () => {
+    const bytes = new Uint8Array(BACKUP_ACTIVE_BYTES)
+    const remote = memoryByteStore()
+    await assert.rejects(
+      withByteBackup(remote, () => Promise.reject(new Error('disk failed'))).put(KEY, bytes, MIME),
+      unavailable,
+    )
+    const failedRemote = { ...remote, put: () => Promise.reject(new Error('remote failed')) }
+    await assert.rejects(withByteBackup(failedRemote, () => Promise.resolve()).put(KEY, bytes, MIME), unavailable)
+    await withByteBackup(remote, () => Promise.resolve()).put(KEY, bytes, MIME)
+    assert.equal(remote.objects.size, 1)
+  })
+
+  it('honors incoming controls and releases admission if expiry occurs during snapshot allocation', async (t) => {
+    let now = 0
+    t.mock.method(performance, 'now', () => now)
+    let copies = 0
+    const remote = memoryByteStore()
+    const store = withByteBackup(remote, () => {
+      copies += 1
+      return Promise.resolve()
+    })
+    const cancelled = new AbortController()
+    cancelled.abort()
+    await assert.rejects(
+      store.put(KEY, new Uint8Array([1]), MIME, undefined, { signal: cancelled.signal, deadline: 10 }),
+      unavailable,
+    )
+    assert.equal(copies, 0)
+    for (let i = 0; i < 2; i += 1) {
+      now = 0
+      const bytes = new Uint8Array([1])
+      bytes[Symbol.iterator] = () => {
+        now = 2
+        return [1].values()
+      }
+      await assert.rejects(
+        store.put(KEY, bytes, MIME, undefined, { signal: new AbortController().signal, deadline: 1 }),
+        unavailable,
+      )
+    }
+    assert.equal(copies, 0, 'pre-start expiry copies nothing to disk or S3')
+    now = 0
+    await assert.doesNotReject(store.put(KEY, new Uint8Array([1]), MIME), 'unstarted permits were released')
+    assert.equal(copies, 1, 'both unstarted permits were released')
+  })
+
+  it('uses an earlier caller deadline and retains the permit until a late backup settles', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    t.mock.method(performance, 'now', () => 0)
+    const remote = memoryByteStore()
+    let finish: (() => void) | undefined
+    const store = withByteBackup(
+      remote,
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const first = assert.rejects(
+      store.put(KEY, new Uint8Array(BACKUP_ACTIVE_BYTES), MIME, undefined, {
+        signal: new AbortController().signal,
+        deadline: 10,
+      }),
+      unavailable,
+    )
+    t.mock.timers.tick(10)
+    assert.equal(await Promise.race([first.then(() => 'refused'), nextTurn('sentinel')]), 'refused')
+    await assert.rejects(
+      withByteBackup(remote, () => Promise.resolve()).put('other', new Uint8Array([1]), MIME),
+      unavailable,
+    )
+    assert.ok(finish)
+    finish()
+    await nextTurn()
+    assert.equal(remote.objects.size, 0)
+    await withByteBackup(remote, () => Promise.resolve()).put('other', new Uint8Array([1]), MIME)
   })
 
   it('requires complete S3 settings and does not activate disk copying when its setting is absent', () => {

@@ -205,12 +205,13 @@ describe('durable byte-backup admission', () => {
       worker.terminate = () => Promise.resolve(0)
       return worker
     })
-    const accepted = Array.from({ length: 8 }, () => admission(request(root)))
+    const accepted = Array.from({ length: 2 }, () => admission(request(root)))
     await beforeSentinel(Promise.all(workers.map((worker) => once(worker, 'message'))))
-    assert.equal(await admission(request(root)), 503, 'a ninth worker is refused without a waiting queue')
+    assert.equal(await admission(request(root)), 503, 'a third worker is refused without a waiting queue')
+    assert.equal(workers.length, 2, 'refusal creates no third worker')
     assert.deepEqual(
       await beforeSentinel(Promise.all(accepted)),
-      Array.from({ length: 8 }, () => 503),
+      Array.from({ length: 2 }, () => 503),
       'success without exit times out',
     )
     assert.equal(await admission(request(root)), 503, 'timed-out workers retain their slots until they really exit')

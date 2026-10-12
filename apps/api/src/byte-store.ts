@@ -13,11 +13,14 @@
 import { amzDates, authorization, encodeKey, presignedUrl, sha256Hex, uriEncode } from './s3-sign.ts'
 import {
   BACKUP_OBJECT_MAX_BYTES,
+  BACKUP_WRITE_MS,
   boundedByteBackup,
+  byteWriteExpired,
   ByteBackupError,
   diskByteBackup,
   type ByteBackup,
   type ByteWriteContext,
+  type ByteWriteControl,
 } from './byte-backup.ts'
 
 /** A stored source's object path: one object per source, named by its project and id. */
@@ -26,12 +29,21 @@ export const objectPath = (projectId: string, sourceId: string) => `${projectId}
 /** The storage_key recorded for a stored source (an inline text's is `inline/<projectId>/<sourceId>`). */
 export const storedKey = (projectId: string, sourceId: string) => `objects/${objectPath(projectId, sourceId)}`
 
+/** Internal write cancellation: expiry cannot undo an accepted PUT, but prevents starting a later provider step. */
+export type { ByteWriteControl } from './byte-backup.ts'
+
 export interface ByteStore {
   /**
    * Store new bytes at `path`. A path written before is refused (409) and its object stays as written: writeOnce keeps
    * that for every store the API is given, whose own refusals (s3ByteStore's HEAD and If-None-Match) are a second line.
    */
-  put(path: string, bytes: Uint8Array, mime: string, context?: ByteWriteContext): Promise<void>
+  put(
+    path: string,
+    bytes: Uint8Array,
+    mime: string,
+    context?: ByteWriteContext,
+    control?: ByteWriteControl,
+  ): Promise<void>
   /** A URL that reads `path` until it expires; with a file name, opening it saves the file under that name. */
   signedUrl(path: string, expiresInSeconds: number, downloadAs: string | null): Promise<string>
   /** The bytes at `path`, read by the API itself (a render package's image for the render runner). */
@@ -103,21 +115,76 @@ export function byteStoreFromEnv(env: Record<string, string | undefined>, fetchI
   return backupRoot ? withByteBackup(store, diskByteBackup(backupRoot)) : store
 }
 
+// One API process, shared by every backup wrapper: no queue and no snapshot before admission. These are memory
+// bounds, separate from the durable disk budgets and quota-worker cap. A timed-out underlying write keeps its
+// permit until it actually settles; repeated timeouts cannot accumulate copied payloads behind returned errors.
+export const BACKUP_ACTIVE_BYTES = 32 * 1024 * 1024
+export const BACKUP_ACTIVE_WRITES = 2
+let activeBackupBytes = 0
+let activeBackupWrites = 0
+
+function admitBackupWrite(bytes: number): () => void {
+  if (activeBackupWrites >= BACKUP_ACTIVE_WRITES || activeBackupBytes + bytes > BACKUP_ACTIVE_BYTES) {
+    throw new ByteStoreError(503, 'report backup writes are busy')
+  }
+  activeBackupWrites += 1
+  activeBackupBytes += bytes
+  return () => {
+    activeBackupWrites -= 1
+    activeBackupBytes -= bytes
+  }
+}
+
 /** Keep the durable copy before uploading; an uncertain claim is never refunded or retried by this wrapper. */
 export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore {
   return {
-    async put(path, bytes, mime, context) {
+    async put(path, bytes, mime, context, control) {
       if (bytes.byteLength > BACKUP_OBJECT_MAX_BYTES)
         throw new ByteStoreError(503, 'report backup permits at most 32 MiB')
-      // Buffer.slice() aliases its input; callers include the renderer's Buffer request bodies.
-      const snapshot = Uint8Array.from(bytes)
+      if (byteWriteExpired(control)) {
+        throw new ByteStoreError(503, 'report backup timed out')
+      }
+      const deadline = Math.min(performance.now() + BACKUP_WRITE_MS, control?.deadline ?? Infinity)
+      const release = admitBackupWrite(bytes.byteLength)
+      let snapshot: Uint8Array
       try {
-        await boundedByteBackup(backup, path, snapshot, context)
+        // Buffer.slice() aliases its input; callers include the renderer's Buffer request bodies.
+        snapshot = Uint8Array.from(bytes)
       } catch (error) {
+        release()
+        throw error
+      }
+      const state = { started: false }
+      const controller = new AbortController()
+      const signal = control ? AbortSignal.any([control.signal, controller.signal]) : controller.signal
+      const write: ByteBackup = async (key, retained, writeContext) => {
+        state.started = true
+        try {
+          if (byteWriteExpired({ signal, deadline })) throw new ByteBackupError(503, 'report backup timed out')
+          await backup(key, retained, writeContext)
+          // The timeout answers promptly, but neither a delayed timer nor late disk completion may start S3.
+          if (byteWriteExpired({ signal, deadline })) throw new ByteBackupError(503, 'report backup timed out')
+          try {
+            await store.put(key, retained, mime, writeContext, { signal, deadline })
+          } catch (error) {
+            if (error instanceof ByteStoreError && error.status === 409) {
+              throw new ByteBackupError(409, 'report object already exists')
+            }
+            throw error
+          }
+        } finally {
+          release()
+        }
+      }
+      try {
+        await boundedByteBackup(write, path, snapshot, context, { signal, deadline })
+      } catch (error) {
+        controller.abort()
+        // A control can expire during snapshot allocation; no underlying write then owns this permit.
+        if (!state.started) release()
         if (error instanceof ByteBackupError) throw new ByteStoreError(error.status, error.message)
         throw error
       }
-      await store.put(path, snapshot, mime, context)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),
@@ -126,6 +193,44 @@ export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore 
 
 /** The quoted file name a download is saved as; the API's names are ASCII slugs (reportFilename), kept as they are. */
 const attachment = (name: string) => `attachment; filename="${name.replace(/["\\\r\n]/g, '_')}"`
+
+function s3Connection(config: S3StorageConfig) {
+  const endpoint = new URL(config.endpoint.replace(/\/+$/, ''))
+  const creds = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region }
+  const pathOf = (key: string) =>
+    `${endpoint.pathname.replace(/\/+$/, '')}/${uriEncode(config.bucket)}/${encodeKey(key)}`
+
+  return { endpoint, creds, pathOf }
+}
+
+function signedS3Sender(connection: ReturnType<typeof s3Connection>, fetchImpl: Fetch, clock: () => Date) {
+  const { endpoint, creds, pathOf } = connection
+  return async function send(
+    method: string,
+    key: string,
+    body: Uint8Array | null,
+    extra: Record<string, string>,
+    control?: ByteWriteControl,
+  ) {
+    if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
+    const now = clock()
+    const payloadHash = sha256Hex(body ?? new Uint8Array())
+    const headers: Record<string, string> = {
+      ...extra,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDates(now).amzDate,
+    }
+    const path = pathOf(key)
+    const auth = authorization({ method, host: endpoint.host, path, query: [], headers, payloadHash }, creds, now)
+    if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
+    return fetchImpl(`${endpoint.origin}${path}`, {
+      method,
+      ...(control ? { signal: control.signal } : {}),
+      headers: { ...headers, authorization: auth },
+      ...(body === null ? {} : { body }),
+    })
+  }
+}
 
 /**
  * S3-compatible object storage, signed with Signature Version 4: a put that refuses a key it finds (a HEAD first) and
@@ -139,27 +244,9 @@ export function s3ByteStore(
   fetchImpl: Fetch = fetch,
   clock: () => Date = () => new Date(),
 ): ByteStore {
-  const endpoint = new URL(config.endpoint.replace(/\/+$/, ''))
-  const creds = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region }
-  const pathOf = (key: string) =>
-    `${endpoint.pathname.replace(/\/+$/, '')}/${uriEncode(config.bucket)}/${encodeKey(key)}`
-
-  async function send(method: string, key: string, body: Uint8Array | null, extra: Record<string, string>) {
-    const now = clock()
-    const payloadHash = sha256Hex(body ?? new Uint8Array())
-    const headers: Record<string, string> = {
-      ...extra,
-      'x-amz-content-sha256': payloadHash,
-      'x-amz-date': amzDates(now).amzDate,
-    }
-    const path = pathOf(key)
-    const auth = authorization({ method, host: endpoint.host, path, query: [], headers, payloadHash }, creds, now)
-    return fetchImpl(`${endpoint.origin}${path}`, {
-      method,
-      headers: { ...headers, authorization: auth },
-      ...(body === null ? {} : { body }),
-    })
-  }
+  const connection = s3Connection(config)
+  const { endpoint, creds, pathOf } = connection
+  const send = signedS3Sender(connection, fetchImpl, clock)
 
   async function failure(res: Response, what: string): Promise<ByteStoreError> {
     const text = await res.text().catch(() => '')
@@ -167,15 +254,21 @@ export function s3ByteStore(
   }
 
   return {
-    async put(path, bytes, mime) {
-      const head = await send('HEAD', path, null, {})
+    async put(path, bytes, mime, _context, control) {
+      const head = await send('HEAD', path, null, {}, control)
       if (head.ok) throw new ByteStoreError(409, `store put: ${path} exists`)
       if (head.status !== 404) throw await failure(head, 'store head')
-      const res = await send('PUT', path, bytes, {
-        'content-type': mime,
-        'cache-control': 'private, max-age=0',
-        'if-none-match': '*',
-      })
+      const res = await send(
+        'PUT',
+        path,
+        bytes,
+        {
+          'content-type': mime,
+          'cache-control': 'private, max-age=0',
+          'if-none-match': '*',
+        },
+        control,
+      )
       if (res.status === 412) throw new ByteStoreError(409, `store put: ${path} exists`)
       if (!res.ok) throw await failure(res, 'store put')
     },
@@ -204,7 +297,7 @@ export type WriteClaim = (path: string, sha256: string, byteLength: number) => P
  */
 export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
   return {
-    async put(path, bytes, mime, context) {
+    async put(path, bytes, mime, context, control) {
       let claimed: boolean
       try {
         claimed = await claim(path, sha256Hex(bytes), bytes.byteLength)
@@ -212,7 +305,7 @@ export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
         throw new WriteClaimError(`store claim: ${path}: the claim was not made`, { cause: error })
       }
       if (!claimed) throw new ByteStoreError(409, `store put: ${path} was already written`)
-      await store.put(path, bytes, mime, context)
+      await store.put(path, bytes, mime, context, control)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),
