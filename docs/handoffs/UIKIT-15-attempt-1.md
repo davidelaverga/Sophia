@@ -5,12 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/home-needs` from `ui/board-blocked` at
 `3ff86c5c` (stacked on PR #236 → #235 → #234 → … → #220; the base retargets as each merges)
-Ending commit/tree: `c2862085` (tree `9156e53cd1f5`): 9 files, 6 new (`needs-you.ts`, `needs-you.test.ts`, `NeedsYou.tsx`,
-`index-keys.ts`, `e2e/home-needs.spec.ts`, `docs/plans/home-needs-you.md`); `Welcome.tsx`, `personal.css`,
-`fixtures/home.tsx`. The commit after it adds only this handoff.
-After the review (Codex on #237, four P2): `75c2dd1b` gives `needs` its opener (`{ items, open }`), keeps the 96 px mark
-at the column's head, folds the side's rows by its width and the page to one column under 1100 px, and reads the time
-words from `time-words.ts`; `home-needs.spec.ts` measures them. That is the completed code state of this PR.
+Ending commit/tree: `bd9d2b8f8e40` (tree `beb91dcf10cf`), the last commit of `ui/home-needs`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/board-blocked` at that commit: `e2e/home-needs.spec.ts`, `fixtures/home.tsx`, `src/features/personal/NeedsYou.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/index-keys.ts`, `src/features/personal/needs-you.test.ts`, `src/features/personal/needs-you.ts`, `src/features/personal/personal.css`, `docs/handoffs/UIKIT-15-attempt-1.md`, `docs/plans/home-needs-you.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
