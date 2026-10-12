@@ -9,7 +9,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
-import { Search, Segmented } from '@sophia/ui'
+import { Card, CardCover, Search, Segmented } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
@@ -262,8 +262,8 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
   // the card names, in HTML.
   const as = card.formats.includes('html') ? { versionId: card.currentVersionId, format: 'html' as const } : {}
   return (
-    <li className="report-card">
-      <div className="report-card-cover">
+    <Card as="li" live className="report-card">
+      <CardCover className="report-card-cover">
         <ReportCover card={card} identity={identity} />
         {card.formats.includes('html') && (
           <button
@@ -277,7 +277,7 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
             <span className="report-cover-tag">HTML</span>
           </button>
         )}
-      </div>
+      </CardCover>
       <button
         type="button"
         className="report-card-title"
@@ -302,6 +302,6 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
           History
         </button>
       </SummaryEditor>
-    </li>
+    </Card>
   )
 }

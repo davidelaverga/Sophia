@@ -285,7 +285,6 @@
 /* ---- A task tile: who and where it stands on top, the task, what it hangs on. Depth, not lines. ---- */
 .task-tile {
   --tool-accent: var(--halo);
-  --edge: rgba(255, 255, 255, 0.06);
   position: relative;
   isolation: isolate;
   display: grid;
@@ -293,12 +292,12 @@
   align-items: start;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
-  border: 0;
-  border-radius: var(--r-3);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01)), var(--plane-2);
+  /* The kit's tile surface. Its edge is its state's (--edge: waiting, working, changes, changed, lit), the kit's line
+     when it has none; it lights under the pointer only when it has none. */
+  --card-edge-hover: var(--edge, var(--line-2));
+  border-color: var(--edge, var(--line));
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.01));
   box-shadow:
-    inset 0 0 0 1px var(--edge),
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 1px 2px rgba(0, 0, 0, 0.3);
   color: var(--text);
@@ -314,9 +313,6 @@
 .task-tile[data-mark]:focus-visible {
   outline: 2px solid var(--halo);
   outline-offset: 2px;
-}
-.task-tile:active {
-  transform: scale(0.99);
 }
 @keyframes tile-in {
   from {
@@ -378,7 +374,6 @@
   .task-tile:hover {
     transform: translateY(-2px);
     box-shadow:
-      inset 0 0 0 1px var(--edge),
       inset 0 1px 0 rgba(255, 255, 255, 0.06),
       0 14px 34px rgba(0, 0, 0, 0.4);
   }
@@ -390,7 +385,6 @@
 .task-tile[data-lit] {
   --edge: rgba(156, 130, 245, 0.7);
   box-shadow:
-    inset 0 0 0 1px var(--edge),
     0 0 0 4px rgba(156, 130, 245, 0.14),
     0 0 28px rgba(156, 130, 245, 0.2);
 }
@@ -602,6 +596,8 @@
 }
 .task-tile {
   transition:
+    border-color var(--fast) var(--ease),
+    background-color var(--fast) var(--ease),
     box-shadow var(--base) var(--ease),
     transform var(--base) var(--ease),
     opacity var(--base) var(--ease),

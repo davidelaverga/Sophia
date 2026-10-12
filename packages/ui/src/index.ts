@@ -1,6 +1,8 @@
 // @sophia/ui — Studio primitives on the Studio tokens (apps/studio/src/app/theme.css).
 export { Button, type ButtonProps } from './Button.tsx'
 export { buttonClass, buttonHeight, SCALE, type ButtonKind, type ButtonSize } from './button-class.ts'
+export { Card, CardCover, type CardProps, type CardTag } from './Card.tsx'
+export { CARD, cardClass, type CardKind } from './card-class.ts'
 export { ConfirmButton } from './ConfirmButton.tsx'
 export { Field, type FieldProps } from './Field.tsx'
 export { FIELD_HEIGHT, FIELD_SCALE, fieldClass, searchClass, type FieldSize } from './field-class.ts'

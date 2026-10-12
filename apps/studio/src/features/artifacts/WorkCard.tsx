@@ -8,7 +8,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 import type { ArtifactVersion, NativeTask, NativeTaskDetail, ResearchProgress } from '@sophia/contracts'
-import { Icon, Tag } from '@sophia/ui'
+import { Card, Icon, Tag } from '@sophia/ui'
 import { listArtifactVersions } from '../../api/artifacts.ts'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -116,7 +116,7 @@ export function WorkCard(props: Props) {
   const retry = offersRetry(canAct, words, research)
   return (
     // The card takes the focus when a control inside it goes (Try PDF again, once the PDF renders again).
-    <li className="task work-card" data-state={words.state} tabIndex={-1}>
+    <Card as="li" className="task work-card" data-state={words.state} tabIndex={-1}>
       <CardHead words={words} task={task} research={research} now={now} />
       <p className="work-card-question">{research?.question ?? 'Research'}</p>
       {words.state === 'researching' && research && <Progress research={research} />}
@@ -125,7 +125,7 @@ export function WorkCard(props: Props) {
       {words.note && <p className="goal-outcome">{words.note}</p>}
       {retry && <RetryPdf projectId={projectId} taskId={task.id} token={identity.token} />}
       {current && open && <CardFoot version={current} open={open} />}
-    </li>
+    </Card>
   )
 }
 
