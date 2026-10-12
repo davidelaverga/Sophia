@@ -5,11 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/task-keys` from `ui/conversation-acts` at
 `760184ca` (stacked on PR #240 → #239 → … → #220; the base retargets as each merges)
-Ending commit/tree: `8c4a9898` (tree `5720dec9fbd1`): 11 files, 3 new (`e2e/task-keys.spec.ts`, `e2e/micro-type.spec.ts`,
-`docs/plans/task-keys-micro-type.md`); `TaskSheet.tsx` and seven sheets (`theme.css`, `conversations.css`,
-`personal.css`, `resources.css`, `board.css`, `plan.css`). The commit after it adds only this handoff.
-After the review (Codex on #241, P2): `4db26c20` rejects a repeated keydown (`e.repeat`), so a Hold held down never meets
-the Resume it brings; the spec sends a repeat after the hold. That is the completed code state of this PR.
+Ending commit/tree: `3726df3350f9` (tree `df46e6a74d0a`), the last commit of `ui/task-keys`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 19 files changed against
+`ui/conversation-acts` at that commit: `e2e/micro-type.spec.ts`, `e2e/personal.spec.ts`, `e2e/task-keys.spec.ts`, `e2e/work.spec.ts`, `src/app/theme.css`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `src/features/resources/SessionActs.tsx`, `src/features/resources/resources.css`, `src/features/voice/PresentedReport.tsx`, `src/features/work/planning/ReviewSources.tsx`, `src/features/work/planning/TaskActions.tsx`, `src/features/work/planning/TaskSheet.tsx`, `src/features/work/planning/board.css`, `src/features/work/planning/plan.css`, `docs/handoffs/UIKIT-19-attempt-1.md`, `docs/plans/task-keys-micro-type.md`, `packages/ui/src/ConfirmButton.tsx`, `packages/ui/src/Tip.tsx`. The review notes below name the commit of each later change.
 
 ## Outcome
 
