@@ -93,7 +93,15 @@ function SinceYouLooked({ projectId, identity, cursor, me }: SinceProps) {
       {since.isError && since.data !== undefined && <p className="sheet-lead">This may be out of date.</p>}
       {/* Keyed by its range: what a Mark as seen said goes with the digest it was pressed on. */}
       {since.data && (
-        <DigestBody key={since.data.toSequence} digest={since.data} projectId={projectId} identity={identity} me={me} />
+        // Keyed by both ends of the range: one seen elsewhere moves its start, and a narrowing to a kind or a person no
+        // longer in it starts afresh (Codex on #239).
+        <DigestBody
+          key={`${since.data.fromSequence ?? 'start'}-${since.data.toSequence}`}
+          digest={since.data}
+          projectId={projectId}
+          identity={identity}
+          me={me}
+        />
       )}
     </section>
   )

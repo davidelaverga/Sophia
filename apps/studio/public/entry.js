@@ -9,14 +9,16 @@ if (new URLSearchParams(location.search).has('code') && !location.pathname.start
 // so a light page never flashes the void; «system» asks the system. The app's own boot then agrees with it.
 try {
   const theme = localStorage.getItem('sophia.theme')
-  const light = theme === 'light' || (theme !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches)
-  if (light && theme !== null) {
+  // Only a value the app reads: anything else is no choice, the room, as theme.ts's own reading says (Codex on #249).
+  const chosen = theme === 'light' || theme === 'dark' || theme === 'system'
+  const light = theme === 'light' || (theme === 'system' && matchMedia('(prefers-color-scheme: light)').matches)
+  if (light) {
     document.documentElement.dataset.theme = 'light'
     // The browser's chrome with it, from the first paint (theme.ts keeps it after).
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#fbf8f3')
   }
   // The tab's mark in the appearance shown, a choice made against the system included (theme.ts keeps it after).
-  if (theme !== null) {
+  if (chosen) {
     document
       .querySelector('link[rel="icon"][type="image/svg+xml"]')
       ?.setAttribute('href', light ? '/favicon-light.svg' : '/favicon-dark.svg')

@@ -112,7 +112,8 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
   await rows.nth(3).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
     'open work 00000000-0000-4000-8000-0000000000aa #decision-d1', // the decision's own choice on the board, not the task's sheet
-    'open resources 00000000-0000-4000-8000-0000000000aa #request-action-1', // the request, not only the task that waits on it
+    // The request with its resource (two resources may hold one request id: Codex on #245), not only the task that waits.
+    'open resources 00000000-0000-4000-8000-0000000000aa #request-davide-claude/action-1',
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
     'seen reply:t9', // a reply has no answer of its own: opening it is its seen mark, and it leaves the list
@@ -202,4 +203,24 @@ test('home · needs you refused after a good read: the rows read before are not 
   await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
   await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })).toBeVisible()
   await expect(rows).toHaveCount(0)
+})
+
+test('home · a need with a long note stays inside its column, wide or narrow (Codex on #237)', async ({ page }) => {
+  for (const width of [1440, 1000]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(`${PAGE}?needs=some`)
+    const row = list(page).getByRole('button').first()
+    await expect(row).toBeVisible()
+    // A project's title at its 180 characters, as a note.
+    await row.locator('.hw-m').evaluate((el) => {
+      el.textContent = `Expires in 20 min · ${'A project named at its full length '.repeat(6)}`
+    })
+    // The note itself, not only the row's box: a grid track can overflow its row unseen.
+    const [r, side] = await Promise.all([row.locator('.hw-m').boundingBox(), page.locator('.hw-side').boundingBox()])
+    expect((r?.x ?? 0) + (r?.width ?? 0), String(width)).toBeLessThanOrEqual((side?.x ?? 0) + (side?.width ?? 0) + 0.5)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+      String(width),
+    ).toBeLessThanOrEqual(0)
+  }
 })
