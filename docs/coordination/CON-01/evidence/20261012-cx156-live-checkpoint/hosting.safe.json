@@ -1,0 +1,31 @@
+{
+  "mode": "authenticated read-only browser dashboard observation",
+  "render": [
+    {"component":"API","observed_at":"2026-10-12T05:58:44.211Z","service":"srv-daqrn08473hc73flhi8g","live_deployment":"dep-db0h6jad0e5s73bkine0","source":"1e912b7ec83e55694de33d9ced1e4c8d915db4d6"},
+    {"component":"native host","observed_at":"2026-10-12T05:59:07.455Z","service":"srv-darvmse0tbcc73d8kh3g","live_deployment":"dep-db02hcou01pc738k4atg","source":"6ec64f36aae1fe60dfd4d54a21f861901ba7d630"},
+    {"component":"worker","observed_at":"2026-10-12T05:59:15.824Z","service":"srv-darv7snpn0mc73e6c240","live_deployment":"dep-db5dos8473hc73apq6b0","source":"0391bc66b8dc47f4268b6f785e11de182ff5d7e0"},
+    {"component":"bridge","observed_at":"2026-10-12T05:59:34.211Z","service":"srv-darvcigu01pc73e24o4g","live_deployment":"dep-db0h7rc9v7es73bed57g","source":"1e912b7ec83e55694de33d9ced1e4c8d915db4d6"}
+  ],
+  "studio": {
+    "observed_at":"2026-10-12T06:00:06.457Z",
+    "project":"sophia-30911edf/sophia-studio",
+    "production_deployment":"dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+    "status":"Ready",
+    "source":"manual vercel deploy; Connect Git offered",
+    "source_sha":null,
+    "domains":["studio.sophia-ei.com","sophia-studio.vercel.app"]
+  },
+  "hosted_app": {
+    "access":"existing signed-in project Studio, read-only",
+    "project_navigation":["Studio","Goals","Tasks","Knowledge","Updates","Resources"],
+    "conversations_entry_visible":false,
+    "inner_studio_modes":["Converse","Explore","Build"],
+    "room_join_control_visible":true,
+    "join_or_write_performed":false,
+    "designated_cohort":false,
+    "CON01_app_verified":false
+  },
+  "effects": {"deployment":false,"configuration":false,"account_or_grant":false,"provider_execution":false,"spend":0,"uncertain_paid_outcome":false},
+  "limits":["Dashboard deployment/source labels do not establish installed runtime/profile/tool/role composition","No live-work settlement, safe drain, rollback or CON native answer proof","Studio source SHA remains unestablished"],
+  "cleanup":"Owned Render22, Vercel23 and Supabase24 tabs closed; existing hosted5 retained"
+}

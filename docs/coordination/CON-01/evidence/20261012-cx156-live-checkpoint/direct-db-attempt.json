@@ -1,0 +1,6 @@
+{
+  "failure": {
+    "code": "ENOENT"
+  },
+  "mode": "READ ONLY metadata only; no secret error text emitted"
+}

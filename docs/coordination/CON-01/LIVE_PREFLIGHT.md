@@ -1,6 +1,12 @@
-# Current operation drafts — CX-0128
+# Current operation drafts — CX-0156
 
-Owner decisions are recorded in [OWNER_DECISIONS_20261012.md](OWNER_DECISIONS_20261012.md). [OP0002-r4 setup/human-chat](CON-01-OP-0002-r4.json) and [OP0001-r3 Ask qualification](CON-01-OP-0001-r3.json) supersede prior current drafts while preserving them as history. Both remain draft_not_authorized/not approval-ready; exact execution candidates/artifacts/commands, approval and expiry are unbound. Shared owner freeze is conditional, not an active source/operational window. [Latest review/actions/limits/cleanup handoff](CX-0128.md). No serving tuple or target database refresh this checkpoint; dated observations below remain explicitly dated.
+Owner decisions are recorded in [OWNER_DECISIONS_20261012.md](OWNER_DECISIONS_20261012.md). [OP0002-r5 setup/human-chat](CON-01-OP-0002-r5.json) and [OP0001-r3 Ask qualification](CON-01-OP-0001-r3.json) are the current drafts; prior revisions remain history. Both remain draft_not_authorized/not approval-ready; exact execution candidates/artifacts/commands, approval and expiry are unbound. Shared owner freeze is conditional, not an active source/operational window. [Latest review/actions/limits/cleanup handoff](CX-0156.md).
+
+## Read-only dashboard and ledger refresh — CX-0156, 2026-10-12
+
+Authenticated Render/Vercel UI at05:58–06:00UTC confirms the unchanged CX100 service tuple: APIdep-db0h6jad/1e912b7e, nativedep-db02hcou/6ec64f36, workerdep-db5dos84/0391bc66, bridgedep-db0h7rc9/1e912b7e; StudioReady/manualdpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1, sourceSHA unknown. [Exact safe receipt](evidence/20261012-cx156-live-checkpoint/hosting.safe.json). Existing signed-in app accessible, no Conversations entry; no cohort designation/write or CON app acceptance.
+
+Direct DB metadata access stopped at missing credential reference/ENOENT **before connection**; [failed-attempt receipt](evidence/20261012-cx156-live-checkpoint/direct-db-attempt.json). Safe Supabase Table Editor fallback refreshed/read all36 migration metadata rows through0036, whose checksums match exact main3c40b1c6 (36/36). [UI ledger receipt](evidence/20261012-cx156-live-checkpoint/schema-ledger-ui.json). No SQL entered/run or data mutation. This ledger-only UI result does not refresh role/admission, transaction_read_only, current server version, CON table existence or runtime/live-binding status. Oct11 transaction below remains historical. Installed composition, governed rollback and live-work settlement unqualified; Ask off, operation drafts unapproved. Owned temporary dashboard tabs closed, hosted session retained.
 
 # CON-01 live preflight — read-only, 2026-10-09
 
