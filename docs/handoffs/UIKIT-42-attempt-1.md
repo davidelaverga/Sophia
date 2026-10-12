@@ -49,3 +49,9 @@ like a decision offers «Propose as decision»).
   a cold load whose membership is read after the search still gets the form; a confirmed viewer gets the list.
 - The words are fitted to a question's limit (`fitQuestion`, 120, cut at a word with an ellipsis), so a long query still
   starts; `new-conversation.test.ts` holds it.
+
+## Post-review, round 2 (Codex on #267)
+
+- With the form already open, Search's words land in its question and the question takes the focus, two frames on,
+  after the closing sheet has handed the focus back to its opener (`focusQuestion`); ask-instead.spec reads it, and it
+  fails without the change.

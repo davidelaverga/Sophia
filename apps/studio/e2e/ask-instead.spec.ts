@@ -38,3 +38,22 @@ test('ask instead · Search finding nothing offers the same', async ({ page }) =
   await expect(sheet).toHaveCount(0)
   await formAsks(page)
 })
+
+test('ask instead · with the form already open, Search’s words land in its question with the focus (Codex on #267)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&conversations=1&place=conversations')
+  await drawn(page, DRAWN.conversations)
+  await page.locator('.conv-list-head button').first().click()
+  await expect(form(page)).toBeVisible()
+  await page
+    .locator('.topbar')
+    .getByRole('button', { name: /^Search/ })
+    .click()
+  const sheet = page.getByRole('dialog', { name: 'Search this project' })
+  await sheet.getByRole('searchbox', { name: 'Search this project' }).fill(WORDS)
+  await sheet.getByRole('button', { name: `Ask Sophia about “${WORDS}”` }).click()
+  await expect(sheet).toHaveCount(0)
+  await formAsks(page)
+  await expect(form(page).getByRole('textbox', { name: 'Question' })).toBeFocused()
+})

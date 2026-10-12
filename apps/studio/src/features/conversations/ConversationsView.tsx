@@ -72,6 +72,12 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
   return { list, all: list.data ?? [], settled: list.isSuccess && !list.isFetching }
 }
 
+/** The new conversation's question, focused two frames on: after a closing sheet hands the focus back to its opener. */
+const focusQuestion = () =>
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.conv-new .conv-question input')?.focus()),
+  )
+
 /** What another view asked Conversations to open (project-go.tsx): a conversation, or words to ask Sophia. */
 function useArrivals(
   ask: (id: string) => void,
@@ -89,6 +95,9 @@ function useArrivals(
     else if (writer) {
       beginOn(talk, to.ask)
       if (!start.starting) start.toggle()
+      // Already open, the form is not mounted anew, so its own focus does not run: its question takes the focus, after
+      // the sheet that asked has given its own back (Codex on #267).
+      else focusQuestion()
     }
     show()
     return undefined
