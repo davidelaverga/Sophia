@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { MissionDecision } from '@sophia/contracts'
-import { askOf, sameQuestion, startable, startersOf } from './new-conversation.ts'
+import { askOf, fitQuestion, QUESTION_LIMIT, sameQuestion, startable, startersOf } from './new-conversation.ts'
 
 const pending = (statement: string, day = 1) =>
   ({ statement, state: 'proposed', createdAt: `2026-10-0${String(day)}T09:00:00.000Z` }) as unknown as MissionDecision
@@ -70,5 +70,16 @@ describe('the same question, already asked here', () => {
       asked('new', 'Long or short briefs?', '2026-10-07T00:00:00Z'),
     ]
     assert.equal(sameQuestion('Should briefs be short or long?', two)?.id, 'new')
+  })
+})
+
+describe('words given as a question', () => {
+  it('fit its limit: as they are when short, cut at a word with an ellipsis when longer', () => {
+    assert.equal(fitQuestion('  zebra crossings  '), 'zebra crossings')
+    const long = Array.from({ length: 40 }, (_, i) => `word${String(i)}`).join(' ')
+    const fitted = fitQuestion(long)
+    assert.ok(fitted.length <= QUESTION_LIMIT, String(fitted.length))
+    assert.ok(fitted.endsWith('…'))
+    assert.ok(long.startsWith(fitted.slice(0, -1)))
   })
 })

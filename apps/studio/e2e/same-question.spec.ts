@@ -23,11 +23,13 @@ test('same question · a question already asked here is named, and its press ope
   await form(page).getByRole('textbox', { name: 'Question' }).fill('Should briefs be short or long?')
   await expect(same(page)).toBeVisible()
   await expect(same(page)).toContainText('Short or long briefs?')
-  await same(page).getByRole('button').click()
+  await same(page).getByRole('button').focus()
+  await page.keyboard.press('Enter')
   await expect(form(page)).toHaveCount(0)
-  await expect(page.getByRole('region', { name: 'Open conversation' }).getByRole('heading').first()).toHaveText(
-    'Short or long briefs?',
-  )
+  const title = page.getByRole('region', { name: 'Open conversation' }).getByRole('heading').first()
+  await expect(title).toHaveText('Short or long briefs?')
+  // The focus goes with it, to the conversation's title, never to the page's body.
+  await expect(title).toBeFocused()
 })
 
 test('same question · an unrelated question shows no line, and Start stays', async ({ page }) => {

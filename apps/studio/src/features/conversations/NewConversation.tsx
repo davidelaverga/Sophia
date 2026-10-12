@@ -19,10 +19,10 @@ import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
 import { contextQuery } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
-import { askOf, sameQuestion, startable, startersOf } from './new-conversation.ts'
+import { askOf, QUESTION_LIMIT, sameQuestion, startable, startersOf } from './new-conversation.ts'
 
 /** How long a conversation's question may be. */
-export const QUESTION_MAX = 120
+export const QUESTION_MAX = QUESTION_LIMIT
 
 interface Props {
   projectId: string

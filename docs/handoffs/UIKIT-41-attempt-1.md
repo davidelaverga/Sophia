@@ -42,3 +42,9 @@ after it adds only this handoff. A squash on merge gives the work an id this fil
 
 informe-inteligencia #4 (the next-ask piece on Home, a task's sheet and the personal space), #7 (an empty search offers
 to ask Sophia) and #8 (a message that reads like a decision).
+
+## Post-review (Codex on #266)
+
+The conversation opened from the form takes the focus on its title (`start.arrive`, the started conversation's own
+path), so a keyboard or screen reader user is not left on `body`; same-question.spec presses it from the keyboard and
+reads the focus there.

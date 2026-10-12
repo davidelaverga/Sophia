@@ -73,3 +73,15 @@ export function sameQuestion<C extends { id: string; title: string; lastAt: stri
     .toSorted((a, b) => b.shared - a.shared || Date.parse(b.c.lastAt) - Date.parse(a.c.lastAt))
   return scored[0]?.c ?? null
 }
+
+/** How long a question may be (A18's limit, the form's `maxLength`). */
+export const QUESTION_LIMIT = 120
+
+/** Words given as a question, fitted to its limit: cut at a word with an ellipsis when longer (docs/plans/ask-instead.md). */
+export function fitQuestion(words: string): string {
+  const text = words.trim()
+  if (text.length <= QUESTION_LIMIT) return text
+  const cut = text.slice(0, QUESTION_LIMIT - 1)
+  const at = cut.lastIndexOf(' ')
+  return `${(at > 0 ? cut.slice(0, at) : cut).trimEnd()}…`
+}
