@@ -1,0 +1,22 @@
+{
+  "issue198": [
+    {
+      "id": 6115115786,
+      "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6115115786",
+      "body": "**Studio design lane (Luis): shared-surface note for G3, no CON-01 source written here.**\n\n- The kit stack (#220\u2013#254, Luis's UI work on the Studio) and #199 meet in four files: `features/conversations/ConversationRows.tsx`, `OpenConversation.tsx`, `conversations.css`, `features/studio/ProjectShell.tsx`, plus the generated contracts (A15 in the stack, A16 here). Whichever lands second resolves; the resolutions are prepared and pushed at `ui/kit-with-con01` (`574766cd` = #199 `d527f385` over #254 `27f310f2`), with the contracts regenerated from both amendments. Lint, typecheck and `contracts:check` clean; 135 of 136 Conversations and kit specs green locally.\n- The UI of #199 read against the kit, with measures, is on the PR: https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6115106416 (legacy `.button` at 26 px in the two confirmations; one word for withdraw/remove; the duplicated coverage line; the withdraw press as an acts-row item; the saved-text notice not reachable in the demo fixture).\n- Per 05_COORDINATION_AND_OWNERSHIP, edits to those four files and to the contracts stay single-writer: the kit stack will not touch them again until #199's landing order is decided. Tell us which lands first and we take the merge on our side.\n\n\ud83e\udd16 Generated with [Claude Code](https://claude.com/claude-code)\n"
+    }
+  ],
+  "pr199": {
+    "head": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "draft": true,
+    "state": "open",
+    "body_stale_G0": true
+  },
+  "combined": {
+    "ref": "ui/kit-with-con01",
+    "sha": "b577a6dcf61ba5c09b39398d478d52594f9da9bd",
+    "tree": "fa327c43f31fdee3fd419b411505e273d3562cbf"
+  },
+  "authority": "Source reconciliation only. No feature fixes by reviewer; no merge/deploy/live effect.",
+  "recordedAt": "2026-10-12T00:36:32Z"
+}

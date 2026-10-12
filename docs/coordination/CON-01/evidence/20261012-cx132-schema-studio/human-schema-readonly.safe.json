@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-12T00:28:33.567Z",
+  "mode": "READ ONLY; metadata only",
+  "source": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "currentMain": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+  "comparisonScope": "exact main migration manifest plus candidate API required-function metadata; no operational approval",
+  "credentialRef": "~/.config/sophia/smc-m01-owner-db-url",
+  "targetReferenceMatched": true,
+  "server": {
+    "version": "17.6",
+    "read_only": "on"
+  },
+  "drift": [],
+  "pending": [
+    "0037_amendment_preservation.sql",
+    "0038_design_records.sql",
+    "0039_design_runtime.sql",
+    "0040_design_flow.sql",
+    "0041_design_lifecycle.sql",
+    "0042_source_review_coordination.sql",
+    "0043_design_delivery.sql",
+    "0044_object_write_once.sql",
+    "0045_render_requeue_output.sql"
+  ],
+  "conversationTables": {
+    "conversations": false,
+    "replies": false,
+    "contexts": false
+  },
+  "truncated": false,
+  "serverObservedAt": "2026-10-12T00:28:36.364Z",
+  "rollbackConfirmed": true,
+  "connectionEnded": true,
+  "lastApplied": "0036",
+  "applied": 36,
+  "missingRequiredSignatures": [
+    "sophia.answer_work_decision(uuid,uuid,text,jsonb)",
+    "sophia.coordination_permit(bytea,jsonb)",
+    "sophia.propose_source_review(uuid,text,jsonb,jsonb)",
+    "sophia.read_work_result(uuid,uuid,uuid)",
+    "sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)",
+    "sophia.runtime_capture_issue(bytea,text,text,jsonb,text)",
+    "sophia.runtime_source_review_submit(bytea,text,text,jsonb)",
+    "sophia.source_review_proposal(uuid,text)",
+    "sophia.work_command(uuid,uuid,text,jsonb)"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "files": [
+    {
+      "path": "human-schema-readonly.mjs",
+      "sha256": "c74cc95981828e4f9f0e27cc075ae516287b246109355662a857b63f549d59e2"
+    },
+    {
+      "path": "human-schema-readonly.safe.json",
+      "sha256": "157749e694cb9113caae4dd8431fb09db0649f9d48dcd4393f792f17c2a5fe7f"
+    },
+    {
+      "path": "human-schema-source-manifest.json",
+      "sha256": "500856a6e93ae8ee75c2391ce13c1544fa65fd2cedb56233d8b4565ae0ab2c9b"
+    },
+    {
+      "path": "luis-comments.safe.json",
+      "sha256": "157cf239cc960ae21d39262bfcb86c61eaa208f2f5189f2747d21775041587ed"
+    }
+  ],
+  "private_ledger_excluded": true,
+  "hosted_effects": 0,
+  "provider_native_calls": 0
+}

@@ -48,7 +48,7 @@
     },
     "tuple_limits": "OnlyDBcatalogboundaryfresh; API/runtime/worker/bridge/Studio servingtuple remainsdated12:02:21UTC, no refresh/release/recoveryqualification.",
     "current_main": "e0200f1a discovered; draft candidate/artifact fields remain unbound, no deployment or rollback tuple refresh",
-    "database_discovery_refreshed": "2026-10-11T23:56:29.377Z"
+    "database_discovery_refreshed": "2026-10-12T00:28:36.364Z"
   },
   "readiness": {
     "source_ready": "Bounded dispatcher prerequisite published; CON native/subscription/Q13 incomplete",
@@ -72,8 +72,8 @@
   "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
   "goal_status": "active",
   "checkpoint": "CON-01-CX-0132",
-  "at": "2026-10-12T00:21:29.600886+00:00",
-  "classification": "Progress: independent built-in-browser reproduction of current Studio integration P2; refreshed exact refs/CI; author accepts Q13 P2 and validates r4",
+  "at": "2026-10-12T00:36:32Z",
+  "classification": "Progress: real PG17 PUBLIC writer failure, current Studio browser focus failure, fresh hosted read-only schema boundary and Luis source reconciliation",
   "previous_turn": "progress: real PG17 evidence and activation failure changed next action",
   "owner_decisions": "OWNER_DECISIONS_20261012.md retained, no new low-level product question",
   "candidate": "78ced7f340654542374683121cdf3103c05c7671",
@@ -106,7 +106,7 @@
   },
   "Q13": {
     "latest_published": "9211a35e6b8bf1e895dbe457eca139d201336a78",
-    "BYPASSRLS_P2": "Accepted in exact native stream; author confirmed evidence and preparing r4 allowlist/attribute checks with exact SQL A/B validation",
+    "BYPASSRLS_P2": "r4 scoped independent adverse check holds correctly",
     "new_candidate": "r4 published, independently tested with further effective-authority hold; no source-write GO",
     "shared_write_GO": false,
     "native_checkin": "Delete-trigger tool invoked with one-time permission for exact trig_01No2QjX8ebsVDMWsqbmqQGq only; tool completed and returned trigger metadata. Final cancellation acknowledgement not yet established; no new monitor created.",
@@ -114,7 +114,8 @@
     "r4_diff_full_read": true,
     "independent_affected_controls": "Six previous controls + BYPASSRLS hold PASS on ownedPG17; no full installed S3 qualification",
     "new_P2": "PUBLIC EXECUTE on real Sophia create_project writer is effective but exact activation SQL returns zero; actual protected-role call writes project and creation ledger, transaction rolled back",
-    "evidence": "evidence/20261012-cx132-q13-r4/manifest.json"
+    "evidence": "evidence/20261012-cx132-q13-r4/manifest.json",
+    "next_revision": "Exact native author actively implementing effective PUBLIC check; no immutable correction yet observed"
   },
   "source_pins": {
     "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
@@ -157,7 +158,8 @@
     "real_provider_native_executions": 0,
     "new_spend": 0,
     "real_account_project_creations": 0,
-    "rolled_back_synthetic_project_creations": 1
+    "rolled_back_synthetic_project_creations": 1,
+    "hosted_read_only_connections": 1
   },
   "cleanup": {
     "pid": 90371,
@@ -170,17 +172,47 @@
     "viewport_reset": true,
     "harness_restored_clean": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
   },
-  "next_bounded_action": "Claude immutable effective PUBLIC-authority correction and independent affected PG17 checks; actual Studio/owner integration handback before shared writes",
+  "next_bounded_action": "Actual Luis/CON integration ACK and joint exact schema dependency handback; immutable effective-authority correction then independent affected checks",
   "mission_comment": {
     "id": 6115547451,
     "exact_readback": true
   },
-  "published_evidence_commit": "ab9b1d859ddac849b30bec192a2bc9598c18b030",
+  "published_evidence_commit": "da6a4df5d9e905cc06a9b59782a3b50ec7fc7592",
   "PG_cleanup": {
     "stopExit": 0,
     "stopped": true,
     "pidAbsent": true,
     "clusterRemoved": true,
     "successful": true
+  },
+  "schema_preflight": {
+    "evidence": "evidence/20261012-cx132-schema-studio/manifest.json",
+    "mode": "REPEATABLE READ READ ONLY; catalog metadata only",
+    "ledger": 36,
+    "last": "0036",
+    "hash_drift": [],
+    "candidate_required_functions_missing": 9,
+    "prerequisite_chain": "Requested from existing joint owner; not yet bound/authorized",
+    "rollback": true,
+    "connection_ended": true
+  },
+  "coordination": {
+    "PUBLIC_finding": {
+      "comment": 6115581422,
+      "exact_readback": true,
+      "native_message": 661
+    },
+    "Luis_record": "STUDIO_RECONCILIATION_20261012.md",
+    "Luis_comments": [
+      6115115786,
+      6115106416
+    ],
+    "combined_ui_head": "b577a6dcf61ba5c09b39398d478d52594f9da9bd",
+    "combined_ui_tree": "fa327c43f31fdee3fd419b411505e273d3562cbf",
+    "joint_thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
+    "joint_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:22",
+    "joint_active_turn": "01a12d78-5d2c-7152-a3ec-ccb5d1ecbd0a",
+    "joint_status": "active; own820pass1fail locale/source investigation; prerequisite request sent",
+    "no_shared_write_window": true
   }
 }
