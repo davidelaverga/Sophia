@@ -11,9 +11,10 @@ already name the questions its state invites («Why is it waiting?», `INVITED` 
 
 ## What changes
 
-- **Home** (`homeNextAsk`, pure, in places-view.ts, the same reading as `sophiaSays`): a session about to start →
-  «Help me get ready for Pitch run in Weekly standup» (*because it starts in 10 min*); else the busiest room →
-  «Catch me up on Onboarding pilot» (*because Marco, Lucía and Sophia are there now*); else nothing. It is the line's
+- **Home** (`homeNextAsk`, pure, in places-view.ts): a session about to start → «Help me get ready for Pitch run in
+  Weekly standup» (*because it starts in 10 min*); else nothing. Not a live room's «Catch me up on Onboarding pilot»:
+  Home's line goes to the companion, which never sees a project, so it could only guess from the title; catching up is
+  the project's conversation's own next ask («Sum it up») (Codex P1 on #268). It is the line's
   placeholder; with the line focused and empty, the key cap «Tab» stands where «/» stood. Tab (or →) puts the words in
   the line; Esc puts it away for the visit; Enter sends to her as any line does.
 - **A task's sheet**: the field's placeholder is the first question the task invites, with the cap while the field is
@@ -22,10 +23,10 @@ already name the questions its state invites («Why is it waiting?», `INVITED` 
 
 ## Checks (written first)
 
-- `places-view.test.ts`: `homeNextAsk` takes the session first, then the busiest room, else nothing; none without
+- `places-view.test.ts`: `homeNextAsk` takes a session about to start, else nothing; never a live room; none without
   projects.
-- `e2e/next-ask-places.spec.ts`: Home's placeholder is the busiest room's ask; focused, the cap stands; Tab fills the
-  line; Esc on a fresh visit puts it away. A task's field: its placeholder is the first invited question; Tab fills it.
+- `e2e/next-ask-places.spec.ts`: Home's placeholder is the session's ask; focused, the cap stands; Tab fills the line;
+  a live room alone leaves the line's own words; Esc on a fresh visit puts it away. A task's field: its placeholder is the first invited question; Tab fills it.
 
 ## Left
 

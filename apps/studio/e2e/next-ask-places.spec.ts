@@ -9,12 +9,15 @@ test.afterEach(async ({ page }) => {
 
 const line = (page: Page) => page.getByRole('textbox', { name: 'Say something to Sophia' })
 
-test('next ask · Home: the line suggests the busiest room’s ask; focused, Tab stands; Tab fills the line', async ({
+// A session about to start (the `four` set's Standup, in 10 min): the one ask Home's line can help with.
+const SOON = '/home.html?demo=1&projects=four'
+
+test('next ask · Home: the line suggests getting ready for the session about to start; focused, Tab stands; Tab fills the line', async ({
   page,
 }) => {
-  await page.goto('/home.html?demo=1')
+  await page.goto(SOON)
   await drawn(page, DRAWN.home)
-  await expect(line(page)).toHaveAttribute('placeholder', /^Catch me up on /)
+  await expect(line(page)).toHaveAttribute('placeholder', /^Help me get ready for Standup in /)
   const suggested = (await line(page).getAttribute('placeholder')) ?? ''
   await line(page).focus()
   await expect(page.locator('.hw-say .next-ask kbd')).toHaveText('Tab')
@@ -24,8 +27,20 @@ test('next ask · Home: the line suggests the busiest room’s ask; focused, Tab
   await expect(page.locator('.hw-say .next-ask')).toHaveCount(0)
 })
 
-test('next ask · Home: Esc puts the suggestion away for the visit', async ({ page }) => {
+test('next ask · Home: a live room alone suggests nothing: the companion never sees the project (Codex P1 on #268)', async ({
+  page,
+}) => {
   await page.goto('/home.html?demo=1')
+  await drawn(page, DRAWN.home)
+  // The demo's room is live (Marco, Lucía and Sophia), with no session ahead: the line keeps its own words.
+  await expect(page.locator('.hw-says')).toContainText('Marco, Lucía and Sophia')
+  await expect(line(page)).toHaveAttribute('placeholder', 'Say something to Sophia')
+  await line(page).focus()
+  await expect(page.locator('.hw-say .next-ask')).toHaveCount(0)
+})
+
+test('next ask · Home: Esc puts the suggestion away for the visit', async ({ page }) => {
+  await page.goto(SOON)
   await drawn(page, DRAWN.home)
   await line(page).focus()
   await page.keyboard.press('Escape')
@@ -34,10 +49,10 @@ test('next ask · Home: Esc puts the suggestion away for the visit', async ({ pa
 })
 
 test('next ask · Home: put away, it comes back on the next visit to Home (Codex on #268)', async ({ page }) => {
-  await page.goto('/home.html?demo=1&leave=1')
+  await page.goto(`${SOON}&leave=1`)
   await drawn(page, DRAWN.home)
   const suggested = (await line(page).getAttribute('placeholder')) ?? ''
-  expect(suggested).toMatch(/^Catch me up on /)
+  expect(suggested).toMatch(/^Help me get ready for /)
   await line(page).focus()
   await page.keyboard.press('Escape')
   await expect(line(page)).toHaveAttribute('placeholder', 'Say something to Sophia')

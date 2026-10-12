@@ -260,8 +260,10 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 
 /**
- * The next ask Home's line suggests (docs/plans/next-ask-places.md), read as `sophiaSays` reads: a session about to
- * start first, then the busiest room; nothing otherwise.
+ * The next ask Home's line suggests (docs/plans/next-ask-places.md): a session about to start, the one thing Home's
+ * line can help with from what its words carry; nothing otherwise. Home's line goes to the companion, which never sees
+ * a project, so a room's «Catch me up» is not offered here: catching up is the project's conversation's (its own next
+ * ask, «Sum it up»), where Sophia reads the project (Codex P1 on #268).
  */
 export function homeNextAsk(
   projects: readonly ProjectSummary[] | undefined,
@@ -273,17 +275,10 @@ export function homeNextAsk(
     p.nextSession !== null && soon(p, now) && Date.parse(p.nextSession.startsAt) > now.getTime()
   const starting = workOrder(projects, now).find(ahead)
   const when = starting ? sessionWhen(starting, now) : null
-  if (starting?.nextSession && when)
-    return {
-      words: `Help me get ready for ${starting.nextSession.title} in ${starting.title}`,
-      why: `Because it ${when}`,
-    }
-  const busiest = projects.toSorted((a, b) => peopleIn(b) - peopleIn(a))[0]
-  if (!busiest?.room || peopleIn(busiest) === 0) return null
-  const one = busiest.room.people.length === 1 && !busiest.room.sophia
+  if (!starting?.nextSession || !when) return null
   return {
-    words: `Catch me up on ${busiest.title}`,
-    why: `Because ${roomNames(busiest.room)} ${one ? 'is' : 'are'} there now`,
+    words: `Help me get ready for ${starting.nextSession.title} in ${starting.title}`,
+    why: `Because it ${when}`,
   }
 }
 
