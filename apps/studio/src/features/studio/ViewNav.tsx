@@ -62,8 +62,10 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
       if (item) clear(item)
       mark()
     }
+    // Only a focus the keyboard brought: a mouse press focuses its link too, and scrolling then would move the link from
+    // under the pointer between press and release, so the click would miss it (Codex on #233).
     const onFocus = (e: FocusEvent) => {
-      if (e.target instanceof Element) clear(e.target)
+      if (e.target instanceof Element && e.target.matches(':focus-visible')) clear(e.target)
     }
     settle()
     row.addEventListener('scroll', mark, { passive: true })
