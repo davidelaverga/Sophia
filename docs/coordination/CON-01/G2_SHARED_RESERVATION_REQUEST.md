@@ -1,11 +1,20 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 2 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 3 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
 
-**Revision 2, after CX-0155.** The joint Phase B review found four P2s in revision 1 (`57f66b50`), with the verdict `CHANGES_REQUIRED_NO_RESERVATION_OR_WRITE_GO`. Codex's root review agrees with all four. Each is accepted:
+**Revision 3, after CX-0157.** The joint review of revision 2 (`b6ee23a4`) and Codex's root review find CX-0155's four findings addressed at proposal scope. They found three new bounded P2s on adverse paths, with the verdict `CHANGES_REQUIRED_THREE_BOUNDED_P2_NOT_FULL_MANIFEST_ACK_NO_WRITE_GO`. Each is accepted:
+
+| Finding | Disposition | Where |
+|---|---|---|
+| PB2-STOP-DELIVERY | **Accepted.** Revision 2's reply dispatcher knew only `native.create` and `native.retire`, so the `stop` that `conversation_cancel` writes had no delivery path. Revision 3 enumerates it:<ul><li>when the cleanup `stop` is written: exactly when a claim exists;</li><li>its key, its actor and its epoch (2);</li><li>its delivery through `conversation_dispatch`'s cleanup branch, with no statement and no grant, open-request or source eligibility;</li><li>the exact `commands`, `outbox` and `runtime_commands` counts of `create`, `stop` and `retire` on every path, replays included</li></ul> | §2 B-2, §3.1(a), (b), (d) |
+| PB2-SOURCE-OUT-CANCEL | **Accepted.** S4's `conversation_source_out` cancelled a live request in the database only (:452-456). Revision 3 replaces that update with a `conversation_cancel` call. The call runs under the same locks and before the context is erased, and it is the one named promotion-equality exception in S4. S1's `conversation_withdrawn_from` likewise selects the open requests first, then cancels each through `conversation_cancel`. Revision 2 also named the grant switch and the asker's removal as callers, without the functions that would call it; both are now stated as not wired in Phase B, and held | §3.1(d), (e) |
+| PB2-RECOVERY-SETTLE-LEASE | **Accepted.** Revision 2 held settle to the claim's own lease. That refuses the frozen Q7 r8's recovery settle (r8:775, :887). Revision 3 keeps the claim's lease strict for claim, go and reserve, and gives settle one narrow recovery case: the current authenticated bridge of the same runtime, for a request that capture ended and an ordinal still `reserved`. S2's identical-replay and conflict refusals stand, and an `uncertain` ordinal is never settled | §2 B-5, §3.1(c) |
+| The M01 wording and the review's precision notes | **Accepted:**<ul><li>"No M01 object is read" becomes "no M01 object, definition or ACL changes". S3's dormant context still reads accepted mission and decision data and ledger revisions, and those reads are preserved;</li><li>each `ON CONFLICT DO NOTHING` is followed by reading and verifying the existing row before any dependent row;</li><li>the entry points bind the authenticated runtime instance, project and resource, not a unit name alone;</li><li>the plugin entry must resolve through the approved loader form (Q8);</li><li>relocated and Python tests are a plan until executed, and an unsupported platform is reported as such, never as a pass on exit 0 alone</li></ul> | §1, §2, §3.1(c), §3.3, §3.4 |
+
+**Revision 2, after CX-0155.** Its dispositions stand, unchanged below. The joint Phase B review found four P2s in revision 1 (`57f66b50`), with the verdict `CHANGES_REQUIRED_NO_RESERVATION_OR_WRITE_GO`. Codex's root review agrees with all four. Each is accepted:
 
 | Finding | Disposition | Where |
 |---|---|---|
@@ -14,7 +23,7 @@
 | PB-IMPLEMENTATION-COMPANIONS | **Accepted.** §3.2 now names: the persistence module and its five wrapper signatures (`runtime.ts` is read, not edited); the routes and their registration; `generate-runtime-wire.ts`'s exact `SCHEMAS` and `VALIDATED` additions; and every generated companion. §3.4 now names `config/dsh/profile/pnpm-lock.yaml`, as recorder output only, and the canonical patch and profile paths. Revision 1's bare `cordis.patch.yml` was the wrong place for the reply child's row. That row belongs in the reply template's rows | §3.2–§3.4 |
 | PB-GATE-ORDER | **Accepted, the first of the review's two sequences.** Every pin that changes the bundle records its identities and the profile lock in the same commit (AGENTS.md:56) and passes the complete gates before the next pin. Revision 1's "record once, at the end" is withdrawn. To make each pin compile on its own, A16's changes to A04's components move from step 2 to step 3, the bridge's step. Each new test is placed where a gate runs it (§3.3, §3.4). There is no stale-artifact waiver, and no claim of a crossing that hasn't run | §3.3, §3.4, §4 |
 
-What revision 1 got right stands: the frozen Q7 r8 design and its consumer ACK; the dispatcher-first base (main, the accepted Phase A, then G1's 0048); one writer; the stopped handback; and every hold.
+What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consumer ACK; the dispatcher-first base (main, the accepted Phase A, then G1's 0048); one writer; the stopped handback; and every hold.
 
 **It rests on these exact records:**
 
@@ -24,6 +33,9 @@ What revision 1 got right stands: the frozen Q7 r8 design and its consumer ACK; 
 | The joint consumer ACK of that exact revision | `BOUNDED_RUNTIME_CONSUMER_DESIGN_ENGINEERING_ACK_EXACT_R8_ONLY`. Findings empty. Safe record `942e5a3cc79d86da…`, original `fc4f61ca63e063fc…`, in [CX-0154](https://github.com/davidelaverga/Sophia/blob/aeff9f89147a96ca0ce3cebe5a776dc8107df24c/docs/coordination/CON-01/CX-0154.md). **A design ACK only:** no writer window, no core or ledger acceptance, no implementation and no target qualification. CX-0155 keeps it valid |
 | The joint Phase B review of revision 1 | [`joint-phase-b-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/9fbc1fc26fcb5cd3a49d103a7e282d5bd8d75f0e/docs/coordination/CON-01/evidence/20261012-cx155-reservation/joint-phase-b-review.safe.json) at `9fbc1fc2`, SHA-256 `350d0213059b8745…` (original `894e518aff23f3ec…`). Four P2s; B-1 to B-6 judged compatible consumer directions; K-1 to K-5 routing |
 | Codex's root review and the combined packet | [CX-0155](https://github.com/davidelaverga/Sophia/blob/9fbc1fc26fcb5cd3a49d103a7e282d5bd8d75f0e/docs/coordination/CON-01/CX-0155.md) at `9fbc1fc2`; [#198 comment 6118556530](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6118556530) |
+| The joint review of revision 2 | [`joint-phase-b-r2-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/7b93140ad327617aad34f07634e76f7d311bd6cd/docs/coordination/CON-01/evidence/20261012-cx157-reservation-r2/joint-phase-b-r2-review.safe.json) at `7b93140a`, SHA-256 `aaf6b43e06f06372…` (original `2d37018cbace6ef1…`). Three P2s; CX-0155's four findings addressed at proposal scope |
+| Codex's root review of revision 2 | [CX-0157](https://github.com/davidelaverga/Sophia/blob/7b93140ad327617aad34f07634e76f7d311bd6cd/docs/coordination/CON-01/CX-0157.md) at `7b93140a`; [#198 comment 6118950446](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6118950446) |
+| Revision 2 of this file | `b6ee23a47188f94c291e0516643dce3f62309601`, tree `f71a9c7a`, SHA-256 `040c2041bd6aba50…`, 437 lines |
 | Revision 1 of this file | `57f66b5067a4e50cc0df0190d491947f2624596b`, tree `7a571790`, SHA-256 `6aee5c9e789b23ea…`, 232 lines |
 | The owner routing | [`joint-owner-routing.r2.json`](https://github.com/davidelaverga/Sophia/blob/7dc23203eeaef3e91e4515f36127e1f86318d7c4/docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json) at `7dc23203`, SHA-256 `569fe9275b0bdb76…` |
 | The current plan | `docs/execution/2026-10-01-unified/planning/goals.json` on observed `main` (SHA-256 `1cf14f4e4f49ef1a…`): S1-02 Luis (`folded_not_restarted`); S1-05A and SMC-M01 Davide/Luis (`retained_foundation`). `goals/BASE.md` (`d58298a699f5d6ab…`), whose line 30 asks BASE to "name current writers for routes/App/SidePanel, A10/A11/contracts, registry/byte store and runtime locks". **Routing evidence, not an appointment or an ACK** |
@@ -34,7 +46,7 @@ What revision 1 got right stands: the frozen Q7 r8 design and its consumer ACK; 
 | The reply runtime plan | [`46ddd769`](https://github.com/davidelaverga/Sophia/blob/46ddd769b7182e968da20219a9f6852757419805/docs/coordination/CON-01/G2_RUNTIME_PLAN.md) §3 (the held files) and §5 (the order). SHA-256 `fc6f4ad8548dee9c…` |
 | The option C impact inventory | [`3b1af9b9`](https://github.com/davidelaverga/Sophia/blob/3b1af9b94413a409214b05203d5fbdf5088435c1/docs/coordination/CON-01/G2_IMPACT_INVENTORY.md) §3–§7 |
 | The S1–S4 candidates | `7d8f415f45d51d3f536443060f5acbfd3bea9455` (PR #211's head, review-only, never to merge). Full hashes in §3.1(e) |
-| Observed `main` | `5ed752bde219d38d…`, migrations through 0045, amendments through A14. **Observed, not an accepted base** |
+| Observed `main` | `3c40b1c64eadaef5…`. Since `5ed752bd`, which revisions 1 and 2 read, it changes none of the paths this file cites: no `db/`, contracts, persistence, API, bundle, execution host, worker, `config/`, `scripts/`, root package, lock, `AGENTS.md` or planning path. So migrations run through 0045, and amendments through A14. **Observed, not an accepted base** |
 
 ## 1. Who is asked, by surface
 
@@ -52,7 +64,9 @@ Every surface Phase B touches has one recorded route. Each route is asked only a
 | **The numbers, the census and the GO** | **Codex,** as the source coordinator | As for Phase A, after K-1 to K-4 |
 
 **Not asked:**
-- **SMC-M01 (0018, 0019, A08 and A09):** no M01 object is read, replaced or granted, so no M01 acknowledgement is asked. If an M01 change turns out to be needed, it stops the writer and goes to M01's own narrow route (Davide/Luis).
+- **SMC-M01 (0018, 0019, A08 and A09):** no M01 object, definition or ACL changes, so no blanket M01 acknowledgement is asked.
+  - M01 isn't untouched in every sense. S3's dormant context reads the accepted mission (`project_revisions` at `projects.mission_revision`), the decisions, and the mission and ledger revisions, under the compiler identity `sophia.mission-context.v1`. Those read dependencies are kept and preserved.
+  - If an M01 change turns out to be needed, it stops the writer and goes to M01's own narrow route (Davide/Luis).
 - **`is_task_kind` (0038, SDD-01), `actor_id()` and `is_member(uuid)` (0002, core):** not changed.
 - **Q13's read policy and the assembler's identity:** Q13's own scope (§3.1(e), §6).
 - **Davide is asked no low-level engineering choice.** What is already his and pending stays pending, and is not asked again:
@@ -67,10 +81,10 @@ Each item is an existing Q7 r8 obligation that the joint ACK left to the core an
 | # | The decision | CON's recommendation | Bound by | Q7 r8 |
 |---|---|---|---|---|
 | B-1 | **Hello's lease-loss table:** keep it or drop it | **Keep it.** It ends a lease-lost request at the hello, whatever the new bridge answers to the replay. And it keeps a busy or replies-off bridge's `rejected` from releasing a reservation the old execution may have used. **If it is dropped,** the required alternative is accounting-safe: the bridge asks the claim before ever answering a replayed `create` `rejected`. Tests exist for both. P1-E stays withdrawn either way | S1-05A/BASE. SMC-M03 confirms that `runtime_hello`'s goal and research branch is preserved | §6, the table and "Why a table at all"; §10 |
-| B-2 | **The cleanup `retire`'s writer and idempotency.** Exactly one per attempt, keyed to the same attempt and reply, with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **One writer, `conversation_retire`, using only existing unique constraints:**<ul><li>the `commands` row takes key `conversation-retire:<attemptId>`, with the request's asker as its actor, under 0001's `UNIQUE(project_id, actor_id, idempotency_key)`;</li><li>its one `outbox` row (`native.retire`, `cleanup` true, inside the `native.%` reconcile filter) falls under `UNIQUE(project_id, command_id, destination_key)`;</li><li>its `runtime_commands` row falls under 0012's `UNIQUE(project_id, outbox_id)`.</li></ul>Each insert is `ON CONFLICT DO NOTHING`. So a repeated hello or a replayed receipt writes nothing new. A `retire` kind is added by the reviewed CHECK change and the wire. The owner may name another key | S1-02 (the `commands` and `outbox` rows and the key); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §10's delivery counts |
+| B-2 | **The cleanup commands, `stop` and `retire`: their writers, keys and delivery.** Exactly one `retire` per attempt. One `stop` per attempt that was claimed, then cancelled. Each comes with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **Two writers, using only existing unique constraints:**<ul><li>`conversation_cancel` writes the `stop`. Its `commands` row has key `conversation-stop:<attemptId>`, with the request's asker as its actor. Its one `outbox` row is `native.stop`, `binding/<bindingId>`, `cleanup` true, at epoch 2;</li><li>`conversation_retire` writes the `retire`. Its key is `conversation-retire:<attemptId>`, with the same actor. Its `outbox` row is `native.retire`, `binding/<bindingId>`, `cleanup` true, at the attempt's current epoch.</li></ul>The constraints are 0001's `UNIQUE(project_id, actor_id, idempotency_key)` and `UNIQUE(project_id, command_id, destination_key)`, and 0012's `UNIQUE(project_id, outbox_id)`. The actor is fixed per attempt, so each key stays unique per attempt whoever cancels. Each insert is `ON CONFLICT DO NOTHING`, **then the existing row is read back by its key and verified** (the same attempt, kind and epoch) before any dependent row. A mismatch refuses. So a repeated hello, receipt, withdrawal, erasure or source-out writes nothing new. Both destinations stay inside the `native.%` reconcile filter, and the `create`'s rows are never reused. The owner may name other keys | S1-02 (the `commands` and `outbox` rows and keys); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §7, "Withdrawal"; §10's delivery counts |
 | B-3 | **The cursor rule** for `stop` and `retire`: replayed once per hello until a `checked` answer is recorded | A new version of `runtime_cursor` in 0049, with the same signature, owner, security, `search_path` and privileges. It is defined at 0012:399, and 0012 is not edited. Its only caller is `runtime_hello` (0028:105), so a `stop` or `retire` without a `checked` answer is replayed at each hello, and never in a loop within one connection. `runtime_poll` (0016:114) is not edited | S1-05A/BASE | §6, the `stopping` row |
 | B-4 | **BINDING_MAP §8.2.1:297 and :299,** which say "no second … outbox row or runtime command" beside "one `retire`" | Replaced in the accepted window by: "no second attempt, reservation, `create` or execution. Exactly one cleanup `retire`, with its own command and delivery rows; none on replay". CON edits its own binding only in that window, after B-2 is bound | CON, after B-2 | §6, "Owned by the core owner" |
-| B-5 | **The run gate and the claim** | `runtime_conversation_claim` and `runtime_conversation_go` (§3.1(c)) call `runtime_lease` first. A superseded bridge is refused with `40001`. The lease is the authenticated `bridgeInstanceId`; a body whose `leaseId` differs is refused. Then the request's row is locked, and `conversation_execution_claim` and `conversation_execution_go` run. One atomic `pending` → `running` transition, replayed for the same lease and command | S1-05A/BASE (the entry points and `runtime_lease`); CON (the claim's table and functions) | §6, "The API and 0049" |
+| B-5 | **The run gate, the claim, and whose lease each call needs** | `runtime_conversation_claim` and `runtime_conversation_go` (§3.1(c)) call `runtime_lease` first. A superseded bridge is refused with `40001`. The lease is the authenticated `bridgeInstanceId`; a body whose `leaseId` differs is refused. Then the request's row is locked, and `conversation_execution_claim` and `conversation_execution_go` run. One atomic `pending` → `running` transition, replayed for the same lease and command. **Claim, go and reserve act only for the claim's own lease. Settle also has Q7 r8's one recovery case:** the current bridge of the same runtime may resend a journaled settle for a request that capture ended, while its ordinal is still `reserved` (§3.1(c)) | S1-05A/BASE (the entry points and `runtime_lease`); CON (the claim's table and functions, and S2's ledger) | §6, "The API and 0049"; §7's ledger table (r8:775) and "After a restart" |
 | B-6 | **The acknowledgement's eight predicates,** plus the relay's own condition | `runtime_conversation_acknowledged` → `conversation_acknowledged`. Each predicate is bound to its durable key as §7 lists them: `terminalWriter`, `createAnswered`, and `capture: none` only with no `turn/end` in both the journal and the database. A lease-loss `terminalWriter` is the hello's row in `conversation_executions`. No predicate ever asserts a record that doesn't exist. The relay's `closed` is never asked of the API | S1-05A/BASE (the entry point); CON (the predicates over its rows) | §7 |
 
 ## 3. Phase B's exact scope, by step
@@ -98,7 +112,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 | Table | Change |
 |---|---|
 | `sophia.work_attempts` | `goal_id` and `goal_revision` drop NOT NULL. Add `conversation_reply_id uuid`, with `FOREIGN KEY (project_id, conversation_reply_id) REFERENCES sophia.conversation_replies(project_id, id)`. Add `CHECK (num_nonnulls(goal_id, conversation_reply_id) = 1)` and `CHECK ((goal_id IS NULL) = (goal_revision IS NULL))`. Add the unique partial index `work_attempts_by_reply ON (project_id, conversation_reply_id) WHERE conversation_reply_id IS NOT NULL`: one native attempt per request |
-| `sophia.outbox` | `goal_id` drops NOT NULL. Add `conversation_reply_id uuid`, with the same foreign key, and `CHECK (num_nonnulls(goal_id, conversation_reply_id) = 1)`. Add the non-unique partial index `outbox_by_reply ON (project_id, conversation_reply_id) WHERE conversation_reply_id IS NOT NULL`. A request has its `create` row and at most one cleanup row |
+| `sophia.outbox` | `goal_id` drops NOT NULL. Add `conversation_reply_id uuid`, with the same foreign key, and `CHECK (num_nonnulls(goal_id, conversation_reply_id) = 1)`. Add the non-unique partial index `outbox_by_reply ON (project_id, conversation_reply_id) WHERE conversation_reply_id IS NOT NULL`. A request has its `create` row, at most one `stop` row and at most one `retire` row (§3.1(d)'s counts) |
 | `sophia.execution_bindings` | Its state CHECK is replaced under its own name, found by its definition (as S1 does for 0048's). `retired` is added to `created`, `launching`, `running`, `idle`, `stopping`, `settled` and `lost` |
 | `sophia.runtime_commands` (0012:74-79) | Its kind CHECK is replaced the same way. `retire` is added to `create`, `resume`, `input`, `steer`, `hold`, `stop` and `inspect` |
 | `sophia.commands` | Not altered. `goal_id` is already nullable, and the `retire` key uses its existing unique constraint (B-2) |
@@ -111,11 +125,11 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 
 | Function | Latest body on observed `main` | Route (§1) | The named insertion |
 |---|---|---|---|
-| `dispatch_runtime_outbox` | 0042:1806 | Joint (WBC-02); 0012 foundation | A reply branch first: a row with `conversation_reply_id` goes to `conversation_dispatch` and returns. After the goal lock, `IF g.id IS NULL` denies |
+| `dispatch_runtime_outbox` | 0042:1806 | Joint (WBC-02); 0012 foundation | A reply branch first: a row with `conversation_reply_id` goes to `conversation_dispatch` and returns, whatever its destination (`native.create`, `native.stop` or `native.retire`). A reply row never reaches the goal path's cleanup or `settle_native_control`. After the goal lock, `IF g.id IS NULL` denies |
 | `native_delivery_ineligible` | 0041:149 | Joint (SDD-01) | A first `WHEN g.id IS NULL` refuses |
 | `capture_native_result` | 0042:1724 | Joint (WBC-02) | A reply branch first, keyed on the attempt's `conversation_reply_id`, before any goal or job read. A `g.id IS NULL` guard |
 | `runtime_hello` | 0028:74 | SMC-M03; 0012 foundation | The reply bindings as a `UNION ALL` beside the goal bindings. B-1's table, in the hello's own transaction after its project lock and instance update |
-| `apply_runtime_receipt` | 0012:464 | S1-05A | A reply branch first, before the goal and job reads (BINDING_MAP §8.2.1) |
+| `apply_runtime_receipt` | 0012:464 | S1-05A | A reply branch first, before the goal and job reads (BINDING_MAP §8.2.1). For cleanup, a `checked` `stop` settles the binding and calls `conversation_retire`; any other answer leaves it `stopping`, replayed at each hello (B-3). Either way, an open reservation becomes `uncertain`. A `checked` `retire` marks the binding `retired`; any other answer leaves it, replayed at each hello |
 | `runtime_record_observations` | 0023:20 | SMC-M03; 0012 foundation | A privacy-fenced reply branch, under the conversation writers' lock order (§8.2.2) |
 | `runtime_cursor` | 0012:399 | S1-05A | B-3's rule only |
 
@@ -127,9 +141,25 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **The functions:** `sophia.runtime_conversation_claim`, `runtime_conversation_go`, `runtime_conversation_reserve`, `runtime_conversation_settle` and `runtime_conversation_acknowledged`. Each takes `(bytea, text, text, jsonb)` (the token hash, runtime unit, bridge instance and request) and returns `jsonb`.
 - **Their form:** each is `SECURITY DEFINER`, `SET search_path = pg_catalog, sophia`, and calls `sophia.runtime_lease(p_token_sha256, p_unit, p_bridge)` first. That is the pattern of 0012:837-841 and 0025:606-614.
 - **The lock order:** the project, then the instance (inside `runtime_lease`), then the request's row.
-- **What each checks:**
-  - claim, go, reserve and settle require the attempt to be bound to the caller's runtime unit, and act only for the claim's own lease (the caller's `bridgeInstanceId`);
-  - acknowledged requires the binding only, because the recovering bridge asks it (Q7 r8 §7).
+- **The authenticated scope:**
+  - `runtime_lease` returns the caller's runtime instance: its project, resource, unit and id (`runtime_instances`, 0012:52-60).
+  - Every call must name an attempt whose binding has that project, resource and unit, and whose `create` was queued for that runtime instance (`runtime_commands.runtime_id`).
+  - The request, attempt, binding, command and ordinal must all belong together.
+  - A unit name alone is never the scope.
+- **Claim, go and reserve** act only for the claim's own lease: the caller's `bridgeInstanceId`.
+- **Settle** acts in two cases (PB2-RECOVERY-SETTLE-LEASE), and in no other:
+  - **live:** the claim's lease is the caller's;
+  - **recovery** (Q7 r8:775, :887), when all of these hold:
+    - the caller holds the runtime's current lease, which `runtime_lease` has just proved;
+    - the claim's lease is an earlier bridge instance of the same runtime;
+    - the request is terminal, and `conversation_acknowledged`'s `terminalWriter` is capture;
+    - the ordinal is still `reserved`.
+
+  In both cases S2's `conversation_settle` then checks the amounts. It accepts `reserved` → `settled` or an identical replay, and refuses anything else (`outcome_conflict`).
+  - **An `uncertain` ordinal is never settled.**
+  - **The recovery case is settle only.** It never claims, goes, reserves, releases, resets an allowance or moves the claim.
+  - **Why capture is the only terminal writer here:** a request that a receipt or the hello's lease-loss rows ended has no `reserved` ordinal left, because both move open ones to `uncertain`.
+- **Acknowledged** requires the scope only, because the recovering bridge asks it (Q7 r8 §7).
 - **Their ACL:** `REVOKE ALL ... FROM PUBLIC`, then `GRANT EXECUTE ... TO sophia_api`, for these five only.
 
 | Entry point | Calls (internal, no grant) |
@@ -137,32 +167,69 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 | `runtime_conversation_claim` | `conversation_execution_claim(p_attempt uuid, p_command uuid, p_lease text, p_epoch bigint)` |
 | `runtime_conversation_go` | `conversation_execution_go(p_attempt uuid, p_command uuid, p_lease text, p_epoch bigint)` |
 | `runtime_conversation_reserve` | S2's `conversation_reserve(uuid, uuid, integer, jsonb)`, for a request `running` under this lease |
-| `runtime_conversation_settle` | S2's `conversation_settle(uuid, uuid, integer, jsonb)` |
+| `runtime_conversation_settle` | S2's `conversation_settle(uuid, uuid, integer, jsonb)`, in the live or the recovery case above |
 | `runtime_conversation_acknowledged` | `conversation_acknowledged(p_attempt uuid, p_keys jsonb)` |
 
 **(d) CON's new internal objects.** None has a grant: `REVOKE ALL ... FROM PUBLIC, sophia_api, sophia_worker`; each table has row security on and no policy.
 - **The table `sophia.conversation_executions`:** one row per attempt (`UNIQUE (project_id, attempt_id)`). It holds the request, the command, the lease (`bridgeInstanceId`), the epoch and the claim's outcome (`claimed`, `running` or `lost`). For a lease loss, it also holds the hello's instance that recorded it (B-6's `terminalWriter`).
 - **The claim and go:** `conversation_execution_claim` and `conversation_execution_go` (B-5).
-- **Dispatch and delivery:**
-  - `conversation_dispatch`: for a `native.create` row, the inventory's §4.2 eligibility, statement and payload; for a cleanup `native.retire` row, the `retire` command only;
-  - `conversation_reply_statement`: BINDING_MAP §8.3's statement, built only from S3's recorded context. It refuses without one;
-  - `conversation_delivery_ineligible`.
-- **Cancelling and retiring:**
-  - `conversation_cancel`: it raises the epoch to 2 and writes the `stop`. Its callers are withdrawal and erasure (through `conversation_withdrawn_from`), the grant switch and the asker's removal;
-  - `conversation_retire`: B-2's writer. It is called from `apply_runtime_receipt`'s reply branch, `capture_native_result`'s reply branch and `runtime_hello`'s lease-loss rows.
+- **Dispatch and delivery (PB2-STOP-DELIVERY):**
+  - **`conversation_dispatch(o)`, by destination:**
+    - `native.create`: the inventory's §4.2 eligibility, `conversation_reply_statement` and the payload, as a `create` runtime command at epoch 1;
+    - `native.stop` and `native.retire`, the cleanup rows: a `stop` or `retire` runtime command at the row's epoch. Its payload has no text, role or route, and nothing is assembled. **A cancelled request's grant, open state and sources are never checked for cleanup,** so they can't block an authorized attempt's cleanup.
+  - **`conversation_reply_statement`:** BINDING_MAP §8.3's statement, built only from S3's recorded context. It refuses without one.
+  - **`conversation_delivery_ineligible(o)`:**
+    - for `native.create`, the inventory's §4.2 conditions;
+    - for a cleanup row, only that the row's epoch is the attempt's current one and the binding isn't `retired`.
+- **Cancelling: `conversation_cancel(p_project uuid, p_reply uuid, p_reason text, p_at timestamptz)`.**
+  - **Locks first:** its caller already holds the project and conversation locks. It locks the request's row, and does nothing unless the request is `pending` or `running`.
+  - **Then reads:** the request's attempt, binding and claim, and whether the `create` has a runtime command. All of this is read **before** any state changes.
+  - **Then, in every case:** the request becomes `cancelled`, with the reason and `settled_at`, and the attempt's epoch rises to 2.
+  - **What else depends on the claim:**
+    - **No claim yet.** No execution exists, and none can start: a claim needs `pending` under this same lock.
+      - The `create`'s outbox row, if still `pending`, is superseded, as `research_stop_revoked` does (0028:115). If a worker already holds its lease, dispatch finds the request no longer `pending` and denies it.
+      - No `stop` is written. `conversation_retire` writes the attempt's one `retire` now.
+      - If the `create` already reached a runtime, the bridge's claim is refused `not_pending`. It spawns nothing and answers `outcome_unknown`, which writes nothing new.
+    - **A claim exists, before or after `go`.** The binding becomes `stopping`, and B-2's one `stop` is written at epoch 2.
+      - Its `checked` answer settles the binding and writes the one `retire`.
+      - Any other answer leaves it `stopping`, replayed at each hello (B-3).
+      - Either way, an open reservation becomes `uncertain` (Q7 r8 §7, "Withdrawal").
+  - **Its callers in Phase B:**
+    - S1's `conversation_withdrawn_from`: withdrawal, erasure, and source-out's answered branch;
+    - S4's `conversation_source_out`, in its open-request branch (§3.1(e)).
+  - **Not wired in Phase B, and held:** the grant switched off, and the asker's removal (BINDING_MAP §8.5). Revision 2 named them as callers without the functions that would call.
+    - Wiring them needs `conversation_set_grant` (S2's; it has no caller in Phase B) and a membership-removal function that isn't CON's and isn't in this manifest.
+    - Neither can meet a live reply in Phase B: no grant exists, and Ask is off.
+    - They are closed, with their own owners' acknowledgement, before any Ask activation.
+- **Retiring:** `conversation_retire`, B-2's writer. It is called:
+  - by `conversation_cancel` with no claim;
+  - by `apply_runtime_receipt`'s reply branch (a terminal receipt; a `checked` `stop`);
+  - by `capture_native_result`'s reply branch;
+  - by `runtime_hello`'s lease-loss rows.
+
+  It writes nothing if the attempt's `retire` already exists. So **each attempt has exactly one `retire`**, whichever path reaches it first.
+- **The delivery counts,** in `commands` / `outbox` / `runtime_commands` rows per attempt:
+
+  | How the attempt ends | `create` | `stop` | `retire` |
+  |---|---|---|---|
+  | Not cancelled: capture, a terminal receipt, or the hello's lease-loss rows | 1 / 1 / 1 | 0 | 1 / 1 / 1 |
+  | Cancelled before any claim, the `create` not yet dispatched | 1 / 1 (superseded) / 0 | 0 | 1 / 1 / 1 |
+  | Cancelled before any claim, the `create` already dispatched | 1 / 1 / 1 | 0 | 1 / 1 / 1 |
+  | Cancelled after a claim, before or after `go` | 1 / 1 / 1 | 1 / 1 / 1, at epoch 2 | 1 / 1 / 1 |
+  | Any replay: hello, receipt, withdrawal, erasure, source-out | +0 | +0 | +0 |
 - **`conversation_acknowledged`:** B-6.
 - **Replaced from 0048, keeping each one's owner, security, `search_path` and privileges:**
   - `conversation_ask`, the admission (the inventory, §4.1);
-  - `conversation_withdrawn_from(uuid, uuid, bigint, text)`. Its one final body is S1's, plus a `conversation_cancel` call for an open request that has an attempt.
+  - `conversation_withdrawn_from(uuid, uuid, bigint, text)`: S1's body, except its cancelling `UPDATE` (S1:51-53). That becomes a loop which first selects the open requests (`pending` or `running`, `cutoff_seq >= p_seq`) `FOR UPDATE` in id order, then calls `conversation_cancel` for each. No state is updated before its attempt is identified.
 
 **(e) S1–S4, promoted into 0049 from `7d8f415f`.** Each comes with its exact objects and its closed ACL. The only differences from the candidates are the ones named in this subsection and in (d).
 
 | Candidate | SHA-256 | What 0049 takes |
 |---|---|---|
-| S1 `db/candidates/con01-s1-reply-states.sql` (55 lines) | `bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817` | **All of it.** The refusal over an open `outcome_unknown` (:16-22). 0048's settled-time CHECK on `conversation_replies`, replaced under its own name (:26-34). `conversation_replies_open`, recreated for `pending` and `running` (:37-39). `conversation_withdrawn_from`, replaced (:44; its final body adds (d)'s `conversation_cancel` call), and its `REVOKE ALL ... FROM PUBLIC` (:55). No grant |
+| S1 `db/candidates/con01-s1-reply-states.sql` (55 lines) | `bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817` | **All of it.** The refusal over an open `outcome_unknown` (:16-22). 0048's settled-time CHECK on `conversation_replies`, replaced under its own name (:26-34). `conversation_replies_open`, recreated for `pending` and `running` (:37-39). `conversation_withdrawn_from`, replaced (:44; its final body is (d)'s), and its `REVOKE ALL ... FROM PUBLIC` (:55). No grant |
 | S2 `db/candidates/con01-s2-conversation-reply-ledger.sql` (427 lines) | `e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316` | **All of it:**<ul><li>five tables: `conversation_grants`, `conversation_grant_approvals`, `conversation_grant_subjects`, `conversation_reply_allowances` and `conversation_reservations`;</li><li>the unique index `conversation_grants_current`;</li><li>eleven functions: `conversation_ledger_kept` (the trigger function), `_ledger_amount`, `_reservation_receipt`, `_grant_subjects_set`, `_new_lineage`, `_set_grant`, `_reserve`, `_settle`, `_mark_uncertain`, `_release` and `_reconcile`;</li><li>eight triggers: four `*_kept` and four `conversation_ledger_tables_kept`.</li></ul>Row security is on for all five tables (:414-418). Its ACL (:419-426) revokes everything from `PUBLIC`, `sophia_api` and `sophia_worker`. **Its closed ACL doesn't broaden:** only §3.1(c)'s entry points reach `_reserve` and `_settle` |
 | S3 `db/candidates/con01-s3-conversation-reply-context.sql` (754 lines) | `d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4` | **All but its role preamble and its role grant.** It takes:<ul><li>four tables: `conversation_assembly_claims`, `conversation_reply_contexts`, `conversation_reply_sources` and `conversation_reply_messages`;</li><li>three indexes: `conversation_reply_contexts_recorded` (unique), `conversation_reply_sources_by_source` and `conversation_reply_messages_by_message`;</li><li>twenty-two functions: `conversation_context_kept`, `_quoted`, `_time`, `_fields`, `_template`, `_mission`, `_decision`, `_message`, `_current`, `_scrub`, `_message_scrubbed`, `_reply_scrubbed`, `_grammar` and `_list`; `conversation_assembly_locked`, `_privacy`, `_current`, `_claim`, `_begin`, `_close` and `_fail`; and `conversation_record_context`;</li><li>ten triggers: four `*_kept`, four `conversation_context_tables_kept`, `conversation_context_message_scrub` and `conversation_context_reply_scrub`.</li></ul>Row security is on (:730-733), and its function `REVOKE` is kept (:736-750) |
-| S4 `db/candidates/con01-s4-reply-fences.sql` (495 lines) | `ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8` | **All of it:**<ul><li>three tables: `conversation_reply_answers`, `conversation_reply_suppressions` and `conversation_context_erasures`;</li><li>`conversation_context_kept`, replaced (:112);</li><li>the length CHECK on `conversation_reply_contexts`, replaced under its own name (:158-166);</li><li>eleven functions: `conversation_fences_kept`, `_fences_locked`, `_reply_verdict`, `_fences_recorded`, `_answer_receipt`, `_context_digest_erase`, `_fences_text_gone`, `_reply_check`, `_publish_answer`, `_refuse_answer` and `_source_out`;</li><li>seven triggers: three `*_kept`, three `conversation_fences_tables_kept` and `conversation_fences_text_gone`.</li></ul>Row security is on (:482-484), and its ACL (:485-495) is closed to every login |
+| S4 `db/candidates/con01-s4-reply-fences.sql` (495 lines) | `ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8` | **All of it, with one named insertion in `conversation_source_out` (below):**<ul><li>three tables: `conversation_reply_answers`, `conversation_reply_suppressions` and `conversation_context_erasures`;</li><li>`conversation_context_kept`, replaced (:112);</li><li>the length CHECK on `conversation_reply_contexts`, replaced under its own name (:158-166);</li><li>eleven functions: `conversation_fences_kept`, `_fences_locked`, `_reply_verdict`, `_fences_recorded`, `_answer_receipt`, `_context_digest_erase`, `_fences_text_gone`, `_reply_check`, `_publish_answer`, `_refuse_answer` and `_source_out`;</li><li>seven triggers: three `*_kept`, three `conversation_fences_tables_kept` and `conversation_fences_text_gone`.</li></ul>Row security is on (:482-484), and its ACL (:485-495) is closed to every login |
 
 - **S3's role preamble is excluded and superseded.** That is the `DO` block that creates or adopts `sophia_conversation_assembler` (:22-51), and line 55, `GRANT sophia_api TO sophia_conversation_assembler WITH INHERIT TRUE;`.
   - D-8 (Q13A) rejects continued inheritance of the broad `sophia_api` as the reply identity's isolation.
@@ -171,6 +238,18 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **S3's entry-point grant is excluded too.** That is :751-754, `GRANT EXECUTE ... TO sophia_conversation_assembler`.
   - S3's five entry points (`conversation_assembly_claim`, `_begin`, `_close`, `_fail` and `conversation_record_context`) have **no grantee** in Phase B. Only their owner can execute them.
 - **The `REVOKE` lists change to match.** S3:734-735's and S4:485-486's table `REVOKE`, and S4:487-495's function `REVOKE`, drop `sophia_conversation_assembler` from their role lists. A `REVOKE` from a role that doesn't exist fails, and nothing else in those lists changes.
+- **S4's `conversation_source_out` gets one insertion, its only change (PB2-SOURCE-OUT-CANCEL).** Its open-request branch (:452-456) set the request `cancelled` directly, so a running attempt was never stopped.
+  - **The replacement:** that branch's `UPDATE` (:454-455) becomes `PERFORM sophia.conversation_cancel(p_project, r.id, why, t)`, between marker comments.
+  - **When it runs:**
+    - under the locks the function already holds: the project (:416), the conversation (:442) and the request (:443);
+    - while the request is still `pending` or `running`, so its attempt and claim are read before any state changes;
+    - before `conversation_context_digest_erase` (:468).
+  - **What it sets is unchanged:** `cancelled`, the reason `why`, and `settled_at` `t`. `n_cancelled` still counts it.
+  - **Also unchanged:** the suppressions, tombstones and counts, and the answered branch (:457-465).
+    - That branch still reaches later open requests in the same conversation through `conversation_withdrawn_from`, which now cancels each through `conversation_cancel`.
+    - Nothing reaches other humans, other conversations or independent decisions.
+  - **The promotion-equality test** strips exactly this insertion from `conversation_source_out` and compares the rest byte for byte. Every other S4 function is compared whole.
+  - **Nothing else is added:** no source-policy trigger, grant or Q13 scope. `conversation_source_out` still has no caller but a test's owner setup, until the held source-writer and Q13 integration.
 - **The assembly dependency, named.** A reply's context is assembled only by the isolated identity that Q13's scope defines and qualifies (D-8's tests). Until Q13 is accepted and its own scope is written:
   - no reply can be assembled outside a test's owner setup;
   - `conversation_reply_statement` refuses;
@@ -196,6 +275,30 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - the claim and go;
   - `40001` for a superseded bridge;
   - no reachable call to either S2 stub.
+- **Cleanup delivery (PB2-STOP-DELIVERY).** Each case counts every `commands`, `outbox` and `runtime_commands` row against §3.1(d)'s table. At step 1 they run in SQL, with each answer recorded through the runtime entry points as a stub bridge would record it. Step 4's `reply-runtime.test.mjs` repeats them across the stub runtime:
+  - cancelled before the `create` is dispatched: the `create` row superseded, no `stop`, and one `retire`;
+  - cancelled after the `create` reached a runtime, before any claim: the claim refused `not_pending`, no `stop`, and one `retire`;
+  - cancelled after `go`: one `stop` at epoch 2. It is dispatched with no statement, with the grant disabled and the source withdrawn.
+    - Its `checked` answer gives the one `retire`.
+    - Its `outcome_unknown` answer leaves the binding `stopping`, and the next hello replays the same `stop` with no new row;
+  - repeated withdrawal, erasure and source-out, a repeated hello and a replayed receipt: no new row;
+  - a key found with a different attempt, kind or epoch: refused, before any dependent row;
+  - in every case, no new execution, attempt, reservation, call or allowance reset.
+- **Source-out (PB2-SOURCE-OUT-CANCEL).** A running request has a recorded context and a claimed attempt. Its source becomes ineligible, and `conversation_source_out` runs. The cases show:
+  - the request `cancelled` (`source_withdrawn` or `source_out_of_scope`) and the epoch 2;
+  - one `stop`, then `checked` or `outcome_unknown`, then the one `retire`;
+  - the suppressions, tombstones and counts that S4's own tests expect.
+
+  Also: a pending request with no claim gets no `stop` and one `retire`, and the answered branch's same-conversation reach is unchanged.
+- **Recovery settle (PB2-RECOVERY-SETTLE-LEASE):**
+  - **positive:** bridge instance A claims, goes and reserves. Capture commits `answered`, and A goes before its settle is answered. Instance B of the same runtime says hello and resends the same settle, and the ordinal becomes `settled`. An identical resend replays the receipt;
+  - **negatives:**
+    - A, after B's hello (`40001`);
+    - another resource, unit, project, attempt or ordinal;
+    - an `uncertain` ordinal;
+    - a different body (`outcome_conflict`);
+    - a request that a receipt or the hello's lease-loss rows ended;
+    - B trying to claim, go or reserve.
 - **The option C and catalog cases:**
   - the two CHECKs and the unique attempt index;
   - the five entry points executable by `sophia_api` alone;
@@ -207,7 +310,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - `conversation-ledger.db.test.ts` (S2, `72bd63ec90e472b0…`);
   - the role-independent cases of `conversation-assembly.db.test.ts` (S3, `5b5121033a54b065…`) and `conversation-fences.db.test.ts` (S4, `fe9e536f1e1e3506…`).
 - **Held, not promoted:** their cases that record a context through `sophia_conversation_assembler`, and the module they use, `conversation-assembly.ts` (`35f18af65275a4eb…`, which issues `SET LOCAL ROLE` to that role in each transaction). These stay on #211, held with Q13, and every receipt names them as not run. No case is rewritten to pass without the role.
-- **The bridge to #211's results:** a promotion-equality case shows that each promoted S3 and S4 function and constraint is byte-identical to its candidate. So #211's recorded results stay attached to the same bodies, without being claimed as re-run.
+- **The bridge to #211's results:** a promotion-equality case shows that each promoted S3 and S4 function and constraint is byte-identical to its candidate, except `conversation_source_out`'s one named insertion. So #211's recorded results stay attached to the same bodies, without being claimed as re-run. `conversation_source_out`'s results are not carried over: its own new case below covers it.
 - **`conversation-context.ts`** (`1b378011b228833d…`) and **`conversation-context.test.ts`** (`9123b01de94f790b…`) are promoted unexported and dormant, for S3's grammar cases.
 - **Existing tests:** `conversations.db.test.ts`, whose A10 case changes by design (the inventory, §6); `db/tests/0037_amendment_preservation.sql`; `personal.db.test.ts:922-929`.
 - **TypeScript:** `packages/persistence/src/outbox.ts`'s `OutboxRow.goal_id` becomes `string | null`. No worker code reads it.
@@ -297,7 +400,7 @@ export const runtimeConversationAcknowledged = (c: pg.PoolClient, who: RuntimeCa
 
 **Not edited:**
 - `role-registry.ts`, `config/roles.json` and `config/specialists.json`. The reply child takes no native role or tool, and no route is bound (D-4). Revision 1 listed `role-registry.ts`; Q7 r8 §6 has no change there;
-- `packages/dsh-bundle/package.json`. Its `files` already ships `dist/*.js`;
+- `packages/dsh-bundle/package.json`. Its `files` already ships `dist/*.js`, but its `exports` expose no subpath. So the `sophia-reply-child` row must resolve the plugin through the approved loader form (Q8). That it does is proved by execution (step 4's L1, step 5's P7), not assumed;
 - `packages/dsh-bundle/cordis.patch.yml`, the goal profile's bundle layer.
 
 An unlisted need, a plugin entry included, stops the writer (§3).
@@ -319,7 +422,7 @@ An unlisted need, a plugin entry included, stops the writer (§3).
 
 **New:**
 - `apps/execution-host/reply/reply-launch.py` and `test_reply_launch.py` (Q7 r8 §10's `unittest` cases);
-- `tests/unit/reply-launch.test.mjs`, which runs `python3 -I -m unittest discover -s apps/execution-host/reply -p 'test_*.py'` and fails, never skips, on any nonzero exit or a missing `python3`. That way `pnpm check` runs them. The existing Python precedent runs in its own workflow (`.github/workflows/uml-fixture.yml`), outside `pnpm check`, and no workflow file is in scope.
+- `tests/unit/reply-launch.test.mjs`, which runs `python3 -I -m unittest discover -s apps/execution-host/reply -p 'test_*.py'` and fails, never skips, on any nonzero exit or a missing `python3`. That way `pnpm check` runs them. The existing Python precedent runs in its own workflow (`.github/workflows/uml-fixture.yml`), outside `pnpm check`, and no workflow file is in scope. These tests, and the relocated bundle tests, are a plan until they are executed. An unsupported platform or missing containment is reported as failed or held, never as passed on exit 0 alone.
 
 **Profile, by canonical path:**
 - **`config/dsh/reply-rows.reviewed.json` (new):** the reply template's reviewed rows. They include the `sophia-reply-child` row that loads the bundle's `reply-plugin`. The rows are Davide's (Q8), so this step waits on Q8. Revision 1 placed that row in a bare `cordis.patch.yml`, which was wrong.
@@ -336,7 +439,7 @@ An unlisted need, a plugin entry included, stops the writer (§3).
 
 **Tests:**
 - `tests/integration/supervisor.test.mjs`, extended;
-- `tests/integration/reply-runtime.test.mjs` (new): L1, with the loopback stub.
+- `tests/integration/reply-runtime.test.mjs` (new): L1, with the loopback stub. It includes the crossings of §3.1's cleanup-delivery, source-out and recovery-settle cases, through the real bridge, launcher and stub runtime.
 
 ### 3.5 Step 5: qualification
 
@@ -346,7 +449,8 @@ Q7 r8 §9's P1–P8 and §10's L1 cases run on the step 4 pin, composed with the
 - Q13's shared read-policy scope and the assembler's identity (freeze r2 start condition [4]; `2ff7daeb`, its own scope and acknowledgement);
 - the Studio, held for Luis's handback;
 - any route or credential;
-- S2's release and reconcile proof sources.
+- S2's release and reconcile proof sources;
+- the grant-switch and asker-removal cancellation (§3.1(d)).
 
 ## 4. Base, number, writer, order, gates and handback
 
@@ -402,13 +506,13 @@ Any of these stops the writer and goes back to Codex.
 
 | # | From | Acknowledges | State |
 |---|---|---|---|
-| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), §3.1(d), A16, `conversation-*.ts` | recorded by this revision |
+| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | recorded by this revision |
 | K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, and B-2's key | requested here |
 | K-1c | The joint lane | Consumer compatibility with this exact r2 manifest. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | requested here |
-| K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows; names the current writer and reviewer | requested here |
-| K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | requested here |
+| K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | requested here |
+| K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | requested here |
 | K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | requested here |
-| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox`, `capture_native_result` and `native_delivery_ineligible` | requested here |
+| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | requested here |
 | K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | requested here |
 | K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | waits on Phase A's acceptance and G1 |
 | K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | after K-1 to K-4 |
