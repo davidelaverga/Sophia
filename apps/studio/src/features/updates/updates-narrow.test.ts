@@ -76,4 +76,18 @@ describe('the row over it', () => {
       ['Someone', 'You', 'Someone (2)'],
     )
   })
+  it('never makes a label someone already has: Alex, Alex and «Alex (2)» read Alex, Alex (3), Alex (2) (Codex on #239)', () => {
+    const three: Records = {
+      ...R,
+      decided: [{ decisionId: 'd1', statement: 'S', proposedBy: 'a1', decidedBy: 'a2', at: 't', undoable: false }],
+      made: [{ artifactId: 'a1', artifactVersionId: 'v1', title: 'R', versionNumber: 1, askedBy: 'a3' }],
+      noted: [],
+    }
+    const named = peopleOf(three, { a1: 'Alex', a2: 'Alex', a3: 'Alex (2)' }, 'me')
+    assert.deepEqual(
+      named.map((p) => p.name),
+      ['Alex', 'Alex (3)', 'Alex (2)'],
+    )
+    assert.equal(new Set(named.map((p) => p.name)).size, named.length)
+  })
 })

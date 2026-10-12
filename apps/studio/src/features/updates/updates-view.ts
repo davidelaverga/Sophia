@@ -99,11 +99,19 @@ export function peopleOf(
   ]
   const named = [...new Set(ids)].map((id) => ({ id, name: id === me ? 'You' : (names[id] ?? 'Someone') }))
   // Two people with one name (two unnamed, or two members called alike) are told apart by their order: «Someone»,
-  // «Someone (2)» (Codex on #239).
-  const seen = new Map<string, number>()
+  // «Someone (2)» (Codex on #239). A label made so never takes a name someone already has («Alex (2)» a member's
+  // own): every label is unique (Codex on #239, round 3).
+  const real = new Set(named.map((p) => p.name))
+  const taken = new Set<string>()
   return named.map((p) => {
-    const n = (seen.get(p.name) ?? 0) + 1
-    seen.set(p.name, n)
-    return n === 1 ? p : { ...p, name: `${p.name} (${String(n)})` }
+    if (!taken.has(p.name)) {
+      taken.add(p.name)
+      return p
+    }
+    let n = 2
+    while (taken.has(`${p.name} (${String(n)})`) || real.has(`${p.name} (${String(n)})`)) n += 1
+    const name = `${p.name} (${String(n)})`
+    taken.add(name)
+    return { ...p, name }
   })
 }

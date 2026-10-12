@@ -5,9 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/conversation-acts` from `ui/updates-narrow` at
 `5633ec2c` (stacked on PR #239 → #238 → … → #220; the base retargets as each merges)
-Ending commit/tree: the branch's head as merged (`ui/conversation-acts`); the first delivery was `4ac5d6f2`, and
-every later change is listed with its commit in the decisions and post-review notes below (Codex on #240: the
-record names the state delivered).
+Ending commit/tree: `09ceee03c1cb` (tree `dfc69bc7213c`), the last commit of `ui/conversation-acts`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`ui/updates-narrow` at that commit: `e2e/conversation-acts.spec.ts`, `src/features/conversations/MessageActs.tsx`, `src/features/conversations/OpenConversation.tsx`, `src/features/conversations/conversations.css`, `src/features/conversations/message-acts.test.ts`, `src/features/conversations/message-acts.ts`, `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/plans/conversation-acts.md`, `packages/ui/src/Icon.tsx`. The review notes below name the commit of each later change.
 
 ## Outcome
 

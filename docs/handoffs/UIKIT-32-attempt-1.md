@@ -12,10 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: the branch's head as merged (`ui/dock-header`). The first delivery was `66161f90` (tree
-`f5f83855827e`, 5 files); the reviewed result Codex named, `e2ced470` (tree `7aa64fb13884`), holds ten files with the
-later Conversations and voice-control changes described below; every change after it is listed with its commit in the
-post-review notes (Codex on #254: the record names the state delivered).
+Ending commit/tree: `9f521c190f04` (tree `34bc719b1576`), the last commit of `ui/dock-header`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 11 files changed against
+`ui/hold-stop-text` at that commit: `e2e/dock-header.spec.ts`, `src/app/theme.css`, `src/app/useMedia.ts`, `src/features/artifacts/artifacts.css`, `src/features/conversations/ConversationsView.tsx`, `src/features/studio/ProjectShell.tsx`, `src/features/voice/CallSwitches.tsx`, `src/features/voice/MiniDock.tsx`, `src/features/voice/RoomDock.tsx`, `docs/handoffs/UIKIT-32-attempt-1.md`, `docs/plans/dock-header.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

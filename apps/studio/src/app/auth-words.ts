@@ -6,7 +6,7 @@
  * What opens, said under «Sign in to Sophia» (docs/plans/sign-in-lede.md): the guest door says «“Project” is a room
  * where people and Sophia think together»; before any project, the same of Sophia, with your team.
  */
-export const SIGN_IN_LEDE = 'A room where your team and Sophia think together.'
+export const SIGN_IN_LEDE = 'Where your team and Sophia think together.'
 
 /** What the Studio reads of an Auth error: its code, its sentence and whether the request got anywhere. */
 export interface AuthFailure {
