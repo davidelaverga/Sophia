@@ -200,6 +200,10 @@ describe('home, as a place that knows where you’ll go', () => {
       words: 'Catch me up on Pitch deck',
       why: 'Because Davide and Sophia are there now',
     })
+    // A session under way is not one to get ready for: the next ask falls to a room, or to nothing.
+    const started = project({ projectId: id(7), title: 'Weekly standup', nextSession: session(-5) })
+    assert.equal(homeNextAsk([started], NOW), null)
+    assert.equal(homeNextAsk([started, live], NOW)?.words, 'Catch me up on Pitch deck')
     const alone = project({ projectId: id(6), title: 'Solo', room: { people: ['luis@sophia.test'], sophia: false } })
     assert.equal(homeNextAsk([alone], NOW)?.why, 'Because Luis is there now')
   })

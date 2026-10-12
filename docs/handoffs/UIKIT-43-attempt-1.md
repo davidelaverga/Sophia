@@ -43,3 +43,8 @@ handoff. A squash on merge gives the work an id this file cannot know.
 
 informe-inteligencia #8 (a message that reads like a decision offers «Propose as decision») once real messages can be
 measured for false positives; the personal space's composer with her own signals.
+
+## Post-review (Codex on #268)
+
+A session under way (the project list keeps it as `nextSession` until it ends) is not suggested to get ready for: only
+sessions starting ahead of now; it neither shows «Because it started» nor outranks one about to start.

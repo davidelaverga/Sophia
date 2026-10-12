@@ -268,7 +268,10 @@ export function homeNextAsk(
   now: Date,
 ): { words: string; why: string } | null {
   if (!projects || projects.length === 0) return null
-  const starting = workOrder(projects, now).find((p) => p.nextSession && soon(p, now))
+  // About to start, not under way: a session that started is to join, not to get ready for (Codex on #268).
+  const ahead = (p: ProjectSummary) =>
+    p.nextSession !== null && soon(p, now) && Date.parse(p.nextSession.startsAt) > now.getTime()
+  const starting = workOrder(projects, now).find(ahead)
   const when = starting ? sessionWhen(starting, now) : null
   if (starting?.nextSession && when)
     return {
