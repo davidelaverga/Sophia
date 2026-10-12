@@ -1,6 +1,6 @@
-# Current operation drafts — CX-0156
+# Current operation drafts — CX-0162
 
-Owner decisions are recorded in [OWNER_DECISIONS_20261012.md](OWNER_DECISIONS_20261012.md). [OP0002-r5 setup/human-chat](CON-01-OP-0002-r5.json) and [OP0001-r3 Ask qualification](CON-01-OP-0001-r3.json) are the current drafts; prior revisions remain history. Both remain draft_not_authorized/not approval-ready; exact execution candidates/artifacts/commands, approval and expiry are unbound. Shared owner freeze is conditional, not an active source/operational window. [Latest review/actions/limits/cleanup handoff](CX-0156.md).
+Owner decisions are recorded in [OWNER_DECISIONS_20261012.md](OWNER_DECISIONS_20261012.md). [OP0002-r6 setup/human-chat](CON-01-OP-0002-r6.json) and [OP0001-r4 Ask qualification](CON-01-OP-0001-r4.json) are the current drafts; prior revisions remain history. Ask now points to the current setup revision. CX162 corrects source/discovery provenance and records the known missing DB credential reference; no effect, cohort, allowance or authority expanded. Both remain draft_not_authorized/not approval-ready; exact execution candidates/artifacts/commands, approval and expiry are unbound. Shared owner freeze is conditional, not an active source/operational window. [Latest review/actions/limits/cleanup handoff](CX-0162.md). The live observations below retain their original dates and limits; this draft update did not repeat them.
 
 ## Read-only dashboard and ledger refresh — CX-0156, 2026-10-12
 

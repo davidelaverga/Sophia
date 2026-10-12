@@ -1,0 +1,43 @@
+{
+  "mode": "operator documentation preparation and JSON/reference checks only",
+  "changes": [
+    {
+      "historical": "CON-01-OP-0002-r5.json",
+      "historical_sha256": "badc2517ad82fc3c65ff2cde9fc6f3585fd14eacc5fa0f0a2a7c91c88dd00a01",
+      "current": "CON-01-OP-0002-r6.json",
+      "current_sha256": "4ea475e83a44410c541f5e1f346545480faabc503c8c06d6b295672f44779206",
+      "changed_top_level_keys": [
+        "review_reference_pins",
+        "target_identity",
+        "revision",
+        "supersedes",
+        "related_ask_request",
+        "discovery_evidence"
+      ],
+      "historical_bytes_unchanged": true,
+      "candidate_approval_expiry_unbound": true,
+      "effects_allowance_cohort_and_authority_unchanged": true
+    },
+    {
+      "historical": "CON-01-OP-0001-r3.json",
+      "historical_sha256": "414143485d1c93de19a8defb1d08b55e78de98ffdbcf2aeb8d5e26d22ad16ee3",
+      "current": "CON-01-OP-0001-r4.json",
+      "current_sha256": "661b196bb87f23bd52a683ad34921a3030010d6f9763a8d666b0d431bd3abdbf",
+      "changed_top_level_keys": [
+        "review_reference_pins",
+        "target_identity",
+        "revision",
+        "supersedes",
+        "setup_dependency",
+        "discovery_evidence"
+      ],
+      "historical_bytes_unchanged": true,
+      "candidate_approval_expiry_unbound": true,
+      "effects_allowance_cohort_and_authority_unchanged": true
+    }
+  ],
+  "current_cross_references_match": true,
+  "new_live_or_database_probe": false,
+  "no_effect_approval": true,
+  "source_and_discovery_are_dated_reference_pins_not_execution_selection": true
+}
