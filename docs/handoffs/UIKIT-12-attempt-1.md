@@ -6,13 +6,9 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/light-mode` from `ui/widths` at `f419c9b3`
 (stacked on PR #233 → #232 → #231 → #230 → #229 → #228 → #227 → #224 → #223 → #222 → #221 → #220; the base retargets
 as each merges)
-Ending commit/tree: `e98f6987` (tree `e4b6bed68980`): 22 files, 3 new (`app/theme.ts`, `e2e/light-mode.spec.ts`,
-`docs/plans/light-mode.md`); the rest are the seven sheets (the channel swap), `AccountMenu.tsx`, `main.tsx` and ten
-fixture pages (`bootTheme`). The commit after it adds only this handoff.
-After the review (Codex on #234, two P2): `3242af7d` adds the kept theme before the first paint (`public/entry.js`,
-`entry.css`) and six state tokens with a paper value (`--core-hover`, `--on-core`, `--warm-hover`, `--on-warm`,
-`--soon`, `--claude-ink`) replacing dark-only literals in four sheets, with two more checks in `light-mode.spec.ts`.
-That is the completed code state of this PR.
+Ending commit/tree: `ab7567f7df4b` (tree `247688558416`), the last commit of `ui/light-mode`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 28 files changed against
+`ui/widths` at that commit: `e2e/drawn.ts`, `e2e/light-mode.spec.ts`, `e2e/menu-scale.spec.ts`, `fixtures/app.tsx`, `fixtures/explore.tsx`, `fixtures/home.tsx`, `fixtures/join.tsx`, `fixtures/opening.tsx`, `fixtures/personal.tsx`, `fixtures/resources.tsx`, `fixtures/room.tsx`, `fixtures/signin.tsx`, `fixtures/work.tsx`, `public/entry.css`, `public/entry.js`, `src/app/AccountMenu.tsx`, `src/app/theme.css`, `src/app/theme.ts`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/light/engine.ts`, `src/features/personal/personal.css`, `src/features/resources/resources.css`, `src/features/work/planning/board.css`, `src/features/work/planning/plan.css`, `src/main.tsx`, `docs/handoffs/UIKIT-12-attempt-1.md`, `docs/plans/light-mode.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
