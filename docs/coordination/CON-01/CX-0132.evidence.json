@@ -177,7 +177,7 @@
     "id": 6115547451,
     "exact_readback": true
   },
-  "published_evidence_commit": "da6a4df5d9e905cc06a9b59782a3b50ec7fc7592",
+  "published_evidence_commit": "aa45fb78",
   "PG_cleanup": {
     "stopExit": 0,
     "stopped": true,
@@ -210,9 +210,15 @@
     "combined_ui_head": "b577a6dcf61ba5c09b39398d478d52594f9da9bd",
     "combined_ui_tree": "fa327c43f31fdee3fd419b411505e273d3562cbf",
     "joint_thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
-    "joint_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:22",
+    "joint_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:23",
     "joint_active_turn": "01a12d78-5d2c-7152-a3ec-ccb5d1ecbd0a",
-    "joint_status": "active; own820pass1fail locale/source investigation; prerequisite request sent",
-    "no_shared_write_window": true
+    "joint_status": "active; dependency missing42/43 confirmed by owner; exact handback being documented",
+    "no_shared_write_window": true,
+    "reconciliation_delivery": {
+      "issue198": 6115682251,
+      "PR199": 6115691948,
+      "both_exact_readback": true,
+      "exact_CON_native_submitted_and_visible": true
+    }
   }
 }

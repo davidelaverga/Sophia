@@ -14,7 +14,7 @@
     },
     {
       "path": "luis-comments.safe.json",
-      "sha256": "157cf239cc960ae21d39262bfcb86c61eaa208f2f5189f2747d21775041587ed"
+      "sha256": "21f0c12d52d3393b11b98b78a670118846061f5049c0cee41c181faaf32acf8e"
     }
   ],
   "private_ledger_excluded": true,
