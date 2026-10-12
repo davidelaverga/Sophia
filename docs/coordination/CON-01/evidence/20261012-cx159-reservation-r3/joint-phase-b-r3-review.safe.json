@@ -1,0 +1,861 @@
+{
+  "at": "2026-10-12T06:46:33.056024+00:00",
+  "status": "CHANGES_REQUIRED_THREE_BOUNDED_P2_K1C_NOT_SUPPLIED_NO_WRITE_GO",
+  "candidate": {
+    "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+    "tree": "d659eaa21aeb7f49659ef0db2cb729eef2329a87",
+    "parent": "b6ee23a47188f94c291e0516643dce3f62309601",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "sha256": "68c924f0e83b558be564f7169dc08ffe260eb1897cac5ae416daa8a31302c322",
+    "lines": 541,
+    "completeRead": true,
+    "proposalReadChunks": [
+      "1-140",
+      "141-280",
+      "281-420",
+      "421-541"
+    ],
+    "completeParentDiffRead": true,
+    "diffReadChunks": [
+      "1-110",
+      "111-220",
+      "221-326"
+    ],
+    "diff": "Only proposal documentation +137/-33; no implementation change."
+  },
+  "scope": "Fresh independent bounded exact-r3 consumer compatibility and own latest-body insertion-scope review. All541 proposal lines and complete326-line diff read, with truncated initial diff replaced by complete bounded chunks. Checked actual S1/S2/S3/S4, ordinary runtime schema/caller/receipt queue, frozenQ7 and prior owner/freeze evidence. Source-only: this is not an implementation test, owner appointment, current implementer ACK, integration acceptance, window reservation or operational approval.",
+  "inputs": [
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "sha256": "68c924f0e83b558be564f7169dc08ffe260eb1897cac5ae416daa8a31302c322",
+      "lines": 541,
+      "sameAsPriorReviewedBlob": false
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "sha256": "7b7e89a6a222eb9302c947745c59f0459498d7b3260123526a2195cecca4236c",
+      "lines": 128,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+      "lines": 754,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "apps/api/src/routes/runtime.ts",
+      "sha256": "2cee9da14f99ebfff047831f4f529e097d6e93350cfc3646429eaf0ee69757c0",
+      "lines": 227,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "sha256": "97f1af3c814b7715047b1c880666a4b37a5004ff12e92f460e9d0d1db1e3eeda",
+      "lines": 126,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/src/role-registry.ts",
+      "sha256": "b1c58652c90dc80dc6f7a243720d0849be0ccf92f1dabe6f3ac3d13d02b40228",
+      "lines": 109,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "7dc23203eeaef3e91e4515f36127e1f86318d7c4",
+      "path": "docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+      "lines": 205,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "sha256": "1336ba1b8e61818ccba166af996d930c6db5a236a51fa1054c72e519f84e8ec6",
+      "lines": 120,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "lines": 55,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "lines": 495,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/contracts/amendments/A16-project-conversations.json",
+      "sha256": "c5a60040129bcf2c86821d72410a086ffcde026f74c16f01abf5c875bea34b5d",
+      "lines": 1415,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "scripts/build-artifacts.mjs",
+      "sha256": "7d27eaceca5cd53f9ad8b08f0e21bd9a8d8d2e58ba8f8506fe100e0ff0867279",
+      "lines": 65,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "scripts/lib/artifacts.mjs",
+      "sha256": "7df38a1f0a69b429973335424e33ccea8dda1cacdf1925c177684c799a5c0ba6",
+      "lines": 142,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "config/dsh/base-rows.reviewed.json",
+      "sha256": "24ccd633f607b658c8ad8a052c107688dc25eaae86bee5cd2a52af707342e772",
+      "lines": 384,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "config/dsh/profile/cordis.patch.yml",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "lines": 1,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/contracts/package.json",
+      "sha256": "5fab2a20db2bbb5d8f6c0dc3a5ed813811e5c63c187e776b7aece91c4a8889cd",
+      "lines": 21,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0041_design_lifecycle.sql",
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "lines": 650,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0042_source_review_coordination.sql",
+      "sha256": "9e6064b7b78bf55342cd6f23e62ccaaa96a3a28ad8c8b48136af6557c89e408b",
+      "lines": 1980,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0001_core.sql",
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e",
+      "lines": 248,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/BASE.md",
+      "sha256": "d58298a699f5d6ab83a4e3d3818ace1c7b7f7d196e4b116d8fb7e612e971f043",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/progress/SMC-M01-contract-binding.md",
+      "sha256": "8b508a253b26636f354968c22e1e195e1df2e6fdd0eeea5d442d53684eb3004f",
+      "lines": 208,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/research.ts",
+      "sha256": "10100ddb7bbafc125fb00f6020387a90c96f87f545324bfa1d61eb742b6e3b5a",
+      "lines": 228,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "01777c5ca32b8a92f2214db9eb91d4a039e6e60f",
+      "path": "docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+      "lines": 272,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "lines": 430,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/contracts/src/validate.ts",
+      "sha256": "ab7c1b6afed6a89db29d989a73d4a77a56bac44d6bc80ee802ddb5c6fa2161bd",
+      "lines": 144,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "config/roles.json",
+      "sha256": "1e6fead81e3549f332cca788775cb546ad546dab2f46cf70323bbefff84dae19",
+      "lines": 114,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/src/protocol.ts",
+      "sha256": "54f72e7b9837aeaa09dab19358178a6d86d1e3e40045160d8189807d72a744e7",
+      "lines": 67,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "lines": 273,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/tsconfig.json",
+      "sha256": "8fc06816a9592dde59fe000b6c9e4eabadf6e647700970c2fd171c2fb61a4dba",
+      "lines": 16,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/package.json",
+      "sha256": "a66620892548928e6a5f85dc09885aac336deecb952c924234a986e6fc3057f7",
+      "lines": 57,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "scripts/lib/profile.mjs",
+      "sha256": "cfd710cbc5d7e9d7f6e6afc1f1291763128d4c4d60d062e00d23c290c3730c00",
+      "lines": 186,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/conversation-context.ts",
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739",
+      "lines": 456,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/conversation-context.test.ts",
+      "sha256": "9123b01de94f790b6277e58113e6c2c786a8b74248decfc71903ee6a6e6815e7",
+      "lines": 708,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/conversation-assembly.ts",
+      "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "lines": 455,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/conversation-assembly.db.test.ts",
+      "sha256": "5b5121033a54b06505030631de2b44d2f90cffe5308f6b31fef406f2a7d39996",
+      "lines": 2360,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/persistence/src/conversation-fences.db.test.ts",
+      "sha256": "fe9e536f1e1e35063b22e97683799d059527e410da6e3c6fa10559e2d5298ed3",
+      "lines": 2088,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "sha256": "82ff0856fd6a5a6da96e1648f5e5bb4db755638e85f75dfc15ffa51afe87cd8a",
+      "lines": 1298
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "packages/dsh-bundle/src/control-bridge.ts",
+      "sha256": "09d8d162921806bbd4d94d56751d399928194737432b2d1ef28e3ec88fd9d37c",
+      "lines": 1498
+    },
+    {
+      "commit": "34397f7e7ee461949c3048918db68759e433f3cd",
+      "path": "db/migrations/0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c",
+      "lines": 263
+    }
+  ],
+  "provenance": {
+    "priorR2Original": {
+      "sha256": "2d37018cbace6ef1fcc7b7f68f9ed280d1f16316dd5a0c49c0ed48170dc172c4",
+      "unchanged": true
+    },
+    "priorR1OriginalSha256": "894e518aff23f3ec07635a8930449191f48f0eb8b575a149a7fe0f504356591e",
+    "freezeR2Sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+    "ownerRoutingR2Sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+    "Q7R8DesignAckSha256": "fc4f61ca63e063fc0ae49ebae3c6c3864f2931f6b37c8ce11894fb9827a982fc",
+    "verification": "63 exact inputs matched immutable Git objects and local hashes. All60 inherited blobs except the proposal unchanged from prior review; three added exact source reads are Q7r8, control-bridge and0016 receipt stage writer. No new candidate implementation exists."
+  },
+  "earlierFourDispositionsPreserved": [
+    {
+      "id": "PB-OWNER-ROUTING",
+      "status": "REMAINS_ADDRESSED_AT_PROPOSAL_SCOPE",
+      "lines": [
+        21,
+        40,
+        41,
+        42,
+        57,
+        58,
+        59,
+        60,
+        61,
+        67,
+        509,
+        510,
+        511,
+        512,
+        513,
+        514,
+        515
+      ],
+      "assessment": "CON S2 ownership, retained core/S1-05A/BASE routes, M03 latest bodies, joint latest0041/0042 insertion responsibility and separate consumer compatibility, PR190 overlap and Luis integration remain distinct. M01 read dependency wording corrected without inventing blanket M01 authority. K1c consumer ACK cannot stand in for other owners or actual current-writer ACK."
+    },
+    {
+      "id": "PB-SQL-MANIFEST",
+      "status": "ORIGINAL_ENUMERATION_OMISSIONS_REMAIN_ADDRESSED",
+      "lines": [
+        110,
+        114,
+        115,
+        116,
+        117,
+        124,
+        140,
+        141,
+        144,
+        173,
+        225,
+        229,
+        230,
+        231,
+        232,
+        234,
+        238,
+        240,
+        253,
+        257,
+        261
+      ],
+      "assessment": "OptionC DDL/constraints/FKs/indexes, kind/state changes, seven latest bodies, five capability wrappers/signatures/ACLs, internal objects and exact pinned candidate promotion still enumerated. S3 role/preamble/inheritedAPI grant/assembler entrypoint grant excluded; absent assembler removed from S3/S4 REVOKEs. Release/reconcile dormant stubs, no role or Q13 identity activation. New specific adverse-case gaps below are not a revival of the old missing manifest finding."
+    },
+    {
+      "id": "PB-IMPLEMENTATION-COMPANIONS",
+      "status": "REMAINS_ADDRESSED_AT_PROPOSAL_SCOPE",
+      "lines": [
+        331,
+        332,
+        334,
+        336,
+        340,
+        344,
+        347,
+        360,
+        361,
+        363,
+        376,
+        397,
+        401,
+        403,
+        406,
+        424,
+        425,
+        428,
+        429,
+        431,
+        474,
+        479
+      ],
+      "assessment": "Exact persistence wrappers/new module, route registrations, generator allowlists/generated companions and recorder-only profile lock retained. Canonical reply profile row and package-export/load constraint stated; unlisted entry needs stop. Tests in ordinary root globs/Python wrapper; real execution still required. No extra role/specialist/dependency authority."
+    },
+    {
+      "id": "PB-GATE-ORDER",
+      "status": "REMAINS_ADDRESSED_AT_PROPOSAL_SCOPE",
+      "lines": [
+        92,
+        318,
+        329,
+        383,
+        385,
+        408,
+        446,
+        466,
+        473,
+        474,
+        475,
+        476,
+        477,
+        479,
+        482,
+        483,
+        484
+      ],
+      "assessment": "Per-pin identities and full ordinary gates, available crossing evidence and staged A04+bridge change retained. Future/unavailable crossings not passed; no stale artifact waiver or prior evidence transfer. None of these planned gates ran in this review."
+    }
+  ],
+  "priorThreeDisposition": [
+    {
+      "id": "PB2-STOP-DELIVERY",
+      "status": "PRIMARY_DELIVERY_AND_COUNT_GAP_ADDRESSED_AT_DESIGN_LEVEL",
+      "lines": [
+        12,
+        84,
+        115,
+        128,
+        132,
+        176,
+        177,
+        178,
+        179,
+        181,
+        183,
+        184,
+        188,
+        189,
+        191,
+        193,
+        194,
+        195,
+        204,
+        211,
+        215,
+        216,
+        217,
+        218,
+        219,
+        278,
+        279,
+        280,
+        281,
+        283,
+        285
+      ],
+      "assessment": "Now specifies native.stop/retire cleanup branches, epochs, fixed asker/keys, conflict identity verification, separate ordinary delivery rows, no prompt/grant/open-request/source recheck for cleanup, and create/Stop/retire counts. Unclaimed cancellation sends no Stop; claimed before/aftergo sends one. Old two-destination/multiple-cleanup contradiction fixed. Exact outstanding Stop-vs-terminal-create caller precedence is a smaller new gap below, not absent Stop delivery."
+    },
+    {
+      "id": "PB2-SOURCE-OUT-CANCEL",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "lines": [
+        13,
+        184,
+        185,
+        186,
+        187,
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        223,
+        232,
+        241,
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        251,
+        252,
+        287,
+        288,
+        289,
+        290,
+        292,
+        313
+      ],
+      "assessment": "Replaces exact S4 open-request cancelled UPDATE with conversation_cancel while project/conversation/request locks held and before digest erasure; preserves suppressions/tombstones/counts/answered same-conversation propagation. S1 selects open rows first before cancel, avoiding a cancelled-first no-op. Equality exception and new affected crossing specified, no old source_out evidence inherited. Grant-switch/asker-removal and actual source-writer/Q13 integration explicitly held before Ask activation; their absence is a named boundary, not claimed complete live cancellation."
+    },
+    {
+      "id": "PB2-RECOVERY-SETTLE-LEASE",
+      "status": "INITIAL_RESERVED_RECOVERY_CASE_ADDRESSED_PARTIAL_IDEMPOTENCY_GAP_BELOW",
+      "lines": [
+        14,
+        87,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        158,
+        159,
+        160,
+        161,
+        170,
+        293,
+        294,
+        295,
+        296,
+        297,
+        298,
+        299,
+        300,
+        301
+      ],
+      "assessment": "New current-bridge same-runtime/project/resource/binding recovery of a capture-terminal still-reserved ordinal fixes original blanket old-claim-lease denial. Original claim/go/reserve lease retained; uncertain not settled and no execution ownership transfer. Replay after this newly permitted transition remains excluded by the wrapper guard; see PB3-RECOVERY-SETTLED-REPLAY."
+    }
+  ],
+  "findings": [
+    {
+      "id": "PB3-RECOVERY-SETTLED-REPLAY",
+      "severity": "P2",
+      "classification": "EXPLICIT_WRAPPER_TEST_CONTRADICTION",
+      "lines": [
+        87,
+        150,
+        151,
+        152,
+        154,
+        155,
+        156,
+        158,
+        170,
+        293,
+        294,
+        299
+      ],
+      "title": "Admit the read-only identical settled recovery replay",
+      "evidence": "The wrapper acts in two cases and no other150. B is current bridge but original claim belongs to A. After B first settles a reserved capture-terminal ordinal, the next identical B request is neither live151 nor reserved recovery156. S2:364-365 can return the existing receipt for settled identical usage, but the wrapper refuses before reaching it. Test294 explicitly promises that identical recovery resend succeeds.",
+      "staticReproducer": [
+        "A claims/goes/reserves; capture commits terminal answered, A disappears before settle answer.",
+        "B hello succeeds under runtime_lease, original execution claim remainsA. B recovery settle commits reserved→settled; HTTP answer is lost.",
+        "B retries identical body while still current. Claim leaseA≠B and reservation settled≠reserved; exact two-case guard refuses instead of returning existing receipt."
+      ],
+      "smallestCorrection": "After authenticating exact current runtime/project/resource/unit/binding/attempt/request/ordinal and capture terminal provenance, explicitly allow a settled ordinal with exactly identical recorded usage to return its existing settlement receipt without mutation. Alternatively extend recovery eligibility to reserved OR settled-identical and let S2 enforce its actual idempotency checks. Keep conflicting settled body outcome_conflict, uncertain/released/unknown ordinal refused, supersededA40001 and no claim/go/reserve/release/reset/ownership transfer.",
+      "requiredFutureChecks": "Through the actual wrapper/API: B first recovery settle commits but response is deliberately lost; same B identical retry returns same receipt and grant reserved/spent counters unchanged on retry. Third current bridge C can recover only under same narrowly scoped receipt rule if supported. Different body/ordinal/binding/project/resource/unit, uncertain/released and oldA negatives. No test executed here."
+    },
+    {
+      "id": "PB3-STOPPING-RETIRE-PRECEDENCE",
+      "severity": "P2",
+      "classification": "MISSING_EXPLICIT_CALLER_GUARD_NOT_DEMONSTRATED_PURGE_RACE",
+      "lines": [
+        132,
+        193,
+        194,
+        195,
+        204,
+        206,
+        207,
+        208,
+        210,
+        218,
+        278,
+        280,
+        281,
+        283
+      ],
+      "title": "Do not let a terminal create receipt bypass a pending Stop",
+      "evidence": "132 and193-195 require claimed cancellation stopping→checkedStop→retire, retaining stopping/replay for any other Stop answer. But204-210 still lists a terminal receipt, capture and hello as generic retire callers with only existing-retire idempotency guard stated; the terminal-create caller is not explicitly suppressed for this stopping case. FrozenQ7:709-718 says cancelled claimed/stopping retire is written only after checkedStop, and Binding281 says late terminal create receipt does not move request/binding. Claim-before-go cancellation is the concrete intersection and lacks an explicit new SQL cleanup fixture among279-283.",
+      "staticReproducer": [
+        "A has claimed a pending request and spawned/prepared a launcher before go.",
+        "Cancellation locks request, marks cancelled, raisesepoch2, setsbindingstopping and queues oneStop193.",
+        "Go is refused; frozenQ7:630-639 makes create return rejected while cleanup is decoupled. Current bridge serial queue667-671 can receipt that create before the later Stop proof.",
+        "Generic terminal-create retire call206 could write retire while Stop is pending/unknown unless a precedence guard is explicitly required. Receipt-stage dedup0016:97-102 does not itself supply that guard."
+      ],
+      "smallestCorrection": "State in conversation_retire and every caller that a cancelled claimed attempt with binding stopping and no recorded checked answer for its own Stop cannot enqueue its first retire through create receipt/capture/hello. Record/scrub terminal create facts without changing cancelled/stopping, preserve uncertain accounting, then only the later checked Stop writes retire once. Ensure neither duplicate terminal stage nor a newly observed terminal create stage overrides this. Bind actual state/command proof atomically, preserving the frozen classifier and replay.",
+      "requiredFutureChecks": "Add SQL and actual bridge crossings for cancellation after claim beforego (launcher held/no process proof), not just beforeclaim and aftergo: create rejected/failed/outcome_unknown before and after Stopunknown leaves stopping and zero retire; repeathello replays sameStop; later verified checkedStop writes exactly one retire and cleanup follows full barrier. All counts/epochs/allowances stable. Full relay/process/API barriers are retained; this review claims no actual deletion, provider effect or demonstrated purge race."
+    },
+    {
+      "id": "PB3-UNDISPATCHED-CREATE-PROOF",
+      "severity": "P2",
+      "classification": "NEW_ADVERSE_CASE_CONFLICTS_WITH_AUTH_SCOPE_AND_ACK_BARRIER",
+      "lines": [
+        88,
+        146,
+        185,
+        189,
+        190,
+        191,
+        204,
+        205,
+        210,
+        216,
+        220,
+        278,
+        279
+      ],
+      "title": "Bind truthful authentication and acknowledgement for a cancelled undispatched create",
+      "evidence": "R3 deliberately permits an admitted attempt cancelled before create dispatch:216 has create runtime_commands count0,191 writes retire now and279 tests it. Yet146 requires every call including acknowledged to prove create was queued for the authenticated runtime instance. FrozenQ7:869-872 requires terminalWriter receipt/capture/hello, createAnswered recorded runtime-create receipt and payloadScrubbed runtime_commands body. Here no runtime create exists, no claim/Stop/capture/hello terminal writer created cancellation, and a runtime receipt cannot name missing create (0012:89-94 FK;0016:89-91 lookup). Existing unchanged eight-predicate definition supplies no explicit no-dispatch proof alternative.",
+      "staticReproducer": [
+        "Admission wrote attempt/binding/commands/outbox create but no runtime create command.",
+        "Withdrawal commits cancellation underlock; create outbox superseded or later denied, claim cannot win, noStop. A retire command is delivered to the runtime as216 permits.",
+        "Recovery/retire acknowledged call fails146 because no create runtime instance record exists; even relaxing that scope alone leaves createAnswered/terminalWriter/payloadScrubbed undefined under frozen predicate rules.",
+        "No real receipt for create can arrive under the proposed permanently superseded/denied dispatch, and no receipt may be fabricated. This is the bounded new case, not a claim of observed permanent production stranding."
+      ],
+      "smallestCorrection": "Explicitly bind this no-claim/no-runtime-create cancellation case with retained runtime and CON owners: authenticate cleanup through its actual delivered retire command and exact binding/runtime/project/resource identity; name a real durable cancellation writer; define the create delivery as provably terminal not-dispatched using its permanently superseded/denied outbox and no-runtime-command/no-claim proof under the lock, and payload absence/scrubbing truthfully. Do not claim a nonexistent runtime receipt or simply skip the eight predicates. Alternatively defer this cleanup variant with explicit held completion until the owner binds a safe proof. No new create/execution/claim/Stop/provider call or runtime receipt may be invented to satisfy the barrier. Any cancellation acknowledgement addendum is explicit source design to review with the actual owners, including claimed and never-dispatched variants. It retains current-runtime capability/lease checks, exact authentication by the delivered cleanup command where no create exists, no-live/no-future-writer proof (cancellation/claim fence under lock plus all-roots check/spawn fence as applicable), and separate relay/journal/observation/usage/reservation/payload conditions. Do not simply mark an unsent create answered, skip predicates, or infer process settlement from the cancellation record. Same ordinary delivery counts and zero new execution/spend remain.",
+      "requiredFutureChecks": "Real disposable SQL and actual runtime fixture279 must complete acknowledgement/retire truthfully, not merely count a queued retire. Assert no create runtimecommand/receipt, no claim/spawn/reservation/call; correct actual cancellation provenance and absent payload proof; exactly one retire and honesthome_absent once process/future-writer/relay barriers hold. Racing dispatch/claim control must failclosed if absence proof is unavailable. No DB or harness executed here.",
+      "cancellationProvenanceAcrossCases": "The actual terminal writer needs a truthful owner binding for claimed cancellation too: r3:185-187 conversation_cancel commits cancelled before Stop is answered;132/193-196 and Binding272 say checkedStop settles the binding while the request stays cancelled. A later Stop receipt did not cause the earlier request terminal transition. Therefore do not label it the cancellation terminal writer merely because it exists. Bind an actual durable cancellation record/command transition under the established locks, preserving original cause/time/identity. In the undispatched/no-claim case there is additionally no create runtime command or receipt and146 authentication cannot use one; these separate predicates require explicit owner-reviewed no-dispatch proof. Frozenr8 consumer ACK does not accept an unreviewed acknowledgement exception."
+    }
+  ],
+  "consumerDecision": {
+    "K1c": "NOT SUPPLIED for exact34397f7e manifest because three concrete rules remain contradictory/underspecified. General B1-B6 compatible directions and primary Stop/source-out fixes remain accepted at design scope. This is a bounded contract correction request, not a new human mechanics decision.",
+    "Q7R8": "Exact7d4a76d9 bounded consumer design ACK remains valid; no whole-Q7 implementation/target qualification or writer window inferred. New undispatched cancellation variant must be bound explicitly rather than silently rewrite its acknowledgement semantics.",
+    "ownLatestBodyInsertionScope": [
+      "dispatch_runtime_outbox0042:1806: reply-first branch before any goal read/lock to helper for create/Stop/retire, returns before goal cleanup/control.settle; explicit null-goal refusal after old goal lock. Preserve all old goal/research/design/source-review/Paperclip semantics, epoch/state/lease/payload/destination/default/signature/security/search_path/ACL; helper must enforce corrected pendingStop and no-dispatch cleanup identity proof.",
+      "capture_native_result0042:1724: reply-first keyed by binding attempt reply ID before goal/job reads, plus null-goal refusal; preserve original research/design/design_review/source-review/brief branches, late publication scrubbing, ordinary capture and once-only guarded retire.",
+      "native_delivery_ineligible0041:149: first null-goal refusal for goal-only CASE; separate reply cleanup eligibility with exact scope/epoch; preserve old membership/source/epoch/status/research/design conditions byte-for-byte."
+    ],
+    "limit": "Independent consumer review can acknowledge these intended preservation/insertion boundaries only. This root has not obtained the actual joint Claude implementer K2d ACK for this packet and does not represent S1-02, S1-05A/BASE, M03, CON S2, PR190 or Luis. No exact executable body diff yet exists to approve."
+  },
+  "implementationPrecisionNotes": [
+    "S4 update→cancel replacement needs equality comparison of the unchanged remainder with the old UPDATE restored or both replacement spans excluded; simply removing the new call cannot make whole old/new function definitions identical. This is test normalization detail, not another P2.",
+    "Delivery count replay+0 means an identical already-applied event. A newly observed checkedStop stage after priorunknown is a new transition and may write the first retire+1; do not let a blanket replay label suppress it or mint a second retire.0016 stores each stage once.",
+    "Scope/auth claims apply to functions that need an existing claim, not an impossible preexisting-claim requirement on the first successful claim; implement first-claim/no-claim eligibility under the request lock as frozenQ7 requires. No change in one-execution authority.",
+    "No broad source-writer trigger, grant-switch/membership hook, Q13 activation, route, model or profile dependency is added from this review. Explicitly held future activation prerequisites must close before Ask is enabled.",
+    "The exact r3 packet still calls K1c an exact r2 manifest in61/511. Correct the label to the actual candidate revision/hash when recording acknowledgement. This is provenance precision, not a new substantive blocker."
+  ],
+  "baseOwnersOrderAndHolds": {
+    "freshMetadata": {
+      "at": "2026-10-12T06:43:46.007666+00:00",
+      "main": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "prs": {
+        "190": {
+          "baseRefOid": "fec45a0e96c4679a09da02be979503910a623c5c",
+          "headRefOid": "5c10bce3060ca867402cb5ba869146a69af057c6",
+          "isDraft": true,
+          "number": 190,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/190"
+        },
+        "199": {
+          "baseRefOid": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+          "headRefOid": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+          "isDraft": true,
+          "number": 199,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/199"
+        },
+        "256": {
+          "baseRefOid": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+          "headRefOid": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+          "isDraft": true,
+          "number": 256,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/256"
+        }
+      }
+    },
+    "observedMain": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b, treebd6c1022ffe5db6574fb8e6bd324da0235542393. Static backend/runtime/contracts/ownership sources unchanged from prior review. Current-main metadata is not accepted base, merge-tree CI or deployed proof.",
+    "prerequisites": "Fresh PR256 draft/open93e9313d and PR199 draft/opend527f385 remain unmerged; PR190 draft/open5c10bce3. PhaseA0053 reserved and old source window ended. No fresh census/window. Peer preparede160/Studio reconciliation6116157885/reviewer4c366cd5 not independently inspected or accepted here.",
+    "owners": "Keep CON own reply/S2/source_out scope, core S1-02 Luis table/command routing, retained S1-05A/BASE foundation scope, M03 current body preservation, actual joint implementer own-body ACK, actual PR190 overlap, Luis integration base acceptance separate. Read dependencies do not transfer ownership.",
+    "order": "After bounded doc corrections and actual narrow owner ACKs, seal accepted currentmain+PhaseA+G1 or named composition commit/tree, census, single writer/exactpaths/start/expiry/return. Preserve SQL→additive routes/types→A04+bridge→supervisor/launcher/profile→qualification with per-pin identities/full ordinary checks and actual affected crossings. No applied migration edits or unaccepted PR211 default base."
+  },
+  "effects": "Immutable object fetch, read-only ref/PR metadata, exact static source/diff/hash reads and local review records only. No shared feature edit, merge/CI/probe rerun, tests/build/new harness, hosted/config/account/role/grant/cluster/database mutation or termination, credentials/provider/model/image/nativeAsk/spend/deployment/migration/registry effect. No CON native access or cross-thread message.",
+  "terminalHandback": "One complete durable terminal record for root independent-reviewer consumption/consolidation. Prior four dispositions and frozenQ7 design ACK preserved; prior three primary gaps materially corrected with precise remaining adverse-path repairs above. Findings are source contract/manifest gaps, not executed runtime failures. Source-only holds retained.",
+  "supersedesReviewClarification": {
+    "sha256": "cca00f831f1fa2bc975a51454f47425885a235452f7b9996c219e781a34dc430",
+    "reason": "Complete final packet adds explicit cancellation terminal-writer distinction for claimed as well as undispatched cases, and preserves every authentication/process/journal/accounting barrier. Original review bytes retained; no verdict or finding count changed."
+  },
+  "safePublication": {
+    "originalSha256": "13d622f405f19b73085b750e72539efda50f7dd9f6b5aa4702af0e4fe42dfafe",
+    "omitted": [
+      "inputs[].local",
+      "provenance.priorR2Original.path",
+      "reviewCheckout",
+      "supersedesReviewClarification.path",
+      "baseOwnersOrderAndHolds.operational (combined other-mission operational states are not CON authority)"
+    ],
+    "preserved": "All63 immutable input metadata records, prior dispositions, complete3 findings, consumerDecision, precision notes, owner/base/order limits, effects and terminal handback."
+  }
+}
