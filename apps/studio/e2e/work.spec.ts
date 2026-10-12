@@ -414,6 +414,21 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   // The focus lands on its first open choice; the address lets the decision go once it is reached.
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
   await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('')
+  // Handled once: the focus moved on stays where it went (the address is not read again on a later render).
+  await page.keyboard.press('Tab')
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  await page.waitForTimeout(400)
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  // With the slot shut, the address opens it: Escape shuts the decisions, the address names one again, they show.
+  await page.keyboard.press('Escape')
+  await expect(board(page).locator('[data-decision]')).toHaveCount(0)
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
 })
 
 test('a tile’s doer keeps its name whole, beside a short chip or above a long one; a wrapping blocker keeps its left edge', async ({

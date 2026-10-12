@@ -149,7 +149,7 @@ export function TextMode({ on, onVoice }: { on: boolean; onVoice: () => void }) 
     requestAnimationFrame(() => group?.querySelector<HTMLElement>('[data-call-anchor]')?.focus({ preventScroll: true }))
   }
   return (
-    <button type="button" className="pill has-tip" aria-pressed onClick={toVoice}>
+    <button type="button" className="pill has-tip" aria-pressed data-dock-key="text" onClick={toVoice}>
       <DockWord icon="keyboard">Text mode</DockWord>
       <Tip label="Sophia answers in the chat and is not heard. Press for voice" />
     </button>

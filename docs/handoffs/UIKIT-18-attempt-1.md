@@ -53,6 +53,11 @@ own 241–373). That is the completed code state of this PR.
 - After the review (Codex on #240, round 2): one clipboard for the page (the writes queue, the presses count across
   every message), and another's acts start at the bubble's left on every pointer (the message's outer corner), so a
   short message keeps its Copy inside the pane; conversation-acts.spec reads it on a desktop.
+- After the review (Codex on #240, later round): each clipboard write starts in its own press (Safari), the latest
+  press's outcome is said, and a stale write that goes through late is written over with the latest words; on a touch
+  screen the acts stand below the bubble in room the pressed message keeps (`padding-bottom: 44px` on `.conv-turn`).
+  conversation-acts.spec: a synthetic click counts one write at once; a hung first write settled after a second
+  message's copy brings the second's words back; @phone measures the row under the bubble.
 
 ## Remaining obligations
 
