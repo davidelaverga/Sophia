@@ -7,7 +7,7 @@
 // byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import {
   getConversationMessages,
   type ConversationMessage,
@@ -415,12 +415,47 @@ function MessageList(props: {
           propose={propose}
           onQuote={props.onQuote}
           pressed={pressed === m.id}
-          onPress={() => setPressed(m.id)}
+          onPress={(row) => {
+            setPressed(m.id)
+            // The row it opens under the bubble stays in sight, the newest message's too (Codex on #240).
+            requestAnimationFrame(() => row?.querySelector('.conv-acts')?.scrollIntoView({ block: 'nearest' }))
+          }}
         />
       ))}
     </ol>
   )
 }
+
+/**
+ * A message's acts and where they stand: above the bubble, or beside it for a member's message continuing a run under
+ * a pointer (not over the bubble above it; Codex on #240). Words that leave the thread name who said them by name.
+ */
+function useActsPlace(
+  m: ConversationMessage,
+  before: ConversationMessage | undefined,
+  with_: { now: number; onQuote: ((quote: string) => void) | null; propose: ReactNode },
+) {
+  const run = continuesRun(before, m)
+  // Read as the message renders: a pointer that hovers does not come and go within a visit.
+  const side = run && m.author !== 'sophia' && window.matchMedia(HOVERS).matches
+  const acts = (
+    <MessageActs
+      message={m}
+      who={portableBy(m)}
+      now={with_.now}
+      onQuote={with_.onQuote}
+      propose={with_.propose}
+      side={side}
+    />
+  )
+  return { run, side, acts }
+}
+
+/** A pointer that hovers: where a message's acts show under it. */
+const HOVERS = '(hover: hover)'
+
+/** Who said a message, by name, for words that leave the thread (the clipboard, a quote). */
+const portableBy = (m: ConversationMessage) => (m.author === 'sophia' ? 'Sophia' : (m.name ?? 'A member'))
 
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
 function MessageItem(props: {
@@ -432,25 +467,20 @@ function MessageItem(props: {
   propose: Propose
   onQuote: ((quote: string) => void) | null
   pressed: boolean
-  onPress: () => void
+  onPress: (row: HTMLLIElement | null) => void
 }) {
   const { message: m, before, me, now } = props
   const sophia = m.author === 'sophia'
   const here = useProposeHere(props.propose && { ...props.propose, messageId: m.id, text: m.text, sophia })
-  // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
-  const at = (
-    <span className="conv-msg-at" aria-hidden>
-      {clock(m.at)}
-    </span>
-  )
+  const { run, side, acts } = useActsPlace(m, before, { now, onQuote: props.onQuote, propose: here.press })
   return (
     <li
       ref={props.first}
       tabIndex={props.first ? -1 : undefined}
       className={classOf(m, me)}
-      data-run={continuesRun(before, m) ? 'on' : undefined}
+      data-run={run ? 'on' : undefined}
       data-pressed={props.pressed || undefined}
-      onClick={props.onPress}
+      onClick={(e) => props.onPress(e.currentTarget)}
     >
       {(!before || !sameDay(before.at, m.at)) && (
         <span className="conv-day" aria-hidden>
@@ -469,18 +499,35 @@ function MessageItem(props: {
           <time dateTime={m.at}>{when(m.at, now)}</time>
         </span>
       </span>
-      {/* The turn (the bubble, the acts, the clock) is the acts' box: the thread's width, from the bubble's top line;
-          the name stays before it, so the acts never share its coordinates. */}
-      <div className="conv-turn">
-        <div className="conv-msg-body">
-          {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
-          {sophia && at}
-        </div>
-        <MessageActs message={m} who={messageBy(m, me)} now={now} onQuote={props.onQuote} propose={here.press} />
-        {!sophia && at}
-      </div>
+      <Turn m={m} side={side} acts={acts} />
       {here.form}
     </li>
+  )
+}
+
+/**
+ * The turn (the bubble, the acts, the clock) is the acts' box: the thread's width, from the bubble's top line; the name
+ * stays before it, so the acts never share its coordinates. A member's message continuing a run, under a pointer,
+ * keeps its acts in the bubble's box, beside it, not over the one above (Codex on #240).
+ */
+function Turn({ m, side, acts }: { m: ConversationMessage; side: boolean; acts: ReactNode }) {
+  const sophia = m.author === 'sophia'
+  // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
+  const at = (
+    <span className="conv-msg-at" aria-hidden>
+      {clock(m.at)}
+    </span>
+  )
+  return (
+    <div className="conv-turn">
+      <div className="conv-msg-body">
+        {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
+        {sophia && at}
+        {side && acts}
+      </div>
+      {!side && acts}
+      {!sophia && at}
+    </div>
   )
 }
 
