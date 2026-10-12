@@ -1,0 +1,249 @@
+{
+  "at": "2026-10-12T04:48:15.197031+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "09892924d7e743f8b8c96da4f6507f2457e4bdff",
+    "tree": "a406b1c6d0633a726b2a79d35c260212a65f274e",
+    "parent": "971793db34d9f3f323448394f2096a5e959453c4",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "ff172950fc919ad88484d19ee6eca2c18f45fc8dc40838fea3b2200dde932531",
+    "lines": 1162,
+    "readComplete": true,
+    "change": "Only one documentation file +303/-123. No implementation changes."
+  },
+  "scope": "Fresh independent WBC-02/SDD-01 consumer engineering review of exact r6 and actual unchanged dependencies. Prior r5 verdict does not transfer. Static proposal review, not actual Q7 execution or source/integration/operational approval.",
+  "inputs": [
+    {
+      "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "sha256": "ff172950fc919ad88484d19ee6eca2c18f45fc8dc40838fea3b2200dde932531",
+      "lines": 1162,
+      "sameAsParent": false
+    },
+    {
+      "path": "apps/execution-host/src/runtime-supervisor.ts",
+      "sha256": "a3c3b88f9ba874d173faa5ccb4e7e31ce0325df6b71fcdd187e3f63b5207f87a",
+      "lines": 288,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/control-bridge.ts",
+      "sha256": "09d8d162921806bbd4d94d56751d399928194737432b2d1ef28e3ec88fd9d37c",
+      "lines": 1498,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c",
+      "lines": 263,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsParent": true
+    },
+    {
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsParent": true
+    },
+    {
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsParent": true
+    }
+  ],
+  "additionalInputs": [
+    {
+      "path": "packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "sameAsParent": true,
+      "previousDisplayedCheckoutBytesMatchCandidate": true,
+      "lines": 273
+    },
+    {
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "sameAsParent": true,
+      "previousDisplayedCheckoutBytesMatchCandidate": true,
+      "lines": 348
+    },
+    {
+      "path": "packages/dsh-bundle/src/review-tools.ts",
+      "sha256": "8fe93d23e83285d733de392d2c8947ef58ec79482dfff9e5133da5a7cee9268b",
+      "sameAsParent": true,
+      "previousDisplayedCheckoutBytesMatchCandidate": true,
+      "lines": 328
+    },
+    {
+      "path": "renderers/web/pdf/uml/landlock-launch.py",
+      "sha256": "490dbae10891c2831a5fd3d4accd83f91fc0ef6e68dd32ef38acfa046bdc4d66",
+      "sameAsParent": true,
+      "previousDisplayedCheckoutBytesMatchCandidate": true,
+      "lines": 287
+    }
+  ],
+  "acceptedDirections": [
+    {
+      "item": "Admission and namespace fence/drain",
+      "lines": [
+        238,
+        261,
+        365,
+        380,
+        384,
+        393,
+        397,
+        416,
+        923
+      ],
+      "assessment": "The shared flock is acquired before verification/mkdir and held through whole durable launcher entry+fork intent. Rename fences future by-name verification; exclusive drain accounts for earlier mkdir/open/write/fsync operations while admitted. Whole leases move to life-lock/identity proof. Zero/torn leases remain unresolved. This addresses the identified r5 rename-only premise at design level; local filesystem/flock and exact implementation remain P8/qualification dependencies. Do not claim rename revokes fds or proves death."
+    },
+    {
+      "item": "Unrecorded child and descriptor ownership",
+      "lines": [
+        250,
+        251,
+        269,
+        300,
+        309,
+        332,
+        418,
+        741
+      ],
+      "assessment": "The launcher never unlocks its flock; fork inherits the same open-file-description reference, and pre-gate child cannot exec without durable valid child entry and pidfd. A free life lock with no valid child entry is thus a technical exit/descriptors-closed proof, conditioned on these exact invariants. With valid entry, free lock alone is insufficient because child exec closes its descriptor: pidfd identity/gone proof remains required. Child closes inherited gate writer/status reader before waiting; launcher closes unused opposite ends. Landlock excludes lease/top/diag from pathname grants and CLOEXEC removes lease/status from image. Exit proof does not assert orphan wait/reaping by a nonexistent parent; live launcher path still reaps. No actual target qualification inferred."
+    },
+    {
+      "item": "Receipt mapping and replay transport",
+      "lines": [
+        546,
+        641,
+        650,
+        817,
+        835
+      ],
+      "assessment": "Withdrawal and cancelled hello now branch checked versus outcome_unknown consistently with Binding272-275. Same stop command, same request/ordinal/allowance, is replayed once per hello; cursor change explicitly assigned to core additive0049. Existing runtime_cursor399-401 currently only treats answered_stage NULL as unanswered; this is an expressly proposed change, not falsely claimed deployed behavior. A new checked stage can be inserted after prior outcome_unknown because stage is part of receipt PK (0012:93;0016:97-107). Remaining same-instance classifier gap is findingR6-STOP-REVERIFY."
+    },
+    {
+      "item": "Aggregate settles",
+      "lines": [
+        537,
+        558,
+        575,
+        716
+      ],
+      "assessment": "One absolute deadline and parallel pending ordinals address r5 aggregate-bound gap at design level. All terminal receipt callers must await all applicable answers or that shared deadline; late settles never sent after receipt/uncertain transition. Deadline may bound assessment with outcome_unknown, not promise process death. One contradictory qualification assertion remains findingR6-SETTLE-TEST."
+    },
+    {
+      "item": "Named acknowledgement predicates",
+      "lines": [
+        617,
+        768,
+        785
+      ],
+      "assessment": "Eight named API predicates plus separately relay closed are conditionally compatible consumer design. Actual durable terminalWriter (receipt/capture/hello+lease), createAnswered, capture none only with no turn/end on both DB and journal, observation/usage ordinal keys, reservations, terminalState and scrub still need core/ledger binding and qualification. No fabricated receipt asserted. No owner ACK or implementation accepted."
+    }
+  ],
+  "findings": [
+    {
+      "id": "R6-LEFTOVER-HOME-PROOF-SCOPE",
+      "severity": "P1",
+      "classification": "STATIC_SAFETY_CONTRACT_CONTRADICTION_NOT_EXECUTED_FAILURE",
+      "lines": [
+        248,
+        336,
+        344,
+        546,
+        573,
+        720,
+        740,
+        741,
+        937
+      ],
+      "title": "A new launcher exiting home_exists does not settle the existing home",
+      "evidence": "mkdir EEXIST gives exit71 before this launcher creates/locks a lease. Exit71 is nevertheless marked settled and generic Stop/retire proof accepts any observed settled exit. The separate create mapping correctly returns outcome_unknown for home_exists, but that does not prevent its subsequent retire from taking the generic settled-exit shortcut. Neither the prior lease life lock nor existing child identity was proven by that exit. This concern is about the explicitly supported leftover-home case, not assuming duplicate claims can run twice.",
+      "reproducer": "Static schedule for a future owned fixture: pre-seed the attempted home with a whole lease and a still-held life lock/live recorded child. The new run returns71 without opening that lease, and its own bridge observes its exit. create answers outcome_unknown and queues retire. A caller implementing720/740 as the stated generic shortcut can then satisfy process proof using only the new launcher exit, bypassing required741 lease checks, and remove an occupied home once other barriers pass. No such fixture or deletion was executed by this reviewer.",
+      "smallestCorrection": "Separate launcher-settled from attempt/home-settled. Live-exit proof may authorize only the exact freshly-created home this launcher owned (generation,attempt,nonce/lease identity), with all its possible children settled. home_exists71 proves only that the new launcher forked nothing; it must require check of the existing home, or remain unresolved/unsettled. Carry that scoped proof into Stop, retire and recovery; do not weaken life-lock/pidfd checks.",
+      "expectedCheck": "Future code tests: occupied valid home and mismatched lease both survive a second run exit71; stop cannot answerchecked and retire cannot delete until the original home is independently settled/verified. Then exact verified home may retire behind full barrier. Include71 in every-caller classifier tests, currently omitted by1090."
+    },
+    {
+      "id": "R6-STOP-REVERIFY",
+      "severity": "P2",
+      "classification": "SAME_INSTANCE_REPLAY_LIVENESS_GAP",
+      "lines": [
+        546,
+        642,
+        650,
+        762,
+        817,
+        822,
+        1056,
+        1093,
+        1113
+      ],
+      "title": "Replayed Stop needs a proof path after an unsettled exit on the same bridge",
+      "evidence": "546 allows check0 only for an attempt this bridge never ran. A bridge retaining ReplyChild after launcher74 or signal can never turn that historical exit into a settled exit. Re-evaluating it from memory is avoided, but the stated classifier still has neither permitted success branch after the life lock becomes free. By642/817/1113 the same instance reconnect is explicitly supposed to retry; retire is queued only after Stopchecked, so retire verification762 cannot close this gap by itself.",
+      "reproducer": "Static future fixture schedule: bridgeL1 runs child; launcher exits74 or by signal; Stop answersoutcome_unknown. Child later exits, lease life lock frees and recorded entries become verifiablygone. L1 reconnects with same instanceId and retains its ReplyChild. The exact same Stop is replayed, but L1 did run it and never saw a settled launcher exit, so546 again yieldsoutcome_unknown despite available check0 proof. A fresh instance may recover; the defect is the promised same-instance retry path, not indefinite stranding in all circumstances.",
+      "smallestCorrection": "Permit bounded check for any attempt lacking a valid scoped live settlement proof, including a retained ReplyChild with unsettled or missing exit, on subsequent Stop evaluation. Refresh exact current/sealed home locator and propagate fresh proof to Stop/retire; join original t0/deadline, retain unknown when verification fails, no signal by number or automatic reservation release.",
+      "expectedCheck": "On same instance hello/replayedStop after74, signal and no-exit timeout: before fresh proof outcome_unknown/stopping; after lock and identity proof checked, one retire enqueue. New instance case also passes; uncertain amounts and command identity remain unchanged."
+    },
+    {
+      "id": "R6-SETTLE-TEST",
+      "severity": "P2",
+      "classification": "QUALIFICATION_ASSERTION_INCONSISTENT_WITH_SHARED_DEADLINE_CONTRACT",
+      "lines": [
+        537,
+        575,
+        1017,
+        1021
+      ],
+      "title": "Two-ordinal test must not allow a receipt as soon as only the first settle answers",
+      "evidence": "1020 says the terminal receipt waits until the first is answered OR shared deadline, in a case with one late answer and a second never answered. The first answering before deadline is insufficient:575 requires every sent settle answered or shared deadline. The main algorithm direction is acceptable; this is an explicit test expectation that can accept its early-receipt regression.",
+      "reproducer": "Future fake clock: two applicable pending settles A/B; A answers atdeadline-100ms and B is still pending. A receipt emitted immediately then satisfies1020 as written but violates575 and prematurely marks B uncertain.",
+      "smallestCorrection": "State the predicate as all pending settles answered OR shared deadline reached. Assert no terminal receipt when only one answers before deadline; at deadline send receipt once, cease retrying B, preserve uncertain accounting. Also include both-answer-before-deadline as the early-success control."
+    }
+  ],
+  "priorReviewDisposition": {
+    "r5": "Preserved immutable; r6 technical admission/life-lock directions and withdrawal/shared-deadline amendments materially address its four groups. Current exact r6 remains CHANGES_REQUIRED for bounded caller/proof/test corrections above. No blanket prior verdict or ACK transfers.",
+    "P1E": "Withdrawn. Replay reaches a terminal writer. Atomic hello lease-loss table remains optional core/ledger design, with accounting-safe rejected-replay behavior required if dropped. Do not revive stranded-forever claim."
+  },
+  "primarySourcesRead": [
+    {
+      "url": "https://raw.githubusercontent.com/mkerrisk/man-pages/master/man2/flock.2",
+      "relevance": "75-112: flock tied to open file description, duplicated across fork; releases on explicit unlock or all references closed; independent fresh open conflicts; local exclusive lock can use read-only fd. Supports proposed life-lock design only under no-unlock/CLOEXEC invariants."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/mkerrisk/man-pages/master/man2/execve.2",
+      "relevance": "292-298: close-on-exec descriptors closed at exec. Child with valid entry can execute and release its lease reference while alive; do not infer childgone from free lock alone."
+    },
+    {
+      "url": "https://raw.githubusercontent.com/torvalds/linux/master/Documentation/userspace-api/landlock.rst",
+      "relevance": "429-437: descriptor-associated permissions and read/write checks at open. Pre-open diagnostic fds may remain usable; exclusion of lease pathname plus CLOEXEC descriptor closure is relevant, never generic fd revocation."
+    }
+  ],
+  "evidenceLimits": "Author scratch L0 linux/ext4 l0-admit14df746c/receipt6785e9f6 is author-reported only; not retrieved/run by this root, not independent evidence or pinned dsh/deploy Linux qualification. Peer prior Darwin descriptor and supervisor probes remain attributed historical premise evidence. This review ran no harness, process probe, test/build, dsh, runtime/provider/model/image call or hosted SQL. Findings are exact proposal contradictions with static schedules, not observed deployed failures. No fresh main or CI/deployed-state claim.",
+  "baseWindowOrderHandback": {
+    "base": "Exact09892924 over971793db; eight manifest dependencies plus four ancillary source dependencies match parent. No accepted main integration base inferred; last main5ed observation remains history.",
+    "holds": "Luis/core/ledger ACKs and accepted-base/window remain separate. PhaseA0053 compatibility is not Luis merge acceptance; prior writer window ended. PhaseB/Q13/Studio/shared-source all held. Q6/Q8-Q12/D4 and immutable role/route/artifact source gates retained.",
+    "order": "Correct owned proposal only and publish new immutable pin for bounded review. Once actual owner/base/window gates lift, preserve plan5: accepted PhaseA prerequisite, additive SQL, wire/contracts, bridge, supervisor/launcher/profile, qualification; distinct pins/fail-before/full gates/combined artifact identity. No applied migration edits or broad grants.",
+    "preservation": "Paperclip/design/KeyStudio full mission, one pinned harness, historical bindings, request/ordinal and usage idempotency, uncertain allowance counted, withdrawal/late text scrubbing, no rerun/provider fallback preserved."
+  },
+  "effects": "One failed fetch against existing local origin (object absent), then successful explicit GitHub immutable-object fetch, static source/diff/primary-doc reads and local journal writes. No checkout/source edits, new harness/tests/probes, native CON access, cross-thread reply, credential read/transmit, providers/models/images, hosted operations, grants, spending, registry publication, migrations or deployment.",
+  "originSha256": "f5edc80a463493a75baa5da4e13254f96bdcb4fc00fd269a1b299201e0bff6b5",
+  "excludedState": "Unrelated mission operational state is excluded and supplies no CON authority."
+}
