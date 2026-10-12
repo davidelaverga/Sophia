@@ -855,6 +855,23 @@
 .conv-new .conv-question input:not([type='checkbox']) {
   font-size: var(--type-title);
 }
+/* The same question asked here already (docs/plans/same-question.md): one quiet line under the question, a way to it. */
+.conv-same {
+  margin: -4px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  line-height: var(--lh-small);
+}
+.conv-same .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--halo-text);
+  font-size: var(--type-small);
+}
+.conv-same .text-button:hover {
+  color: var(--text);
+}
 .conv-starters {
   display: flex;
   flex-wrap: wrap;

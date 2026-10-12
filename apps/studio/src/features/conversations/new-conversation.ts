@@ -28,3 +28,48 @@ export function startersOf(pending: readonly MissionDecision[] | undefined, ques
     .filter((s) => s !== asked && s.length <= most)
     .slice(0, STARTERS)
 }
+
+/** Words that say nothing of what a question is about. */
+const COMMON = new Set(
+  (
+    'what who whom whose when where why how which the and for are was were been should would could can does did our ' +
+    'you your they them this that these those with from into about after before not any all but there here then than ' +
+    'have has had will shall may might must its his her out get got just also very much more most some such'
+  ).split(' '),
+)
+
+/** A title's own words: folded, accents off, three letters or more, common words left out, a final «s» dropped. */
+function ownWords(title: string): Set<string> {
+  const words = title
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w.length >= 3 && !COMMON.has(w))
+    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
+  return new Set(words)
+}
+
+/** The least that says «about the same thing»: two shared words, and this share of the question's. */
+const SHARED_LEAST = 2
+const SHARE_LEAST = 0.6
+
+/**
+ * The conversation here that already asks what the question asks (docs/plans/same-question.md): the one sharing the
+ * most of the question's own words, at least two and 60 % of them; the newest on a tie; null when none does.
+ */
+export function sameQuestion<C extends { id: string; title: string; lastAt: string }>(
+  question: string,
+  conversations: readonly C[],
+): C | null {
+  const asked = ownWords(question)
+  if (asked.size < SHARED_LEAST) return null
+  const scored = conversations
+    .map((c) => {
+      const own = ownWords(c.title)
+      return { c, shared: [...asked].filter((w) => own.has(w)).length }
+    })
+    .filter((s) => s.shared >= SHARED_LEAST && s.shared / asked.size >= SHARE_LEAST)
+    .toSorted((a, b) => b.shared - a.shared || Date.parse(b.c.lastAt) - Date.parse(a.c.lastAt))
+  return scored[0]?.c ?? null
+}

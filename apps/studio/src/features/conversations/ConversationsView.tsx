@@ -78,6 +78,11 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   })
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
+  const openOne = (id: string) => {
+    start.close()
+    choose(id)
+    panes.show()
+  }
   return (
     <section
       ref={panes.view}
@@ -97,13 +102,11 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         start={writer ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
-        onOpen={(id) => {
-          start.close()
-          choose(id)
-          panes.show()
-        }}
+        onOpen={openOne}
       />
-      {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
+      {start.starting && (
+        <NewConversation {...{ projectId, identity }} {...start.form} conversations={all} onOpenExisting={openOne} />
+      )}
       {shown && <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes }} />}
       <ProjectContext
         {...{ projectId, identity, cursor }}
