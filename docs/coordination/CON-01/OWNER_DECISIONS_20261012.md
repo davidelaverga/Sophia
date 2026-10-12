@@ -11,6 +11,19 @@ Authority: Davide's direct message in reviewer thread `01a1224a-32b4-7222-a017-5
 5. **One supported subscription-only route to be qualified in parallel.** Verify exact application topology, requesting account, adapter, execution bounds, credential lifecycle and quota source. Davide's subscription is not assumed to serve another account's Ask. No PAYG, extra credits, provider switching, account rotation or hidden allowance reset. Ask remains disabled until the required gates pass. Source and loopback-stub qualification may proceed; real provider execution is not authorized.
 6. **Two separately reviewable operational batches.** Prepare setup/human-chat and Ask-qualification batches, each with exact candidates, artifacts, targets, account roles, credential references, finite allowances/expiry, ordered effects and recovery. Return them for approval. No deployment, hosted migration, account creation, grant or provider execution is authorized by this message.
 7. **Permitted implementation work resumed.** Continue useful source, stub-runtime, database and browser-fixture work within the agreed scope. Local synthetic testing must use owned disposable resources and preserve unrelated missions. Escalate specific product/authority choices or demonstrated technical incompatibilities; low-level implementation details belong to the implementer and independent review.
+8. **D-1/D-3/Q-1: `conversation-text-v1` accepted for the initial synthetic test cohort.** On 12 October 2026 (Europe/Rome), Davide answered the pending policy question: “Accept this policy for the test cohort”. Submitted titles, messages and published Sophia replies are visible to current project members and retained for the project's lifetime until withdrawal/erasure, subject to stricter organization rules. Authors may withdraw their own messages; admins may remove messages and erase whole conversations; editors may write but cannot erase other people's content. Drafts stay in browser memory. Backup/provider deletion limits must be disclosed. This settles the named product choices for the test cohort only. It does not authorize deployment, account creation, grants or provider execution, expand the cohort, or establish technical implementation/acceptance. The conservative same-conversation Sophia-answer withdrawal rule in decision3 remains binding.
+
+## Later policy acceptance and current continuation
+
+Decision8 supersedes historical statements that D-1/D-3/Q-1 were awaiting
+Davide's answer; those dated records remain evidence of their earlier state.
+It does not reopen shared-file ownership or approve the operational drafts.
+At CX173 the exact accepted integration/base/owner/Studio handbacks were
+still absent and the full goal was blocked. Record the policy acceptance
+without treating it as a new source writer window, an implementation test,
+an operational approval or final product acceptance. The immediate execution
+boundary below is the original decision receipt's historical checkpoint;
+current pins and remaining dependencies are in CX173 and its successor.
 
 ## Immediate execution boundary
 

@@ -2559,5 +2559,21 @@
         "additional_tests": "None: docs/repliesonly,noaffectedsourcechange"
       }
     }
-  ]
+  ],
+  "current_product_policy": {
+    "id": "conversation-text-v1",
+    "status": "owner_accepted_for_initial_synthetic_test_cohort",
+    "accepted_on": "2026-10-12",
+    "timezone": "Europe/Rome",
+    "authority": "Davide direct answer in reviewer thread01a1224a-32b4-7222-a017-50a277572d95: Accept this policy for the test cohort",
+    "choices": [
+      "D-1",
+      "D-3",
+      "Q-1"
+    ],
+    "decision_record": "OWNER_DECISIONS_20261012.md decision8",
+    "operational_authorization": false,
+    "implementation_acceptance": false,
+    "historical_pending_policy_entries": "Superseded as current product choice; preserved as dated history"
+  }
 }
