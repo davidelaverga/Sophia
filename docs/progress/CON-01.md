@@ -10,29 +10,18 @@ are the current continuation. Historical owner ACKs retain their actual pins;
 Luis integration/merge review and Davide acceptance remain separate. Codex alone
 implements CON; no former Claude feature/review workflow or monitor.
 
-Own branch `codex/con01-takeover-source-20261013`, base32854caf, source922773b2/
-treeb0d7ef0f. Dispatcher17142 imported first; current main +G1/kit/UI269 composed,
-then dormant G2/docs271 retained. Luis's newer touch message actions and
-same-question/ask-instead wiring preserved; A15+A16 generation reproduced without
-changing any pre-existing OpenAPI route/schema. Focus race fixed with a
-controlled failing-before browser regression; no criterion weakened.
+Own branch `codex/con01-takeover-source-20261013`, base `32854caf`. Draft [#273](https://github.com/davidelaverga/Sophia/pull/273) first published `d06f98a1`; independent whole-diff pre-push review and exact-head automatic Codex review completed, no major issues. Current Q13 executable source `0d1d3a2a` / tree `6a854f5d` has independent source clearance; final publication receipt binds its later documentation and automatic review. [Q13 qualification/handoff](../handoffs/CON-01-codex-source-takeover-3.md).
 
 | Gate | Actual current evidence | Remaining boundary |
 |---|---|---|
-| G0 | Accepted OptionC, throwaway home, Q13A, conservative withdrawal and conversation-text-v1 test cohort | No supported subscription route/credential/quota/execution qualification |
-| G1 |922773b2: realPG17.6/API +dormantS1–S4/runtime172/172pass, SQL47migrations/5filespass | This is local evidence; Q13identity and hosted records unqualified |
-| G2 | Reviewed r12 plan retained; S1–S4 remain dormant, no runtime imports/admission | Implement/qualify least privilege, request/runtime/cleanup/correlation and mixed research preservation; Askoff |
-| G3 |73/73affected browser cases, controlled focus fail-before then4/4after; actual built-in-browser local desktop/same-question/phone draft return | Additional119/119preservation cases pass; full Studio suite and signed-in real-provider episode unqualified; earlier failures retained |
-| G4 | Exact local composition exists; initial ordinary check exit0 is diagnostic because source changed during it | Final pinned gate and independent whole-diff review in progress; no push/automatic result inferred here; Luis integration review pending |
-| G5 | Read-only hosted discovery retained | Separate setup/Ask batches unapproved; serving tuple/two actors/native answer not app_verified |
+| G0 | Accepted option C, throwaway home, Q13A, conservative withdrawal and conversation-text-v1 test cohort | Subscription route/credentials/quota/execution unqualified |
+| G1 | Real owned PG17.6/API; 172/172 prior, now 179/179 with Q13 crossings; 47 migrations/five SQL files passed | Hosted records and target admission unqualified |
+| G2 | Dormant S1–S4; bare assembler and claim-bound reads locally qualified, semantic/trigger drift regressions; no runtime imports/admission | Implement request/runtime/cleanup/correlation and mixed research preservation; native/provider/host-copy qualification; Ask disabled |
+| G3 | 73/73 affected browser fixtures, 119/119 main preservation fixtures; controlled focus fail-before; actual local desktop/question shortcut/phone draft return | Full Studio suite and signed-in real-provider episode unqualified; earlier failures retained |
+| G4 | First source push ordinary check and both reviews passed; Q13 exact source independent review cleared, final ordinary gate running | Final publication/automatic review, integration/merge review pending |
+| G5 | Read-only hosted discovery retained | Setup/Ask batches unapproved; serving tuple/two actual actors/native answer not app_verified |
 
-Readiness is scoped to actual source/checks. Source-only authorization is not
-hosted authorization. No merge/deploy/account/grant/credential/provider/spend
-effect. OP0002r6/OP0001r4 remain draft_not_authorized. Retained acceptance ledger
-[36cases](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json)
-remains18partial_L1/3passed_L1/15not_run. No product/other-mission completion.
-Both ownedPG clusters stopped/removed; private logs retained. The earlier
-stopped workflow's actual subscription deduction remains unknown.
+Readiness is scoped to exact source/checks. Source authorization is not hosted authorization. No merge/deploy/account/grant/credential/provider/spend effect. OP-0002r6 / OP-0001r4 remain draft_not_authorized. Retained [36-case ledger](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json) remains 18 partial_L1 / three passed_L1 / 15 not_run. No product/other-mission completion. All owned PG clusters stopped/removed; private logs retained. Earlier stopped-workflow subscription deduction remains unknown.
 
 ## Historical gates (retained author checkpoints, not current instructions)
 

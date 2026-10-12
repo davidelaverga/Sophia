@@ -1,21 +1,10 @@
 # CON-01 coordination
 
-**Current13October source-only takeover:** [approved source window, exact composition,
-checks and handoff](../../handoffs/CON-01-codex-source-takeover-2.md). Davide's
-approval replaces missing owner-ACK/accepted-base holds only for local source
-writes and draft publication until2026-10-13T08:00Z. It does not invent owner
-ACKs or authorize merge/hosted/provider effects. Codex is sole feature author;
-independent whole-diff review before each push and automatic exact-head review
-after each push remain required. Luis integration/merge review and Davide
-product acceptance remain separate. Askoff.
+**Current continuation, 13 October source-only takeover:** [composition/authority](../../handoffs/CON-01-codex-source-takeover-2.md) and [Q13 local qualification](../../handoffs/CON-01-codex-source-takeover-3.md). Draft [#273](https://github.com/davidelaverga/Sophia/pull/273) first published `d06f98a1`; exact-head automatic review completed with no major issues. Current Q13 executable source `0d1d3a2a` / tree `6a854f5d` has independent whole-diff pre-push clearance and 179/179 owned PostgreSQL tests; final ordinary check/publication receipt remains separate. Ask stays disabled.
 
-The [r12 reservation](G2_SHARED_RESERVATION_REQUEST.md) and
-[research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md) remain the reviewed
-source scope; their historical no-window status describes their publication,
-not the later explicit source-only approval. Retained conditional owner
-handbacks remain exact-r10 only. Source base32854caf, composed922773b2; own branch
-`codex/con01-takeover-source-20261013`. Earlier table/history below retains the
-original feature/PR inputs and evidence at their own pins.
+Davide's approval replaces missing owner-ACK/accepted-base holds only for local source writes and draft publication until 2026-10-13T08:00Z. It does not invent owner ACKs or authorize merge/hosted/provider effects. Codex is sole feature author; independent whole-diff review before each push and automatic exact-head review after each push remain required. Luis integration/merge review and Davide product acceptance remain separate.
+
+The [r12 reservation](G2_SHARED_RESERVATION_REQUEST.md) and [research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md) remain the reviewed source scope; their historical no-window status describes their publication, not the later explicit source-only approval. Retained conditional owner handbacks remain exact-r10 only. Base main `32854caf`; own branch `codex/con01-takeover-source-20261013`. Earlier table/history below retains original inputs and evidence at their own pins.
 
 CON-01 completes saved project conversations. Two or more named text conversations in one project, durable member messages with real authorship and stable paging, Ask Sophia on or off, a real read-only native answer in the conversation it was asked in, the three quick asks, the shared current mission context with separate histories, coverage-aware summary and question projections, and enforceable withdrawal ([pack](../../missions/2026-10-09-con01-conversations/README.md), [mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md)).
 
@@ -27,7 +16,7 @@ CON-01 completes saved project conversations. Two or more named text conversatio
 | Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
 | Branch / PR | `claude/con01-project-conversations` / [#199](https://github.com/davidelaverga/Sophia/pull/199) (draft) |
 | Base | `main` `4f7470c`; `main` `71dbea3e` merged at `8f5cbea`, `6744e78` at `7660c73`, `6ef8d855` at `5c3866a`, `3e6d57b` at `7e21538` |
-| Implementer | Codex, session `01a1224a-32b4-7222-a017-50a277572d95`, under Davide's 12 October takeover. Shared writes still await exact owner/base/window records |
+| Implementer | Codex, session `01a1224a-32b4-7222-a017-50a277572d95`, under Davide's bounded source-only approval; historical ACKs are not extended to new source |
 | Reviewer / operator | Codex operates separately approved batches and actual-app tests; independent review of Codex-authored changes comes from the repository-required external pre-push reviewer and exact-head automatic Codex review. Earlier independent reviews are not extended to new authored source |
 | Owner | Davide: product, the saved-text policy, spend, merge and release. Luis: the Studio's design and shared shell, and integration review (AGENTS.md) |
 | Parallel lanes | PR #190 (SDD-01 G7 voice, A15, 0046–0047); WBC-02 and SDD-01's combined runtime. The shared-file order is in the [binding map](BINDING_MAP.md) §2 |
