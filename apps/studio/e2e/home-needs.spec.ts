@@ -121,6 +121,37 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
   await expect(rows.filter({ hasText: 'Sophia replied' })).toHaveCount(0)
 })
 
+test('home · needs you: a reply is marked seen once its turn is in sight; a turn below the fold is brought into it', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api&turns=log`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await rows.nth(3).click()
+  await expect.poll(() => pressed(page)).toContain('seen reply:t9')
+  const read = await page.evaluate(() => {
+    const log = document.querySelector('.fixture-log')
+    const turn = log?.querySelector('.msg[data-turn="t9"]')
+    if (!log || !turn) return null
+    const t = turn.getBoundingClientRect()
+    const l = log.getBoundingClientRect()
+    return { inSight: t.bottom > l.top && t.top < l.bottom, scrolled: log.scrollTop > 0 }
+  })
+  expect(read).toEqual({ inSight: true, scrolled: true })
+})
+
+test('home · needs you: a reply whose turn never shows (the space hidden) is not marked seen, and stays', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api&turns=hidden`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await rows.nth(3).click()
+  await page.waitForTimeout(900) // the fixture's hidden log gives up after 400 ms
+  expect(await pressed(page)).toEqual(['personal'])
+  await expect(rows).toHaveCount(4)
+})
+
 test('home · needs you when the read fails: Home says so, Try again reads it', async ({ page }) => {
   await page.goto(`${PAGE}?needs=api&needsFail=1`)
   const note = page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })
