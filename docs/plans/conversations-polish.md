@@ -40,3 +40,9 @@ at 1280 × 800, both themes, headless Chromium (`evaluacion-2026-10-12/conv-*-12
 
 - The context pane's eyebrows (12 px, 600, second ink) are one step below the list's 15 px head: a hierarchy question
   for Luis's eye, not a defect.
+
+## After the review (Codex on #257)
+
+The light faces' 2 px ring is `--void`, not `--plane`: the head and the pane are see-through, so the faces stand on the
+page, and a plane-coloured ring drew a second beige disc around each. conversations-column.spec reads the ring against
+the first painted ancestor's colour.

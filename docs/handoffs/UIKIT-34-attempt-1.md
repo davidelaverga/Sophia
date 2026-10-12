@@ -6,6 +6,12 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/polish-tasks` from `ui/polish-conversations` at
 `8416d8cb` (UIKIT-33's head; stacked on PR #257 → #254 → … → #220; the base retargets as each merges)
+Writable scope: this worktree only (`apps/studio`, `packages/ui`, `docs/plans`, `docs/handoffs`; a contract amendment
+only where its note says so), on branch `ui/polish-tasks`; no service code, no deploy.
+Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright through
+`.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
+Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
+commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
 Ending commit/tree: `546a8f36` (tree `e4f9b560`): 3 files, 1 new (`docs/plans/tasks-polish.md`) and `board.css`,
 `e2e/work.spec.ts`; this handoff's commit follows. The first state was `4d799bef` (tree `2c3a2ebb`), with a `min-width:
 7ch` on the name that widened a short name past its words and made its chip drop for nothing; `546a8f36` drops it. If
