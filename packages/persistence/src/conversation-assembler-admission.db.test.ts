@@ -156,6 +156,16 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
       UNION ALL SELECT 'policy',c.relname||'.'||p.polname,md5(coalesce(pg_get_expr(p.polqual,p.polrelid),'')) FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid WHERE p.polname='con01_assembly_bound'
       UNION ALL SELECT 'rls',c.relname,c.relrowsecurity::text||','||c.relforcerowsecurity::text FROM pg_class c WHERE c.relnamespace='sophia'::regnamespace AND c.relkind='r' AND has_table_privilege('${ROLE}',c.oid,'SELECT') ORDER BY kind,name`)
     t.diagnostic(JSON.stringify(identities.rows))
+    t.diagnostic(
+      JSON.stringify(
+        (
+          await target.query(
+            `SELECT t.tgname AS name,c.relname AS rel,md5(pg_get_triggerdef(t.oid)) AS hash,t.tgenabled AS enabled FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid WHERE NOT t.tgisinternal AND t.tgfoid IN (SELECT p.oid FROM pg_proc p WHERE p.pronamespace='sophia'::regnamespace AND p.proname LIKE 'conversation_context_%') ORDER BY name,rel`,
+          )
+        ).rows,
+      ),
+    )
+
     await target.query('BEGIN')
     try {
       await target.query(file('con01-s4-reply-fences.sql'))
@@ -177,6 +187,20 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
   it('fails closed on missing roles, login authority, assembler authority and PUBLIC/default effective authority', async () => {
     assert.deepEqual(await holds(), [])
     const cases: [string, RegExp][] = [
+      [
+        'ALTER TABLE sophia.conversation_messages DISABLE TRIGGER conversation_context_message_scrub; ALTER TABLE sophia.conversation_replies DISABLE TRIGGER conversation_context_reply_scrub',
+        /semantic:.*trigger/,
+      ],
+      ['DROP TRIGGER conversation_context_message_scrub ON sophia.conversation_messages', /semantic:.*trigger/],
+      [
+        'CREATE OR REPLACE TRIGGER conversation_context_message_scrub AFTER UPDATE ON sophia.conversation_messages FOR EACH ROW EXECUTE FUNCTION sophia.conversation_context_reply_scrubbed()',
+        /semantic:.*trigger/,
+      ],
+      [
+        'ALTER TABLE sophia.conversation_reply_contexts DISABLE TRIGGER conversation_reply_contexts_kept',
+        /semantic:.*trigger/,
+      ],
+
       ['ALTER TABLE sophia.projects FORCE ROW LEVEL SECURITY', /semantic:.*row security/],
       [`ALTER SCHEMA sophia OWNER TO ${peer}`, /semantic:.*schema owner/],
       [

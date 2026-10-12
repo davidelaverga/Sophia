@@ -50,6 +50,17 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
       ('sophia.is_member(uuid)','73e40f4a2d8d6af95f8d414c6c2ee784'),
       ('sophia.is_task_kind(text)','ab5390873bf78035cc94d99466f49d12'),
       ('sophia.mission_capture_default()','d3212aa604efc9363d7d30e4ee0777a5')),
+     trigger_defs(n,r,h) AS (VALUES
+      ('conversation_assembly_claims_kept','conversation_assembly_claims','6671e60cf3e32d6eb960205d7d44c3f6'),
+      ('conversation_context_message_scrub','conversation_messages','89f7af8328ab7282490c0db0aed9c79d'),
+      ('conversation_context_reply_scrub','conversation_replies','6bda093a3c0804feb7c43bd07156dd4e'),
+      ('conversation_context_tables_kept','conversation_assembly_claims','220bb27d25b18d378204b634c4807196'),
+      ('conversation_context_tables_kept','conversation_reply_contexts','99c01de74eb6c96c75362c2b849f704f'),
+      ('conversation_context_tables_kept','conversation_reply_messages','6e6161340ad094ec4f713b544fbae737'),
+      ('conversation_context_tables_kept','conversation_reply_sources','6e3b4e58553d1dfb929d714d81a6f063'),
+      ('conversation_reply_contexts_kept','conversation_reply_contexts','3dfe10eab960e0ccaf0cd5018d5e0371'),
+      ('conversation_reply_messages_kept','conversation_reply_messages','90a70d4dc67720d9a00cfdf68250b38d'),
+      ('conversation_reply_sources_kept','conversation_reply_sources','ecc9d9b73fa1b68b706dd3b05d682a27')),
      shared_quals(r,h) AS (SELECT r,CASE r
       WHEN 'projects' THEN '2755e13246aa841a78d079f595642542'
       WHEN 'conversation_messages' THEN 'e76fc23de87f4b338688e22f5ab4d6b1'
@@ -229,3 +240,8 @@ UNION ALL SELECT 'hold','semantic: function definition or owner changed: '||e.f
  WHERE p.oid IS NULL OR o.rolname IS DISTINCT FROM 'postgres' OR (md5(pg_get_functiondef(p.oid)) IS DISTINCT FROM e.h
       AND NOT (e.f='sophia.conversation_context_kept()' AND md5(pg_get_functiondef(p.oid))='d9d7573af29ebe996dceee4d3fe338f4'));
 
+
+UNION ALL SELECT 'hold','semantic: trigger registration or enabled state changed: '||e.r||'.'||e.n
+ FROM trigger_defs e LEFT JOIN pg_namespace n ON n.nspname='sophia' LEFT JOIN pg_class c ON c.relnamespace=n.oid AND c.relname=e.r
+ LEFT JOIN pg_trigger g ON g.tgrelid=c.oid AND g.tgname=e.n
+ WHERE g.oid IS NULL OR g.tgisinternal OR g.tgenabled<>'O' OR md5(pg_get_triggerdef(g.oid)) IS DISTINCT FROM e.h;
