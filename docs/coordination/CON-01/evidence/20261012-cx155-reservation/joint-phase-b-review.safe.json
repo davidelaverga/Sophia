@@ -1,0 +1,552 @@
+{
+  "at": "2026-10-12T05:46:59.544161+00:00",
+  "status": "CHANGES_REQUIRED_NO_RESERVATION_OR_WRITE_GO",
+  "candidate": {
+    "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+    "tree": "7a571790ccb3d63d34884e0f240e20dc70b4640e",
+    "parent": "7d4a76d9ec50fc80e97b3d2912e48ae362863043",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "lines": 232,
+    "sha256": "6aee5c9e789b23ea6d46745e762fd6a561eca162227567ac6a5c38cada525f74",
+    "diff": "Only this document added, +232/-0. All 232 lines read."
+  },
+  "scope": "Independent bounded source reservation review against exact freeze r2, recovered joint-owner-routing.r2, exact candidate dependencies and fresh main source/PR head metadata. Consumer compatibility and preservation review only. No owner authority inferred from Q7 r8 ACK, peer request, missing names in one binding map, or historical commit authors. Shared terminal record for reviewer consolidation; no cross-thread reply or author steering sent by this lane.",
+  "inputs": [
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "local": "candidate/docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "sha256": "6aee5c9e789b23ea6d46745e762fd6a561eca162227567ac6a5c38cada525f74",
+      "lines": 232
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "local": "candidate/docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "local": "candidate/docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "sha256": "7b7e89a6a222eb9302c947745c59f0459498d7b3260123526a2195cecca4236c",
+      "lines": 128
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "local": "candidate/db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "local": "candidate/db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+      "lines": 754
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/persistence/src/runtime.ts",
+      "local": "candidate/packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "apps/api/src/routes/runtime.ts",
+      "local": "candidate/apps/api/src/routes/runtime.ts",
+      "sha256": "2cee9da14f99ebfff047831f4f529e097d6e93350cfc3646429eaf0ee69757c0",
+      "lines": 227
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "local": "candidate/packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "local": "candidate/packages/contracts/scripts/generate-validators.ts",
+      "sha256": "97f1af3c814b7715047b1c880666a4b37a5004ff12e92f460e9d0d1db1e3eeda",
+      "lines": 126
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "local": "candidate/packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/dsh-bundle/src/role-registry.ts",
+      "local": "candidate/packages/dsh-bundle/src/role-registry.ts",
+      "sha256": "b1c58652c90dc80dc6f7a243720d0849be0ccf92f1dabe6f3ac3d13d02b40228",
+      "lines": 109
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "config/runtime-unit.json",
+      "local": "candidate/config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "package.json",
+      "local": "candidate/package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "local": "candidate/docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "local": "candidate/docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "local": "candidate/docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "local": "candidate/docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5
+    },
+    {
+      "commit": "7dc23203eeaef3e91e4515f36127e1f86318d7c4",
+      "path": "docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "local": "reviewer/docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+      "lines": 205
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "local": "main/docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "packages/persistence/src/runtime.ts",
+      "local": "main/packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "local": "main/packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "local": "main/packages/contracts/scripts/generate-validators.ts",
+      "sha256": "1336ba1b8e61818ccba166af996d930c6db5a236a51fa1054c72e519f84e8ec6",
+      "lines": 120
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "local": "main/packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "config/runtime-unit.json",
+      "local": "main/config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "package.json",
+      "local": "main/package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "local": "candidate/db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "lines": 55
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "local": "candidate/db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "lines": 495
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/contracts/amendments/A16-project-conversations.json",
+      "local": "candidate/packages/contracts/amendments/A16-project-conversations.json",
+      "sha256": "c5a60040129bcf2c86821d72410a086ffcde026f74c16f01abf5c875bea34b5d",
+      "lines": 1415
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "scripts/build-artifacts.mjs",
+      "local": "candidate/scripts/build-artifacts.mjs",
+      "sha256": "7d27eaceca5cd53f9ad8b08f0e21bd9a8d8d2e58ba8f8506fe100e0ff0867279",
+      "lines": 65
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "scripts/lib/artifacts.mjs",
+      "local": "candidate/scripts/lib/artifacts.mjs",
+      "sha256": "7df38a1f0a69b429973335424e33ccea8dda1cacdf1925c177684c799a5c0ba6",
+      "lines": 142
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "config/dsh/base-rows.reviewed.json",
+      "local": "candidate/config/dsh/base-rows.reviewed.json",
+      "sha256": "24ccd633f607b658c8ad8a052c107688dc25eaae86bee5cd2a52af707342e772",
+      "lines": 384
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "config/dsh/profile/cordis.patch.yml",
+      "local": "candidate/config/dsh/profile/cordis.patch.yml",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "lines": 1
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/contracts/package.json",
+      "local": "candidate/packages/contracts/package.json",
+      "sha256": "5fab2a20db2bbb5d8f6c0dc3a5ed813811e5c63c187e776b7aece91c4a8889cd",
+      "lines": 21
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "db/migrations/0012_runtime_service.sql",
+      "local": "main/db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "db/migrations/0041_design_lifecycle.sql",
+      "local": "main/db/migrations/0041_design_lifecycle.sql",
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "lines": 650
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "db/migrations/0042_source_review_coordination.sql",
+      "local": "main/db/migrations/0042_source_review_coordination.sql",
+      "sha256": "9e6064b7b78bf55342cd6f23e62ccaaa96a3a28ad8c8b48136af6557c89e408b",
+      "lines": 1980
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "db/migrations/0001_core.sql",
+      "local": "main/db/migrations/0001_core.sql",
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e",
+      "lines": 248
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "docs/execution/2026-10-01-unified/goals/BASE.md",
+      "local": "main/docs/execution/2026-10-01-unified/goals/BASE.md",
+      "sha256": "d58298a699f5d6ab83a4e3d3818ace1c7b7f7d196e4b116d8fb7e612e971f043",
+      "lines": 48
+    },
+    {
+      "commit": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "path": "docs/progress/SMC-M01-contract-binding.md",
+      "local": "main/docs/progress/SMC-M01-contract-binding.md",
+      "sha256": "8b508a253b26636f354968c22e1e195e1df2e6fdd0eeea5d442d53684eb3004f",
+      "lines": 208
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "local": "candidate/packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/persistence/src/research.ts",
+      "local": "candidate/packages/persistence/src/research.ts",
+      "sha256": "10100ddb7bbafc125fb00f6020387a90c96f87f545324bfa1d61eb742b6e3b5a",
+      "lines": 228
+    },
+    {
+      "commit": "01777c5ca32b8a92f2214db9eb91d4a039e6e60f",
+      "path": "docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "local": "freeze/docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+      "lines": 272
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "db/migrations/0048_project_conversations.sql",
+      "local": "candidate/db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "lines": 430
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "local": "candidate/docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "packages/contracts/src/validate.ts",
+      "local": "candidate/packages/contracts/src/validate.ts",
+      "sha256": "ab7c1b6afed6a89db29d989a73d4a77a56bac44d6bc80ee802ddb5c6fa2161bd",
+      "lines": 144
+    },
+    {
+      "commit": "57f66b5067a4e50cc0df0190d491947f2624596b",
+      "path": "config/roles.json",
+      "local": "candidate/config/roles.json",
+      "sha256": "1e6fead81e3549f332cca788775cb546ad546dab2f46cf70323bbefff84dae19",
+      "lines": 114
+    }
+  ],
+  "recoveredAuthority": {
+    "freeze": {
+      "commit": "01777c5ca32b8a92f2214db9eb91d4a039e6e60f",
+      "path": "docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+      "byteIdenticalLocalRecord": true,
+      "meaning": "Joint lane accepts bounded freeze/preservation/order with exact further PhaseB names, methods, tests, profiles, generated files and accepted base still required before writes. It transfers no exclusive historical ownership of foundational SQL."
+    },
+    "ownerRouting": {
+      "recoveredFrom": "7dc23203eeaef3e91e4515f36127e1f86318d7c4",
+      "path": "docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+      "byteIdenticalLocalRecord": true,
+      "meaning": "Core source/schema routing through Luis S1-02; retained S1-05A/BASE Davide/Luis access/product boundary. Mission ledger SMC-M01 retained Davide/Luis; research view current SMC-M03 implementer under Davide with Luis integration. Existing joint compatibility ACK covered three relations/two policies/one helper only, not all core/mission SQL."
+    },
+    "currentPlanning": "Fresh main planning/goals.json independently confirms S1-02 owner Luis, folded_not_restarted; S1-05A and SMC-M01 owners Davide/Luis, retained_foundation. Those are routing evidence, not a new current-writer appointment or an owner ACK.",
+    "Q7R8": "Original consumer ACK fc4f61ca63e063fc0ae49ebae3c6c3864f2931f6b37c8ce11894fb9827a982fc remains valid for exact 7d4a76d9 design. This packet review does not withdraw it or convert it to core/ledger acceptance."
+  },
+  "findings": [
+    {
+      "id": "PB-OWNER-ROUTING",
+      "severity": "P2",
+      "lines": [
+        25,
+        29,
+        30,
+        31,
+        32,
+        43,
+        206,
+        207
+      ],
+      "title": "Separate consumer compatibility from foundational owner acceptance",
+      "evidence": "Packet claims no separate core or ledger owner is recorded, then assigns all runtime SQL and B1-B6/K1-K2 authority to the joint WBC02/SDD01 lane. Recovered routing r2 explicitly corrects that inference and current main planning records Luis S1-02 and Davide/Luis retained S1-05A/BASE/SMC-M01. Freeze r2 is a consumer freeze and preservation agreement, not exclusive foundational SQL ownership. Q7 r8 ACK explicitly excluded core/ledger acceptance.",
+      "smallestCorrection": "Replace the no-other-owner premise and split K1/K2 into this lane consumer compatibility, CON reply/S2 design responsibility, and actual retained core/runtime owner routing/acceptance. Route current writer identification through Luis S1-02/integration and Davide/Luis retained S1-05A/BASE. Record actual owner/implementer ACK for exact surfaces before any window. The CON S2 reservation ledger is distinct from SMC-M01 mission ledger; do not invent a separate owner for S2 or require a blanket M01 ACK if M01 objects remain unchanged. M01/Q13/core policy changes, if actually needed, retain their own narrow owner routing. No low-level human-choice question is needed."
+    },
+    {
+      "id": "PB-SQL-MANIFEST",
+      "severity": "P2",
+      "lines": [
+        56,
+        60,
+        72,
+        73,
+        77,
+        80,
+        81,
+        82,
+        84,
+        88,
+        90,
+        93
+      ],
+      "title": "Enumerate the option C schema and exact SQL promotions/callers",
+      "evidence": "The exact closed list includes shared function replacements and retire kind CHECK but omits required option C table changes. Fresh main 0001:75-80 requires work_attempts.goal_id/goal_revision NOT NULL;109-119 requires outbox.goal_id NOT NULL;82-87 binding state CHECK has no retired. Main migration source scan finds no later option C relaxation or conversation_reply_id. Candidate0048 does not add them; S1 is terminal-state-only. BINDING_MAP schema section requires reply IDs, exactly-one goal/reply checks and goal_revision correspondence. Packet also uses unnamed grant/ledger helpers and unnamed retire writer, references S1/S3/S4 promotion generically, and promises acknowledged without enumerating its callable SQL binding. S2 contains five tables, triggers and ten helper/ledger functions; S3 includes a cluster role, inherited sophia_api membership and entry-point grants. These are real source-scope items, not covered precisely by saying candidate functions or no grant beyond unnamed callers.",
+      "smallestCorrection": "Add exact append-only alterations for work_attempts/outbox reply correlation, nullability, corresponding CHECK/FK/index constraints and execution_bindings retired state. Enumerate acknowledgement function/capability wrapper, retire writer/unique idempotency constraint, and other runtime call signatures/entry points. Include the exact pinned S1/S2/S3/S4 objects to promote, their hashes/review references and precise role/table/trigger/ACL boundaries, or explicitly reference a sealed exhaustive manifest. State any still-disabled release/reconcile stubs and their future proof-source task accurately. Separate in-source ACL declarations from any forbidden live grant effect. Preserve applied migrations, current role boundaries and Q13 exclusion; unresolved owner-bound names stay pending rather than permission to implement anything."
+    },
+    {
+      "id": "PB-IMPLEMENTATION-COMPANIONS",
+      "severity": "P2",
+      "lines": [
+        105,
+        107,
+        111,
+        113,
+        115,
+        118,
+        130,
+        136,
+        142,
+        157,
+        161,
+        169
+      ],
+      "title": "Include persistence, runtime generator and generated profile lock in the reservation",
+      "evidence": "Freeze r2 explicitly names packages/persistence/src/runtime.ts and packages/contracts/scripts/generate-runtime-wire.ts. Packet lists only persistence index exports and route registration, not the implementation for five new conversation calls. Actual runtime.ts:27-81 owns capability-bound SQL calls and has none of those five; research.ts:91-108 shows the existing wrapper pattern. Actual generate-runtime-wire.ts:18-98 and100+ uses explicit SCHEMAS/VALIDATED allowlists with no conversation operations; adding OpenAPI components alone does not supply new bridge wire exports. Transport imports wire and wire-types. Finally scripts/build-artifacts.mjs:33-37 writes both runtime-unit.json and profileLockFile, and scripts/lib/artifacts.mjs:33 resolves config/dsh/profile/pnpm-lock.yaml. That generated profile-lock companion is omitted while a new bundle digest is required and the packet says no lock change inferred. Bare cordis.patch.yml is also ambiguous: actual user patch config/dsh/profile/cordis.patch.yml is literal[], while reviewed plugin rows live in config/dsh/base-rows.reviewed.json.",
+      "smallestCorrection": "Name the persistence implementation path and exact five wrapper exports/signatures (existing runtime.ts or a precisely named new module), with caller-bound SQL entry points. Add generate-runtime-wire.ts for exact conversation schema/type/validator allowlist additions and keep its two generated companions. Include config/dsh/profile/pnpm-lock.yaml solely for recorder-generated archive integrity; this is not a dependency or workspace-lock permission. Use complete canonical patch/profile paths and name any necessary roles/specialists generated companions only if that implementation changes their inputs. Keep source-review/research/design and PR190 voice contract entries; no hand merge, route/credential or dependency change inferred."
+    },
+    {
+      "id": "PB-GATE-ORDER",
+      "severity": "P2",
+      "lines": [
+        56,
+        101,
+        111,
+        142,
+        169,
+        185
+      ],
+      "title": "Make intermediate checks consistent with artifact recording and final qualification",
+      "evidence": "Packet requires each of five separate steps pinned, accepted and full-gated before next, but records artifacts once on the final combined candidate. Step2 changes runtime-wire source and Step3 changes bundle source; their archive identity is therefore changed before Step5. Root package.json pnpm check runs pnpm artifacts, whose script compares archive/unit/profile-lock and exits1 on mismatch. AGENTS requires identity diffs with artifact source changes. No runtime command was executed here; this is the explicit source-level gate sequence, not a fabricated failed run.",
+      "smallestCorrection": "Choose and record a workable sequence: either each accepted artifact-changing pin carries its generated identity/profile-lock diff and applicable complete checks before the next pin; or intermediate dependency steps receive explicit limited static/source reviews and their available checks, while one complete combined implementation pin records identities and receives the full ordinary/integration/qualification gates before acceptance. Do not describe unavailable future crossings or intentionally stale artifact checks as passed, waive artifact reproducibility, rerun old probes, or broaden source window without acknowledgement. Preserve plan dependency order and exact fail-before/after evidence."
+    }
+  ],
+  "boundedConsumerDisposition": {
+    "B1": "Compatible recommendation to retain atomic hello lease-loss table, with claim-before-rejected accounting-safe alternative if actual owners drop it. This lane does not choose for core/CON; future tests are specified, not already executed.",
+    "B2": "Compatible exactly-one cleanup retire plus own required delivery rows and shared idempotent writer across receipt/hello. Actual writer name/signature/unique key and core command/outbox binding still owner work.",
+    "B3": "Compatible once-per-hello re-evaluation of Stop/retire until checked, preserving serial attempt queue, original clocks and receipt stage idempotency. Additive cursor implementation and owner acceptance pending; do not change applied0012 or require runtime_poll changes merely by assumption.",
+    "B4": "Compatible CON-owned clarification distinguishing execution from cleanup delivery rows. Must be aligned after B2 bound in accepted window; not edited here.",
+    "B5": "Compatible claim/run-gate/bridgeInstanceId/runtime_lease semantics of exact r8; no new execution after refused/lost claim or unconfirmed go. Caller/SQL implementation and ACL review pending.",
+    "B6": "Compatible eight durable API predicates plus separate relayclosed, exact root/home process proof, payload scrub and actual writer/create-answer evidence. Predicate implementation/callers and implementation qualification pending.",
+    "acceptedNow": "Runtime-consumer compatibility of B1-B6 design directions and intended preservation/order only, qualified by r8 and corrections above. No complete scope ACK for this incomplete packet; no exclusive runtime SQL/core/mission ledger authority claimed."
+  },
+  "acknowledgementRouting": {
+    "K1": "Split: CON own reply/S2 candidate responsibility, recorded retained core/runtime source owner decisions, and this lane bounded consumer compatibility. Do not count the r8 design ACK as all three.",
+    "K2": "Exact corrected manifest requires narrow owner/implementer scope ACKs including shared runtime/core crossings. Existing freeze retains preservation, not authority over unlisted methods/DDL/ACLs.",
+    "K3": "Actual PR190 implementer/owner must acknowledge exact overlap and generator order after scope correction. This root independently reviews preservation; no fresh implementer ACK was obtained in this turn and no broad voice/billing authority follows.",
+    "K4": "Luis integration review owns exact main+accepted PhaseA+accepted G1 or named composition commit/tree. Current main is observed, not accepted. No premature G1/Studio reopening.",
+    "K5": "Source coordinator records fresh global published-ref/PR plus local-owner census, exact atomic number/path reservation, sole writer, start/expiry/return and explicit source-only scope only after actual prerequisite ACKs. No GO supplied here; 0049/A16 historical reservations not a fresh census, and0053 remains reserved."
+  },
+  "baseOrderPreservation": {
+    "freshGitHubMetadata": {
+      "at": "2026-10-12T05:44:50.287929+00:00",
+      "main": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+      "prs": {
+        "190": {
+          "baseRefOid": "fec45a0e96c4679a09da02be979503910a623c5c",
+          "headRefOid": "5c10bce3060ca867402cb5ba869146a69af057c6",
+          "isDraft": true,
+          "number": 190,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/190"
+        },
+        "199": {
+          "baseRefOid": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+          "headRefOid": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+          "isDraft": true,
+          "number": 199,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/199"
+        },
+        "256": {
+          "baseRefOid": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+          "headRefOid": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+          "isDraft": true,
+          "number": 256,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/256"
+        }
+      },
+      "scope": "Fresh authoritative head/state metadata only. Embedded PR baseRefOid is not proof of current named main or current merge-tree/CI qualification."
+    },
+    "latestMainDefinitions": {
+      "runtime_cursor": {
+        "path": "db/migrations/0012_runtime_service.sql",
+        "line": 399
+      },
+      "runtime_hello": {
+        "path": "db/migrations/0028_research_revocation.sql",
+        "line": 74
+      },
+      "apply_runtime_receipt": {
+        "path": "db/migrations/0012_runtime_service.sql",
+        "line": 464
+      },
+      "capture_native_result": {
+        "path": "db/migrations/0042_source_review_coordination.sql",
+        "line": 1724
+      },
+      "runtime_record_observations": {
+        "path": "db/migrations/0023_usage_cache.sql",
+        "line": 20
+      },
+      "native_delivery_ineligible": {
+        "path": "db/migrations/0041_design_lifecycle.sql",
+        "line": 149
+      },
+      "dispatch_runtime_outbox": {
+        "path": "db/migrations/0042_source_review_coordination.sql",
+        "line": 1806
+      }
+    },
+    "dependencyAssessment": "Packet correctly requires accepted PhaseA dispatcher prerequisite and G1 0048 before0049. Fresh PR256 head93e9313d and PR199 headd527f385 remain draft/open; no merge acceptance is inferred. PR190 head5c10bce3 remains draft/open. Main5ed752bd confirmed by explicit ls-remote; embedded PR base snapshots are not current-main checkout proof. Peer six-green/latest98d70 merge-tree claims not requalified here.",
+    "acceptedOrder": "Prerequisite acceptance/integration and actual G1/base composition, exact owner/census/window; additiveSQL;wire/contracts;bridge;supervisor/launcher/profile;final qualification, with corrected intermediate gate meaning. No unaccepted PR211 branch default base.",
+    "requiredPreservation": [
+      "Goal path logic with only acknowledged reply branches/null guards; existing function signature/default/security/search_path/privileges and control.settle/native.steer/research/design mappings. PG function-body comparisons must account for named insertions, not pretend replaced whole definitions are byte-identical.",
+      "PR190 VOICE_SCHEMA/required schemas/registerHealth, voice persistence exports,A15/A17; all current A13/source-review/research/design contract validators and combined roles/pins. Generate, never hand merge.",
+      "Admission/go one-execution claim, exact scoped process proof/current-root spawn fence, life lock/admission/relayclosed barriers, every settle OR shareddeadline, no uncertain allowance reset, withdrawal and late usage scrubbing/no publication revival.",
+      "Source Map existing Paperclip and section2f preserved; map only exact new upstream sources if used. No upstream source copy, shadow scheduler or dependency change.",
+      "Q13 and Studio remain independently held; SMC-M01 mission helper/policy ownership is not transferred merely because CON S2 is its own reservation ledger."
+    ],
+    "handback": "Exact immutable commit/tree and full path/function/contract/identity diffs, applicable ordinary checks and affected real crossings, retained failures/cleanup/limits, stopped writer and recorded ownership return. Old G image receipt never qualifies new artifacts."
+  },
+  "terminalHandback": "This is this lane terminal source reservation review for consolidation with the independent reviewer once before author correction. Findings are bounded docs/manifest/routing corrections, not executed runtime failures. Prior r8 review stays accepted at design scope. No native CON inspection/message or cross-thread reply performed.",
+  "effects": "Read-only GitHub/ref/PR metadata and inbound immutable objects; static exact source/doc/hash reads; local journal only. No source edits, tests/build/CI rerun, new harness/process probes, database/hosted/provider/model/image calls, credentials/grants/spend, merge, registry, migration, deployment or automation changes.",
+  "safeCopy": {
+    "originalSha256": "894e518aff23f3ec07635a8930449191f48f0eb8b575a149a7fe0f504356591e",
+    "omitted": [
+      "operationalState: unrelated mission state is not CON authority",
+      "reviewCheckout: unrelated checkout identity"
+    ],
+    "normalization": "Canonical valid JSON with final newline; original trailing literal escape normalized; findings and bounded review retained."
+  }
+}
