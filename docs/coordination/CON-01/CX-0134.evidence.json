@@ -182,5 +182,24 @@
     "Luis": "ACK not present at fresh mission/PR read",
     "gitMergeWithDisclosure": "c19adc4761154179ec4c5a791118357e04f2c821; compatibility only"
   },
-  "mission6115780841ExactReadback": true
+  "mission6115780841ExactReadback": true,
+  "closing_at": "2026-10-12T01:12:23.859204+00:00",
+  "concurrent_live_work": {
+    "scope": "Joint operator/owner report, not independent CON target qualification or approval",
+    "thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
+    "cursor": "05536df8-cc0b-448c-939a-b8a87359d323:26",
+    "turn": "01a12da6-28ee-7702-ad57-bcfd108110b5",
+    "status": "actual handle inProgress; separate approved temporary recovery test loading schema",
+    "planSHA256": "482afdd67faeb782d9add4812986f0d88e1d67d5314304797780dd6494b63143",
+    "readableSHA256": "42541b0ff1741208e73a0d0baf81bdeb16cd81d49140bc57f7b0dbb418d112a3",
+    "reportedStartUTC": "2026-10-12T01:08:52.678582Z",
+    "workClockSeconds": 2700,
+    "CONauthority": false,
+    "CONaction": "No concurrent hosted probe; preserve joint resources; refresh preflight after actual cleanup"
+  },
+  "mission": {
+    "id": 6115961845,
+    "exactReadback": true,
+    "CONnativeDelivery": "helper verified exact URL/title and visible message before foreground later changed to joint owner"
+  }
 }

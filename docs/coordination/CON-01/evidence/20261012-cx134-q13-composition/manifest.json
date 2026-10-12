@@ -81,6 +81,7 @@
     "retry-1/owned-receipt.safe.json": "54bfae1f1a28897bd0ec50e141acf82f8f2fd66667c7c26c2bbf48dd1b63a3f6",
     "retry-1/probe.log": "de52e547fdfa38961111af56b7558a297ec49cb9c7b0c37add739788db0fad36",
     "retry-1/run-owned.py": "dd4a11a246a97be3f9fe4a2455a2ac2f8dcba1a199024ee9c2d8244442135e75",
-    "retry-1/source-manifest.json": "9ad911f974c021016e650185c3f67efb09053e14170dc1ebdf846db6ea872b28"
+    "retry-1/source-manifest.json": "9ad911f974c021016e650185c3f67efb09053e14170dc1ebdf846db6ea872b28",
+    "pr-status.safe.json": "c9c2b22c548a02571551c64814b23a6661df2dc078d4bf4fba5575eada581b05"
   }
 }
