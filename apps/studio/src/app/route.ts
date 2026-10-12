@@ -56,6 +56,16 @@ export function parseRoute(pathname: string): Route {
   return isPlace(place) ? { ...HOME, place } : HOME
 }
 
+/**
+ * Whether an address is this project's to edit: its path names the project, or names none (a fixture page, which has no
+ * project in its path). Another project's address is left alone (Codex on #242: a shell leaving the address must not
+ * strip the lens of the project Back or Forward went to).
+ */
+export function pathIsFor(pathname: string, projectId: string): boolean {
+  const named = parseRoute(pathname).projectId
+  return named === null || named === projectId.toLowerCase()
+}
+
 export function routePath({ projectId, view, place }: { projectId: string | null; view: View; place?: Place }): string {
   if (projectId) return `/p/${projectId}/${view}`
   return !place || place === 'home' ? '/' : `/${place}`

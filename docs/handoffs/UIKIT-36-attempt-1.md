@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `4fe98ad4` (3 files: `theme.css`, `conversations.css`, `e2e/eyebrows.spec.ts` new, 3 tests)
-and `docs/plans/eyebrows.md`; the commit after it adds only this handoff. A squash on merge gives the work an id this
-file cannot know.
+Ending commit/tree: `bc166ac6f889` (tree `40677792c32c`), the last commit of `ui/polish-eyebrows`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 5 files changed against
+`ui/polish-nav` at that commit: `e2e/eyebrows.spec.ts`, `src/app/theme.css`, `src/features/conversations/conversations.css`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/plans/eyebrows.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

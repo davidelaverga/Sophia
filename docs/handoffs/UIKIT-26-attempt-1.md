@@ -11,9 +11,9 @@ Writable scope: the CSS of the heads named below, the specs that pin a view's si
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session (quoted above); merge on green CI with no Codex P1 through his
 merge loop; no deploy, no production data.
-Ending commit/tree: the branch's head as merged (`ui/section-heads`); the first delivery was `5f12c15b` (tree
-`f0dac626fb59`, 21 files), and every later change is listed in the decisions and post-review notes below (Codex on
-#248: the record names the state delivered).
+Ending commit/tree: `a03f1d11eb0f` (tree `8d44ec684e26`), the last commit of `ui/section-heads`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 19 files changed against
+`ui/sign-in-lede` at that commit: `CONTRIBUTING.md`, `e2e/conversation-thread.spec.ts`, `e2e/conversations-start.spec.ts`, `e2e/knowledge-library.spec.ts`, `e2e/knowledge-quiet.spec.ts`, `e2e/project-conversation-writes.spec.ts`, `e2e/project-conversations.spec.ts`, `e2e/resources.spec.ts`, `e2e/section-heads.spec.ts`, `e2e/work.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/connections/connections.css`, `src/features/conversations/conversations.css`, `src/features/resources/resources.css`, `src/features/work/planning/board.css`, `src/features/work/planning/plan.css`, `docs/handoffs/UIKIT-26-attempt-1.md`, `docs/plans/section-heads.md`. The review notes below name the commit of each later change.
 
 ## Outcome (the state delivered, after the review rounds)
 

@@ -12,10 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: the branch's head as merged (`ui/light-stage`). The implementation was first delivered as
-`b809b55b` (tree `a4d10595a866`, 3 files); the reviewed result Codex named, `834411c4` (tree `295237b5330f`), is that
-work merged with its base, 4 files; every later change is listed with its commit in the post-review notes below (Codex
-on #252: the record names the integration result, not only the implementation commit).
+Ending commit/tree: `8d9057cb46fc` (tree `f5b642686d62`), the last commit of `ui/light-stage`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`ui/light-breath` at that commit: `e2e/light-stage.spec.ts`, `src/app/theme.css`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/plans/light-stage.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

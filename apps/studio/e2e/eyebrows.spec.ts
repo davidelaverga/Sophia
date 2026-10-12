@@ -1,10 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 import { DRAWN, drawn } from './drawn.ts'
 
-// The small capitals of the project views (docs/plans/eyebrows.md): one tracking, the kit's token's (0.06em at 12 px
-// = 0.72 px), on Knowledge, Updates and Conversations alike; Updates and the day label had a third more.
+// The small capitals of the project views (docs/plans/eyebrows.md): one tracking, the kit's token's (0.06em: 0.72 px at
+// 12 px, 0.63 px at the label size's 10.5), on Knowledge, Updates and Conversations alike; Updates and the day label had
+// a third more. The day is data at 10.5 (Codex on #241), so the labels are read at either size (Codex on #260).
 
-/** Every uppercase 12 px label drawn in the view: its words and its tracking. */
+/** Every uppercase label drawn in the view, at 12 px or the label size: its words, its classes, its size, its tracking. */
 const labels = (page: Page, root: string) =>
   page.evaluate((sel) => {
     const view = document.querySelector(sel)
@@ -13,12 +14,19 @@ const labels = (page: Page, root: string) =>
       .filter((el) => el.getClientRects().length > 0 && el.children.length === 0)
       .map((el) => ({ el, cs: getComputedStyle(el) }))
       .filter(
-        ({ el, cs }) => cs.textTransform === 'uppercase' && cs.fontSize === '12px' && el.textContent.trim() !== '',
+        ({ el, cs }) =>
+          cs.textTransform === 'uppercase' && ['12px', '10.5px'].includes(cs.fontSize) && el.textContent.trim() !== '',
       )
-      .map(({ el, cs }) => ({ words: el.textContent.trim().slice(0, 32), tracking: cs.letterSpacing }))
+      .map(({ el, cs }) => ({
+        words: el.textContent.trim().slice(0, 32),
+        className: el.className,
+        size: parseFloat(cs.fontSize),
+        tracking: parseFloat(cs.letterSpacing),
+      }))
   }, root)
 
-const TOKEN = '0.72px'
+/** The token: 0.06em of the label's own size. */
+const TOKEN = 0.06
 
 for (const [name, url, parts, root] of [
   ['Knowledge', '/room.html?demo=1&place=knowledge', DRAWN.knowledge, '.page'],
@@ -31,7 +39,9 @@ for (const [name, url, parts, root] of [
     const seen = await labels(page, root)
     expect(seen, root).not.toBeNull()
     expect(seen?.length ?? 0, name).toBeGreaterThan(0)
-    const off = (seen ?? []).filter((l) => l.tracking !== TOKEN)
+    const off = (seen ?? []).filter((l) => Math.abs(l.tracking - TOKEN * l.size) > 0.01)
     expect(off, JSON.stringify(off)).toEqual([])
+    // The day label, the case the rule was written for, is among those read (Codex on #260).
+    if (name === 'Conversations') expect((seen ?? []).some((l) => l.className.includes('conv-day'))).toBe(true)
   })
 }

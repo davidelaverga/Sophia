@@ -12,10 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `23810d95` (9 files: `commands.ts` + test, `palette-recent.ts` + test,
-`Palette.tsx`, `next-up.ts`, `PlanBoard.tsx`, `fixtures/work.tsx`, `e2e/palette-knows.spec.ts`) and
-`docs/plans/palette-knows.md`; the commit after it adds only this handoff. A squash on merge gives the work an id this
-file cannot know.
+Ending commit/tree: `d891d7cde766` (tree `c8a453e8b140`), the last commit of `ui/palette-knows`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/next-up` at that commit: `e2e/palette-knows.spec.ts`, `src/app/Palette.tsx`, `src/app/commands.test.ts`, `src/app/commands.ts`, `src/app/palette-recent.test.ts`, `src/app/palette-recent.ts`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-39-attempt-1.md`, `docs/plans/palette-knows.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

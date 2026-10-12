@@ -6,8 +6,8 @@ const EMAIL = 'ana@sophia.test'
 
 describe('what opens, said at the door', () => {
   it('is the guest door’s sentence, of Sophia and your team: one line, a full stop, no project named', () => {
-    assert.equal(SIGN_IN_LEDE, 'A room where your team and Sophia think together.')
-    assert.match(SIGN_IN_LEDE, /^A room where your team and Sophia think together\.$/)
+    assert.equal(SIGN_IN_LEDE, 'Where your team and Sophia think together.')
+    assert.match(SIGN_IN_LEDE, /^Where your team and Sophia think together\.$/)
     assert.ok(!SIGN_IN_LEDE.includes('“'), 'no project is quoted before one exists')
   })
 })
