@@ -24,6 +24,10 @@ received narrow read-only requests; neither was assigned feature implementation.
   command/outbox outcome history and the post-claim test digest. No active writer,
   unpublished work or source window reported. Bridge/supervisor/profile changes
   are explicitly excluded and need their own precise owner handback (K2e).
+  PR271's exact-head automatic review found one P2: K2e omitted the new bundle
+  modules. The corrected route explicitly includes reply-child.ts/reply-plugin.ts
+  and the existing/new §3.4 launcher/profile/test companions. The correction
+  supplies a request route only, not ownership acceptance; Q8 stays separate.
 - Research session018hCUhiK4hgMf5V5QPbkC9S posted [CC-0025](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-6130961758), then stopped.
   Conditional K2c only, H1–H5/O1–O4. Goal/research statements, A11, ownership
   checks, mixed batches and valid hello readiness must be preserved. Capacity and
