@@ -76,38 +76,81 @@ test('acts · a copy refused says so; a second copy says «Copied» anew', async
   await expect(first.getByRole('status')).toHaveCount(1)
 })
 
-test('acts · two presses overlapping: the latest one’s outcome is said, an earlier write refused late changes nothing', async ({
+test('acts · two presses overlapping: each write starts in its press, the latest one’s outcome is said, an earlier write refused late changes nothing', async ({
   page,
 }) => {
   await page.addInitScript(() => {
     let presses = 0
+    window.clipWrites = []
     // The first write hangs until the page settles it (refused); the ones after go through at once.
     Object.defineProperty(navigator, 'clipboard', {
       value: {
-        writeText: () =>
-          presses++ === 0
+        writeText: (text: string) => {
+          window.clipWrites?.push(text)
+          return presses++ === 0
             ? new Promise<void>((_, reject) => {
                 window.settleFirstCopy = () => reject(new Error('denied'))
               })
-            : Promise.resolve(),
+            : Promise.resolve()
+        },
       },
     })
   })
   await page.goto(PAGE)
   const first = messages(page).first()
   await first.hover()
+  // The write starts inside the press itself: Safari grants the clipboard to the gesture, not to a promise after it.
+  const started = await first.getByRole('button', { name: 'Copy' }).evaluate((el) => {
+    if (el instanceof HTMLButtonElement) el.click()
+    return window.clipWrites?.length ?? 0
+  })
+  expect(started).toBe(1)
   await first.getByRole('button', { name: 'Copy' }).click()
-  await first.getByRole('button', { name: 'Copy' }).click()
-  // The second write waits its turn behind the first (one clipboard for the page): nothing is said yet.
-  await page.waitForTimeout(150)
-  await expect(first.getByRole('status')).toHaveCount(0)
+  // The second write does not wait behind the first: it goes through and is said.
+  await expect(first.getByRole('status')).toHaveText('Copied')
   await page.evaluate(() => window.settleFirstCopy?.())
-  // The first, refused late, says nothing; the second goes through and is the one said.
+  await page.waitForTimeout(150)
+  // The first, refused late, says nothing.
   await expect(first.getByRole('status')).toHaveText('Copied')
   await expect(first.getByRole('status')).toHaveCount(1)
 })
 
-test('acts · a write that never settles is given up after its wait: the next copy is said, the page keeps its Copy', async ({
+test('acts · an earlier write that goes through late is written over with the latest words', async ({ page }) => {
+  await page.addInitScript(() => {
+    let presses = 0
+    window.clipWrites = []
+    // The first write hangs until the page settles it (it goes through); the ones after go through at once.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          window.clipWrites?.push(text)
+          return presses++ === 0
+            ? new Promise<void>((resolve) => {
+                window.settleFirstCopy = resolve
+              })
+            : Promise.resolve()
+        },
+      },
+    })
+  })
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  const second = messages(page).nth(1)
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await second.hover()
+  await second.getByRole('button', { name: 'Copy' }).click()
+  await expect(second.getByRole('status')).toHaveText('Copied')
+  const writes = await page.evaluate(() => window.clipWrites ?? [])
+  expect(writes).toHaveLength(2)
+  expect(writes[0]).not.toBe(writes[1])
+  // The first goes through now, over the second's words: the second's go back, and the first message says nothing.
+  await page.evaluate(() => window.settleFirstCopy?.())
+  await expect.poll(() => page.evaluate(() => window.clipWrites ?? [])).toEqual([writes[0], writes[1], writes[1]])
+  await expect(first.getByRole('status')).toHaveCount(0)
+})
+
+test('acts · a write that never settles is given up after its wait: «Not copied» is said, and the next copy «Copied»', async ({
   page,
 }) => {
   test.slow() // the wait is four seconds by design
@@ -122,16 +165,18 @@ test('acts · a write that never settles is given up after its wait: the next co
   const first = messages(page).first()
   await first.hover()
   await first.getByRole('button', { name: 'Copy' }).click()
-  await first.getByRole('button', { name: 'Copy' }).click()
   await expect(first.getByRole('status')).toHaveCount(0)
-  // Past the wait, the stuck write is given up (it was not the latest press, so it says nothing) and the queue moves on.
-  await expect(first.getByRole('status')).toHaveText('Copied', { timeout: 8000 })
+  // Past the wait, the stuck write is given up and said so; the page keeps its Copy, and the next press goes through.
+  await expect(first.getByRole('status')).toHaveText(/Not copied/, { timeout: 8000 })
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveText('Copied')
   await expect(first.getByRole('status')).toHaveCount(1)
 })
 
 declare global {
   interface Window {
     settleFirstCopy?: () => void
+    clipWrites?: string[]
   }
 }
 
@@ -166,6 +211,12 @@ test('@phone · acts · on another’s message the presses start at its left and
   const pane = await page.locator('.conv-scroll').boundingBox()
   const acts = await first.locator('.conv-acts').boundingBox()
   expect(acts && pane && acts.x >= pane.x && acts.x + acts.width <= pane.x + pane.width).toBe(true)
+  // Under a thumb the row stands below the bubble, 4 px clear, in room the pressed message keeps for it: over no words
+  // of this message, no name, and none of the next message.
+  const bubble = await first.locator('.conv-msg-body').boundingBox()
+  const next = await messages(page).nth(1).boundingBox()
+  expect(acts && bubble && acts.y >= bubble.y + bubble.height + 4 - 0.5).toBe(true)
+  expect(acts && next && acts.y + acts.height <= next.y + 0.5).toBe(true)
 })
 
 test('acts · another’s acts stand at the message’s right on a desktop: inside the pane, over no byline, even on its shortest bubble', async ({
