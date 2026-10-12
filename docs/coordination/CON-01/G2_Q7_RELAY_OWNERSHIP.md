@@ -2,9 +2,24 @@
 
 **What this is.** CON-01's answer to the open Q7 in [G2_RUNTIME_PLAN](G2_RUNTIME_PLAN.md) §0 ("Which process owns a reply child's relay"), and to §2.1's "Required" descendant-settlement mechanism. Codex asked for it in CX-0139 and mission request 6116456625. It is **one recommended design for the runtime owner (WBC-02/SDD-01) to agree or correct, as an engineering matter, before any Phase B write.**
 
+**Revision 5, after Codex's CX-0145** ([#198 comment 6117419664](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6117419664); reviewer packet [`51153041`](https://github.com/davidelaverga/Sophia/blob/511530415b3fe894da28553b86e8bf44ce48675c/docs/coordination/CON-01/CX-0145.md)), which read revision 4 (`387fb2dc`, SHA-256 `49e59d2a…`).
+- **The joint runtime owner's r3 record** (`15ae009a`) is CHANGES_REQUIRED.
+- **Codex ran the unchanged supervisor locally,** with owned stand-ins on Darwin and Node 24.21.0. A supervisor exited; its old child survived; a replacement took the same project lease; and the old child then wrote a late synthetic reply home.
+- **That run is no dsh, provider, Linux, Render or Q7 failure.** It shows that "a new instance means the old one exited" is not a premise this design can use.
+
+Revision 5 changes only these:
+
+| CX-0145 | What was wrong in revision 4 | Where it is corrected |
+|---|---|---|
+| (1) No future writer | Hello, an absent home, or an empty home was read as the old bridge or a paused launcher being gone | §5: **the generation seal.** Each launch has its own reply root, and the next launch renames every older root before it starts. The launcher resolves every path by name and holds no descriptor into a home before its lease, so a sealed generation can never create or fill a home again. §6, §7: no death is inferred from a hello, a sweep or an absence |
+| (2) The unrecorded child | A crash between the fork and the child's entry left a launcher-only lease, read as "no fork" | §5: a fork intent is written before the fork, and there is **one gate** that the child can't pass until its entry is durable and its `pidfd` held. Before the gate it does nothing but arm its own bound. §7: `home_deleted_child_unrecorded`, only with the launcher proven gone |
+| (3) The classifier's callers | `stop` answered `checked` on any launcher exit | §6: `stop` (and the replayed `stop`) follows the settled/unsettled classifier, as `retire` does. Disposal and recovery take nothing as proof |
+| (4) One clock, one bound | `killMs` ran from `TERM` in one place and from `stop` in another. The create bound left out the cleanup after a refused go | §6: one clock from the `stop` line (`TERM` at `+graceMs`, `KILL` at `+killMs`, as §8.5). The create handler's cleanup is decoupled: a later `stop` or `retire` joins it. Bounds are named per phase |
+| (5) The acknowledgement | A hello was taken to satisfy "the terminal receipt is recorded" | §7: named predicates (`terminalWriter`, `createAnswered`, `capture: none` only with no `turn/end` on both sides, and the rest), for the core and ledger owners to bind. No record is ever asserted that doesn't exist |
+
 **Revision 4, after Codex's CX-0144 recheck of revision 3** (the same comment, updated; reviewer packet [`dc538c17`](https://github.com/davidelaverga/Sophia/blob/dc538c175bd8869dd0a8c5a4fe3b2c69d0873f9b/docs/coordination/CON-01/CX-0144.md)), which read revision 3 (`5969756f`, SHA-256 `55d743dd…`).
 - **Codex withdrew P1-E's "stranded for ever".** The cursor's replay of the unanswered `create` reaches a writer.
-- **The joint runtime owner's r2 record** (`f4472120`) conditionally accepts A–D, requires the startup bounds, and supersedes its P1-E. That is no ACK.
+- **The joint runtime owner's r2 record** (`f4472120`) conditionally accepts A–D and requires the startup bounds. Its corrected record (`f42cdd11`) withdraws its P1-E. Neither is an ACK.
 
 Revision 4 changes only these:
 
@@ -110,14 +125,14 @@ execution-host supervisor (Node)       the launcher path, the reply root, the re
 
 **The kernel identities, all acquired before the process they name can do anything:**
 - **The launcher's `pidfd` for the reply's dsh.**
-  - **When it is taken:** `pidfd_open(child)` right after `fork`, while the child is still waiting on the launcher's exec gate (§5), before it can `exec`.
+  - **When it is taken:** `pidfd_open(child)` right after the fork and the child's lease entry. The child is still waiting at the gate (§5), where it has done nothing but arm its own bound.
   - **Why the pid can't be reused first:** the child is the launcher's own unreaped child, and `SIGCHLD` is `SIG_DFL` (never `SIG_IGN`, which would reap it automatically). Only the launcher can reap it, and it does so only through `waitid(P_PIDFD, pidfd)`.
   - **Every signal goes through it,** with `pidfd_send_signal`. A signal to an exited but unreaped child is discarded; after the reap the call gets `ESRCH`. Neither can reach another process.
   - **No numeric fallback.** If `pidfd_open` fails, the launcher sends no signal at all:
-    - It closes the gate without the go byte. A child at the gate exits at once; one stalled before it is ended by its own `alarm`.
+    - It closes the gate without its byte. The child, which has nothing but trivial steps before the gate, exits there at once. Its own `alarm` is behind that.
     - It waits, bounded by `childSettleMs`, with `waitpid(WNOHANG)` on its own child, which can't be another process.
     - **Reaped:** exit 69.
-    - **Otherwise:** exit 74 `child_unsettled`, which proves nothing (§5, revision 4).
+    - **Otherwise:** exit 74 `child_unsettled`, which proves nothing (§5).
 - **Parent-death signals.** The launcher arms `PDEATHSIG` against the bridge and checks `getppid()` (`owned-exec.py:13-16`). The reply's dsh arms it against the launcher and checks the same way. If the bridge dies, the kernel kills the launcher, and then the reply's dsh. Both are bound to the parent relation itself, not to a number.
 - **The bridge's part is a pipe.** It writes `TERM` or `KILL` lines to the launcher's control pipe, or closes it (which the launcher treats as `KILL`), and observes the launcher's exit. A write after the launcher exited gets `EPIPE` and reaches nothing.
 
@@ -142,7 +157,7 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
 | 2 | `diag/stderr`, the same | the launcher | — |
 | 3 | an `AF_UNIX` `SOCK_STREAM` socket, duplex (libuv makes `'pipe'` as a socketpair) | Node's `'pipe'`, in the bridge | the bridge: `child.stdio[3]`, owned by the reply's `ReplyRelay` |
 
-- **The only other descriptors:** the exec gate, closed before the `exec`, and the exec-status pipe, close-on-exec, so the `exec` itself closes it. L0 (§9) found exactly 0–3 open in the new image.
+- **The only other descriptors:** the gate, closed before the `exec`, and the exec-status pipe, close-on-exec, so the `exec` itself closes it. L0 (§9) found exactly 0–3 open in the new image.
 - **The launcher closes its own copy of fd 3** once the child has it, so the two ends are the bridge's and the reply's dsh's, and each sees the other's end-of-file.
 - **The launcher checks fd 3** with `getsockopt` (`SO_DOMAIN` `AF_UNIX`, `SO_TYPE` `SOCK_STREAM`), else exit 64.
 - **fd 3's lifetimes:**
@@ -198,52 +213,59 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
 **`reply-launch.py run`**, its argv: `--root <root>/replies`, `--attempt <id>`, `--parent <bridge pid>`, `--nonce <hex>`, `--node`, `--entry` (`unit.runtimeDir` + `unit.launcherEntry`), `--runtime-dir`, `--template`, `--template-digest`, `--profile-name`, `--unit <runtimeUnitId>`.
 
 **In the launcher, before the fork:**
-1. **The parent binding:** `prctl(PR_SET_PDEATHSIG, SIGKILL)`, then `getppid() == --parent`, or exit 119 (`owned-exec.py:13-16`). `SIGCHLD` is set to `SIG_DFL`. Node spawns from its loop thread, which lives as long as the process.
+1. **The parent binding:** `prctl(PR_SET_PDEATHSIG, SIGKILL)`, then `getppid() == --parent`, or exit 119 (`owned-exec.py:13-16`). `SIGCHLD` is set to `SIG_DFL`, never `SIG_IGN`, and `SA_NOCLDWAIT` is never set, so only this launcher reaps its child. Node spawns from its loop thread, which lives as long as the process.
 2. **fd 0 (the control channel) and fd 3 must both be `AF_UNIX`/`SOCK_STREAM`,** as Node's `'pipe'` makes them, or exit 64. Then `alarm(setupSeconds)` (30 s by default): the last-resort bound over everything before the runtime starts (below).
-3. **The home:** `<root>` must be a directory owned by the effective uid, mode 0700, and not a link. Then `mkdir(<root>/<attemptId>, 0700)`, which may not already exist: `EEXIST` is the leftover case, `home_exists`, exit 71.
-4. **The lease, first file in the home (revision 4).** `lease.json` is created with `O_EXCL` and holds the launcher's own entry. The file and its directory are fsynced.
-   - **Each entry has §8.5's five fields:**
+3. **The home, under its generation's root (revision 5).** `--root` is this bridge generation's own root, `<projectRoot>/replies/gen-<generation>` (§6).
+   - **Every path is resolved from `--root` by name,** and the launcher holds no descriptor into the home until its lease is durable. So once a newer generation seals this root (below), a by-name step fails instead of writing anywhere.
+   - **`--root` must exist** (else exit 78 `root_sealed`), be owned by the effective uid, have mode 0700, and not be a link.
+   - **Then `mkdir(<root>/<attemptId>, 0700)`,** which may not already exist. `EEXIST` is the leftover case, `home_exists`, exit 71. `ENOENT` means the root was sealed meanwhile: exit 78.
+4. **The lease, the first file in the home.** `lease.json` is created with `O_EXCL`, by name. Before any fork it holds two things, and the file and its directory are fsynced:
+   - **the launcher's own entry,** with §8.5's five fields:
      - the pid;
      - `/proc/<pid>/stat` field 22, which an `exec` doesn't change;
      - the boot id;
      - the executable: the Python realpath for the launcher, the realpath of `--node` for the child;
-     - the nonce.
-   - **A failure here is exit 77 `lease_failed`,** with no fork.
-   - **Because the fork comes only after this write,** a home without a lease never had a child.
+     - the nonce;
+   - **a fork intent (revision 5).**
+
+   A failure is exit 77 `lease_failed`, or 78 if the root was sealed, with no fork either way. **A home without a lease never had a child.**
 5. **Then the rest of the home:** `home/`, `home/tmp/`, `dsh-home/profiles/`, `work/` and `diag/`, each 0700. fds 1 and 2 are opened onto `diag/stdout` and `diag/stderr` and `dup2`'d into place.
 6. **The profile copy** (below), and its digest check, else `profile_mismatch`, exit 70.
 7. **The capability check:** a Landlock ABI of at least 4, `seccomp`, x86_64, and `pidfd_open`. Else `containment_unavailable`, exit 69.
 
 **Between steps 3 and 7, and between copied files,** the launcher polls fd 0 without blocking. A `TERM` or `KILL` line, or end-of-file, ends the setup: exit 72 `cancelled`. No child exists yet, and the partial home stays for `retire` (§7).
 
-**The fork.** The exec gate and the exec-status pipe are made first.
+**The fork.** The gate and the exec-status pipe are made first.
 
-**In the child, in order:**
-- **a. Its own bound and parent binding.** First `alarm(childSetupSeconds)` (10 s by default), its own last resort before its `exec`. Then `PDEATHSIG` (`SIGKILL`), and `getppid()` must be the launcher, or exit 119.
-- **b.** `/dev/null` onto fd 0.
-- **c. Landlock:** `RLIMIT_CORE` 0 (`landlock-launch.py:99`). An ABI of at least 4 (:96-98), with every filesystem right that ABI defines handled. Read and write beneath `<root>/<attemptId>`. Read and execute on the runtime directory, the pinned Node, and the system libraries and certificates (`/usr/lib`, `/lib*`, `/etc/ld.so.cache`, `/etc/ssl`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`), plus `/proc/self`, `/dev/null` and `/dev/urandom`. Nothing else; P7's trace fixes the exact read list. Then `no_new_privs` (:139) and `restrict_self` (:141). **The self-test:** creating a file in `<root>`, outside the home, must fail.
-- **d. The seccomp filter** (below), built with the child's own pid, which the `exec` doesn't change.
-- **e. The exec gate:** wait for the launcher's go byte, then close the gate. An end-of-file on the gate (the launcher closed it without the byte) ends the child at once, with exit 118 and no `exec`.
-- **f.** Close everything but 0–3 and the close-on-exec status pipe. `chdir(work/)`. Then `alarm(0)`, since an alarm survives `execve`. Then `execve(--node, [node, entry, '--profile', name], env)`. `env` is built here from nothing:
+**In the child: nothing before the gate but its own bound (revision 5).**
+- **a. Its bound and its parent binding,** and nothing else. First `alarm(childSetupSeconds)` (10 s by default). Then `PDEATHSIG` (`SIGKILL`). Then `getppid()` must be the launcher, or exit 119.
+- **b. The gate.** Wait for the launcher's one byte, then close the gate.
+  - An end-of-file instead ends the child at once, with exit 118. That happens when the launcher closes the gate without the byte, or dies.
+  - **Before this point the child has opened, written and executed nothing.** That is what lets a lease with a fork intent but no valid child entry be settled honestly (below).
+- **c. Containment, after the gate:**
+  - `/dev/null` onto fd 0;
+  - `RLIMIT_CORE` 0 (`landlock-launch.py:99`);
+  - **Landlock:** an ABI of at least 4 (:96-98), with every filesystem right that ABI defines handled. Read and write beneath the home. Read and execute on the runtime directory, the pinned Node, and the system libraries and certificates (`/usr/lib`, `/lib*`, `/etc/ld.so.cache`, `/etc/ssl`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`), plus `/proc/self`, `/dev/null` and `/dev/urandom`. Nothing else; P7's trace fixes the exact read list. Then `no_new_privs` (:139) and `restrict_self` (:141);
+  - **the self-test:** creating a file in `<root>`, outside the home, must fail;
+  - **the seccomp filter** (below), built with the child's own pid, which the `exec` doesn't change.
+
+  A stall here falls in the launcher's exec-status wait, where the `pidfd` is already held.
+- **d. The `exec`.** Close everything but 0–3 and the close-on-exec status pipe. `chdir(work/)`. Then `alarm(0)`, since an alarm survives `execve`. Then `execve(--node, [node, entry, '--profile', name], env)`. `env` is built here from nothing:
   - `HOME`, `TMPDIR` and `DSH_HOME` under the home, and `SOPHIA_WORKSPACE` its `work/`;
   - `DSH_TELEMETRY_DISABLED=1`, `LANG=C.UTF-8`, `PATH=/usr/bin:/bin`;
   - `SOPHIA_RUNTIME_UNIT`, `SOPHIA_REPLY_FD=3`, `SOPHIA_REPLY_NONCE`;
   - the route's credential, by its one name, once D-4 binds one.
 
   No other name passes, so `extraEnv` can't reach a reply child's `HOME`, `TMPDIR` or `DSH_HOME` (the plan's §2.1, item 3).
-- **A failure before the `exec`** writes one `status` `failed` line on fd 3 and exits 69. A failed `execve` writes a byte on the status pipe.
+- **A failure in c or d** writes one `status` `failed` line on fd 3 and exits 69. A failed `execve` writes a byte on the status pipe.
 
-**In the launcher, after the fork:**
-1. **The child's entry** is appended to the lease, fsynced, from `/proc/<child>/stat` of its own unreaped child.
+**In the launcher, after the fork. The gate opens only when the child is both recorded and held:**
+1. **The child's entry** is appended to the lease and fsynced, from `/proc/<child>/stat` of its own unreaped child.
 2. **`pidfd_open(child)`.**
-3. **The two failures, each settled before the launcher exits:**
-   - **The child's entry failed, with the `pidfd` held:** the gate is closed without its byte, the child is killed through the `pidfd` and reaped; exit 77 `lease_failed`.
-   - **`pidfd_open` failed (the no-`pidfd` settlement, revision 4):**
-     - The gate is closed without its byte. A child at the gate exits 118 at once; one stalled before it is ended by its own `alarm`.
-     - The launcher sends no signal at all. It polls `waitpid(child, WNOHANG)` on its own unreaped child until `childSettleMs` (`childSetupSeconds` plus a margin).
-     - **Reaped:** exit 69, settled.
-     - **Not reaped by then** (only a process in uninterruptible sleep): exit 74 `child_unsettled`. That claims nothing. The launcher's exit then delivers the child's `PDEATHSIG`, and the home stays to be verified (§7).
-4. **Close its fd 3, then write the go byte.**
+3. **If either step fails,** the gate is closed without its byte. The child, which is at the gate or about to reach it, exits 118. The launcher sends no signal: it polls `waitpid(child, WNOHANG)` on its own unreaped child until `childSettleMs` (`childSetupSeconds` plus a margin).
+   - **Reaped:** exit 77 (the entry failed) or 69 (no `pidfd`), settled.
+   - **Not reaped by then** (only a process in uninterruptible sleep): exit 74 `child_unsettled`, which claims nothing.
+4. **Close its fd 3, then write the gate's byte.** From here on, the child is recorded and its `pidfd` is held.
 5. **The exec-status wait:** a poll of the status pipe, fd 0 and the `pidfd`, until `execWaitMs` (10 s by default). Each outcome:
    - **end-of-file on the status pipe:** the `exec` succeeded. Then `alarm(0)`;
    - **a byte on it:** the `exec` failed. The child is killed through the `pidfd` and reaped; exit 69;
@@ -255,36 +277,46 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
    - a `KILL` line, or end-of-file on fd 0, is `pidfd_send_signal(SIGKILL)`;
    - the `pidfd` readable means `waitid(P_PIDFD)`, then exit: 0 if dsh exited 0, 75 if it exited non-zero, 76 if a signal ended it.
 
-**Exit codes, and which of them prove anything (revision 4).** A **settled** exit is one the launcher makes only after it reaped its child, or before any fork. Only a settled exit, seen by the live bridge that spawned the launcher, counts as proof that the reply's processes are gone. Anything else is **unsettled** and proves nothing: §7 then needs `check` to verify each lease entry through a `pidfd`.
+**If the launcher itself dies between the fork and step 4** (a crash, or its own `alarm`), the gate's write end closes with it. The child exits 118 at the gate, or by its `PDEATHSIG`, never having opened, written or executed anything. The lease then shows the fork intent with no valid child entry (§7).
+
+**Exit codes, and which of them prove anything.** A **settled** exit is one the launcher makes only after it reaped its child, or before any fork. A settled exit counts as proof that the reply's processes are gone only when **the live bridge that spawned the launcher sees it**. Anything else is **unsettled** and proves nothing; §7 then needs `check`.
 
 | Exit | Meaning | Settled |
 |---|---|---|
 | 0 | dsh exited 0 | yes |
 | 64 | usage: a bad argv, or fd 0 or fd 3 not an `AF_UNIX` stream | yes (no fork) |
-| 69 | `containment_unavailable`, or a failed or early-ended `exec`, or the no-`pidfd` settlement reaped the child | yes |
+| 69 | `containment_unavailable`, a failed or early-ended `exec`, or no `pidfd` (the child reaped at the gate) | yes |
 | 70 | `profile_mismatch` | yes (no fork) |
 | 71 | `home_exists` | yes (no fork) |
-| 72 | `cancelled`: a control line or end-of-file before the runtime started | yes (no fork, or the child reaped) |
+| 72 | `cancelled` before the runtime started | yes (no fork, or the child reaped) |
 | 73 | `exec_timeout` | yes (the child reaped) |
-| 74 | `child_unsettled`: no `pidfd`, and the child not reaped within `childSettleMs` | **no** |
+| 74 | `child_unsettled`: the child not reaped within `childSettleMs` | **no** |
 | 75 | dsh exited non-zero | yes |
 | 76 | a signal ended dsh | yes |
-| 77 | `lease_failed` | yes (no fork, or the child reaped) |
+| 77 | `lease_failed` | yes (no fork, or the child reaped at the gate) |
+| 78 | `root_sealed`: a newer generation sealed this root | yes (no fork) |
 | 119 | wrong parent | yes (no fork) |
 | ended by a signal (`SIGALRM`, its own `PDEATHSIG`, …) | `setup_timeout` or killed | **no** |
 
-**Bounded before the runtime starts, and what it doesn't promise (CX-0144).**
+**Bounded before the runtime starts, and what that doesn't promise.**
 - **Normally,** a cancellation is seen at the next poll point: between setup steps and between copied files, and at once during the exec-status wait.
 - **A single blocking call delays it until that call returns.** That could be the copy of a large file, or an `fsync` on a slow disk. 50 ms is the poll interval, not a bound on such a call.
 - **If a call never returns:**
   - the launcher's `alarm` (`setupSeconds`) ends the launcher, and that exit is unsettled;
-  - the child's own `alarm` (`childSetupSeconds`) ends a child stalled before its `exec`, and the launcher reaps it and then exits settled.
-- **If a child exists,** the launcher kills it through its own `pidfd` and reaps it before it exits. With no `pidfd`, it waits on its own child's pid without signalling (above).
+  - a child before its gate has only trivial steps, with its own `alarm` behind them.
 - **Nothing is ever signalled by number.**
 
 The L0 cases are in §9.
 
-**`reply-launch.py sweep --root <root>/replies`** (the supervisor's) and **`check --root … --attempt …`** (the bridge's, for `retire` when it holds no handle). For each lease entry:
+**The generation seal (revision 5; CX-0145).** Before each launch, `sweepReplies` (§6) **renames** every older `gen-*` root under `<projectRoot>/replies` to `sealed-<generation>`. A rename is atomic. It then creates the new generation's root fresh.
+- **What the seal guarantees.** After it, any launcher of an older generation, whether running, paused or not yet started, fails its next by-name step (exit 78), since it resolves every path from its own root by name and holds no descriptor into a home before its lease.
+  - **It can create no home.**
+  - **It can add nothing to an empty home.**
+  - **It can write only into a home whose lease it already holds,** and that home is found in its sealed root and verified through its lease (below).
+- **What the seal doesn't claim:** that any process is dead. CX-0145 ran the unchanged supervisor locally, with owned stand-ins: an old dsh can outlive its supervisor, and its replacement takes the same project lease. So neither a new hello, a sweep nor an absent file is used as proof of death.
+- **If the seal fails,** that generation starts with replies off (§6), and homes in any unsealed older root stay `unresolved`.
+
+**`reply-launch.py sweep --replies <projectRoot>/replies`** (the supervisor's) and **`check --replies … --attempt …`** (the bridge's, for `retire` when it holds no handle). Both look for the attempt's home in every root, current and sealed. For each recorded lease entry:
 1. `pidfd_open(pid)`. `ESRCH` means `gone`.
 2. Verify the five fields from `/proc/<pid>`.
 3. Signal 0 through the `pidfd`.
@@ -292,13 +324,19 @@ The L0 cases are in §9.
 
 **A mismatch signals nothing, and the home is `unresolved`.**
 
-**Two cases with no entry to verify.** A home with no lease never had a child (step 4). Its report is:
-- **`empty`**, when nothing else is in it;
-- **`unresolved`**, when it holds anything else, which the order makes impossible.
+**What `check` reports for each kind of home:**
 
-**A lease with the launcher's entry alone** never recorded a child: either the fork didn't happen, or the child's entry failed and that child was settled (exit 77). On a host without `pidfd`, nothing is verifiable, and every home with a lease stays `unresolved`.
+| The home | What is known | Report |
+|---|---|---|
+| no lease, nothing else, in a **sealed** root | there was never a child (step 4), and no older launcher can add to it by name | `empty` |
+| no lease, nothing else, in the **current** root | the same, but only this bridge can know its own launcher has exited: `check` can't. It is the live path's case (§7) | `unresolved` |
+| no lease, but other files | impossible by the order | `unresolved` |
+| the launcher's entry, no fork intent | no fork happened | `gone` once that entry is verified |
+| a fork intent but no valid child entry (none, or a torn last line) | a child may have been forked, but it never passed the gate: the byte is written only after the child's entry is durable and its `pidfd` held. Once the launcher's entry is verified `gone`, the gate's only writer is gone, so that child can open, write and execute nothing, ever | `child_unrecorded`, once the launcher's entry is verified. That is not a claim that the child is gone |
+| both entries | — | `gone` once both are verified |
+| a host without `pidfd` | nothing is verifiable | `unresolved` for every home with a lease |
 
-**The report** is content-free JSON lines: `{attemptId, state: gone|stopped|unresolved|empty}`. `check` exits 0 only when every recorded entry is verified `gone`, or for an `empty` home. **`sweep` and `check` never delete:** only `retire` does (§7).
+The report is content-free JSON lines: `{attemptId, root, state: gone|stopped|unresolved|empty|child_unrecorded}`. `check` exits 0 only for `gone`, `empty` or `child_unrecorded`. **`sweep` and `check` never delete:** only `retire` does (§7).
 
 **The other subcommands:**
 - **`probe`** checks step 7's capabilities and the self-test once, at host start, in a short-lived child. Its exit status is the verdict.
@@ -384,15 +422,16 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
   ```
   When it is absent, nothing below runs and no `SOPHIA_REPLY_*` name is set.
 - **`environment()`** adds, **after** `...extraEnv`, so a test's `extraEnv` can't redirect them:
-  - `SOPHIA_REPLY_ROOT` = `<projectRoot>/replies`, created 0700 there as `home` and `work` are (supervisor:135);
+  - `SOPHIA_REPLY_ROOT` = `<projectRoot>/replies/gen-<generation>`, this launch's own root (revision 5). `<generation>` is a fresh random id per launch, and the root is created 0700 by `sweepReplies` just before the launch. Also `SOPHIA_REPLY_DIR` = `<projectRoot>/replies`, for `check`;
   - `SOPHIA_REPLY_LAUNCHER`, `SOPHIA_REPLY_PYTHON`, `SOPHIA_REPLY_NODE` = `process.execPath`;
   - `SOPHIA_REPLY_ENTRY` = `join(unit.runtimeDir, unit.launcherEntry)`, and `SOPHIA_REPLY_RUNTIME_DIR`;
   - `SOPHIA_REPLY_TEMPLATE`, `SOPHIA_REPLY_PROFILE`, `SOPHIA_REPLY_TEMPLATE_DIGEST`.
 
   These are paths and a digest: no secret and no content.
 - **`sweepReplies()`** is new and private. It runs `spawnSync(python, ['-I', launcher, 'probe'])`, then `sweep`, each bounded.
-  - It runs before `launch('starting')` in `start()`, before `launch('restarting')` in `recover()`, and after the exit in `stop()`.
-  - A failed probe or sweep, or a template that fails its digest or link rule, is logged as a fixed token. That generation's environment then omits the `SOPHIA_REPLY_*` names, so the bridge answers reply creates `rejected` (`containment_unavailable`) before any claim. **Goals are unaffected.**
+  - **Before each launch, it seals every older generation (revision 5, §5):** it renames each `gen-*` root to `sealed-*`, then creates the new generation's root. This is the generation fence that CX-0145's supervisor-loss crossing calls for. It needs no broader supervisor change, and the goal path is untouched.
+  - It runs before `launch('starting')` in `start()`, before `launch('restarting')` in `recover()`, and after the exit in `stop()`. The run after `stop()` sweeps without sealing.
+  - A failed probe, seal or sweep, or a template that fails its digest or link rule, is logged as a fixed token. That generation's environment then omits the `SOPHIA_REPLY_*` names, so the bridge answers reply creates `rejected` (`containment_unavailable`) before any claim. **Goals are unaffected.**
 - **`launch()`, `recover()` and `stop()`** are otherwise unchanged. The goal path's spawn, collector, restart budget, lease and signals are byte-identical (§2's pre-existing note).
 - **`scripts/runtime-host.mjs` and `scripts/lib/profile.mjs`:** they install the reply template, check it and record its digest at host start (§5).
 
@@ -404,7 +443,7 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
   | `claimWaitMs` | the claim's resends until answered |
   | `readyWaitMs` | from the spawn to `ready`. At least the launcher's `setupSeconds` plus `execWaitMs`, plus dsh's boot |
   | `goWaitMs` | the go call's resends until answered |
-  | `graceMs` (2,000), `killMs` (5,000) | the `stop` line to `TERM`, and `TERM` to `KILL` (§8.5, step 2) |
+  | `graceMs` (2,000), `killMs` (5,000) | **one clock, from the `stop` line** (revision 5; §8.5, step 2: "`SIGTERM` after a 2 s grace and `SIGKILL` after 5 s"). The `TERM` line is at `stop + graceMs`, the `KILL` line at `stop + killMs` |
   | `exitWaitMs` | from the `KILL` line to the launcher's exit |
   | `settleWaitMs` | each pending settle's resends |
   | `receiptWaitMs` | `retire`'s wait for the bridge's own queued receipts |
@@ -414,8 +453,8 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
 
   | Kind | `ReplyChildren` method | What it does |
   |---|---|---|
-  | `create` | `createReply` | **1. Redelivery:** a command this instance already holds is answered from its recorded receipts (as bridge:703-704), with no claim call. **2. Before the claim, `rejected`:** validation fails, `replies` is `null` (`containment_unavailable`), or 2 children are live (`runtime_busy`). **3. The claim:** `conversationClaim({attemptId, commandId, authorityEpoch, leaseId: instanceId})`, resent until answered within a bound. Only `first` goes on. `refused` (any code), or no answer, is answered **`outcome_unknown`** and spawns nothing. **4. Spawn** (§3), and the `start` line written. **5. The run gate,** on `ready`: `conversationGo({attemptId, commandId, authorityEpoch, leaseId})`, resent with the same body until answered within `goWaitMs`. **`go`:** write the one `go` line, queue the `delivered` receipt, and resolve; the command, and with it the prompt, is released. **`refused`** (`not_pending`, `stale_epoch`, `lease_mismatch`), **or no answer:** no `go` is written, the child is stopped as `stopReply` does, and the create is answered `rejected` with that code, or `go_unconfirmed` |
-  | `stop` | `stopReply` | **Fence the relay**, then the `stop` line. At `graceMs`, a `TERM` line on the launcher's control pipe; at `killMs`, a `KILL` line. Then wait for the launcher's exit, within a bound. **Then wait for every settle the child sent,** answered or out of its bound. Answer `checked` once the launcher has exited, or when there is no live child (as bridge:1175-1177). For an attempt this bridge never ran, that means `check` exits 0. Answer `outcome_unknown` if it hasn't exited within the bound. **No signal is sent by the bridge** |
+  | `create` | `createReply` | **1. Redelivery:** a command this instance already holds is answered from its recorded receipts (as bridge:703-704), with no claim call. **2. Before the claim, `rejected`:** validation fails, `replies` is `null` (`containment_unavailable`), or 2 children are live (`runtime_busy`). **3. The claim:** `conversationClaim({attemptId, commandId, authorityEpoch, leaseId: instanceId})`, resent until answered within a bound. Only `first` goes on. `refused` (any code), or no answer, is answered **`outcome_unknown`** and spawns nothing. **4. Spawn** (§3), and the `start` line written. **5. The run gate,** on `ready`: `conversationGo({attemptId, commandId, authorityEpoch, leaseId})`, resent with the same body until answered within `goWaitMs`. **`go`:** write the one `go` line, queue the `delivered` receipt, and resolve; the command, and with it the prompt, is released. **`refused`** (`not_pending`, `stale_epoch`, `lease_mismatch`), **or no answer:** no `go` is written. The child's stop sequence is started (the `stop` line, then `ReplyChild` runs it on §6's one clock), and the create is answered `rejected` at once, with that code or `go_unconfirmed`. **Cleanup is decoupled from the create handler (revision 5):** a later `stop` or `retire` joins the same sequence and its clock, and never restarts it |
+  | `stop` | `stopReply` | **Fence the relay,** then the `stop` line at `t0`; or join a sequence already started, keeping its `t0`. A `TERM` line at `t0 + graceMs`, a `KILL` line at `t0 + killMs`. Then wait for the launcher's exit until `t0 + killMs + exitWaitMs`, and for every settle the child sent, answered or out of `settleWaitMs`. **The answer follows the proof classifier (§5, revision 5):** `checked` only when this bridge saw the launcher's **settled** exit, or, for an attempt it never ran, when `check` exits 0. An unsettled exit (74, or a signal), or no exit by the bound, is answered `outcome_unknown`, and the home goes to verification (§7). **No signal is sent by the bridge** |
   | `retire` | `retireReply` | §7's order; `checked`, or `failed` with a fixed code |
   | `inspect` | `inspectReply` | A content-free state: the gate, the child, the relay, counts and bytes, the ordinals and their settle state |
   | `resume`, `input`, `steer`, `hold` | — | `rejected`: a reply takes only these four |
@@ -425,10 +464,13 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
     - the child's `llm/stream` hook refuses any call before `go`, and the child submits the prompt only on `go`;
     - the parent refuses a `reserve` that comes before it wrote `go` (§4);
     - S2's `conversation_reserve` refuses a request that isn't `running` (S2:311).
-  - **The `create` handler resolves at `go`, at the gate's refusal, or at a timeout, never at the reply's end, and within `claimWaitMs + readyWaitMs + goWaitMs`.** A `stop` command waits behind it in the attempt's queue (bridge:668-671), so it starts at most that late. It then finishes within `graceMs + killMs + exitWaitMs + settleWaitMs`.
+  - **The bounds, phase by phase (revision 5).**
+    - **The create handler** resolves at `go`, at the gate's refusal, or at a timeout, never at the reply's end. Because its cleanup is decoupled (above), it resolves within `claimWaitMs + readyWaitMs + goWaitMs`.
+    - **A `stop` command** waits behind it in the attempt's queue (bridge:668-671), so it starts at most that late. It then joins, or starts, the one stop sequence. Its process settlement ends by `t0 + killMs + exitWaitMs`, and its settles within a further `settleWaitMs`. Its receipt follows the classifier.
   - **When a bound runs out:**
-    - no `ready` within `readyWaitMs`: a `KILL` line, then `rejected` (`timeout`), since no `go` means no call;
-    - no launcher exit within `exitWaitMs`: the `stop` is answered `outcome_unknown`, and the home waits for verification (§7). No false `checked`.
+    - no `ready` within `readyWaitMs`: the stop sequence starts, and the create is answered `rejected` (`timeout`), since no `go` means no call;
+    - no settled launcher exit by `t0 + killMs + exitWaitMs`: the `stop` is answered `outcome_unknown`, and the home waits for verification (§7). No false `checked`.
+  - **These are engineering bounds for the runtime, not a promise to a person** about how quickly a withdrawal shows. That stays as §8.5 and the Studio say.
   - **Withdrawal before `go`.** `conversation_cancel` moves a `pending` request to `cancelled` and raises the epoch, so the go call answers `not_pending` or `stale_epoch`: the child is stopped with no step taken.
   - **Withdrawal after `go`** is the ordinary `stop` (§7).
   - **A lost `go` answer.** The same body is resent. The API answers `go` again for the same claim lease and command (below), and the bridge writes `go` to the child once (a flag in `ReplyChild`).
@@ -443,7 +485,7 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
   - **`failed` after `delivered`,** with a fixed reason: `timeout`, `relay_invalid`, or `child_exited` (an end-of-file without a completed `turn/end`). A completed turn ends through capture, not through a receipt.
 - **Settles before terminal receipts (CX-0142 P1-C, the live path).** Any terminal receipt for a reply waits until every `settle` the child sent has been answered or has run out its bound. That covers `create` `failed` or `rejected` after `start`, and `stop` `checked` or `outcome_unknown`. So `conversation_mark_uncertain` (S2:377-397), which that receipt runs, never races an answered settle. **A settle still unanswered then is never sent after the receipt.** Its reservation becomes `uncertain` and follows §7's table.
 - **`connect`** (bridge:319-350) hands each reply binding in the hello to `reconcileReply`, not `reconcile` (bridge:1251).
-- **`start()`'s disposer** (bridge:309-316) also calls `replies.dispose()`: it fences every relay, and writes `stop` on fd 3 and `TERM` on each control pipe. Nothing is receipted from there. When the bridge's process ends, every control pipe closes, and each launcher sends `SIGKILL` through its `pidfd`. If the bridge dies abruptly, `PDEATHSIG` ends the launcher and then its child; the next hello does the rest.
+- **`start()`'s disposer** (bridge:309-316) also calls `replies.dispose()`: it fences every relay, and writes `stop` on fd 3 and `TERM` on each control pipe. Nothing is receipted from there, and nothing there is taken as proof. When the bridge's process ends, every control pipe closes, and each launcher sends `SIGKILL` through its `pidfd`. If the bridge dies abruptly, `PDEATHSIG` ends the launcher and then its child; the next hello does the rest.
 
 **`reply-child.ts`** (new):
 - **`ReplyChildren`:** a map by `attemptId`, the cap, `execute`, `reconcileReply`, `dispose`.
@@ -488,7 +530,7 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
 
 **The API and 0049** (held; the core and ledger owners' part):
 - **The claim's `lease_id` is the bridge's `instanceId`,** the same string `runtime_hello` stores as the instance's `bridge_instance_id` (0012:412; 0028:91).
-- **Every new runtime route goes through `runtime_lease`,** exactly as receipts and observations already do: claim, go, reserve, settle and acknowledged. A bridge superseded by a newer hello is therefore refused (`40001`), with the same lock order: the project, then the instance, then the request's row. A bridge that receives `40001` stops its reply children through their control channels and stops polling. That case arises only if an older bridge outlived its replacement, which is the goal path's exposure when a supervisor itself dies.
+- **Every new runtime route goes through `runtime_lease`,** exactly as receipts and observations already do: claim, go, reserve, settle and acknowledged. A bridge superseded by a newer hello is therefore refused (`40001`), with the same lock order: the project, then the instance, then the request's row. A bridge that receives `40001` stops its reply children through their control channels and stops polling. That case arises when an older bridge outlives its replacement. CX-0145 reproduced it locally with the unchanged supervisor and owned stand-ins: the supervisor's lease names its own pid (supervisor:101-120), so an orphaned dsh survives the supervisor's death. These database fences stop its later calls. The generation seal (§5) stops its later home writes.
 - **`conversation_execution_go(attempt, command, lease, epoch)`, new** (behind `/go`). Under the request's row lock, for the claim's own command and lease, at the current epoch, with the request `pending`, it does exactly the transitions §8.2.1 assigns to `create` `delivered`: the binding and the attempt to `running`, and the request `pending` → `running`. It records the claim's outcome as `running` and answers `go`.
   - For the same lease and command, already `running`, it answers `go` again, without a second transition (the replay of a lost answer).
   - Anything else is refused.
@@ -496,7 +538,9 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
 - **`runtime_hello`'s reply branch (CX-0144 P1-E): one atomic table.**
   - **Where it runs:** in the hello's own transaction, after its project lock and instance update (0028:90-94), so after `runtime_lease`'s order.
   - **How:** for each reply request of this runtime unit that is not yet retired, its row is locked `FOR UPDATE`, in attempt-id order, and the request, its claim, and the claim's lease against this hello's `bridgeInstanceId` decide the row. The table is written as 0049's reply branch, the core owner's.
-  - **Why the old bridge is dead:** a new instance id for the unit means the previous instance has exited. The supervisor launches a generation only after the previous one's exit (supervisor:216-221, :227-248), under the project lease. Its launchers and children went with it (`PDEATHSIG`), and the sweep checked them (§5).
+  - **What the table does not assume (revision 5; CX-0145).** It doesn't take a new instance id as proof that the old bridge, its launchers or its children are dead. An older bridge can outlive its replacement.
+    - **The table only settles database state.** The old bridge's later calls are refused (`runtime_lease`), and its later home writes are fenced by the generation seal (§5).
+    - **No-writer proof comes from the seal and the lease checks** (§7), never from the hello.
 
   | Request | Claim | Claim's lease | Transition (once, under the lock) | Hello lists | `retire` |
   |---|---|---|---|---|---|
@@ -589,31 +633,54 @@ Q7 never calls anything else.
 
    **Before step 4,** `retireReply` waits, within a bound, until every receipt this bridge itself queued for the attempt has been acknowledged. So the barrier never runs ahead of the bridge's own receipts.
 
-**`retire` by the state of the home, and by what is proven (revision 4),** including a new bridge with no `ReplyChild` for the attempt.
-- **What counts as proof that no reply process remains:**
-  - every recorded lease entry verified `gone` through a `pidfd` (`check`);
-  - or, on the live path, the bridge saw its own launcher exit with a **settled** code (§5). The launcher reaped its child, and the bridge reaped the launcher.
+**`retire` by the state of the home, and by what is proven (revision 5),** including a new bridge with no `ReplyChild` for the attempt.
+- **`retire` needs two things before `checked`:**
+  - **no live writer:** the reply's processes are gone, or provably can't write;
+  - **no future writer:** nothing can create or add to the home later.
 
-  Neither an unsettled exit (74, or a signal such as `SIGALRM`) nor `PDEATHSIG` alone is proof.
-- **`checked` says only what is true, and never comes before the barrier.** Its reason distinguishes `home_absent`, `home_empty` and `home_deleted`. It never claims a deletion that didn't happen, and never claims that a process is gone without proof.
+  Neither comes from a hello, a sweep, an absent file or `PDEATHSIG` alone.
+- **What is proof:**
+  - **The live bridge saw its own launcher's settled exit** (§5): the launcher reaped its child, and the bridge reaped the launcher.
+  - **Each recorded lease entry verified `gone` through a `pidfd`** (`check`).
+  - **For a home in a sealed root, the seal itself** (§5) proves there is no future writer. It doesn't prove any process is dead.
+  - **A fork intent with no valid child entry, and the launcher verified `gone`:** the gate's only writer is gone, so the unrecorded child (if any) never passed the gate. It opened, wrote and executed nothing, and never can.
+
+  An unsettled exit (74, or a signal such as `SIGALRM`) is not proof.
+- **`checked` says only what is true, and never comes before the barrier.** Its reason distinguishes `home_absent`, `home_empty`, `home_deleted` and `home_deleted_child_unrecorded`. It never claims a deletion that didn't happen, or a process gone without proof.
 
 | The home | What is proven | `retire` |
 |---|---|---|
-| absent | nothing was created: the bridge died after the claim and before the spawn, or the launcher before its `mkdir` | the barrier, then `checked`, `home_absent`. It claims no process verified |
-| empty: no lease, and nothing else | the lease is the first file and the fork follows it, so there was never a child and nothing holds content | delete, verify, `checked`, `home_empty`. It claims no process verified |
-| a lease with the launcher's entry alone | no child was ever recorded, and the launcher is verified `gone`, or the live bridge saw its settled exit | delete, verify, `checked`, `home_deleted` |
-| a lease with both entries, all proven gone, and no journal or a journal with no observation | the run ended before `go`: the journal holds at most its command record | the journal read under its bound and schema; the barrier; delete, verify; `checked`, `home_deleted` |
+| absent from every root, **and every older generation sealed** | no older launcher can create it (the seal), and this generation never spawned it (no `ReplyChild`, and its claim is refused) | the barrier, then `checked`, `home_absent`. It claims no process verified |
+| absent, but an older `gen-*` root not sealed | nothing: an older launcher could still create it | `failed`, `unsealed`; said pending |
+| no lease, nothing else, in a **sealed** root | there was never a child, and no older launcher can add to it by name | delete, verify, `checked`, `home_empty`. It claims no process verified |
+| no lease, nothing else, in **this** bridge's root | this bridge saw its own launcher exit (any exit: the bridge reaped it), so no writer remains | delete, verify, `checked`, `home_empty` |
+| the launcher's entry and no fork intent | no fork; the launcher proven gone | delete, verify, `checked`, `home_deleted` |
+| a fork intent, no valid child entry (none, or a torn line) | the launcher proven gone; the unrecorded child never passed the gate | delete, verify, `checked`, `home_deleted_child_unrecorded`. That is not a claim that the child is gone |
+| both entries proven gone, no journal or a journal with no observation | the run ended before `go`: the journal holds at most its command record | the journal read under its bound and schema; the barrier; delete, verify; `checked`, `home_deleted` |
 | the same, with a journal holding observations | the run passed `go` | the recovery relay first (`fromJournal`, below), then as above |
-| any entry not yet proven gone (after an unsettled exit, or on a host without `pidfd`) | nothing | `failed`, `unsettled`. The home stays, said pending, and `check` is retried at the next hello |
+| any recorded entry not yet proven gone (after an unsettled exit, or on a host without `pidfd`) | nothing | `failed`, `unsettled`. The home stays, said pending, and `check` is retried at the next hello |
 | no lease, but other files in it | the order makes this impossible | `failed`, `unresolved` |
 | a journal torn or unreadable beyond its last whole entry | — | `failed`, `barrier:journal`; the home stays, said pending |
-| a lease entry live and matching | can't happen after the sweep | `failed`, `child_live`; the next sweep stops it through its `pidfd` |
+| a lease entry live and matching | can happen only before the next sweep | `failed`, `child_live`; the next sweep stops it through its `pidfd` |
 | a lease entry live, not matching | — | `failed`, `lease_mismatch`; the home is unresolved |
 
-**The barrier for a request the hello ended.** §8.5's conditions "the terminal receipt is recorded" and "capture's result is committed" are met by hello's committed transition when the journal holds no `turn/end` and no terminal receipt exists. Every other condition still applies, the payload scrub included.
+**The acknowledgement, as named predicates (revision 5, for the core and ledger owners to bind).** §8.5's seven conditions stay; none is skipped, and none is ever answered by asserting a record that doesn't exist. `/v1/runtime/conversation/acknowledged` answers each condition as a named predicate with its key, and `retireReply` requires every one:
+
+| Predicate | True when | Key |
+|---|---|---|
+| `observations` | every journal key is recorded | each `upstream_key` |
+| `usage` | every provider call the journal names has its usage recorded | each `provider_call_id`, with its `ordinal` |
+| `reservations` | each ordinal is `settled`, `released`, or `uncertain` with its usage recorded | each `(reply, ordinal)` |
+| `terminalState` | the request is in a terminal state, with `settled_at` set | the request |
+| `terminalWriter` | names the one record that made it terminal: a receipt (its `(command, stage)`), capture (its answer or refusal), or the hello's lease-loss transition (its hello and lease) | that record |
+| `createAnswered` | the `create` command has a recorded answer: its own receipt, or, after a lease loss, the replay's `outcome_unknown` (§6). Required either way, since `retire` waits for it (step 5) | `(command, stage)` |
+| `capture` | `published` or `refused` for a run with a `turn/end`; for a run without one, `none`, which holds only when **no** `turn/end` observation is recorded for the attempt **and** the journal holds none | the answer or refusal, or the absence on both sides |
+| `payloadScrubbed` | the `create` payload is scrubbed in `runtime_commands.body` | the command |
+
+**Database state never substitutes for the no-live-writer and no-future-writer proof above.** Both are required.
 
 **After a restart** (`reconcileReply`):
-- The supervisor's sweep ran before this dsh started. With `PDEATHSIG`, no reply process of the old bridge is alive, and `check` confirms it per home.
+- **What the supervisor established before this dsh started:** it sealed every older generation and swept their leases. That proves no older launcher can create or fill a home by name. It doesn't prove the old bridge, or any process, is dead. `check` verifies each recorded entry.
 - **What hello lists, by §6's table:**
   - each lease-lost or terminal binding, `stopped`;
   - an unclaimed `pending` one, `active`: its replayed `create` may still claim `first`;
@@ -625,13 +692,16 @@ Q7 never calls anything else.
   - closes.
 - Nothing is re-run, and a recovered observation never publishes (§8.2.2).
 
-**Every crash point and crossing (CX-0144).** L1 is the bridge that claimed; L2 is the next instance. The `create` replay is the cursor's (0012:398-401).
+**Every crash point and crossing (CX-0144, CX-0145).** L1 is the bridge that claimed; L2 is the next instance. The `create` replay is the cursor's (0012:398-401). "L1 dies" includes the case CX-0145 showed, where L1 is **not** dead but has outlived its supervisor: every row holds for a live L1 too, because its calls get `40001` and its root is sealed.
 
 | Where L1 stops, or what crosses | Outcome |
 |---|---|
 | after its claim call, with the claim not committed | no claim. L2's hello leaves the request `pending`; the replayed `create` claims `first` under L2 and runs once |
-| after the claim committed, before the spawn | the hello's "lease lost before `go`" row: `outcome_unknown`. The replayed `create` is answered `outcome_unknown` by L2. `retire`: `home_absent` |
-| after the spawn, before the `mkdir` or before the lease | the same row. `retire`: `home_absent`, or `home_empty` |
+| after the claim committed, before the spawn | the hello's "lease lost before `go`" row: `outcome_unknown`. The replayed `create` is answered `outcome_unknown` by L2. `retire`: `home_absent`, since L2's launch sealed L1's root |
+| **L1 alive, paused after `first` and before its launcher's `mkdir`; L2 seals, says hello and retires; then L1 resumes** (CX-0145's crossing) | `retire`: `home_absent`, as above. L1's launcher then resolves its sealed root by name and exits 78 with no home. If L1 reaches its go call instead, that gets `40001`. **No late home and no call** |
+| **L1 alive, its launcher paused after `mkdir` and before the lease; L2 seals and retires; then it resumes** | `retire`: `home_empty` in the sealed root (deleted). The resumed launcher's by-name lease write fails: exit 78, no fork, nothing written |
+| after the spawn, before the `mkdir` or before the lease (L1 dead) | the same row. `retire`: `home_absent`, or `home_empty` |
+| **L1's launcher dies after the fork, before the child's entry is durable, or after a partial entry** | the lease shows the fork intent with no valid child entry. The child exits 118 at the gate's end-of-file, or by `PDEATHSIG`, never having passed it. `retire`: `home_deleted_child_unrecorded` once `check` verifies the launcher `gone`; until then `failed`, `unsettled` |
 | after the `start` line, before `ready` or before the go call | the same row. The child was sent `SIGKILL` by `PDEATHSIG`, which isn't proof. `retire` deletes the pre-`go` home only once `check` verifies both lease entries `gone` through `pidfd`s; until then it answers `failed`, `unsettled` |
 | a lost claim answer, L1 alive | the resend finds `already_claimed`: `outcome_unknown`, no spawn (§6) |
 | a lost claim answer, then L1 dies | the "lease lost before `go`" row |
@@ -641,7 +711,7 @@ Q7 never calls anything else.
 | a reconnect by the same instance | its own rows untouched. Replayed commands are answered from memory (§6, step 1) |
 | withdrawn while `pending` and unclaimed | `conversation_cancel` ends it. The replayed `create`'s claim is refused: `outcome_unknown`, which moves nothing |
 | withdrawn while claimed, before `go`, L1 alive | the go call is refused, the child is stopped with no step, and the create is answered `rejected` |
-| withdrawn while claimed, before `go`, L1 dead | the `cancelled` row. The replayed `stop` is answered `checked` by L2 (no live child; `check` exits 0), which writes `retire` |
+| withdrawn while claimed, before `go`, L1 dead or outlived | the `cancelled` row. The replayed `stop` is answered by L2 by the classifier: `checked` only if `check` exits 0, else `outcome_unknown` (§6). That writes `retire` |
 | withdrawn after `go` | the ordinary `stop` (below), or the `cancelled` row if L1 died |
 
 **Withdrawal:**
@@ -691,6 +761,8 @@ A late line, live or recovered, is stored scrubbed with its usage. A later `crea
 | `l0-launcher2.py`, `l0-cancel-bridge.mjs`, `l0-cancel-child.mjs` | `c1e4d600110c1b2b`, `ca3c09080cc95af1`, `beba341f7fd541cb` | Revision 3: §5's waits before the runtime starts. Setup polls the control channel between steps; the exec-status wait polls the status pipe, the control channel and the `pidfd`, until a deadline. The bridge stand-in cancels at each stage and never signals |
 | `l0-launcher3.py`, `l0-settle-bridge.mjs`, `l0-settle-child.mjs` | `d0873372841b0832`, `5475fbe1ef528125`, `06d2dfcce432c16e` | Revision 4: the lease's launcher entry before the fork and the child's entry right after; the child's own `alarm` before its `exec`; the no-`pidfd` settlement by `waitpid(WNOHANG)` only; a child-entry failure settled through the `pidfd`. The bridge stand-in never signals, and checks `/proc` afterwards |
 | `l0-settle.out` | `e3a23449182355b3` | **No `pidfd`, child at the gate:** exit 69, settled, the child already reaped. **No `pidfd`, child stalled before the gate, its `alarm` 1 s:** exit 69, settled. **No `pidfd`, its `alarm` 4 s beyond the 1 s settle bound:** exit 74, unsettled. The child was **still present** at the launcher's exit and gone 5 s later (`PDEATHSIG`), so the unsettled exit rightly claims nothing. **The child's entry failing after the fork:** exit 77, settled through the `pidfd`, the lease holding the launcher's entry alone. **A normal run:** exit 0. No cancelled case reached the runtime. Each case's elapsed time includes a fixed 5 s observation after the launcher's exit |
+| `l0-launcher4.py`, `l0-seal-bridge.mjs`, `l0-seal-child.mjs` | `df916b176e870e12`, `3cdd3ab3e25afe93`, `582c95a77358b10b` | Revision 5: paths resolved by name from a generation root; the lease with the launcher's entry and a fork intent before the fork; one gate, opened only after the child's entry is durable and its `pidfd` held; the seal as a `rename` of the generation root by the stand-in. The stand-in never signals. Every directory is owned and temporary |
+| `l0-seal.out` | `bea921b654dc1070` | **Old launcher paused before `mkdir`, root sealed, resumed:** exit 78, and no home anywhere. **Paused after `mkdir` and before its lease, sealed, resumed:** exit 78; the sealed home stays empty, with nothing written after the seal. **The launcher dying after the fork, before the child's entry:** a lease of `[launcher, fork]`, and the child never passed the gate (no marker). **After a partial entry:** `[launcher, fork, torn]`, the same. **No `pidfd`:** exit 69, the gate never opened. **A normal run:** passed the gate and ran |
 | `l0-cancel.out` | `028d1c07a7556686` | **Setup cancelled by a `TERM` line:** exit 72 in 366 ms, with no child forked. **Child stalled before the gate, control end-of-file:** exit 72 in 357 ms, the child killed through the `pidfd` and reaped (`/proc/<pid>` gone). **Child stalled after the gate:** the exec wait timed out at 1 s, exit 73, the child reaped. **Runtime started, `TERM`:** exit 0. None of the cancelled cases reached the runtime (no fd 3 line) |
 | `fd3-parent.mjs`, `fd3-child.py`, `fd3-run.out` | `cf26d1433d93cdd0`, `96be0ff2ad75be66`, `26314673f260b457` | From revision 1: Node's `'pipe'` at fd 3 is a duplex `AF_UNIX`/`SOCK_STREAM` socket |
 | `fd3-node-parent.mjs`, `fd3-node-child.mjs`, `fd3-node-run.out` | `3907ed69697cf325`, `9b7281407b8c8e6c`, `80bc52444c13cd5a` | From revision 1: a Node child opens fd 3 as `net.Socket({fd: 3})` and exits on end-of-file. **Its "`kill()` after the exit returns `false`" is withdrawn as evidence of identity** (§2) |
@@ -761,10 +833,12 @@ Every process these tests signal is one they started themselves. None attempts p
   - the child stalled before the gate, then control end-of-file: exit 72, the child killed through its `pidfd` and reaped;
   - the child stalled after the gate: exit 73 at `execWaitMs`, the child reaped;
   - a setup step that blocks (stubbed): the `alarm` ends the launcher, which is an unsettled exit, never treated as proof;
-  - **revision 4's settlement:**
-    - **no `pidfd`:** a child at the gate gives exit 69, settled; a child stalled before the gate within its `alarm` gives 69, settled; one past `childSettleMs` gives 74, unsettled, with the home not `checked` until verified;
-    - **the child's lease entry failing:** exit 77, with the child reaped through the `pidfd`;
-    - **the launcher's entry failing:** exit 77, with no fork;
+  - **revision 4's and 5's settlement:**
+    - **no `pidfd`:** the gate is closed without its byte, and the child gives exit 69, settled. One not reaped within `childSettleMs` (stubbed) gives 74, unsettled, and its home is never `checked` until verified;
+    - **the child's lease entry failing:** the gate is closed, and exit 77 follows with the child reaped by `waitpid`;
+    - **the launcher's entry or intent failing:** exit 77, with no fork;
+    - **the launcher dying after the fork, before the child's entry, and after a partial entry:** the child exits 118 at the gate and never passes it, and the lease shows the intent alone. `check` gives `child_unrecorded` only once the launcher's entry is verified;
+    - **the generation seal:** a launcher paused before `mkdir`, and one paused before its lease, each resumed after a `rename` of its root, exit 78, writing nothing after the seal;
     - **a blocking copy or `fsync`** (stubbed): the cancellation is seen when the call returns, and the `alarm` covers a call that never does;
   - the gate closed without its byte: the child exits 118 with no `exec`;
   - in every case: no fd 3 line from a runtime, and an owned decoy untouched.
@@ -786,6 +860,7 @@ Every process these tests signal is one they started themselves. None attempts p
   - neither ever deletes.
 - **`tests/integration/supervisor.test.mjs`** (extended):
   - `sweepReplies` runs before each launch and after the stop;
+  - **the seal (revision 5):** before each launch, every older `gen-*` root is renamed to `sealed-*`, and a fresh root created, while the run after `stop()` doesn't seal. A seal failure (a stubbed `rename` error) leaves the new generation's replies off, its older homes `unresolved`, and a goal still starting;
   - the `SOPHIA_REPLY_*` names are present, and `extraEnv` can't override them;
   - a failing probe, or a template failing its digest or link rule, leaves them out, and a goal still starts;
   - the goal path's spawn, environment and `log` are byte-identical.
@@ -819,7 +894,11 @@ Every process these tests signal is one they started themselves. None attempts p
   - **Crash points and crossings (revision 3, P1-E).** A stub API and a second bridge instance cover each row of §7's crossing table. Each case states its terminal state, its replayed-command receipt, and its spawn, claim and stub-provider call counts: no second claim `first`, no second spawn, no new call.
   - **Retire and recovery:**
     - `retire` by each row of §7's home table: absent (`home_absent`), empty (`home_empty`), the launcher's entry alone, both entries proven gone with a pre-`go` journal (`home_deleted`), an entry not yet proven after an unsettled exit (`failed`, `unsettled`, and **never `checked`**), other files with no lease (`unresolved`), a torn journal, a live matching lease (`child_live`), and a mismatched lease (`lease_mismatch`);
-    - **a `stop` in each phase (revision 4):** during the claim's resends, during the launcher's setup (before `ready`), during the go wait, after `go`, and during the settles. Each starts within the create handler's named bound and ends within the stop's own; an `exitWaitMs` overrun answers `outcome_unknown`;
+    - **a `stop` in each phase (revisions 4 and 5):** during the claim's resends, during the launcher's setup (before `ready`), during the go wait, after a refused or unconfirmed go (it joins that sequence and its `t0`), after `go`, and during the settles.
+      - Each starts within `claimWaitMs + readyWaitMs + goWaitMs`.
+      - `TERM` comes at `t0 + graceMs` and `KILL` at `t0 + killMs` (fake clocks).
+      - Each ends by `t0 + killMs + exitWaitMs`, plus `settleWaitMs`.
+      - **The answer by the classifier:** `checked` for a settled exit; `outcome_unknown` for exit 74, a signal exit, or an overrun;
     - `retire` waits for the bridge's own queued receipts for the attempt before the barrier;
     - `retire` with each condition withheld in turn;
     - `fromJournal` against each row of §7's table (`reserved` with a settle body and the request answered; `reserved` with the request `running` at the hello; `settled`, the same and different; `uncertain`). It resends a settle only for the first, and never calls settle for `uncertain`.
@@ -841,6 +920,14 @@ Every process these tests signal is one they started themselves. None attempts p
     - `retire` gives `home_absent` or `home_empty`, or `home_deleted` once `check` proves the entries gone.
     - The stub provider's call log is unchanged.
   - **a replies-off or busy new bridge** answering a replayed `create` of a `running` request with `rejected`. With the table, nothing is released. In the control without it, the release the table prevents is observed on the stub API;
+  - **CX-0145's crossing, carried through Q7 (revision 5).** Supervisor A's wrapper exits without `stop`, and its dsh (L1) stays alive, as CX-0145 observed. L1 is held by a test hook after the claim's `first` and before its launcher's `mkdir`. Supervisor B starts, seals A's root, and its bridge (L2) says hello and retires the attempt `home_absent`. Then L1 resumes:
+    - its launcher exits 78, and no home appears in any root;
+    - its go, or any receipt, gets `40001`;
+    - the stub provider's log is unchanged;
+    - no process outside the test's own is touched;
+    - the old dsh is then stopped through the test's own control.
+  - **The same crossing with L1's launcher held after `mkdir` and before its lease:** `retire` gives `home_empty` in the sealed root, and the resumed launcher exits 78 having written nothing;
+  - **the classifier at every caller:** `stop` and `retire` after a launcher exit of 0, 69, 72, 73, 75, 76 or 77 (settled), and after 74 or a signal (unsettled). Only settled exits, or a `check` that exits 0, ever give `checked`;
   - a crash after a reserve and before its settle's answer: after the restart the reservation is `uncertain`, no settle is sent for it, its usage is recorded with its `ordinal`, and the allowance is unchanged until an operator reconciles;
   - no reply text in the supervisor's `log`.
 - **`packages/persistence/src/runtime.db.test.ts`** (extended):
@@ -864,6 +951,12 @@ Every process these tests signal is one they started themselves. None attempts p
       - a claim, go, reserve, settle or receipt from the superseded instance after the hello gets `40001`;
       - one committed before the hello is the table's input;
       - `conversation_cancel` either before or after the hello leaves one terminal state;
+  - **the acknowledgement's predicates (revision 5):**
+    - each of §7's predicates withheld in turn;
+    - `terminalWriter` naming a receipt, capture, or the hello's transition, each in its own case;
+    - `createAnswered` false until the replayed `create`'s receipt is recorded;
+    - `capture: none` true only with no `turn/end` recorded, and false when one is;
+    - no predicate ever reports a receipt that doesn't exist;
   - every goal case unchanged.
 
 ## 11. What the owner is asked to agree, before any Phase B write
@@ -874,8 +967,9 @@ Every process these tests signal is one they started themselves. None attempts p
 4. **The template recipe, `sophia-reply-tree-v1`,** and its link rule (§5), with P1 recording the Linux template.
 5. **The exact names in §6:** the methods, transport calls, settings, launcher subcommands and exit codes.
 6. **The run gate:** `conversation_execution_go` as the one atomic `pending` → `running` transition, with its replay rule (§6, with the core and ledger owners).
-7. **The claim's lease** as `bridgeInstanceId`, every new runtime route behind `runtime_lease`, and **hello's reply table as a chosen design** (§6, with its reasons; the core and ledger owners may keep or drop it). Also `retire` by home state and proof, and the crossing table (§7).
-8. **The launcher's bounded, cancellable waits** before the runtime starts, and its settlement rules (§5):
+7. **The claim's lease** as `bridgeInstanceId`, every new runtime route behind `runtime_lease`, and **hello's reply table as a chosen design** (§6, with its reasons; the core and ledger owners may keep or drop it). Also `retire` by home state and proof, the crossing table (§7), and **the acknowledgement's named predicates** (§7), for the core and ledger owners to bind.
+7a. **The generation seal** (§5, §6), as the no-future-writer fence across bridge generations. It works without assuming any process is dead, and leaves the goal path and the rest of the supervisor unchanged.
+8. **The launcher's bounded, cancellable waits** before the runtime starts, its one gate and fork intent, and its settlement rules (§5), applied by every caller (`stop`, `retire`, dispose, recovery):
    - the lease first;
    - the child's own `alarm`;
    - the no-`pidfd` settlement with no signal;
