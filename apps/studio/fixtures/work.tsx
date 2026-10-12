@@ -114,6 +114,7 @@ declare global {
       /** A new decision, asked of `deciderId`, arrives with the next observation. */
       decisionArrives?: (deciderId: string) => void
       begin?: (workId: string) => void
+      complete?: (workId: string) => void
       reassign?: (workId: string) => void
       replan?: () => void
       arrive?: () => void
@@ -570,6 +571,13 @@ const beginWith = (workId: string, viewer: Viewer): Change =>
     available_actions: [...fixtureParts.commands(viewer, true), ...v.available_actions],
   }))
 
+/** A task complete, its check satisfied: what it blocked goes up next (`complete`, the focus check; Codex on #236). */
+const completeWith = (workId: string): Change =>
+  observed(workId, () => ({
+    lifecycle: 'complete',
+    completion: { policy_ref: 'policy-fixture', status: 'satisfied', evidence_refs: ['evidence-fixture'] },
+  }))
+
 /** The same session given the task again: its next assignment generation, its next attempt. */
 const nextGeneration = (workId: string): Change =>
   observed(workId, (v) =>
@@ -882,6 +890,7 @@ function Tasks() {
         viewer,
         { commands: lead.commands, again },
       ),
+      complete: (workId: string) => update(completeWith(workId)),
       ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
       ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),
