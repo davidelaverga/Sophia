@@ -308,3 +308,15 @@ test('dock · on a touch screen the header’s switches keep a finger’s width 
   for (const w of widths ?? []) expect(w).toBeGreaterThanOrEqual(40)
   await context.close()
 })
+
+test('dock · the report pane’s microphone focused at 720, widened past the breakpoint: the header’s takes the focus (Codex on #254)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 720, height: 800 })
+  await page.goto('/room.html?call=on&exchange=open&place=work&report=00000000-0000-4000-8000-0000000000b1')
+  const mic = page.locator('.report-pane-call').getByRole('button', { name: 'Microphone' })
+  await expect(mic).toBeVisible()
+  await mic.focus()
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await expect(page.locator('.topbar .mini-dock').getByRole('button', { name: 'Microphone' })).toBeFocused()
+})

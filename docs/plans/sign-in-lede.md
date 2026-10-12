@@ -32,3 +32,9 @@
   1440 and on a phone (no horizontal overflow); once the link is sent it is gone; and the screen still speaks in three
   text sizes (`typeSizes` of `.screen-body`).
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`; measured in the pane before the push.
+
+## After the review, round 3 (Codex on #247)
+
+- The line is «Where your team and Sophia think together.»: 281 px at 14 px, inside the 288 px column at 320 px (the
+  narrowest phone the Studio is checked at), where «A room where…» (328 px) wrapped. signin-lede.spec reads one 20 px
+  line at 1280, 375 and 320.
