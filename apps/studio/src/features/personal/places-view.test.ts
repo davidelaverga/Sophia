@@ -17,6 +17,7 @@ import {
   otherWaysShown,
   rowNote,
   sophiaSays,
+  homeNextAsk,
   projectCard,
   readState,
   roomCaption,
@@ -180,6 +181,28 @@ describe('home, as a place that knows where you’ll go', () => {
     assert.equal(homeRows([live], NOW, id(5))[0]?.action, 'back')
     assert.equal(HOME_ACTION.back, 'Back to the room')
     assert.equal(homeRows([project()], NOW, null)[0]?.action, 'open')
+  })
+
+  it('her line suggests the next ask: a session about to start, else nothing; never a room to catch up on', () => {
+    assert.equal(homeNextAsk(undefined, NOW), null)
+    assert.equal(homeNextAsk([], NOW), null)
+    assert.equal(homeNextAsk([project()], NOW), null)
+    assert.deepEqual(homeNextAsk(four, NOW), {
+      words: 'Help me get ready for Pitch run in Weekly standup',
+      why: 'Because it starts in 10 min',
+    })
+    const live = project({
+      projectId: id(5),
+      title: 'Pitch deck',
+      room: { people: ['davide@sophia.test'], sophia: true },
+    })
+    // A live room is not caught up on from Home: the companion never sees the project (Codex P1 on #268).
+    assert.equal(homeNextAsk([project(), live], NOW), null)
+    assert.equal(homeNextAsk([...four, live], NOW)?.words, 'Help me get ready for Pitch run in Weekly standup')
+    // A session under way is not one to get ready for.
+    const started = project({ projectId: id(7), title: 'Weekly standup', nextSession: session(-5) })
+    assert.equal(homeNextAsk([started], NOW), null)
+    assert.equal(homeNextAsk([started, live], NOW), null)
   })
 
   it('Sophia says the one thing that matters: your call, else a session soon, else a live room, else all is well', () => {

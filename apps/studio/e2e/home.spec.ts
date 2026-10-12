@@ -176,11 +176,14 @@ test('home · stepping away from Home stops the microphone: nothing heard lands 
 test('home · pressed again, the microphone stops, and nothing it would have heard lands', async ({ page }) => {
   await page.goto(PAGE)
   const mic = page.getByRole('button', { name: 'Speak instead' })
+  await expect(mic).toBeVisible()
+  // The line's resting words: its own, or the next ask it suggests (next-ask-places.md) when a session is about to start.
+  const resting = (await line(page).getAttribute('placeholder')) ?? ''
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'true')
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'false')
-  await expect(line(page)).toHaveAttribute('placeholder', 'Say something to Sophia')
+  await expect(line(page)).toHaveAttribute('placeholder', resting)
   await hear(page)
   await expect(line(page)).toHaveValue('')
 })

@@ -259,6 +259,29 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 
+/**
+ * The next ask Home's line suggests (docs/plans/next-ask-places.md): a session about to start, the one thing Home's
+ * line can help with from what its words carry; nothing otherwise. Home's line goes to the companion, which never sees
+ * a project, so a room's «Catch me up» is not offered here: catching up is the project's conversation's (its own next
+ * ask, «Sum it up»), where Sophia reads the project (Codex P1 on #268).
+ */
+export function homeNextAsk(
+  projects: readonly ProjectSummary[] | undefined,
+  now: Date,
+): { words: string; why: string } | null {
+  if (!projects || projects.length === 0) return null
+  // About to start, not under way: a session that started is to join, not to get ready for (Codex on #268).
+  const ahead = (p: ProjectSummary) =>
+    p.nextSession !== null && soon(p, now) && Date.parse(p.nextSession.startsAt) > now.getTime()
+  const starting = workOrder(projects, now).find(ahead)
+  const when = starting ? sessionWhen(starting, now) : null
+  if (!starting?.nextSession || !when) return null
+  return {
+    words: `Help me get ready for ${starting.nextSession.title} in ${starting.title}`,
+    why: `Because it ${when}`,
+  }
+}
+
 /** Projects with a session about to start come first, the soonest first; then the rest as listed. */
 export function workOrder(projects: readonly ProjectSummary[], now: Date): ProjectSummary[] {
   const starts = (p: ProjectSummary) =>

@@ -4,8 +4,17 @@
 // you move and to the line while you write or speak to her. Given what needs you (needs-you.ts, behind the vision
 // flag), the right half is a column: her light at its head (the 96 px emblem in a small box), the needs under it.
 import type { ProjectSummary } from '@sophia/contracts'
-import { Button, Icon, Skeleton } from '@sophia/ui'
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { Button, Icon, NextAskHint, nextAskKey, Skeleton } from '@sophia/ui'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
 import type { Point } from '../light/motion.ts'
@@ -19,7 +28,16 @@ import { NeedsYou } from './NeedsYou.tsx'
 
 /** Now on the service's clock: the needs' expiries compare on it (A15's `readAt`), not on the browser's. */
 const onService = (now: Date, skew = 0): Date => (skew === 0 ? now : new Date(now.getTime() + skew))
-import { homeRows, notesLabel, rowNote, type HomeAction, type HomeRow, type Said, type YouDoor } from './places-view.ts'
+import {
+  homeNextAsk,
+  homeRows,
+  notesLabel,
+  rowNote,
+  type HomeAction,
+  type HomeRow,
+  type Said,
+  type YouDoor,
+} from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 
 interface Props {
@@ -264,13 +282,48 @@ interface LineProps {
   onTalk: (t: Talk) => void
   line: RefObject<HTMLElement | null>
   hidden: boolean
+  /** The next ask the line suggests (docs/plans/next-ask-places.md); null with none. */
+  next: { words: string; why: string } | null
+}
+
+/**
+ * The line's suggestion: shown while it is empty and she is not listening, put away for the visit by Esc; Tab or → puts
+ * it in the line. Its key cap stands while the line is focused.
+ */
+function useLineNext(
+  next: LineProps['next'],
+  text: string,
+  listening: boolean,
+  setText: (words: string) => void,
+  hidden: boolean,
+) {
+  const [away, setAway] = useState(false)
+  // Put away for this visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask
+  // again (Codex on #268).
+  useEffect(() => {
+    if (hidden) setAway(false)
+  }, [hidden])
+  const [focused, setFocused] = useState(false)
+  const id = useId()
+  const shown = !away && !listening && text === '' ? next : null
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    const { key, shiftKey, altKey, ctrlKey, metaKey } = e
+    const press = { key, shiftKey, altKey, ctrlKey, metaKey, isComposing: e.nativeEvent.isComposing }
+    const move = nextAskKey(press, text, shown !== null)
+    if (!move || !shown) return
+    e.preventDefault()
+    if (move === 'accept') setText(shown.words)
+    else setAway(true)
+  }
+  return { id, shown, cap: focused ? shown : null, onKey, setFocused }
 }
 
 /** One line to write to Sophia, no box, or to speak to her. */
-function SayLine({ actions, onTalk, line, hidden }: LineProps) {
+function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
   const s = useSay(actions.say, hidden)
   useSlashReaches(s.field)
   const listening = s.voice.listening
+  const ask = useLineNext(next, s.text, listening, s.setText, hidden)
   // She listens while you speak, and until you leave the line; a dictation that heard nothing lets her rest.
   useEffect(() => {
     onTalk({ writing: listening || document.activeElement === s.field.current })
@@ -288,25 +341,40 @@ function SayLine({ actions, onTalk, line, hidden }: LineProps) {
       <input
         ref={s.field}
         aria-label="Say something to Sophia"
-        aria-describedby="hw-private-note"
-        placeholder={listening ? 'Listening…' : 'Say something to Sophia'}
+        aria-describedby={ask.cap ? `hw-private-note ${ask.id}` : 'hw-private-note'}
+        placeholder={listening ? 'Listening…' : (ask.shown?.words ?? 'Say something to Sophia')}
         value={s.text}
         readOnly={listening}
         onChange={(e) => s.setText(e.target.value)}
-        onFocus={() => onTalk({ writing: true })}
-        onBlur={() => onTalk({ writing: listening })}
+        onKeyDown={ask.onKey}
+        onFocus={() => {
+          ask.setFocused(true)
+          onTalk({ writing: true })
+        }}
+        onBlur={() => {
+          ask.setFocused(false)
+          onTalk({ writing: listening })
+        }}
       />
       <span id="hw-private-note" className="sr-only">
         Only she hears this
       </span>
       <Mic voice={s.voice} />
-      <kbd aria-hidden>{s.text ? '↵' : '/'}</kbd>
+      {ask.cap ? (
+        <NextAskHint
+          id={ask.id}
+          why={ask.cap.why}
+          description={`Suggested: ${ask.cap.words}. Tab puts it in the line; Escape puts it away.`}
+        />
+      ) : (
+        <kbd aria-hidden>{s.text ? '↵' : '/'}</kbd>
+      )}
     </form>
   )
 }
 
 /** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
-function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' | 'locked'> & LineProps) {
+function You({ you, locked, actions, onTalk, line, hidden, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
       <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
@@ -339,7 +407,7 @@ function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' |
           )}
         </ol>
       )}
-      {!locked && <SayLine actions={actions} onTalk={onTalk} line={line} hidden={hidden} />}
+      {!locked && <SayLine actions={actions} onTalk={onTalk} line={line} hidden={hidden} next={next} />}
     </section>
   )
 }
@@ -441,6 +509,7 @@ export function Welcome(props: Props) {
           onTalk={setTalk}
           line={line}
           hidden={props.hidden}
+          next={homeNextAsk(props.projects, props.now)}
         />
         {(props.projects || props.loadingProjects) && (
           <section className="hw-section" aria-labelledby="hw-work-h">
