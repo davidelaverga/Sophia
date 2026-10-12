@@ -1,0 +1,146 @@
+{
+  "at": "2026-10-12T04:16:15.403791+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "971793db34d9f3f323448394f2096a5e959453c4",
+    "tree": "1b96f3e4b291088ab67bbcff001a533ab63bdbd0",
+    "parent": "387fb2dcf3e26ac63aa1476ffa607f984cf898e6",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "a63cbc3d0d97da8709223710869d57ff1873b72411d3b30eb860cbea407f715b",
+    "lines": 982,
+    "readComplete": true,
+    "change": "one documentation file +177/-83; no implementation changed"
+  },
+  "scope": "Bounded independent WBC02/SDD01 runtime consumer engineering review. No source writer/integration/main acceptance, core/ledger/historical owner ACK, operational authority or full exclusive runtime ownership.",
+  "independentReads": "Entire982-line r5, with truncated131-161 re-read explicitly; exactparentdiff; original binding264-284 and554-585. All eight actual source dependencies hash-match parent, retaining previous independentbridge/cursor/poll/hello/S2/supervisor reads. No currentmainpoll needed for this immutablecandidate.",
+  "acceptedImprovements": [
+    "Atomic hello remains correctly presented as optional core/ledger design; permanent-stranding P1-E remains withdrawn. Original correctedf42cdd11 retained, no earlierseverity revived.",
+    "OneStopclock446/457 usesTERM=t0+2s andKILL=t0+5s as originalbinding. Decoupledcreatecleanup456 and joinedsequence/t0 improve earlier omittedcleanupbound, provided allcallers follow fence/proof/settlement rules.",
+    "MainStopmethod457/472 correctly distinguishes settled versus unsettled exits; disposer488 makes no proof/receipt claim. Some downstreamwithdrawal/hello mappings still disagree, below.",
+    "Preforkintent, onegate beforecontainment and childentrydurable+pidfd beforegate262-268 narrow the unrecordedchild execution uncertainty. They do not establish childgone for successfulsettlement.",
+    "Namedacknowledgement667-680 now distinguishes actualterminalWriter, createAnswered and capture:none with bothsidesabsence. This materially amends the prior nonexistentreceipt claim; remains conditional on actualcore/ledger contract/keys/sourcebinding and independentnofuturewriter/settlement proof.",
+    "Generationroots, distinctsealedroots and explicitseal-failureunresolved are reasonable namespace organization. The rename-onlyfence proof itself is incomplete as specified below."
+  ],
+  "changesRequired": [
+    {
+      "id": "R5-SEAL-ADMISSION-AND-INFLIGHT-IO",
+      "classification": "NO_FUTURE_WRITER_PROOF_GAP",
+      "lines": [
+        219,
+        221,
+        222,
+        231,
+        311,
+        312,
+        313,
+        314,
+        315,
+        331,
+        339,
+        432,
+        533,
+        542,
+        645,
+        653,
+        655,
+        683,
+        701,
+        702
+      ],
+      "evidence": "219 says no descriptor intohome untillease durable;222 createsleaseO_EXCL thenwrites andfsyncs file/directory. Normalopen/write/fsync necessarily has a descriptor beforedurability, andrename does not revoke it. Operations which began pathname resolution before rename are also not addressed by a promise that the NEXT by-namestep fails. Renameatomicallychangesnamespace; no admission/inflight-operation serialization/drain is specified. Claimed inability to addhome/lease afterseal therefore is not established bypaused-before-call casesalone.",
+      "primarySources": {
+        "rename": "https://raw.githubusercontent.com/mkerrisk/man-pages/master/man2/rename.2",
+        "open": "https://raw.githubusercontent.com/mkerrisk/man-pages/master/man2/open.2",
+        "independentRead": "rename description66-75: open descriptors unaffected; open83-129: returnsfd usedforsubsequentwrites andopenfiledescription remainsreferenced despitepathnamechange."
+      },
+      "required": "Bind an implementable admission/registration/sealing protocol that accounts for in-flightmkdir/open, leaseopen-beforeentry, partialentry/write/fsync and retaineddescriptors beforeauthorizingabsence/emptycleanup. Establish no current/futurewriter by synchronization/drain plus correctfailclosedidentityproof, or retainunresolved. Name precise linearizationpoint and whichoperations may stillcomplete into sealedroot. Do not describe atomicrename as descriptorrevocation or hardIOquiescence.",
+      "expectedCrossings": "Pause afterO_EXCLopen beforefirstwrite, afterpartialentry beforefsync/directoryfsync, duringregistrationoperation while seal/check/retire occurs, and before/aftermkdirpathresolution where testmechanism cancontrolit. Assertvalidregistrationproof or unresolved, no latechecked deletion, everyrootsearched, no regeneratedoldgenpath. Zero/tornlease must failclosed; a file beingpresent withbadentry is not the emptyhome case.",
+      "evidenceLimit": "Static missingproof plus independently readprimarysyscalldocs. Peer reports filesystem-onlyDarwinopen/rename/writefdprobeSHAfdcf5236ccd1e43853d01e870ac9b0b36a6cf158d4f5d0c2047b6218c73bfc86, receiptSHA5b1841216884a73b04e438e0babf9bae05de9167741695090c67c028c4b5bea4; not executed/recovered by thisroot. Neither that report nor thisreview demonstrates an actualQ7falsechecked receipt or forcedmkdirrace; Q7unimplemented."
+    },
+    {
+      "id": "R5-UNRECORDED-CHILD-SETTLEMENT",
+      "classification": "ADOPTED_SETTLEMENT_RULE_AND_CALLER_CONTRADICTION",
+      "lines": [
+        244,
+        263,
+        280,
+        282,
+        293,
+        335,
+        339,
+        457,
+        618,
+        623,
+        637,
+        638,
+        646,
+        648,
+        658,
+        704,
+        837,
+        840,
+        901,
+        930
+      ],
+      "evidence": "335/339 permitscheck0 forchild_unrecorded while explicitly notclaimingchildgone;658 deleteshome/checkedwithsamecaveat. But originalbinding564/581 says waitforexit/no livechild beforeclean, r5:618 says nothingcleanedwhilechildlives,623 callscheck0 proofnone remains, and457 usescheck0 forStopchecked. Movinggatebeforecontainment mayprovenoexec/newwrites bytrustedpre-gatecode; it doesnotprove actualchildtermination/reap. Unsettled74test837 stillrequiresverification; these terminalsemantics disagree.",
+      "required": "Keep child_unrecorded as incomplete settlement until an identity-safe technicalproof establishes childtermination/reap, and propagate this into checkexitstatus/Stop/Retire/recovery/receipts. Do not silently substitute a potentiallylivepre-gatechild with successunder existingstop/settle-before-removewritable-state policy. Record validdurablechildidentity oranotheridentity-safe settlementproof; if unavailable retainunresolved/purgepending, no numericfallback or unrelatedselection. A narrower no-write policy would be an explicitcoordinated change to existingbinding/decision, not assumedengineeringACK fromthisreview; smallestcurrentcorrection is technicalsettlement or honestpending.",
+      "gateCompleteness": "Specify closure of every inheritedunusedgatewriteend, including childside, beforewait; fork inheritsdescriptors. Gateonlywriter and childpre-gatecapabilities need exactdescriptorownership, not just a namedonebyte. Align375 filterbeforegate with245-250 containmentaftergate; actualorder/testexpectations must beonecontract.",
+      "expectedCrossings": "Launcherloss afterfork/beforevalidchildentry, tornappend/fsync, childpausedbeforegate/parentbinding, missingpidfd, inheritedgatewriterclosure and74. Testallcallers, assert no Stopchecked/home_deleted/processgone claim beforetechnicalsettlement. No runtime/provider/hostexecutionnow."
+    },
+    {
+      "id": "R5-WITHDRAWAL-AND-REPLAY-RECEIPT-MAPPING",
+      "classification": "DOWNSTREAM_CALLER_AND_BINDING_CONSISTENCY",
+      "lines": [
+        457,
+        472,
+        552,
+        714,
+        724,
+        725,
+        901,
+        930
+      ],
+      "evidence": "MainStopclassifier457 returnsoutcome_unknown forunsettled/timeout, butwithdrawal724 unconditionallyanswerschecked. Cancelledhello552 saysretirewrittenbyStopchecked, while714 says checkedelseoutcome_unknown then Thatwritesretire. Originalbinding272-275 keepsfailed/rejected/unknownStop bindingstopping/purgepending and retriesnexthello; onlycheckedqueuesretire.",
+      "required": "Make withdrawal and replay table explicitly branch on sameclassifier: checked onlywithvalidsettlement; outcome_unknown remainsstopping/cleanup-pending andpreservesuncertaincounts; state exactretry/retireenqueue rule undercoreownerbinding. If chooseenqueueRetireevenafterunknown, name coordinatedmappingchange and preventcleanupuntilfullproof; donot inferthatallStopanswerswriteRetire. Aligntests with realreceiptwriter/nexthellopath, not a standalone mockclaim.",
+      "expectedCrossings": "Withdrawaftergo with74/signal/noexit, cancelledreplayunknownthenlaterprovedsettled, lostStopreceipt andnexthello; no falsechecked/purgecompletion, no lostcleanupretry or automaticallowance release."
+    },
+    {
+      "id": "R5-AGGREGATE-SETTLE-BOUND",
+      "classification": "BOUND_PROOF_CLARIFICATION",
+      "lines": [
+        448,
+        457,
+        469,
+        486,
+        900
+      ],
+      "evidence": "448 defines settleWaitMs perpendingsettle;469/900 allowonefurther settleWaitMs forallsentsettles. The design has up totwoordinals but neithercommondeadline/concurrentcompletion nor atmostonependingproof is stated. Oneperitem retrybound alone doesnotestablishaggregatebound.",
+      "required": "State andtest actualaggregatewaitingdiscipline: sharedabsoluteStopsettledeadline, parallelwaitsundercommonbound, provenatmostonepending, or honestsequentialsum. Preserve settle-beforeterminalreceipt/noresendafteruncertain and joinedsequenceclock. Describe processsettlement observationbound as honestunknownwhenproofmissing, neverguaranteeddeath.",
+      "expectedCrossings": "Twoapplicablependingordinals orproofthatprotocolpreventsit; late/lostsettleacks, joinongoingStopaftergo-refusal, terminalreceiptfenceduntilaggregatebound/answers."
+    }
+  ],
+  "conditionalAckAndIntegrationDetails": {
+    "acknowledgement": "667-680 namedpredicates is an acceptableproposed amendment direction in consumerscope. Actualcore/ledgerowners must binddurableterminalWriterrecord+leaseidentity, createAnswered, capturepublished/refused/none andbothjournal/DBabsence, usage/ordinal/reservations/payloadscrub. Allpredicates+relayclosed andindependentwriter/settlementprooffullyrequired. No actualroute/schemaimplementationACK.",
+    "paths": "Updateallgeneration-awarelocatorsandbarriers consistently; oldroot/replies/attempt placeholders578/627/732 must map to actualcurrent/sealedhomeidentity, never solely basename. No broadworkspace/pathrewrite or newruntime authorized.",
+    "P1E": "Withdrawal retained. Atomichello is optionalcore/ledgerdesign withrejected-replay accountingcrossing needingrealtests; no mandatorypendingwriterfix and noexecutedSQLfailure.",
+    "preservation": "Paperclip/design/KeyStudio and othermissiongoals, historicalbindings,role/route/artifactpins, uncertainallowances, request/ordinalidempotence, withdrawal/latepublicationscrubbing andonepinnedharness preserved."
+  },
+  "baseWindowOrderHandback": {
+    "base": "Exactdocs971793db over387fb2dc; eightactualdependencies matchparent. Noacceptedcurrentmain/integrationbase, generatedcontractwindow or sharedsourcewriter granted.",
+    "window": "PhaseAwritewindowended/0053reserved; PhaseB/Q13/Studio held. PriorPhaseA93e consumerscopecompatibility is not Luisactualintegrationacceptance/mergeGO. Core/ledger/historicalowners retain theiracknowledgements.",
+    "order": "Consolidate aboveproof/caller corrections in currentlyowned docs/stubscope, publishimmutablecandidate thenboundedindependentrecheck. Namedowners/Luis acceptedbase/window/order before sharedimplementation. Preserve G2plan5 afterholdslift: acceptedPhaseAprerequisite, additiveSQL, wire/contracts, bridge, supervisor/launcher/profile, qualification, distinctpins/fail-before/fullgates andcombinedartifactidentity.",
+    "affectedFunctions": "Supervisorreplies/environment/sweepReplies and generationseal/start/recover/stop sequencing; reply-launchrun/probe/digest/check/sweep and gate/lease registration, runtime-host/profile. ReplyChildrencreateReply/stopReply/retireReply/reconcileReply/dispose, ReplyChildstopclock/settles/proof, ReplyRelay/fromJournal/reply-plugin. Core0049/claim/go/cancel/runtimehello/replyreceipt/capture/observations/acknowledged/usageproofsource pluswire/contracts/routes requireexactowners; noappliedmigration/Q13grantedits.",
+    "handback": "Freshlocalimmutablesharedconsumerrecord; notcarriedr4ACK. NoCONnativecontrol/cross-threadreply/newtask/monitor/sourcewrite/runtime/providerprobe. Exactr5CHANGES_REQUIRED dueexplicitmechanism/contractgaps, notjustabsenceoffutureP1/P7/P8."
+  },
+  "evidenceLimits": "Rootreadpublishedexactsource/primarydocs andrecordedjournal only; authorL0standins andpeerfilesystem/supervisorprobes remainseparatelyattributedevidence. Notindependentrootexecution orpinnedLinuxdsh/Renderqualification. Lastmain5edobservation/history retained, nofreshmain/CI/deployedclaim.",
+  "effects": "Gitobjectfetch/source/diff/primarydocreads andlocaljournal; nocheckoutedit/build/test/processprobe/runtime/hostedSQL/provider/model/image/credentials/grants/spend/migration/deploy/publish.",
+  "origin_record_sha256": "e0893d6e2338e79203f6c4c1badad8b2a205a5f8738f63c834f39869b0694c7c",
+  "actual_terminal_turn": {
+    "thread": "01a10cf9-0fab-7561-9de4-702f30a511f4",
+    "cursor": "05536df8-cc0b-448c-939a-b8a87359d323:71",
+    "turn": "01a12e4e-cfa5-74b2-be10-94fbf11c964c",
+    "status": "completed",
+    "duration_ms": 303835
+  },
+  "authority_limit": "Consumer review only. Does not supply core/ledger/Luis ACK or source/effect authority. Unrelated mission operational state is deliberately not adopted."
+}
