@@ -1,0 +1,41 @@
+{
+  "candidate": "d96626acdc514eabbdf20667725e28a2279dfeba",
+  "evidenceClass": "local_fixture_only",
+  "desktop": {
+    "width": 1280,
+    "height": 800,
+    "quickAsk": "Sum it up",
+    "reply": "Synthetic fixture Sophia answer observed in same open conversation",
+    "suggestion": "Should we go with “Map first, list second”?",
+    "tab": {
+      "value": "Should we go with “Map first, list second”?",
+      "focus": "Continue this question with the team",
+      "askSophia": true
+    },
+    "submittedSuggestedAsk": false
+  },
+  "phone": {
+    "width": 390,
+    "height": 844,
+    "notice": {
+      "color": "rgba(236, 235, 241, 0.66)",
+      "fontSize": "12px",
+      "height": 32,
+      "inViewport": true,
+      "lineHeight": "16px",
+      "text": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+      "width": 362,
+      "x": 14,
+      "y": 140
+    },
+    "alreadyAsked": {
+      "matched": "What makes a report worth reading?",
+      "openedExisting": true
+    }
+  },
+  "limits": [
+    "No disabled-capability fixture exists: guard source-reviewed only",
+    "No real API/provider/native execution",
+    "No full G3/G4 or phone-erasure qualification"
+  ]
+}

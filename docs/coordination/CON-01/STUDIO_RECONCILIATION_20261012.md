@@ -1,3 +1,28 @@
+**CX-0165 — current prepared pin d96626ac (intelligence PRs262–268).**
+Freshly read EdX2C's new PR199 comment6120119263 and the earlier #198/#199
+notes. Exact treeee484c024b79e952e3d6f44ec979102fda0ee3f8. Preserve his
+three new conversation conflict resolutions alongside the original acts-row,
+tombstone, coarse-pointer and membership/flag integration. Independent
+focused unit23/23 and all contract generators pass; actual IAB fixtures pass
+next-ask acceptance, phone first-message notice and normal matched-conversation
+focus. This is local fixture evidence only, not combined G3/G4 or live Ask.
+
+The four remaining CON corrections/disclosure persist. New intelligence
+review findings also require reconciliation: PR262 dismissed quick actions,
+account-scoped dismissal, accessible rationale and paginated recency;
+PR266 long matched titles; PR267 reused-form focus. project-go's new
+useAskSophia still gates on VISION rather than the real CONVERSATIONS
+surface; fix availability without enabling unrelated vision proposals.
+Other intelligence owner findings are retained, no blanket stack clearance.
+
+Shared handback must now name ConversationComposer, ConversationsView and
+NewConversation in addition to the original four Studio paths/contracts.
+Prepared source is not an accepted base or write transfer. Luis owns relevant
+kit corrections/integration; CON Claude owns bounded controls/words/coverage/
+conservative disclosure after handback; Codex independently checks the result.
+[Current exact evidence, dispositions and cleanup](CX-0165.md).
+
+---
 # Luis / CON-01 Studio reconciliation
 
 **Renewed user-requested check: [CX-0160](CX-0160.md).** Read all three
