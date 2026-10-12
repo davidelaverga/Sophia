@@ -88,7 +88,13 @@ export function CallSwitches({ sending, controls, textMode, keys, side = 'top' }
         />
       )}
       {controls.leave && (
-        <button type="button" className="round leave has-tip" aria-label="Leave the room" onClick={controls.leave}>
+        <button
+          type="button"
+          className="round leave has-tip"
+          aria-label="Leave the room"
+          data-dock-key="leave"
+          onClick={controls.leave}
+        >
           <Icon name="leave" />
           <Tip label="Leave the room" side={side} align="end" />
         </button>

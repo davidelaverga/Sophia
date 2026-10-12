@@ -18,6 +18,7 @@ import {
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
+import { WIDE } from '../../app/useMedia.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, listKey, messagesKey } from './conversation-list.ts'
 import { Rows } from './ConversationRows.tsx'
@@ -244,11 +245,30 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen() || t?.closest('[role="dialog"]')) return
       close()
     }
-    const behind = [
-      ...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? []),
-      ...document.querySelectorAll<HTMLElement>('.mini-dock'),
-    ]
-    for (const el of behind) el.inert = true
+    const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
+    // The floating dock is under the panel; the header's (721 px and up) stands above it and stays in reach.
+    const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')].filter((el) => !el.closest('.topbar'))
+    const cover = (moved = false) => {
+      const covered = [...behind, ...docks()]
+      // The focus a control of the dock had before the move goes to the panel: restored to the dock, it would be lost
+      // once the dock is inert; lost with the dock already (the thread's screen at 720 px shows no idle dock), it is
+      // on the page (Codex on #254).
+      const at = document.activeElement
+      const lost = at === document.body || (at instanceof HTMLElement && covered.some((el) => el.contains(at)))
+      if (moved && lost) document.getElementById('conv-context')?.focus({ preventScroll: true })
+      for (const el of covered) el.inert = true
+    }
+    cover()
+    // The room's dock is mounted anew when the width crosses the header's breakpoint: covered again (Codex on #254).
+    const wide = matchMedia(WIDE)
+    // One frame queued at a time, cancelled with the panel: a frame left over would make the page inert again with no
+    // panel to clear it (Codex on #254).
+    let frame = 0
+    const coverAgain = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => cover(true))
+    }
+    wide.addEventListener('change', coverAgain)
     const width = new ResizeObserver(([entry]) => {
       if (!entry || entry.contentRect.width <= PANEL) return
       const at = document.activeElement
@@ -263,8 +283,10 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
+      wide.removeEventListener('change', coverAgain)
+      cancelAnimationFrame(frame)
       width.disconnect()
-      for (const el of behind) el.inert = false
+      for (const el of [...behind, ...docks()]) el.inert = false
     }
   }, [view, open, close, drop])
 }

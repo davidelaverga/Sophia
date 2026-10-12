@@ -2435,12 +2435,22 @@ button.contribution-quote:hover {
   text-align: center;
 }
 /* The same note from other views, above the mini dock. */
-.mini-note {
+/* What the dock says, in one stack above it (below it in the header): each line takes its own height, so a note that
+   wraps never meets her looking (Codex on #254). */
+.mini-dock .dock-notes {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
+  display: grid;
+  justify-items: end;
+  gap: 8px;
   width: max-content;
   max-width: min(44ch, calc(100vw - 2 * var(--gutter)));
+}
+.mini-dock .dock-notes:empty {
+  display: none;
+}
+.mini-note {
   text-align: left;
 }
 .floor {
@@ -2514,13 +2524,7 @@ button.contribution-quote:hover {
   }
 }
 .mini-dock .sophia-looking {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
   width: max-content;
-}
-.mini-dock:has(.mini-note) .sophia-looking {
-  bottom: calc(100% + 48px);
 }
 .floor-error {
   position: absolute;
@@ -2801,7 +2805,8 @@ button.contribution-quote:hover {
   font-size: 12px;
 }
 
-/* The room from other views: a small floating bar. */
+/* The room from other views: in the header's end cluster on a wide screen (docs/plans/dock-header.md), a small
+   floating bar on a narrow one. */
 .mini-dock {
   position: fixed;
   right: var(--gutter);
@@ -2832,6 +2837,65 @@ button.contribution-quote:hover {
 .mini-dock .round {
   width: 32px;
   height: 32px;
+}
+/* In the header: a group of controls, not a bar. Static, no glass, no shadow, no rise; the pill the ghost's height,
+   a hairline before the connection pill. */
+@media (min-width: 721px) {
+  .topbar .mini-dock {
+    position: relative; /* its notes keep it as their box (below, not above the header: Codex on #254) */
+    inset: auto; /* the floating dock's offsets mean nothing here */
+    gap: 2px;
+    padding: 0 8px 0 0;
+    margin-right: 2px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    animation: none;
+  }
+  .topbar .mini-dock .pill {
+    height: 28px;
+    padding: 0 10px;
+  }
+  .topbar .mini-dock .round {
+    width: 28px;
+    height: 28px;
+  }
+  /* What the dock says (a join or device error, Sophia looking) hangs under the header, where there is page. */
+  .topbar .mini-dock .dock-notes {
+    top: calc(100% + 10px);
+    bottom: auto;
+    max-width: 240px;
+  }
+  /* Live, the dock says the room's state itself: the connection pill yields its room when it would only say «Up to
+     date», so the views' nav keeps standing at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more).
+     Connecting, reconnecting or catching up is said beside the dock still: stale data in a call is not hidden (Codex
+     on #254). */
+  .topbar-end:has(.mini-dock[data-live]) .connection[data-state='live'] {
+    display: none;
+  }
+  /* The header's dock is at the top of the page: its tips open under its controls, not above the window (Codex on
+     #254). */
+  .topbar .mini-dock .tip {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+}
+/* A finger's width in the header too: the switches keep 40 px across on a coarse pointer (Codex on #254). */
+@media (min-width: 721px) and (pointer: coarse) {
+  .topbar .mini-dock .round {
+    min-width: 40px;
+  }
+}
+/* The header of two rows (721 to 760 px: the views' row, 44 px, stands under the end cluster): what the dock says hangs
+   under both rows, not over the views (Codex on #254). */
+@media (min-width: 721px) and (max-width: 760px) {
+  .topbar .mini-dock .dock-notes {
+    top: calc(100% + 54px);
+  }
 }
 
 /* Room access: the lobby over the stage and the Invite panel. */
@@ -2907,7 +2971,9 @@ button.contribution-quote:hover {
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
   position: fixed;
-  top: calc(var(--topbar) + 24px);
+  /* Under what the header's dock says, when it says something (a device error, Sophia looking): MiniDock keeps
+     --dock-notes-h, so the notes never cover the door's Decline and Let in (Codex on #254). */
+  top: calc(var(--topbar) + 24px + var(--dock-notes-h, 0px));
   right: var(--gutter);
   z-index: 15;
   width: min(320px, calc(100% - 2 * var(--gutter)));
