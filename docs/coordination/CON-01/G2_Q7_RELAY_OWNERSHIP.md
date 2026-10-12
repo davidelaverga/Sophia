@@ -2,7 +2,19 @@
 
 **What this is.** CON-01's answer to the open Q7 in [G2_RUNTIME_PLAN](G2_RUNTIME_PLAN.md) §0 ("Which process owns a reply child's relay"), and to §2.1's "Required" descendant-settlement mechanism. Codex asked for it in CX-0139 and mission request 6116456625. It is **one recommended design for the runtime owner (WBC-02/SDD-01) to agree or correct, as an engineering matter, before any Phase B write.**
 
-**Revision 2, after Codex's CX-0142** ([#198 comment 6116884508](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6116884508)), which reviewed revision 1 (`1c404b44`, SHA-256 `b088c4d0…`). The direction stays: (c), with the bridge owning fd 3. Revision 2 corrects three lifecycle findings and two details:
+**Revision 3, after Codex's CX-0143/CX-0144** ([#198 comment 6117118271](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6117118271); reviewer packet `815bccc3`), which read revision 2 (`1e5f9469`, SHA-256 `125fd49a…`) in full.
+- Codex found A–D materially amended, and one more P1 open.
+- The joint runtime owner's r1 record (`e24c0cf5`) is CHANGES_REQUIRED at revision 1. Revision 2 is under its review, not accepted.
+
+Revision 3 changes only these:
+
+| CX-0143/0144 | What was wrong | Where it is corrected |
+|---|---|---|
+| **P1-E** | A claim committed under one bridge, with that bridge dying before `go` (even before the spawn or the `start` line), left the request `pending`. A new hello terminalized only `running` requests; no second claim can be `first`; the command exists; and `reconcile_runtime_outbox` (0012:782-797) moves only the outbox. Nothing ended it | §6: hello's reply branch as one atomic table, by request, claim and lease, with unclaimed `pending` kept distinct. The replayed `create` (`runtime_cursor`, 0012:398-401) gets a truthful receipt. §7: `retire` for no home and for each partial home, never claiming a deletion that didn't happen. §10: every crash point and crossing as a test |
+| Guardian waits | The launcher's waits before the runtime started (its setup, the exec gate, the exec-status read) didn't all honour a cancellation or the end of the control channel | §5: every wait before the runtime starts is a bounded poll of the control channel, its child's `pidfd` and its own pipe. A self-armed `alarm` is the last resort. New exit codes: 72 (cancelled) and 73 (the exec wait timed out) |
+| Evidence | Revision 2 called pnpm's layout symlinks, citing `realpathSync`. Codex's pristine Darwin profile has 0 symlinks and 0 special files in 86 entries | §5, §9: the link rule is a policy for whatever links the Linux template has, and their actual targets are unknown. CX-0143's profile-only copy is added as the Darwin baseline only |
+
+**Revision 2, after Codex's CX-0142** ([#198 comment 6116884508](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6116884508)), which reviewed revision 1 (`1c404b44`, SHA-256 `b088c4d0…`). The direction stays: (c), with the bridge owning fd 3. Revision 2 corrected three lifecycle findings and two details:
 
 | CX-0142 | What was wrong | Where it is corrected |
 |---|---|---|
@@ -20,14 +32,15 @@
 
 **Read at** `7d8f415f`. For `apps/execution-host`, `packages/dsh-bundle`, `scripts`, `config`, `renderers`, `tests/integration` and `tests/support`:
 - `7d8f415f` is byte-identical to the plan's `f36a8fa0`, so the plan's line numbers hold.
-- Today's `main`, `26237d30`, differs from it there only in `scripts/paperclip-*.mjs`.
+- **Later `main` commits,** up to the one this revision was written against, change these paths only in `scripts/paperclip-*.mjs`. (CON's own unmerged `0048` is on the reply branches, not on `main`.) No line reference here depends on `main`.
 
 Abbreviations:
 - `supervisor:` is `apps/execution-host/src/runtime-supervisor.ts`;
 - `bridge:` is `packages/dsh-bundle/src/control-bridge.ts`;
 - `index:` is `packages/dsh-bundle/src/index.ts`;
 - `transport:` is `packages/dsh-bundle/src/transport.ts`;
-- `S2` is `db/candidates/con01-s2-conversation-reply-ledger.sql`.
+- `S2` is `db/candidates/con01-s2-conversation-reply-ledger.sql`;
+- `runtime_lease` is `db/migrations/0012_runtime_service.sql:386-395`. It locks the project and then the runtime instance, and refuses a bridge that is no longer the instance's (`40001`, "Runtime lease superseded"). Receipts (0016:85), observations (0023:22), `ready` (0012:615), research reserve (0025:367) and design (0039:59, 0041:46) all go through it.
 
 Pinned-package references are to the runtime artifact that `7d8f415f`'s build reproduces, `.artifacts/runtime/node_modules/.pnpm/…` (dsh `0.2.0-rc.2`). libuv is cited from Node v24.21.0's `deps/uv/src/unix/process.c` (SHA-256 `e79f9bd90787011d`).
 
@@ -168,11 +181,13 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
 
 **In the launcher, before the fork:**
 1. **The parent binding:** `prctl(PR_SET_PDEATHSIG, SIGKILL)`, then `getppid() == --parent`, or exit 119 (`owned-exec.py:13-16`). `SIGCHLD` is set to `SIG_DFL`. Node spawns from its loop thread, which lives as long as the process.
-2. **fd 0 (the control channel) and fd 3 must both be `AF_UNIX`/`SOCK_STREAM`,** as Node's `'pipe'` makes them, or exit 64.
+2. **fd 0 (the control channel) and fd 3 must both be `AF_UNIX`/`SOCK_STREAM`,** as Node's `'pipe'` makes them, or exit 64. Then `alarm(setupSeconds)` (30 s by default), the last resort over everything before the runtime starts (below).
 3. **The home:** `<root>` must be a directory owned by the effective uid, mode 0700, and not a link. Then `mkdir(<root>/<attemptId>, 0700)`, which may not already exist: `EEXIST` is the leftover case, `home_exists`, exit 71. Then `home/`, `home/tmp/`, `dsh-home/profiles/`, `work/` and `diag/`, each 0700.
 4. **fds 1 and 2** are opened onto `diag/stdout` and `diag/stderr` and `dup2`'d into place.
 5. **The profile copy** (below), and its digest check, else `profile_mismatch`, exit 70.
 6. **The capability check:** a Landlock ABI of at least 4, `seccomp`, x86_64, and `pidfd_open`. Else `containment_unavailable`, exit 69.
+
+**Between steps 3 and 6, and between copied files,** the launcher polls fd 0 without blocking. A `TERM` or `KILL` line, or end-of-file, ends the setup: exit 72 `cancelled`. No child exists yet, and the partial home stays for `retire` (§7).
 
 **The fork.** The exec gate and the exec-status pipe are made first.
 
@@ -181,7 +196,7 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
 - **b.** `/dev/null` onto fd 0.
 - **c. Landlock:** `RLIMIT_CORE` 0 (`landlock-launch.py:99`). An ABI of at least 4 (:96-98), with every filesystem right that ABI defines handled. Read and write beneath `<root>/<attemptId>`. Read and execute on the runtime directory, the pinned Node, and the system libraries and certificates (`/usr/lib`, `/lib*`, `/etc/ld.so.cache`, `/etc/ssl`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`), plus `/proc/self`, `/dev/null` and `/dev/urandom`. Nothing else; P7's trace fixes the exact read list. Then `no_new_privs` (:139) and `restrict_self` (:141). **The self-test:** creating a file in `<root>`, outside the home, must fail.
 - **d. The seccomp filter** (below), built with the child's own pid, which the `exec` doesn't change.
-- **e. The exec gate:** wait for the launcher's go byte, then close the gate.
+- **e. The exec gate:** wait for the launcher's go byte, then close the gate. An end-of-file on the gate (the launcher closed it without the byte) ends the child at once, with exit 118 and no `exec`.
 - **f.** Close everything but 0–3 and the close-on-exec status pipe. `chdir(work/)`, then `execve(--node, [node, entry, '--profile', name], env)`. `env` is built here from nothing:
   - `HOME`, `TMPDIR` and `DSH_HOME` under the home, and `SOPHIA_WORKSPACE` its `work/`;
   - `DSH_TELEMETRY_DISABLED=1`, `LANG=C.UTF-8`, `PATH=/usr/bin:/bin`;
@@ -192,7 +207,7 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
 - **A failure before the `exec`** writes one `status` `failed` line on fd 3 and exits 69. A failed `execve` writes a byte on the status pipe.
 
 **In the launcher, after the fork:**
-1. `pidfd_open(child)`. If it fails, the launcher closes the gate with no go byte, reaps the child by its own pid, and exits 69.
+1. `pidfd_open(child)`, at once. If it fails, the launcher closes the gate with no go byte, reaps the child by its own pid, and exits 69.
 2. **The lease:** `lease.json`, created with `O_EXCL`, the file and its directory fsynced. It holds two entries, the launcher and the reply's dsh, each with §8.5's five fields:
    - the pid;
    - `/proc/<pid>/stat` field 22, which the `exec` doesn't change;
@@ -200,7 +215,12 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
    - the executable: the Python realpath for the launcher, the realpath of `--node` for the child;
    - the nonce.
 3. **Close its fd 3, then write the go byte.**
-4. **Read the exec-status pipe:** end-of-file means the `exec` succeeded, a byte means it failed (exit 69).
+4. **The exec-status wait:** a poll of the status pipe, fd 0 and the `pidfd`, until `execWaitMs` (10 s by default). Each outcome:
+   - **end-of-file on the status pipe:** the `exec` succeeded. Then `alarm(0)`;
+   - **a byte on it:** the `exec` failed. The child is killed through the `pidfd` and reaped; exit 69;
+   - **a control line, or end-of-file on fd 0:** the child is killed through the `pidfd` and reaped; exit 72 `cancelled`;
+   - **the `pidfd` readable first** (the child died before its `exec`): reaped; exit 69;
+   - **the deadline:** the child is killed through the `pidfd` and reaped; exit 73 `exec_timeout`.
 5. **Loop on fd 0 and the `pidfd`:**
    - a `TERM` line is `pidfd_send_signal(SIGTERM)`;
    - a `KILL` line, or end-of-file on fd 0, is `pidfd_send_signal(SIGKILL)`;
@@ -214,10 +234,19 @@ spawn(SOPHIA_REPLY_PYTHON, ['-I', launcher, 'run', …], { stdio: ['pipe','ignor
 | 69 | `containment_unavailable` |
 | 70 | `profile_mismatch` |
 | 71 | `home_exists` |
+| 72 | `cancelled`: a control line or end-of-file before the runtime started; a child, if one existed, was killed through its `pidfd` and reaped |
+| 73 | `exec_timeout`: the exec-status wait ran out; the child was killed through its `pidfd` and reaped |
+| `SIGALRM` | `setup_timeout`: the last-resort `alarm` ended the launcher; the child, if any, ends by its `PDEATHSIG` |
 | 75 | dsh exited non-zero |
 | 76 | a signal ended dsh |
 | 119 | Wrong parent |
 | 0 | dsh exited 0 |
+
+**Bounded and cancellable before the runtime starts (CX-0144).** At every point before dsh is running, a cancellation reaches the launcher:
+- within one poll interval during setup (50 ms between steps and between files);
+- at once during the exec-status wait.
+
+If a child exists, the launcher kills it through its own `pidfd` and reaps it before it exits. The child itself never waits unbounded: the gate's end-of-file ends it, and so does its `PDEATHSIG`. If a step blocks anyway, the `alarm` ends the launcher, and `PDEATHSIG` its child. Nothing is signalled by number. The four cases are L0 in §9.
 
 **`reply-launch.py sweep --root <root>/replies`** (the supervisor's) and **`check --root … --attempt …`** (the bridge's, for `retire` when it holds no handle). For each lease entry:
 1. `pidfd_open(pid)`. `ESRCH` means `gone`.
@@ -257,7 +286,9 @@ Any other type (a FIFO, socket or device) makes the tree invalid. Hard links are
 - a relative target, resolved lexically from the link's own directory, must stay inside the tree;
 - an absolute target must lie beneath the read-only runtime directory, which Landlock grants read and execute.
 
-Any other target, or one dangling inside the tree, makes the template invalid. A bad template disables replies at host start (§6); goals are unaffected. pnpm's layout is symlinks into `node_modules/.pnpm` (the bundle is reached through one, `realpathSync` at `profile.mjs:126`). Which targets the Linux reply template actually has is recorded by P1 (§9).
+Any other target, or one dangling inside the tree, makes the template invalid. A bad template disables replies at host start (§6); goals are unaffected.
+
+**Whether the installed template has any links at all is not established.** Codex's pristine Darwin profile had 0 symlinks and 0 special files in its 86 entries (CX-0142, CX-0143). `profileDrift`'s `realpathSync` (`profile.mjs:126`) resolves a link if there is one, but proves none. The rule is a policy for any link a template has. The Linux template's actual entries and targets are unknown until P1 records them (§9). If they are entries the rule refuses, that is an incompatibility to report, not a reason to loosen the rule.
 
 ### Descendants, signals and sockets: the child's filter
 
@@ -331,7 +362,7 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
   | Kind | `ReplyChildren` method | What it does |
   |---|---|---|
   | `create` | `createReply` | **1. Redelivery:** a command this instance already holds is answered from its recorded receipts (as bridge:703-704), with no claim call. **2. Before the claim, `rejected`:** validation fails, `replies` is `null` (`containment_unavailable`), or 2 children are live (`runtime_busy`). **3. The claim:** `conversationClaim({attemptId, commandId, authorityEpoch, leaseId: instanceId})`, resent until answered within a bound. Only `first` goes on. `refused` (any code), or no answer, is answered **`outcome_unknown`** and spawns nothing. **4. Spawn** (§3), and the `start` line written. **5. The run gate,** on `ready`: `conversationGo({attemptId, commandId, authorityEpoch, leaseId})`, resent with the same body until answered within `goWaitMs`. **`go`:** write the one `go` line, queue the `delivered` receipt, and resolve; the command, and with it the prompt, is released. **`refused`** (`not_pending`, `stale_epoch`, `lease_mismatch`), **or no answer:** no `go` is written, the child is stopped as `stopReply` does, and the create is answered `rejected` with that code, or `go_unconfirmed` |
-  | `stop` | `stopReply` | **Fence the relay**, then the `stop` line. At `graceMs`, a `TERM` line on the launcher's control pipe; at `killMs`, a `KILL` line. Then wait for the launcher's exit, within a bound. **Then wait for every settle the child sent,** answered or out of its bound. Answer `checked` once the launcher has exited, or when there is no live child (as bridge:1175-1177), and `outcome_unknown` if it hasn't exited within the bound. **No signal is sent by the bridge** |
+  | `stop` | `stopReply` | **Fence the relay**, then the `stop` line. At `graceMs`, a `TERM` line on the launcher's control pipe; at `killMs`, a `KILL` line. Then wait for the launcher's exit, within a bound. **Then wait for every settle the child sent,** answered or out of its bound. Answer `checked` once the launcher has exited, or when there is no live child (as bridge:1175-1177). For an attempt this bridge never ran, that means `check` exits 0. Answer `outcome_unknown` if it hasn't exited within the bound. **No signal is sent by the bridge** |
   | `retire` | `retireReply` | §7's order; `checked`, or `failed` with a fixed code |
   | `inspect` | `inspectReply` | A content-free state: the gate, the child, the relay, counts and bytes, the ordinals and their settle state |
   | `resume`, `input`, `steer`, `hold` | — | `rejected`: a reply takes only these four |
@@ -347,7 +378,11 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
   - **A lost `go` answer.** The same body is resent. The API answers `go` again for the same claim lease and command (below), and the bridge writes `go` to the child once (a flag in `ReplyChild`).
   - **No answer at all:** the child never got `go`, so no call left. The create is answered `rejected` (`go_unconfirmed`), and whichever state the request reached, pending or running, ends `failed`/`runtime_rejected` (§8.2.1).
 - **The receipt stages for a reply `create`,** matching §8.2.1's table:
-  - **`rejected`** only where no model call can have left: before the claim (step 2); after `first`, for a launcher failure before `exec` (exit 64, 69, 70 or 119); at the gate's refusal or `go_unconfirmed`; or for a child that ended before `go`.
+  - **`rejected`** only where no model call can have left:
+    - before the claim (step 2);
+    - after `first`, for a launcher that ended before the runtime started: exit 64, 69, 70, 72, 73 or 119, or `SIGALRM` (`setup_timeout`);
+    - at the gate's refusal, or `go_unconfirmed`;
+    - for a child that ended before `go`.
   - **`outcome_unknown`** for any claim refusal or lost claim answer, and for `home_exists`. These never release anything (§7).
   - **`failed` after `delivered`,** with a fixed reason: `timeout`, `relay_invalid`, or `child_exited` (an end-of-file without a completed `turn/end`). A completed turn ends through capture, not through a receipt.
 - **Settles before terminal receipts (CX-0142 P1-C, the live path).** Any terminal receipt for a reply waits until every `settle` the child sent has been answered or has run out its bound. That covers `create` `failed` or `rejected` after `start`, and `stop` `checked` or `outcome_unknown`. So `conversation_mark_uncertain` (S2:377-397), which that receipt runs, never races an answered settle. **A settle still unanswered then is never sent after the receipt.** Its reservation becomes `uncertain` and follows §7's table.
@@ -396,12 +431,33 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
 - **`observations(batch, signal?)`:** the signal is new and optional. The goal path passes none, so it is unchanged.
 
 **The API and 0049** (held; the core and ledger owners' part):
-- **The claim's `lease_id` is the bridge's `instanceId`.**
+- **The claim's `lease_id` is the bridge's `instanceId`,** the same string `runtime_hello` stores as the instance's `bridge_instance_id` (0012:412; 0028:91).
+- **Every new runtime route goes through `runtime_lease`,** exactly as receipts and observations already do: claim, go, reserve, settle and acknowledged. A bridge superseded by a newer hello is therefore refused (`40001`), with the same lock order: the project, then the instance, then the request's row. A bridge that receives `40001` stops its reply children through their control channels and stops polling. That case arises only if an older bridge outlived its replacement, which is the goal path's exposure when a supervisor itself dies.
 - **`conversation_execution_go(attempt, command, lease, epoch)`, new** (behind `/go`). Under the request's row lock, for the claim's own command and lease, at the current epoch, with the request `pending`, it does exactly the transitions §8.2.1 assigns to `create` `delivered`: the binding and the attempt to `running`, and the request `pending` → `running`. It records the claim's outcome as `running` and answers `go`.
   - For the same lease and command, already `running`, it answers `go` again, without a second transition (the replay of a lost answer).
   - Anything else is refused.
   - The later `delivered` receipt is recorded and applies nothing twice. This replaces "only the committed delivered receipt moves pending→running" with one atomic transition that the receipt then records.
-- **`runtime_hello`'s reply branch** ends a `running` reply request `outcome_unknown` when its claim's lease isn't the hello's `bridgeInstanceId`, with its open reservations `uncertain` (`conversation_mark_uncertain`, S2:379), and lists its binding `stopped`. This is how a restart's "a request that was `running` ends `outcome_unknown`" (§8.5) gets its writer: the bridge that ran it is gone, and with it the child, through `PDEATHSIG`.
+- **`runtime_hello`'s reply branch (CX-0144 P1-E): one atomic table.**
+  - **Where it runs:** in the hello's own transaction, after its project lock and instance update (0028:90-94), so after `runtime_lease`'s order.
+  - **How:** for each reply request of this runtime unit that is not yet retired, its row is locked `FOR UPDATE`, in attempt-id order, and the request, its claim, and the claim's lease against this hello's `bridgeInstanceId` decide the row. The table is written as 0049's reply branch, the core owner's.
+  - **Why the old bridge is dead:** a new instance id for the unit means the previous instance has exited. The supervisor launches a generation only after the previous one's exit (supervisor:216-221, :227-248), under the project lease. Its launchers and children went with it (`PDEATHSIG`), and the sweep checked them (§5).
+
+  | Request | Claim | Claim's lease | Transition (once, under the lock) | Hello lists | `retire` |
+  |---|---|---|---|---|---|
+  | `pending` | none | — | **none: unclaimed pending is untouched.** If its `create` command exists, the cursor replays it (`runtime_cursor`, 0012:398-401), and it may still claim `first`. That is its first execution, since no claim means no spawn. If no command exists, §2.4's reconcile path applies | `active` | — |
+  | `pending` | `claimed` | this instance (a reconnect) | none | `active` | — |
+  | `pending` | `claimed` | another instance | **lease lost before `go`:** the request goes to `outcome_unknown` (terminal, `settled_at` set), the attempt to `outcome_unknown`, the binding to `lost`, and the claim's outcome to `lost`. `conversation_mark_uncertain` runs and moves 0, since no reservation can exist before `running` (S2:311). The `create` payload is scrubbed in `runtime_commands.body` | `stopped` | written |
+  | `running` | `running` | this instance | none | `active` | — |
+  | `running` | `running` | another instance | **lease lost after `go`:** as the row above, and every open reservation becomes `uncertain` | `stopped` | written |
+  | `cancelled` (withdrawn) | `claimed` or `running` | another instance | the request stays `cancelled`; the claim's outcome becomes `lost`. Its unanswered `stop` is replayed by the cursor | `stopped` | written by that `stop`'s `checked` (§8.2.1) |
+  | any other terminal state | any | any | none | `stopped` until retired | already written |
+
+  - **The hello writes no runtime receipt.** Its transition is the terminal writer. The `create` command stays unanswered, so the cursor replays it to the new bridge, whose claim answers `not_pending`. That bridge answers it `outcome_unknown` (`claim_refused:not_pending`), a true answer that is recorded and moves nothing (§8.2.1, "No receipt revives a reply"). The command is then answered, the cursor moves past it, and its outbox row maps to `outcome_unknown`, which Q12's correction keeps out of the reconcile window.
+  - **Whatever the new bridge answers a replayed `create` with** (`outcome_unknown` after the claim's refusal, or `rejected` before any claim, when its replies are off or it is busy), a receipt after a terminal state moves nothing (§8.2.1). The `rejected` row releases only a reservation still `reserved`, and the hello left none: it moved them to `uncertain`, or there were none.
+  - **No new logical request, model call or allowance reset.** The transition creates no outbox row or command and no reservation, and only `uncertain` changes any count.
+  - **Races, all serialized by the project lock and then the request's row:**
+    - a claim or go from the old bridge either committed before the hello (and the table sees it) or is refused afterwards (`40001`, or `not_pending`);
+    - a `conversation_cancel` either committed first (the `cancelled` row) or follows, and finds the request terminal.
 - **`conversation_reconcile`'s proof source** (S2:407-411, a `no_proof_source` stub today): the attempt's recorded `usage_records`, matched to the reservation by the item's `ordinal` (§7). It is wired by the ledger owner and run only by an operator, separately authorized. Q7 adds no automatic path to it.
 
 ## 7. Correlation, the uncertain dispatch, recovery, and settlement before cleanup
@@ -471,15 +527,54 @@ Q7 never calls anything else.
 
    Anything missing is `failed` with a fixed code (`child_live`, `relay_open`, `barrier:<condition>`, `lease_mismatch`, `delete_failed`). The home stays, said pending, and is retried at the next hello (§8.5, step 5).
 
+   **Before step 4,** `retireReply` waits, within a bound, until every receipt this bridge itself queued for the attempt has been acknowledged. So the barrier never runs ahead of the bridge's own receipts.
+
+**`retire` by the state of the home (CX-0144),** including a new bridge with no `ReplyChild` for the attempt. The reason recorded with `checked` says what was true; **`checked` never claims a deletion that didn't happen**, and never comes before the barrier:
+
+| The home | What it means | `retire` |
+|---|---|---|
+| absent | the launcher never made it: the bridge died after the claim and before the spawn, or the launcher before its `mkdir` | the barrier, then `checked`, reason `home_absent` |
+| present, no lease | the launcher died between its `mkdir` and its lease: no dsh ran | no journal; the barrier; delete, verify; `checked`, reason `home_deleted` |
+| a lease, both entries `gone`, no journal | dsh never ran, or ran without a `start` line | the barrier; delete, verify; `checked`, `home_deleted` |
+| a lease, `gone`, a journal with no observation | the run ended before `go`: the journal holds at most its command record | the journal read under its bound and schema; the barrier; delete, verify; `checked`, `home_deleted` |
+| a lease, `gone`, a journal with observations | the run passed `go` | the recovery relay first (`fromJournal`, below), then as above |
+| a journal torn or unreadable beyond its last whole entry | — | `failed`, `barrier:journal`; the home stays, said pending |
+| a lease entry live and matching | can't happen after the sweep | `failed`, `child_live`; the next sweep stops it through its `pidfd` |
+| a lease entry live, not matching | — | `failed`, `lease_mismatch`; the home is unresolved |
+
+**The barrier for a request the hello ended.** §8.5's conditions "the terminal receipt is recorded" and "capture's result is committed" are met by hello's committed transition when the journal holds no `turn/end` and no terminal receipt exists. Every other condition still applies, the payload scrub included.
+
 **After a restart** (`reconcileReply`):
 - The supervisor's sweep ran before this dsh started. With `PDEATHSIG`, no reply process of the old bridge is alive, and `check` confirms it per home.
-- Hello lists each reply binding `stopped` (§6's lease rule).
+- **What hello lists, by §6's table:**
+  - each lease-lost or terminal binding, `stopped`;
+  - an unclaimed `pending` one, `active`: its replayed `create` may still claim `first`;
+  - this instance's own, unchanged.
 - For a home that exists, `ReplyRelay.fromJournal`:
   - asks `/acknowledged` which keys are recorded, and each ordinal's ledger state;
   - sends the missing items reduced, with their usage and `ordinal`;
   - resends a journaled settle only for an ordinal still `reserved` (the table);
   - closes.
 - Nothing is re-run, and a recovered observation never publishes (§8.2.2).
+
+**Every crash point and crossing (CX-0144).** L1 is the bridge that claimed; L2 is the next instance. The `create` replay is the cursor's (0012:398-401).
+
+| Where L1 stops, or what crosses | Outcome |
+|---|---|
+| after its claim call, with the claim not committed | no claim. L2's hello leaves the request `pending`; the replayed `create` claims `first` under L2 and runs once |
+| after the claim committed, before the spawn | the hello's "lease lost before `go`" row: `outcome_unknown`. The replayed `create` is answered `outcome_unknown` by L2. `retire`: `home_absent` |
+| after the spawn, before the `mkdir` or before the lease | the same row. `retire`: `home_absent`, or the no-lease home, deleted |
+| after the `start` line, before `ready` or before the go call | the same row. The child died with L1 (`PDEATHSIG`). `retire`: a journal with no observation, deleted |
+| a lost claim answer, L1 alive | the resend finds `already_claimed`: `outcome_unknown`, no spawn (§6) |
+| a lost claim answer, then L1 dies | the "lease lost before `go`" row |
+| `go` committed, its answer lost, L1 alive | the resend is answered `go` again (same lease and command); one `go` line |
+| `go` committed, L1 dies before or after writing `go` | the "lease lost after `go`" row: `outcome_unknown`, open reservations `uncertain`. Recovery follows §7's ledger table |
+| L1's `delivered` receipt, or any write, sent after L2's hello | refused by `runtime_lease` (`40001`), so nothing is recorded. One that committed before the hello is the `running` row's input |
+| a reconnect by the same instance | its own rows untouched. Replayed commands are answered from memory (§6, step 1) |
+| withdrawn while `pending` and unclaimed | `conversation_cancel` ends it. The replayed `create`'s claim is refused: `outcome_unknown`, which moves nothing |
+| withdrawn while claimed, before `go`, L1 alive | the go call is refused, the child is stopped with no step, and the create is answered `rejected` |
+| withdrawn while claimed, before `go`, L1 dead | the `cancelled` row. The replayed `stop` is answered `checked` by L2 (no live child; `check` exits 0), which writes `retire` |
+| withdrawn after `go` | the ordinary `stop` (below), or the `cancelled` row if L1 died |
 
 **Withdrawal:**
 - **Before `go`:** the go call is refused, the child takes no step, and the create is answered `rejected` (§6).
@@ -525,6 +620,8 @@ A late line, live or recovered, is stored scrubbed with its usage. A later `crea
 | `l0-fds.out` | `3ce9f7646f124f0a` | Exactly fds 0–3 survive the `exec`: 0 is `/dev/null`, 3 is `AF_UNIX`/`SOCK_STREAM`; the gate and the status pipe don't. Its fd 2 is the probe's own redirect |
 | `l0-unix-child.mjs`, `l0-unix-bridge.mjs` | `6798f72c43a82a69`, `c5d3fb2bdeb922ec` | The same launcher, with and without the `AF_UNIX` rule |
 | `l0-unix.out` | `622407a8e92c9990` | Without the rule, an abstract listen succeeds. With it, an abstract listen and a connect by path fail `EPERM`; DNS, a loopback `fetch`, a worker, and the line on the inherited fd 3 all still work |
+| `l0-launcher2.py`, `l0-cancel-bridge.mjs`, `l0-cancel-child.mjs` | `c1e4d600110c1b2b`, `ca3c09080cc95af1`, `beba341f7fd541cb` | Revision 3: §5's waits before the runtime starts. Setup polls the control channel between steps; the exec-status wait polls the status pipe, the control channel and the `pidfd`, until a deadline. The bridge stand-in cancels at each stage and never signals |
+| `l0-cancel.out` | `028d1c07a7556686` | **Setup cancelled by a `TERM` line:** exit 72 in 366 ms, with no child forked. **Child stalled before the gate, control end-of-file:** exit 72 in 357 ms, the child killed through the `pidfd` and reaped (`/proc/<pid>` gone). **Child stalled after the gate:** the exec wait timed out at 1 s, exit 73, the child reaped. **Runtime started, `TERM`:** exit 0. None of the cancelled cases reached the runtime (no fd 3 line) |
 | `fd3-parent.mjs`, `fd3-child.py`, `fd3-run.out` | `cf26d1433d93cdd0`, `96be0ff2ad75be66`, `26314673f260b457` | From revision 1: Node's `'pipe'` at fd 3 is a duplex `AF_UNIX`/`SOCK_STREAM` socket |
 | `fd3-node-parent.mjs`, `fd3-node-child.mjs`, `fd3-node-run.out` | `3907ed69697cf325`, `9b7281407b8c8e6c`, `80bc52444c13cd5a` | From revision 1: a Node child opens fd 3 as `net.Socket({fd: 3})` and exits on end-of-file. **Its "`kill()` after the exit returns `false`" is withdrawn as evidence of identity** (§2) |
 | `noproc-exec.py`, `noproc-node.mjs`, `noproc-run.mjs`, `noproc-run.out` | `978d111723c7e06c`, `c7169f3709a5186c`, `3aad16b9b666a48c`, `397e7cf2161e820c` | From revision 1: the process-creation part of the filter alone |
@@ -537,13 +634,20 @@ A late line, live or recovered, is stored scrubbed with its usage. A later `crea
 - **P1–P6:** the plan's §4.1.
   - **P1 now names the template recipe (§5):**
     - install the reply template once on Linux;
-    - record its link targets against the link rule, and its `sophia-reply-tree-v1` digest;
+    - record every entry's type, every link and its target, against the link rule, and its `sophia-reply-tree-v1` digest (none of these is known for Linux today);
     - copy it into an empty home and match the digest;
     - boot the copy offline.
   - **Codex's CX-0140** ([`ebd87c1d`](https://github.com/davidelaverga/Sophia/blob/ebd87c1dd20212c5447db43eb6e32f211662a4dc/docs/coordination/CON-01/CX-0140.md), `CX-0140.md` SHA-256 `00fc4f0c385cc635`) is **the Darwin runtime-profile baseline only**:
     - **the setup:** all network denied by `sandbox-exec`, no credentials, Node 24.21.0, and the existing artifact matching `7d8f`'s recorded Darwin runtime (tree-v2 `e24cb887…`, 28,427 entries) and bundle;
-    - **what it saw:** a frozen offline install in 376 ms; a copy of that pristine install, symlinks kept, into a second empty home, with `profileDrift` `[]`; and an 8-second bounded boot that loaded the bridge, reported `not_ready` (no service binding), was never ready, printed no startup diagnostic, and ended with status 0 after the bounded stop.
+    - **what it saw:** a frozen offline install in 376 ms; a copy of that pristine install, into a second empty home, with `profileDrift` `[]`; and an 8-second bounded boot that loaded the bridge, reported `not_ready` (no service binding), was never ready, printed no startup diagnostic, and ended with status 0 after the bounded stop. **That pristine profile had 0 symlinks and 0 special files** (CX-0142, CX-0143), so revision 2's "symlinks kept" is withdrawn.
     - **What it doesn't show:** it is not evidence for a Linux reply template, for this recipe or its link rule, or, in Codex's words, for "a useful reply, complete file-write/canary accounting, absence of other host copies, pidfd/namespace/Landlock, descendant settlement, crash/orphan recovery, withdrawal or durable delivery".
+  - **Codex's CX-0143 profile-only copy** ([`815bccc3`](https://github.com/davidelaverga/Sophia/blob/815bccc3cd89b767a370fa96878e48511c1eea59/docs/coordination/CON-01/CX-0143.md), `profile-only.safe.json`) narrows CX-0140 from a whole-home copy to the profile alone:
+    - the same Darwin setup, from source `3b1a7ea6` with helpers identical to `7d8f`;
+    - only `profiles/<name>` copied into an empty home: template and copy have 86 entries each and the same digest, `sophia-tree-v2:sha256:108d23ed611cea04…`;
+    - `profileDrift` `[]`;
+    - an 8-second boot: bridge loaded, `not_ready`, never ready, status 0.
+
+    It too is the Darwin baseline only. It is not P1's Linux template, P7, P8, the copy's completeness, or provider acceptance. (Comparing a template and its copy with the existing `sophia-tree-v2` worked there. The reply recipe differs in also listing directories and excluding nothing, and either must be one implementation used at both ends.)
 - **P7:** dsh `0.2.0-rc.2` boots a copy of the reply template under the real launcher: Landlock, the full filter, four descriptors, and fd 3 opened by `sophia-reply-child`. It then completes one stub reply:
   - no step and no call before `go`;
   - every model call reserved over fd 3, and each `assistant/message` and `compaction/summary` carrying its `ordinal`;
@@ -581,6 +685,14 @@ Every process these tests signal is one they started themselves. None attempts p
     - `tkill` and the `pidfd_*` calls get `EPERM`;
     - an `AF_UNIX` `socket` or `socketpair` gets `EPERM`, while fd 3 still works;
   - no `core*` after an abort.
+
+  **Bounded before the runtime starts (revision 3):**
+  - a `TERM` line, and separately end-of-file, during setup (a stubbed slow copy): exit 72, no child forked, the partial home left for `retire`;
+  - the child stalled before the gate, then control end-of-file: exit 72, the child killed through its `pidfd` and reaped;
+  - the child stalled after the gate: exit 73 at `execWaitMs`, the child reaped;
+  - a setup step that blocks (stubbed): the `alarm` ends the launcher, and the child's `PDEATHSIG` ends it;
+  - the gate closed without its byte: the child exits 118 with no `exec`;
+  - in every case: no fd 3 line from a runtime, and an owned decoy untouched.
 
   **Control and signals:**
   - a `TERM` line, a `KILL` line, and control end-of-file each reach the child only through `pidfd_send_signal`. `strace -e trace=kill,tgkill,tkill,pidfd_send_signal` on the launcher shows no numeric `kill`;
@@ -629,7 +741,10 @@ Every process these tests signal is one they started themselves. None attempts p
     - a third `create` gives `runtime_busy` with no claim call;
     - the claim's `first`, each `refused` code, and a lost answer: spawn counts 1, 0, 0, and the stages `delivered`, `outcome_unknown`, `outcome_unknown`;
     - a redelivered `create` answered from memory, with no claim call.
+  - **Crash points and crossings (revision 3, P1-E).** A stub API and a second bridge instance cover each row of §7's crossing table. Each case states its terminal state, its replayed-command receipt, and its spawn, claim and stub-provider call counts: no second claim `first`, no second spawn, no new call.
   - **Retire and recovery:**
+    - `retire` by each row of §7's home table: absent (`checked`, `home_absent`), no lease, a gone lease without a journal, a pre-`go` journal (`checked`, `home_deleted`), a torn journal (`failed`), a live matching lease (`child_live`), and a mismatched lease (`lease_mismatch`);
+    - `retire` waits for the bridge's own queued receipts for the attempt before the barrier;
     - `retire` with each condition withheld in turn;
     - `fromJournal` against each row of §7's table (`reserved` with a settle body and the request answered; `reserved` with the request `running` at the hello; `settled`, the same and different; `uncertain`). It resends a settle only for the first, and never calls settle for `uncertain`.
   - **Goals:** goal attempts' observations and receipts byte-identical.
@@ -645,6 +760,7 @@ Every process these tests signal is one they started themselves. None attempts p
   - the reply's dsh is the launcher's child, and the launcher the project's dsh's;
   - the reply's dsh's `/proc/<pid>/fd` at `exec`;
   - `SIGKILL` on the project's dsh: the launcher and the reply's dsh are gone within a bound (`PDEATHSIG`), and the next hello ends the request `outcome_unknown` by the lease rule;
+  - **the same `SIGKILL` at each pre-`go` point:** after the claim and before the spawn, after the spawn and before the `start` line, and after `ready` and before `go`. Each ends `outcome_unknown` at the next hello. The replayed `create` is answered `outcome_unknown` and moves nothing. `retire` gives `home_absent` or `home_deleted`, as the home was. The stub provider's call log is unchanged;
   - a crash after a reserve and before its settle's answer: after the restart the reservation is `uncertain`, no settle is sent for it, its usage is recorded with its `ordinal`, and the allowance is unchanged until an operator reconciles;
   - no reply text in the supervisor's `log`.
 - **`packages/persistence/src/runtime.db.test.ts`** (extended):
@@ -656,7 +772,18 @@ Every process these tests signal is one they started themselves. None attempts p
     - an older epoch, `stale_epoch`;
     - another lease, `lease_mismatch`;
     - the later `delivered` receipt applies nothing twice;
-  - **hello's lease rule:** another instance's `running` request ends `outcome_unknown` with its reservations `uncertain`; the same instance's does not;
+  - **hello's table (revision 3, P1-E), each row of §6's table under real PostgreSQL.** **Fail-before:** against revision 2's rule (`running` only), the `pending`-and-claimed row from another instance stays `pending` for ever. **After:**
+    - that row ends `outcome_unknown`, with `conversation_mark_uncertain` moving 0, the payload scrubbed, and `retire` written once;
+    - the `running` row ends `outcome_unknown` with its reservations `uncertain`;
+    - this instance's own rows are untouched;
+    - an unclaimed `pending` row is untouched, and its replayed `create` claims `first` under the new instance;
+    - a `cancelled` claimed row stays `cancelled`;
+    - no outbox row, command or reservation is created by any row;
+    - the replayed `create`'s `outcome_unknown` receipt moves nothing;
+    - **races:**
+      - a claim, go, reserve, settle or receipt from the superseded instance after the hello gets `40001`;
+      - one committed before the hello is the table's input;
+      - `conversation_cancel` either before or after the hello leaves one terminal state;
   - every goal case unchanged.
 
 ## 11. What the owner is asked to agree, before any Phase B write
@@ -667,8 +794,9 @@ Every process these tests signal is one they started themselves. None attempts p
 4. **The template recipe, `sophia-reply-tree-v1`,** and its link rule (§5), with P1 recording the Linux template.
 5. **The exact names in §6:** the methods, transport calls, settings, launcher subcommands and exit codes.
 6. **The run gate:** `conversation_execution_go` as the one atomic `pending` → `running` transition, with its replay rule (§6, with the core and ledger owners).
-7. **The claim's lease** as `bridgeInstanceId`, and hello's lease rule (§6).
-8. **The receipt mapping and order** (§6): `rejected` only where no call can have left; every claim refusal is `outcome_unknown`; settles before terminal receipts.
-9. **§7's recovery table,** and `conversation_reconcile`'s proof source as the operator's separately authorized path, with no automatic release, retry or reset.
+7. **The claim's lease** as `bridgeInstanceId`, every new runtime route behind `runtime_lease`, and **hello's reply table** (§6), with `retire` by home state and the crossing table (§7). This is CX-0144's P1-E, for the core and ledger owners too.
+8. **The launcher's bounded, cancellable waits** before the runtime starts (§5): exits 72 and 73, and the `alarm` as the last resort.
+9. **The receipt mapping and order** (§6): `rejected` only where no call can have left; every claim refusal is `outcome_unknown`; settles before terminal receipts.
+10. **§7's recovery table,** and `conversation_reconcile`'s proof source as the operator's separately authorized path, with no automatic release, retry or reset.
 
 Once agreed, the plan's §5 order stands. Each step is its own pin, with a fail-before and the full gates, on the accepted base, after Q12's correction.
