@@ -30,7 +30,7 @@ import { useAsks } from './AskSophia.tsx'
 import { NOT_CONNECTED, NOT_READ, type Ask } from './ask.ts'
 import { moveOnBoard } from './board-keys.ts'
 import type { BoardView, ItemView } from './board-view.ts'
-import { Decision, type Decide } from './Decision.tsx'
+import { Decision, type Decide, type DecisionAnswer } from './Decision.tsx'
 import { Lens } from './Lens.tsx'
 import { shows, type LensName } from './lenses.ts'
 import {
@@ -52,6 +52,8 @@ import {
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
+import { nextUp } from './next-up.ts'
+import { NextUp } from './NextUp.tsx'
 import { Folded } from './PlanNotes.tsx'
 import type { Challenge } from './challenges.ts'
 import { ProposalBand } from './Proposal.tsx'
@@ -658,6 +660,48 @@ interface BodyProps extends Props {
   board: Board
 }
 
+/** The tasks waiting for the viewer (their wait is the viewer's to answer), in the board's lane order. */
+const waitingFor = (rows: readonly PlanRow[], viewerId: string | null) =>
+  viewerId === null
+    ? []
+    : LANES.flatMap((l) => inLane(rows, l.key))
+        .filter((r) => r.status.mark === 'waiting' && r.status.on?.id === viewerId)
+        .map((r) => ({ id: r.item.id, name: r.item.purpose }))
+
+/**
+ * After the viewer's answer, what waits on them next on this board (docs/plans/next-up.md): the decisions answered in
+ * this visit, the line shown until used, the decisions' pill pressed, or (nothing next) the focus gone.
+ */
+function useNextUp(
+  rows: readonly PlanRow[],
+  viewerId: string | null,
+  slot: ReturnType<typeof useSlot>,
+  onOpenTask: (id: string) => void,
+  onDecide: Decide | undefined,
+) {
+  const [answered, setAnswered] = useState<readonly string[]>([])
+  const [shown, setShown] = useState(false)
+  const review = slot.review !== null && !slot.reviewShown
+  const next = shown
+    ? nextUp({ answered, decisions: slot.asks.mine, waiting: waitingFor(rows, viewerId), review })
+    : null
+  const decide =
+    onDecide &&
+    ((answer: DecisionAnswer) => {
+      setAnswered((was) => [...was, answer.decision_id])
+      setShown(true)
+      return onDecide(answer)
+    })
+  const close = () => setShown(false)
+  const go = () => {
+    close()
+    if (next?.kind === 'decision' && next.id) slot.openDecisions(next.id)
+    else if (next?.kind === 'task' && next.id) onOpenTask(next.id)
+    else if (next?.kind === 'review') slot.toggleReview()
+  }
+  return { next, decide, close, go }
+}
+
 interface BarProps {
   view: ReturnType<typeof useBoard>
   rows: readonly PlanRow[]
@@ -666,13 +710,15 @@ interface BarProps {
   people: Record<string, Person>
   away: ReturnType<typeof whileAway>
   onSeen: () => void
+  /** The decisions' pill pressed: the line under the bar goes too. */
+  onPill: () => void
 }
 
 /**
  * The board's bar: the lenses, what waits on a decision, a review that proposes a change, and what changed while the
  * viewer was away.
  */
-function Bar({ view, rows, viewerId, slot, people, away, onSeen }: BarProps) {
+function Bar({ view, rows, viewerId, slot, people, away, onSeen, onPill }: BarProps) {
   const { asks } = slot
   return (
     <div className="board-bar">
@@ -683,7 +729,10 @@ function Bar({ view, rows, viewerId, slot, people, away, onSeen }: BarProps) {
         expired={asks.open.length - asks.active.length}
         mine={asks.mine.length}
         shown={slot.decisionsShown}
-        onToggle={slot.toggleDecisions}
+        onToggle={() => {
+          onPill()
+          slot.toggleDecisions()
+        }}
         people={people}
         deciders={asks.active.map((d) => d.decider_id)}
       />
@@ -749,11 +798,14 @@ function BoardBody(props: BodyProps) {
   const opened = rows.find((r) => r.item.id === view.open)
   const shortOf = (row: PlanRow) => accountOf(row, props).tile
   const tile = { plan, viewerId, now, onLight: view.setLit, onOpen: view.setOpen, flags: view.flags, shortOf }
-  const decisionProps = { plan, plans: plansOf(goal), people, now, viewerId, onDecide: ports.onDecide }
+  const after = useNextUp(rows, viewerId, slot, view.setOpen, ports.onDecide)
+  const decisionProps = { plan, plans: plansOf(goal), people, now, viewerId, onDecide: after.decide }
   const away = whileAway(rows, goal.decisions, seen, { viewerId, people, now })
+  const bar = { view, rows, viewerId, slot, people, away, onSeen: markSeen, onPill: after.close }
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
-      <Bar view={view} rows={rows} viewerId={viewerId} slot={slot} people={people} away={away} onSeen={markSeen} />
+      <Bar {...bar} />
+      {after.next && <NextUp next={after.next} onGo={after.go} onDone={after.close} />}
       <Notices board={board} coverage={props.coverage} operable={operable} />
       <ProposalBand current={plan} proposals={proposed(goal).filter((p) => p !== plan)} operable={operable} />
       <Updating decisions={goal.decisions} {...decisionProps} />
@@ -771,15 +823,8 @@ function BoardBody(props: BodyProps) {
       {opened && (
         <TaskSheet
           {...props}
-          row={opened}
-          rows={rows}
-          plan={plan}
-          operable={operable}
+          {...{ row: opened, rows, plan, operable, viewerId, acts, asks: questions, account: accountOf(opened, props) }}
           next={goal.next_checkpoint}
-          viewerId={viewerId}
-          acts={acts}
-          asks={questions}
-          account={accountOf(opened, props)}
           onOpen={view.setOpen}
           onStep={view.step}
           onClose={() => view.setOpen(null)}
