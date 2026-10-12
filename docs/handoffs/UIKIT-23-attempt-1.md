@@ -121,3 +121,16 @@ the personal space, where every turn since the last seen is shown; the mark only
 
 `within` takes the work item id's shape (1 to 160 characters, as A13's `work_id`), not a uuid: a slug-named item's
 decision or permission validates. Spec and validators regenerated; `contracts:check` clean.
+
+## Post-review, round 8 (Codex on #245)
+
+Three P2s: a decision is addressed by its own id (`#decision-<id>`), the board scrolling to its choice instead of
+opening the holding task's sheet; a need's title is up to 1200 characters (A13's question); a reply is marked seen once
+its turn is shown in the personal space (`turnShown`), not on the press. Spec, validators and `needs.test.ts` with it.
+
+## Post-review, round 9 (Codex on #245)
+
+Four P2s: the decision address moved into the board slot (`useSlot` in `PlanBoard.tsx`): it opens the slot when it is
+shut, names the decision for the focus (given by `Decisions` inside its own list) and consumes the address once (a
+handled sequence). `turnIsShown` requires a drawn turn (`getClientRects`), so a space mounted under a hidden place marks
+nothing. `work.spec.ts` presses on past the focus and re-addresses the decision with the slot shut.
