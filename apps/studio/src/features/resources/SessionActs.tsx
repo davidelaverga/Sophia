@@ -224,6 +224,8 @@ interface Props {
   target: CommandTarget
   offer: readonly Offer[]
   acts: Acts
+  /** The keys that press Hold (or Resume) and Stop where they are bound (a task's sheet: H, S), shown in their tips. */
+  keys?: { hold: string; stop: string } | undefined
 }
 
 /**
@@ -259,24 +261,24 @@ function GuidanceField({ acts, target }: { acts: Acts; target: CommandTarget }) 
   )
 }
 
-/** A plain control: Hold or Resume, its tip saying what it does when it isn't plain. */
-function ControlButton({ offer, onPress }: { offer: Offer; onPress: () => void }) {
+/** A plain control: Hold or Resume, its tip saying what it does when it isn't plain, and its key where it has one. */
+function ControlButton({ offer, onPress, keys }: { offer: Offer; onPress: () => void; keys?: string | undefined }) {
   const label = offer.kind === 'hold' ? 'Hold' : 'Resume'
   return (
     <button
       type="button"
-      className={offer.tip ? 'ghost has-tip' : 'ghost'}
+      className={offer.tip || keys ? 'ghost has-tip' : 'ghost'}
       aria-label={offer.tip ? `${label}: ${offer.tip}` : undefined}
       onClick={onPress}
     >
       {label}
-      {offer.tip && <Tip label={offer.tip} side="top" />}
+      {(offer.tip ?? keys) && <Tip label={offer.tip ?? label} keys={keys} side="top" />}
     </button>
   )
 }
 
 /** What can be sent: guidance, Hold or Resume, and Stop, each as offered. */
-function Offered({ target, offer, acts, onSend }: Props & { onSend: (kind: CommandKind) => void }) {
+function Offered({ target, offer, acts, onSend, keys }: Props & { onSend: (kind: CommandKind) => void }) {
   const kinds = new Set(offer.map((o) => o.kind))
   return (
     <>
@@ -285,7 +287,7 @@ function Offered({ target, offer, acts, onSend }: Props & { onSend: (kind: Comma
         {offer
           .filter((o) => o.kind === 'hold' || o.kind === 'resume')
           .map((o) => (
-            <ControlButton key={o.kind} offer={o} onPress={() => onSend(o.kind)} />
+            <ControlButton key={o.kind} offer={o} onPress={() => onSend(o.kind)} keys={keys?.hold} />
           ))}
         {/* Keyed by its exact execution: a Stop asked of one assignment, generation, attempt or session is never
             answered on the next, wherever this is shown (Codex F-008). */}
@@ -297,6 +299,7 @@ function Offered({ target, offer, acts, onSend }: Props & { onSend: (kind: Comma
             confirm="Stop"
             keep="Keep it working"
             onConfirm={() => onSend('stop')}
+            keys={keys?.stop}
           />
         )}
       </div>
@@ -308,7 +311,7 @@ function Offered({ target, offer, acts, onSend }: Props & { onSend: (kind: Comma
  * The commands offered for one target, each said as it is observed. With no port to send through, none is offered,
  * nor tried again, and what was sent is still said, its receipts landing as they come (Codex F-021).
  */
-export function SessionActs({ target, offer, acts }: Props) {
+export function SessionActs({ target, offer, acts, keys }: Props) {
   const known = acts.of(scopeOf(target))
   // The execution shown speaks; another attempt's or session's commands are its history, listed under it.
   const latest = known.findLast((k) => sameTarget(k.command.target, target))
@@ -323,7 +326,7 @@ export function SessionActs({ target, offer, acts }: Props) {
   return (
     <div className="session-acts">
       {acts.canSend ? (
-        <Offered target={target} offer={offer} acts={acts} onSend={send} />
+        <Offered target={target} offer={offer} acts={acts} onSend={send} keys={keys} />
       ) : (
         <p className="act-note muted">{NOT_SENDABLE}</p>
       )}

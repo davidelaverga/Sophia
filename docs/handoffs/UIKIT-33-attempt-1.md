@@ -56,3 +56,10 @@ question for Luis's eye. Then the same column reading on Updates and Knowledge (
 
 The light faces' ring takes `--void` (what the see-through head stands on), not `--plane`; the spec reads the ring
 against the first painted ancestor.
+
+## Post-review, round 2 (Codex on #257)
+
+- Measured at a phone's width (390 × 844, touch, the phone project): the list's words at 20 (title, Open, a row's
+  title), its boxes at 8 (the filter, a row), the «+» press 40 × 40 on the coarse pointer. conversations-column.spec
+  @phone holds the two edges 12 px apart and the press at 40 or more.
+- Sophia's disc on paper is the core's tint at 32 % (1.7:1 on the page; 12 % was 1.2:1); the spec reads it.

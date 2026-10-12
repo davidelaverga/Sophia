@@ -6,13 +6,11 @@ import { DRAWN, drawn } from './drawn.ts'
 const LABELS = [
   '.field-label',
   '.hw-label',
-  '.hw-date',
   '.updates-part > h3',
   '.updates-part > .recap-section h4',
   '.sheet-section h3',
   '.c3-label',
   '.palette-group',
-  '.conv-day',
 ].join(', ')
 
 /** The data that belongs small: keys, counts, chips, avatars and faces, times and «ago», versions, the evidence refs. */
@@ -43,14 +41,27 @@ const DATA = [
   '.tile-name',
   '.report-tile',
   '.at',
+  // Dates, times, durations and numbers inside labels: data too (Codex on #241).
+  '.hw-date',
+  '.conv-day',
+  '.c3-day-note',
+  '.report-main-data',
+  '.field-label .data',
+  '.link-text',
+  '.link-limits',
+  '.plan-ask-due',
+  '.capacity-history figcaption',
+  '.task-sheet-activity .muted',
 ].join(', ')
 
 const PAGES: readonly [string, string, (typeof DRAWN)[keyof typeof DRAWN]][] = [
   ['Tasks', '/room.html?demo=1&place=work', DRAWN.tasks],
   ['Updates', '/room.html?demo=1&place=updates', DRAWN.updates],
-  ['Resources', '/resources.html', DRAWN.resources],
+  // A resource's sheet open: the state that holds its section labels (Sessions, Capacity, Controls).
+  ['Resources', '/resources.html#resource-davide-codex', DRAWN.resources],
   ['Home', '/home.html?needs=some', DRAWN.home],
-  ['Personal', '/personal.html?demo=1', DRAWN.personal],
+  // Personal is not measured here: its one section label («Your notes», what she learned) comes with extras no page
+  // supplies yet (PersonalSpace's extras); a page with no label would only fail the coverage check (Codex on #241).
 ]
 
 const labelSizes = (page: Page) =>
@@ -78,7 +89,9 @@ for (const [name, url, parts] of PAGES) {
     await page.goto(url)
     await drawn(page, parts)
     const sizes = await labelSizes(page)
-    expect(sizes.length > 0 ? sizes : ['12px']).toEqual(['12px'])
+    // A page with no label measured has lost its coverage: that fails, never passes as 12 px (Codex on #241).
+    expect(sizes.length).toBeGreaterThan(0)
+    expect([...new Set(sizes)]).toEqual(['12px'])
   })
 }
 

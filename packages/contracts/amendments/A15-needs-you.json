@@ -4,8 +4,8 @@
   "title": "What needs the calling person, across their projects and their personal space, in one read (Needs you)",
   "why": [
     "Informe-30 F2 and informe-pasada-3 (2026-10-10/11): what needs a person today is spread over a project's Tasks (a decision waiting on them, with an expiry), a task's sheet (a native permission an agent asks for), a room's lobby (a guest waiting) and their personal space (Sophia's reply they have not read). A power user starting the day visits each to learn nothing is waiting. Home's right half shows the list already (Studio PR #237, behind the vision flag, on fixture data); this names the read that fills it.",
-    "One route for the calling person, owner-only as the personal space is (A10): nothing of another person is in it, and a project is in it only through the person's membership. Each need says what it is, where it lives and, for a decision or a permission, when it stops waiting; the reader opens it where it lives (the Studio names the view by its kind). The service builds it from what it already keeps: the work board's decisions whose decider is the person and that are still open (WorkDecision, with its expiry: the decision Tasks renders; the mission ledger's decisions have neither a respondent nor an expiry), the work board's waits of kind native_permission naming them (A13; a wait has no expiry, so a permission does not expire), the lobby entries waiting in rooms of projects they admit to (A02, A03), and the personal turns Sophia answered after the person's last seen turn (A10, with the seen mark this amendment adds). Each is identified by its own record (ref), so the Studio never guesses, and the list is sorted by urgency on the Studio's side (the expiring first). A review asked of a person has no record yet (A11 keeps verdicts, not requests): the kind waits for one.",
-    "A need leaves the list when its record is answered where it lives (the decision decided, the permission granted or refused, the guest let in or declined). A reply has no answer of its own, so this amendment adds the one transition it needs: POST /api/v1/me/needs/{id}/seen, owner-only, idempotent, which advances the person's last seen personal turn to the one the need names (A10 keeps that mark beside the space; the Studio posts it when the person opens the reply from Home, and the service may advance it too when the space itself is read). For any other kind the write answers 204 and changes nothing: those leave when answered. Not in this amendment: dismissing a need; a badge count is the list's length."
+    "One route for the calling person, owner-only as the personal space is (A10): nothing of another person is in it, and a project is in it only through the person's membership. Each need says what it is, where it lives and, for a decision or a permission, when it stops waiting; the reader opens it where it lives (the Studio names the view by its kind). The service builds it from what it already keeps: the work board's decisions whose decider is the person and that are still open (WorkDecision, with its expiry: the decision Tasks renders; the mission ledger's decisions have neither a respondent nor an expiry), the work board's waits of kind native_permission naming them (A13; a wait has no expiry, so a permission does not expire; A13's wait keeps no time either, so the service records when each wait was opened: new storage with this route, `opened_at` beside the wait), the lobby entries waiting in rooms of projects they admit to (A02, A03), and the personal turns Sophia answered after the person's last seen turn (A10, with the seen mark this amendment adds). Each is identified by its own record (ref), so the Studio never guesses, and the list is sorted by urgency on the Studio's side (the expiring first). A review asked of a person has no record yet (A11 keeps verdicts, not requests): the kind waits for one.",
+    "A need leaves the list when its record is answered where it lives (the decision decided, the permission granted or refused, the guest let in or declined). A reply has no answer of its own, so this amendment adds the one transition it needs: POST /api/v1/me/needs/{id}/seen, owner-only, idempotent, which advances the person's last seen personal turn to the one the need names (the mark is new storage with this route: A10 keeps no last seen turn, so the implementation adds one beside the space, a `last_seen_turn_seq` on `personal_spaces` by a migration; the Studio posts it when the person opens the reply from Home, and the service may advance it too when the space itself is read). For any other kind the write answers 204 and changes nothing: those leave when answered. Not in this amendment: dismissing a need; a badge count is the list's length."
   ],
   "patch": [
     {
@@ -19,8 +19,8 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200,
-            "description": "Stable for the record it names: `<kind>:<ref.id>`."
+            "maxLength": 600,
+            "description": "Stable for the record it names, and unique across the person's needs: `<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`. A13 bounds a wait's reference only by length, so two projects (or two work items) may hold the same one: the project and the holder are part of the id."
           },
           "kind": {
             "type": "string",
@@ -82,7 +82,7 @@
           "at": {
             "type": "string",
             "format": "date-time",
-            "description": "When it came to need the person: the proposal, the ask, the knock, the reply."
+            "description": "When it came to need the person: the proposal, the ask, the knock, the reply. For a permission, when its wait was opened: A13's WorkWait keeps no time, so the service records it (`opened_at` beside the wait, with this route's implementation)."
           },
           "ref": {
             "type": "object",
@@ -230,9 +230,9 @@
               "schema": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 200
+                "maxLength": 600
               },
-              "description": "The need's id (`<kind>:<ref.id>`)."
+              "description": "The need's id (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`)."
             }
           ],
           "responses": {
