@@ -4,6 +4,7 @@ import {
   INITIAL_VIEWER_STATE,
   addressLensFor,
   lensInAddress,
+  readLensWrite,
   readViewerState,
   storedViewerState,
   viewerKey,
@@ -52,6 +53,9 @@ it('chat drafts survive resnapshots in memory but never storage serialization or
   assert.equal(readViewerState(JSON.stringify(state)).drafts.converse, undefined)
 })
 
+/** An address: its path and search, as `window.location` gives them. */
+const at = (search: string, pathname = '/p/one') => ({ pathname, search })
+
 describe('the lens in the address', () => {
   it('reads a lens the address names, and nothing else', () => {
     assert.equal(lensInAddress('?lens=explore'), 'explore')
@@ -59,17 +63,26 @@ describe('the lens in the address', () => {
     assert.equal(lensInAddress('?lens=kitchen'), null)
     assert.equal(lensInAddress(''), null)
   })
-  it('writes the lens beside the rest, and says Converse by its absence', () => {
+  it('writes the lens beside the rest, Converse too; null takes it out (Codex on #242)', () => {
     assert.equal(withLensInAddress('?demo=1', 'build'), '?demo=1&lens=build')
-    assert.equal(withLensInAddress('?demo=1&lens=build', 'converse'), '?demo=1')
-    assert.equal(withLensInAddress('?lens=explore', 'converse'), '')
+    assert.equal(withLensInAddress('?demo=1&lens=build', 'converse'), '?demo=1&lens=converse')
+    assert.equal(withLensInAddress('?lens=explore', null), '')
     assert.equal(withLensInAddress('', 'explore'), '?lens=explore')
   })
-  it('is this viewer’s to read when the link is fresh or written for them; another subject reads none', () => {
+  it('is this viewer’s to read when fresh, written for them, or another address; another subject reads none', () => {
     const mine = viewerKey('davide', P)
-    assert.equal(addressLensFor(mine, '?lens=explore', null), 'explore') // a shared link, opened fresh
-    assert.equal(addressLensFor(mine, '?lens=explore', mine), 'explore') // written by this shell
-    assert.equal(addressLensFor(viewerKey('ana', P), '?lens=explore', mine), null) // another subject, same page
-    assert.equal(addressLensFor(mine, '?demo=1', null), null)
+    const wrote = { key: mine, address: '/p/one?lens=explore' }
+    assert.equal(addressLensFor(mine, at('?lens=explore'), null), 'explore') // a shared link, opened fresh
+    assert.equal(addressLensFor(mine, at('?lens=explore'), wrote), 'explore') // written by this shell
+    assert.equal(addressLensFor(viewerKey('ana', P), at('?lens=explore'), wrote), null) // another subject, same page
+    // Another project's link followed in this tab: its lens is read, whatever the tab wrote before (Codex on #242).
+    assert.equal(addressLensFor(viewerKey('davide', 'two'), at('?lens=build', '/p/two'), wrote), 'build')
+    assert.equal(addressLensFor(mine, at('?demo=1'), null), null)
+  })
+  it('reads the remembered write defensively', () => {
+    assert.deepEqual(readLensWrite('{"key":"k","address":"/p?lens=build"}'), { key: 'k', address: '/p?lens=build' })
+    assert.equal(readLensWrite('k'), null)
+    assert.equal(readLensWrite('{"key":1,"address":"/p"}'), null)
+    assert.equal(readLensWrite(null), null)
   })
 })

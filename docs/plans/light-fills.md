@@ -14,15 +14,16 @@
 - The chips already do it right (`.chip.teal`: the accent at 0.1 as the fill, the accent as the ink): the pattern
   exists; the tiles predate it.
 - The light core `#2f2566` was chosen for 12.6:1 with the mark in mind; the mark has its own inks since UIKIT-27, so
-  the core is free to be the brand's violet: `#5546b8` (the light theme's `--halo-text`) reads 7.0:1 under the paper's
-  ink `#fbf8f3`.
+  the core is free to be the brand's violet: `#5546b8` (the light theme's `--halo-text`) reads 6.7:1 under the paper's
+  ink `#fbf8f3` (WCAG's formula: 6.71; Codex on #250, the record said 7.0).
 
 ## What changes
 
 - **Fill tokens for the three accents that paint boxes with words**: `--teal-fill` / `--on-teal`, `--amber-fill` /
   `--on-amber`, `--rose-fill` / `--on-rose`. In the room: the accent and the void, as today. On paper: the accent at
-  0.14 over the paper, and the accent as the ink (teal 6.1:1, amber 5.6, rose 5.9 on paper: the same inks the chips
-  use). `.report-tile`, `.report-cover-mark` and `.report-cover-tag` take them.
+  0.14 over the paper, and the accent as the ink: against its own tint, teal 4.9:1 on `#dae4de`, amber 4.6 on
+  `#ece1d4`, rose 4.8 on `#efddde` (WCAG's formula; the record first gave them against the bare paper, 6.1, 5.6 and
+  5.9: Codex on #250). The same inks the chips use. `.report-tile`, `.report-cover-mark` and `.report-cover-tag` take them.
 - **The paper's core is the brand's violet**: `--core: #5546b8`, `--core-hover: #4a3ca6`, `--core-rgb: 85 70 184`;
   `--on-core` stays the paper. Every primary press, the live microphone and the ready send on paper turn from navy to
   the brand's violet. In the room nothing changes.
@@ -31,7 +32,8 @@
 ## Checks
 
 - `e2e/light-fills.spec.ts`: on Tasks and Knowledge in light the tiles and the tag are the opaque paper tints (no
-  alpha; the mixed values `#dae4de`, `#ece1d4`, `#efddde`, pinned) with the accent as ink, at 4.5:1 or more; on sign-in in light the primary press is `rgb(85, 70, 184)` and
+  alpha; the mixed values `#dae4de`, `#ece1d4`, `#efddde`, each pinned with its ink: the teal tile on Tasks, the amber
+  tag on Knowledge, and a PDF tile set beside the Markdown one on Tasks: no fixture lists a PDF output) with the accent as ink, at 4.5:1 or more; on sign-in in light the primary press is `rgb(85, 70, 184)` and
   hovers to `rgb(74, 60, 166)`, its ink at 4.5:1 or more; in the room the tile keeps the pastel fill and the void's ink.
 - `light-mode.spec` pins the new hover; `pnpm format`, `lint`, `typecheck`; measured in the pane before the push.
 

@@ -12,10 +12,10 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `66161f90` (tree `f5f83855827e`): 5 files: `ProjectShell.tsx` (`dock` slot on the header, `headerDock`, `useDockPlace`, the `floating`
-prop), `app/useMedia.ts` (new), `theme.css` (the dock in the header on a wide screen), `e2e/dock-header.spec.ts` (new,
-5), `docs/plans/dock-header.md`. The commit after it adds only
-this handoff.
+Ending commit/tree: the branch's head as merged (`ui/dock-header`). The first delivery was `66161f90` (tree
+`f5f83855827e`, 5 files); the reviewed result Codex named, `e2ced470` (tree `7aa64fb13884`), holds ten files with the
+later Conversations and voice-control changes described below; every change after it is listed with its commit in the
+post-review notes (Codex on #254: the record names the state delivered).
 
 ## Outcome
 
@@ -66,3 +66,13 @@ this handoff.
 
 The Knowledge cover's paper before paint (informe-ui-premium §3 movement 4); the phone's bottom bar (movement 11);
 the light in the project views when Luis looks.
+
+## Post-review, round 4 (Codex on #254)
+
+- In a call the connection pill yields only «Up to date»: connecting, reconnecting and catching up stay beside the dock.
+- The header dock's tips open under their controls; on a coarse pointer its switches keep 40 px across.
+- A side report's offset reaches only the floating dock; the header dock keeps `right: auto` and its place.
+- With the header dock in sight a full or narrow report pane does not repeat the call's switches and note.
+- What the dock says pushes the lobby under it (`--dock-notes-h`, kept by MiniDock from the notes' height).
+- Conversations' delayed cover is one frame at a time and cancelled with the panel.
+- dock-header.spec (+6) covers each; the touch width is skipped where the browser reports no coarse pointer.

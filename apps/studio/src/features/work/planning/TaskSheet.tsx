@@ -3,7 +3,8 @@
 // result, what it waits on in the plan and what waits on it, each of those one press away, and whether it is the
 // plan's next checkpoint. Then what the viewer may do to it (TaskActions) and a question to Sophia (AskSophia).
 // Everything is said in words, without hovering. Escape or Close returns to the tile it was opened from; J and K step.
-import { useEffect } from 'react'
+import { useContext, useEffect } from 'react'
+import { ShortcutScope } from '../../../app/shortcuts.ts'
 import { createPortal } from 'react-dom'
 import { Chip, Icon, Tip } from '@sophia/ui'
 import { Sheet } from '../../../app/Sheet.tsx'
@@ -157,7 +158,11 @@ const KEYS: Readonly<Record<string, (sheet: HTMLElement, onStep: Props['onStep']
 }
 
 function useSteps(onStep: Props['onStep']) {
+  // Out of scope (the project kept mounted behind Home or Personal for its live call), the sheet takes no key: H must
+  // not hold work no longer in sight (Codex P1 on #241).
+  const scoped = useContext(ShortcutScope)
   useEffect(() => {
+    if (!scoped) return undefined
     const onKey = (e: KeyboardEvent) => {
       // A key held down repeats: one press is one act (a Hold must not meet the Resume it brings; shortcuts.ts does the same).
       if (
@@ -168,7 +173,8 @@ function useSteps(onStep: Props['onStep']) {
         (e.target instanceof HTMLElement && e.target.closest('input, textarea'))
       )
         return
-      const act = KEYS[e.key]
+      // Caps Lock or Shift gives «H» and «S»: the same keys (Codex on #241).
+      const act = KEYS[e.key.toLowerCase()]
       const sheet = document.querySelector<HTMLElement>('.task-sheet')
       if (!act || !sheet) return
       e.preventDefault()
@@ -176,7 +182,7 @@ function useSteps(onStep: Props['onStep']) {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onStep])
+  }, [onStep, scoped])
 }
 
 function WhoFace({ row }: { row: PlanRow }) {
@@ -251,6 +257,15 @@ function Closed({ row }: { row: PlanRow }) {
   )
 }
 
+/**
+ * Where the focus goes when what opened the sheet is gone (a blocker's press, its blocker completed meanwhile, so the
+ * Blocked lane went): the task's own tile, else the board's first (Codex on #244).
+ */
+function backTo(id: string): HTMLElement | null {
+  const tiles = [...document.querySelectorAll<HTMLElement>('.board [data-task]')]
+  return tiles.find((el) => el.dataset['task'] === id) ?? tiles[0] ?? null
+}
+
 export function TaskSheet(props: Props) {
   const { row, rows, plan, onOpen, onStep, onClose, now, viewerId, onOpenResource } = props
   useSteps(onStep)
@@ -260,7 +275,7 @@ export function TaskSheet(props: Props) {
   const next = props.next?.item_id === item.id
   // Over the whole page, not inside the board: a moving ancestor would hold a fixed sheet inside itself.
   return createPortal(
-    <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose}>
+    <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose} returnTo={() => backTo(item.id)}>
       <div className="task-sheet">
         <Who row={row} viewerId={viewerId} onOpenResource={onOpenResource} />
         <Detail row={row} />
