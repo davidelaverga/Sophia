@@ -1,0 +1,218 @@
+{
+  "at": "2026-10-12T05:26:51.585592+00:00",
+  "status": "BOUNDED_RUNTIME_CONSUMER_DESIGN_ENGINEERING_ACK_EXACT_R8_ONLY",
+  "proposal": {
+    "commit": "7d4a76d9ec50fc80e97b3d2912e48ae362863043",
+    "tree": "5df0f52d2e57feb3980a764615fcdd3ec1222847",
+    "parent": "c48b17ae02dd9daf3daac5ff5a0b5f4da2b41e31",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "82ff0856fd6a5a6da96e1648f5e5bb4db755638e85f75dfc15ffa51afe87cd8a",
+    "lines": 1298,
+    "change": "Only Q7 proposal documentation +68/-20; no implementation changes."
+  },
+  "scope": "Fresh bounded independent WBC-02/SDD-01 consumer design review of the complete r7-to-r8 delta and affected caller/qualification context against exact candidate schema, bridge, supervisor, cursor, receipts, hello, ledger and bindings. This ACK applies to the reviewed design, not an implementation, a source writer window, core/ledger acceptance, integration, deployed behavior or the full mission.",
+  "readCoverage": {
+    "completeParentDiff": true,
+    "proposalAffectedContext": [
+      "revision8 header and corrections to revision7 history",
+      "393-492 scoped proof, locator, admission drain and check classifier",
+      "569-738 bridge, Stop, replay, transport, API and cleanup delivery",
+      "740-875 correlation, accounting, retire order, homes and acknowledgement barriers",
+      "1050-1298 affected qualification controls and requested owner decisions"
+    ],
+    "full1298LineRereadThisRevision": false,
+    "priorReview": "Exact r7 was read in full in its original review; retained historical review bytes are unchanged. No claim that omitted unchanged r8 sections were newly re-read in full.",
+    "sourceSections": [
+      "0012:70-95,386-402,761-774",
+      "0016:83-126",
+      "0028:90-105",
+      "control-bridge:319-375,650-732",
+      "runtime-supervisor:101-120,177-188,216-221",
+      "S2 ledger:275-320,349-411",
+      "BINDING_MAP:260-303,562-587",
+      "G2_RUNTIME_PLAN:331-340"
+    ]
+  },
+  "inputs": [
+    {
+      "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "sha256": "82ff0856fd6a5a6da96e1648f5e5bb4db755638e85f75dfc15ffa51afe87cd8a",
+      "lines": 1298,
+      "sameAsParent": false
+    },
+    {
+      "path": "apps/execution-host/src/runtime-supervisor.ts",
+      "sha256": "a3c3b88f9ba874d173faa5ccb4e7e31ce0325df6b71fcdd187e3f63b5207f87a",
+      "lines": 288,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/control-bridge.ts",
+      "sha256": "09d8d162921806bbd4d94d56751d399928194737432b2d1ef28e3ec88fd9d37c",
+      "lines": 1498,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c",
+      "lines": 263,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsParent": true
+    },
+    {
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsParent": true
+    },
+    {
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "lines": 273,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/review-tools.ts",
+      "sha256": "8fe93d23e83285d733de392d2c8947ef58ec79482dfff9e5133da5a7cee9268b",
+      "lines": 328,
+      "sameAsParent": true
+    },
+    {
+      "path": "renderers/web/pdf/uml/landlock-launch.py",
+      "sha256": "490dbae10891c2831a5fd3d4accd83f91fc0ef6e68dd32ef38acfa046bdc4d66",
+      "lines": 287,
+      "sameAsParent": true
+    }
+  ],
+  "priorR7": {
+    "path": "operator-journal/joint-SDD01-WBC02/shared-runtime-CON01-WBC02-SDD01-Q7-c48b17ae-joint-engineering-review-20261012.json",
+    "sha256": "d5bd2ac5dab1cd57934df0d2e49678ce52f331ff0bba0c15cb6513fc4acbae5f",
+    "status": "CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+    "immutableOriginalPreserved": true
+  },
+  "priorR7Disposition": [
+    {
+      "id": "R7-RETIRE-DELIVERY-ROWS",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "proposalLines": [
+        16,
+        726,
+        727,
+        728,
+        729,
+        730,
+        731,
+        733,
+        734,
+        1246,
+        1247,
+        1248,
+        1249,
+        1295
+      ],
+      "actualSource": [
+        "0012_runtime_service.sql:74,77-79,768-770",
+        "BINDING_MAP.md:297,299"
+      ],
+      "assessment": "The design now permits exactly one idempotent cleanup retire for the same attempt/reply and the commands/outbox/runtime_commands rows required by ordinary delivery. It explicitly withdraws the impossible blanket no-new-outbox assertion. Current schema requires non-null command/outbox IDs, unique project/outbox, and their foreign keys; create cannot lend its used outbox ID to a second runtime command. Stop replay creates no new dispatch. The correction does not authorize a new Ask/create/execution, attempt, reservation, provider/model call or allowance reset. Count-one-after-hello/repeated-hello/replayed-receipt controls are stated. Core owner must bind the additive retire kind/wire, writer/idempotency and held Binding297/299 alignment within the accepted source window. This is a future implementation obligation, not a remaining defect in the bounded proposal."
+    },
+    {
+      "id": "R7-CURRENT-EMPTY-STOP-GUARD",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "proposalLines": [
+        438,
+        439,
+        444,
+        478,
+        489,
+        490,
+        613,
+        796,
+        825,
+        826,
+        827,
+        828,
+        829,
+        846,
+        847,
+        848,
+        1095,
+        1147,
+        1162,
+        1163,
+        1167,
+        1168,
+        1169,
+        1294
+      ],
+      "actualSource": [
+        "control-bridge.ts:667-671,694-710",
+        "BINDING_MAP.md:272-275,564,572-587"
+      ],
+      "assessment": "Current-root empty now requires both a successful admission drain and the per-attempt spawn fence: no unreaped launcher held by this bridge, and a one-spawn claim. Stop remains outcome_unknown/stopping while its own launcher is held before admission/mkdir. Retire retains the same guard and the independent relay-closed barrier; deletion and all acknowledgement predicates remain in order. Fresh rechecks cover retained ReplyChild and new instances without replaying stale success. Sealed-root empty continues to use its drain, because no subsequent admission can verify the removed generation name. The no-future-admission assertion is now scoped accordingly. Adverse pre-seeded-empty controls cover before admit-open, before SH, after SH/before mkdir, release/reap, next Stop/one retire/full barrier and sealed-root control. Prior finding was an honest-Stop proof gap, not a demonstrated purge race; no such race, duplicate claim, late home or provider call is claimed here."
+    }
+  ],
+  "findings": [],
+  "acceptedDirectionsRetained": [
+    "Choice(c): bridge owns fd3 relay and reply accounting; resident launcher uses held pidfd identity, never numeric reply signals. No goal-path redesign.",
+    "Namespace seal plus admission drain for renamed roots; current empty requires drain and spawn fence; current absence requires spawn fence and old roots sealed/drained. Whole leases use life lock and verified-gone entries; zero/torn launcher records remain unresolved.",
+    "Scoped live proof requires own exact home and fresh spawn nonce plus observed settled launcher exit. Exit71 never proves the occupied home. Locator uses no-link root/home checks and all-roots fallback on rename/duplicate home.",
+    "Fresh per-evaluation bounded check remains possible after original t0/deadline elapsed, on retained same-instance ReplyChild as well as new instance. Original stop/kill/shared-settle clocks and allowance are not restarted. Implementation must measure classifier-check budget separately from prior process/settle clock.",
+    "All pending settles answered or shared deadline before terminal receipt, never first-answer success; no resend after terminal receipt, uncertain accounting retained.",
+    "Eight named API predicates plus separately relayclosed; actual terminal writer and answered create required, capture:none only absent turn/end in both journal and database. No fabricated receipt or database-state substitute for process proof.",
+    "P1-E remains withdrawn. Atomic hello lease-loss table remains optional core/ledger design; removing it requires accounting-safe claim-before-rejected replay behavior. Cleanup is not a second execution."
+  ],
+  "implementationAndQualificationLimits": [
+    "No new implementation was present: all twelve dependency blobs are byte-identical to r7. ACK closes the two design findings only; it does not establish executable writer/idempotency correctness or actual pidfd/flock/Landlock/seccomp compatibility.",
+    "Future tests in the proposal are requirements, not results. No new tests, harness, process probe, build, CI rerun, dsh/provider/model call or target qualification occurred.",
+    "L0 author fixtures and peer Darwin probes remain historically scoped. This turn did not retrieve or execute them. They do not qualify the full pinned dsh, Linux execution target, Render or production.",
+    "Binding297/299 and broad late-receipt prose need the owners coordinated implementation binding alongside additive SQL, wire and cursor/replay semantics. No held binding or applied migration edited.",
+    "No current main, PR state, CI, combined image receipt or deployed tuple is freshly audited by this source-only review. Historical accepted trees and receipts do not qualify a new composition."
+  ],
+  "baseWindowOrderHandback": {
+    "designDecision": "Bounded runtime consumer engineering ACK for exact r8 commit/tree/document hash above; no inherited ACK from earlier revisions and no other owner impersonated.",
+    "sourceHolds": "Core/ledger and Luis acceptance, exact integration base and writer window remain separate and unproven here. PhaseA dispatcher prerequisite acceptance remains separate;0053 reserved;PhaseB/Q13/sharedsource/Studio held. This review does not reopen an ended writer window or accept peer-reported PR245/prepared21239 changes.",
+    "order": "Obtain actual owner acceptances and accepted base/window. Then preserve G2_RUNTIME_PLAN order: accepted Q12/PhaseA prerequisite, additive SQL, wire/contracts, bridge, supervisor/launcher/profile, qualification. Each distinct immutable pin has fail-before/after/full gates and fresh composition against accepted base. No applied migration edits or independent competing writer.",
+    "nextAction": "Core/ledger owners may use this exact r8 consumer ACK to settle the design, choose/confirm optional hello-table semantics, bind cleanup writer/idempotency and align held bindings in their accepted window. Review resulting immutable implementation pins when available. No operational action is inferred.",
+    "missionPreservation": "Paperclip/design and KeyStudio goals remain incomplete; role/route/model/artifact pins, cumulative per-request ordinal allowance, uncertain accounting, withdrawal and late-publication scrubbing preserved."
+  },
+  "effects": "Immutable Git object fetch, static source/diff/hash reads and local review journal only. No shared feature-source/checkout edits, native CON access, credentials, grants, hosted/database/runtime/provider/model/image effects, spending, registry publication, merge, deployment, migration, automation or cross-thread reply.",
+  "safeExtract": {
+    "original_sha256": "fc4f61ca63e063fc0ae49ebae3c6c3864f2931f6b37c8ce11894fb9827a982fc",
+    "omitted": [
+      "unrelated mission operationalState",
+      "unrelated reviewer checkout identity"
+    ],
+    "local_paths": "priorR7 journal path normalized",
+    "authority": "No CON operational authorization conveyed."
+  }
+}
