@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-10-11T23:56:27.423Z",
+  "serverObservedAt": "2026-10-11T23:56:29.377Z",
+  "serverVersion": "17.6",
+  "readOnly": "on",
+  "readerSuperuser": false,
+  "otherConnectableDatabaseNotOwnedByReader": [
+    {
+      "name": "template1",
+      "owner": "supabase_admin",
+      "publicConnect": true
+    }
+  ],
+  "extensions": [],
+  "publicSchemaPrivileges": [
+    {
+      "nspname": "public",
+      "owner": "pg_database_owner",
+      "privilege_type": "USAGE"
+    }
+  ],
+  "publicRelationCount": 2,
+  "netRelations": [],
+  "publicExecuteBySchema": [
+    {
+      "nspname": "auth",
+      "public_execute": 4,
+      "security_definer": 0
+    },
+    {
+      "nspname": "extensions",
+      "public_execute": 54,
+      "security_definer": 0
+    },
+    {
+      "nspname": "graphql_public",
+      "public_execute": 1,
+      "security_definer": 0
+    },
+    {
+      "nspname": "realtime",
+      "public_execute": 18,
+      "security_definer": 0
+    },
+    {
+      "nspname": "storage",
+      "public_execute": 19,
+      "security_definer": 0
+    }
+  ],
+  "netFunctions": [],
+  "assemblerPresent": false,
+  "truncated": false,
+  "rollbackConfirmed": true,
+  "connectionEnded": true,
+  "limits": "Metadata only, no table content or function execution. PUBLIC grants are effective for future roles, but no execution identity exists or has been tested; no other-database connection, revoke, HBA change or termination."
+}

@@ -1,0 +1,205 @@
+{
+  "at": "2026-10-11T23:55:46.332769+00:00",
+  "status": "JOINT_CONDITIONAL_COMPATIBILITY_ACK_RECEIVED: owner routing corrected; proposal HELD; NO source/DB/write-windowGO",
+  "requestedBy": "CON independent reviewer CX130 via thread01a1224a-32b4-7222-a017-50a277572d95; no cross-thread tool reply authorized or sent",
+  "proposal": {
+    "commit": "598b1d1cdcdbd733bd82e2ee7243a6ac50c9c721",
+    "tree": "84cd827363f902905d3188dd940c92d4a7f07029",
+    "parent": "2c4ffeb2c8908c29e94ef35fb5714c43eaed416a",
+    "path": "docs/coordination/CON-01/G2_Q13_ISOLATION_PLAN.md",
+    "bytes": 26587,
+    "sha256": "ba2bf38fe39a31b070c41cb830829437512edf6862a7ff468c3d22cb6cd973ec",
+    "sectionsReviewed": [
+      "3.2",
+      "8"
+    ],
+    "relations": [
+      "commands",
+      "contributions",
+      "conversation_messages",
+      "conversations",
+      "decisions",
+      "execution_bindings",
+      "goals",
+      "jobs",
+      "mission_confirmation_targets",
+      "mission_entries",
+      "mission_note_consents",
+      "mission_note_policies",
+      "native_task_view",
+      "project_members",
+      "project_revisions",
+      "projects",
+      "source_dependencies",
+      "source_objects",
+      "source_texts",
+      "work_attempts"
+    ],
+    "policies": [
+      "commands.members_read",
+      "contributions.members_read",
+      "conversation_messages.members_read",
+      "conversations.members_read",
+      "decisions.members_read",
+      "execution_bindings.members_read",
+      "goals.members_read",
+      "jobs.members_read",
+      "mission_confirmation_targets.members_read",
+      "mission_entries.members_read",
+      "mission_note_consents.members_read",
+      "mission_note_policies.members_read",
+      "project_members.members_read",
+      "project_revisions.members_read",
+      "projects.members_read",
+      "source_dependencies.members_read",
+      "source_objects.eligible_sources_read",
+      "source_texts.readable_source",
+      "work_attempts.members_read"
+    ],
+    "additionalExecuteFunctions": [
+      "actor_id()",
+      "is_member(uuid)",
+      "is_task_kind(text)",
+      "mission_capture_default()"
+    ],
+    "counts": {
+      "relations": 20,
+      "policies": 19,
+      "additionalExecuteFunctions": 4
+    },
+    "scope": "Read proposal source and shared existing definitions only; no unrelated CON behavior or native session inspected"
+  },
+  "freshBase": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "mainTree": "7431792b397ee1a83185ca2ce33c565621ec5f8c",
+    "PR255": "MERGED exactG; its17file diff does not change these shared objects",
+    "PR256": "DRAFT OPEN head93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9 basee0200f1a382379fff795f4ccb78bf6eda62c5da8; no mergeGO",
+    "proposedFutureCombinedTree": "640414cd70f1b487ee4684e0d54f0d900fa9dfb5 is CON reviewer-reported PG19/19 combined-tree proof, not independently qualified here or accepted main"
+  },
+  "ownership": {
+    "jointWBC02SDD01": {
+      "ack": "Root ACKS compatibility-review routing only for these consumers, not exclusive historical ownership or SQL grant implementation",
+      "relations": [
+        "contributions",
+        "source_texts",
+        "native_task_view"
+      ],
+      "policies": [
+        "contributions.members_read",
+        "source_texts.readable_source"
+      ],
+      "functions": [
+        "is_task_kind(text)"
+      ],
+      "sources": [
+        "0012_runtime_service.sql",
+        "0022_research_readers.sql",
+        "0038_design_records.sql"
+      ],
+      "history": "0012 shared retained S1-05A foundation; research0022 SMC-M03; design0038 SDD01. Joint lane reviews effects on source review/research/design under existing r2 preservation, not all20relations/19policies/4helpers.",
+      "implementerAck": "RECEIVED: consumercompatibilityonly; current0038 is_task_kind helper belongs to SDD01 soleClaude writer/Codex independentreviewer. Two0012policies still require recorded S1-05A Davide/Luis ownership ACK; current0022view requires SMC-M03 currentresearchimplementerunderDavide (LuisUIintegration) ACK.",
+      "ownershipCorrection": "Proposal\u00a78/r2 routing of compatibility work cannot transfer historical ownership of0012/0022 to jointlane. Narrow additional owner routing is required, not an automatic sourcewriter grant."
+    },
+    "core": {
+      "relations": [
+        "commands",
+        "decisions",
+        "execution_bindings",
+        "goals",
+        "jobs",
+        "project_members",
+        "project_revisions",
+        "projects",
+        "source_dependencies",
+        "source_objects",
+        "work_attempts"
+      ],
+      "functions": [
+        "actor_id()",
+        "is_member(uuid)"
+      ],
+      "schemaUsage": "sophia",
+      "source": "0002_roles_rls.sql",
+      "route": "Luis for source/schema coordination under S1-02; Davide/Luis under retained S1-05A/BASE for access/product boundary. Current named writer must be established by that owner lane, not inferred from old commit author.",
+      "evidence": "current unified planning/goals.json names S1-02 ownerLuis(folded_not_restarted), S1-05A ownerDavide/Luis(retained_foundation); goals/BASE.md human ownerDavide andLuis. No core owner acknowledgement supplied here.",
+      "additionalEvidence": "docs/evidence/S1-02/2026-09-24-attempt-1.md:153 records0002hash underS1-02; independently read locally."
+    },
+    "missionLedger": {
+      "relations": [
+        "mission_confirmation_targets",
+        "mission_entries",
+        "mission_note_consents",
+        "mission_note_policies"
+      ],
+      "functions": [
+        "mission_capture_default()"
+      ],
+      "sources": [
+        "0018_mission_ledger.sql",
+        "0019_default_mission_capture.sql"
+      ],
+      "route": "Recorded SMC-M01 owners Davide/Luis. Existing binding reserves0018 toM01;0019 changes defaultcapture and revisions. Not this joint lane ownership.",
+      "evidence": "current unified planning/goals.json SMC-M01 ownerDavide/Luis(retained_foundation), docs/progress/SMC-M01-contract-binding.md \u00a7\u00a73\u20134; no ledger-owner ACK supplied here."
+    },
+    "CON": {
+      "relations": [
+        "conversations",
+        "conversation_messages"
+      ],
+      "policies": [
+        "conversations.members_read",
+        "conversation_messages.members_read"
+      ],
+      "source": "0048_project_conversations.sql",
+      "route": "CON own reviewer/implementer lane handles its existing ownership; not inspected via native session"
+    },
+    "researchViewOwner": {
+      "object": "native_task_view current0022body",
+      "route": "SMC-M03 current research implementer underDavide; Luis UIintegration",
+      "evidence": "current unified planning/goals.json exactowner,0022header. No direct native session or currentwriter identity inferred."
+    }
+  },
+  "compatibilityConditions": [
+    "Exact revised candidate/base/tree and complete policy catalog sealed against fresh maine020, accepted PhaseA when merged, and explicitly enumerated CON0048/S1/S2 dependencies; old7d8 fail-before does not substitute for final current-main crossing.",
+    "Append-only candidate/migration; no applied0002/0012/0018/0019/0022/0038/0048 edits. Fresh number census/reservation separate from0053; PhaseA reservation retained, PhaseB remainsheld.",
+    "Only additiveSELECT/EXECUTE and intended role-list changes after all owners ACK. No predicates, WITHCHECK, permissive/command semantics, RLS flags, view security_invoker/security_barrier, function definitions/SECURITYDEFINER/search_path, API/worker ACL or defaultprivilege changes.",
+    "Preserve source_objects owner/scope/eligible/state filter and source_texts dependent RLS, active project membership, removed/ineligible asker denials, draft_brief/research/design task kinds and internal review exclusion, native_task_view join/phase/input/artifact semantics.",
+    "Real disposable-PG before/after must compare exact predicatebytes/with_check/view/helperdefs and catalog effective privileges; positive mission/research/design/source-review reads plus wrongactor/project/private/withdrawn/removedmember negatives, no writers/SETROLEescape/crossDBsession residue. Ordinarychecks/affectedintegration after actual sourcecandidate, independentacceptance, sourcewriterhandback required.",
+    "This ACK is routing/conditionalcompatibility only. It authorizes no new sourcewriter, role membership, grants, migration, session termination, pg_hba/CONNECT change, hosted or deployment effect.",
+    "Jointimplementeraccepts later api-only policy recreation failingclosed/unreadable; test it through actual compiler. Source_texts depends on source_objects eligible_sources_read: bothcurrentpredicates/options must match sealedreviewedbase. No implicit ability to accept arbitrarycalleractor or non-targetadmission."
+  ],
+  "existingReviewerHoldsConfirmed": [
+    "OtherDBPUBLICCONNECT: proposal\u00a73.3/4 permits owneraccepted admission, inconsistent with selected target-only Q13 requirement. RemainsHOLD; no owner-accepted default authorized here.",
+    "Caller-set sophia.actor_id lets login impersonate another authorized asker. EqualAPIread for same supplied actor does not qualify wrongasker/project identitybinding. RemainsHOLD; actual revised boundary and negativequalification needed.",
+    "\u00a73.2 preflight compares names/rolelists/polcmd/permissive, NOT pg_policy predicatebytes. Its reviewedpolicy claim overstates guard; T2 only compares before/aftercurrentpredicate, not sealedexpectedbasepredicate. RemainsHOLD until claim corrected or exactreviewedpredicate guard implemented and adversarial driftcase exercised. Also preflight does not check native_task_view reloptions or definition. Positive current view is security_invoker/security_barrier; replacing it with default owner-security can bypass base-tableRLS. Extend hold3 to exactexpectedview definition/options guard (at least security_invoker=true and security_barrier=true) plus adversarial driftqualification."
+  ],
+  "sourceEvidenceHashes": {
+    "db/migrations/0002_roles_rls.sql": "6acdd303f6cc68a6745599a33d8003a8d5163d761961a158e631a13e9b0b3f04",
+    "db/migrations/0012_runtime_service.sql": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+    "db/migrations/0018_mission_ledger.sql": "d6e6598c3a4c4e1a9771c3ac8169fad5cca55d33c1f5a6cb119859e9a87aa181",
+    "db/migrations/0019_default_mission_capture.sql": "54b1e7f03c4fcf6c47abead77c2aec843dc1a3ee000ca4ee8ef23f42e6a912e9",
+    "db/migrations/0022_research_readers.sql": "0a1955ff7b787dad4939b4ee70e620d2d1146c8b3b8188245a3388df07e0cb9c",
+    "db/migrations/0038_design_records.sql": "b3b3acd5d215a2124d3a9fdabe416e7fe0a19eb8981e49774ee430673ed45bb8",
+    "docs/execution/2026-10-01-unified/planning/goals.json": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+    "docs/execution/2026-10-01-unified/goals/BASE.md": "d58298a699f5d6ab83a4e3d3818ace1c7b7f7d196e4b116d8fb7e612e971f043"
+  },
+  "effects": "Read-only GitHub, existing local source and guarded authorized Paperclip chat coordination; local evidence records only. No source edits/push/merge/DB/provider/permission effects, CON native inspection/control or cross-thread reply. G7OFF, r5-r3unapprovedDRAFT, billing/production gates retained. Temporary PR255 heartbeatPAUSED.",
+  "supersedes": {
+    "record": "shared-runtime-CON01-WBC02-SDD01-Q13-owner-routing-20261012-r1.json",
+    "sha256": "2e535c42be5acaba02f4333bcda5c40a7c56c812bdadd47e3757b95b00555354",
+    "reason": "Record actual implementer compatibility ACK, distinguish inherited consumers from historical owners, extend drift hold to view security options."
+  },
+  "actualJointImplementerACK": {
+    "session": "session_0155SjcXhv87RErnWEBWxfBM",
+    "record": "shared-runtime-Q13-joint-compatibility-ack-AX.txt",
+    "bytes": 12250,
+    "sha256": "6db01edb047e650d78819bc94723c1c4ed3ff895a8a711f3b69670c13597e763",
+    "scope": "Conditional consumer compatibility ACK exactly3relations/2policies/1helper; NOT ownership of all20/19/4; no sourcewrites/grants",
+    "sourceInspectedAuthorReported": [
+      "proposal598b1d1c",
+      "maine0200f1a",
+      "PR1905c10bce3"
+    ],
+    "proof": "shared-runtime-Q13-joint-compatibility-ack-proof.png"
+  }
+}
