@@ -121,8 +121,11 @@ test('dock · under 1180 px with Conversations’ context open, the header dock 
 }) => {
   await page.setViewportSize({ width: 1000, height: 800 })
   await page.goto('/room.html?demo=1&conversations=1&place=conversations')
-  await drawn(page, DRAWN.conversations)
-  await page.getByRole('region', { name: 'Open conversation' }).getByRole('button', { name: 'Context' }).click()
+  // Under 1180 px the context is a panel, shut: the conversation's «Context» press is the sign the view is drawn.
+  const toggle = page.getByRole('region', { name: 'Open conversation' }).getByRole('button', { name: 'Context' })
+  await expect(toggle).toBeVisible()
+  await expect(dock(page)).toBeVisible()
+  await toggle.click()
   await expect(page.getByRole('complementary', { name: 'Project context' })).toBeVisible()
   const read = await page.evaluate(() => ({
     list: document.querySelector<HTMLElement>('.conv-list')?.inert ?? null,
