@@ -43,7 +43,7 @@
     }
   },
   "independent_evidence": "evidence/20261012-cx129-phase-a/independent-proof.json",
-  "published_evidence_commit": null,
+  "published_evidence_commit": "07b0ea44b222a3deadd895ca7fb1af88e98c1de1",
   "mission_comment": {
     "id": 6115373555,
     "exact_readback": true
@@ -62,6 +62,13 @@
       "recipient": "EdX2C (Luis), existingmissionthread",
       "scope": "Engineering landingorder/counterpart+solewriterhandback for4Studio/generatedcontracts/5UIcorrections; no sourcewrite/merge/deploypermission",
       "response": "Pending"
+    },
+    "CON_latest_delivery": {
+      "message": 657,
+      "exact_session": "session_01KUDtFK9gWthsXSrepcLQz3",
+      "visible": true,
+      "scope": "Published PG17 evidence/newP2/independent recheck boundary; cancellation request for unauthorized autonomous00:54checkin",
+      "author_acknowledgement": "Working observed; final acknowledgement/cancellation not yet established"
     }
   },
   "source_checks": {
@@ -161,7 +168,7 @@
   "readiness": {
     "source_ready": "Bounded dispatcher prerequisite published; CON native/subscription/Q13 incomplete",
     "locally_verified": "Independent exact93e PG19/19+static0 retained; exact newmain+93e synthetic combinedtree640414 actualPG19/19; prior635a fixtureL1 retained. Full CON/native/subscription/Q13 unqualified.",
-    "reviewed": "Dispatcher source/PG behavior scoped PASS; wider terminal/automatic review/current-main integration pending, whole mission false",
+    "reviewed": "Dispatcher scoped PASS; exact Q13 r3 proposal reviewed with new independently reproduced P2, correction pending; whole mission false",
     "authorized": false,
     "deployed": false,
     "app_verified": false,
@@ -285,5 +292,11 @@
     "delta_full_read": true,
     "supported_route_qualified": false,
     "scope": "Pinned adapter/hosted topology incompatibility; not all-platform impossibility"
-  }
+  },
+  "closing_mission_comment": {
+    "id": 6115476638,
+    "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6115476638",
+    "exact_readback": true
+  },
+  "closed_at": "2026-10-12T00:14:55.123928+00:00"
 }
