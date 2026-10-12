@@ -1,0 +1,93 @@
+{
+  "at": "2026-10-12T03:24:47.553897+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "1e5f9469d09fff94bfbd9bd5b415c1687f8794d5",
+    "tree": "bf86e0e4229ac71908bee96a3aa4a1291de58de9",
+    "parent": "1c404b44e35be65eee35e5d2f3442ab1f2e79ef9",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "125fd49a049cfb2fcc053b894726dba3abaa72cc8e348d8834febbe25322f770",
+    "lines": 674,
+    "readComplete": true,
+    "change": "one doc only +414/-182; no runtime implementation"
+  },
+  "scope": "Independent WBC02/SDD01 consumer review of bridge/supervisor/template/relay preservation only; no claim of exclusive core, ledger, research, Luis integration or Q13 authority.",
+  "acceptedDirectionConditionally": [
+    "Choice(c): bridge owns logical child control, claim/go, fd3 relay/transport/epoch; supervisor owns launcher/profile/root/sweep. Resident launcher owns child pidfd acquired before exec; bridge has no numeric reply signals. Reasonable direction, not implemented/qualified behavior.",
+    "One bounded duplexfd3 with fd0/dev/null and usage ordinal is a reasonable binding amendment; no additional prompt-carrying parent. Exact descriptor/copy/buffer tables must change together in the accepted window.",
+    "API-committed conversation_execution_go removes original receiptQueue ordering dependence; later delivered receipt must be idempotent and cannot revive terminal/withdrawn state. A/B design mechanisms materially amended at this pin.",
+    "Ledger-state recovery correctly distinguishes reserved, settled and uncertain, limits settle to appropriate states, retains usage and ordinal, and leaves uncertain reconciliation separately authorized. C design mechanism materially amended, with actual0049 proof source still unimplemented.",
+    "Child self-only signals, denial of pidfd/AF_UNIX and process creation are appropriate proposed containment direction. Conditional on precise syscall policy, pinned dsh/full filter P7 and actual selected Render P8; no claim of current containment qualification.",
+    "Named self-contained copy/digest/link policy is reasonable direction, subject to P1 exact Linux template validation. Profile-only Darwin baseline is separate evidence."
+  ],
+  "changesRequired": [
+    {
+      "id": "Q7-E",
+      "priority": "P1",
+      "title": "Claimed pending reply has no pre-go lease-loss transition",
+      "proposalLines": [
+        333,
+        400,
+        404,
+        417,
+        426,
+        427,
+        428,
+        474,
+        476,
+        659
+      ],
+      "reproduction": "L1 first claim commits; bridge dies before conversationGo commits, including before spawn/start journal. L2hello sees pending request plus durable claimed execution and existing runtime command. Spec404 terminalizes only running+lostlease. Claim cannot become first again; no runtime command is redispatched; actual0012reconcile791-795 changes outbox only. Recovery476 assumes stopped binding without establishing that pending/claimed transition. Request can remain visibly waiting forever.",
+      "required": "Core/ledger author must specify atomic hello/recovery row under correct locks for pending+claimed+differentlease, using durable claim/go evidence, preserving terminal and withdrawal precedence. Set bounded visible terminal outcome, binding/attempt/lost-or-settled mapping, receipt/outbox completion and retire/purge result. Distinguish genuinely unclaimed pending work and same-instance reconnect. No rerun/new request/allowance reset/release inferred.",
+      "noHomePartialHome": "Specify no-home and partially built home, including no lease/no journal. Do not fabricate deletion receipt before valid current-generation identity check and all applicable persistence/delivery/accounting barriers. Proven absence may permit exact idempotent cleanup result; ambiguity retains unresolved state.",
+      "expectedTests": "Stub/PG fail-before cases: crash after claim before spawn, after partialhome before lease/start, before ready/go, committedgo with lost reply; same-instance reconnect vs new-instancehello; lost claim response; withdrawal/go/late delivered crossing. Assert visible terminality, no second logical call, no state revival, unchanged allowance and honest purge status.",
+      "evidenceClass": "Independently confirmed missing design transition, not an executed SQL failure; newgo/claim/hello functions are not implemented."
+    },
+    {
+      "id": "Q7-guardian-startup",
+      "priority": "REQUIRED_DESIGN_CORRECTION",
+      "title": "Cancellation and settlement must cover every pre-exec phase",
+      "proposalLines": [
+        169,
+        174,
+        184,
+        192,
+        194,
+        195,
+        196,
+        203,
+        204,
+        334,
+        344
+      ],
+      "evidence": "Launcher reads exec-status at203 before reaching control/pidfd loop204. A child stalled in containment before reaching exec leaves status open; TERM/KILL/controlEOF queued by bridge is not yet processed in the specified sequence. Failure after fork/pidfd during lease creation/fsync must also settle child. Missingpidfd fallback closes gate and waits for own child, whose pre-gate setup is otherwise unbounded. These paths are absent from proposedtests. Create waits on claim and ready before go, so344 cannot promise stop runs at mostgoWaitMs after arrival solely from go bound.",
+      "required": "Name startup/claim/ready/go/stop bounds and a cancellation-capable state machine from fork through status/exec, including controlEOF/deadline/parent death and lease/fsync/exec failures. With pidfd, service cancellation while waiting on status, close gate and settle/reap owned child on all error paths; never use numeric signal fallback. Withoutpidfd, fail closed via gate/parent-death design and retain unresolved state if bounded settlement not proved. Do not claim successfulstop/retire on deadline alone. Explicitly establish SIGCHLD/SA_NOCLDWAIT/no-other-reaper premises.",
+      "expectedTests": "Owned stand-in paused before gate/exec, delayed status EOF, exec failure, lease/fsync error, controlEOF before/afterpidfd, pidfd-open failure and earlyexit, bridge dispose/abruptdeath; decoy untouched, no bridgekill, no false settled/deleted receipt, exact total queuedstop bound. No hosted/unrelated process probe."
+    }
+  ],
+  "evidenceCorrections": [
+    "Proposal23 main262 is historical; observed main in this review5ed752bde219d38df388d0fc71490cac0a6f2107. Runtime-area diff7d8 to observedmain only scripts/paperclip-host-probe.mjs and paperclip-verify.mjs. This is source equality, not full latest-main CI or deployment qualification.",
+    "Proposal12/260 realpathSync/pnpm layout does not establish actual links in the installed Darwin profile. CX143 reports0links; root did not independently rerun or import peer probe as root validation. Correct earlier r1 inference about current links. Proposed link policy can remain, while Linux targets unknown.",
+    "Peer profile-only86entry digest108d23ed... and8s bridgeLoaded/not_ready result are reported baseline evidence, not independently executed by root here, not usefulreply/P1Linux/P7/P8/B1copy/provideracceptance.",
+    "Proposal278/560 historical LinuxVM/imageDigest=null is not authority to invent a separateVM. Bind future containment checks to actual selected Render execution unit, literal image, arch/kernel/seccomp/Landlock/pidfd availability. Existing2GB job dispatcher is not automatically execution host; no new provisioning/deployment authorized."
+  ],
+  "baseWindowOrderHandback": {
+    "acceptedProposalBase": "Exact1e5f9469 over1c404b44 reviewed as docs candidate only, read against source7d8 and unchanged actual source dependencies; no accepted integration/main base or shared write window granted.",
+    "observedMain": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+    "observedMainTree": "d5505b30eb225ef0ade62a596165d92d58d678b1",
+    "runtimeInventory": "101 prior rehearsal input hashes independently match observedmain; source-only Git blob check, not rerun/requalification.",
+    "window": "PhaseA window ended,0053 reserved; PhaseB/Q13 and Studio holds remain. Compatible PhaseA93e assessment remains valid in own consumer scope but Luis must accept actual newmain-based integration/tree/window. Old PR256merge40ea/E is not currentmain qualification.",
+    "order": "First correct docs E/startup/evidence and publish immutable pin; obtain actual core/ledger/historical owner handbacks and integration-owner acceptedbase/window/order. PhaseA0053 prerequisite must be accepted/landed as named by integrationowner before dependent0049work. Preserve plan5 order once holds lift: additiveSQL, wire/contracts, bridge, supervisor/launcher/profile, qualification; each own immutable candidate/fail-before/gates, generatedwire/artifacts bound to combinedsource. No writer started now.",
+    "affectedFunctions": {
+      "supervisor": "SupervisorOptions.replies, environment, sweepReplies; start/recover/stop sequencing; launcher run/probe/digest/sweep/check; runtime-host/profile install.",
+      "bridge": "apply/BridgeSettings, execute reply branch, connect/reconcileReply, disposer; ReplyChildren.createReply/stopReply/retireReply/inspectReply; ReplyChild gate/deadline/accounting/exit; ReplyRelay/fromJournal; new reply-plugin hooks and journal.",
+      "contractsAndTransport": "RuntimeWorkBinding/RuntimeCommand retire, generated wire/OpenAPI; conversationClaim/Go/Reserve/Settle/Acknowledged, observations optional signal; coordinated runtime APIroutes.",
+      "coreLedgerOwned": "Additive0049 optionC/executions and conversation_execution_go/claim/hello/replyreceipt/observation/capture branches; conversation_cancel and usageordinal/proofsource/reconcile, not solely this lane authority. No old applied migration edits/grantrepair."
+    },
+    "handback": "Local shared review record for authorized coordination; no cross-thread reply based solely on peer request. No CON native session read/input. Corrected immutable pin needs a fresh bounded review; current decision CHANGES_REQUIRED."
+  },
+  "preservation": "Paperclip/design goals, existing historicalbindings, role/route pins, uncertain usage, provider/grant fences and othermission behavior preserved. G7OFF; no automatic reset or second generic agent loop.",
+  "effects": "Read exact published source/issuecomments/primarymanual; fetch Git objects into reviewcheckout withoutcheckout/sourceedit; localjournal only. No tests/build/stubprobe/Linuxhost/hostedSQL/provider/model/image/credentials/accountgrant/spend/migration/deploy/publish.",
+  "sourceRecordSHA256": "f4472120c345bb2c291567694bd3d1a16ca67d8a942b257c722d19a1646e6df6",
+  "supersedingReviewerCorrection": "CX144: historical Q7-E inevitable-stranding P1 conclusion withdrawn. Actual0012runtime_cursor and0016runtime_poll replay unansweredcreate; r2duplicateclaim refusal mapsoutcome_unknown and binding8.2.1 terminalizes. Explicit replay recovery qualification remains, not mandatory newhello writer. Guardianstartup CHANGES_REQUIRED remains. Joint cursor62 independently acknowledges correction; corrected terminal record pending."
+}

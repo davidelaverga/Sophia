@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-10-12",
+  "missionIssue": 198,
+  "draftPr": 199,
+  "comments": {
+    "issue198": 6115115786,
+    "pr199": 6115106416,
+    "laterLuisHandbackFound": false
+  },
+  "prepared": {
+    "ref": "ui/kit-with-con01",
+    "commit": "fa10f7fae24d286d4472d07e60b821b078e4dcb2",
+    "tree": "1785594dbc475ac8e1cf52dc9651f198a53c9eab",
+    "previousReviewed": "d5dbda5815eb10d8d74772327f35082ff57864f1",
+    "changedPaths": [
+      "apps/studio/e2e/menu-scale.spec.ts",
+      "apps/studio/src/app/theme.css",
+      "docs/handoffs/UIKIT-06-attempt-1.md",
+      "docs/plans/card-scale.md"
+    ],
+    "change": "23 insertions/2 deletions; menu-in-field top offset and settled geometry polling; no CON source/API/generated-contract delta"
+  },
+  "mainRemote": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+  "pr199Head": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "pr199Draft": true,
+  "pr199Mergeable": false,
+  "apiBaseShaReported": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+  "apiBaseLimit": "Metadata differs from direct Git remote main; not adopted as integration base or merge qualification.",
+  "inspection": "Re-read WithdrawHere, EraseHere, ProjectContext, MessageActs and acts-row wiring in OpenConversation. Existing confirmation/wording/coverage/disclosure corrections remain. No source edit, merge, browser requalification or hosted effect.",
+  "next": "Luis explicit accepted base/order/authoritative integration PR and four Studio paths/generated-contract handback, then CON corrections and independent affected review."
+}

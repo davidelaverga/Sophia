@@ -1,0 +1,75 @@
+{
+  "at": "2026-10-12T03:30:17.429037+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "1e5f9469d09fff94bfbd9bd5b415c1687f8794d5",
+    "tree": "bf86e0e4229ac71908bee96a3aa4a1291de58de9",
+    "parent": "1c404b44e35be65eee35e5d2f3442ab1f2e79ef9",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "125fd49a049cfb2fcc053b894726dba3abaa72cc8e348d8834febbe25322f770",
+    "lines": 674,
+    "readComplete": true,
+    "change": "one doc only +414/-182; no runtime implementation"
+  },
+  "scope": "Independent WBC02/SDD01 consumer review of bridge/supervisor/template/relay preservation only; no claim of exclusive core, ledger, research, Luis integration or Q13 authority.",
+  "acceptedDirectionConditionally": [
+    "Choice(c): bridge owns logical child control, claim/go, fd3 relay/transport/epoch; supervisor owns launcher/profile/root/sweep. Resident launcher owns child pidfd acquired before exec; bridge has no numeric reply signals. Reasonable direction, not implemented/qualified behavior.",
+    "One bounded duplexfd3 with fd0/dev/null and usage ordinal is a reasonable binding amendment; no additional prompt-carrying parent. Exact descriptor/copy/buffer tables must change together in the accepted window.",
+    "API-committed conversation_execution_go removes original receiptQueue ordering dependence; later delivered receipt must be idempotent and cannot revive terminal/withdrawn state. A/B design mechanisms materially amended at this pin.",
+    "Ledger-state recovery correctly distinguishes reserved, settled and uncertain, limits settle to appropriate states, retains usage and ordinal, and leaves uncertain reconciliation separately authorized. C design mechanism materially amended, with actual0049 proof source still unimplemented.",
+    "Child self-only signals, denial of pidfd/AF_UNIX and process creation are appropriate proposed containment direction. Conditional on precise syscall policy, pinned dsh/full filter P7 and actual selected Render P8; no claim of current containment qualification.",
+    "Named self-contained copy/digest/link policy is reasonable direction, subject to P1 exact Linux template validation. Profile-only Darwin baseline is separate evidence."
+  ],
+  "changesRequired": [
+    {
+      "id": "Q7-guardian-startup",
+      "priority": "REQUIRED_DESIGN_CORRECTION",
+      "title": "Cancellation and settlement must cover every pre-exec phase",
+      "proposalLines": [
+        169,
+        174,
+        184,
+        192,
+        194,
+        195,
+        196,
+        203,
+        204,
+        334,
+        344
+      ],
+      "evidence": "Launcher reads exec-status at203 before reaching control/pidfd loop204. A child stalled in containment before reaching exec leaves status open; TERM/KILL/controlEOF queued by bridge is not yet processed in the specified sequence. Failure after fork/pidfd during lease creation/fsync must also settle child. Missingpidfd fallback closes gate and waits for own child, whose pre-gate setup is otherwise unbounded. These paths are absent from proposedtests. Create waits on claim and ready before go, so344 cannot promise stop runs at mostgoWaitMs after arrival solely from go bound.",
+      "required": "Name startup/claim/ready/go/stop bounds and a cancellation-capable state machine from fork through status/exec, including controlEOF/deadline/parent death and lease/fsync/exec failures. With pidfd, service cancellation while waiting on status, close gate and settle/reap owned child on all error paths; never use numeric signal fallback. Withoutpidfd, fail closed via gate/parent-death design and retain unresolved state if bounded settlement not proved. Do not claim successfulstop/retire on deadline alone. Explicitly establish SIGCHLD/SA_NOCLDWAIT/no-other-reaper premises.",
+      "expectedTests": "Owned stand-in paused before gate/exec, delayed status EOF, exec failure, lease/fsync error, controlEOF before/afterpidfd, pidfd-open failure and earlyexit, bridge dispose/abruptdeath; decoy untouched, no bridgekill, no false settled/deleted receipt, exact total queuedstop bound. No hosted/unrelated process probe."
+    }
+  ],
+  "evidenceCorrections": [
+    "Proposal23 main262 is historical; observed main in this review5ed752bde219d38df388d0fc71490cac0a6f2107. Runtime-area diff7d8 to observedmain only scripts/paperclip-host-probe.mjs and paperclip-verify.mjs. This is source equality, not full latest-main CI or deployment qualification.",
+    "Proposal12/260 realpathSync/pnpm layout does not establish actual links in the installed Darwin profile. CX143 reports0links; root did not independently rerun or import peer probe as root validation. Correct earlier r1 inference about current links. Proposed link policy can remain, while Linux targets unknown.",
+    "Peer profile-only86entry digest108d23ed... and8s bridgeLoaded/not_ready result are reported baseline evidence, not independently executed by root here, not usefulreply/P1Linux/P7/P8/B1copy/provideracceptance.",
+    "Proposal278/560 historical LinuxVM/imageDigest=null is not authority to invent a separateVM. Bind future containment checks to actual selected Render execution unit, literal image, arch/kernel/seccomp/Landlock/pidfd availability. Existing2GB job dispatcher is not automatically execution host; no new provisioning/deployment authorized."
+  ],
+  "withdrawnFinding": {
+    "id": "Q7-E",
+    "oldPriority": "P1",
+    "newClassification": "RECOVERY_DOCUMENTATION_AND_END_TO_END_QUALIFICATION_GAP_NOT_ESTABLISHED_STRANDING_DEFECT",
+    "reason": "Earlier review omitted runtime command transport redelivery and conflated absence of outbox redispatch with absence of any replay. Independently read unchanged source now establishes a proposed path to terminal receipt; no actual replay blocker established. No SQL failure was executed.",
+    "actualSourceChain": [
+      "0012runtime_cursor399-402 returns min unansweredseq-1, or command_sequence if none unanswered.",
+      "Latest actualhello0028:104-105 returns runtime_cursor; proposed0049 must preserve cursor on expandedreply branch.",
+      "Latest actualpoll0016:114-126 leases/locks runtimeinstance, returns commands withseq>after in ordered batches; gitgrep verifies no later runtime_cursor/poll definition at reviewedpin.",
+      "Actualbridgeconnect332 installs hello.cursor; after boundedreplyreconcile and ready report343, pollLoop358-376 polls fromcursor and dispatches command372.",
+      "Proposedr2create333 maps claimrefusal or lostanswer to outcome_unknown and spawns nothing; binding8.2.1:271,278-283 defines terminal reply/attempt/binding/accounting/retire writer for outcome_unknown and no late revival."
+    ],
+    "decision": "An atomichello pending/claimed transition may be an engineering choice; it is not a mandatory fix established by the original argument. Existing command replay can close the row without a new outbox dispatch, new logical request or second child.",
+    "remainingRequiredCoverage": "Document replay of sameunansweredcreate -> refusedclaim -> outcome_unknownreceipt -> retire; test actual cursor/hello/poll/reconcile/ready/receipt chain, not just mockdirectclaim. Include new-instance vs same-instance, no/partialhome, lostclaim/goanswer, withdrawal, stale/delivered oldlease receipt and receipt-retry, terminality/idempotency/accounting/no-secondcall/honestpurge. Make reconcileReply finish or report unresolved within bound so it does not prevent polling. No implementation observed; source design and end-to-end tests still pending."
+  },
+  "sourceRecordSha256": "f42cdd11b20fbaca4a25f1023516acab36fe0f141d0588e4f69682ef31a4e0a6",
+  "supersedes": {
+    "sourceRecordSha256": "f4472120c345bb2c291567694bd3d1a16ca67d8a942b257c722d19a1646e6df6",
+    "preservedUnmodified": true,
+    "scope": "Supersedes P1-E stranded-request conclusion, mandatory atomichello correction and corresponding prior handback wording; guardian-startup finding and operational boundaries retained."
+  },
+  "evidenceClass": "Independent peer source review; not root-executed Linux, provider or deployed qualification.",
+  "operationalAuthority": "No shared write window or hosted/provider authority opened."
+}
