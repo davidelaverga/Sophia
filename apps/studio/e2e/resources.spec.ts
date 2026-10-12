@@ -458,6 +458,21 @@ test('a resource’s sheet has its own address, to share; the address opens it',
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('a request named in the address (#request-, from Home) opens its resource’s sheet with the request focused', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#request-action-1`)
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+  await expect(page.locator('[data-request="action-1"]')).toBeFocused()
+  // Reached once: the address is the sheet's from then on.
+  await expect(page).toHaveURL(/#resource-davide-claude$/)
+  // A request not among those read opens nothing, and the address waits for it.
+  await page.goto(`${PAGE}?fresh=1#request-nobody`)
+  await expect(grid(page).getByRole('button')).toHaveCount(3)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(/#request-nobody$/)
+})
+
 test('arrow keys move across the tiles; Tab leaves the grid in one step', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
   const names = await grid(page)
