@@ -12,6 +12,7 @@ import type { ReportCard } from '@sophia/contracts'
 import { Card, CardCover, EmptyState, Search, Segmented, Skeleton } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useAskSophia } from '../studio/project-go.tsx'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { formatsOffered } from './report-view.ts'
 import { metaOf } from './report-cover.ts'
@@ -109,8 +110,15 @@ function useFormatOffer(format: Format, cards: readonly ReportCard[], loading: b
   return now
 }
 
+/** The words searched, to ask Sophia instead (docs/plans/ask-instead.md): none without words, or where she can't be. */
+const askAbout = (askSophia: ((q: string) => void) | null, q: string) => {
+  const words = q.trim()
+  return askSophia && words !== '' ? { words, go: () => askSophia(words) } : null
+}
+
 export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = null }: Props) {
   const f = useFilters(projectId)
+  const askSophia = useAskSophia()
   const reports = useReports(identity, { project: f.project, format: f.format, q: f.q })
   const cards = reports.data?.pages.flatMap((p) => p.reports) ?? []
   const counts = reports.data?.pages[0]?.projects ?? []
@@ -142,6 +150,7 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
         identity={identity}
         filtered={f.filtered}
         onClear={f.clear}
+        ask={askAbout(askSophia, f.q)}
       />
       {reports.hasNextPage && <MoreReports loading={reports.isFetchingNextPage} onMore={more} />}
       {f.project === projectId && carriedIn}
@@ -211,9 +220,11 @@ interface CardsProps {
   /** A format or words narrow the list: an empty one says so, with the way back, never "no reports yet". */
   filtered: boolean
   onClear: () => void
+  /** The words searched, to ask Sophia instead when nothing matches (docs/plans/ask-instead.md); null where she can't be. */
+  ask: { words: string; go: () => void } | null
 }
 
-function ReportCards({ cards, state, showProject, editable, identity, filtered, onClear }: CardsProps) {
+function ReportCards({ cards, state, showProject, editable, identity, filtered, onClear, ask }: CardsProps) {
   if (state === 'loading') {
     return <Skeleton kind="card" count={3} label="Reading the reports…" className="report-cards" />
   }
@@ -225,6 +236,14 @@ function ReportCards({ cards, state, showProject, editable, identity, filtered, 
         <button type="button" className="text-button" onClick={onClear}>
           Clear the filters
         </button>
+        {ask && (
+          <>
+            {' · '}
+            <button type="button" className="text-button" onClick={ask.go}>
+              Ask Sophia about “{ask.words}”
+            </button>
+          </>
+        )}
       </EmptyState>
     )
   }

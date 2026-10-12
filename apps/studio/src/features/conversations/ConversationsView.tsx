@@ -31,6 +31,12 @@ import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
 import './conversations.css'
 
+/** The new conversation's form on a question, Sophia asked; a form whose words are on their way keeps them. */
+function beginOn(talk: ReturnType<typeof useTalk>, question: string) {
+  if (talk.kept.start.held) return
+  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title: question, text: '', askSophia: true } } }))
+}
+
 /** Newest activity first: sorted once per answer. */
 const sorted = (answer: { conversations: readonly ConversationSummary[] }) => byActivity(answer.conversations)
 
@@ -66,14 +72,19 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   const { list, all, settled } = useList(projectId, identity, cursor)
   const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
-  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
-  useArrival('conversations', (to) => {
-    ask(to.conversationId)
-    panes.show()
-  })
   const talk = useTalk(projectId, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
+    panes.show()
+  })
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
+  // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
+  useArrival('conversations', (to) => {
+    if (!('ask' in to)) ask(to.conversationId)
+    else if (writer) {
+      beginOn(talk, to.ask)
+      if (!start.starting) start.toggle()
+    }
     panes.show()
   })
   // The one open, unless the form for a new one is in its place.
