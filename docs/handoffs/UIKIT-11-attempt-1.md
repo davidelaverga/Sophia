@@ -6,13 +6,9 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/widths` from `ui/press-answers` at `bcd49b22`
 (stacked on PR #232 → #231 → #230 → #229 → #228 → #227 → #224 → #223 → #222 → #221 → #220; the base retargets as
 each merges)
-Ending commit/tree: `45263d04` (tree `2fa0c630`), after the review and the local run of 2026-10-11: 9 files in the
-PR, 2 new (`e2e/widths.spec.ts`, `docs/plans/widths.md`) and `theme.css`, `artifacts.css`, `conversations.css`,
-`ViewNav.tsx`, `e2e/resources.spec.ts`, `e2e/work.spec.ts` (both for the 1280 px layout: the tiles' row, the lanes'
-rail) and this handoff. Earlier states: `2d74ff38` (tree `b5c3ea4b765a`, the five files), `a9818725` (tree
-`4908b22beaa7`, Codex's P2 on #233: the `ViewNav` fade fix and its check), then the two specs for 1280 and the arrow
-keys' expectation. This record's own commits follow the code; if the PR is squashed at merge, one commit carries all of
-it under an id this file cannot know before it exists (Codex on #233).
+Ending commit/tree: the branch's head as merged (`ui/widths`); the first delivery was `45263d04`, and every later
+change (the composer's hint on the field's column at 1920, and those below) is listed with its commit in the
+post-review sections (Codex on #233: the record names the state delivered).
 
 ## Outcome
 
@@ -63,3 +59,11 @@ it under an id this file cannot know before it exists (Codex on #233).
 Informe-30 §2.5: a light mode on the report's paper palette (`--paper #fbf8f3`, `--ink #1d1b22`, `--soft #5d5966`,
 `--line #e4dfd6`, `--accent #6d5bd0`, `--warm #c8794a`): fourteen tokens to double, the accents a step darker for
 contrast, Sophia's light as a violet halo on paper, the grain gone. Design note first.
+
+## Post-review (Codex on #233, later round)
+
+- The composer's hint keeps its field's column past 1280 (`.conv-compose-hint { margin: 0 auto }`, 1920 px check in
+  widths.spec), delivered after `45263d04`.
+- The nav clears a fade only for a focus the keyboard brought (`:focus-visible`): a mouse press on a link under the fade
+  no longer scrolls it from under the pointer between press and release. widths.spec presses Updates under the fade at
+  1024 and reads it opened.
