@@ -388,7 +388,10 @@ function Home({ v }: { v: View }) {
       project: props.onOpenView,
       personal: (turnId) => {
         nav.enter('personal')
-        return turnId ? turnShown(turnId) : Promise.resolve(true)
+        if (!turnId) return Promise.resolve(true)
+        // The reply may have come from another device: the space is read again and the turn waited for against that
+        // read, not the cached one (Codex on #245).
+        return turnShown(turnId, { read: v.space.refetch() })
       },
     },
     { locked: props.lock.locked },

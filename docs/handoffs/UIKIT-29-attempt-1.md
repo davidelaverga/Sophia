@@ -20,7 +20,8 @@ pseudo-element), `docs/plans/light-breath.md`. The commit after it adds only thi
 - The trace writes in the paper's inks on paper: the edge in the theme's halo at 0.22, the thread from the warm to the
   violet, the head a violet glow composited `source-over`; in the room, exactly as before (`ROOM_INKS`). The engine
   is told by `SophiaLight`, which follows the root's `data-theme` through a `MutationObserver` (`usePaper`).
-- Home's masked light blends `multiply` on paper: ink laid on the page.
+- Home's and Talk's light on paper is laid on the page unblended: the halo carries its own paper inks (round 4
+  below; the first delivery blended `multiply`).
 - Also on this branch's base: the fills spec of #250 typed (`e8954db1`): its luminance took a tuple with undefined
   channels under `noUncheckedIndexedAccess`; my last typecheck there had run before the hoist. Checked here.
 - Unverified: the Playwright run (the local guard); CI is the run on record.
@@ -28,7 +29,12 @@ pseudo-element), `docs/plans/light-breath.md`. The commit after it adds only thi
 ## Evidence
 
 - `pnpm format`, `pnpm lint` (type-aware), `pnpm --filter @sophia/studio typecheck`: clean; `trace.test.ts` 4 pass.
-- Measured in the page: sign-in in light, `.light` with one running animation `paper-breathe`, the halo on `::after` starting `rgba(255, 255, 255, 0.95) 0px`, `.light-trace` at `z-index: 1`; Home in light, the light blends `multiply` (two animations: the threshold's breath and the paper's); sign-in in the room, no CSS animation and no pseudo-element halo.
+- Measured in the page, the first delivery (pre-fix, superseded below): the halo starting at 0.95, `.light-trace` at
+  `z-index: 1`, Home blending `multiply`.
+- As delivered: sign-in in light, `.light` with one running animation `paper-breathe`; the halo on `::after` at
+  `z-index: -1`, starting `rgba(255, 255, 255, 0.96) 0px` (the recalibration, `7cc21a73`); `.light-trace` at
+  `z-index: auto` (it paints over the halo by order); Home and Talk on paper unblended (`normal`), the formed mark's
+  pixels the brand's `#8468ee` with and without needs; sign-in in the room, no CSS animation and no pseudo-element halo.
 
 ## Decisions and changes
 
@@ -60,3 +66,13 @@ light's group blends inside the side column's own stacking context (`.hw-side`, 
 no paper to blend with. The blend on the light's canvases alone was tried in `7e33fbe3` and taken back (the `::after`
 halo and its `-1` layering are the group's; light-breath.spec reads the group's blend). The mark outside the group is
 left in the design note for the day the blend reaches the paper.
+
+## Post-review, round 4 (Codex on #251)
+
+- On paper Home's and Talk's light is unblended (`mix-blend-mode: normal`). The `multiply` on the light's group either
+  reached nothing (inside the side column's stacking context, with needs) or tinted the formed mark with the paper
+  (Home without needs: `#8468ee` drew as `#8265e3`, as Codex said; a control run reads zero brand pixels then). Talk's
+  room `screen` no longer reaches paper either.
+- light-breath.spec reads the mark's pixels from a screenshot on Home without needs, with needs, and in Talk: the
+  brand's violet, none of the tinted shade; and the blend `normal`. The evidence above is split into the first
+  delivery and the state delivered.

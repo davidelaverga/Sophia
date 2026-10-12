@@ -47,3 +47,11 @@ Ending commit/tree: `dc25fcb3` (tree `16f159f2796e`): 4 files: `WorkControls.tsx
 
 The dock to the header on non-Studio views (informe-ui-premium §3 movement 7), then the Knowledge cover's paper
 before paint; the light in the project views still waits for Luis's eye.
+
+## Post-review, round 3 (Codex on #253)
+
+- Stop carries its tip («End the work for good»): `ConfirmButton` takes a `tip`, shown with `has-tip` beside an
+  optional key; goal-controls.spec reads both tips and Stop's on focus.
+- The disabled text step (0.6) is scoped to a goal's controls; any other disabled text button keeps the kit's 0.45
+  (a spec reads it).
+- The press's 0.5 px nudge already skips `:disabled` (`c59c9cf7`, from #232, merged forward).

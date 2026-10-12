@@ -133,3 +133,13 @@
   unseen). Home's fixture takes a log (`turns=log`: thirty turns in a short scrollport, the reply the last, below the
   fold; `turns=hidden`: the same under `hidden`), so the real watch decides there too: the spec sees the seen mark only
   after the turn is in sight (the log scrolled), and none when the log is hidden (the row stays).
+
+## After the review, round 12 (Codex on #245)
+
+- A refusal (401, 403) hides the rows read before; a transient failure keeps them with the note.
+- The id is unique across projects and holders (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`).
+- What Davide's routes need that nothing keeps yet: `opened_at` beside each wait (a permission's `at`; A13's wait keeps
+  no time) and `last_seen_turn_seq` on `personal_spaces` (A10 keeps no last seen turn), each by a migration.
+- A decision addressed from Home chooses the goal that holds it (`GoalPlan.decisions`).
+- In the signed-in app a permission opens its task until Resources is served (`withoutResources`).
+- A reply's turn is waited for against a fresh read of the space, its place shown, for as long as a read can take.

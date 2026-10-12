@@ -47,7 +47,8 @@ export function TaskActions({ row, acts }: Props) {
       <h3>Act on it</h3>
       {/* Its Stop question is keyed by its exact execution inside SessionActs: one asked on one task, generation,
           attempt or session is never answered on another (Codex F-007, F-008). */}
-      {commands && <SessionActs target={commands} offer={offer} acts={acts} />}
+      {/* H and S press Hold (or Resume) and Stop here (TaskSheet's keys): said in their tips (Codex on #241). */}
+      {commands && <SessionActs target={commands} offer={offer} acts={acts} keys={{ hold: 'H', stop: 'S' }} />}
       <Notes notes={boundaries(row)} className="act-boundary" />
       {unaddressed && <p className="act-note muted">Its assignment isn’t known now, so nothing can be sent to it.</p>}
       <Notes notes={reasons} className="act-note" />

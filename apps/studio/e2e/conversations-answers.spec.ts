@@ -91,7 +91,7 @@ test('answers · Sophia’s answer keeps to the app’s sizes and reads at 4.5:1
   const answer = await ask(page, 'Short or long briefs?', 'Sum it up')
   expect(await lowContrast(page, '.conv-messages')).toEqual([])
   const sizes = await typeSizes(page, '.conv-messages')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
   await expect(answer.locator('.sophia-list')).toBeVisible()
   // The press itself is a member's line: plain, never read as a list.
   await expect(open(page).locator('.conv-messages > li:not(.sophia)').last().locator('.sophia-list')).toHaveCount(0)
