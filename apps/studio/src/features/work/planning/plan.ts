@@ -583,3 +583,6 @@ export function planProblems(plan: WorkPlan, goal: GoalView): string[] {
     new Set(views).size !== views.length && 'A task is observed twice',
   ].filter((p) => typeof p === 'string')
 }
+
+/** The chip's tone for a mark that moves: amber waits, teal works; the rest say it in words alone. */
+export const MARK_TONE: Partial<Record<Mark, 'amber' | 'teal'>> = { waiting: 'amber', working: 'teal' }

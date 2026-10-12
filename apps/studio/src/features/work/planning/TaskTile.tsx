@@ -3,12 +3,12 @@
 // moves, and its foot: what its current attempt last reported, or what the task hangs on. The ring is the report's
 // age and nothing more: an old report during a long, healthy tool call is old, not stuck. The connection is said
 // apart, only when it isn't online. It is a button: pressing it opens the task's sheet.
-import { Card, Tip } from '@sophia/ui'
+import { Card, Chip, Tip } from '@sophia/ui'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { followPointer } from '../../resources/motion.ts'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
 import { freshness, observedAgo, type Resource } from '../../resources/resource.ts'
-import { hangsOn, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
+import { hangsOn, MARK_TONE, type Mark, type PlanRow, type WorkPlan } from './plan.ts'
 
 type Person = Resource['owner']
 type Activity = NonNullable<PlanRow['activity']>
@@ -126,12 +126,12 @@ const nameOf = (doer: PlanRow['doer']) =>
 const toolOf = (doer: PlanRow['doer']) => doer.resource?.tool ?? (doer.kind === 'sophia_native' ? 'sophia' : undefined)
 
 /** Where a moving task stands, in its chip. */
-function Chip({ row, viewerId }: { row: PlanRow; viewerId: string | null }) {
+function MarkChip({ row, viewerId }: { row: PlanRow; viewerId: string | null }) {
   return (
-    <span className="task-chip" data-mark={row.status.mark}>
+    <Chip tone={MARK_TONE[row.status.mark] ?? 'muted'} className="task-chip" data-mark={row.status.mark}>
       <span className="plan-mark" data-mark={row.status.mark} aria-hidden />
       {said(row, viewerId)}
-    </span>
+    </Chip>
   )
 }
 
@@ -168,7 +168,7 @@ export function TaskTile({ row, index, flags, plan, viewerId, now, onLight, onOp
           <span className="task-tile-title">{item.purpose}</span>
           <span className="task-tile-meta">
             <span className="task-tile-name">{nameOf(doer)}</span>
-            {moving && <Chip row={row} viewerId={viewerId} />}
+            {moving && <MarkChip row={row} viewerId={viewerId} />}
           </span>
           <Foot activity={activity} hangs={hangsOn(row, plan)} waiting={status.mark === 'waiting'} now={now} />
           {short && <Short words={short} />}

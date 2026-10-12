@@ -5,7 +5,7 @@
 // Everything is said in words, without hovering. Escape or Close returns to the tile it was opened from; J and K step.
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon, Tip } from '@sophia/ui'
+import { Chip, Icon, Tip } from '@sophia/ui'
 import { Sheet } from '../../../app/Sheet.tsx'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
@@ -14,7 +14,7 @@ import type { Room } from '../../resources/room.ts'
 import type { Acts } from '../../resources/SessionActs.tsx'
 import { AskSophia, type Asks } from './AskSophia.tsx'
 import type { GoalView } from './board-view.ts'
-import { open, waitsOn, type PlanRow, type WaitRow, type WorkPlan } from './plan.ts'
+import { MARK_TONE, open, waitsOn, type PlanRow, type WaitRow, type WorkPlan } from './plan.ts'
 import type { ReadResult } from './results.ts'
 import { TaskActions } from './TaskActions.tsx'
 import { TaskResult } from './TaskResult.tsx'
@@ -185,10 +185,10 @@ function Who({ row, viewerId, onOpenResource }: Pick<Props, 'row' | 'viewerId' |
         )}
         {doer.role && <span className="muted">{doer.role}</span>}
       </span>
-      <span className="task-chip" data-mark={status.mark}>
+      <Chip tone={MARK_TONE[status.mark] ?? 'muted'} className="task-chip" data-mark={status.mark}>
         <span className="plan-mark" data-mark={status.mark} aria-hidden />
         {said(row, viewerId)}
-      </span>
+      </Chip>
     </div>
   )
 }

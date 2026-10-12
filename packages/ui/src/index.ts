@@ -2,6 +2,8 @@
 export { Button, type ButtonProps } from './Button.tsx'
 export { buttonClass, buttonHeight, SCALE, type ButtonKind, type ButtonSize } from './button-class.ts'
 export { Card, CardCover, type CardProps, type CardTag } from './Card.tsx'
+export { Chip, type ChipProps } from './Chip.tsx'
+export { CHIP, chipClass, RADII, type ChipKind } from './chip-class.ts'
 export { CARD, cardClass, type CardKind } from './card-class.ts'
 export { ConfirmButton } from './ConfirmButton.tsx'
 export { Field, type FieldProps } from './Field.tsx'

@@ -251,48 +251,36 @@
 }
 
 /* A model as people say it, in its family's colour (models.ts). */
+/* The kit's data chip, in its family's ink. */
 .model-chip {
-  --model: var(--text-3);
-  display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: 5px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: var(--r-1);
-  background: color-mix(in srgb, var(--model) 7%, transparent);
-  color: color-mix(in srgb, var(--model) 30%, var(--text-2));
-  font-family: var(--mono);
-  font-size: var(--type-label);
-  font-weight: 500;
-  white-space: nowrap;
 }
 .model-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--model);
+  background: var(--chip-ink);
 }
 .model-chip[data-family='opus'] {
-  --model: #d97757;
+  --chip-ink: #d97757;
 }
 .model-chip[data-family='sonnet'] {
-  --model: #e6a273;
+  --chip-ink: #e6a273;
 }
 .model-chip[data-family='haiku'] {
-  --model: #efc893;
+  --chip-ink: #efc893;
 }
 .model-chip[data-family='gpt'] {
-  --model: #6f8cff;
+  --chip-ink: #6f8cff;
 }
 .model-chip[data-family='gemini-pro'] {
-  --model: #a68bd6;
+  --chip-ink: #a68bd6;
 }
 .model-chip[data-family='gemini-flash'] {
-  --model: #4f9cf9;
+  --chip-ink: #4f9cf9;
 }
 .model-chip[data-family='grok'] {
-  --model: #c3c7d4;
+  --chip-ink: #c3c7d4;
 }
 .resource-tile-activity {
   display: flex;
@@ -376,7 +364,7 @@
   width: 96px;
   height: 8px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: var(--r-1);
   background: rgba(236, 235, 241, 0.04);
 }
 .effort-fill {
@@ -465,7 +453,7 @@
   width: 16px;
   height: 20px;
   margin: -10px 0 0 -8px;
-  border-radius: 6px;
+  border-radius: var(--r-2);
 }
 .effort-scale[data-look='gpt'] .effort-knob {
   width: 20px;
@@ -619,12 +607,12 @@
   width: 100%;
   height: 12px;
   overflow: visible;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   cursor: pointer;
   touch-action: none;
 }
 .effort-scale .effort-fill {
-  border-radius: 6px;
+  border-radius: var(--r-2);
   transition: width var(--fast) var(--ease);
 }
 /* On touch, the bar and the scale reach wider than they draw (36–40 px, CONTRIBUTING): their look stays thin. */
@@ -1401,7 +1389,7 @@
 .away-line-said:focus-visible {
   outline: 2px solid var(--halo);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--r-1);
 }
 /* Pressed, the line opens whole: every phrase, the counted rest included. */
 .away-line[data-open] {
@@ -1550,7 +1538,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: rgba(236, 235, 241, 0.08);
 }
 .act-steps li::after {
@@ -1560,7 +1548,7 @@
   left: 0;
   width: 0;
   height: 3px;
-  border-radius: 3px;
+  border-radius: 999px;
   background: var(--teal);
   box-shadow: 0 0 8px rgba(127, 214, 196, 0.6);
   transition: width 0.5s var(--ease);

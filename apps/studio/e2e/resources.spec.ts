@@ -575,7 +575,8 @@ test('each session’s model shows as people say it, in its family’s colour; n
   await expect(chip('Davide · Codex')).toHaveText('GPT-6.1 Sol')
   await expect(chip('Davide · Grok')).toHaveText('Grok 4')
   await expect(chip('Luis · Claude Code')).toHaveCount(0) // its host reported no model: none is made up
-  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--model').trim())
+  // The kit's data chip carries its family's ink as `--chip-ink` (ModelChip sets the family; resources.css the ink).
+  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--chip-ink').trim())
   const colours = await Promise.all(
     ['Davide · Claude Code', 'Luis · Gemini CLI', 'Davide · Codex', 'Davide · Grok'].map(colour),
   )
