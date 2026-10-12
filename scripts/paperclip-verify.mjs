@@ -2,20 +2,25 @@
 // Verifies the built packages (scripts/paperclip-build.mjs) against the pinned Paperclip, before any install:
 //   SOPHIA_DISPOSABLE_DATABASE_URL=postgres://... node scripts/paperclip-verify.mjs --paperclip <checkout> [--dist <dir>]
 // The built plugin worker runs under the pin's own plugin test harness (createTestHarness: its issue service, origin
-// kind rules, wakeup rules, managed agents and capability checks), with the plugin's namespace migration applied to a
+// kind rules, wakeup rules, managed agents and capability checks), with the plugin's namespace migrations applied to a
 // throwaway database on the given server (the harness keeps no tables). A signed commission creates one issue; a
-// resend finds it; a forged envelope changes nothing; Hold, Resume and Stop reach it; the settle job the manifest
+// resend finds it; a forged envelope changes nothing; while it provisions the company's source reviewer, a second cold
+// commission of the company, for another work, waits (503 reviewer_provisioning, its resend too) and then gets the same
+// reviewer; Hold, Resume and Stop reach it; the settle job the manifest
 // schedules runs through the harness, settles a write an operator fenced and forgets a spent nonce. Every statement the worker sends
 // to ctx.db passes the pin's own runtime validators first (server/src/services/plugin-database.ts:
 // validatePluginRuntimeQuery/Execute, with the built manifest's coreReadTables), as the real host would apply them. The
-// migration's install check runs in scripts/paperclip-host-probe.mjs, through the pin's own loader.
+// migrations' install check runs in scripts/paperclip-host-probe.mjs, through the pin's own loader.
+// The harness reconciles a managed agent in one step, so it cannot leave two reviewers; the pinned host does not
+// (server/src/services/plugin-managed-agents.ts). Here the first reconcile is held open, as one still running on the
+// host, and the second commission must meet the company's provisioning claim, never ask the host to reconcile too.
 // The harness's requestWakeup ignores its idempotency key (packages/plugins/sdk/src/testing.ts), so wake
 // deduplication is not claimed here; the plugin reconciles wakes itself (coordination.ts, wakeOnce). The built
 // adapter loads through createServerAdapter() and refuses to run without its endpoint. Synthetic data only; nothing
 // is installed anywhere. Needs the pin's SDK built (pnpm --filter @paperclipai/plugin-sdk build) and its db package
 // (pnpm --filter @paperclipai/db build), whose sources the validators import.
 import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { register } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -75,10 +80,15 @@ try {
     'CREATE TABLE public.heartbeat_runs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id uuid NOT NULL, context_snapshot jsonb, created_at timestamptz NOT NULL DEFAULT now())',
   )
   await db.query(`CREATE SCHEMA ${NAMESPACE}`)
-  // Applied as written to stand up the namespace; the host's own install check of these raw bytes is in
-  // scripts/paperclip-host-probe.mjs (pluginLoader.installPlugin), not here (WBC-02-CX-0010).
-  const migration = readFileSync(join(dist, 'sophia-coordination-plugin/migrations/001_sophia_coordination.sql'), 'utf8')
-  await db.query(migration)
+  // Every packaged migration, in file order as the pin's loader applies them, as written to stand up the namespace; the
+  // host's own install check of these raw bytes is in scripts/paperclip-host-probe.mjs (pluginLoader.installPlugin),
+  // not here (WBC-02-CX-0010).
+  const migrations = join(dist, 'sophia-coordination-plugin/migrations')
+  const files = readdirSync(migrations)
+    .filter((file) => file.endsWith('.sql'))
+    .toSorted()
+  assert.deepEqual(files, ['001_sophia_coordination.sql', '002_reviewer_provisioning.sql'])
+  for (const file of files) await db.query(readFileSync(join(migrations, file), 'utf8'))
 
   const harness = createTestHarness({
     manifest,
@@ -102,9 +112,23 @@ try {
       return issue
     },
   }
+  // The first reconcile waits for `release`, as one still running on the pinned host.
+  const reconcile = harness.ctx.agents.managed.reconcile.bind(harness.ctx.agents.managed)
+  const reconciles = []
+  let release
+  const held = new Promise((resolve) => (release = resolve))
+  const managed = {
+    ...harness.ctx.agents.managed,
+    reconcile: async (agentKey, companyId) => {
+      reconciles.push(companyId)
+      await held
+      return reconcile(agentKey, companyId)
+    },
+  }
   const ctx = {
     ...harness.ctx,
     issues,
+    agents: { ...harness.ctx.agents, managed },
     db: {
       namespace: NAMESPACE,
       query: async (sql, params) => {
@@ -124,15 +148,15 @@ try {
   const workId = randomUUID()
   const key = `sophia-wbc02-${workId}`
   const now = Math.floor(Date.now() / 1000)
-  const sign = (op, body, deliveryKey, privateKey = sophia.privateKey) =>
+  const sign = (op, body, deliveryKey, privateKey = sophia.privateKey, work = commission) =>
     signEnvelope(
       {
         op,
         companyId: COMPANY,
         paperclipProjectId: PROJECT,
         sophiaProjectId: SOPHIA_PROJECT,
-        workId,
-        commissionKey: key,
+        workId: work.workId,
+        commissionKey: work.key,
         deliveryKey,
         initiator: { kind: 'member', id: randomUUID() },
         nonce: randomUUID(),
@@ -165,16 +189,36 @@ try {
       companyId: COMPANY,
       headers: {},
     })
-  const commissioned = (privateKey) =>
+  const otherWorkId = randomUUID()
+  const other = { ...commission, key: `sophia-wbc02-${otherWorkId}`, workId: otherWorkId, title: 'Source review: another' }
+  const commissioned = (privateKey, c = commission) =>
     call('commission', {
       companyId: COMPANY,
-      envelope: sign('commission', commission, `commission-${workId}`, privateKey),
-      commission,
+      envelope: sign('commission', c, `commission-${c.workId}`, privateKey, c),
+      commission: c,
     })
+  /** The answer, or `waiting` when there is none in two seconds (a request blocked behind the held reconcile). */
+  const promptly = (pending) =>
+    Promise.race([pending, new Promise((resolve) => setTimeout(() => resolve('waiting'), 2_000).unref())])
 
   const forged = await commissioned(forger.privateKey)
   assert.equal(forged.status, 403, JSON.stringify(forged.body))
-  const first = await commissioned()
+  const pending = commissioned()
+  for (const deadline = Date.now() + 10_000; reconciles.length === 0; ) {
+    assert.ok(Date.now() < deadline, 'the first cold commission asks the host to reconcile its reviewer')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  for (const attempt of ['first', 'resend']) {
+    const waiting = await promptly(commissioned(undefined, other))
+    assert.deepEqual(
+      waiting === 'waiting' ? waiting : [waiting.status, waiting.body.error?.code],
+      [503, 'reviewer_provisioning'],
+      `the ${attempt} of a second cold commission meets the provisioning claim`,
+    )
+  }
+  assert.deepEqual(reconciles, [COMPANY], 'one reconcile while the reviewer is provisioned')
+  release()
+  const first = await pending
   assert.equal(first.status, 200, JSON.stringify(first.body))
   assert.equal(first.body.outcome, 'created')
   assert.equal(first.body.wakeQueued, true)
@@ -184,6 +228,22 @@ try {
   assert.ok(issue.assigneeAgentId, 'assigned to the managed source reviewer')
   const again = await commissioned()
   assert.deepEqual([again.body.outcome, again.body.issueId], ['existing', first.body.issueId])
+  const second = await commissioned(undefined, other)
+  assert.equal(second.status, 200, JSON.stringify(second.body))
+  assert.equal(second.body.outcome, 'created')
+  const secondIssue = await harness.ctx.issues.get(second.body.issueId, COMPANY)
+  assert.deepEqual(
+    [secondIssue.originId, secondIssue.projectId, secondIssue.assigneeAgentId],
+    [other.key, PROJECT, issue.assigneeAgentId],
+    'the second work is bound to the same reviewer',
+  )
+  assert.equal((await harness.ctx.agents.managed.get(manifest.agents[0].agentKey, COMPANY)).agentId, issue.assigneeAgentId)
+  assert.deepEqual(reconciles, [COMPANY], 'the bound reviewer is read, never reconciled again')
+  const provisioning = await db.query(
+    `SELECT agent_id, ended_at IS NOT NULL AS ended FROM ${NAMESPACE}.reviewer_provisioning WHERE company_id = $1`,
+    [COMPANY],
+  )
+  assert.deepEqual(provisioning.rows, [{ agent_id: issue.assigneeAgentId, ended: true }], 'the claim ended with it')
   for (const [op, status] of [
     ['hold', 'blocked'],
     ['resume', 'todo'],
@@ -228,7 +288,7 @@ try {
   const env = await adapter.testEnvironment({ companyId: COMPANY, adapterType: 'sophia_dsh', config: {} })
   if (!process.env.SOPHIA_COORDINATION_URL) assert.equal(env.status, 'fail', 'no endpoint, no pass')
   console.log(
-    `verified against the pinned plugin harness: commission, resend, forged refusal, hold/resume/stop, the settle job (writes settled, a spent nonce forgotten); ${statements.query} queries and ${statements.execute} executes passed the pin's ctx.db validators; adapter loads`,
+    `verified against the pinned plugin harness: commission, resend, forged refusal, one reviewer provisioned for two cold works (503 while held), hold/resume/stop, the settle job (writes settled, a spent nonce forgotten); ${statements.query} queries and ${statements.execute} executes passed the pin's ctx.db validators; adapter loads`,
   )
 } finally {
   await db.end()
