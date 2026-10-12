@@ -139,6 +139,26 @@ test('widths · at 1024 a view the keyboard reaches is scrolled clear of the fad
     .toBe(true)
 })
 
+test('widths · at 1024 a view pressed under the fade opens: the row does not move it from under the pointer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 800 })
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const nav = page.locator('.view-nav')
+  const updates = nav.getByRole('link', { name: 'Updates' })
+  const box = await nav.boundingBox()
+  const r = await updates.boundingBox()
+  if (!box || !r) throw new Error('no nav')
+  // Its part in sight, under the end's fade (the keyboard test above reads it there at 1024).
+  const right = Math.min(r.x + r.width, box.x + box.width) - 2
+  const left = Math.max(r.x, box.x + box.width - box.width * 0.18)
+  expect(right).toBeGreaterThan(left)
+  await page.mouse.click((left + right) / 2, r.y + r.height / 2)
+  await expect(updates).toHaveAttribute('aria-current', 'page')
+  await drawn(page, DRAWN.updates)
+})
+
 test('widths · at 1920 the composer’s hint keeps the column of its field and the quick asks', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1000 })
   await page.goto('/room.html?demo=1&conversations=1&place=conversations')

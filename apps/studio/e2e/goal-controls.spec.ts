@@ -31,6 +31,8 @@ for (const [name, url, parts] of PAGES) {
     expect(read?.text.map((t) => t.words)).toEqual(['Hold', 'Stop'])
     for (const t of read?.text ?? []) expect(t.height, t.words).toBe(24)
     expect(read?.text.find((t) => t.words === 'Hold')?.tip).toBe(true)
+    // Stop too, the destructive one: its tip says what it does (Codex on #253).
+    expect(read?.text.find((t) => t.words === 'Stop')?.tip).toBe(true)
   })
 }
 
@@ -99,4 +101,28 @@ test('goal controls · Stop still asks in place; Keep working puts the text butt
   await asking.getByRole('button', { name: 'Keep working' }).click()
   await expect(asking).toHaveCount(0)
   await expect(row.locator('button.text-button', { hasText: 'Stop' })).toBeVisible()
+})
+
+test('goal controls · Stop’s tip says what it does, on hover and on focus (Codex on #253)', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const stop = page.locator('.controls .control-row').first().getByRole('button', { name: /^Stop/ })
+  await expect(stop.locator('.tip')).toHaveText(/End the work for good/)
+  await stop.focus()
+  await expect(stop.locator('.tip')).toBeVisible()
+})
+
+test('goal controls · a disabled text button outside a goal keeps the kit’s 0.45 (Codex on #253)', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const opacity = await page.evaluate(() => {
+    const stray = document.createElement('button')
+    stray.className = 'text-button'
+    stray.disabled = true
+    document.body.append(stray)
+    const value = getComputedStyle(stray).opacity
+    stray.remove()
+    return value
+  })
+  expect(opacity).toBe('0.45')
 })
