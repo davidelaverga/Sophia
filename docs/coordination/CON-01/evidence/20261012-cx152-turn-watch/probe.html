@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CX152 actual turnShown fixture proof</title>
+<h1>Actual turnShown: hidden to drawn</h1>
+<button id="begin">Begin watch</button>
+<button id="reveal">Reveal existing log</button>
+<button id="append">Append unrelated node</button>
+<label>Result <input id="result" readonly value="not started"></label>
+<div id="place" hidden><div class="msgs" style="height:120px;overflow:auto"><div class="msg" data-turn="cx152-reply" style="height:40px">Synthetic Sophia reply</div></div></div>
+<script type="module">
+import { turnShown } from '../src/features/personal/turn-shown.ts'
+const result = document.querySelector('#result')
+document.querySelector('#begin').onclick = () => {
+  result.value = 'pending'
+  turnShown('cx152-reply', 1600).then(shown => { result.value = String(shown) })
+}
+document.querySelector('#reveal').onclick = () => { document.querySelector('#place').hidden = false }
+document.querySelector('#append').onclick = () => { document.body.appendChild(document.createElement('span')) }
+</script>
