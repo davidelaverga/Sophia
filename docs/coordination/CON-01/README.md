@@ -1,4 +1,8 @@
-# CON-01 coordination (Claude ↔ Codex)
+# CON-01 coordination
+
+**12 October takeover:** Davide instructed Codex to continue CON-01 alone and check automatic Codex review after every push. Codex is now the sole proposed feature implementer and operator. Earlier independent evidence remains scoped to its original author/candidate; Codex-authored changes require external review and are not self-certified independent evidence. Retained owners only supply their own handbacks; no feature implementation is delegated back to Claude. Luis retains integration/Studio ownership. The source/base/window gates and separately approved hosted batches are unchanged.
+
+Current docs-only reservation incorporation: [revision 12](G2_SHARED_RESERVATION_REQUEST.md), branch `codex/con01-owner-incorporation-r11`, from exact r10 `91110fdd`. [R12 handoff](../../handoffs/CON-01-codex-research-r12.md) and [research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md). R11 exactf9180c73 automatic review is clear; the new candidate needs its own review. Actual conditional foundation and research handbacks are [CC-0038](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-6131109861) and [CC-0025](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-6130961758). They do not open a window, accept main83d9e33b as a base, or extend to a changed manifest. The table's original branch/base describe the feature's retained history.
 
 CON-01 completes saved project conversations. Two or more named text conversations in one project, durable member messages with real authorship and stable paging, Ask Sophia on or off, a real read-only native answer in the conversation it was asked in, the three quick asks, the shared current mission context with separate histories, coverage-aware summary and question projections, and enforceable withdrawal ([pack](../../missions/2026-10-09-con01-conversations/README.md), [mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md)).
 
@@ -10,13 +14,13 @@ CON-01 completes saved project conversations. Two or more named text conversatio
 | Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
 | Branch / PR | `claude/con01-project-conversations` / [#199](https://github.com/davidelaverga/Sophia/pull/199) (draft) |
 | Base | `main` `4f7470c`; `main` `71dbea3e` merged at `8f5cbea`, `6744e78` at `7660c73`, `6ef8d855` at `5c3866a`, `3e6d57b` at `7e21538` |
-| Implementer | Claude Code, cloud session `session_01KUDtFK9gWthsXSrepcLQz3`. Sole feature-source writer for the paths in the [binding map](BINDING_MAP.md) §1 |
-| Reviewer / operator | Codex, session `01a1224a-32b4-7222-a017-50a277572d95`, worktree `codex/con01-review-attempt-1`. Independent review at G0, G1, G2 and the combined candidate; the hosted batches and the in-app test under Davide's approval. It writes only review, evidence and runbook records |
+| Implementer | Codex, session `01a1224a-32b4-7222-a017-50a277572d95`, under Davide's 12 October takeover. Shared writes still await exact owner/base/window records |
+| Reviewer / operator | Codex operates separately approved batches and actual-app tests; independent review of Codex-authored changes comes from the repository-required external pre-push reviewer and exact-head automatic Codex review. Earlier independent reviews are not extended to new authored source |
 | Owner | Davide: product, the saved-text policy, spend, merge and release. Luis: the Studio's design and shared shell, and integration review (AGENTS.md) |
 | Parallel lanes | PR #190 (SDD-01 G7 voice, A15, 0046–0047); WBC-02 and SDD-01's combined runtime. The shared-file order is in the [binding map](BINDING_MAP.md) §2 |
 | Progress | [docs/progress/CON-01.md](../../progress/CON-01.md) |
 
-A comment wakes nobody. Davide resumes either agent with one line, for example: `CON-01: read <the latest CON-01-CC message> on <the coordination issue>, recover the exact candidate, and act only within its scope.` No message here is an approval. A merge, a release, a hosted read or write, a migration and a paid call each need Davide's own scoped approval.
+A comment wakes nobody. Under the 12 October takeover, resume Codex only for CON implementation, for example: `CON-01: recover the latest publication receipt and progress record, check the exact-head automatic review, and continue only within the recorded scope.` Do not resume the former CON Claude feature session or delegate its coding/gates back to it. Retained owners supply only specifically authorized handbacks in their own lanes. No message here is an approval; exact shared-write and operation approvals remain separate. Read-only discovery already authorized by Davide may continue. [Current publication identities and review receipts](receipts/codex-research-r12-publication.md); [retained r11 publication](receipts/codex-owner-incorporation-r11-publication.md).
 
 ## Messages
 

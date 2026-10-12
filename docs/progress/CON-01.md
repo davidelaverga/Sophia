@@ -2,17 +2,50 @@
 
 The mission's one record of where things stand. Source, local tests, independent review, hosted operations and Davide's acceptance are kept apart. Evidence levels follow pack 07: **L0** source and static, **L1** local real API, PostgreSQL and pinned dsh with a labelled stub provider, **L2** authorized real provider, **L3** deployed app, **L4** Davide's acceptance. A level never promotes another.
 
+**Current continuation, 12 October Codex takeover.** Davide directed Codex to
+continue CON-01 alone and check automatic Codex review after every push. The
+former CON Claude feature session is stopped; do not resume it for implementation
+or gates. Retained owners supply only their specifically authorized handbacks.
+Codex-authored changes require independent whole-diff pre-push review and the
+exact pushed head's automatic review; authorship is not independent validation.
+This current section and the Next action below supersede earlier assignments
+and pending-decision instructions. Historical evidence is retained under its own
+candidate and level, not promoted to deployed-app acceptance.
+
 | Item | Value |
 |---|---|
 | Coordination | [docs/coordination/CON-01](../coordination/CON-01/README.md), its [binding map](../coordination/CON-01/BINDING_MAP.md) |
 | Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
-| Branch / PR | `claude/con01-project-conversations` / [#199](https://github.com/davidelaverga/Sophia/pull/199) (draft) |
-| Base | `main` `4f7470c3ab7c158315934a11c8c620da663f4898` (tree `7d1472e3e61c707e6611015203ddec35f7ff5ce2`); `main` `71dbea3eb57f976c3b993285d45de917e59f204d` merged at `8f5cbea`, `6744e78` at `7660c73`, `6ef8d855` at `5c3866a`, `3e6d57b13ee8eabe62cb8e5e1d0ee2e7ebd76b3c` (#203) at `7e21538` |
-| Implementer / reviewer | Claude Code `session_01KUDtFK9gWthsXSrepcLQz3` / Codex `01a1224a-32b4-7222-a017-50a277572d95` |
-| Reservations | A16; migrations 0048–0050; runtime unit `sophia-runtime-con01-dev` (G2) ([binding map](../coordination/CON-01/BINDING_MAP.md) §1) |
-| Approvals in hand | **None.** No saved-text policy, cohort, grant, provider allowance, migration, deploy or paid call is approved |
+| Branch / PR | Retained feature `claude/con01-project-conversations` / [199](https://github.com/davidelaverga/Sophia/pull/199), draft/unmerged atd527f385. Codex UI `codex/con01-takeover-prep` / [269](https://github.com/davidelaverga/Sophia/pull/269), exact6e7e64d0. Codex docs `codex/con01-owner-incorporation-r11` / [271](https://github.com/davidelaverga/Sophia/pull/271); current r12 identities/reviews in the [publication receipt](../coordination/CON-01/receipts/codex-research-r12-publication.md); r11 endingf9180c73 remains reviewed at its original pin |
+| Base | Main observed83d9e33b6ce86cef5c75839ef9936f96e1ed5334/tree9bda4080eb9980a24ca020a1e508d1d17e8ce8f0; not an accepted combined base. Luis's integration/Studio handback remains required. Historical initial base4f7470c and subsequent author merges below remain evidence only |
+| Implementer / operator / independent review | Codex session01a1224a-32b4-7222-a017-50a277572d95 is sole CON feature implementer and operator. Repository-required independent pre-push reviewer plus exact-head automatic review validate Codex-authored changes. Luis retains integration/shared Studio ownership; Davide final product authority |
+| Reservations | Historical A16/0048–0050/runtime-unit entries in the binding map do not open a current window or create a runtime installation. Phase B requires fresh accepted-base census, path/number reservation and finite sole-writer K5 GO after all current acknowledgements; dispatcher PR256 acceptance/landing is a prerequisite |
+| Decisions / operation approvals | OptionC, disposable isolated harness home per execution attempt, Q13A, conservative withdrawal and conversation-text-v1 synthetic-cohort policy accepted. These are not hosted/account/grant/deployment/provider/spending approval. OP0002r6 and OP0001r4 remain draft_not_authorized, approval_readyfalse, approval_refnull; Ask off |
 
-## Gates
+## Current gates and limits
+
+| Gate | Current fact | Remaining boundary |
+|---|---|---|
+| G0 | Settled design/policy choices above; r12 proposes research aggregation/capacity/helper compatibility after the conditional handbacks | Exact-r12 K1a and affected owner/joint/K3/base records pending; no source GO |
+| G1 |32/32 actual local PG/API cases pass at56182a22, including success/denial/lost-reply idempotency and human-only zero operational rows ([receipt](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6130575940)) | Not Q13/native/provider or two-account deployed-app qualification |
+| G2 | Docs-only r12 [research amendment](../coordination/CON-01/G2_RESEARCH_COMPATIBILITY_AMENDMENT.md); foundation14/6131109861 and research31/6130961758 remain conditional exact-r10 | Exact new H4=502 hello/ready and helper/preservation owner reviews, K2e existing/new runtime-source handback, core/shared base/window, Q13 and subscription topology/quota/native cleanup remain unqualified; no executable Phase B write |
+| G3 |2696e7e64d0: safe confirmation/coverage/cohort-notice patch; five corrected withdrawal-helper crossings pass; automatic result6131441696 no major issues | Original phone late-erasure focus and privacy frame criterion remain open; runtime-unit CI has the base-reproduced GoalList fixture-boundary failure, browser job114977376275 finished failure:1537pass/4fail (eyebrows Conversations, work-space pointer, Resources arrow focus, task Stop keys); other job114977403325 still running at the current checkpoint. Failures not waived or assigned to this patch without reproduction. No whole-suite or combined gate pass |
+| G4 | Current main/preparation/feature identities recovered | No accepted combined tree/artifacts; previous main merge-tree conflicts in conversations.css, personal.css, home-needs.spec.ts; no integration or merge performed |
+| G5 operations/app | Existing signed-in hosted browser tab accessible read-only; no Conversations navigation visible | No approved setup/Ask batch, designated two immutable subjects/project/cohort or verified serving app/API/runtime tuple; actual two-account/provider episode not run |
+
+Readiness stays scoped: UI source_ready/locally_verified/reviewed at its stated
+candidate; combined reviewed/authorized/deployed/app_verified/owner_accepted are
+not established. The [current retained acceptance ledger](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json)
+has36 individual verdicts:18partial_L1,3passed_L1,15not_run, copied without
+verdict changes from the recorded reviewer evidence atceb4e14e. It is retained
+evidence, not independent validation of this authored documentation or a new
+whole-gate acceptance. The older acceptance/findings below are archival, not a
+second current ledger. No broader mission or product completion.
+The unrequested retained-owner review workflow was stopped; displayed265.1k
+tokens, actual subscription deduction unknown, interrupted findings unqualified.
+Sophia provider calls/spend0; no further Claude feature/review workflow or monitor.
+
+## Historical gates (retained author checkpoints, not current instructions)
 
 | Gate | State | Evidence |
 |---|---|---|
@@ -23,7 +56,7 @@ The mission's one record of where things stand. Source, local tests, independent
 | G4 combined candidate | not started | — |
 | G5 operations and in-app test (Codex) | not started; no approval | — |
 
-## Baseline (this session, at `4f7470c`)
+## Historical baseline (this session, at `4f7470c`)
 
 | Command | Result |
 |---|---|
@@ -31,7 +64,7 @@ The mission's one record of where things stand. Source, local tests, independent
 | `pnpm install --frozen-lockfile` | up to date |
 | `pnpm test:db` (local PostgreSQL 16.15 via `SOPHIA_DISPOSABLE_DATABASE_URL`; Docker unavailable here) | 600 tests, 600 pass, 0 fail, 0 skipped |
 
-## G1 intermediate: checks run (this session, local PostgreSQL 16.15, Node 24.21.0)
+## Historical G1 intermediate: checks run (this session, local PostgreSQL 16.15, Node 24.21.0)
 
 | Check | Result |
 |---|---|
@@ -42,7 +75,7 @@ The mission's one record of where things stand. Source, local tests, independent
 | Prettier and type-aware oxlint on every changed TypeScript file | clean |
 | Full ordinary gate (`pnpm check`: build, unit, format, lint, artifacts, integration) and the full `pnpm test:db` | **pending** at the intermediate (`6092d93`). A gate I ran then over my working tree showed A16's JSON unformatted; that was corrected in `a7cc081` |
 
-## G1 server at `a7cc081` (tree `ada2700`): the ordinary gate in a clean worktree at exactly that commit
+## Historical G1 server at `a7cc081` (tree `ada2700`): the ordinary gate in a clean worktree at exactly that commit
 
 Exit codes were written to a file by the shell, never read through a pipeline.
 
@@ -53,7 +86,7 @@ Exit codes were written to a file by the shell, never read through a pipeline.
 | `pnpm test:sql` | 0 | 46 migrations, 5 test files passed |
 | The two conversation suites with the CX-0006 race regressions | 0 | 26 tests, 26 pass |
 
-## G1 Studio wiring (the commit after `a7cc081`)
+## Historical G1 Studio wiring (the commit after `a7cc081`)
 
 | Check | Result |
 |---|---|
@@ -63,7 +96,7 @@ Exit codes were written to a file by the shell, never read through a pipeline.
 | Other browser suites touching conversations or the nav: app-auth, knowledge-honest, knowledge-origins, project-connections, report, spaces-honest, type-scale | 114 passed, 1 failed under load (app-auth lens restore: a 5 s sign-in wait). Not reproduced: app-auth alone with `--repeat-each=3` gives 45/45 |
 | **Real local episode** (L1: real API with `SOPHIA_CONVERSATIONS=on`, PostgreSQL 16.15, Studio dev build with `VITE_SOPHIA_CONVERSATIONS=1`, `dev-db.ts` synthetic identities, project setting written by the operator function) | Davide starts «Onboarding direction» (POST 202) with Ask off. His asked message is recorded with its request `blocked`, said under it. Luis contributes. After Davide reloads, every message is read back from PostgreSQL ("You, luis@sophia.test"). Vera (viewer, 390 px) reads, with no composer and no New conversation. A second and third conversation keep separate histories. The composer says "Sophia doesn’t answer here yet" and offers no quick ask while `capability.ask` is unavailable |
 
-## G3 slice at `839fb45` (tree `fcf069e`)
+## Historical G3 slice at `839fb45` (tree `fcf069e`)
 
 Run in this session with each exit code written by the shell, never through a pipeline.
 
@@ -74,7 +107,7 @@ Run in this session with each exit code written by the shell, never through a pi
 | The 12 conversation browser suites, desktop and phone (the local Playwright config with this container's Chromium 141) | 0 | 115 passed |
 | **Real local episode** (L1: the real API with `SOPHIA_CONVERSATIONS=on`, PostgreSQL 16.15, the Studio dev build, `dev-db.ts` synthetic identities) | — | Davide is offered Withdraw on his own message and nothing on Luis's (he is not an admin), and withdraws. Luis (admin) removes Davide's other message. Vera (viewer) reads both as withdrawn and is offered no press. In PostgreSQL both rows have `body` and `author_name` NULL (`withdrawn_by` `author` and `admin`) |
 
-## Acceptance (pack 07; every case starts `not_run`)
+## Historical acceptance (archival author checkpoint) (pack 07; every case starts `not_run`)
 
 | Id | Case | Gate | Status | Evidence |
 |---|---|---|---|---|
@@ -115,7 +148,7 @@ Run in this session with each exit code written by the shell, never through a pi
 | CON01-A30 | Actual app non-fixture proof | G5 | not_run | |
 | CON01-A31 | Parallel ownership | G4 | not_run | |
 
-## Findings
+## Historical findings (archival author checkpoints)
 
 | Id | Severity | Gate | Finding | State |
 |---|---|---|---|---|
@@ -152,11 +185,18 @@ Run in this session with each exit code written by the shell, never through a pi
 
 ## Next action
 
-Codex rechecks `a3422f4` on the actual app (the withdrawal key, erasure by another client, a late proposal reply, the capped countercontrol, phone focus). Claude runs the focused and full Studio browser gates on it in a frozen worktree, then `pnpm check`, and reports each exit as it is.
+Codex recovers the [r12 publication receipt](../coordination/CON-01/receipts/codex-research-r12-publication.md)
+and checks the exact pushed head's automatic review before further source work. Do not
+restart the former CON Claude coding session or rerun old full suites/batches.
+Review/publish the bounded r12 research compatibility amendment, then obtain
+exact affected-owner rechecks, precise K2e existing/new runtime-source handback and Luis's accepted
+combined-base/held-focus-function handback. Record exact-r12 K1a only against its
+reviewed immutable commit/document hash; proposal authorship is not that ACK.
+PR256 acceptance/landing and fresh finite K5 GO precede all executable shared
+writes. Independent review and affected integration checks follow each source pin.
 
-No G2 code is written before Davide's D-6 and B-1 and the shared-window acknowledgments; once written, its exact combined source goes to Codex's review.
-
-Still open:
-- Davide's D-1 … D-6 and B-1.
-- #190's acknowledgment before any shared runtime write.
-- No hosted text or inference until the cohort, policy, route, payer, finite caps, expiry and an exact batch are bound.
+Operation batches remain separate and unapproved. Bind actual candidates,
+artifacts, targets, accounts/roles, credential references, payer/finite caps/expiry,
+concurrent-live-work handling and recovery before returning them for Davide's
+approval. No route/provider switch, personal-subscription sharing assumption or
+allowance reset. Ask stays off. Davide retains final product acceptance.
