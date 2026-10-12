@@ -55,3 +55,9 @@ commit after it adds only this handoff. A squash on merge gives the work an id t
 
 informe-inteligencia #2 («Next» after resolving something, with the focus that falls to `body` after answering a
 decision on the board), then #3 (the palette that knows) and #5 (a question mark offers «Ask Sophia»).
+
+## Post-review (Codex on #265, which builds on this)
+
+The field's suggestions are quiet while a message is on its way, sending or held with no reply (`props.held !== null ||
+busy`), not only once held unconfirmed: a Tab during a send could change «Ask Sophia» for a message already sent
+without her.
