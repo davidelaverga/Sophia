@@ -191,3 +191,15 @@ test('home · needs you behind a shut padlock: nothing is read, nothing is shown
   await expect(list(page)).toHaveCount(0)
   expect(await page.evaluate(() => window.homeFixture?.needsReads() ?? -1)).toBe(0)
 })
+
+test('home · needs you refused after a good read: the rows read before are not shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?needs=api`)
+  const rows = list(page).getByRole('button')
+  await expect(rows).toHaveCount(4)
+  await page.evaluate(() => window.homeFixture?.refuseNeeds())
+  await page.evaluate(() => window.dispatchEvent(new Event('visibilitychange')))
+  await expect(page.getByRole('alert').filter({ hasText: 'Couldn’t read what needs you.' })).toBeVisible()
+  await expect(rows).toHaveCount(0)
+})

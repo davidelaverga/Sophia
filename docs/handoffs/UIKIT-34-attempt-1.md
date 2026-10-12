@@ -50,3 +50,9 @@ the PR is squashed at merge, one commit carries all of it under an id this file 
 
 The same reading on Knowledge's cards and Updates' rows (a long chip beside a name); the context pane's eyebrow
 hierarchy on Conversations for Luis's eye.
+
+## Post-review (Codex on #258)
+
+- The alignment is checked at a phone's width too (`@phone`, 390 px): the doer's name whole, the long chip beside it
+  clear of its words (the single lane is wide enough) or under it, the blocker's wrapped lines on one left edge. At
+  1280 the long chip stands under the name, as before. Both run from one helper in work.spec (`tileAlignment`).

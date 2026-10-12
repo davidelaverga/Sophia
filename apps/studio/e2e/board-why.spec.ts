@@ -36,3 +36,53 @@ test('why @phone · on a coarse pointer the blockers’ rows keep their reaching
   expect(read.reach).toBe(7)
   expect(read.rowGap).toBeGreaterThanOrEqual(2 * read.reach)
 })
+
+test('why · a lane names three blockers in the plan’s order; «and N more» shows the rest and keeps the focus (Codex on #244)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?waits=1`)
+  const why = lane(page, 'Blocked').locator('.lane-why')
+  const names = why.locator('.text-button:not(.lane-why-more)')
+  await expect(names).toHaveCount(3)
+  // The plan's order: the retry first, then the four in the order the plan holds them (the dependent lists them reversed).
+  await expect(names).toHaveText(['Implement the PDF retry', 'Agree the export’s font list', /^Read https:/])
+  const more = why.locator('.lane-why-more')
+  await expect(more).toHaveText('and 2 more')
+  await more.focus()
+  await page.keyboard.press('Enter')
+  await expect(names).toHaveCount(5)
+  await expect(more).toBeFocused()
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
+})
+
+test('why · a blocker’s long unbroken name wraps inside its lane (Codex on #244)', async ({ page }) => {
+  await page.goto(`${PAGE}?waits=1`)
+  const blocked = lane(page, 'Blocked')
+  const long = blocked.locator('.lane-why .text-button', { hasText: /^Read https:/ })
+  await expect(long).toBeVisible()
+  const [box, inLane] = await Promise.all([long.boundingBox(), blocked.boundingBox()])
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((inLane?.x ?? 0) + (inLane?.width ?? 0) + 0.5)
+})
+
+test('why · the blocker completed while its sheet is open: closing gives the focus to its tile (Codex on #244)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const blocked = lane(page, 'Blocked')
+  await blocked.locator('.lane-why').getByRole('button', { name: 'Implement the PDF retry', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'Implement the PDF retry' })
+  await expect(sheet).toBeVisible()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  await expect(page.locator('.lane-why')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  await expect(page.locator('.board [data-task="work-1"]').first()).toBeFocused()
+})
+
+test('why · a blocked goal’s chip keeps its marks inside it (Codex on #244)', async ({ page }) => {
+  await page.goto(`${PAGE}?goals=6&viewer=davide`)
+  const chip = page.getByRole('tab', { name: /Reports export to PDF reliably/ })
+  const tab = chip.locator('.plan-tab')
+  await expect(tab.locator('.plan-tab-blocked')).toBeVisible()
+  expect(await tab.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0)
+})

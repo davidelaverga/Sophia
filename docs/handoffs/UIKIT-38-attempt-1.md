@@ -49,3 +49,11 @@ merge gives the work an id this file cannot know.
 
 informe-inteligencia #3 (the palette that knows: «For you now» from the needs and the commands used most) and #5 (a
 question mark in a field offers «Ask Sophia»).
+
+## Post-review (Codex on #263)
+
+- The line moves on only once an answer is recorded: a conflict, a refusal, an expiry or an unknown keeps the decision
+  the one to answer and shows no line (next-up.spec with the fixture's `conflict=1`).
+- Answers are kept by decision and revision (`answeredKey`): a revision proposed later is the next to decide
+  (next-up.test).
+- The tasks waiting for the viewer are read by their pending request, as `forViewer` reads them, not by the waiting mark.

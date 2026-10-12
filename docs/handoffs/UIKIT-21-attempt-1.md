@@ -53,3 +53,8 @@ completed code state of this PR.
 ## Next bounded action
 
 UIKIT-22: the board's «why blocked» on the lane's head (opens the blocker) and the blocked count on the goal's chip.
+
+## Post-review (Codex on #243, later rounds)
+
+- The places' `CommandsHost` is mounted beside the bar, not inside it: `.topbar`'s backdrop-filter made it the
+  containing block of the fixed veil, which dimmed 48 px. app-auth.spec reads the veil at the viewport's size at Home.

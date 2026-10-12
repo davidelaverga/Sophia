@@ -271,7 +271,13 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     cover()
     // The room's dock is mounted anew when the width crosses the header's breakpoint: covered again (Codex on #254).
     const wide = matchMedia(WIDE)
-    const coverAgain = () => requestAnimationFrame(() => cover(true))
+    // One frame queued at a time, cancelled with the panel: a frame left over would make the page inert again with no
+    // panel to clear it (Codex on #254).
+    let frame = 0
+    const coverAgain = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => cover(true))
+    }
     wide.addEventListener('change', coverAgain)
     const width = new ResizeObserver(([entry]) => {
       if (!entry || entry.contentRect.width <= PANEL) return
@@ -288,6 +294,7 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     return () => {
       document.removeEventListener('keydown', onKey)
       wide.removeEventListener('change', coverAgain)
+      cancelAnimationFrame(frame)
       width.disconnect()
       for (const el of [...behind, ...docks()]) el.inert = false
     }

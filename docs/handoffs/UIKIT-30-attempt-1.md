@@ -12,9 +12,10 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `b809b55b` (tree `a4d10595a866`): 3 files: `theme.css` (`.room-stage::before` on paper, the light above it, the floor's role at the
-warm's full ink on paper), `e2e/light-stage.spec.ts` (new, 2), `docs/plans/light-stage.md`. The commit after it adds
-only this handoff.
+Ending commit/tree: the branch's head as merged (`ui/light-stage`). The implementation was first delivered as
+`b809b55b` (tree `a4d10595a866`, 3 files); the reviewed result Codex named, `834411c4` (tree `295237b5330f`), is that
+work merged with its base, 4 files; every later change is listed with its commit in the post-review notes below (Codex
+on #252: the record names the integration result, not only the implementation commit).
 
 ## Outcome
 
@@ -25,6 +26,9 @@ only this handoff.
 - Unverified: the Playwright run (the local guard); CI is the run on record.
 
 ## Evidence
+
+- Source-register IDs (`docs/pack/sources/source-register.json`): none consulted. A Studio CSS slice: the materials were
+  the repository's own files (`theme.css`, the fixture room) and informe-ui-premium §8, not a registered source.
 
 - `pnpm format`, `pnpm lint` (type-aware), `pnpm --filter @sophia/studio typecheck`: clean.
 - Measured in the page, the room in a call in light: `.room-stage::before` background
@@ -47,3 +51,12 @@ only this handoff.
 
 The light-mode verdict's three moves are in (#250, #251, this). Back to the UI report's queue: Hold/Stop as text
 buttons (one primary per view), the dock to the header on non-Studio views; the Knowledge cover's paper before paint.
+
+## Post-review, round 2 (Codex on #252)
+
+- The warm vignette is sized `ellipse closest-side`: each edge's midpoint is the ramp's end (0.05), the corners past it.
+  At `100% 100%` an edge stood at half the radius, inside the clear 55 %, so no edge was tinted.
+- light-stage.spec measures it as drawn: the vignette alone (the stage's parts hidden, the halo's layer taken off), a
+  screenshot's pixels at the left and top edge midpoints warmer than the centre. A control with the old sizing reads
+  no difference.
+- The ending record names the integration result; the source-register IDs are recorded (none consulted).

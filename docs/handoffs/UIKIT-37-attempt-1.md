@@ -61,3 +61,11 @@ decision on the board), then #3 (the palette that knows) and #5 (a question mark
 The field's suggestions are quiet while a message is on its way, sending or held with no reply (`props.held !== null ||
 busy`), not only once held unconfirmed: a Tab during a send could change «Ask Sophia» for a message already sent
 without her.
+
+## Post-review (Codex on #262)
+
+- An ask put away stays out of the quick asks too (`quickAsks(asked, suggestion, putAway)`, unit-tested).
+- Recency reads the viewer's own last six: while the loaded pages hold fewer, `olderAsks` reads earlier pages (at most
+  four, stopping at six of theirs; unit-tested with a fake reader), and nothing is proposed while it reads.
+- The field's description says why the suggestion is there, as the tip does for the pointer; next-ask.spec reads it.
+- What was put away is kept per account and conversation, so another account on this browser starts afresh.

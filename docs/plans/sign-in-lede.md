@@ -19,8 +19,12 @@
 - **One line under the title**, before the providers, in the door's voice and tense: «A room where your team and
   Sophia think together.» A `p` like the body's others (14 px, `--text-2`), so the screen keeps its three sizes
   (title, text, label). Only on the sign-in step: «Check your email» and the offer to continue keep their own words.
-- Nothing moves: the light's rest, the title, the field and the buttons are where they were; the column grows by one
-  line of 20 px and the gap.
+- The light's rest and the title are where they were; the providers, the field and the buttons start one line of 20
+  px and the gap (34 px) lower: the line is under the title, so what follows it moves by its height. Keeping the
+  controls where they were would move the title or the light instead, and the title is the screen's anchor (Codex on
+  #247: the earlier «nothing moves» was wrong). On a short window where the taller column tips `restsHigh`, the light
+  rests high as for any taller body; signin-lede.spec pins the 48 px between the title and the providers and the title
+  unmoved.
 
 ## Checks
 

@@ -59,3 +59,14 @@ Per informe-pasada-3 §5 and §6, the queue: UIKIT-20 (the Studio's lens in the 
 shown, «Working on 1 task in the background» opens the task), UIKIT-21 (Places onto `useCommands` with the host in the
 places' bar; `Shift+L` for the theme), UIKIT-22 (the board: «why blocked» on the lane's head, the blocked count on the
 goal's chip).
+
+## Post-review (Codex on #241, later rounds)
+
+- The sheet's keys listen only in scope (`ShortcutScope`): a project kept behind Home or Personal for its call takes no
+  H or S. Caps Lock or Shift give the same keys.
+- H and S are in their controls' tips (Hold or Resume, and Stop: `ConfirmButton` takes `keys`), as every single-key
+  shortcut is.
+- The data stay on the 10.5 px scale where the pass had raised them: the activity's time, a decision's expiry, the
+  capacity caption, the room link and its limits, the report's version and following count, Home's date, a session
+  countdown, a day's elapsed note, Conversations' day, and a number inside a label.
+- micro-type.spec fails a page that measures no label, instead of passing it as 12 px.
