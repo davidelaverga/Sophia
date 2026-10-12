@@ -5,3 +5,15 @@
 if (new URLSearchParams(location.search).has('code') && !location.pathname.startsWith('/join')) {
   document.documentElement.dataset.entering = ''
 }
+// The theme chosen on this browser (src/app/theme.ts keeps it as `sophia.theme`), on the root before the first paint,
+// so a light page never flashes the void; «system» asks the system. The app's own boot then agrees with it.
+try {
+  const theme = localStorage.getItem('sophia.theme')
+  if (theme === 'light' || (theme === 'system' && matchMedia('(prefers-color-scheme: light)').matches)) {
+    document.documentElement.dataset.theme = 'light'
+    // The browser's chrome with it, from the first paint (theme.ts keeps it after).
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#fbf8f3')
+  }
+} catch {
+  // Storage refused (a private window): the room, as the app's boot will say.
+}

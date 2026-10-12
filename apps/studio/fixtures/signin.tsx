@@ -11,6 +11,7 @@ import { createRoot } from 'react-dom/client'
 import { EmailSignIn } from '../src/app/SignIn.tsx'
 import { DEMO, DEMO_LABEL } from './demo.ts'
 import '../src/app/theme.css'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -19,6 +20,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const sent: string[] = []
 window.signinFixture = { sent }
 

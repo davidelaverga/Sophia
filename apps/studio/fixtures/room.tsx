@@ -79,6 +79,7 @@ import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoServedGoals } from './demo-work.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -245,6 +246,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {

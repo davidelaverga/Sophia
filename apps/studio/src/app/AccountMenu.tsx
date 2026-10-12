@@ -8,6 +8,7 @@ import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { PasskeySheet } from './PasskeySheet.tsx'
+import { type Theme, useTheme } from './theme.ts'
 
 export interface AccountActions {
   data: () => void
@@ -56,6 +57,27 @@ function Head({ identity, onChoose }: { identity: Identity; onChoose: (i: Identi
   )
 }
 
+/** The appearance (docs/plans/light-mode.md): the dark room, the report's paper, or the system's. */
+const THEMES: readonly (readonly [Theme, string])[] = [
+  ['dark', 'Dark'],
+  ['light', 'Light'],
+  ['system', 'Follow the system'],
+]
+
+function Appearance() {
+  const [theme, setTheme] = useTheme()
+  return (
+    <>
+      <MenuSep />
+      {THEMES.map(([value, label]) => (
+        <MenuItem key={value} checked={theme === value} onClick={() => setTheme(value)}>
+          {label}
+        </MenuItem>
+      ))}
+    </>
+  )
+}
+
 interface Props {
   identity: Identity
   where: Where
@@ -95,6 +117,7 @@ export function AccountMenu({ identity, where, actions }: Props) {
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
           </MenuItem>
           <MenuItem onClick={pick(actions.privacy)}>How privacy works</MenuItem>
+          <Appearance />
           <MenuSep />
           {passkeysOffered && authMode !== 'dev' && (
             <MenuItem onClick={pick(() => setPasskeys(true))}>Passkeys</MenuItem>
