@@ -1,0 +1,69 @@
+{
+  "mission": "CON-01",
+  "checkpoint": "CX-0166",
+  "role": "independent reviewer/operator",
+  "previousTurn": "progress",
+  "reviewerStart": "f025a3d9e5cf632fef96492bbc851ab8c362437c",
+  "candidate": {
+    "commit": "960f262f1e51dfb46eb2e16fb093ad1f90eecb11",
+    "tree": "0ab2cc13503392cb3df313962df788e675270701",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "sha256": "39fd1fc8d62403e2b8987d248505a8d78fbf844edf05527dd026706d1d2225ef",
+    "lines": 792,
+    "onlyChangedPath": true
+  },
+  "main": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+  "independentComparisons": {
+    "r7_r8_sections1to4_identical": true,
+    "r5_r8_sections3_2_3_3_identical": true,
+    "k3NotWidened": true,
+    "sharedSourceImplementation": false
+  },
+  "rootConcerns": [
+    {
+      "id": "PB5-DEFER-JOB-BOUNDARY",
+      "severity": "P2",
+      "candidateLines": "299–301",
+      "source": "db/migrations/0012_runtime_service.sql:694–705",
+      "expected": "No operational job-row locks or events for reply deferral",
+      "observed": "Chosen generic defer_native_delivery UPDATEs jobs by c.id and may emit native_task.waiting",
+      "required": "Explicit outbox-only invocation/helper guarantee and adverse no-job-lock/event proof; no silent shared-helper expansion",
+      "status": "under independent consumer and actual-owner review"
+    },
+    {
+      "id": "PB6-EXISTING-RETIRE-PREFLIGHT",
+      "severity": "precision/qualification gap",
+      "candidateLine": 203,
+      "source": "db/migrations/0001_core.sql:109–120",
+      "expected": "Unsupported legacy rows cause explicit fail-closed qualification without mutating governed rows",
+      "observed": "Unconstrained outbox.destination permits native.retire before runtime kind exists; source producers do not prove real inventory",
+      "required": "Distinguish current-producer assumption from database evidence; preflight/migration failure and non-mutation qualification",
+      "status": "under independent consumer and actual-owner review"
+    }
+  ],
+  "consumer": {
+    "threadId": "01a10cf9-0fab-7561-9de4-702f30a511f4",
+    "turnId": "01a12f32-382d-7da3-8055-c6d0125a9bf5",
+    "status": "verified_live",
+    "cursor": "05536df8-cc0b-448c-939a-b8a87359d323:147",
+    "prompt": "Please perform one bounded affected consumer review for CON-01 Phase B reservation revision8, not another r5 review and not a source-write GO. User has authorized direct shared-runtime coordination with this existing thread. No new thread/subagent/session/automation or operational work.\n\nExact current candidate claude/con01-g2-phase-b-request 960f262f1e51dfb46eb2e16fb093ad1f90eecb11, tree0ab2cc13503392cb3df313962df788e675270701, docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md SHA25639fd1fc8d62403e2b8987d248505a8d78fbf844edf05527dd026706d1d2225ef (792lines), available in /Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-review Git objects. Main3c40b1c64eadaef56537a9e9123e71557cfd2a7b unchanged. Previous accepted consumer scope exactr5 b975bbe2409cce9d3349c049e2de5569b164b648/SHA69219da474faf2c8b234542e2b273784adc228884b5dde2c9c989a6e6e82d6f7; original joint review /Users/davidelaverga/.codex/operator-journal/joint-SDD01-WBC02/shared-runtime-CON01-WBC02-SDD01-PhaseB-b975bbe2-reservation-review-20261012.json. Inspect changed scope independently.\n\nMaterial r7/8 delta is §3.1 D1–D5/C1–C4/N1 incorporation plus reply-only outbox CHECK D4; r7 330e52be §1–4 equals r8 byte-for-byte. Root verified §3.2/3.3 unchanged fromr5; exact narrow K3 not widened. Actual retained native owner0155SjcXhv87RErnWEBWxfBM conditionalK2d https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120057551; explicit own-remitK3 https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120100817. Owner D4 incorporation review remains separate/owed.\n\nPlease assess consumer correctness of lease/expiry placement, atomic shared command_sequence/outbox ack, reply-only native.retire constraint including cleanup goal-kind path, capture live/replay correlation and goal-body/ACL preservation; A1/A2 and the earlier request semantics stay preserved.\n\nTwo root concerns to independently resolve, without adopting them automatically:\n1. §3.1(d) now says A2 deferral uses existing defer_native_delivery. Actual main0012:694–705 helper UPDATEs sophia.jobs by c.id and may emit native_task.waiting, while D3 promises no goal/job row locks. Does invocation need a precise NULL-command/outbox-only form or another closed CON-only helper to ensure the contract? No helper change/extra shared scope silently assumed.\n2. §3.1(a) asserts no existing native.retire row because runtime_commands.kind lacks retire. outbox.destination is free text; current producers alone do not prove actual row inventory. Recommend explicit bounded preflight/fail-closed migration qualification with no automatic mutation/backfill, distinguish source assumption from real DB proof.\n\nReturn findings or exact affected consumer compatibility ACK, qualification gaps and retained owner/window holds, with immutable input hashes and a bounded safe JSON record in the existing operator-journal. Do not send messages to others, widen K3, claim implementation/DB/process/provider/live proof, open shared writes/merge/deploy, inspect credentials, terminate connections or execute providers/spend. Luis Studio findings and handback recorded in CX0165 are separate. No whole product or other mission completion."
+  },
+  "owner": {
+    "sessionId": "session_0155SjcXhv87RErnWEBWxfBM",
+    "url": "https://claude.ai/epitaxy/session_0155SjcXhv87RErnWEBWxfBM",
+    "preSubmit": "idle;emptyPrompt452;disabledSend453",
+    "delivery": "visibleMessage436;emptyPrompt464;Stop465",
+    "followupObservation": "same session reading verified candidate;emptyPrompt323;Stop324",
+    "status": "verified_live"
+  },
+  "limits": {
+    "sourceWriteGo": false,
+    "merge": false,
+    "hostedEffects": false,
+    "providerExecution": false,
+    "spend": 0,
+    "askEnabled": false,
+    "operationsApproved": false
+  },
+  "tests": "No new SQL/runtime/provider test run; proposal review only; planned test clauses are not executed proof."
+}
