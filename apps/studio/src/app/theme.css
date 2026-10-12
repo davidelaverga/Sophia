@@ -18,6 +18,10 @@
   --plane-2: #121118;
   --glass: rgba(12, 11, 17, 0.74);
   --text: #ecebf1;
+  /* The ink as channels (for an alpha of it: a title's underline at 0.4), and the primary's hover plane: the on state
+     under the pointer (Codex on #232). */
+  --ink-rgb: 236 235 241;
+  --core-hover: #fff;
   --text-2: rgba(236, 235, 241, 0.66);
   /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
   --text-3: rgba(236, 235, 241, 0.52);
@@ -229,6 +233,13 @@ button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+/* A native disclosure is a press: under the pointer its words step up to the ink (Codex on #232). */
+summary {
+  cursor: pointer;
+}
+summary:hover {
+  color: var(--text);
+}
 /* A press that waits keeps the focus (aria-disabled) and looks as one that can't be pressed, never as a live one. */
 button:disabled,
 .pill[aria-disabled='true'],
@@ -349,6 +360,12 @@ select option {
   color: var(--text);
   background: rgba(236, 235, 241, 0.06);
 }
+/* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
+.ghost:active:not(:disabled, [aria-disabled='true']),
+.round:active:not(:disabled, [aria-disabled='true']),
+.text-button:active:not([aria-disabled='true'], :disabled) {
+  transform: translateY(0.5px);
+}
 /* Icon controls: squares with a small radius (the class name predates the shape). */
 .round {
   display: inline-grid;
@@ -375,6 +392,10 @@ select option {
   background: var(--core);
   border-color: transparent;
 }
+/* On, it still answers: a press would turn it off. */
+.round[aria-pressed='true']:hover {
+  background: var(--core-hover);
+}
 .round.leave:hover {
   color: var(--rose);
   border-color: rgba(238, 159, 176, 0.4);
@@ -390,6 +411,11 @@ select option {
   text-decoration: underline;
   text-decoration-color: rgba(185, 168, 255, 0.35);
   text-underline-offset: 3px;
+  transition: text-decoration-color var(--fast) var(--ease);
+}
+/* Under the pointer the underline wakes from a third of its ink to the ink. */
+.text-button:hover:not([aria-disabled='true'], :disabled) {
+  text-decoration-color: var(--halo-text);
 }
 /* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
    class alone (a pill 32, a ghost 28, a square 36, an inline action 24); a modifier takes it one step down or up
@@ -458,6 +484,15 @@ select {
   background: rgba(236, 235, 241, 0.03);
   color: var(--text-2);
   font-size: 13px;
+}
+/* A select is a press too: under the pointer its words and its edge wake (Codex on #232). */
+select:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+input[type='checkbox']:hover:not(:disabled) {
+  filter: brightness(1.2);
 }
 .form-error {
   color: var(--rose);
@@ -752,6 +787,10 @@ button.mark:hover {
   border: 0;
   border-radius: 50%;
   background: none;
+}
+/* Under the pointer the avatar's edge lights, as a square's does; open, it is the warm. */
+.account-btn:hover .avatar {
+  border-color: var(--line-3);
 }
 .account-btn[aria-expanded='true'] .avatar {
   border-color: var(--warm);
@@ -1333,8 +1372,10 @@ img.avatar {
   font-weight: 500;
   transition: color var(--fast) var(--ease);
 }
-.segmented button:hover {
-  color: var(--text-2);
+/* Under the pointer an option not yet on reads in the ink: a step above wherever its box rests it (Knowledge's filters
+   rest at the second ink already). The one on is on. */
+.segmented button:hover:not([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
+  color: var(--text);
 }
 /* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
 .segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
@@ -3881,6 +3922,10 @@ button.contribution-quote:hover {
   cursor: pointer;
   color: var(--text-2);
   font-size: 12px;
+}
+/* Its resting ink ties `summary:hover` and comes later: the hover is said again here (Codex on #232). */
+.mission-more > summary:hover {
+  color: var(--text);
 }
 .mission-more[open] {
   display: grid;
