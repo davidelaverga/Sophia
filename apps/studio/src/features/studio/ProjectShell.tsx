@@ -42,6 +42,7 @@ import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
 import { blockedBy, isStale, readsServedBoard, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
+import { lensInAddress } from './viewer-state.ts'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
@@ -146,6 +147,8 @@ interface Props {
   onSignOut: () => void
   /** Out of sight while its call goes on: nothing here is on screen or takes a key. */
   background?: boolean
+  /** The project the address names (false: a call's project kept on screen while another opens; Codex on #242). */
+  routed?: boolean
   /**
    * The call started or changed (what is being sent), or ended (null): with why (call-end.ts) when this person didn't
    * leave it, so wherever they are it can be said.
@@ -382,6 +385,7 @@ export function ProjectShell(props: Props) {
             onShow={onShow}
             onInvite={invite}
             background={!!props.background}
+            routed={props.routed !== false}
             resources={props.resources}
             {...work}
             search={{ open: searching, onClose: () => setSearching(false) }}
@@ -484,6 +488,8 @@ interface BodyProps {
   onInvite: () => void
   /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
   background: boolean
+  /** The project the address names: only then does the Studio read and write its lens there. */
+  routed: boolean
   resources: React.ReactNode
   plans: Readonly<Record<string, GoalPlan>> | undefined
   /** The source-review pilot's entry under each goal in Tasks (WBC-02), where Sophia offers it. */
@@ -541,6 +547,7 @@ function ProjectBody(props: BodyProps) {
           made={made}
           catchUp={catchUp.card}
           background={background}
+          routed={props.routed}
         />
       </>,
     )
@@ -704,12 +711,17 @@ function nameIn(room: ProjectRoom, identity: string): string {
   return p.local ? 'you' : shortName(p.name)
 }
 
-/** Copies the Studio link, not the current view: the other person opens the shared room. */
+/**
+ * Copies the Studio link, not the current view: the other person opens the shared room, in the lens shown when the
+ * Studio view names one in the address (Codex on #242).
+ */
 function CopyLinkButton({ projectId }: { projectId: string }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${routePath({ projectId, view: 'studio' })}`)
+      const lens = lensInAddress(window.location.search)
+      const link = `${window.location.origin}${routePath({ projectId, view: 'studio' })}${lens ? `?lens=${lens}` : ''}`
+      await navigator.clipboard.writeText(link)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
