@@ -55,14 +55,23 @@ test('faces Â· on paper the initial reads on its disc, and the disc on the headâ
     const head = document.querySelector('.conv-head')
     if (!face || !head) return null
     const f = getComputedStyle(face)
+    // What the face stands on, as painted: the first ancestor with a colour of its own (the head and the pane are
+    // see-through; the page is not).
+    let backing = 'rgba(0, 0, 0, 0)'
+    for (let el: Element | null = face.parentElement; el && backing === 'rgba(0, 0, 0, 0)'; el = el.parentElement)
+      backing = getComputedStyle(el).backgroundColor
     return {
       ink: f.color,
       disc: f.backgroundColor,
       plane: getComputedStyle(head).backgroundColor,
+      ring: f.boxShadow,
+      backing,
       words: face.textContent.trim(),
     }
   })
   expect(read?.words.length ?? 0).toBeGreaterThan(0)
+  // The ring is the colour of what the face stands on: a separator, not a second disc.
+  expect(read?.ring, JSON.stringify(read)).toContain(read?.backing ?? '-')
   // The initial on its disc, the disc on the head's plane over the paper.
   const paper = 'rgb(251, 248, 243)'
   const grounds = [read?.disc ?? '', read?.plane ?? '', paper]

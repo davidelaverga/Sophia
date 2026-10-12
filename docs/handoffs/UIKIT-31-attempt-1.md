@@ -6,6 +6,12 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/hold-stop-text` from `ui/light-stage` at
 `18ed5952` (stacked on PR #252 → #251 → … → #220; the base retargets as each merges)
+Writable scope: this worktree only (`apps/studio`, `packages/ui`, `docs/plans`, `docs/handoffs`; a contract amendment
+only where its note says so), on branch `ui/hold-stop-text`; no service code, no deploy.
+Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright through
+`.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
+Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
+commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
 Ending commit/tree: `dc25fcb3` (tree `16f159f2796e`): 4 files: `WorkControls.tsx` (the classes), `theme.css` (the step after the filled press),
 `e2e/goal-controls.spec.ts` (new, 3), `docs/plans/goal-controls-text.md`. The commit after it adds only this handoff.
 

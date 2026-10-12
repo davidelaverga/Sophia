@@ -52,3 +52,8 @@ Informe-ui-premium §8 move 3: the room's stage as lit paper and «has the floor
   element’s own background is `none`, so the dark fallback radial (no WebGL) no longer paints under the halo.
 
 - `7cc21a73`: the halo recalibrated after Luis’s eye (a soft heart and a deeper rim; `light-breath.md`, «After Luis’s eye»).
+
+## Post-review (Codex on #251, later round)
+
+The paper multiply (and the dark screen) scoped to the light's canvases, not the `.light` box, so the formed mark is
+not blended with the paper (`#8468ee` as drawn, not `#8265e3`). light-mark.spec checks no ancestor of the mark blends.

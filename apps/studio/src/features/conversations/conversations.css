@@ -334,12 +334,14 @@
 .conv-face.sophia {
   background: #16131f;
 }
-/* On paper the disc is the warm tint (the own bubble's plane) with the warm ink, ringed in the head's plane: in the
-   room's fixed dark disc the initial did not read (docs/plans/conversations-polish.md). */
+/* On paper the disc is the warm tint (the own bubble's plane) with the warm ink, ringed in what the head stands on:
+   the head and the pane are see-through, so that is the page (`--void`), as in the dark; the plane's ring drew a
+   second beige disc (Codex on #257). In the room's fixed dark disc the initial did not read
+   (docs/plans/conversations-polish.md). */
 :root[data-theme='light'] .conv-face {
   background: rgb(var(--warm-rgb) / 0.32); /* a disc the eye sees (1.6:1 on paper): the bubble's 8.5 % would vanish */
   color: var(--warm);
-  box-shadow: 0 0 0 2px var(--plane);
+  box-shadow: 0 0 0 2px var(--void);
 }
 :root[data-theme='light'] .conv-face.sophia {
   background: rgb(var(--core-rgb) / 0.12);

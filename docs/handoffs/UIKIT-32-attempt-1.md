@@ -6,6 +6,12 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/dock-header` from `ui/hold-stop-text` at
 `e784a65e` (stacked on PR #253 → #252 → … → #220; the base retargets as each merges)
+Writable scope: this worktree only (`apps/studio`, `packages/ui`, `docs/plans`, `docs/handoffs`; a contract amendment
+only where its note says so), on branch `ui/dock-header`; no service code, no deploy.
+Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright through
+`.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
+Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
+commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
 Ending commit/tree: `66161f90` (tree `f5f83855827e`): 5 files: `ProjectShell.tsx` (`dock` slot on the header, `headerDock`, `useDockPlace`, the `floating`
 prop), `app/useMedia.ts` (new), `theme.css` (the dock in the header on a wide screen), `e2e/dock-header.spec.ts` (new,
 5), `docs/plans/dock-header.md`. The commit after it adds only
