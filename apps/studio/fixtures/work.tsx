@@ -96,6 +96,7 @@ import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.t
 import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
 import { bootTheme } from '../src/app/theme.ts'
+import { CommandsHost } from '../src/app/CommandsHost.tsx'
 
 declare global {
   interface Window {
@@ -961,6 +962,8 @@ createRoot(root).render(
     <QueryClientProvider client={new QueryClient()}>
       <ShortcutScope.Provider value>
         <Tasks />
+        {/* `palette=1`: ⌘K over the board, for the palette's «For you» (docs/plans/palette-knows.md). */}
+        {query.get('palette') === '1' && <CommandsHost />}
       </ShortcutScope.Provider>
     </QueryClientProvider>
   </StrictMode>,

@@ -52,7 +52,8 @@ import {
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
-import { nextUp } from './next-up.ts'
+import { nextUp, quoted } from './next-up.ts'
+import { useCommands } from '../../../app/useCommands.ts'
 import { NextUp } from './NextUp.tsx'
 import { Folded } from './PlanNotes.tsx'
 import type { Challenge } from './challenges.ts'
@@ -682,9 +683,23 @@ function useNextUp(
   const [answered, setAnswered] = useState<readonly string[]>([])
   const [shown, setShown] = useState(false)
   const review = slot.review !== null && !slot.reviewShown
-  const next = shown
-    ? nextUp({ answered, decisions: slot.asks.mine, waiting: waitingFor(rows, viewerId), review })
-    : null
+  const waiting = waitingFor(rows, viewerId)
+  const next = shown ? nextUp({ answered, decisions: slot.asks.mine, waiting, review }) : null
+  // The same, offered to the palette as «For you» (docs/plans/palette-knows.md).
+  useCommands([
+    ...slot.asks.mine.map((d) => ({
+      id: `you-decide-${d.decision_id}`,
+      words: `Decide “${quoted(d.question)}”`,
+      group: 'you' as const,
+      run: () => slot.openDecisions(d.decision_id),
+    })),
+    ...waiting.map((t) => ({
+      id: `you-task-${t.id}`,
+      words: `“${quoted(t.name)}” waits for you`,
+      group: 'you' as const,
+      run: () => onOpenTask(t.id),
+    })),
+  ])
   const decide =
     onDecide &&
     ((answer: DecisionAnswer) => {

@@ -1,8 +1,11 @@
 // The palette (docs/plans/commands.md): ⌘K, a dialog in the middle of the screen with the kit's search field over the
-// commands the page offers now; typing narrows them, ↑ ↓ move, Enter runs, Escape closes and gives the focus back.
+// commands the page offers now; typing narrows them, ↑ ↓ move, Enter runs, Escape closes and gives the focus back. With
+// nothing typed, what waits on the viewer leads («For you»), then what was run last («Recent»;
+// docs/plans/palette-knows.md).
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { Search } from '@sophia/ui'
-import { GROUP_WORDS, matchCommands, type Offered } from './commands.ts'
+import { paletteRows, type Offered, type PaletteRow } from './commands.ts'
+import { noteRun, readRecent } from './palette-recent.ts'
 import { keyLabel, onMac } from './shortcuts.ts'
 import { useOffered } from './useCommands.ts'
 import { SheetCall } from './call-in-reach.tsx'
@@ -19,10 +22,15 @@ function usePalette({ onClose, onSearch }: Props) {
   const all = useOffered()
   const [query, setQuery] = useState('')
   const [at, setAt] = useState(0)
-  const shown = useMemo(() => matchCommands(query, all), [query, all])
+  // What was run last, read once as the palette opens.
+  const [recent] = useState(readRecent)
+  const rows = useMemo(() => paletteRows(query, all, recent), [query, all, recent])
+  const shown = rows.map((r) => r.command)
   const active = shown[Math.min(at, Math.max(shown.length - 1, 0))]
   const pick = (command: Offered) => {
     onClose()
+    // «For you» names things that pass: only the rest is kept as run last.
+    if (command.group !== 'you') noteRun(command.id)
     command.run()
   }
   const type = (text: string) => {
@@ -43,25 +51,25 @@ function usePalette({ onClose, onSearch }: Props) {
       }
     }
   }
-  return { query, type, shown, active, setAt, pick, onKey }
+  return { query, type, rows, shown, active, setAt, pick, onKey }
 }
 
 function Row({
   id,
-  command,
+  row: { command, label },
   active,
   onPick,
   onPoint,
 }: {
   id: string
-  command: Offered
+  row: PaletteRow
   active: boolean
   onPick: () => void
   onPoint: () => void
 }) {
   return (
     <li id={id} role="option" aria-selected={active} className="palette-row" onPointerMove={onPoint} onClick={onPick}>
-      <span className="palette-group">{GROUP_WORDS[command.group]}</span>
+      <span className="palette-group">{label}</span>
       <span className="palette-words">{command.words}</span>
       {command.key !== undefined && <kbd>{keyLabel(command.key, onMac)}</kbd>}
     </li>
@@ -85,13 +93,13 @@ function Rows({ id, p, canSearch }: { id: string; p: ReturnType<typeof usePalett
   }
   return (
     <ul id={id} className="palette-list" role="listbox" aria-label="Commands">
-      {p.shown.map((command, i) => (
+      {p.rows.map((row, i) => (
         <Row
-          key={command.id}
-          id={`${id}-${command.id}`}
-          command={command}
-          active={command === p.active}
-          onPick={() => p.pick(command)}
+          key={row.command.id}
+          id={`${id}-${row.command.id}`}
+          row={row}
+          active={row.command === p.active}
+          onPick={() => p.pick(row.command)}
           onPoint={() => p.setAt(i)}
         />
       ))}
