@@ -33,6 +33,20 @@ test('next ask · Home: Esc puts the suggestion away for the visit', async ({ pa
   await expect(page.locator('.hw-say .next-ask')).toHaveCount(0)
 })
 
+test('next ask · Home: put away, it comes back on the next visit to Home (Codex on #268)', async ({ page }) => {
+  await page.goto('/home.html?demo=1&leave=1')
+  await drawn(page, DRAWN.home)
+  const suggested = (await line(page).getAttribute('placeholder')) ?? ''
+  expect(suggested).toMatch(/^Catch me up on /)
+  await line(page).focus()
+  await page.keyboard.press('Escape')
+  await expect(line(page)).toHaveAttribute('placeholder', 'Say something to Sophia')
+  // Another place and back: Home stays mounted under a hidden place, and the visit is a new one.
+  await page.getByRole('button', { name: 'Leave Home' }).click()
+  await page.getByRole('button', { name: 'Back to Home' }).click()
+  await expect(line(page)).toHaveAttribute('placeholder', suggested)
+})
+
 test('next ask · a task’s sheet: the field suggests the first question its state invites; Tab fills it', async ({
   page,
 }) => {

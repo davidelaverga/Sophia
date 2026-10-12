@@ -48,3 +48,11 @@ measured for false positives; the personal space's composer with her own signals
 
 A session under way (the project list keeps it as `nextSession` until it ends) is not suggested to get ready for: only
 sessions starting ahead of now; it neither shows «Because it started» nor outranks one about to start.
+
+## Post-review, round 2 (Codex on #268)
+
+- Put away for the visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask again
+  (`useLineNext` resets on `hidden`). next-ask-places.spec leaves Home and comes back (the fixture's `leave=1` shows its
+  own Leave Home control in the demo); it fails without the reset.
+- home.spec's microphone check reads the line's resting words, which the next ask now fills while a room is about to
+  start (it pinned the default and failed on this branch).

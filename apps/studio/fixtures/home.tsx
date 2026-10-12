@@ -319,8 +319,8 @@ function Home() {
   )
   return (
     <div className="places" data-place="home">
-      {/* The check's own control: not part of a demo's recording. */}
-      {!DEMO && (
+      {/* The check's own control: not part of a demo's recording, unless a check asks for it (`leave=1`). */}
+      {(!DEMO || query.has('leave')) && (
         <button className="fixture-away" type="button" onClick={() => setAway((was) => !was)}>
           {away ? 'Back to Home' : 'Leave Home'}
         </button>
