@@ -748,7 +748,7 @@
    proposal said. */
 .conv-acts {
   position: absolute;
-  top: -12px;
+  bottom: calc(100% + 4px); /* whole above the bubble, never over its words (Luis, 2026-10-12) */
   right: -12px;
   z-index: 1;
   display: flex;
@@ -854,7 +854,7 @@
 @media (pointer: coarse) {
   /* Within the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
   .conv-acts {
-    top: -20px;
+    bottom: calc(100% + 4px);
     right: -12px;
   }
   .conv-withdraw {
@@ -1034,7 +1034,7 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin: 0;
+  margin: 0 auto; /* in the composer's column with the field and the quick asks (Luis, 2026-10-12) */
   padding: 0 4px;
   color: var(--text-2);
   font: var(--type-small) / var(--lh-small) var(--sans);
