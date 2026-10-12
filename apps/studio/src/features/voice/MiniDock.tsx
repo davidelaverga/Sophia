@@ -50,12 +50,15 @@ export function MiniDock({ room, looking, onOpen }: Props) {
   const note = room.mediaError ?? room.error
   return (
     <div className="mini-dock" role="group" aria-label="Project room" data-live={live || undefined}>
-      <LookingIndicator text={looking} />
-      {note && (
-        <p className="dock-note mini-note" role="alert">
-          {note}
-        </p>
-      )}
+      {/* What the dock says, stacked by its own height: a note (a join or device error) first, her looking under it. */}
+      <div className="dock-notes">
+        {note && (
+          <p className="dock-note mini-note" role="alert">
+            {note}
+          </p>
+        )}
+        <LookingIndicator text={looking} />
+      </div>
       {live ? (
         <>
           <button type="button" className="pill has-tip" onClick={onOpen}>

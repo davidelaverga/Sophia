@@ -628,9 +628,10 @@ function MessageItem(props: {
       onClick={props.onPress}
     >
       <MessageLead message={m} before={before} now={now} />
-      {/* The turn (the name, the bubble, the acts, the clock) is the acts' box: the thread's width, from the name's line. */}
+      <MessageBy message={m} me={me} now={now} />
+      {/* The turn (the bubble, the acts, the clock) is the acts' box: the thread's width, from the bubble's top line;
+          the name stays before it, so the acts never share its coordinates. */}
       <div className="conv-turn">
-        <MessageBy message={m} me={me} now={now} />
         <div className="conv-msg-body">
           <MessageWords words={words} sophia={sophia} />
           {sophia && at}

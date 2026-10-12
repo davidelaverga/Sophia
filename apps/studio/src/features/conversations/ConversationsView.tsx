@@ -514,7 +514,8 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       close()
     }
     const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
-    const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')]
+    // The floating dock is under the panel; the header's (721 px and up) stands above it and stays in reach.
+    const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')].filter((el) => !el.closest('.topbar'))
     const cover = () => {
       for (const el of [...behind, ...docks()]) el.inert = true
     }

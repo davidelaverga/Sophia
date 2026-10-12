@@ -2401,12 +2401,22 @@ button.contribution-quote:hover {
   text-align: center;
 }
 /* The same note from other views, above the mini dock. */
-.mini-note {
+/* What the dock says, in one stack above it (below it in the header): each line takes its own height, so a note that
+   wraps never meets her looking (Codex on #254). */
+.mini-dock .dock-notes {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
+  display: grid;
+  justify-items: end;
+  gap: 8px;
   width: max-content;
   max-width: min(44ch, calc(100vw - 2 * var(--gutter)));
+}
+.mini-dock .dock-notes:empty {
+  display: none;
+}
+.mini-note {
   text-align: left;
 }
 .floor {
@@ -2480,13 +2490,7 @@ button.contribution-quote:hover {
   }
 }
 .mini-dock .sophia-looking {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
   width: max-content;
-}
-.mini-dock:has(.mini-note) .sophia-looking {
-  bottom: calc(100% + 48px);
 }
 .floor-error {
   position: absolute;
@@ -2826,18 +2830,11 @@ button.contribution-quote:hover {
     width: 28px;
     height: 28px;
   }
-  .topbar .mini-dock .mini-note {
-    max-width: 240px;
-  }
-  /* What the dock says (Sophia looking, a join or device error) hangs under the header, where there is page. */
-  .topbar .mini-dock .mini-note,
-  .topbar .mini-dock .sophia-looking {
+  /* What the dock says (a join or device error, Sophia looking) hangs under the header, where there is page. */
+  .topbar .mini-dock .dock-notes {
     top: calc(100% + 10px);
     bottom: auto;
-  }
-  /* Both at once (she looks, a device errs): the note first, her looking under it (Codex on #254). */
-  .topbar .mini-dock:has(.mini-note) .sophia-looking {
-    top: calc(100% + 50px);
+    max-width: 240px;
   }
   /* Live, the dock says the room's state itself: the connection pill yields its room, so the views' nav keeps standing
      at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more). */

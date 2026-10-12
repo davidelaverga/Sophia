@@ -755,9 +755,10 @@
   align-items: center;
   gap: 6px;
 }
-/* A message's turn: its name, its bubble, its acts and its clock, the thread's width from the name's line. It is the
-   acts' box, so they stand at its right edge: one's own at its bubble's corner, another's across the row from its bubble
-   in the same column, never over the name at the left, never past the pane, whatever the bubble's width. */
+/* A message's turn: its bubble, its acts and its clock, the thread's width from the bubble's top line (the name stays
+   before it). It is the acts' box, so they stand at its right edge, on the bubble's top line: one's own at its bubble's
+   corner, another's across the row from its bubble in the same column, never past the pane whatever the bubble's
+   width; on a touch screen, anchored at the bubble's left, they stand where the bubble's corner is, not on the name. */
 .conv-turn {
   position: relative;
   display: flex;

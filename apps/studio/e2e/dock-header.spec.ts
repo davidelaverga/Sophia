@@ -116,6 +116,45 @@ test('dock · across the breakpoint the focused control keeps the focus', async 
   await expect(join()).toBeFocused()
 })
 
+test('dock · under 1180 px with Conversations’ context open, the header dock stays in reach: the panel covers the page, not the header', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto('/room.html?demo=1&conversations=1&place=conversations')
+  await drawn(page, DRAWN.conversations)
+  await page.getByRole('region', { name: 'Open conversation' }).getByRole('button', { name: 'Context' }).click()
+  await expect(page.getByRole('complementary', { name: 'Project context' })).toBeVisible()
+  const read = await page.evaluate(() => ({
+    list: document.querySelector<HTMLElement>('.conv-list')?.inert ?? null,
+    dock: document.querySelector<HTMLElement>('.topbar .mini-dock')?.inert ?? null,
+  }))
+  expect(read).toEqual({ list: true, dock: false })
+  await expect(dock(page).getByRole('button', { name: /^Join the room/ })).toBeEnabled()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('complementary', { name: 'Project context' })).toHaveCount(0)
+})
+
+test('dock · what the dock says stands in one stack: its box, under the header, holds the looking note', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&video=screen&looking=screen&place=work')
+  await drawn(page, DRAWN.tasks)
+  const read = await page.evaluate(() => {
+    const stack = document.querySelector('.topbar .mini-dock .dock-notes')
+    const looking = stack?.querySelector('.sophia-looking')
+    const topbar = document.querySelector('.topbar')
+    if (!stack || !looking || !topbar) return null
+    const s = stack.getBoundingClientRect()
+    const l = looking.getBoundingClientRect()
+    return {
+      grid: getComputedStyle(stack).display,
+      under: s.top >= topbar.getBoundingClientRect().bottom - 0.5,
+      inside: l.top >= s.top && l.bottom <= s.bottom + 0.5,
+    }
+  })
+  expect(read).toEqual({ grid: 'grid', under: true, inside: true })
+})
+
 test('dock @phone · on a narrow screen the dock floats at the bottom right as before', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await page.goto('/room.html?demo=1&place=work')
