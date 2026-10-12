@@ -107,12 +107,12 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
     /Sophia replied about the launch dateYesterday/,
   ])
   await rows.nth(0).click() // a decision at its own choice on the board
-  await rows.nth(1).click() // a permission at the task that holds its wait
+  await rows.nth(1).click() // a permission at its request in Resources, where its owner answers it in the tool
   await rows.nth(2).click() // a guest at the room
   await rows.nth(3).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
     'open work 00000000-0000-4000-8000-0000000000aa #decision-d1', // the decision's own choice on the board, not the task's sheet
-    'open work 00000000-0000-4000-8000-0000000000aa #task-00000000-0000-4000-8000-0000000000c1',
+    'open resources 00000000-0000-4000-8000-0000000000aa #request-action-1', // the request, not only the task that waits on it
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
     'seen reply:t9', // a reply has no answer of its own: opening it is its seen mark, and it leaves the list
