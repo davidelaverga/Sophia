@@ -26,7 +26,7 @@ neither is in the palette, and a command used a moment ago is as far down as it 
 - `commands.test.ts`: with nothing typed, «For you» first, then the recent ones offered now (newest first, three at
   most, labelled «Recent»), then the rest by group without them; typed, the ranking as before with each row's group.
 - `palette-recent.test.ts`: kept newest first, five at most, a command once; unreadable storage reads as none.
-- `e2e/palette-knows.spec.ts`: on the board's page with ⌘K over it (`work.html?viewer=davide&palette=1`: the room's
+- `e2e/palette-knows.spec.ts`: on the board's page with its shell's own ⌘K (`work.html?viewer=davide`; one host, as in the app, Codex on #264; the room's
   fixture has no viewer id, so nothing there is anyone's «for you»), the first rows are «For you», the viewer's decision
   then the task waiting for them, and Enter opens the decision on its first choice; in the room, a view gone to from the
   palette comes back first as «Recent» on the next opening.
@@ -35,3 +35,10 @@ neither is in the palette, and a command used a moment ago is as far down as it 
 
 - Tab to complete the typed words to the first row's (the palette's field), and the needs of other projects (Home's
   list, A15) in «For you» from anywhere in the project.
+
+## After the review (Codex on #264, round 2)
+
+- A decision is offered only where the board can take an answer (`onDecide` present): a read-only proposal or an
+  unavailable board offers none.
+- The fixture's second `CommandsHost` (`palette=1`) is gone: the page's ProjectShell mounts the one host, as the app
+  does; the spec reads each command once.

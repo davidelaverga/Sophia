@@ -734,10 +734,11 @@ function useNextUp(
   const review = slot.review !== null && !slot.reviewShown
   const waiting = waitingFor(rows, viewerId)
   const next = shown ? nextUp({ answered, decisions: slot.asks.mine, waiting, review }) : null
-  // The same, offered to the palette as «For you» (docs/plans/palette-knows.md).
+  // The same, offered to the palette as «For you» (docs/plans/palette-knows.md). A decision only where the board can
+  // take an answer: a read-only proposal or an unavailable board offers none (Codex on #264).
   useCommands([
     // Those answered in this visit are not offered again while the board's next read catches up (Codex on #264).
-    ...slot.asks.mine
+    ...(onDecide ? slot.asks.mine : [])
       .filter((d) => !answered.includes(answeredKey(d.decision_id, d.revision)))
       .map((d) => ({
         id: `you-decide-${d.decision_id}`,

@@ -18,8 +18,9 @@ test.afterEach(async ({ page }) => {
 test('palette · on the board the first rows are «For you»: the viewer’s decision, then the task waiting for them', async ({
   page,
 }) => {
-  // The board's page with ⌘K over it (`palette=1`), seen by Davide, who decides there and is waited on.
-  await page.goto('/work.html?viewer=davide&palette=1')
+  // The board's page, its shell's own ⌘K over it (one host, as in the app: Codex on #264), seen by Davide, who decides
+  // there and is waited on.
+  await page.goto('/work.html?viewer=davide')
   await expect(page.locator('.board [data-decision]').first()).toBeVisible()
   // The decisions closed, so Enter's opening them is seen.
   await page.locator('.board .decision-pill').first().click()
@@ -50,4 +51,19 @@ test('palette · a view gone to from the palette comes back first as «Recent»'
   const first = rows(page).first()
   await expect(first.locator('.palette-group')).toHaveText('Recent')
   await expect(first.locator('.palette-words')).toHaveText('Go to Updates')
+})
+
+test('palette · one host: each command once; a board that cannot take an answer offers no decision (Codex on #264)', async ({
+  page,
+}) => {
+  await page.goto('/work.html?viewer=davide')
+  await expect(page.locator('.board [data-decision]').first()).toBeVisible()
+  await openPalette(page)
+  await expect(rows(page).filter({ hasText: 'Keyboard shortcuts' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  // The same board read as unavailable: its decisions stand, read-only, and the palette does not offer them.
+  await page.goto('/work.html?viewer=davide&coverage=unavailable')
+  await expect(page.locator('.board').first()).toBeVisible()
+  await openPalette(page)
+  await expect(rows(page).filter({ hasText: /^For you\s*Decide/ })).toHaveCount(0)
 })
