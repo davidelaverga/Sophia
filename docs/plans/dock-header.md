@@ -44,3 +44,13 @@
   (Sophia looking, an error) keep it as their box and hang under the header, on the page, not above the viewport.
   dock-header.spec: the looking note under the header; no dock on the Studio view and behind a shut door; the focus
   across the breakpoint both ways.
+
+## After the review (Codex on #254, later round)
+
+- The panel takes the focus before the dock under it is made inert: a control of the dock restored after the move (the
+  width crossing 720 px with the context open) would otherwise lose it to the page. `cover()` in ConversationsView.
+- A dock control is named across its move by a stable key (`data-dock-key`: `room`, `text`, `leave`; the switches by
+  their label, which does not change), not by the words of its pill, which change with the room's state («Join the
+  room», «Joining…», «Try again», «In the room · 2»).
+- In the header of two rows (721 to 760 px) the notes hang under the views' row too (`top: calc(100% + 54px)`: the
+  dock's 10 px and the row's 44), where they stood over the views. dock-header.spec reads it at 740 px.

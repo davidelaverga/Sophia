@@ -61,7 +61,7 @@ export function MiniDock({ room, looking, onOpen }: Props) {
       </div>
       {live ? (
         <>
-          <button type="button" className="pill has-tip" onClick={onOpen}>
+          <button type="button" className="pill has-tip" data-dock-key="room" onClick={onOpen}>
             <span className="pill-dot" data-live aria-hidden />
             In the room · {room.participants.length}
             <Tip label="Open the room" />
@@ -75,6 +75,8 @@ export function MiniDock({ room, looking, onOpen }: Props) {
             className="pill has-tip"
             // Where text mode's pill hands the focus once pressed (TextMode).
             data-call-anchor
+            // The same control before and after a join, whatever its words say (useDockFocus).
+            data-dock-key="room"
             disabled={room.status === 'joining' || !room.ready}
             onClick={() => void room.join()}
           >
