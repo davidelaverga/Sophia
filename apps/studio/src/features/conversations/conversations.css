@@ -343,8 +343,10 @@
   color: var(--warm);
   box-shadow: 0 0 0 2px var(--void);
 }
+/* Sophia's disc in the core's tint, at the warm's 32 %: 1.7:1 on paper, a disc the eye sees (12 % was 1.2:1: Codex on
+   #257). */
 :root[data-theme='light'] .conv-face.sophia {
-  background: rgb(var(--core-rgb) / 0.12);
+  background: rgb(var(--core-rgb) / 0.32);
 }
 .conv-face .umbral {
   width: 11px;
