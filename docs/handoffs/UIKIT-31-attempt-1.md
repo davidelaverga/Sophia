@@ -12,8 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `dc25fcb3` (tree `16f159f2796e`): 4 files: `WorkControls.tsx` (the classes), `theme.css` (the step after the filled press),
-`e2e/goal-controls.spec.ts` (new, 3), `docs/plans/goal-controls-text.md`. The commit after it adds only this handoff.
+Ending commit/tree: `00ea16d380cf` (tree `0a24da305ddd`), the last commit of `ui/hold-stop-text`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 6 files changed against
+`ui/light-stage` at that commit: `e2e/goal-controls.spec.ts`, `src/app/theme.css`, `src/features/work/WorkControls.tsx`, `docs/handoffs/UIKIT-31-attempt-1.md`, `docs/plans/goal-controls-text.md`, `packages/ui/src/ConfirmButton.tsx`. The review notes below name the commit of each later change.
 
 ## Outcome
 

@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `fee55441` (tree `66af87e4`): 3 files, 1 new (`docs/plans/nav-fits-1280.md`) and `theme.css`,
-`e2e/widths.spec.ts`; this handoff's commit follows. If the PR is squashed at merge, one commit carries all of it under
-an id this file cannot know before it exists.
+Ending commit/tree: `71a81669d0bb` (tree `c123fbf8a2f2`), the last commit of `ui/polish-nav`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`ui/polish-tasks` at that commit: `e2e/widths.spec.ts`, `src/app/theme.css`, `docs/handoffs/UIKIT-35-attempt-1.md`, `docs/plans/nav-fits-1280.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

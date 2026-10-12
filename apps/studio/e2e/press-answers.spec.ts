@@ -97,7 +97,14 @@ function lookOf(args: { selector: string; scope: string; i: number }) {
     const cs = getComputedStyle(e)
     return keys.map((k) => cs[k]).join('|')
   }
-  return [el, ...el.querySelectorAll('*')].map(read).join('\n')
+  // A press drawn by its label (a transparent full-chip checkbox, as «Ask Sophia»): the label is what the eye sees, so
+  // it is what answers; the invisible input itself does not count (Codex on #232).
+  const hidden = getComputedStyle(el).opacity === '0'
+  const root = hidden ? (el.closest('label') ?? el) : el
+  return [root, ...root.querySelectorAll('*')]
+    .filter((e) => !(hidden && e === el))
+    .map(read)
+    .join('\n')
 }
 
 /** The presses on the page (inside `scope`: a sheet, a group, a form) that do not answer the pointer, said. */

@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `270fce65` (tree `c0676074`): 3 files, 1 new (`e2e/conversations-column.spec.ts`) and
-`conversations.css`, `docs/plans/conversations-polish.md`; this handoff's commit follows. If the PR is squashed at merge,
-one commit carries all of it under an id this file cannot know before it exists.
+Ending commit/tree: `27ccb5b71289` (tree `c1b67643bc59`), the last commit of `ui/polish-conversations`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`ui/dock-header` at that commit: `e2e/conversations-column.spec.ts`, `src/features/conversations/conversations.css`, `docs/handoffs/UIKIT-33-attempt-1.md`, `docs/plans/conversations-polish.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -63,3 +63,9 @@ against the first painted ancestor.
   title), its boxes at 8 (the filter, a row), the «+» press 40 × 40 on the coarse pointer. conversations-column.spec
   @phone holds the two edges 12 px apart and the press at 40 or more.
 - Sophia's disc on paper is the core's tint at 32 % (1.7:1 on the page; 12 % was 1.2:1); the spec reads it.
+
+## Post-review, round 3 (Codex on #257)
+
+- The paper discs are opaque, mixed once over the paper (`#dbc3b2` the warm at 32 %, `#c6bfe0` the core at 32 %):
+  two faces that overlap keep their colours, where a tint over a tint drew a darker crescent. conversations-column.spec
+  reads every disc opaque.

@@ -2,7 +2,7 @@
 // Back and Forward.
 import { useEffect, useState } from 'react'
 import { reportSearch, withReportLink, type ReportLink } from '../features/artifacts/report-link.ts'
-import { DECISION, REQUEST, TASK, showInAddress } from '../features/resources/link.ts'
+import { DECISION, REQUEST, requestAddress, TASK, showInAddress } from '../features/resources/link.ts'
 import { ADDRESS_MOVED, HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
 
 const current = (): Route => parseRoute(window.location.pathname)
@@ -43,10 +43,11 @@ export function useProjectRoute() {
     openAt: (
       projectId: string,
       view: View,
-      at: { taskId?: string; decisionId?: string; requestId?: string; report?: ReportLink } = {},
+      at: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string; report?: ReportLink } = {},
     ) => {
       go({ projectId, view, place: 'work' }, false, at.report ? withReportLink('', at.report) : undefined)
-      if (at.requestId) showInAddress(at.requestId, REQUEST)
+      // The request with its resource: two resources may hold one request id (Codex on #245).
+      if (at.requestId) showInAddress(requestAddress(at.resourceId ?? null, at.requestId), REQUEST)
       else if (at.decisionId) showInAddress(at.decisionId, DECISION)
       else if (at.taskId) showInAddress(at.taskId, TASK)
     },
