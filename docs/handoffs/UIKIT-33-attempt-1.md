@@ -6,6 +6,12 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/polish-conversations` from `ui/dock-header` at
 `efd1430f` (stacked on PR #254 → … → #220; the base retargets as each merges)
+Writable scope: this worktree only (`apps/studio`, `packages/ui`, `docs/plans`, `docs/handoffs`; a contract amendment
+only where its note says so), on branch `ui/polish-conversations`; no service code, no deploy.
+Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright through
+`.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
+Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
+commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
 Ending commit/tree: `270fce65` (tree `c0676074`): 3 files, 1 new (`e2e/conversations-column.spec.ts`) and
 `conversations.css`, `docs/plans/conversations-polish.md`; this handoff's commit follows. If the PR is squashed at merge,
 one commit carries all of it under an id this file cannot know before it exists.
@@ -45,3 +51,8 @@ one commit carries all of it under an id this file cannot know before it exists.
 
 The context pane's eyebrows (12 px, 600, the second ink) stand one step under the list's 15 px head: a hierarchy
 question for Luis's eye. Then the same column reading on Updates and Knowledge (their lists against their heads).
+
+## Post-review (Codex on #257)
+
+The light faces' ring takes `--void` (what the see-through head stands on), not `--plane`; the spec reads the ring
+against the first painted ancestor.
