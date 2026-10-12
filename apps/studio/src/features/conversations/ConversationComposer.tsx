@@ -4,9 +4,12 @@
 // came back. A message the API accepted goes into the page at once. The field clears only if it still holds what was
 // sent. Enter sends; Shift+Enter starts a line. On its way, Send says so. «Ask Sophia» is a checkbox shown as a chip
 // with her mark (docs/plans/conversation-thread.md). While the field is empty, quick asks ask her in one press, their
-// words the message (docs/plans/conversations-find.md).
+// words the message (docs/plans/conversations-find.md). Once she has answered, the empty field proposes the next ask as
+// its placeholder, with a key cap «Tab»: Tab puts it in the field with «Ask Sophia» on, Esc puts it away, and the quick
+// asks drop what was just asked (docs/plans/next-ask.md).
 import { useQueryClient } from '@tanstack/react-query'
-import { useLayoutEffect, useRef } from 'react'
+import { type KeyboardEvent, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react'
+import { NextAskHint, nextAskKey } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
 import {
   sendConversationMessage,
@@ -20,6 +23,8 @@ import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { firstWords, messagesKey, withLastMessage, withMessage, type ReadPages } from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
+import type { Suggestion } from './next-ask.ts'
+import { useNextAsk, type NextAskSource } from './useNextAsk.ts'
 
 interface Props {
   conversationId: string
@@ -40,6 +45,36 @@ interface Props {
   onRefused: (words: string | null) => void
   /** A message recorded: Sophia was asked to answer it, or not. */
   onSent: (sent: MessageSent) => void
+  /** What the next ask is read from: the thread, the conversation's open questions, the project's brief. */
+  next: NextAskSource
+}
+
+/** The field's name, and its placeholder when nothing is suggested. */
+const FIELD = 'Continue this question with the team'
+
+/** The field's keys: the suggestion's (accept, put away) at the empty field, then Enter sends, Shift+Enter a line. */
+function useFieldKeys(
+  draft: string,
+  shown: Suggestion | null,
+  on: { accept: () => void; putAway: () => void; send: () => void },
+) {
+  return (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    const { key, shiftKey, altKey, ctrlKey, metaKey } = e
+    const move = nextAskKey(
+      { key, shiftKey, altKey, ctrlKey, metaKey, isComposing: e.nativeEvent.isComposing },
+      draft,
+      shown !== null,
+    )
+    if (move) {
+      e.preventDefault()
+      if (move === 'accept') on.accept()
+      else on.putAway()
+      return
+    }
+    if (key !== 'Enter' || shiftKey || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    on.send()
+  }
 }
 
 /** What a refused write says, in words a person can act on. */
@@ -93,11 +128,63 @@ function useMessageWrite(props: Props, askSophia: boolean) {
   return { busy: write.busy, ready, go, quick, words, held: write.unknown }
 }
 
+/**
+ * The field's suggestion (docs/plans/next-ask.md): none while a message is held, a refusal stands or the conversation is
+ * not read; shown only at an empty field; Tab puts it in with «Ask Sophia» on.
+ */
+function useComposerNext(props: Props, held: boolean, go: () => Promise<void>) {
+  const next = useNextAsk(
+    props.next,
+    props.conversationId,
+    props.identity,
+    held || props.refused !== null || !props.canSend,
+  )
+  const shown = props.draft === '' ? next.suggestion : null
+  const onKey = useFieldKeys(props.draft, shown, {
+    accept: () => {
+      if (!shown) return
+      props.onDraft(shown.words)
+      props.onAskSophia(true)
+    },
+    putAway: next.putAway,
+    send: () => void go(),
+  })
+  return { id: next.id, shown, quick: next.quick, onKey }
+}
+
+/** The field and its presses: the suggestion's key cap beside the words, «Ask Sophia», Send. */
+function FieldBox(props: {
+  draft: string
+  onDraft: (text: string) => void
+  grows: RefObject<HTMLTextAreaElement | null>
+  next: ReturnType<typeof useComposerNext>
+  children: ReactNode
+}) {
+  const { shown, id } = props.next
+  return (
+    <div className="conv-field-box">
+      <textarea
+        aria-label={FIELD}
+        placeholder={shown?.words ?? FIELD}
+        aria-describedby={shown ? id : undefined}
+        ref={props.grows}
+        rows={1}
+        value={props.draft}
+        onChange={(e) => props.onDraft(e.target.value)}
+        onKeyDown={props.next.onKey}
+      />
+      {shown && <NextAskHint id={id} words={shown.words} why={shown.why} />}
+      {props.children}
+    </div>
+  )
+}
+
 export function ConversationComposer(props: Props) {
   const { draft, onDraft } = props
   const { busy, ready, go, quick, words, held } = useMessageWrite(props, props.askSophia)
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
+  const next = useComposerNext(props, held !== null, go)
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
   const grows = useGrowing(draft)
@@ -122,25 +209,17 @@ export function ConversationComposer(props: Props) {
         void go()
       }}
     >
-      <div className="conv-field-box">
-        <textarea
-          aria-label="Continue this question with the team"
-          placeholder="Continue this question with the team"
-          ref={grows}
-          rows={1}
-          value={draft}
-          onChange={(e) => onDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
-            e.preventDefault()
-            void go()
-          }}
-        />
+      <FieldBox draft={draft} onDraft={onDraft} grows={grows} next={next}>
         <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
         <SendButton ready={ready} busy={busy} />
-      </div>
+      </FieldBox>
       {props.canSend && (
-        <QuickAsks away={draft.trim() !== '' || held !== null} busy={busy} onAsk={(w) => void ask(w)} />
+        <QuickAsks
+          asks={next.quick}
+          away={draft.trim() !== '' || held !== null}
+          busy={busy}
+          onAsk={(w) => void ask(w)}
+        />
       )}
       <p className="conv-compose-hint">
         <span data-asked={asks || undefined}>{asks ? 'Sophia will answer' : 'To the team only'}</span>
@@ -167,17 +246,15 @@ function useGrowing(words: string) {
   return field
 }
 
-/** What everyone asks: Sophia, in one press. */
-const QUICK_ASKS = ['Sum it up', 'What’s still open?', 'What did we decide?']
-
 /**
- * The quick asks, under the empty field: each sends its words with Sophia asked. Away (words written, a message
- * waiting), the row keeps its height unseen, so the thread above never jumps.
+ * The quick asks, under the empty field: each sends its words with Sophia asked; those asked lately and the one the
+ * field suggests are left out (next-ask.ts). Away (words written, a message waiting), the row keeps its height unseen,
+ * and emptied it keeps it too, so the thread above never jumps.
  */
-function QuickAsks(props: { away: boolean; busy: boolean; onAsk: (words: string) => void }) {
+function QuickAsks(props: { asks: readonly string[]; away: boolean; busy: boolean; onAsk: (words: string) => void }) {
   return (
     <div className="conv-quick" role="group" aria-label="Ask Sophia in one press" data-away={props.away || undefined}>
-      {QUICK_ASKS.map((words) => (
+      {props.asks.map((words) => (
         <button key={words} type="button" aria-disabled={props.busy || undefined} onClick={() => props.onAsk(words)}>
           {words}
         </button>
