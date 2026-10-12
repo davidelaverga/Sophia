@@ -61,6 +61,10 @@
   /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
   --shadow-rgb: 0 0 0;
   --shadow-k: 1;
+  /* The mark's two inks (Umbral, docs/plans/brand-umbral.md): you warm and Sophia core in the room; on paper the brand's
+     ink and halo-deep, the favicon's (docs/plans/light-paper-mark.md). */
+  --mark-you: var(--warm);
+  --mark-sophia: var(--core);
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -119,6 +123,8 @@
   --rose-rgb: 168 55 90;
   --shadow-rgb: 29 27 34;
   --shadow-k: 0.35;
+  --mark-you: #16151b;
+  --mark-sophia: #8468ee;
 }
 :root[data-theme='light'] body::after {
   display: none;
@@ -128,12 +134,22 @@
   display: none;
 }
 :root[data-theme='light'] .light {
+  /* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it. */
   background: radial-gradient(
     circle at 50% 42%,
-    rgb(var(--halo-rgb) / 0.3) 0,
-    rgb(var(--halo-rgb) / 0.12) 12%,
+    rgb(255 255 255 / 0.95) 0,
+    rgb(var(--halo-rgb) / 0.34) 8%,
+    rgb(var(--halo-rgb) / 0.12) 22%,
     transparent 46%
   );
+}
+/* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
+   the bar's mark (`.umbral`): the threshold keeps its breathing halo, and its still one under reduced motion (Codex on #249). */
+:root[data-theme='light'] .umbral .umbral-sophia {
+  filter: none;
+}
+:root[data-theme='light'] .umbral[data-live] .umbral-sophia {
+  filter: drop-shadow(0 0 3px rgb(132 104 238 / 0.5));
 }
 
 *,
@@ -712,10 +728,10 @@ button.mark:hover {
   overflow: visible;
 }
 .umbral-you {
-  fill: var(--warm);
+  fill: var(--mark-you);
 }
 .umbral-sophia {
-  fill: var(--core);
+  fill: var(--mark-sophia);
   filter: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
   transition: filter 1s var(--ease);
 }
@@ -1045,10 +1061,10 @@ img.avatar {
   transform-origin: center;
 }
 .threshold .umbral-you {
-  fill: var(--warm);
+  fill: var(--mark-you);
 }
 .threshold .umbral-sophia {
-  fill: var(--core);
+  fill: var(--mark-sophia);
   animation: threshold-breathe 4.8s ease-in-out 1.2s infinite alternate;
 }
 @keyframes threshold-breathe {
