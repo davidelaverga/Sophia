@@ -2,7 +2,15 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import { BACKUP_WRITE_MS } from './byte-backup.ts'
-import { ByteStoreError, memoryByteStore, objectPath, s3ByteStore, storedKey, withByteBackup } from './byte-store.ts'
+import {
+  ByteStoreError,
+  byteStoreFromEnv,
+  memoryByteStore,
+  objectPath,
+  s3ByteStore,
+  storedKey,
+  withByteBackup,
+} from './byte-store.ts'
 import { authorization, presignedUrl } from './s3-sign.ts'
 import { reportFilename } from './routes/sources.ts'
 
@@ -241,4 +249,82 @@ it('rechecks the monotonic deadline after signing before starting provider I/O',
     }),
   )
   assert.equal(requests, 0, 'signing crossed expiry; no HEAD or PUT starts')
+})
+
+function configuredStore(fetchImpl: typeof fetch) {
+  const store = byteStoreFromEnv(
+    {
+      SOPHIA_STORAGE_S3_ENDPOINT: config.endpoint,
+      SOPHIA_STORAGE_S3_REGION: config.region,
+      SOPHIA_STORAGE_S3_ACCESS_KEY_ID: config.accessKeyId,
+      SOPHIA_STORAGE_S3_SECRET_ACCESS_KEY: config.secretAccessKey,
+      SOPHIA_STORAGE_BUCKET: config.bucket,
+    },
+    fetchImpl,
+  )
+  assert.ok(store)
+  return store
+}
+
+it('bounds and aborts default backup-off writes at HEAD and PUT, reopening capacity after actual settlement', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  for (const stalled of ['HEAD', 'PUT']) {
+    const signals: AbortSignal[] = []
+    let hanging = true
+    const methods: string[] = []
+    const store = configuredStore((_input, init) => {
+      const method = init?.method ?? ''
+      methods.push(method)
+      if (!hanging || method !== stalled)
+        return Promise.resolve(new Response(null, { status: method === 'HEAD' ? 404 : 200 }))
+      const signal = init?.signal
+      if (signal) signals.push(signal)
+      return new Promise<Response>((_resolve, reject) =>
+        signal?.addEventListener('abort', () => reject(new Error('synthetic abort')), { once: true }),
+      )
+    })
+    const refused = assert.rejects(
+      store.put(objectPath(P, S), new Uint8Array([1]), 'application/pdf'),
+      (error: unknown) => error instanceof ByteStoreError && error.status === 503,
+    )
+    await nextTurn()
+    assert.equal(signals.length, 1, 'default-off write supplies cancellation at the provider step')
+    t.mock.timers.tick(BACKUP_WRITE_MS)
+    assert.equal(await Promise.race([refused.then(() => 'refused'), nextTurn('sentinel')]), 'refused')
+    assert.equal(signals[0]?.aborted, true)
+    await nextTurn()
+    hanging = false
+    await assert.doesNotReject(store.put(objectPath(P, S), new Uint8Array(32 * 1024 * 1024), 'application/pdf'))
+    assert.deepEqual(methods.slice(-2), ['HEAD', 'PUT'], 'settled aborted operation releases retained-write capacity')
+  }
+})
+
+it('retains backup-off write admission after timeout until an ignoring HEAD settles and never starts its PUT', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let finish: ((response: Response) => void) | undefined
+  const methods: string[] = []
+  const store = configuredStore((_input, init) => {
+    methods.push(init?.method ?? '')
+    return new Promise<Response>((resolve) => {
+      finish = resolve
+    })
+  })
+  const refused = assert.rejects(store.put(objectPath(P, S), new Uint8Array(32 * 1024 * 1024), 'application/pdf'))
+  await nextTurn()
+  assert.ok(finish)
+  try {
+    t.mock.timers.tick(BACKUP_WRITE_MS)
+    assert.equal(await Promise.race([refused.then(() => 'refused'), nextTurn('sentinel')]), 'refused')
+    await assert.rejects(
+      configuredStore(recording().fetch).put('other', new Uint8Array([1]), 'image/png'),
+      (error: unknown) => error instanceof ByteStoreError && error.status === 503,
+    )
+    assert.deepEqual(methods, ['HEAD'])
+  } finally {
+    finish(new Response(null, { status: 404 }))
+    await nextTurn()
+  }
+  assert.deepEqual(methods, ['HEAD'], 'late HEAD cannot start a PUT')
+  const fast = recording(new Response(null, { status: 404 }), new Response(null, { status: 200 }))
+  await assert.doesNotReject(configuredStore(fast.fetch).put('other', new Uint8Array(32 * 1024 * 1024), 'image/png'))
 })

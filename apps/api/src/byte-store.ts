@@ -112,10 +112,10 @@ export function byteStoreFromEnv(env: Record<string, string | undefined>, fetchI
   }
   const store = s3ByteStore({ endpoint, region, accessKeyId, secretAccessKey, bucket }, fetchImpl)
   const backupRoot = read('SOPHIA_STORAGE_BACKUP_ROOT')
-  return backupRoot ? withByteBackup(store, diskByteBackup(backupRoot)) : store
+  return withByteBackup(store, backupRoot ? diskByteBackup(backupRoot) : undefined)
 }
 
-// One API process, shared by every backup wrapper: no queue and no snapshot before admission. These are memory
+// One API process, shared by every write wrapper, including backup-off: no queue or snapshot before admission. These are memory
 // bounds, separate from the durable disk budgets and quota-worker cap. A timed-out underlying write keeps its
 // permit until it actually settles; repeated timeouts cannot accumulate copied payloads behind returned errors.
 export const BACKUP_ACTIVE_BYTES = 32 * 1024 * 1024
@@ -135,8 +135,8 @@ function admitBackupWrite(bytes: number): () => void {
   }
 }
 
-/** Keep the durable copy before uploading; an uncertain claim is never refunded or retried by this wrapper. */
-export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore {
+/** Bound every configured write; optionally copy first. Uncertain claims and live underlying work stay charged. */
+export function withByteBackup(store: ByteStore, backup?: ByteBackup): ByteStore {
   return {
     async put(path, bytes, mime, context, control) {
       if (bytes.byteLength > BACKUP_OBJECT_MAX_BYTES)
@@ -149,7 +149,7 @@ export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore 
       let snapshot: Uint8Array
       try {
         // Buffer.slice() aliases its input; callers include the renderer's Buffer request bodies.
-        snapshot = Uint8Array.from(bytes)
+        snapshot = backup ? Uint8Array.from(bytes) : bytes
       } catch (error) {
         release()
         throw error
@@ -161,7 +161,7 @@ export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore 
         state.started = true
         try {
           if (byteWriteExpired({ signal, deadline })) throw new ByteBackupError(503, 'report backup timed out')
-          await backup(key, retained, writeContext)
+          if (backup) await backup(key, retained, writeContext)
           // The timeout answers promptly, but neither a delayed timer nor late disk completion may start S3.
           if (byteWriteExpired({ signal, deadline })) throw new ByteBackupError(503, 'report backup timed out')
           try {
