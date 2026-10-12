@@ -516,19 +516,20 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
     // The floating dock is under the panel; the header's (721 px and up) stands above it and stays in reach.
     const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')].filter((el) => !el.closest('.topbar'))
-    const cover = () => {
+    const cover = (moved = false) => {
       const covered = [...behind, ...docks()]
-      // A control of the dock that has the focus (restored after the dock moved) would lose it to the page once inert:
-      // the panel takes it first (Codex on #254).
+      // The focus a control of the dock had before the move goes to the panel: restored to the dock, it would be lost
+      // once the dock is inert; lost with the dock already (the thread's screen at 720 px shows no idle dock), it is
+      // on the page (Codex on #254).
       const at = document.activeElement
-      if (at instanceof HTMLElement && covered.some((el) => el.contains(at)))
-        document.getElementById('conv-context')?.focus({ preventScroll: true })
+      const lost = at === document.body || (at instanceof HTMLElement && covered.some((el) => el.contains(at)))
+      if (moved && lost) document.getElementById('conv-context')?.focus({ preventScroll: true })
       for (const el of covered) el.inert = true
     }
     cover()
     // The room's dock is mounted anew when the width crosses the header's breakpoint: covered again (Codex on #254).
     const wide = matchMedia(WIDE)
-    const coverAgain = () => requestAnimationFrame(cover)
+    const coverAgain = () => requestAnimationFrame(() => cover(true))
     wide.addEventListener('change', coverAgain)
     const width = new ResizeObserver(([entry]) => {
       if (!entry || entry.contentRect.width <= PANEL) return
