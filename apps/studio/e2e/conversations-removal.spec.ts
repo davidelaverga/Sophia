@@ -85,7 +85,7 @@ test('removal · Keep it and Esc keep the conversation, and give the focus back 
   await opened(page)
   await erase(page).click()
   const confirm = page.getByRole('group', { name: 'Erase this conversation' })
-  await expect(confirm.getByRole('button', { name: 'Erase' })).toBeFocused()
+  await expect(confirm.getByRole('button', { name: 'Keep it' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(confirm).toHaveCount(0)
   await expect(erase(page)).toBeFocused()

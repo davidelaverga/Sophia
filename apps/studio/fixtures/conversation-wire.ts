@@ -91,8 +91,13 @@ export function wireList(
     more: opts.more === true,
     policy: {
       id: 'conversation-text-v1',
+      // The API's CONVERSATION_NOTICE (packages/persistence/src/conversations.ts), word for word.
       notice:
-        'Messages here are saved for this project and can be read by its members. Live room audio is not saved here.',
+        'Titles and messages here are saved for this project, and its current members can read them. ' +
+        'They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. ' +
+        'You can withdraw your own messages; admins can remove any message or erase a conversation. ' +
+        'Hosted backups keep their own retention, and what someone has already seen can’t be unseen. ' +
+        'Live room audio is not saved here.',
       retention: 'until_withdrawn_or_erased',
       audience: 'project_members',
     },

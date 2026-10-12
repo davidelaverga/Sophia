@@ -18,6 +18,7 @@ import { LISTS, listWithdrawn, messagesKey, remainsAfter, withWithdrawn, type Re
 import { useHeldWrite } from './held-write.ts'
 import { setListsData } from './list-data.ts'
 import { useKept, withoutMessage, withWithdrawal } from './talk-store.ts'
+import { ConversationConfirmation } from './ConversationConfirmation.tsx'
 
 export interface WithdrawArgs {
   projectId: string
@@ -156,43 +157,17 @@ function WithdrawConfirm(props: {
   onConfirm: () => void
   onKeep: () => void
 }) {
-  const first = useRef<HTMLButtonElement>(null)
-  useEffect(() => first.current?.focus(), [])
-  const said = props.unknown ? 'Not confirmed: Withdraw sends it again; it won’t be withdrawn twice.' : props.refused
+  const { own, ...confirm } = props
   return (
-    <div
+    <ConversationConfirmation
+      {...confirm}
       className="conv-withdraw-form"
-      role="group"
-      aria-label={props.own ? 'Withdraw this message' : 'Remove this message'}
-      onKeyDown={(e) => {
-        if (e.key !== 'Escape') return
-        e.preventDefault()
-        props.onKeep()
-      }}
+      label={own ? 'Withdraw this message' : 'Remove this message'}
+      action={own ? 'Withdraw' : 'Remove'}
     >
-      <p className="conv-note">
-        {props.own ? 'Withdraw this message?' : 'Remove this message?'} Its words leave this conversation for everyone,
-        and so do Sophia’s answers that read it. This can’t be undone.
-      </p>
-      <div className="conv-compose-acts">
-        <button
-          ref={first}
-          type="button"
-          className="button"
-          aria-disabled={props.busy || undefined}
-          onClick={() => !props.busy && props.onConfirm()}
-        >
-          {props.busy ? 'Withdrawing…' : props.own ? 'Withdraw' : 'Remove'}
-        </button>
-        <button type="button" className="text-button" onClick={props.onKeep}>
-          Keep it
-        </button>
-      </div>
-      {said && (
-        <p className="conv-note" role="alert">
-          {said}
-        </p>
-      )}
-    </div>
+      {own ? 'Withdraw this message?' : 'Remove this message?'} Its words leave this conversation for everyone. Later
+      Sophia answers in this conversation can also be removed, even when they didn’t use these words. Other people’s
+      messages, other conversations and recorded project decisions stay. This can’t be undone.
+    </ConversationConfirmation>
   )
 }

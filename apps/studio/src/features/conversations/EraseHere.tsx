@@ -5,7 +5,7 @@
 // the list is read again), its messages are let go, and the view lets go of what it kept for it. The focus is armed as
 // Erase is pressed (the feed may take the conversation away first) and lands where the view says (useErased).
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { ApiError } from '../../api/client.ts'
 import { eraseConversation, type ConversationErasure, type ConversationList } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
@@ -14,6 +14,7 @@ import { focusLater } from '../personal/focus.ts'
 import { LISTS, listKey } from './conversation-list.ts'
 import { setListsData } from './list-data.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
+import { ConversationConfirmation } from './ConversationConfirmation.tsx'
 
 /** Where an admin may erase: the project, who reads, where the focus lands, and what the view does once it is erased. */
 export interface Erase {
@@ -101,44 +102,10 @@ function EraseConfirm(props: {
   onConfirm: () => void
   onKeep: () => void
 }) {
-  const first = useRef<HTMLButtonElement>(null)
-  useEffect(() => first.current?.focus(), [])
-  const said = props.unknown ? 'Not confirmed: Erase sends it again; it won’t be erased twice.' : props.refused
   return (
-    <div
-      className="conv-erase-form"
-      role="group"
-      aria-label="Erase this conversation"
-      onKeyDown={(e) => {
-        if (e.key !== 'Escape') return
-        e.preventDefault()
-        e.stopPropagation()
-        props.onKeep()
-      }}
-    >
-      <p className="conv-note">
-        Erase this conversation? Its title and every message leave it for everyone, and so do Sophia’s answers in it.
-        This can’t be undone.
-      </p>
-      <div className="conv-compose-acts">
-        <button
-          ref={first}
-          type="button"
-          className="button"
-          aria-disabled={props.busy || undefined}
-          onClick={() => !props.busy && props.onConfirm()}
-        >
-          {props.busy ? 'Erasing…' : 'Erase'}
-        </button>
-        <button type="button" className="text-button" onClick={props.onKeep}>
-          Keep it
-        </button>
-      </div>
-      {said && (
-        <p className="conv-note" role="alert">
-          {said}
-        </p>
-      )}
-    </div>
+    <ConversationConfirmation {...props} className="conv-erase-form" label="Erase this conversation" action="Erase">
+      Erase this conversation? Its title and every message leave it for everyone, and so do Sophia’s answers in it. This
+      can’t be undone.
+    </ConversationConfirmation>
   )
 }
