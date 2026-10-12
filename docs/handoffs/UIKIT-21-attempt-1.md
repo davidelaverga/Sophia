@@ -5,12 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/places-commands` from `ui/lens-address` at
 `b93d39f3` (stacked on PR #242 → #241 → … → #220; the base retargets as each merges)
-Ending commit/tree: `224c065c` (tree `cef31d8bb5c5`): 9 files, 1 new (`docs/plans/places-commands.md`); `Places.tsx`,
-`Find.tsx`, `PlacesBar.tsx`, `CommandsHost.tsx`, `AccountMenu.tsx`, `commands.spec.ts`, `app-auth.spec.ts`,
-`docs/plans/commands.md`. The commit after it adds only this handoff.
-After the review (Codex on #243, P2): `6cd2928a` reads the appearance from the root as shown (a `MutationObserver`),
-so «Follow the system» is followed by the key and its words; the spec emulates the system turning light. That is the
-completed code state of this PR.
+Ending commit/tree: `bf817a62906d` (tree `0a93ac551f67`), the last commit of `ui/places-commands`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/lens-address` at that commit: `e2e/app-auth.spec.ts`, `e2e/commands.spec.ts`, `src/app/AccountMenu.tsx`, `src/app/CommandsHost.tsx`, `src/features/personal/Find.tsx`, `src/features/personal/Places.tsx`, `src/features/personal/PlacesBar.tsx`, `docs/handoffs/UIKIT-21-attempt-1.md`, `docs/plans/commands.md`, `docs/plans/places-commands.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

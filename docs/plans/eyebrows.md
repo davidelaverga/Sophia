@@ -39,3 +39,9 @@ Nothing else: sizes, weights, inks and cases are as they were.
   (decisions, descriptions): the hierarchy there is by weight alone. Noted for Luis's eye; C9's choice, not changed.
 - The meeting rows in Updates stand 51 px tall (10 + 20 + 8 + 3 + 10): the 3 px bar keeps them off the 4 px grid by
   one. Left as it is.
+
+## After the review (Codex on #260)
+
+- The day label is data at the label size (10.5 px, Codex on #241) and keeps the token's tracking, 0.06em (0.63 px).
+  eyebrows.spec reads the small capitals at 12 px or 10.5 px against 0.06em of their own size, and checks the day label
+  is among them on Conversations.

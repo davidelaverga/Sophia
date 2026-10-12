@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { EmptyState, Search as SearchField, Segmented, Skeleton } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { useClock } from './clock.ts'
-import { linkedId, REQUEST, showInAddress } from './link.ts'
+import { linkedId, REQUEST, requestOf, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
 import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
@@ -365,7 +365,9 @@ function useAddressedRequest(
   const handled = useRef(-1)
   useEffect(() => {
     if (handled.current === named.seq || !named.id) return
-    const action = actions.find((a) => a.id === named.id)
+    // By the request and its resource when the address names both (Codex on #245).
+    const { resourceId, requestId } = requestOf(named.id)
+    const action = actions.find((a) => a.id === requestId && (resourceId === null || a.resourceId === resourceId))
     if (!action || !resources.some((r) => r.id === action.resourceId)) return
     handled.current = named.seq
     setOpen(action.resourceId)

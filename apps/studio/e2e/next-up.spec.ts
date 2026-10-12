@@ -54,3 +54,10 @@ test('next up · an answer not recorded (a conflict) moves nothing on: no line, 
   await expect(board(page).locator('[data-decision]').first()).toContainText(/changed|conflict|not recorded|again/i)
   await expect(line(page)).toHaveCount(0)
 })
+
+test('next up · the review’s pill closes the line too (Codex on #263)', async ({ page }) => {
+  await answer(page)
+  await expect(line(page)).toBeVisible()
+  await board(page).locator('.review-pill').click()
+  await expect(line(page)).toHaveCount(0)
+})

@@ -15,7 +15,7 @@
 // - a review of the lead's that proposes a change: a pill in the bar, its card in the decisions' slot, one or the
 //   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EmptyState, Icon } from '@sophia/ui'
 import { DECISION, linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
@@ -152,7 +152,13 @@ function LaneWhy({
     <p className="lane-why">
       <span className="lane-why-word">Waiting on</span>
       {shown.map((b) => (
-        <button key={b.item.id} type="button" className="text-button" onClick={() => onOpen(b.item.id)}>
+        <button
+          key={b.item.id}
+          type="button"
+          className="text-button"
+          data-blocker={b.item.id}
+          onClick={() => onOpen(b.item.id)}
+        >
           {b.item.purpose}
         </button>
       ))}
@@ -349,6 +355,8 @@ interface DecisionsProps {
   className?: string
   /** Opened on one (from a review that waits on it): the focus goes to its first choice. */
   focus?: string | null
+  /** Each ask for the focus, counted: the same decision asked for again (a new revision of it) takes it again. */
+  focusSeq?: number
 }
 
 function Decisions({
@@ -357,6 +365,7 @@ function Decisions({
   plans,
   className = 'board-decisions',
   focus = null,
+  focusSeq = 0,
   ...rest
 }: DecisionsProps) {
   const list = useRef<HTMLDivElement>(null)
@@ -367,7 +376,7 @@ function Decisions({
       (d) => d.dataset.decision === focus,
     )
     asked?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
-  }, [focus])
+  }, [focus, focusSeq])
   if (decisions.length === 0) return null
   return (
     <div ref={list} className={className}>
@@ -389,12 +398,22 @@ interface SlotOf {
   decider: (id: string) => string
 }
 
+/**
+ * The decision asked to take the focus, with a count: asked again for the same id (its next revision, from the next-up
+ * line), the focus moves again (Codex on #263).
+ */
+function useFocusAsk() {
+  const [ask, setAsk] = useState<{ id: string | null; n: number }>({ id: null, n: 0 })
+  const setFocus = useCallback((id: string | null) => setAsk((was) => ({ id, n: was.n + 1 })), [])
+  return { focus: ask.id, focusSeq: ask.n, setFocus }
+}
+
 /** The slot under the bar: the decisions, or the lead's review that proposes a change; one at a time. */
 function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: SlotOf) {
   const asks = useDecisions(decisions, viewerId, now)
   // The review opened, by its id: another review, a later one, comes closed.
   const [openId, setOpenId] = useState<string | null>(null)
-  const [focus, setFocus] = useState<string | null>(null)
+  const { focus, focusSeq, setFocus } = useFocusAsk()
   const pill = useRef<HTMLButtonElement>(null)
   const review = material(reviewed?.last_review) ? reviewed.last_review : null
   // Its revision is the one the review is read with (null: no plan in force), so the card and the goal's line say the
@@ -415,7 +434,7 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
     setFocus(named.id)
     if (!asks.shown) asks.toggle()
     showInAddress(null, DECISION)
-  }, [named, asks])
+  }, [named, asks, setFocus])
   // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
   const wasShown = useRef(reviewShown)
   useEffect(() => {
@@ -430,6 +449,7 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
     pill,
     reviewShown,
     focus,
+    focusSeq,
     // Opening one closes the other, so the slot holds one at a time.
     decisionsShown,
     toggleDecisions: () => {
@@ -464,7 +484,7 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
 }
 
 /** A review that proposes a change, waiting in the bar: its pill opens its card. */
-function ReviewPill({ slot }: { slot: ReturnType<typeof useSlot> }) {
+function ReviewPill({ slot, onPress }: { slot: ReturnType<typeof useSlot>; onPress: () => void }) {
   if (!slot.review) return null
   return (
     <button
@@ -472,7 +492,12 @@ function ReviewPill({ slot }: { slot: ReturnType<typeof useSlot> }) {
       type="button"
       className="decision-pill review-pill"
       aria-expanded={slot.reviewShown}
-      onClick={slot.toggleReview}
+      onClick={() => {
+        // The next-up line goes too, as with the decisions' pill: it would else speak of the review now open (Codex on
+        // #263).
+        onPress()
+        slot.toggleReview()
+      }}
     >
       <span className="decision-pill-dot" aria-hidden />
       Review · a change proposed
@@ -535,8 +560,12 @@ function useTileFocus(rows: readonly PlanRow[]) {
   const held = useRef<string | null>(null)
   useEffect(() => {
     const into = (e: FocusEvent) => {
-      const tile = e.target instanceof Element ? e.target.closest<HTMLElement>('.board [data-task]') : null
-      held.current = tile?.dataset['task'] ?? null
+      const at = e.target instanceof Element ? e.target : null
+      // A blocker's press stands for its task: gone with the Blocked lane (the blocker done), the focus goes to the
+      // blocker's own tile (Codex on #244).
+      const why = at?.closest<HTMLElement>('.board [data-blocker]')
+      const tile = at?.closest<HTMLElement>('.board [data-task]')
+      held.current = why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
     }
     // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
     // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
@@ -560,7 +589,15 @@ function useTileFocus(rows: readonly PlanRow[]) {
     const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
       (el) => el.dataset['task'] === id,
     )
-    tile?.focus({ preventScroll: true })
+    if (tile) {
+      tile.focus({ preventScroll: true })
+      return
+    }
+    // Moved into a lane past the tiles it shows (five, the rest one press away): the focus goes to that press, so the
+    // keyboard can reveal it; never to the page (Codex on #236).
+    const row = rows.find((r) => r.item.id === id)
+    const lane = row ? document.querySelector(`.board .lane[data-lane="${laneOf(row, rows)}"]`) : null
+    lane?.querySelector<HTMLElement>('.lane-more')?.focus({ preventScroll: true })
   }, [rows])
 }
 
@@ -624,7 +661,8 @@ interface SlotProps {
 
 /** Under the bar, one at a time: the decisions, or the lead's review that proposes a change. */
 function Slot({ slot, rows, onOpenTask, decisions, onChallenge }: SlotProps) {
-  if (slot.decisionsShown) return <Decisions decisions={slot.asks.open} focus={slot.focus} {...decisions} />
+  if (slot.decisionsShown)
+    return <Decisions decisions={slot.asks.open} focus={slot.focus} focusSeq={slot.focusSeq} {...decisions} />
   if (!slot.reviewShown || !slot.review) return null
   return (
     <ReviewResult
@@ -809,7 +847,7 @@ function Bar({ view, rows, viewerId, slot, people, away, onSeen, onPill }: BarPr
         people={people}
         deciders={asks.active.map((d) => d.decider_id)}
       />
-      <ReviewPill slot={slot} />
+      <ReviewPill slot={slot} onPress={onPill} />
       <AwayLine away={away} onSeen={onSeen} className="board-return" />
     </div>
   )
