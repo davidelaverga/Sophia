@@ -7,8 +7,9 @@
 // Write-once is kept by the database, not left to the service: Supabase Storage's S3 PutObject replaces an object and
 // ignores If-None-Match (upstream 307c5e31, SDD-01-CX-0015). writeOnce claims each key in the database (0044) and
 // commits the claim before a byte is sent; a key already claimed, by this API or one racing it, is refused before any
-// I/O to the store, and buildApp hands the routes no other store. The keys are fresh besides (renderer_output_slot and
-// renderer_capture_slot mint gen_random_uuid(); a retry gets a new one), and every read checks the recorded SHA-256
+// I/O to the store, and buildApp hands the routes no other store. PDFs use a fresh output slot; capture routes derive
+// one key per validated lease/name, so replay cannot consume fresh backups. A renewed lease gets a fresh capture key.
+// Every read checks the recorded SHA-256
 // (the API's fileBytes, the Studio's download.ts).
 import { amzDates, authorization, encodeKey, presignedUrl, sha256Hex, uriEncode } from './s3-sign.ts'
 import {

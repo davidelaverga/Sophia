@@ -21,6 +21,7 @@ import {
 import { ByteStoreError, objectPath, storedKey, WriteClaimError, type ByteStore } from '../byte-store.ts'
 import { sha256Hex } from '../s3-sign.ts'
 import { rendererUploadHooks, withRendererUpload } from '../renderer-upload-admission.ts'
+import { captureSourceId } from '../capture-source.ts'
 
 /** Exact routes that take a render runner capability instead of a member token. */
 export const RENDERER_ROUTES: ReadonlySet<string> = new Set([
@@ -175,7 +176,7 @@ async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: st
   return withService(deps.pool, (c) => rendererRecordOutput(c, token, req.params.jobId, lease, output))
 }
 
-/** Store one uploaded PNG of a capture job once under a new source of the job's project, then record it by name. */
+/** A capture name has one source per validated lease; writeOnce refuses replays before backup or remote I/O. */
 async function storeCapture(
   deps: Deps,
   req: FastifyRequest<{ Params: { jobId: string; name: string }; Body: unknown }>,
@@ -189,12 +190,13 @@ async function storeCapture(
   const lease = leaseOf(req)
   const { jobId, name } = req.params
   const slot = await withService(deps.pool, (c) => rendererCaptureSlot(c, token, jobId, lease, name))
+  const sourceId = captureSourceId(slot.projectId, jobId, lease, name)
   try {
-    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'image/png', { rendererJobId: jobId })
+    await deps.store.put(objectPath(slot.projectId, sourceId), bytes, 'image/png', { rendererJobId: jobId })
   } catch (err) {
     throw storeFailure(err)
   }
-  const capture = { name, sourceId: slot.sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
+  const capture = { name, sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
   return withService(deps.pool, (c) => rendererRecordCapture(c, token, jobId, lease, capture))
 }
 
