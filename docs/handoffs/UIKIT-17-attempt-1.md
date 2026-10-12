@@ -5,12 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/updates-narrow` from `ui/commands` at
 `fddb51dd` (stacked on PR #238 → #237 → … → #220; the base retargets as each merges)
-Ending commit/tree: `818064d0` (tree `b0f9a141d5f6`): 10 files, 3 new (`updates-narrow.test.ts`, `e2e/updates-narrow.spec.ts`,
-`docs/plans/updates-narrow.md`); `updates-view.ts`, `UpdatesView.tsx`, `recap-view.ts`, `MeetingRecap.tsx`,
-`project-go.tsx`, `ProjectShell.tsx`, `theme.css`. The commit after it adds only this handoff.
-After the review (Codex on #239, P2): `b418f73c` writes the task's fragment after the view's own push and makes a
-research card named in the address take the focus and come into view (`useNamedCard` in `WorkCard`); the spec
-presses «Open the task» with the research running. That is the completed code state of this PR.
+Ending commit/tree: `23f29372450e` (tree `704488bc8ad4`), the last commit of `ui/updates-narrow`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 14 files changed against
+`ui/commands` at that commit: `e2e/updates-narrow.spec.ts`, `src/app/theme.css`, `src/features/artifacts/DesignCard.tsx`, `src/features/artifacts/WorkCard.tsx`, `src/features/conversation/TaskCard.tsx`, `src/features/studio/ProjectShell.tsx`, `src/features/studio/project-go.tsx`, `src/features/updates/UpdatesView.tsx`, `src/features/updates/updates-narrow.test.ts`, `src/features/updates/updates-view.ts`, `src/features/voice/MeetingRecap.tsx`, `src/features/voice/recap-view.ts`, `docs/handoffs/UIKIT-17-attempt-1.md`, `docs/plans/updates-narrow.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

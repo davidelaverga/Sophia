@@ -5,8 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/shadow` from `ui/light-mode` at `e98f6987`
 (stacked on PR #234 → #233 → … → #220; the base retargets as each merges)
-Ending commit/tree: `620662c0` (tree `0240521dd360`): 9 files, 1 new (`docs/plans/shadow.md`); seven sheets, `light-mode.spec.ts`,
-`light-mode.md`. The commit after it adds only this handoff.
+Ending commit/tree: `ae265a87e70b` (tree `b37ff7c52847`), the last commit of `ui/shadow`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/light-mode` at that commit: `e2e/light-mode.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `src/features/resources/resources.css`, `src/features/work/planning/board.css`, `docs/handoffs/UIKIT-13-attempt-1.md`, `docs/plans/light-mode.md`, `docs/plans/shadow.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
