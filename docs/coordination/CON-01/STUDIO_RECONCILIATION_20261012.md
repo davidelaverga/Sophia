@@ -1,5 +1,15 @@
 # Luis / CON-01 Studio reconciliation
 
+**Renewed user-requested check: [CX-0160](CX-0160.md).** Read all three
+actual EdX2C comments again in fresh issue198/PR199 inventories; no later
+explicit handback exists. Main3c40b1c6, CONd527f385 and preparede160c5b7
+remain unchanged. Fresh affected-source reads confirm CX158's three CON
+corrections, Luis's preserved resolutions and the existing notice evidence.
+The sequence below remains the agreed bounded reconciliation, with no
+shared Studio window or merge authority. Claude's newly published runtime
+reservation revision4a31c023f is a separate docs-only review, not a Studio
+handoff. No unchanged browser/CI rerun or new actual-app proof claimed.
+
 **Current reconciliation: [CX-0158](CX-0158.md).** Freshly read all three
 EdX2C comments on mission issue198 and draft PR199, including the later
 kit-landing/conflict update6118092274. Current fetched main3c40b1c6,
