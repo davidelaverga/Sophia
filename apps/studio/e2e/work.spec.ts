@@ -416,6 +416,41 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('')
 })
 
+test('a tile’s doer keeps at least seven letters beside a state chip; a wrapping blocker keeps its left edge', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  // The tile that waits on a permission: its chip is the longest state the board says.
+  const waiting = board(page)
+    .locator('.task-tile', { has: page.locator('.task-tile-meta .tag') })
+    .first()
+  const read = await waiting.evaluate((el) => {
+    const name = el.querySelector<HTMLElement>('.task-tile-name')
+    const chip = el.querySelector<HTMLElement>('.task-tile-meta .tag')
+    if (!name || !chip) return null
+    const ch = parseFloat(getComputedStyle(name).fontSize) * 0.5 // a character's width, about half the size
+    return {
+      width: name.getBoundingClientRect().width,
+      seven: 7 * ch,
+      words: name.textContent,
+      chipTop: chip.getBoundingClientRect().top,
+      nameTop: name.getBoundingClientRect().top,
+    }
+  })
+  expect(read?.width ?? 0).toBeGreaterThanOrEqual(read?.seven ?? Infinity)
+  expect((read?.words ?? '').length).toBeGreaterThan(1)
+  // The blocker's press: left-aligned, its lines (when it wraps) on one left edge.
+  const why = board(page).locator('.lane-why .text-button').first()
+  await expect(why).toHaveCSS('text-align', 'left')
+  const lines = await why.evaluate((el) => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return [...range.getClientRects()].map((r) => Math.round(r.left))
+  })
+  expect(new Set(lines).size).toBe(1)
+})
+
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
   await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
   const held = lane(page, 'Blocked')
