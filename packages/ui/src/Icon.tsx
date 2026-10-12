@@ -10,6 +10,8 @@ export type IconName =
   | 'screen'
   | 'leave'
   | 'link'
+  | 'copy'
+  | 'quote'
   | 'invite'
   | 'chevron'
   | 'close'
@@ -181,6 +183,15 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   // A decision: a check in a ring (a message proposed as one, C7).
+  copy: (
+    <>
+      <rect x="9" y="9" width="10.5" height="10.5" rx="2" />
+      <path d="M6 15h-.5A1.5 1.5 0 0 1 4 13.5v-8A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6" />
+    </>
+  ),
+  quote: (
+    <path d="M9.5 7.5H6A1.5 1.5 0 0 0 4.5 9v3A1.5 1.5 0 0 0 6 13.5h2a1.5 1.5 0 0 1 1.5 1.5a2.5 2.5 0 0 1-2.5 2.5M19.5 7.5H16a1.5 1.5 0 0 0-1.5 1.5v3a1.5 1.5 0 0 0 1.5 1.5h2a1.5 1.5 0 0 1 1.5 1.5a2.5 2.5 0 0 1-2.5 2.5" />
+  ),
   decide: (
     <>
       <circle cx="12" cy="12" r="8.5" />
