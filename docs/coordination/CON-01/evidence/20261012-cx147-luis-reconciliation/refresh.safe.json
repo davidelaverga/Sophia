@@ -1,0 +1,53 @@
+{
+  "mission": "CON-01",
+  "checkpoint": "CX-0147",
+  "observed_at": "2026-10-12T04:07:29Z",
+  "request": "Recheck EdX2C on issue198 and PR199 and reconcile his work",
+  "comments": [
+    {
+      "id": 6115115786,
+      "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6115115786",
+      "author": "EdX2C",
+      "body": "**Studio design lane (Luis): shared-surface note for G3, no CON-01 source written here.**\n\n- The kit stack (#220–#254, Luis's UI work on the Studio) and #199 meet in four files: `features/conversations/ConversationRows.tsx`, `OpenConversation.tsx`, `conversations.css`, `features/studio/ProjectShell.tsx`, plus the generated contracts (A15 in the stack, A16 here). Whichever lands second resolves; the resolutions are prepared and pushed at `ui/kit-with-con01` (`574766cd` = #199 `d527f385` over #254 `27f310f2`), with the contracts regenerated from both amendments. Lint, typecheck and `contracts:check` clean; 135 of 136 Conversations and kit specs green locally.\n- The UI of #199 read against the kit, with measures, is on the PR: https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6115106416 (legacy `.button` at 26 px in the two confirmations; one word for withdraw/remove; the duplicated coverage line; the withdraw press as an acts-row item; the saved-text notice not reachable in the demo fixture).\n- Per 05_COORDINATION_AND_OWNERSHIP, edits to those four files and to the contracts stay single-writer: the kit stack will not touch them again until #199's landing order is decided. Tell us which lands first and we take the merge on our side.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n"
+    },
+    {
+      "id": 6115106416,
+      "url": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6115106416",
+      "author": "EdX2C",
+      "body": "**Studio design coordination (Luis's lane): the UI of this PR measured against the kit, and the merge with the kit stack prepared.**\n\nRead on the head `d527f385` merged over the kit stack's head (#254, `27f310f2`) at `ui/kit-with-con01` (`574766cd`): headless Chromium at 1280×800 and 390×844, `pointer: fine`. Captures and `measures.json` are in Luis's evaluation folder; the numbers below are from them. Nothing here blocks G3; the first two are the kind of thing `control-heights.spec` would name if the confirmations were open when it reads.\n\n1. **The two confirmations use the legacy `.button`, off the controls' grid.** `WithdrawHere.tsx:181` and `EraseHere.tsx:127` render `className=\"button\"`: measured 26 px tall, grey fill, square radius, beside «Keep it» as a `.text-button` (24). In the same context pane the kit's «Accept» is a `.pill` at 28. The kit's rule (CONTRIBUTING, `control-heights.spec`): every single-line press stands on 24, 28, 32 or 36. The kit has `Button` from `@sophia/ui` (`kind`, `size`) and `ConfirmButton` for a question asked in place (Stop on a goal uses it: a `warning`, a `confirm` word, a `keep` word). Suggest `ConfirmButton` for both, or `Button` with the destructive kind if one is added; the words stay.\n\n2. **The press and its form name the act differently for a moderator.** `WithdrawHere.tsx:85` labels the press «Remove message» when the message is another's and «Withdraw message» when it is one's own; the form's group is labelled accordingly (`:166`), but the visible question reads «Withdraw this message? …» in both cases (measured text of the group). One word for one act, in the press, the group and the sentence.\n\n3. **«Covers messages 1–9.» twice in the context pane.** The summary's coverage and the open questions' coverage are two lines with the same words, one under «This conversation», one under «1 open question»; read together they look like a repeat. Either one coverage line for the pane, or words that say what each covers («The questions cover 1–9.»).\n\n4. **The withdraw press is an absolutely positioned span; in the kit it is a row item.** The kit's Conversations (#240) put Copy, Quote and Propose in one acts row (`.conv-acts`, 28 px presses on `--r-2`, hidden until hover/press) mounted in the message's turn. `WithdrawHere` renders `<span class=\"conv-withdraw\">` with `position: absolute; right: 22px` to sit beside `.conv-propose`. In the merge I render `away.press` inside the row and add `.conv-acts .conv-withdraw { position: static }`; it lands as the fourth press (measured: four 28×28 presses, the row 130 px, at the turn's right edge at both widths). If #199 lands first, the kit's merge brings that; if the kit lands first, `WithdrawHere` can drop its own positioning.\n\n5. **The saved-text notice did not render in the demo fixture** (`room.html?demo=1&conversations=1`: the reader has already written), so it is not measured here. Point me at a fixture state that shows it and I will measure it against the five sizes and the third ink.\n\n**Merge preparation.** `ui/kit-with-con01` holds this PR merged over the kit stack's head with the conflicts resolved: `ConversationRows.tsx` (one import), `OpenConversation.tsx` (both `onQuote` and `withdraw` thread through the list; a withdrawn message, `text === null`, shows no acts; `MessageLead` + `MessageBy` + `useArrivalFocus` keep the two functions under the repository's 60 lines), `conversations.css` (the touch rules unioned), `ProjectShell.tsx` (the kit's shell with this PR's `CONVERSATIONS` flag and `useProjectMembership(…, snapshot.dataUpdatedAt)`), and the generated contracts regenerated from A15 and A16 together (`contracts:check` clean). Lint and typecheck clean; locally 135 of 136 Conversations and kit specs green, the one left being `conversations-removal @phone` «an erasure's late reply…», which passes one run in two here (timing). Whichever lands second can take these resolutions.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n"
+    }
+  ],
+  "refs": {
+    "main": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+    "prepared": "fa10f7fae24d286d4472d07e60b821b078e4dcb2",
+    "prepared_tree": "1785594dbc475ac8e1cf52dc9651f198a53c9eab",
+    "pr199": "d527f3854222020abb6ba723bf0ea7480c76bb82"
+  },
+  "new_luis_handback": false,
+  "source_recheck": [
+    "WithdrawHere legacy button; moderator question correct, busy/unknown words still Withdraw; old disclosure",
+    "EraseHere legacy button",
+    "ProjectContext independent coverage uses same generic formatter",
+    "OpenConversation MessageActs preserves quote/propose/withdraw and excludes null text",
+    "conversations.css withdrawal static within acts row"
+  ],
+  "independent_browser": "No repeat; existing CX141 evidence remains bounded to d5dbda",
+  "implementer": "Existing CC0161 accepted bounded corrections; current exact native CON final says Luis holds unchanged",
+  "next_action": "Luis names accepted base, order, authoritative integration branch/PR and explicit shared-file/generated-contract handback; Claude then implements bounded corrections; Codex independently checks exact combined candidate",
+  "effects": {
+    "feature_writes": false,
+    "merge": false,
+    "deployment": false,
+    "hosted_database": false,
+    "account_creation": false,
+    "provider_execution": false,
+    "ask_enabled": false
+  },
+  "readiness": {
+    "combined_reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  }
+}
