@@ -1,0 +1,76 @@
+  1) [desktop] › e2e/personal.spec.ts:583:1 › presence · a short conversation rests on the field, not at the top of an empty room 
+2026-10-12T00:35:43.8054584Z 
+2026-10-12T00:35:43.8054878Z     Error: expect(received).not.toBeNull()
+2026-10-12T00:35:43.8055240Z 
+2026-10-12T00:35:43.8055413Z     Received: null
+2026-10-12T00:35:43.8055614Z 
+2026-10-12T00:35:43.8055813Z       576 |   await settled(page)
+2026-10-12T00:35:43.8056396Z       577 |   const gap = await restsAbove(page)
+2026-10-12T00:35:43.8057042Z     > 578 |   expect(gap).not.toBeNull()
+2026-10-12T00:35:43.8057596Z           |                   ^
+2026-10-12T00:35:43.8058159Z       579 |   expect(gap).toBeGreaterThanOrEqual(0)
+2026-10-12T00:35:43.8058789Z       580 |   expect(gap).toBeLessThanOrEqual(48)
+2026-10-12T00:35:43.8059282Z       581 | }
+2026-10-12T00:35:43.8060046Z         at expectRests (/home/runner/work/Sophia/Sophia/apps/studio/e2e/personal.spec.ts:578:19)
+2026-10-12T00:35:43.8061080Z         at /home/runner/work/Sophia/Sophia/apps/studio/e2e/personal.spec.ts:585:3
+2026-10-12T00:35:43.8061560Z 
+2026-10-12T00:35:43.8062823Z     Error Context: test-results/personal-presence-·-a-shor-131c3-at-the-top-of-an-empty-room-desktop/error-context.md
+2026-10-12T00:35:43.8063617Z 
+2026-10-12T00:35:43.8064439Z     attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+2026-10-12T00:35:43.8065870Z     test-results/personal-presence-·-a-shor-131c3-at-the-top-of-an-empty-room-desktop/trace.zip
+2026-10-12T00:35:43.8066785Z     Usage:
+2026-10-12T00:35:43.8066996Z 
+2026-10-12T00:35:43.8068145Z         pnpm exec playwright show-trace test-results/personal-presence-·-a-shor-131c3-at-the-top-of-an-empty-room-desktop/trace.zip
+2026-10-12T00:35:43.8069082Z 
+2026-10-12T00:35:43.8069768Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-10-12T00:35:43.8070271Z 
+2026-10-12T00:35:43.8071500Z   2) [desktop] › e2e/personal.spec.ts:905:1 › ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back 
+2026-10-12T00:35:43.8072983Z 
+2026-10-12T00:35:43.8073889Z     Error: expect(locator).toBeInViewport() failed
+2026-10-12T00:35:43.8074331Z 
+2026-10-12T00:35:43.8074581Z     Locator:  locator('.msgs mark.current')
+2026-10-12T00:35:43.8075433Z     Expected: in viewport
+2026-10-12T00:35:43.8075951Z     Received: viewport ratio 0
+2026-10-12T00:35:43.8076395Z     Timeout:  5000ms
+2026-10-12T00:35:43.8076624Z 
+2026-10-12T00:35:43.8076771Z     Call log:
+2026-10-12T00:35:43.8077458Z       - Expect "toBeInViewport" locator('.msgs mark.current') with timeout 5000ms
+2026-10-12T00:35:43.8078317Z       - waiting for locator('.msgs mark.current')
+2026-10-12T00:35:43.8079142Z         13 × locator resolved to <mark class="current">keep</mark>
+2026-10-12T00:35:43.8079885Z            - unexpected value "viewport ratio 0"
+2026-10-12T00:35:43.8080266Z 
+2026-10-12T00:35:43.8080276Z 
+2026-10-12T00:35:43.8080692Z       919 |   await expect(findCount(page)).toHaveText(`1 of ${String(n)}`)
+2026-10-12T00:35:43.8081651Z       920 |   await expect(page.locator('.msgs mark.current')).toHaveCount(1)
+2026-10-12T00:35:43.8082928Z     > 921 |   await expect(page.locator('.msgs mark.current')).toBeInViewport()
+2026-10-12T00:35:43.8083813Z           |                                                    ^
+2026-10-12T00:35:43.8084501Z       922 |   await page.keyboard.press('Enter')
+2026-10-12T00:35:43.8085298Z       923 |   await expect(findCount(page)).toHaveText(`2 of ${String(n)}`)
+2026-10-12T00:35:43.8086140Z       924 |   await page.keyboard.press('Shift+Enter')
+2026-10-12T00:35:43.8087063Z         at /home/runner/work/Sophia/Sophia/apps/studio/e2e/personal.spec.ts:921:52
+2026-10-12T00:35:43.8087625Z 
+2026-10-12T00:35:43.8088713Z     Error Context: test-results/personal-ease-·-Ctrl-F-fin-48fa3-ck-Esc-gives-the-focus-back-desktop/error-context.md
+2026-10-12T00:35:43.8089645Z 
+2026-10-12T00:35:43.8090461Z     attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+2026-10-12T00:35:43.8091962Z     test-results/personal-ease-·-Ctrl-F-fin-48fa3-ck-Esc-gives-the-focus-back-desktop/trace.zip
+2026-10-12T00:35:43.8093178Z     Usage:
+2026-10-12T00:35:43.8093383Z 
+2026-10-12T00:35:43.8094640Z         pnpm exec playwright show-trace test-results/personal-ease-·-Ctrl-F-fin-48fa3-ck-Esc-gives-the-focus-back-desktop/trace.zip
+2026-10-12T00:35:43.8095685Z 
+2026-10-12T00:35:43.8096293Z     ────────────────────────────────────────────────────────────────────────────────────────────────
+2026-10-12T00:35:43.8096597Z 
+2026-10-12T00:35:43.8096702Z   2 failed
+2026-10-12T00:35:43.8097366Z     [desktop] › e2e/personal.spec.ts:583:1 › presence · a short conversation rests on the field, not at the top of an empty room 
+2026-10-12T00:35:43.8098557Z     [desktop] › e2e/personal.spec.ts:905:1 › ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back 
+2026-10-12T00:35:43.8099299Z   1 skipped
+2026-10-12T00:35:43.8099673Z   1230 passed (43.9m)
+2026-10-12T00:35:43.8108868Z ##[notice]  2 failed
+    [desktop] › e2e/personal.spec.ts:583:1 › presence · a short conversation rests on the field, not at the top of an empty room 
+    [desktop] › e2e/personal.spec.ts:905:1 › ease · Ctrl F finds in the conversation: each match marked, “1 of N”, Enter on, Shift Enter back, Esc gives the focus back 
+  1 skipped
+  1230 passed (43.9m)
+2026-10-12T00:35:43.8517786Z /home/runner/work/Sophia/Sophia/apps/studio:
+2026-10-12T00:35:43.8518647Z [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @sophia/studio@0.0.0 test:browser: `playwright test`
+2026-10-12T00:35:43.8519186Z Exit status 1
+2026-10-12T00:35:43.8893557Z ##[error]Process completed with exit code 1.
+2026-10-12T00:35:43.8999179Z 

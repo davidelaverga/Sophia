@@ -1,0 +1,21 @@
+{
+  "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+  "at": "2026-10-12T00:42:10.328507+00:00",
+  "harnessSha256": "c05ee59b3871688db4850050b9b6a6022c3b39a6e4fc22cd162cdec3f0607590",
+  "probeSha256": "e54b61016011d83d55c4b9cfdb21775c706ef0a18b0898026af55410787c8fff",
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "probeExit": 0,
+  "identityReceiptExists": true,
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "other_clients": 0
+  }
+}

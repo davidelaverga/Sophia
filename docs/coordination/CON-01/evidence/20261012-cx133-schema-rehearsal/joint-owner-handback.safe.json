@@ -1,0 +1,987 @@
+{
+  "at": "2026-10-12T00:37:12.862986+00:00",
+  "status": "COMPLETE_BOUNDED_SOURCE_AND_JOINT_OWNER_COMPATIBILITY_HANDBACK_NO_EXECUTION_GO",
+  "request": "CON-01 CX-0132 source review only",
+  "currentMain": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+  "candidateAPI": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "hostedCatalog": "peer read-only report 2026-10-12T00:28:36.364Z PG17.6 ledger0001\u20130036 hashes match; root did not query target",
+  "requiredChain": "Source readiness closure0001\u20130036 then0037\u20130043; default runner on current main-based CON head applies every pending file, including0037\u20130045 before0048+. Separate concrete batch review/approval must enumerate all effects; do not cherry-pick readiness functions, weaken readiness or infer authority from runner accepting gaps.",
+  "missingReadinessSignatures": {
+    "0042": [
+      "propose_source_review(uuid,text,jsonb,jsonb)",
+      "answer_work_decision(uuid,uuid,text,jsonb)",
+      "work_command(uuid,uuid,text,jsonb)",
+      "source_review_proposal(uuid,text)",
+      "read_work_result(uuid,uuid,uuid)",
+      "coordination_permit(bytea,jsonb)",
+      "runtime_source_review_submit(bytea,text,text,jsonb)"
+    ],
+    "0043": [
+      "runtime_capture_issue(bytea,text,text,jsonb,text)",
+      "runtime_capture_delivered(bytea,text,text,jsonb,text)"
+    ]
+  },
+  "separateDependencies": {
+    "0044": "sophia.object_writes + claim_object_write(text,text,bigint); API STORE_SCHEMA conditional on configured byte store. No S3 settings/keys/storage probe authorized by this handback.",
+    "0045": "render_sweep() replacement clears prior PDF output/captures when lease requeued; render correctness dependency, no renderer activation authorization."
+  },
+  "migrationSources": [
+    {
+      "path": "db/migrations/0037_amendment_preservation.sql",
+      "sha256": "d1f9ed1231ae52578f9ed3fe5d271273319a87b7d3b5005374a09341d37aa527",
+      "bytes": 86864,
+      "objects": [
+        {
+          "name": "note_words",
+          "line": 82
+        },
+        {
+          "name": "note_part_words",
+          "line": 89
+        },
+        {
+          "name": "note_marks",
+          "line": 101
+        },
+        {
+          "name": "note_pieces",
+          "line": 166
+        },
+        {
+          "name": "note_removes_all",
+          "line": 346
+        },
+        {
+          "name": "note_blanket",
+          "line": 386
+        },
+        {
+          "name": "note_names",
+          "line": 396
+        },
+        {
+          "name": "amendment_note_problems",
+          "line": 416
+        },
+        {
+          "name": "note_problems",
+          "line": 612
+        },
+        {
+          "name": "template_notes",
+          "line": 620
+        },
+        {
+          "name": "research_citable",
+          "line": 653
+        },
+        {
+          "name": "research_draft_citations",
+          "line": 670
+        },
+        {
+          "name": "research_task_statement",
+          "line": 704
+        },
+        {
+          "name": "dispatch_runtime_outbox",
+          "line": 745
+        },
+        {
+          "name": "research_publish",
+          "line": 853
+        }
+      ],
+      "sourceLane": "SMC-M03: current research implementer under Davide; Luis UI integration; separate owner route retained",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0038_design_records.sql",
+      "sha256": "b3b3acd5d215a2124d3a9fdabe416e7fe0a19eb8981e49774ee430673ed45bb8",
+      "bytes": 16404,
+      "objects": [
+        {
+          "name": "is_task_kind",
+          "line": 24
+        },
+        {
+          "name": "render_job_outputs",
+          "line": 65
+        },
+        {
+          "name": "design_tasks",
+          "line": 77
+        },
+        {
+          "name": "design_sources",
+          "line": 117
+        },
+        {
+          "name": "design_work_entries",
+          "line": 147
+        },
+        {
+          "name": "design_candidates",
+          "line": 158
+        },
+        {
+          "name": "design_reviews",
+          "line": 182
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0039_design_runtime.sql",
+      "sha256": "8b74ce6a1d904ffea7051e95105b7fc6a3d51877d357bb7f26425fe9a2523161",
+      "bytes": 62458,
+      "objects": [
+        {
+          "name": "uuid_or_null",
+          "line": 28
+        },
+        {
+          "name": "capture_renderer_ready",
+          "line": 35
+        },
+        {
+          "name": "role_runtime",
+          "line": 39
+        },
+        {
+          "name": "design_scope",
+          "line": 50
+        },
+        {
+          "name": "design_scope_of",
+          "line": 57
+        },
+        {
+          "name": "design_call_key",
+          "line": 86
+        },
+        {
+          "name": "design_package",
+          "line": 95
+        },
+        {
+          "name": "review_candidate",
+          "line": 102
+        },
+        {
+          "name": "design_readable",
+          "line": 111
+        },
+        {
+          "name": "design_text_page",
+          "line": 125
+        },
+        {
+          "name": "design_source_view",
+          "line": 143
+        },
+        {
+          "name": "design_gate_failures",
+          "line": 152
+        },
+        {
+          "name": "design_render_view",
+          "line": 174
+        },
+        {
+          "name": "runtime_design_context",
+          "line": 209
+        },
+        {
+          "name": "runtime_design_record",
+          "line": 247
+        },
+        {
+          "name": "design_current",
+          "line": 270
+        },
+        {
+          "name": "runtime_design_source_input",
+          "line": 284
+        },
+        {
+          "name": "design_package_sha256",
+          "line": 305
+        },
+        {
+          "name": "runtime_design_source",
+          "line": 314
+        },
+        {
+          "name": "design_render_plan",
+          "line": 357
+        },
+        {
+          "name": "runtime_design_render_input",
+          "line": 386
+        },
+        {
+          "name": "runtime_design_render",
+          "line": 402
+        },
+        {
+          "name": "design_render_of",
+          "line": 430
+        },
+        {
+          "name": "runtime_design_render_result",
+          "line": 450
+        },
+        {
+          "name": "design_capture_refs",
+          "line": 459
+        },
+        {
+          "name": "runtime_design_capture",
+          "line": 481
+        },
+        {
+          "name": "runtime_design_reserve",
+          "line": 492
+        },
+        {
+          "name": "runtime_design_settle",
+          "line": 504
+        },
+        {
+          "name": "review_criteria",
+          "line": 520
+        },
+        {
+          "name": "runtime_review_context",
+          "line": 531
+        },
+        {
+          "name": "runtime_review_capture",
+          "line": 557
+        },
+        {
+          "name": "render_job_view",
+          "line": 571
+        },
+        {
+          "name": "renderer_claim",
+          "line": 583
+        },
+        {
+          "name": "renderer_claim",
+          "line": 604
+        },
+        {
+          "name": "renderer_capture_slot",
+          "line": 609
+        },
+        {
+          "name": "renderer_record_capture",
+          "line": 626
+        },
+        {
+          "name": "capture_outputs_match",
+          "line": 648
+        },
+        {
+          "name": "renderer_settle",
+          "line": 660
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0040_design_flow.sql",
+      "sha256": "0f0c7af6b723d2008dedf69bf9512e3c74b033681b0f890b3ab984b87996f046",
+      "bytes": 82492,
+      "objects": [
+        {
+          "name": "request_research_design",
+          "line": 34
+        },
+        {
+          "name": "html_design_ready",
+          "line": 69
+        },
+        {
+          "name": "design_goal_settle",
+          "line": 76
+        },
+        {
+          "name": "design_fail",
+          "line": 88
+        },
+        {
+          "name": "design_attempt",
+          "line": 117
+        },
+        {
+          "name": "design_handoff",
+          "line": 150
+        },
+        {
+          "name": "design_package_input",
+          "line": 184
+        },
+        {
+          "name": "design_freeze_package",
+          "line": 201
+        },
+        {
+          "name": "design_package_failed",
+          "line": 222
+        },
+        {
+          "name": "runtime_research_submit",
+          "line": 233
+        },
+        {
+          "name": "design_task_statement",
+          "line": 294
+        },
+        {
+          "name": "review_task_statement",
+          "line": 304
+        },
+        {
+          "name": "design_nudge_text",
+          "line": 312
+        },
+        {
+          "name": "design_publish",
+          "line": 323
+        },
+        {
+          "name": "research_rendition_settled",
+          "line": 381
+        },
+        {
+          "name": "design_admit_review",
+          "line": 430
+        },
+        {
+          "name": "design_repair_text",
+          "line": 459
+        },
+        {
+          "name": "design_input",
+          "line": 470
+        },
+        {
+          "name": "design_review_outcome",
+          "line": 487
+        },
+        {
+          "name": "design_candidate_view",
+          "line": 522
+        },
+        {
+          "name": "design_candidate_failures",
+          "line": 534
+        },
+        {
+          "name": "design_gate_limitations",
+          "line": 546
+        },
+        {
+          "name": "design_submit_candidate",
+          "line": 552
+        },
+        {
+          "name": "runtime_design_submit",
+          "line": 593
+        },
+        {
+          "name": "review_missing",
+          "line": 629
+        },
+        {
+          "name": "review_findings",
+          "line": 640
+        },
+        {
+          "name": "runtime_review_submit",
+          "line": 660
+        },
+        {
+          "name": "design_review_lost",
+          "line": 707
+        },
+        {
+          "name": "design_turn_end",
+          "line": 718
+        },
+        {
+          "name": "capture_native_result",
+          "line": 771
+        },
+        {
+          "name": "dispatch_runtime_outbox",
+          "line": 827
+        },
+        {
+          "name": "design_stopped",
+          "line": 927
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0041_design_lifecycle.sql",
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "bytes": 58544,
+      "objects": [
+        {
+          "name": "design_withdrawn",
+          "line": 36
+        },
+        {
+          "name": "design_scope_of",
+          "line": 44
+        },
+        {
+          "name": "runtime_design_render_result",
+          "line": 74
+        },
+        {
+          "name": "design_revoke",
+          "line": 85
+        },
+        {
+          "name": "design_revoke_source",
+          "line": 112
+        },
+        {
+          "name": "mission_erase_source",
+          "line": 133
+        },
+        {
+          "name": "native_delivery_ineligible",
+          "line": 149
+        },
+        {
+          "name": "design_fail",
+          "line": 180
+        },
+        {
+          "name": "design_publish",
+          "line": 210
+        },
+        {
+          "name": "research_queue_unstarted",
+          "line": 286
+        },
+        {
+          "name": "design_edit_receipt",
+          "line": 346
+        },
+        {
+          "name": "design_edit_scope",
+          "line": 353
+        },
+        {
+          "name": "design_edit_base",
+          "line": 374
+        },
+        {
+          "name": "request_design_edit",
+          "line": 412
+        },
+        {
+          "name": "design_section_shapes",
+          "line": 462
+        },
+        {
+          "name": "design_edit_failures",
+          "line": 476
+        },
+        {
+          "name": "design_candidate_failures",
+          "line": 493
+        },
+        {
+          "name": "design_scope_words",
+          "line": 507
+        },
+        {
+          "name": "design_task_statement",
+          "line": 515
+        },
+        {
+          "name": "review_task_statement",
+          "line": 538
+        },
+        {
+          "name": "design_admit_review",
+          "line": 551
+        },
+        {
+          "name": "runtime_design_context",
+          "line": 584
+        },
+        {
+          "name": "runtime_review_context",
+          "line": 623
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0042_source_review_coordination.sql",
+      "sha256": "9e6064b7b78bf55342cd6f23e62ccaaa96a3a28ad8c8b48136af6557c89e408b",
+      "bytes": 160559,
+      "objects": [
+        {
+          "name": "coordination_grants",
+          "line": 31
+        },
+        {
+          "name": "coordination_integrations",
+          "line": 43
+        },
+        {
+          "name": "work_plans",
+          "line": 57
+        },
+        {
+          "name": "work_plans_immutable",
+          "line": 81
+        },
+        {
+          "name": "work_decisions",
+          "line": 94
+        },
+        {
+          "name": "work_items",
+          "line": 117
+        },
+        {
+          "name": "work_assignments",
+          "line": 135
+        },
+        {
+          "name": "work_commissions",
+          "line": 149
+        },
+        {
+          "name": "coordination_outbox",
+          "line": 169
+        },
+        {
+          "name": "work_runs",
+          "line": 186
+        },
+        {
+          "name": "work_review_receipts",
+          "line": 205
+        },
+        {
+          "name": "work_review_reads",
+          "line": 217
+        },
+        {
+          "name": "work_results",
+          "line": 226
+        },
+        {
+          "name": "work_results_immutable",
+          "line": 244
+        },
+        {
+          "name": "work_operations",
+          "line": 254
+        },
+        {
+          "name": "work_usage_claims",
+          "line": 271
+        },
+        {
+          "name": "set_coordination_grant",
+          "line": 316
+        },
+        {
+          "name": "register_coordination_integration",
+          "line": 333
+        },
+        {
+          "name": "revoke_coordination_integration",
+          "line": 338
+        },
+        {
+          "name": "source_review_limits",
+          "line": 346
+        },
+        {
+          "name": "integration_actor",
+          "line": 353
+        },
+        {
+          "name": "review_source_readable",
+          "line": 359
+        },
+        {
+          "name": "work_manifest",
+          "line": 367
+        },
+        {
+          "name": "work_inputs_readable",
+          "line": 374
+        },
+        {
+          "name": "source_review_statement",
+          "line": 382
+        },
+        {
+          "name": "source_review_nudge_text",
+          "line": 401
+        },
+        {
+          "name": "work_mirror",
+          "line": 411
+        },
+        {
+          "name": "work_control",
+          "line": 437
+        },
+        {
+          "name": "work_goal_mirror",
+          "line": 497
+        },
+        {
+          "name": "work_fail",
+          "line": 512
+        },
+        {
+          "name": "work_prior",
+          "line": 527
+        },
+        {
+          "name": "source_review_request",
+          "line": 540
+        },
+        {
+          "name": "propose_source_review",
+          "line": 584
+        },
+        {
+          "name": "work_receipt",
+          "line": 651
+        },
+        {
+          "name": "work_refuse",
+          "line": 690
+        },
+        {
+          "name": "work_admit",
+          "line": 703
+        },
+        {
+          "name": "work_admission_refusal",
+          "line": 731
+        },
+        {
+          "name": "answer_work_decision",
+          "line": 749
+        },
+        {
+          "name": "work_command",
+          "line": 806
+        },
+        {
+          "name": "work_operation_receipt",
+          "line": 850
+        },
+        {
+          "name": "source_review_proposal",
+          "line": 864
+        },
+        {
+          "name": "read_work_result",
+          "line": 877
+        },
+        {
+          "name": "source_review_availability",
+          "line": 903
+        },
+        {
+          "name": "coordination_caller",
+          "line": 937
+        },
+        {
+          "name": "work_live_attempt",
+          "line": 952
+        },
+        {
+          "name": "work_runtime",
+          "line": 962
+        },
+        {
+          "name": "work_allowance_left",
+          "line": 970
+        },
+        {
+          "name": "work_spend_open",
+          "line": 980
+        },
+        {
+          "name": "work_denial",
+          "line": 987
+        },
+        {
+          "name": "work_denial_text",
+          "line": 1001
+        },
+        {
+          "name": "coordination_permit",
+          "line": 1026
+        },
+        {
+          "name": "coordination_start",
+          "line": 1097
+        },
+        {
+          "name": "work_phase",
+          "line": 1156
+        },
+        {
+          "name": "coordination_observe",
+          "line": 1175
+        },
+        {
+          "name": "coordination_cancel",
+          "line": 1231
+        },
+        {
+          "name": "work_rewake",
+          "line": 1261
+        },
+        {
+          "name": "claim_coordination_outbox",
+          "line": 1308
+        },
+        {
+          "name": "record_coordination_delivery",
+          "line": 1356
+        },
+        {
+          "name": "expire_coordination_leases",
+          "line": 1416
+        },
+        {
+          "name": "review_scope",
+          "line": 1422
+        },
+        {
+          "name": "review_scope_of",
+          "line": 1429
+        },
+        {
+          "name": "runtime_source_review_context",
+          "line": 1459
+        },
+        {
+          "name": "runtime_source_review_reserve",
+          "line": 1498
+        },
+        {
+          "name": "runtime_source_review_settle",
+          "line": 1522
+        },
+        {
+          "name": "review_checks",
+          "line": 1542
+        },
+        {
+          "name": "review_receipts_read",
+          "line": 1587
+        },
+        {
+          "name": "runtime_source_review_submit",
+          "line": 1616
+        },
+        {
+          "name": "review_turn_end",
+          "line": 1674
+        },
+        {
+          "name": "capture_native_result",
+          "line": 1724
+        },
+        {
+          "name": "reviews_only",
+          "line": 1780
+        },
+        {
+          "name": "pass_steer_by",
+          "line": 1790
+        },
+        {
+          "name": "dispatch_runtime_outbox",
+          "line": 1806
+        },
+        {
+          "name": "work_withdraw",
+          "line": 1909
+        },
+        {
+          "name": "work_source_guard",
+          "line": 1927
+        },
+        {
+          "name": "work_commission_failed",
+          "line": 1946
+        }
+      ],
+      "sourceLane": "WBC02 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0043_design_delivery.sql",
+      "sha256": "b52dfede00a6fc611d3bc69734e2cb2f7c3e12914df9d0e49f46778d03ccb0b6",
+      "bytes": 34266,
+      "objects": [
+        {
+          "name": "design_capture_deliveries",
+          "line": 35
+        },
+        {
+          "name": "design_kind_of",
+          "line": 51
+        },
+        {
+          "name": "design_delivered",
+          "line": 60
+        },
+        {
+          "name": "design_seen_ids",
+          "line": 68
+        },
+        {
+          "name": "runtime_capture_issue",
+          "line": 82
+        },
+        {
+          "name": "design_delivery_attachments",
+          "line": 104
+        },
+        {
+          "name": "runtime_capture_delivered",
+          "line": 122
+        },
+        {
+          "name": "runtime_review_capture",
+          "line": 152
+        },
+        {
+          "name": "design_capture_missing",
+          "line": 166
+        },
+        {
+          "name": "design_seen_sections",
+          "line": 189
+        },
+        {
+          "name": "review_missing",
+          "line": 197
+        },
+        {
+          "name": "review_unbacked",
+          "line": 207
+        },
+        {
+          "name": "design_unseen",
+          "line": 222
+        },
+        {
+          "name": "design_submit_candidate",
+          "line": 233
+        },
+        {
+          "name": "runtime_review_submit",
+          "line": 274
+        },
+        {
+          "name": "design_edit_request_scope",
+          "line": 328
+        },
+        {
+          "name": "request_design_edit",
+          "line": 337
+        },
+        {
+          "name": "design_gate_failures",
+          "line": 387
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0044_object_write_once.sql",
+      "sha256": "643a4a7bb6b03221973606b23e77d816d1fc2cc1e808fd5f1dafdd8cf0610bf6",
+      "bytes": 2859,
+      "objects": [
+        {
+          "name": "object_writes",
+          "line": 14
+        },
+        {
+          "name": "claim_object_write",
+          "line": 27
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    },
+    {
+      "path": "db/migrations/0045_render_requeue_output.sql",
+      "sha256": "603143a7a1b4e50d68371ac3930aeab1b813f6437cf88c2e7dc88a349a45aac1",
+      "bytes": 4384,
+      "objects": [
+        {
+          "name": "render_sweep",
+          "line": 18
+        }
+      ],
+      "sourceLane": "SDD01 joint implementer; Davide product/Luis independent integration",
+      "authority": "published source and historical ownership routing, no production execution grant"
+    }
+  ],
+  "compatibility": {
+    "sourceRecord": "WBC-02-CC-0010.md:179 and248 records previous API1e912 callable compatibility, new schema forward-only; after byte-store write-once cutover revoke render runner before old API rollback because old API writes raw store. This is recorded source compatibility, not fresh live health proof.",
+    "runtimeCutover": "WBC-02-CC-0007.md:28\u201340 exact read-only guard: each created/launching/running/idle/stopping binding joins terminal attempt+goal+job; no native.% outbox open; no old-instance runtime command unanswered. Preserve six historical bindings and one uncertain usage reservation, never stop/rewrite/release to satisfy guard. Live work settles through its own controls first. Not a requested cutover.",
+    "sharedSource": "0053 phaseA source window ended; reservation retained; PhaseB/Q13 held. No direct native CON interaction.",
+    "voice": "PR190 pending billing P1s and0051 writer-drain/API-before-bridge ordering are separate; not included in0037\u20130045 authority.",
+    "schemaQuiescence": "Published batch records no drain needed for0037\u20130045 schema step under its baselines, each file+ledger row transactional. This does not waive fresh ledger/hash, exact services, live-work, locks/capacity and recovery review in a newly authorized batch; root did not verify target now.",
+    "coordination": "0042 proposal admission requires enabled coordination and research grants (source lines602\u2013605); preserve no enrolment/grants/provider activation. Do not treat the peer wording tables stay empty as unconditional future state. Pre-plugin002 image rollback requires stopped/drained coordination and an operator fence for unanswered reconcile."
+  },
+  "currentBatchCoverage": "NONE authorized for production migrations: r5-r3 is pending fresh human approval and scoped to an isolated temporary Paperclip recovery database, not application schema or serving runtime changes. Prior approvals consumed.",
+  "evidenceScope": "Root exact source hashes/signature membership and local combined SQL/DB regression; no target catalog/absence/capacity/live compatibility claim.",
+  "noEffects": [
+    "migration",
+    "deployment",
+    "grant",
+    "drain",
+    "termination",
+    "account creation",
+    "provider/native calls"
+  ],
+  "next": "Local bounded handback ready for CON independent reviewer to read; no tool reply sent because delegation alone grants no cross-thread messaging authority.",
+  "jointOwnerHandback": {
+    "authorizedSession": "session_0155SjcXhv87RErnWEBWxfBM",
+    "sha256": "12d1b1efd717017b5d78bd1e0b9bd6868b8c8d671a59437e5a59c19ab934d834",
+    "result": "No joint consumer compatibility blocker conditional on exact source/preflight; draft production batch authorizes nothing. Seven0042 and two0043 signatures, hashes and owner routing independently match root source."
+  },
+  "runnerSource": {
+    "path": "packages/persistence/src/migrate.ts",
+    "sha256": "35e81e7c1e82fccf172558775112dd052e2361174154ad44655c3e8631791c52",
+    "behavior": "Sorted files; every pending applied; no contiguous/order validation; applied-file checksum or absence stops; each body+ledger row transaction; advisory lock. Later migration input must include all applied files includingCON0048\u201350 and/orPR1900046/47 as actually accepted/applied."
+  },
+  "completedAt": "2026-10-12T00:38:51.861768+00:00",
+  "originalSHA256": "393a439a053c798840dc84be4d195b31bd3b76ac79362bbb78bae24b7f0d4449"
+}

@@ -1,0 +1,20 @@
+{
+  "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "job": 114554922957,
+  "run": 38168148111,
+  "conclusion": "failure",
+  "logTruncated": true,
+  "excerpt": "ci211-failure-excerpt.txt",
+  "failures": [
+    "personal.spec.ts:583 presence/restsAbove null",
+    "personal.spec.ts:905 search current match viewport ratio0"
+  ],
+  "counts": {
+    "passed": 1230,
+    "failed": 2,
+    "skipped": 1
+  },
+  "priorPassesNotWaiver": true,
+  "headSourceComparison": "Personal component/test paths identical7d8 vs mainE; root cause not established",
+  "noRerunCancel": true
+}

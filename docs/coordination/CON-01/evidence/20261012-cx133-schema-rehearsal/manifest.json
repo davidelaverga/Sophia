@@ -1,0 +1,61 @@
+{
+  "files": [
+    {
+      "path": "ci211-failure-excerpt.txt",
+      "sha256": "9687d68fc0548738bc86124d36d15628816bfd059487e495026667cf2d3931aa"
+    },
+    {
+      "path": "ci211-receipt.json",
+      "sha256": "42d37c139d84c4e55398150e635c7648f617cc4baa51a89b9e1e567e5a7536ef"
+    },
+    {
+      "path": "initial/fingerprint.mjs",
+      "sha256": "2bbbb094d4a811769d5405edfb45df075fe117483b4c675cea7474e756d7a455"
+    },
+    {
+      "path": "initial/owned-receipt.safe.json",
+      "sha256": "68379dd3d58ab95c24c6fc4aa7f416eb867bf063474962f0e4f3b1b0d3d6de19"
+    },
+    {
+      "path": "initial/probe.log",
+      "sha256": "58c894a0457973668abcecde5ec41f5b44e1fe686465d2847e8d5ef82eb0a40d"
+    },
+    {
+      "path": "initial/run-owned.py",
+      "sha256": "c05ee59b3871688db4850050b9b6a6022c3b39a6e4fc22cd162cdec3f0607590"
+    },
+    {
+      "path": "joint-owner-handback.safe.json",
+      "sha256": "95455e59cbea9669e7c1ecbad65bc1531e8b7718d3cbc904e5c97e32b326f57f"
+    },
+    {
+      "path": "retry-1/fingerprint.mjs",
+      "sha256": "e54b61016011d83d55c4b9cfdb21775c706ef0a18b0898026af55410787c8fff"
+    },
+    {
+      "path": "retry-1/identities.json",
+      "sha256": "ab8263970a85b04c2c064da3f3f57fbf5e21750301ef7575656f2b33d59c2ec4"
+    },
+    {
+      "path": "retry-1/owned-receipt.safe.json",
+      "sha256": "f75c7d2b93a725a239e674c2b24f6d0e5f550081f6b7e48fc0a167966e9d2031"
+    },
+    {
+      "path": "retry-1/probe.log",
+      "sha256": "18af1e7578f185e670144e4ebd36969752f03657d12d5e2574d368dc8dc17094"
+    },
+    {
+      "path": "retry-1/run-owned.py",
+      "sha256": "c05ee59b3871688db4850050b9b6a6022c3b39a6e4fc22cd162cdec3f0607590"
+    },
+    {
+      "path": "retry-1/source-manifest.json",
+      "sha256": "c98dd54df2698f8c8d727d0c0d2ff27862a449555496e62bd55e66695c19f5b4"
+    },
+    {
+      "path": "setup-schema-plan.json",
+      "sha256": "e2fe6c52f49ad678bb6140850411e937c7297fe8e780b94644015e286e68b946"
+    }
+  ],
+  "no_private_cluster_binding_or_credentials": true
+}

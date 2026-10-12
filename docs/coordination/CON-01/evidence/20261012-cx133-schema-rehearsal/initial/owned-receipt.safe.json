@@ -1,0 +1,15 @@
+{
+  "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+  "at": "2026-10-12T00:41:58.927477+00:00",
+  "harnessSha256": "c05ee59b3871688db4850050b9b6a6022c3b39a6e4fc22cd162cdec3f0607590",
+  "probeSha256": "2bbbb094d4a811769d5405edfb45df075fe117483b4c675cea7474e756d7a455",
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "probeExit": 1,
+  "identityReceiptExists": false
+}

@@ -1,0 +1,146 @@
+{
+  "schema": "sophia.part2.operation-request.v1",
+  "template": false,
+  "mission_id": "CON-01",
+  "repository": "davidelaverga/Sophia",
+  "status": "draft_not_authorized",
+  "approval_ready": false,
+  "approval_ref": null,
+  "approved_by": null,
+  "expires_at": null,
+  "operator_session": "01a1224a-32b4-7222-a017-50a277572d95",
+  "owner_decisions_ref": "OWNER_DECISIONS_20261012.md",
+  "candidate_sha": null,
+  "candidate_tree": null,
+  "accepted_integration_base": null,
+  "artifacts": [],
+  "review_reference_pins": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "PR211": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "meaning": "Source-review references only, not the selected deployment candidate.",
+    "Studio_prepared": "c26154db28e5c2deb9489b3243f98be0d8c85b35",
+    "human_schema": "7d8f415f45d51d3f536443060f5acbfd3bea9455"
+  },
+  "target_identity": {
+    "database": "Supabase ikigawvpaxnvdjzzzhws",
+    "api": "Render srv-daqrn08473hc73flhi8g",
+    "runtime": "Render srv-darvmse0tbcc73d8kh3g",
+    "worker": "Render srv-darv7snpn0mc73e6c240",
+    "bridge": "Render srv-darvcigu01pc73e24o4g",
+    "studio": "Vercel sophia-30911edf/sophia-studio / https://studio.sophia-ei.com",
+    "fresh_for_execution": false,
+    "dated_observation": "CX100 at 2026-10-11T12:02:21.809835+00:00; see LIVE_PREFLIGHT.md; installed composition unqualified"
+  },
+  "credential_references": {
+    "database": "~/.config/sophia/smc-m01-owner-db-url; existing discovery reference, no write authorization",
+    "hosting": null,
+    "test_mailbox": "CON-01 private operator-store owner-test-inbox reference (CX99); never publish value"
+  },
+  "migrations": [],
+  "commands": [],
+  "concurrent_live_work": {
+    "owner_ack": null,
+    "window": null,
+    "preserve": "Preserve WBC-02/SDD-01/other missions and current accepted combined runtime; no drain, stop or replacement inferred. A changed serving tuple invalidates execution preflight."
+  },
+  "recovery": {
+    "qualified_artifacts": [],
+    "rehearsal": null,
+    "preserve": [
+      "human messages and conversation IDs",
+      "privacy withdrawal/tombstone/eligibility fences",
+      "reply request, dispatch, delivery and uncertainty lineage",
+      "cumulative allowance and reservation accounting",
+      "independently governed decisions"
+    ],
+    "method": "Stop new admissions under the approved batch, reconcile/fence outstanding effects, retain compatible read/erase/control paths and governed data. No table drop or old-code-only restore; exact artifact and rehearsal remain unbound."
+  },
+  "execution": {
+    "started": false,
+    "effects": [],
+    "uncertain_effects": [],
+    "actual_spend": 0,
+    "provider_calls": 0,
+    "note": "Draft preparation only; no execution authorization."
+  },
+  "next": "Resolve exact source/UI owner handback and final combined tree/artifacts, bind all shared-schema effects and recovery/current target/cohort/credentials/expiry, then return concrete setup batch to Davide. This revision remains not approval-ready and must not execute.",
+  "request_id": "CON-01-OP-0002",
+  "revision": 5,
+  "supersedes": "CON-01-OP-0002-r4.json (historical unchanged)",
+  "purpose": "Setup plus durable human-chat rollout/actual-app qualification, with Ask disabled and zero model/native calls; separately approved from Ask.",
+  "proposed_validity": "60 minutes from explicit approval of the finalized exact batch; not an active expiry.",
+  "cohort": {
+    "project_id": null,
+    "maximum_new_projects": 1,
+    "title_proposal": "CON-01 Synthetic Review",
+    "owner_subject_ref": null,
+    "second_subject_ref": null,
+    "maximum_new_synthetic_accounts": 1,
+    "second_role_proposal": "editor on designated project only; approvable proposal, not granted authority",
+    "actual_distinct_identity_required": true,
+    "denied_target_ref": null
+  },
+  "proposed_allowance": {
+    "currency": "USD",
+    "maximum_additional_spend": 0,
+    "provider_calls": 0,
+    "native_model_calls": 0,
+    "member_invitations": 1,
+    "invitation_reissues": 0,
+    "synthetic_auth_code_sends": 1,
+    "unexpected_auth_resends": 0,
+    "owner_reauthentication_code_sends": 1,
+    "membership_acceptances": 1,
+    "conversation_creations": 2,
+    "human_message_admissions": 8,
+    "room_joins": 0,
+    "new_payer_allowed": false,
+    "included_service_cost_must_be_verified": true
+  },
+  "ordered_effects": [
+    {
+      "order": 1,
+      "effect": "Read-only refresh exact serving/source/artifact/schema/auth and concurrent-live-work tuple; reconcile existing project/account/invitation identity without content or token disclosure."
+    },
+    {
+      "order": 2,
+      "effect": "Apply only independently reviewed additive human-chat schema prerequisites and deploy exact compatible API/readers/Studio while Ask and unrelated vision gates remain disabled. Native runtime stays unchanged unless a demonstrated dependency is separately included in this batch before approval."
+    },
+    {
+      "order": 3,
+      "effect": "Create the one designated synthetic project and one invitation to the private designated inbox through the supported application; reconcile unknown responses with original admission keys, never reissue blindly."
+    },
+    {
+      "order": 4,
+      "effect": "Use supported invited-account sign-in/join to establish one distinct real second subject and editor-only membership. Owner performs credential/terms steps requiring handoff. No synthetic JWT or direct auth SQL; do not assume browser tabs isolate accounts."
+    },
+    {
+      "order": 5,
+      "effect": "Enable only designated human-chat cohort. Through actual signed-in browser, create two conversations and bounded synthetic human messages, test return/author/conversation separation and denied access, and observe real durable records. Verify no model/native or operational work is created."
+    },
+    {
+      "order": 6,
+      "effect": "Reconcile all admissions/invitations and restore owner session through supported flow within the approved send count. Preserve synthetic governed data and record exact IDs privately; destructive cleanup is not implied."
+    }
+  ],
+  "preconditions": [
+    "Exact deploy candidate/tree/artifact and migration hashes/commands independently reviewed; no null execution fields.",
+    "Supported invitation/sign-in, delivery configuration and included usage at zero additional spend verified.",
+    "Current actual owner identity and final second-account role/denied target designated in final approval.",
+    "No shared runtime replacement or live fault injection; approval must separately name any changed scope.",
+    "Concrete batch approved under WORKING_PROTOCOL section3; source decisions alone do not authorize any effect."
+  ],
+  "unbound": [
+    "Exact combined human-chat candidate/tree and deploy artifacts",
+    "Final migration inputs/order/hashes and commands including all shared-schema effects; scoped rehearsal source hashes now recorded",
+    "Hosting credential references and fresh target tuple",
+    "Owner subject, final second-account role and real denied target",
+    "Invitation/auth included-cost and supported distinct-account flow",
+    "Current live owner acknowledgement/window and compatible recovery rehearsal",
+    "Approval and exact expiry"
+  ],
+  "related_ask_request": "CON-01-OP-0001-r3.json",
+  "schema_preparation_ref": "evidence/20261012-cx133-schema-rehearsal/setup-schema-plan.json",
+  "schema_scope_disclosure": "This setup requires shared research/design/source-review schema0037\u20130043; default exact7d8 runner also applies0044/0045 before0048. Their additive/forward-only bodies are effects even while Ask, storage/render/Paperclip/vision/voice remain disabled. Final batch must explicitly enumerate reviewed effects, owner compatibility, current preflight and governed recovery. No inherited authorization.",
+  "ask_separation": "Q13 assembler/login qualification and subscription execution are not prerequisites for the human-only feature. No new execution identity/grants/native path in this setup batch. Ask remains disabled; request0001 governs its separate future effects."
+}

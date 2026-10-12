@@ -1,0 +1,11 @@
+file:///Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx133-schema-rehearsal/fingerprint.mjs:11
+const app=readFileSync(j+'/candidate-app.private.ts','utf8');const required=app.match(/export const REQUIRED_SCHEMA = `([\s\S]*?)`/)[1];
+                                                                                                                                    ^
+
+TypeError: Cannot read properties of null (reading '1')
+    at file:///Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx133-schema-rehearsal/fingerprint.mjs:11:133
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5)
+
+Node.js v24.21.0
