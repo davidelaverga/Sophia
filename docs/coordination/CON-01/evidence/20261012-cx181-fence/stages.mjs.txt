@@ -1,0 +1,24 @@
+import { readFileSync } from 'node:fs'
+const text = readFileSync(process.argv[2], 'utf8')
+const seen = new Set(); const runs = []
+for (const line of text.split('\n')) { const i = line.indexOf('CX181 {'); if (i < 0) continue; const j = line.slice(i + 6); if (seen.has(j)) continue; seen.add(j); runs.push(JSON.parse(j)) }
+const r1 = (x) => Math.round(x * 10) / 10
+console.log('#\tframes\tbodyMs\tF:marker→body\tF:body→timerRun\tF:timerRun→dom\ttimerWaitMs\ttimerDone→domMs\tzeroTimers\tdomCommitsArmed')
+const tot = [0, 0, 0]
+runs.forEach(({ frames, rows }, n) => {
+  const m = rows.findIndex((r) => r.k === 'marker'); const a = rows.slice(m); const t0 = a[0].t
+  const body = a.find((r) => r.k === 'body:read-done' || r.k === 'body:read-error')
+  const sch = a.find((r) => r.k === 'timer0:scheduled' && r.t >= body.t)
+  const run = a.find((r) => r.k === 'timer0:run' && r.id === sch?.id)
+  const done = a.find((r) => r.k === 'timer0:done' && r.id === sch?.id)
+  const dom = a.find((r) => r.k === 'dom' && r.context === false)
+  const raf = a.filter((r) => r.k === 'raf' && r.context === true)
+  const f = [raf.filter((r) => r.t < body.t).length, raf.filter((r) => r.t >= body.t && r.t < run.t).length, raf.filter((r) => r.t >= run.t && r.t < dom.t).length]
+  f.forEach((x, i) => (tot[i] += x))
+  const zeros = a.filter((r) => r.k === 'timer0:scheduled').length
+  const doms = a.filter((r) => r.k === 'dom').length
+  const sum = f[0] + f[1] + f[2]
+  console.log([n + 1, frames + (sum === frames ? '' : `(!=${sum})`), r1(body.t - t0), ...f, r1(run.t - sch.t), r1(dom.t - done.t), zeros, doms].join('\t'))
+})
+console.log('totals', JSON.stringify({ markerToBody: tot[0], bodyToTimerRun: tot[1], timerRunToDom: tot[2] }))
+console.log('pass(≤3)', runs.filter((r) => r.frames <= 3).length, 'fail', runs.filter((r) => r.frames > 3).length, 'dist', JSON.stringify(runs.map((r) => r.frames)))

@@ -1,0 +1,60 @@
+{
+  "verdict": "REPRESENTATIVE_TRACE_HASH_AND_ARITHMETIC_MATCH",
+  "source": "CC0194 four author-published synthetic traces, independently recomputed by Codex",
+  "observed": [
+    {
+      "label": "base1",
+      "frames": 4,
+      "bodyMs": 33.9,
+      "buckets": [
+        3,
+        1,
+        0
+      ],
+      "timerWaitMs": 1.3,
+      "timerEndToDomMs": 15.1
+    },
+    {
+      "label": "base2",
+      "frames": 2,
+      "bodyMs": 37.8,
+      "buckets": [
+        2,
+        0,
+        0
+      ],
+      "timerWaitMs": 2.3,
+      "timerEndToDomMs": 10.9
+    },
+    {
+      "label": "base7",
+      "frames": 4,
+      "bodyMs": 58.3,
+      "buckets": [
+        2,
+        2,
+        0
+      ],
+      "timerWaitMs": 2.7,
+      "timerEndToDomMs": 22.2
+    },
+    {
+      "label": "candidate5",
+      "frames": 4,
+      "bodyMs": 48.3,
+      "buckets": [
+        2,
+        2,
+        0
+      ],
+      "timerWaitMs": 2,
+      "timerEndToDomMs": 26.2
+    }
+  ],
+  "limits": [
+    "Four selected instrumented traces only; not all30 or original uninstrumented trace data",
+    "Timer origin and query notification unobserved",
+    "Observer effect unknown; no privacy or product acceptance clearance",
+    "No browser, provider, database or native runtime executed by this check"
+  ]
+}
