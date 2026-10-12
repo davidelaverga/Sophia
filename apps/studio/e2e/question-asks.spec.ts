@@ -45,9 +45,11 @@ test('question · «?» with Sophia off: the key cap stands, Tab asks her too, t
       () =>
         messages(page).evaluateAll((items) => {
           const [asked, answer] = items.slice(-2)
+          // Hers by the item itself or a part of it (the item carries the class).
           return (
             !!asked?.textContent.includes('What should we cut first?') &&
-            !!answer?.querySelector('.conv-msg.sophia, .sophia')
+            !!answer &&
+            (answer.matches('.conv-msg.sophia, .sophia') || answer.querySelector('.conv-msg.sophia, .sophia') !== null)
           )
         }),
       { timeout: 15_000 },

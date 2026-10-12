@@ -46,6 +46,8 @@ declare global {
       recover: () => void
       /** The service goes away after a good read: every read from now on fails, the rows read last are kept. */
       breakNeeds: () => void
+      /** The service refuses the person from now on (403): what was read before is not shown any more. */
+      refuseNeeds: () => void
     }
   }
 }
@@ -59,10 +61,13 @@ window.homeFixture = {
   pressed,
   needsReads: () => needsReads,
   recover: () => {
-    failing = false
+    failing = null
   },
   breakNeeds: () => {
-    failing = true
+    failing = 503
+  },
+  refuseNeeds: () => {
+    failing = 403
   },
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
@@ -168,7 +173,7 @@ const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undef
  */
 const viaApi = query.get('needs') === 'api'
 /** `needsFail=1`: every read of the route fails (503) until `homeFixture.recover()`, so Home's note and its Try again can be checked. */
-let failing = query.get('needsFail') === '1'
+let failing: number | null = query.get('needsFail') === '1' ? 503 : null
 if (viaApi) {
   const real = window.fetch.bind(window)
   const seen = new Set<string>()
@@ -184,9 +189,13 @@ if (viaApi) {
     }
     if (pathname === '/api/v1/me/needs') {
       needsReads += 1
-      if (failing) {
-        const body = JSON.stringify({ error: { code: 'dependency_unavailable', message: 'The service is away' } })
-        return Promise.resolve(new Response(body, { status: 503, headers: { 'content-type': 'application/json' } }))
+      if (failing !== null) {
+        const error =
+          failing === 403
+            ? { code: 'forbidden', message: 'Not permitted' }
+            : { code: 'dependency_unavailable', message: 'The service is away' }
+        const body = JSON.stringify({ error })
+        return Promise.resolve(new Response(body, { status: failing, headers: { 'content-type': 'application/json' } }))
       }
       const answer = needsAnswer()
       const body = JSON.stringify({ ...answer, needs: answer.needs.filter((n) => !seen.has(n.id)) })
@@ -292,7 +301,7 @@ function FixtureLog({ hidden }: { hidden: boolean }) {
  * app; without one it is taken to show every turn it names. A hidden log gives up soon, for the check.
  */
 const personalShown = (turnId: string | null) =>
-  TURNS && turnId ? turnShown(turnId, TURNS === 'hidden' ? 400 : undefined) : Promise.resolve(true)
+  TURNS && turnId ? turnShown(turnId, TURNS === 'hidden' ? { within: 400 } : {}) : Promise.resolve(true)
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
@@ -310,8 +319,8 @@ function Home() {
   )
   return (
     <div className="places" data-place="home">
-      {/* The check's own control: not part of a demo's recording. */}
-      {!DEMO && (
+      {/* The check's own control: not part of a demo's recording, unless a check asks for it (`leave=1`). */}
+      {(!DEMO || query.has('leave')) && (
         <button className="fixture-away" type="button" onClick={() => setAway((was) => !was)}>
           {away ? 'Back to Home' : 'Leave Home'}
         </button>

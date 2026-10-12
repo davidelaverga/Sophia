@@ -290,8 +290,19 @@ interface LineProps {
  * The line's suggestion: shown while it is empty and she is not listening, put away for the visit by Esc; Tab or → puts
  * it in the line. Its key cap stands while the line is focused.
  */
-function useLineNext(next: LineProps['next'], text: string, listening: boolean, setText: (words: string) => void) {
+function useLineNext(
+  next: LineProps['next'],
+  text: string,
+  listening: boolean,
+  setText: (words: string) => void,
+  hidden: boolean,
+) {
   const [away, setAway] = useState(false)
+  // Put away for this visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask
+  // again (Codex on #268).
+  useEffect(() => {
+    if (hidden) setAway(false)
+  }, [hidden])
   const [focused, setFocused] = useState(false)
   const id = useId()
   const shown = !away && !listening && text === '' ? next : null
@@ -312,7 +323,7 @@ function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
   const s = useSay(actions.say, hidden)
   useSlashReaches(s.field)
   const listening = s.voice.listening
-  const ask = useLineNext(next, s.text, listening, s.setText)
+  const ask = useLineNext(next, s.text, listening, s.setText, hidden)
   // She listens while you speak, and until you leave the line; a dictation that heard nothing lets her rest.
   useEffect(() => {
     onTalk({ writing: listening || document.activeElement === s.field.current })

@@ -139,6 +139,26 @@ test('widths · at 1024 a view the keyboard reaches is scrolled clear of the fad
     .toBe(true)
 })
 
+test('widths · at 1024 a view pressed under the fade opens: the row does not move it from under the pointer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 800 })
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const nav = page.locator('.view-nav')
+  const updates = nav.getByRole('link', { name: 'Updates' })
+  const box = await nav.boundingBox()
+  const r = await updates.boundingBox()
+  if (!box || !r) throw new Error('no nav')
+  // Its part in sight, under the end's fade (the keyboard test above reads it there at 1024).
+  const right = Math.min(r.x + r.width, box.x + box.width) - 2
+  const left = Math.max(r.x, box.x + box.width - box.width * 0.18)
+  expect(right).toBeGreaterThan(left)
+  await page.mouse.click((left + right) / 2, r.y + r.height / 2)
+  await expect(updates).toHaveAttribute('aria-current', 'page')
+  await drawn(page, DRAWN.updates)
+})
+
 test('widths · at 1920 the composer’s hint keeps the column of its field and the quick asks', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1000 })
   await page.goto('/room.html?demo=1&conversations=1&place=conversations')
@@ -152,6 +172,8 @@ test('widths · at 1920 the composer’s hint keeps the column of its field and 
 for (const [name, url, parts] of [
   ['Updates', '/room.html?demo=1&place=updates', DRAWN.updates],
   ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
+  // A viewer's header carries «Copy project link», wider than Invite (Codex on #259).
+  ['Updates, as a viewer', '/room.html?demo=1&place=updates&role=viewer', DRAWN.updates.slice(1)],
 ] as const) {
   test(`widths · at 1280 the seven views stand whole in the nav on ${name}, the room idle`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
@@ -159,6 +181,7 @@ for (const [name, url, parts] of [
     // Measured with the header whole (its actions come with the snapshot and take width from the nav), the app's
     // fonts in (a fallback face is narrower), and the nav's own overflow read.
     await drawn(page, parts)
+    if (url.includes('role=viewer')) await expect(page.locator('.copy-link')).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     const read = () =>
       page.evaluate(() => {
@@ -181,8 +204,9 @@ for (const [name, url, parts] of [
 
 test('widths @phone · the nav’s first word starts at the page gutter, as the header’s mark does', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/room.html?demo=1&place=updates')
-  await drawn(page, DRAWN.updates)
+  // The first view open: its link is the row's first, so nothing scrolls it out of the gutter (Codex on #259).
+  await page.goto('/room.html?demo=1')
+  await drawn(page, DRAWN.room)
   await page.evaluate(() => document.fonts.ready)
   const read = await page.evaluate(() => {
     const topbar = document.querySelector('.topbar')

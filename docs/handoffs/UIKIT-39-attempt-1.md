@@ -55,3 +55,9 @@ informe-inteligencia #5 (a question mark in a field offers «Ask Sophia»), #6 (
 
 «For you» leaves out the decisions answered in this visit (the same `answered` the next-up line reads), so the palette
 does not offer a decision whose choice is on its way while the board's next read catches up.
+
+## Post-review, round 2 (Codex on #264)
+
+- Decisions are offered to the palette only where the board takes an answer (the decide port present); a control run
+  without that gate shows a «Decide» row on an unavailable board.
+- The fixture's second command host is gone; its page uses ProjectShell's, as the app does.

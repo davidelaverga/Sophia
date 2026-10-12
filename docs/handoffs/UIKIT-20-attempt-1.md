@@ -55,3 +55,9 @@ inAddress)`, false for a shell kept out of sight) and names a task only when it 
 
 UIKIT-21: Places onto `useCommands` with the host in the places' bar, `Shift+L` for the theme; then UIKIT-22 (the
 board: «why blocked» on the lane's head, the blocked count on the goal's chip).
+
+## Post-review (Codex on #242, later rounds)
+
+See docs/plans/studio-lens-address.md, «Post-review»: Converse said in the address, the tab's write remembered with its
+address, the address owned by the routed project only, a current-view press writing the lens again, the copied link
+carrying the lens, and the work note keyed once. viewer-state.test and studio-lens-address.spec cover them.

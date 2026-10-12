@@ -13,7 +13,8 @@ completed code state of this PR.
 
 ## Outcome
 
-- `laneOf(row, rows)`: a row up next whose `blocked_by` names an item of its plan not complete or closed stands in
+- `laneOf(row, rows)`: a row up next whose `blocked_by` names an item of its plan that is anything but complete (a stopped, cancelled,
+  failed or superseded blocker holds it too) stands in
   `blocked`; a blocker outside the plan, or a candidate review, does not hold it.
 - The board's lanes: Active · Up next · Blocked · Unassigned · Complete; Blocked only while it holds something
   (`shownLanes`); `.board-lanes` takes `--lanes` (4 or 5); the fifth lane's arrival delay 320 ms.
@@ -54,3 +55,13 @@ completed code state of this PR.
 ## Next bounded action
 
 Home's right half «Needs you» (F2, UIKIT-15) behind the vision flag with fixture data; then the re-evaluation.
+
+## Post-review (Codex on #236, later round)
+
+- The look kept for «while away» notes each task's lane: a task blocked, or no longer, is a change and is said
+  (`seen.ts`, two node tests); looks kept before lanes were noted compare none.
+- A focused tile that moves lanes in a live update keeps the focus (`useTileFocus`); work.spec completes the blocker
+  live (`workFixture.complete`) and reads the focus on the task up next.
+- The lanes follow the board's own width (container queries on `.board`), so a report beside Tasks collapses them as a
+  narrower window does.
+- The outcome says «anything but complete», as the cancellation test holds.

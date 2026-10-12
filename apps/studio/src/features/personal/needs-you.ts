@@ -35,8 +35,12 @@ export function needsOrder(needs: readonly Need[]): Need[] {
   return [...timed, ...needs.filter((n) => expiry(n) === null)]
 }
 
-/** "in 20 min", "in 2 h", "in 3 days": how long until a moment, from now, as the Studio says every span (time-words). */
-export const untilWords = (at: number, now: number): string => `in ${about(at - now)}`
+/**
+ * "in 20 min", "in 2 h", "in 3 days": how long until a moment, from now, as the Studio says every span (time-words);
+ * under a minute "in a moment", as `inTime` says it, never a clamped "1 min" (Codex on #237).
+ */
+export const untilWords = (at: number, now: number): string =>
+  at - now < 60_000 ? 'in a moment' : `in ${about(at - now)}`
 
 export type NeedTone = 'soon' | 'late' | 'quiet'
 

@@ -124,3 +124,20 @@ describe('the palette’s rows', () => {
     ])
   })
 })
+
+describe('a query in any script (Codex on #238)', () => {
+  it('is a query: words of any script match their own, punctuation alone matches nothing, blank lists all', () => {
+    const named = [...ROOM, cmd('ru', 'Открыть бриф'), cmd('zh', '打开 简报')]
+    assert.deepEqual(
+      matchCommands('откр', named).map((c) => c.id),
+      ['ru'],
+    )
+    assert.deepEqual(
+      matchCommands('打开', named).map((c) => c.id),
+      ['zh'],
+    )
+    assert.deepEqual(matchCommands('?!', named), [])
+    assert.deepEqual(matchCommands('🙂', named), [])
+    assert.equal(matchCommands('   ', named).length, named.length)
+  })
+})

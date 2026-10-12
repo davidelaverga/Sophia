@@ -12885,9 +12885,9 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 200
+              "maxLength": 600
             },
-            "description": "The need's id (`<kind>:<ref.id>`)."
+            "description": "The need's id (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`)."
           }
         ],
         "responses": {
@@ -29065,8 +29065,8 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 200,
-            "description": "Stable for the record it names: `<kind>:<ref.id>`."
+            "maxLength": 600,
+            "description": "Stable for the record it names, and unique across the person's needs: `<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`. A13 bounds a wait's reference only by length, so two projects (or two work items) may hold the same one: the project and the holder are part of the id."
           },
           "kind": {
             "type": "string",
@@ -29133,7 +29133,7 @@
           "at": {
             "type": "string",
             "format": "date-time",
-            "description": "When it came to need the person: the proposal, the ask, the knock, the reply."
+            "description": "When it came to need the person: the proposal, the ask, the knock, the reply. For a permission, when its wait was opened: A13's WorkWait keeps no time, so the service records it (`opened_at` beside the wait, with this route's implementation)."
           },
           "ref": {
             "type": "object",

@@ -53,3 +53,9 @@ hierarchy on Conversations for Luis's eye.
 
 The narrow nav's padding compensates the 8 px link padding (was 10): the first word starts at the gutter (@phone test).
 The 1280 px test waits for `drawn(page, DRAWN.updates|conversations)` before fonts and polling.
+
+## Post-review (Codex on #259)
+
+- A viewer's header (`role=viewer`, «Copy project link») keeps the seven views whole at 1280: the link's words fold to
+  its icon and tip up to 1320 (they folded at 1240). widths.spec adds the viewer case; with the old breakpoint it fails.
+- The phone's gutter check opens the first view (the Studio), so no current link is scrolled out of the gutter first.

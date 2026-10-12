@@ -11,8 +11,8 @@ test.afterEach(async ({ page }) => {
 })
 
 /** Davide's decision answered from the keyboard: its first choice focused, Enter. */
-async function answer(page: Page) {
-  await page.goto(PAGE)
+async function answer(page: Page, url = PAGE) {
+  await page.goto(url)
   const choice = board(page).locator('[data-decision] .plan-choice:not(:disabled)').first()
   await expect(choice).toBeVisible()
   await choice.focus()
@@ -43,5 +43,14 @@ test('next up · the decisions’ pill closes the line', async ({ page }) => {
   await answer(page)
   await expect(line(page)).toBeVisible()
   await board(page).locator('.decision-pill').first().click()
+  await expect(line(page)).toHaveCount(0)
+})
+
+test('next up · an answer not recorded (a conflict) moves nothing on: no line, the decision still the one to answer (Codex on #263)', async ({
+  page,
+}) => {
+  await answer(page, `${PAGE}&conflict=1`)
+  // The fixture says «conflict» after 300 ms; the line would have come at once before.
+  await expect(board(page).locator('[data-decision]').first()).toContainText(/changed|conflict|not recorded|again/i)
   await expect(line(page)).toHaveCount(0)
 })

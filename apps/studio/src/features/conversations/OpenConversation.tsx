@@ -7,7 +7,7 @@
 // byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { ApiError } from '../../api/client.ts'
 import {
   getConversationMessages,
@@ -560,7 +560,11 @@ function MessageList(props: {
           onQuote={props.onQuote}
           withdraw={props.withdraw}
           pressed={pressed === m.id}
-          onPress={() => setPressed(m.id)}
+          onPress={(row) => {
+            setPressed(m.id)
+            // The row it opens under the bubble stays in sight, the newest message's too (Codex on #240).
+            requestAnimationFrame(() => row?.querySelector('.conv-acts')?.scrollIntoView({ block: 'nearest' }))
+          }}
         />
       ))}
     </ol>
@@ -597,6 +601,39 @@ function useHome(messageId: string, conversationId: string, place: Propose) {
   }, [has, messageId, conversationId, change])
 }
 
+/**
+ * A message's acts and where they stand: above the bubble, or beside it for a member's message continuing a run under
+ * a pointer (not over the bubble above it; Codex on #240). Words that leave the thread name who said them by name. A
+ * withdrawn message has none.
+ */
+function useActsPlace(
+  m: ConversationMessage,
+  before: ConversationMessage | undefined,
+  with_: { words: string | null; now: number; onQuote: ((quote: string) => void) | null; propose: ReactNode },
+) {
+  const run = continuesRun(before, m)
+  // Read as the message renders: a pointer that hovers does not come and go within a visit.
+  const side = run && m.author !== 'sophia' && window.matchMedia(HOVERS).matches
+  const acts =
+    with_.words === null ? null : (
+      <MessageActs
+        message={{ text: with_.words, at: m.at }}
+        who={portableBy(m)}
+        now={with_.now}
+        onQuote={with_.onQuote}
+        propose={with_.propose}
+        side={side}
+      />
+    )
+  return { run, side, acts }
+}
+
+/** A pointer that hovers: where a message's acts show under it. */
+const HOVERS = '(hover: hover)'
+
+/** Who said a message, by name, for words that leave the thread (the clipboard, a quote). */
+const portableBy = (m: ConversationMessage) => (m.author === 'sophia' ? 'Sophia' : (m.name ?? 'A member'))
+
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
 function MessageItem(props: {
   message: ConversationMessage
@@ -608,7 +645,7 @@ function MessageItem(props: {
   onQuote: ((quote: string) => void) | null
   withdraw: Withdraw
   pressed: boolean
-  onPress: () => void
+  onPress: (row: HTMLLIElement | null) => void
 }) {
   const { message: m, before, me, now } = props
   const sophia = m.author === 'sophia'
@@ -619,14 +656,21 @@ function MessageItem(props: {
       {clock(m.at)}
     </span>
   )
+  const propose = (
+    <>
+      {here.press}
+      {away.press}
+    </>
+  )
+  const { run, side, acts } = useActsPlace(m, before, { words, now, onQuote: props.onQuote, propose })
   return (
     <li
       ref={props.first}
       tabIndex={props.first ? -1 : undefined}
       className={classOf(m, me)}
-      data-run={continuesRun(before, m) ? 'on' : undefined}
+      data-run={run ? 'on' : undefined}
       data-pressed={props.pressed || undefined}
-      onClick={props.onPress}
+      onClick={(e) => props.onPress(e.currentTarget)}
     >
       <MessageLead message={m} before={before} now={now} />
       <MessageBy message={m} me={me} now={now} />
@@ -637,21 +681,9 @@ function MessageItem(props: {
           <MessageWords words={words} sophia={sophia} />
           {sophia && at}
           {ended && <p className="conv-ask-ended">{ended}</p>}
+          {side && acts}
         </div>
-        {m.text !== null && (
-          <MessageActs
-            message={{ text: m.text, at: m.at }}
-            who={messageBy(m, me)}
-            now={now}
-            onQuote={props.onQuote}
-            propose={
-              <>
-                {here.press}
-                {away.press}
-              </>
-            }
-          />
-        )}
+        {!side && acts}
         {!sophia && at}
       </div>
       {here.form}

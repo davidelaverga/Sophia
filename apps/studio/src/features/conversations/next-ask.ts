@@ -10,7 +10,7 @@ export const QUICK_ASKS = ['Sum it up', 'What’s still open?', 'What did we dec
 const [SUM, OPEN, DECIDED] = QUICK_ASKS
 
 /** How many of the viewer's messages count as «lately». */
-const LATELY = 6
+export const LATELY = 6
 
 /** A proposal's words inside the ask, at most this long (cut at a word, with an ellipsis). */
 const QUOTED = 44
@@ -88,9 +88,16 @@ export function nextAsk(ctx: AskContext): Suggestion | null {
   return candidates(ctx).find((c) => !gone.some((g) => sameAsk(g, c.words))) ?? null
 }
 
-/** The quick asks less those asked lately and less the suggestion, in their order. */
-export function quickAsks(asked: readonly string[], suggestion: Suggestion | null): string[] {
-  const gone = [...askedLately(asked), ...(suggestion ? [suggestion.words] : [])]
+/**
+ * The quick asks less those asked lately, less the suggestion, and less what was put away here (an ask put away does
+ * not come back as a press below the field: Codex on #262), in their order.
+ */
+export function quickAsks(
+  asked: readonly string[],
+  suggestion: Suggestion | null,
+  putAway: readonly string[] = [],
+): string[] {
+  const gone = [...askedLately(asked), ...(suggestion ? [suggestion.words] : []), ...putAway]
   return QUICK_ASKS.filter((q) => !gone.some((g) => sameAsk(g, q)))
 }
 
@@ -106,4 +113,32 @@ export function threadOf(
   // A withdrawn message has no words (A18 on CON-01): it asked nothing.
   const asked = all.flatMap((m) => (m.author === 'member' && m.actorId === me && m.text !== null ? [m.text] : []))
   return { newest, asked }
+}
+
+/** A page of the thread as the API gives it: oldest first, and the page before it. */
+interface ThreadPage {
+  messages: readonly ConversationMessage[]
+  before: string | null
+}
+
+/**
+ * The viewer's words before the pages the thread has loaded, oldest first, read a page at a time only until `need` of
+ * them are in (at most `pages` pages): the loaded page holds six messages in all, not six of the viewer's, so what
+ * they asked four turns ago may be a page back (Codex on #262).
+ */
+export async function olderAsks(
+  read: (before: string) => Promise<ThreadPage>,
+  before: string | null,
+  me: string,
+  need: number,
+  pages = 4,
+): Promise<string[]> {
+  if (before === null || need <= 0 || pages <= 0) return []
+  const page = await read(before)
+  // A withdrawn message has no words: nothing it asked counts.
+  const mine = page.messages.flatMap((m) =>
+    m.author === 'member' && m.actorId === me && m.text !== null ? [m.text] : [],
+  )
+  const earlier = await olderAsks(read, page.before, me, need - mine.length, pages - 1)
+  return [...earlier, ...mine]
 }
