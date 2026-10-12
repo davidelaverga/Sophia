@@ -208,7 +208,8 @@ export function ConversationComposer(props: Props) {
   const { busy, ready, go, quick, words, held } = useMessageWrite(props, props.askSophia)
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
-  const next = useComposerNext(props, held !== null, go)
+  // A message on its way (sending, or held with no reply) quiets the field's suggestions (Codex on #265).
+  const next = useComposerNext(props, props.held !== null || busy, go)
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
   const grows = useGrowing(draft)

@@ -50,3 +50,8 @@ file cannot know.
 
 informe-inteligencia #5 (a question mark in a field offers «Ask Sophia»), #6 (before a duplicate conversation) and #4
 (the next-ask piece on Home, a task's sheet and the personal space).
+
+## Post-review (Codex on #264)
+
+«For you» leaves out the decisions answered in this visit (the same `answered` the next-up line reads), so the palette
+does not offer a decision whose choice is on its way while the board's next read catches up.
