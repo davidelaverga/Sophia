@@ -120,3 +120,10 @@
   same address could not have come twice), then lets the address go. `turnIsShown` asks for a drawn turn
   (`getClientRects().length > 0`): the personal space kept mounted under a hidden place has the `.msg` in the document
   and shows nothing, so a need is marked seen only once the space is in sight with the turn in it.
+- **Round 10 (P2)**: a permission opens its request, not only the task that waits on it. The task's sheet names a
+  native-permission wait as words; the owner's path is the request in its resource's sheet (Resources,
+  `ResourceRequests`: how to answer it in the tool, the session to copy, the tool's own link, `openTarget`). A15's
+  `ref` carries `resourceId` (the resource whose tool holds the request; A13's `reference_id` already names the
+  request), the Studio opens Resources at `#request-<id>`, and `ResourcePanel` opens that request's resource and gives
+  the request's row the focus, once per address, the address becoming the sheet's; a request not among those read
+  opens nothing and the address waits. The task's id still comes along in `NeedAt`, for the record.
