@@ -1,0 +1,35 @@
+{
+  "scope": "Mechanical review-only composition of published CON SQL; no feature source authored or canonical/shared file changed",
+  "proposal": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
+  "base": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "composition": "Original S3 role-found section replaced with exact doc SQL block2; broad grant/comment removed; append exact blocks3/4; wrap whole in transaction",
+  "proposalSHA256": "b138bca641a4a507b501b3ff5737aa68a56e7cc3d97d7f26162c718a802f2069",
+  "composedS3SHA256": "e65f66b4fb2be29d19d7c8b1ccd1f3fb2e4de686dbe027c751b4bc63443f8922",
+  "inputs": [
+    {
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817"
+    },
+    {
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316"
+    },
+    {
+      "path": "packages/persistence/src/conversation-assembly.ts",
+      "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7"
+    },
+    {
+      "path": "packages/persistence/src/conversation-context.ts",
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739"
+    },
+    {
+      "path": "packages/persistence/src/mission-context.ts",
+      "sha256": "a7475f9fc6585ad7e2727d940cc811f641ab7a32186dacbd9fc3ff06fae92c2e"
+    },
+    {
+      "path": "packages/persistence/src/bigint.ts",
+      "sha256": "ae59ca160527c86cc96916306a6d2958ede5f7a1a4a8ef955547b93d7897ffe3"
+    }
+  ],
+  "activationSHA256": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174"
+}

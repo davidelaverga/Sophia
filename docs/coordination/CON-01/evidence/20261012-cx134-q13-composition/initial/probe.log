@@ -1,0 +1,28 @@
+/Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-source-harness-review/node_modules/.pnpm/pg@8.23.0/node_modules/pg/lib/client.js:694
+          Error.captureStackTrace(err)
+                ^
+
+error: invalid_reason
+    at /Users/davidelaverga/Documents/Codex/2026-10-09/sophia-con01-source-harness-review/node_modules/.pnpm/pg@8.23.0/node_modules/pg/lib/client.js:694:17
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx134-q13-composition/fingerprint.mjs:58:22 {
+  length: 162,
+  severity: 'ERROR',
+  code: '22023',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: 'PL/pgSQL function conversation_assembly_fail(uuid,integer,uuid,text) line 7 at RAISE',
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'pl_exec.c',
+  line: '3925',
+  routine: 'exec_stmt_raise'
+}
+
+Node.js v24.21.0

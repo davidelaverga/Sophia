@@ -1,0 +1,86 @@
+{
+  "at": "2026-10-12T01:07:23.763229+00:00",
+  "scope": "Mechanical proposed Q13 composition on owned PG17 only; not canonical candidate, shared write, hosted qualification or app acceptance",
+  "source": {
+    "scope": "Mechanical review-only composition of published CON SQL; no feature source authored or canonical/shared file changed",
+    "proposal": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
+    "base": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "composition": "Original S3 role-found section replaced with exact doc SQL block2; broad grant/comment removed; append exact blocks3/4; wrap whole in transaction",
+    "proposalSHA256": "b138bca641a4a507b501b3ff5737aa68a56e7cc3d97d7f26162c718a802f2069",
+    "composedS3SHA256": "e65f66b4fb2be29d19d7c8b1ccd1f3fb2e4de686dbe027c751b4bc63443f8922",
+    "inputs": [
+      {
+        "path": "db/candidates/con01-s1-reply-states.sql",
+        "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817"
+      },
+      {
+        "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+        "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316"
+      },
+      {
+        "path": "packages/persistence/src/conversation-assembly.ts",
+        "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7"
+      },
+      {
+        "path": "packages/persistence/src/conversation-context.ts",
+        "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739"
+      },
+      {
+        "path": "packages/persistence/src/mission-context.ts",
+        "sha256": "a7475f9fc6585ad7e2727d940cc811f641ab7a32186dacbd9fc3ff06fae92c2e"
+      },
+      {
+        "path": "packages/persistence/src/bigint.ts",
+        "sha256": "ae59ca160527c86cc96916306a6d2958ede5f7a1a4a8ef955547b93d7897ffe3"
+      }
+    ],
+    "activationSHA256": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174"
+  },
+  "initialFailure": "Unsupported test-only fail reason qualification_done returned22023. Full composition/second-install/admission tests completed first; later stages not counted. Cleanup succeeded.",
+  "retryChanges": [
+    "Use supported invalid_input test-only fail reason",
+    "Correct ORDER BY alias-with-COLLATE expression before reaching that query"
+  ],
+  "retryPass": true,
+  "stagesPassed": 7,
+  "apiFunctionDenials": 138,
+  "allDenials": 146,
+  "sequenceDenials": 1,
+  "operationRowsBeforeAfter": {
+    "counts": {
+      "commands": 0,
+      "goals": 0,
+      "jobs": 0,
+      "work_attempts": 0,
+      "execution_bindings": 0,
+      "outbox": 0,
+      "runtime_commands": 0,
+      "runtime_receipts": 0,
+      "native_observations": 0,
+      "usage_records": 0,
+      "conversation_grants": 0,
+      "conversation_reply_allowances": 0,
+      "conversation_reservations": 0
+    },
+    "sha256": "1f73fc9cc310a765ebbc80e75cd89ffee33de232f50ebd4d0b4dd6696368613b"
+  },
+  "limits": "Empty operational baseline proves no new operational effect here, not historical governed-record preservation. Mechanical composition is not the canonical implemented candidate. Wrong actor/project negative reads cover projects, not every19 relation. No concurrent two-reply/native/home/provider/app gate is cleared. Activation configuration remedy only on owned synthetic cluster; hosted permission changes unauthorized.",
+  "cleanup": "Both clusters stop0/status3/PIDabsent/removed; final0otherclients. Owned synthetic projects/conversations/data removed with clusters.",
+  "files": {
+    "exact-review-composition.sql": "e65f66b4fb2be29d19d7c8b1ccd1f3fb2e4de686dbe027c751b4bc63443f8922",
+    "initial/activation-exact.sql": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "initial/fingerprint.mjs": "94c9def9557371f9ea3539eaa4c95ea29a31193c063e64a891ab4fec0a2c3cb5",
+    "initial/identities.json": "a7aaccb836593d6808eb9e7ff45565b66b05313fbef20876255cb25120e5082d",
+    "initial/owned-receipt.safe.json": "081d86e56b73a64874631380800701ace80c36f108cfdb7be9f11a534a4f9cc6",
+    "initial/probe.log": "cdc6b9ca8247318e099398a9d0f321528368d1226077926a571f5b8364368e59",
+    "initial/run-owned.py": "dd4a11a246a97be3f9fe4a2455a2ac2f8dcba1a199024ee9c2d8244442135e75",
+    "initial/source-manifest.json": "9ad911f974c021016e650185c3f67efb09053e14170dc1ebdf846db6ea872b28",
+    "retry-1/activation-exact.sql": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "retry-1/fingerprint.mjs": "4d115f51cd54c2e8c1e096ae503f4092e884c7858e907eddb3251c293420f2cd",
+    "retry-1/identities.json": "0664eaf36ee083563cb6a57c1d93d64f188e191a53c882a37d42dd5cd6e72fcd",
+    "retry-1/owned-receipt.safe.json": "54bfae1f1a28897bd0ec50e141acf82f8f2fd66667c7c26c2bbf48dd1b63a3f6",
+    "retry-1/probe.log": "de52e547fdfa38961111af56b7558a297ec49cb9c7b0c37add739788db0fad36",
+    "retry-1/run-owned.py": "dd4a11a246a97be3f9fe4a2455a2ac2f8dcba1a199024ee9c2d8244442135e75",
+    "retry-1/source-manifest.json": "9ad911f974c021016e650185c3f67efb09053e14170dc1ebdf846db6ea872b28"
+  }
+}
