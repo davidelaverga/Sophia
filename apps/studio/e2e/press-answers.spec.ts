@@ -121,9 +121,13 @@ async function unanswering(page: Page, scope = 'body') {
     await page.mouse.move(0, 0)
     const rest = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
     await page.mouse.move(press.x, press.y)
-    // The kit's answers take 140 ms; the slowest a step more.
-    await page.waitForTimeout(260)
-    const over = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
+    // The kit's answers take 140 ms; on a loaded machine (CI) the hover can come later: read again until it answers,
+    // a second at most, rather than once after a fixed wait.
+    let over = rest
+    for (let tries = 0; tries < 8 && over === rest; tries += 1) {
+      await page.waitForTimeout(130)
+      over = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
+    }
     if (over === rest) mute.push(press.name)
   }
   await page.mouse.move(0, 0)
