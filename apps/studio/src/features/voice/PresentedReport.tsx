@@ -158,9 +158,12 @@ export function PresentedReport({ version, identity, by, action, spoken, walk, f
         <span className="report-main-name">
           <span className="report-main-title">{title}</span>
           <span className="report-main-meta">
-            {version.versionNumber ? `v${String(version.versionNumber)} · ` : ''}Shown by {by}
+            {version.versionNumber ? <span className="report-main-data">v{version.versionNumber} · </span> : null}
+            Shown by {by}
             {/* Announced as it changes, politely: whoever shows it hears who came along. */}
-            <span aria-live="polite">{followers > 0 ? ` · ${String(followers)} following` : ''}</span>
+            <span className="report-main-data" aria-live="polite">
+              {followers > 0 ? ` · ${String(followers)} following` : ''}
+            </span>
           </span>
         </span>
         <span className="report-main-acts">{action}</span>

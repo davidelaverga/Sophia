@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { reportSearch, withReportLink, type ReportLink } from '../features/artifacts/report-link.ts'
 import { DECISION, REQUEST, TASK, showInAddress } from '../features/resources/link.ts'
-import { HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
+import { ADDRESS_MOVED, HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
 
 const current = (): Route => parseRoute(window.location.pathname)
 
@@ -30,6 +30,8 @@ export function useProjectRoute() {
     if (replace) window.history.replaceState(null, '', path)
     else window.history.pushState(null, '', path)
     setRoute(next)
+    // A view pressed again keeps its shell mounted: what it mirrors in the address (the Studio's lens) writes it again.
+    window.dispatchEvent(new Event(ADDRESS_MOVED))
   }
   return {
     route,

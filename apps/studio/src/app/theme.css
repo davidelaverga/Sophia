@@ -109,7 +109,7 @@
   --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
   --halo: #6d5bd0;
   --halo-text: #5546b8;
-  /* The primary press and Sophia's deepest fill on paper: the brand's violet (7.0:1 under the paper's ink), not a navy. */
+  /* The primary press and Sophia's deepest fill on paper: the brand's violet (6.7:1 under the paper's ink), not a navy. */
   --core: #5546b8;
   --warm: #965328;
   --teal: #0f6b5b;
@@ -474,7 +474,7 @@ button:disabled,
   min-width: 17px;
   font-size: var(--type-label);
 }
-.pill.primary:not(:disabled, [aria-disabled='true']) kbd {
+.pill.primary:not(:disabled, [aria-disabled='true']) > kbd {
   border-color: rgb(var(--void-rgb) / 0.16);
   background: rgb(var(--void-rgb) / 0.06);
   color: rgb(var(--void-rgb) / 0.55);
@@ -513,7 +513,7 @@ select option {
 /* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
 .ghost:active:not(:disabled, [aria-disabled='true']),
 .round:active:not(:disabled, [aria-disabled='true']),
-.text-button:active:not([aria-disabled='true']) {
+.text-button:active:not([aria-disabled='true'], :disabled) {
   transform: translateY(0.5px);
 }
 /* Icon controls: squares with a small radius (the class name predates the shape). */
@@ -568,7 +568,9 @@ select option {
 .text-button:hover:not(:disabled, [aria-disabled='true']) {
   text-decoration-color: var(--halo-text);
 }
-.text-button:disabled {
+/* A goal's text commands, waiting while another one sends: the step of a disabled pill there. Elsewhere a disabled
+   button keeps the kit's 0.45 (Codex on #253: unscoped, it lifted every text button). */
+.controls .text-button:disabled {
   cursor: default;
   opacity: 0.6;
 }
@@ -631,6 +633,12 @@ textarea:focus-visible {
   background: rgb(var(--ink-rgb) / 0.05);
   box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
 }
+/* On paper the focus edge is the halo's ink whole: the only sign of the keyboard's place, at 3:1 and more (Codex on
+   #234). */
+:root[data-theme='light'] :is(input, textarea):focus-visible,
+:root[data-theme='light'] .field:focus-within {
+  border-color: var(--halo-text);
+}
 select {
   height: 32px;
   padding: 0 10px;
@@ -639,6 +647,15 @@ select {
   background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text-2);
   font-size: 13px;
+}
+/* A select is a press too: under the pointer its words and its edge wake (Codex on #232). */
+select:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+input[type='checkbox']:hover:not(:disabled) {
+  filter: brightness(1.2);
 }
 .form-error {
   color: var(--rose);
@@ -990,6 +1007,9 @@ button.mark:hover {
 }
 .account-menu {
   min-width: 230px;
+  /* A phone held sideways: the menu scrolls inside the screen rather than running past it (Codex on #234). */
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
 }
 .menu-head {
   display: grid;
@@ -1359,6 +1379,13 @@ img.avatar {
   display: block;
   min-width: 0;
 }
+/* On paper the magnifier and the chevron take the light ink (3:1 and more on paper and white; Codex on #234). */
+:root[data-theme='light'] .search > input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='%236b6874' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='%236b6874' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+:root[data-theme='light'] select.pill {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6874' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+}
 .search > input {
   width: 100%;
   padding-left: 32px;
@@ -1492,7 +1519,9 @@ img.avatar {
       rgb(var(--halo-rgb) / 0.025) 60%,
       transparent 100%
     ),
-    radial-gradient(ellipse 100% 100% at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
+    /* closest-side: each edge's midpoint is the ramp's end, so the warm reaches the edges, the corners past it (Codex
+       on #252: at 100% 100% an edge stood at half the radius, inside the clear 55 %). */
+    radial-gradient(ellipse closest-side at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
   pointer-events: none;
 }
 :root[data-theme='light'] .room-stage > .light {
@@ -2841,10 +2870,24 @@ button.contribution-quote:hover {
     bottom: auto;
     max-width: 240px;
   }
-  /* Live, the dock says the room's state itself: the connection pill yields its room, so the views' nav keeps standing
-     at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more). */
-  .topbar-end:has(.mini-dock[data-live]) .connection {
+  /* Live, the dock says the room's state itself: the connection pill yields its room when it would only say «Up to
+     date», so the views' nav keeps standing at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more).
+     Connecting, reconnecting or catching up is said beside the dock still: stale data in a call is not hidden (Codex
+     on #254). */
+  .topbar-end:has(.mini-dock[data-live]) .connection[data-state='live'] {
     display: none;
+  }
+  /* The header's dock is at the top of the page: its tips open under its controls, not above the window (Codex on
+     #254). */
+  .topbar .mini-dock .tip {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+}
+/* A finger's width in the header too: the switches keep 40 px across on a coarse pointer (Codex on #254). */
+@media (min-width: 721px) and (pointer: coarse) {
+  .topbar .mini-dock .round {
+    min-width: 40px;
   }
 }
 /* The header of two rows (721 to 760 px: the views' row, 44 px, stands under the end cluster): what the dock says hangs
@@ -2928,7 +2971,9 @@ button.contribution-quote:hover {
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
   position: fixed;
-  top: calc(var(--topbar) + 24px);
+  /* Under what the header's dock says, when it says something (a device error, Sophia looking): MiniDock keeps
+     --dock-notes-h, so the notes never cover the door's Decline and Let in (Codex on #254). */
+  top: calc(var(--topbar) + 24px + var(--dock-notes-h, 0px));
   right: var(--gutter);
   z-index: 15;
   width: min(320px, calc(100% - 2 * var(--gutter)));
@@ -3348,7 +3393,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: var(--type-small) / var(--lh-small) var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -3368,7 +3413,7 @@ button.contribution-quote:hover {
 }
 .link-limits {
   color: var(--text-3);
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.02em;
 }
 .sheet-form {
@@ -3748,12 +3793,13 @@ button.contribution-quote:hover {
   /* With a row's own 7 px, the first event starts 18 px under the rule, as the first goal does. */
   gap: 11px;
 }
-/* Beside the work, the pulse's head is as tall as the view's head (a 24 px title line, 12 px of air, the rule), so
-   the two rules meet in one line and the small title stands on the large one's baseline. */
+/* Beside the work, the pulse's head is as tall as the view's head (its title's line, 12 px of air, the rule), so the
+   two rules meet in one line and the small title stands on the large one's baseline. The title's line is the view's
+   (--lh-view): enlarged with it (Codex on #246). */
 .pulse-head {
   display: flex;
   align-items: flex-end;
-  min-height: 37px;
+  min-height: calc(var(--lh-view) + 13px);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
@@ -5240,4 +5286,20 @@ button.contribution-quote:hover {
 }
 .task-row .task-said:empty {
   height: 0;
+}
+/* Updates' kind strip: on a narrow phone, five kinds with their counts outgrow the column; the strip scrolls in it, the
+   page does not (Codex on #239). */
+.updates-narrow .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
+   on #241). */
+.report-main-data {
+  font-size: var(--type-label);
+}
+/* A number inside a label (the review sources' «up to N»): data, on the 10.5 px scale. */
+.field-label .data {
+  font-size: var(--type-label);
 }

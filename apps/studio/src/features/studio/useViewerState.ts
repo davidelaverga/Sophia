@@ -1,9 +1,11 @@
 // React binding for viewer-state.ts. Storage is a per-device convenience: when it is unavailable
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
+import { ADDRESS_MOVED } from '../../app/route.ts'
 import {
   LENS_FOR_KEY,
   addressLensFor,
+  readLensWrite,
   readViewerState,
   storedViewerState,
   viewerKey,
@@ -20,13 +22,31 @@ function stored(key: string) {
   }
 }
 
-/** Whose lens the address carries: the key the tab remembers; none for a link opened fresh (or no storage). */
-function wroteFor(): string | null {
+/** Whose lens the address carries: what the tab remembers; none for a link opened fresh (or no storage). */
+function wroteFor() {
   try {
-    return sessionStorage.getItem(LENS_FOR_KEY)
+    return readLensWrite(sessionStorage.getItem(LENS_FOR_KEY))
   } catch {
     return null
   }
+}
+
+/**
+ * A count of the address's moves made by the app (`pushState`, Back and Forward): a press of the view already shown
+ * pushes its path again, without the lens, under a shell that stays mounted.
+ */
+function useAddressMoves() {
+  const [moves, setMoves] = useState(0)
+  useEffect(() => {
+    const moved = () => setMoves((n) => n + 1)
+    window.addEventListener(ADDRESS_MOVED, moved)
+    window.addEventListener('popstate', moved)
+    return () => {
+      window.removeEventListener(ADDRESS_MOVED, moved)
+      window.removeEventListener('popstate', moved)
+    }
+  }, [])
+  return moves
 }
 
 /**
@@ -36,7 +56,7 @@ function wroteFor(): string | null {
  */
 function load(key: string, inAddress: boolean) {
   const was = stored(key)
-  const named = inAddress ? addressLensFor(key, window.location.search, wroteFor()) : null
+  const named = inAddress ? addressLensFor(key, window.location, wroteFor()) : null
   return named ? { ...was, lens: named } : was
 }
 
@@ -60,26 +80,28 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
       /* storage unavailable: the view lasts for this page only */
     }
   }, [key, state])
-  // The lens in the address, no history entry: Converse, the default, is said by its absence (docs/plans/studio-lens-address.md).
+  // The lens in the address, no history entry, Converse too (docs/plans/studio-lens-address.md). `moves`: the address
+  // moved under a mounted shell (the view already shown, pressed again) is written again (Codex on #242).
+  const moves = useAddressMoves()
   useEffect(() => {
     if (!inAddress) return
     const { pathname, search, hash } = window.location
     const next = withLensInAddress(search, state.lens)
     if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
-    // Whose lens the address carries, so another subject at this page does not read it as theirs.
+    // Whose lens the address carries, and which address, so another subject at this page does not read it as theirs.
     try {
-      sessionStorage.setItem(LENS_FOR_KEY, key)
+      sessionStorage.setItem(LENS_FOR_KEY, JSON.stringify({ key, address: `${pathname}${next}` }))
     } catch {
       /* no storage: the address's lens is read as any link's */
     }
-  }, [state.lens, inAddress, key])
+  }, [state.lens, inAddress, key, moves])
   // The Studio view gone without a move of the route (the door shut under it: AccessNotice): the address stops
   // naming a lens nothing shows, the rest of it kept (Codex on #242). A move of the route rewrites the address itself.
   useEffect(() => {
     if (!inAddress) return undefined
     return () => {
       const { pathname, search, hash } = window.location
-      const next = withLensInAddress(search, 'converse')
+      const next = withLensInAddress(search, null)
       if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
     }
   }, [inAddress])

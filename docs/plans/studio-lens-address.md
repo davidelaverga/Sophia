@@ -52,3 +52,17 @@
 ## Left
 
 - The lenses without content, shown or not: a product call (above).
+
+## Post-review (Codex on #242, later rounds)
+
+- Converse is written too (`?lens=converse`): an address without a lens is no claim and the stored lens stands, so a
+  link that shows Converse says so. The door shut under the view takes the lens out (`withLensInAddress(search, null)`).
+- The tab remembers the key and the address it wrote (`LENS_FOR_KEY` v2, `readLensWrite`); a lens is refused only at
+  the very address another subject left. Another project's link followed in the same tab is read.
+- The address belongs to the routed project only: a call's project kept on screen while another opens neither reads
+  nor writes it (`routed`, SignedIn → ProjectShell → StudioShell).
+- The view already shown, pressed again, pushes its path without the lens; the shell hears the move
+  (`ADDRESS_MOVED`, popstate) and writes the lens again.
+- «Copy project link» carries the lens the address names.
+- The work note's button is keyed once, so its progress («3 sources read», then 4) keeps the focus.
+- The task fragment is taken by every task card since #239's fix (`useNamedCard` in `TaskCard`).
