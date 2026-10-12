@@ -67,3 +67,10 @@ Ending commit/tree: `4e83c6dc` (tree `1e767c148902`): 3 files, 2 new (`e2e/press
 Informe-30 §2 is in: the kit (§2.1, UIKIT-01…08), the type scale's leadings and weights (§2.2, UIKIT-09), the answers
 (§2.3, UIKIT-10). §2.4 (widths: 1280 instead of 1040, Conversations' thread at 760) and §2.5 (a light mode on the
 report's paper palette) are layout and palette work, each its own design note first.
+
+## Post-review (Codex P1 on #232, 2026-10-12)
+
+Two disclosures set a resting ink at the same specificity as `summary:hover` and later in the cascade, so their hover
+changed nothing: `.mission-more > summary` (the mission's «Settings and history») and `.conv-help summary` («How
+conversation context works»). Each says its hover again (`color: var(--text)`). Measured on Conversations: 0.66 → 1 of
+the ink under the pointer; press-answers.spec (14) passes locally.
