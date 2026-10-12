@@ -10,5 +10,22 @@
   "subscription": {"routeCount": 1, "subscriptionOnly": true, "qualifiedRoute": null, "crossAccountUseAssumed": false, "requiredQualification": ["application_topology", "requesting_account", "adapter", "execution_bounds", "credential_lifecycle", "quota_source"], "prohibited": ["PAYG", "extra_credits", "provider_switching", "account_rotation", "hidden_allowance_reset"], "askEnabled": false},
   "operations": {"separateDraftBatches": ["setup_human_chat", "ask_qualification"], "approval": null, "expiry": null, "deploymentAuthorized": false, "hostedMigrationAuthorized": false, "accountCreationAuthorized": false, "grantsAuthorized": false, "providerExecutionAuthorized": false, "clusterWidePermissionMutationAuthorized": false, "connectionTerminationAuthorized": false},
   "permitted": ["source_within_agreed_scope", "owned_local_stub_runtime", "owned_local_synthetic_database_tests", "browser_fixtures", "direct_shared_owner_coordination", "draft_batch_preparation"],
-  "escalation": "Specific product/authority choice or demonstrated technical incompatibility; do not delegate low-level implementation choices back to Davide"
+  "escalation": "Specific product/authority choice or demonstrated technical incompatibility; do not delegate low-level implementation choices back to Davide",
+  "savedTextPolicy": {
+    "id": "conversation-text-v1",
+    "acceptedOn": "2026-10-12",
+    "authority": "Davide direct answer: Accept this policy for the test cohort",
+    "scope": "initial synthetic test cohort only",
+    "choices": ["D-1", "D-3", "Q-1"],
+    "visibility": "submitted titles, messages and published Sophia replies visible to current project members",
+    "retention": "project lifetime until withdrawal or erasure; stricter organization rules prevail",
+    "authorMayWithdrawOwnMessages": true,
+    "adminMayRemoveMessagesAndEraseConversations": true,
+    "editorMayEraseOthersContent": false,
+    "draftStorage": "browser memory",
+    "requiredDisclosure": ["backup deletion limits", "provider deletion limits"],
+    "conservativeWithdrawalDecisionRetained": true,
+    "operationalAuthorization": false,
+    "implementationAcceptance": false
+  }
 }
