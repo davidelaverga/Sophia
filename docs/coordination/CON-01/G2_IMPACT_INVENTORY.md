@@ -28,7 +28,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 | **The bridge** (`packages/dsh-bundle/src/protocol.ts:50-56`): `parseCommand` uses the generated `validateRuntimeCommand` | `RuntimeWorkBinding` (`openapi.json`, from A04) requires `goalId` (a string matching `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`) and `goalRevision` (integer ≥ 1), with `additionalProperties: false`. A goal-less command is **rejected** (`control-bridge.ts:651-665` sends `rejected`), and `apply_runtime_receipt` then fails the attempt | **Wire change (A16):** `RuntimeWorkBinding` takes either `{goalId, goalRevision}` or `{conversationReplyId}`, exactly one, via `oneOf`. Regenerated runtime wire (`generate-runtime-wire.ts`); bridge rebuilt; artifacts recorded (§7). The bridge never reads `goalId` or `goalRevision` (*per the sweep*: it reads only `attemptId` and `authorityEpoch`). Existing goal bindings validate as before |
 | **NOT NULL columns** | `work_attempts.goal_revision` and `authority_epoch`; `outbox.authority_epoch`; `runtime_commands.authority_epoch` | `goal_revision` becomes nullable, with `CHECK((goal_id IS NULL) = (goal_revision IS NULL))`. The `authority_epoch` columns stay NOT NULL: a reply has **its own epoch** (§4.4) |
 | `render_jobs.goal_id`, `artifact_versions.goal_id` NOT NULL | Rendering and publishing need a goal | Not touched. A reply never renders or publishes an artifact (no tools, no job; §4.1) |
-| `runtime_hello` (`0028:74`, *verified* at L95-102) inner-joins `goals` | A reply binding is never reported to the bridge at reconnect, so it is **never restored** | Replaced: `UNION ALL` of the goal bindings (unchanged, byte-identical) and the reply bindings, with the reply's epoch and state (§4.5) |
+| `runtime_hello` (`0028:74`, *verified* at L95-102) inner-joins `goals` | A reply binding is never reported to the bridge at reconnect, so it is **never restored** | Replaced: preserve the goal SELECT byte-identically, append a separately aggregated CON list with its own epoch/state (§4.5). R12 proposes the durable two-binding cap plus complete502 hello/ready arrays, with affected owner review pending |
 
 ## 3. Every goal-assuming SQL function, and what G2 does with it
 
@@ -57,7 +57,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
    - one `outbox` row (`native.create`, `goal_id` NULL, `conversation_reply_id`);
    - the request `pending`.
 
-   **No job row** (jobs are task records; capture keys on the request). Otherwise it records `blocked` with its reason, and writes nothing else.
+   **No job row** (jobs are task records; capture keys on the request). Otherwise it records `blocked` with its reason, and writes nothing else. R12 additionally counts every unretired CON binding in the selected project/resource/unit under the project lock before operational/accounting writes; at two, a new Ask records blocked/cleanup-capacity while preserving the human message. Replay returns the original request. Only verified A2/A3 settlement or checked full retirement frees a slot; uncertainty, restart and a fresh lease never reset it. See the [research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md).
 2. **Dispatch** (`conversation_dispatch`, which calls the assembly `conversation_reply_statement` of the binding map §8.3):
    1. reply eligibility: the request is `pending` (only a `delivered` receipt makes it `running`; a lease retaken after reconcile re-dispatches only a row with no runtime command, whose request is still `pending`), the asker still writes, the conversation is `open`, every source still satisfies the full source predicate ([binding map](BINDING_MAP.md) §8.3), and the grant is enabled and unexpired;
    2. assembly, plus `conversation_reply_sources`;
@@ -65,9 +65,9 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
    4. a binding `{conversationReplyId}`.
 3. **Capture** (the reply branch of `capture_native_result`): on `turn/end`, the publication checks (§8.3), then one Sophia message and the request `answered`; or `failed` / `cancelled`; then `retire` (§8.5).
 4. **Epoch.** A reply attempt's `authority_epoch` starts at 1. `conversation_cancel` raises it to 2 and writes a `stop`. The bridge's existing stale-epoch rejection (`control-bridge.ts:705-707`) then refuses any older command, and capture withholds a result whose owning command's epoch is older (the existing rule, applied in the reply branch).
-5. **Hello.** Every reply binding not yet `retired` is listed, with `authorityEpoch` = the attempt's, and `state` `active` only while its request is `pending` or `running`, else `stopped` (revision 6, CX-0012: a `lost` binding too, so a restarted bridge never resumes it). A reply never has `held`.
+5. **Hello.** Every reply binding not yet `retired` is listed, with `authorityEpoch` = the attempt's, and `state` `active` only while its request is `pending` or `running`, else `stopped` (revision 6, CX-0012: a `lost` binding too, so a restarted bridge never resumes it). A reply never has `held`. Separate aggregate append preserves the original goal SELECT; the bounded502 hello and failed-recovery ready arrays require an exact owner/K3 recheck and compatible readers before any admission.
 6. **Receipts** (the reply branch of `apply_runtime_receipt`; CX-0009 correction 1). The terminal path for what never reaches `turn/end`: a rejected create (`failed` / `runtime_rejected`), a failed create (`failed` / `runtime_failed`, its open reservation `uncertain`), an uncertain create (`outcome_unknown`, terminal: never published, its reservation `uncertain` until an operator reconciles it, never a new attempt; revision 6, CX-0012), a stop (the request stays `cancelled`) and a retire. No receipt moves a request out of a terminal state. Each writes a `retire` where a native copy may exist. The full table and the receipt-only tests are in the [binding map](BINDING_MAP.md) §8.2.1.
-7. **Ingestion** (the reply branch of `runtime_record_observations`; CX-0009 correction 2). Under the project row, then the reply rows in id order, the order every conversation writer uses: an observation for a request no longer `pending` or `running`, or for an erased conversation, is stored **scrubbed** (its ids, type and sequence kept; its `data` reduced to usage). Usage is recorded from the original first. Scrubbing anywhere is an update in place, never a delete, so a replayed batch never re-inserts text. Tests in the binding map §8.2.2.
+7. **Ingestion** (the reply branch of `runtime_record_observations`; CX-0009 correction 2). Under the project row, then the reply rows in id order, the order every conversation writer uses: an observation for a request no longer `pending` or `running`, or for an erased conversation, is stored **scrubbed** (its ids, type and sequence kept; its `data` reduced to usage). Usage is recorded from the original first. Scrubbing anywhere is an update in place, never a delete, so a replayed batch never re-inserts text. Tests in the binding map §8.2.2 and the [r12 research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md): preserve original ownership/malformed-input errors and goal-only behavior; valid owned fenced reply states/helpers cannot poison a mixed research batch, without swallowing storage failures or falsely acknowledging usage.
 
 ## 5. TypeScript readers and writers
 
@@ -97,7 +97,7 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 
 | File | Owner today | CON-01's change |
 |---|---|---|
-| Migration 0049 (`CREATE OR REPLACE` of the six functions above) | One writer; #190's 0046/0047 (at `0483d40`) replace only `media_assignments` | Replaced from their latest bodies, with the insertions only |
+| A CON-01 migration (`CREATE OR REPLACE` of the six functions above; planned as 0049, a plan only, not reserved) | One writer; #190 adds 0046 and a provisional 0051, neither touching the six (§7.1) | Replaced from their latest bodies, with the insertions only |
 | A04's `RuntimeWorkBinding` (amended in A16), `dsh-bundle/src/runtime-wire.generated.ts` and `runtime-wire-types.generated.ts`, `dsh-bundle/dist` | Contracts and runtime writer | `oneOf` goal or reply |
 | `config/specialists.json` + schema, `role-registry.ts`, `cordis.patch.yml`, `runtime-unit.json` (id, presets, `role_routes`, `model_routes`), lock and digests | Davide (LFE-00) | One role, one preset and one route (D-4). `pnpm artifacts:record` once, on the combined candidate |
 
@@ -106,6 +106,20 @@ The same pattern appears in `capture_native_result`, `research_turn_end`, the de
 | A reply launcher in the runtime image (new) | Runtime writer, with Davide (image) | Applies the filesystem rule (Landlock or equivalent) before it executes dsh, and writes the five-field lease. Where the rule can't be enforced it refuses, and no child starts |
 
 **Requested here:** acknowledgment from #190's owner (SDD-01 G7) and from the WBC-02/SDD-01 runtime owner, plus a named `main` window, before 0049 and before the runtime artifacts are recorded. The runtime files above are part of the same request. No route or credential file is changed: none is bound (BINDING_MAP §8.4).
+
+### 7.1 Accepted base and window, as recorded (2026-10-10, 13:2x UTC)
+
+Read-only, from #190, #198 and `main`. Before any shared edit this table must name all three: the accepted base (an exact `main` commit), the window (who holds it, which files, from when), and the census numbers. **Until it does, none of G2's shared parts is written.**
+
+| Item | State |
+|---|---|
+| Accepted base for shared edits | **None accepted.** `main` is `444235d0`, contained in CON-01's head; that is a fact, not an accepted base |
+| Window (exclusive, named) | **None.** CON-01's request (#190 6096401122, 10:06; renewed in #198 6096904900, 11:14) is unacknowledged. The reviewer's checkpoints CX36, CX37, CX39 and CX43 say so |
+| WBC-02/SDD-01 runtime owner | **Not named** in any record |
+| #190 (SDD-01 G7) | Published head `8a39b076`, open and draft. Its reviewer (#190 6097537955, 12:33) records an unpublished local chain `316d2bac` (tree `f89e6861`) on `8a39`, with additive 0051 changes (an EXECUTE revocation on an older sequence function), T4 and Presence C ordering, and author work and review still open. It is shared SQL and runtime work in flight. A green `8a39` qualifies nothing about `316d2bac` |
+| Migration numbers | **Provisional.** #190's `0051` is acknowledged as a file name only, pending a final census of `main` and both candidates (#198 6096561293). CON-01's 0049 is a plan, not a reservation. No number is taken without the recorded census |
+| Generated contracts | A15 (#190) and A16 (CON-01) both regenerate `openapi.json`, the generated types and the validators. Whichever lands second merges `main` and regenerates. Neither is hand-merged |
+| CON-only additive work (S2, S3) | Proposed as a footprint only (#198 6097912569). It needs a census number before any file, and it replaces nothing shared |
 
 ## 8. Why still C, and not B
 

@@ -27,6 +27,75 @@ Ending commit/tree and changed files:
 - 93 files differ from `main`: `db/migrations/0048_project_conversations.sql`, A16, the persistence and API conversation routes, the Studio's `features/conversations/`, its fixtures and specs, and the coordination records under [docs/coordination/CON-01](../coordination/CON-01/README.md).
 - Draft PR [#199](https://github.com/davidelaverga/Sophia/pull/199); coordination issue [#198](https://github.com/davidelaverga/Sophia/issues/198).
 
+## Studio reconciliation at Luis's `d96626ac` (2026-10-12, CX-0165)
+
+This section is current at 2026-10-12. The sections after it still describe 2026-10-10. G2's state since then is in the [Phase B reservation request](../coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md), revision 8 (`960f262f`). That request's affected review is separate and incomplete, and nothing here widens an earlier acknowledgement.
+
+These facts are source-only. Their sources:
+- Codex's [CX-0165](https://github.com/davidelaverga/Sophia/blob/f95c32d0fe19f28112a02c183656f12e82fbc3c3/docs/coordination/CON-01/CX-0165.md), at reviewer `f95c32d0fe19f28112a02c183656f12e82fbc3c3`;
+- the [reconciliation on #199](https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6116157885) (6116157885, as updated at 08:15Z) and the [mission record on #198](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119717658) (6119717658);
+- EdX2C's [integration update](https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6120119263) (6120119263).
+
+**What Luis prepared**
+- `ui/kit-with-con01` is at `d96626acdc514eabbdf20667725e28a2279dfeba` (tree `ee484c024b79e952e3d6f44ec979102fda0ee3f8`). It adds the intelligence PRs #262–#268 to the prior `e160c5b7`: 54 files, +2437/−92.
+- It is integration evidence only. It isn't the accepted combined base or the handback, and it implies no merge permission or shared-file transfer.
+- `main` stays at `3c40b1c6`, and PR #199 stays a conflicting draft at `d527f385`.
+- The `e160c5b7`→`d96626ac` delta changes only `apps/studio`, `packages/ui` and docs. It changes no API, generated-contract, database or runtime path.
+- It touches five of the shared Studio paths (my read of the file list):
+  - `ConversationComposer.tsx` (+128/−25), `ConversationsView.tsx` (+59/−13) and `NewConversation.tsx` (+27/−3), the three that needed real conflict resolutions;
+  - `OpenConversation.tsx` (+1: the composer's `next` prop) and `conversations.css` (+22: the quick-ask row's minimum height and the new "Already asked here" line, `.conv-same`).
+  - `ConversationRows.tsx` and `ProjectShell.tsx` are unchanged in it.
+
+**Luis's resolutions, to preserve**
+- The real API imports (`api/conversations.ts`), the saved-text notice and the disabled-answer line ("Sophia doesn't answer here yet").
+- The Composer's guards: its suggestions and question shortcut stay quiet where answers are unavailable or a send is held or busy. This is source evidence only, because the existing fixture always advertises an available Ask.
+- The View's reader, fence, erased note and `Middle` pane; arrivals that wait for the membership; `openOne` clearing the erased note; the original open semantics plus arrival focus.
+- NewConversation's matching against the visible conversation list for "Already asked here".
+- The null-text guard: withdrawn messages stay out of asked history and message acts.
+- The original acts-row quote/propose/withdraw union, tombstones and coarse-pointer rules, and ProjectShell's `CONVERSATIONS` flag with the current membership.
+
+**CON's four remaining corrections, mine only after the explicit handback**
+1. Kit confirmation controls in `WithdrawHere` and `EraseHere`, keeping focus, Escape, Keep, busy and the original retry semantics.
+2. Remove/Removing used consistently for the moderator's pending and unknown states, with the uncertain-retry words.
+3. Distinct summary and question coverage, without merging unequal ranges, states or privacy.
+4. `635a3ef2`'s reviewed conservative disclosure. `d96626ac` still says "answers that read it" (`WithdrawHere.tsx:175`). The settled policy:
+   - removes later same-conversation Sophia answers, even unused ones;
+   - preserves other human messages, other conversations and independently governed decisions;
+   - never regenerates automatically.
+
+**Review debt in Luis's lane, before the handback**
+- Four PR #262 P2s, confirmed in `d96626ac`'s source:
+  - [r4245177559](https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245177559): dismissed asks return as quick actions, because `quickAsks` gets the asked history and the current suggestion but not what was put away. Reproducer: dismiss a quick-ask suggestion.
+  - [r4245697647](https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245697647): the dismissal maps are keyed by conversation only, so another account signed in on the same page inherits them. Scope them to the trusted account, never a display name or email. Reproducer: switch account on the same page and conversation.
+  - [r4245697636](https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245697636): the rationale is only in an `aria-hidden` tip. Associate it with keyboard and assistive-technology focus. Reproducer: focus the composer by keyboard or AT.
+  - [r4245177568](https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245177568): recency comes only from the loaded message pages, so "the last six viewer messages" depends on opening older history. Reproducer: open older history after an earlier viewer ask.
+- PR #266 r4245693025 (long matched-title wrapping) and PR #267 r4245691964 (reused-form focus) still need the UI owner's correction and an adverse browser check. The matched-title control is the unbounded `inline-flex` `.conv-same .text-button`, in `conversations.css`, one of the shared paths.
+- The other #263, #264 and #268 findings stay with their owners. There is no blanket kit clearance.
+- `useAskSophia` (`features/studio/project-go.tsx:33`) gates on `VISION`. So a real CON-only build (`CONVERSATIONS` on, `VISION` off) has no ask-instead affordance. Align it with the real Conversations surface if it ships there; never enable unrelated vision proposals to expose it. No Ask, runtime or provider permission is implied.
+
+**Codex's independent checks at `d96626ac`, bounded**
+- Node 24.21.0 and pnpm 11.7.0. The focused next-ask, new-conversation and next-ask-key unit tests pass 23/23, and all five contract generators match.
+- In the in-app browser, on the synthetic fixture with no API call:
+  - desktop: "Sum it up" gets its synthetic reply in the same thread, and Tab accepts the next ask, selects Ask Sophia and keeps focus;
+  - phone: the saved-text notice (12px, third ink) sits inside the viewport;
+  - "Already asked here" opens the existing conversation and focuses its heading.
+- Not qualified: combined G3 or G4, live Ask, a real provider or native answer, a disabled-capability fixture, the long-title and reused-form adverse passes, phone late-erasure, touch and clipboard, and two real signed-in accounts.
+
+**The hold I keep**
+- The shared handback boundary is now seven Studio paths plus the contracts:
+  - the original four: `ConversationRows.tsx`, `OpenConversation.tsx`, `conversations.css`, `ProjectShell.tsx`;
+  - newly shared: `ConversationComposer.tsx`, `ConversationsView.tsx`, `NewConversation.tsx`;
+  - A15 and A16, regenerated together.
+- I write none of them before Luis's explicit handback. It has to name the exact accepted combined base, the authoritative branch or PR, the sole writer, the order and the return boundary.
+- The order:
+  1. Luis's relevant kit corrections and their landing review;
+  2. Luis's exact accepted combined base, with A15 and A16 regenerated together;
+  3. that explicit handback;
+  4. CON's four corrections, as one correction pin;
+  5. Codex's independent checks of the affected combined browser, contract and current-`main` crossings.
+- No reviewer feature fix, new writer window or new session comes with this, and I don't duplicate Luis's work.
+- No shared UI or runtime edit, merge, CI rerun, deployment, grant, account, provider execution or spend. Ask stays off. OP-0002-r6 and OP-0001-r4 stay unapproved drafts. Davide keeps final product acceptance.
+
 ## Outcome
 
 **What works locally (L1: the real API, PostgreSQL 16 and the Studio; no provider)**
