@@ -55,7 +55,12 @@ function fakeContext(
       requestWakeup: (_id, _company, options) =>
         noted(calls, `wake:${options?.idempotencyKey ?? ''}`, { queued: true }),
     },
-    agents: { managed: { reconcile: (key, company) => noted(calls, `agent:${key}:${company}`, { agentId: 'a1' }) } },
+    agents: {
+      managed: {
+        get: (key, company) => noted(calls, `bound:${key}:${company}`, { agentId: 'a1' }),
+        reconcile: (key, company) => noted(calls, `agent:${key}:${company}`, { agentId: 'a1' }),
+      },
+    },
     db: {
       namespace: 'ns',
       query: (sql) => {
@@ -96,6 +101,7 @@ describe('SDK binding', () => {
       originKind: 'plugin:sophia.coordination:commission',
       originId: 'k',
     })
+    assert.equal(await host.boundReviewerAgent('c1'), 'a1')
     assert.equal(await host.reviewerAgent('c1'), 'a1')
     assert.equal(host.namespace, 'ns')
     assert.equal(host.now(), 1_800_000_000)
@@ -105,6 +111,7 @@ describe('SDK binding', () => {
     )
     assert.deepEqual(calls, [
       'list:plugin:sophia.coordination:commission:k',
+      `bound:${REVIEWER_AGENT_KEY}:c1`,
       `agent:${REVIEWER_AGENT_KEY}:c1`,
       'wake:key',
     ])
@@ -136,6 +143,22 @@ describe('SDK binding', () => {
     await assert.rejects(hostOf(failing(timeout)).issues.update('i1', { status: 'blocked' }, 'c1'), UnansweredHostCall)
     const answered = Object.assign(new Error('activity log failed'), { code: -32603 })
     await assert.rejects(hostOf(failing(answered)).issues.update('i1', { status: 'blocked' }, 'c1'), (err) => {
+      assert.equal(err, answered, 'the host answered: its own error, unchanged')
+      return true
+    })
+  })
+
+  it('tells a reconcile the worker stopped waiting for apart from the host error answer (the reviewer race)', async () => {
+    const failing = (err: Error): SdkContext => {
+      const ctx = fakeContext([])
+      return { ...ctx, agents: { managed: { ...ctx.agents.managed, reconcile: () => Promise.reject(err) } } }
+    }
+    const timeout = Object.assign(new Error('Worker→host call "agents.managed.reconcile" timed out after 600000ms'), {
+      code: -32003,
+    })
+    await assert.rejects(hostOf(failing(timeout)).reviewerAgent('c1'), UnansweredHostCall)
+    const answered = Object.assign(new Error('duplicate key value'), { code: -32603 })
+    await assert.rejects(hostOf(failing(answered)).reviewerAgent('c1'), (err) => {
       assert.equal(err, answered, 'the host answered: its own error, unchanged')
       return true
     })
