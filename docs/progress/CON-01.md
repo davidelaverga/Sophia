@@ -10,15 +10,15 @@ are the current continuation. Historical owner ACKs retain their actual pins;
 Luis integration/merge review and Davide acceptance remain separate. Codex alone
 implements CON; no former Claude feature/review workflow or monitor.
 
-Own branch `codex/con01-takeover-source-20261013`, base `32854caf`. Draft [#273](https://github.com/davidelaverga/Sophia/pull/273) first published `d06f98a1`; independent whole-diff pre-push review and exact-head automatic Codex review completed, no major issues. Current Q13 executable source `0d1d3a2a` / tree `6a854f5d` has independent source clearance; final publication receipt binds its later documentation and automatic review. [Q13 qualification/handoff](../handoffs/CON-01-codex-source-takeover-3.md).
+Own branch `codex/con01-takeover-source-20261013`, base `32854caf`. Draft [#273](https://github.com/davidelaverga/Sophia/pull/273): automatic review cleared first push `d06f98a1`, then found two activation ACL gaps at second push `9aad383c`. Both reproduced before correction. Current corrected executable source `1d8ac750` / tree `cce32c16` passed 181 PostgreSQL tests, 47 migrations/five SQL files, the ordinary gate and independent source review. Final documentation and automatic pushed-head review remain separate. [Current handoff](../handoffs/CON-01-codex-source-takeover-4.md).
 
 | Gate | Actual current evidence | Remaining boundary |
 |---|---|---|
 | G0 | Accepted option C, throwaway home, Q13A, conservative withdrawal and conversation-text-v1 test cohort | Subscription route/credentials/quota/execution unqualified |
-| G1 | Real owned PG17.6/API; 172/172 prior, now 179/179 with Q13 crossings; 47 migrations/five SQL files passed | Hosted records and target admission unqualified |
-| G2 | Dormant S1–S4; bare assembler and claim-bound reads locally qualified, semantic/trigger drift regressions; no runtime imports/admission | Implement request/runtime/cleanup/correlation and mixed research preservation; native/provider/host-copy qualification; Ask disabled |
+| G1 | Real owned PG17.6/API; 172/172 prior, now 181/181 with Q13 crossings; 47 migrations/five SQL files passed | Hosted records and target admission unqualified |
+| G2 | Dormant S1–S4; bare assembler and claim-bound reads locally qualified, semantic/trigger/complete ACL drift regressions; no runtime imports/admission | Implement request/runtime/cleanup/correlation and mixed research preservation; native/provider/host-copy qualification; Ask disabled |
 | G3 | 73/73 affected browser fixtures, 119/119 main preservation fixtures; controlled focus fail-before; actual local desktop/question shortcut/phone draft return | Full Studio suite and signed-in real-provider episode unqualified; earlier failures retained |
-| G4 | First source push ordinary check and both reviews passed; Q13 exact source independent review cleared, final ordinary gate running | Final publication/automatic review, integration/merge review pending |
+| G4 | Corrected Q13 source passed ordinary gate and independent source review; two second-push automatic findings reproduced and corrected | Final publication/automatic review, integration/merge review pending |
 | G5 | Read-only hosted discovery retained | Setup/Ask batches unapproved; serving tuple/two actual actors/native answer not app_verified |
 
 Readiness is scoped to exact source/checks. Source authorization is not hosted authorization. No merge/deploy/account/grant/credential/provider/spend effect. OP-0002r6 / OP-0001r4 remain draft_not_authorized. Retained [36-case ledger](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json) remains 18 partial_L1 / three passed_L1 / 15 not_run. No product/other-mission completion. All owned PG clusters stopped/removed; private logs retained. Earlier stopped-workflow subscription deduction remains unknown.
