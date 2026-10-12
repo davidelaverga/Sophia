@@ -1027,6 +1027,10 @@
   background: rgba(156, 130, 245, 0.14);
   color: var(--text);
 }
+/* On, it answers the pointer too: a step deeper (measured on its label, what the eye sees: Codex on #232). */
+.conv-ask:has(input:checked):hover {
+  background: rgba(156, 130, 245, 0.2);
+}
 .conv-ask:has(input:checked) .umbral {
   opacity: 1;
   filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.8));
