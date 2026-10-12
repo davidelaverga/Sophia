@@ -886,6 +886,11 @@ button.mark:hover {
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
   animation: arrive var(--base) var(--ease) both;
 }
+/* In a field (the resources' sort) the plane's box is the field's padding box, 1 px inside its edge: one more pixel,
+   so the 6 px are from the field as seen. (CI read 5 at rest; the runs that passed had caught the arrival mid-way.) */
+.field > .menu {
+  top: calc(100% + 7px);
+}
 .menu-top {
   top: auto;
   bottom: calc(100% + 6px);
