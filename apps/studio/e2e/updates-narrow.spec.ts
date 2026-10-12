@@ -67,3 +67,23 @@ test('updates · work goes to its task: Tasks shown with the task named in the a
   await expect(card).toBeFocused()
   await expect(card).toBeInViewport()
 })
+
+test('updates · «In the brief» with the brief already open gives it the focus (Codex on #239)', async ({ page }) => {
+  // The Studio view with its brief open, then Updates.
+  await page.goto('/room.html')
+  await page.locator('.panel-toggles [data-panel="brief"]').click()
+  await expect(page.locator('#side-tab-brief')).toBeVisible()
+  await page.getByRole('link', { name: 'Updates' }).click()
+  const decided = since(page).getByRole('region', { name: 'Decided' })
+  await decided.getByRole('button', { name: 'In the brief' }).click()
+  await expect(page.locator('#side-tab-brief')).toBeFocused()
+})
+
+test('updates · on a narrow phone the kinds scroll in their strip, the page does not (Codex on #239)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 700 })
+  await page.goto('/room.html?demo=1&place=updates')
+  await expect(since(page)).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+})
