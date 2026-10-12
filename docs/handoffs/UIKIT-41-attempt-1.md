@@ -26,17 +26,23 @@ commits on the branch merge its base forward or touch only this record). 10 file
 
 ## Evidence
 
-- `new-conversation.test.ts` (7, three new): pass. Lint (type-aware) and typecheck clean.
-- `e2e/same-question.spec.ts` (2) written; not run locally: the machine guard refused Playwright while AION2 was open. A
+- `new-conversation.test.ts` (8, four new: the same question in any order of words; nothing for one shared word,
+  common words or too few; the most shared, then the newest; a negation or an opposite order is another question)
+  and `same-question-view.test.ts` (1, new: the line's words): pass. Lint (type-aware) and typecheck clean.
+- `e2e/same-question.spec.ts` (3: named, and its press opens it, from the keyboard too; an unrelated question shows
+  nothing; @phone, a long title with no break wraps inside the form) written; not run locally: the machine guard refused Playwright while AION2 was open. A
   headless probe read the same: «Budget for the Q4 hiring plan» → no line; «Should briefs be short or long?» → «Already
   asked here: “Short or long briefs?”», the line's left on the field's (328 = 328), 8 px under it; its press → the form
   gone and «Short or long briefs?» open. CI is the run on record.
+- CI on the stack's tip `4020b4ba` (#268, which holds this branch), run 38302673542: all six jobs green, the
+  browser job with `same-question.spec.ts`; «Live auth on local Supabase» after one rerun of that job, its first try refused by
+  Docker Hub's rate limit before any test ran.
 - Capture `evaluacion-2026-10-12/inteligencia/same-question.png`.
 
 ## Remaining obligations
 
-- Watch CI for `same-question.spec.ts`; the independent review (Codex) with no P1/P2 before merge. The base is
-  `ui/question-asks` until #265 merges.
+- CI watched: green on the tip (above). The independent review (Codex) with no open P1 before merge; its P2s go to
+  follow-ups. #265 is merged, so the base is `main`.
 
 ## Next bounded action
 
@@ -54,3 +60,11 @@ reads the focus there.
 - The matched title's press is inline and breaks anywhere, so a long title with no break in it (an id) wraps inside the
   form on a phone; same-question.spec @phone sets one and reads the press inside the form and no page overflow (with the
   old inline-flex it overflowed).
+
+## Post-review, round 3 (Codex on #266)
+
+- `f415168e`: a negation on one side only, or «after» where the other says «before», makes it another question
+  (`sameQuestion`); `new-conversation.test.ts` holds both.
+- `f06f808d`: the line's words come from a tested view helper (`sameQuestionLine`: «Already asked here:» and the title
+  whole and trimmed, in quotes); `same-question-view.test.ts` holds it.
+- This record's counts and CI result brought to the final branch (Codex P1 4251947535).
