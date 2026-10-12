@@ -200,7 +200,8 @@ test('acts · another’s acts stand at the message’s right on a desktop: insi
   expect(read.row.right).toBeLessThanOrEqual(paneRight + 0.5)
   // Over no byline: the row starts to the right of the name, or ends above it.
   expect(read.row.left >= read.byRight || read.row.bottom <= read.byTop, JSON.stringify(read)).toBe(true)
-  // At the turn's right edge, on the name's line, within reach of its bubble: never up at a day's label.
+  // At the turn's right edge, whole above the bubble (never over its words), within reach of it: not up at a day's label.
   expect(Math.abs(read.row.right - (read.turnRight + 12))).toBeLessThan(1.5)
+  expect(read.bubbleTop - read.row.bottom).toBeGreaterThanOrEqual(0)
   expect(read.bubbleTop - read.row.bottom).toBeLessThan(24)
 })
