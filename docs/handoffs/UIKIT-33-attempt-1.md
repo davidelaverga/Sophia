@@ -63,3 +63,9 @@ against the first painted ancestor.
   title), its boxes at 8 (the filter, a row), the «+» press 40 × 40 on the coarse pointer. conversations-column.spec
   @phone holds the two edges 12 px apart and the press at 40 or more.
 - Sophia's disc on paper is the core's tint at 32 % (1.7:1 on the page; 12 % was 1.2:1); the spec reads it.
+
+## Post-review, round 3 (Codex on #257)
+
+- The paper discs are opaque, mixed once over the paper (`#dbc3b2` the warm at 32 %, `#c6bfe0` the core at 32 %):
+  two faces that overlap keep their colours, where a tint over a tint drew a darker crescent. conversations-column.spec
+  reads every disc opaque.

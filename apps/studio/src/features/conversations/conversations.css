@@ -339,14 +339,16 @@
    second beige disc (Codex on #257). In the room's fixed dark disc the initial did not read
    (docs/plans/conversations-polish.md). */
 :root[data-theme='light'] .conv-face {
-  background: rgb(var(--warm-rgb) / 0.32); /* a disc the eye sees (1.6:1 on paper): the bubble's 8.5 % would vanish */
+  /* A disc the eye sees (1.6:1 on paper; the bubble's 8.5 % would vanish): the warm at 32 % over the paper, mixed once
+     and opaque, so two faces that overlap keep their colour (a tint over a tint drew a darker crescent: Codex on #257). */
+  background: #dbc3b2;
   color: var(--warm);
   box-shadow: 0 0 0 2px var(--void);
 }
 /* Sophia's disc in the core's tint, at the warm's 32 %: 1.7:1 on paper, a disc the eye sees (12 % was 1.2:1: Codex on
    #257). */
 :root[data-theme='light'] .conv-face.sophia {
-  background: rgb(var(--core-rgb) / 0.32);
+  background: #c6bfe0; /* the core at 32 % over the paper, opaque (Codex on #257) */
 }
 .conv-face .umbral {
   width: 11px;
