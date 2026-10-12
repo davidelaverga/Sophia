@@ -51,3 +51,11 @@
   the second went through, said «Not copied» over a clipboard that held the words. Each press takes a number; only the
   latest press's outcome is said. The spec hangs the first write, presses twice, settles the first as refused: «Copied»
   stands.
+- **After the review (Codex on #240, later round, 2026-10-11)**: the writes no longer queue behind one another. Safari
+  grants the clipboard to the gesture, not to a promise after it, so each write starts inside its own press; the
+  latest press's outcome is the one said, and an earlier write that goes through late (even one given up after its
+  wait) is written over with the latest press's words, so the clipboard holds what the last press put there. On a
+  touch screen the row stands below the bubble, 4 px clear, in 44 px the pressed message keeps for it: above, it
+  covered the name, and the bubble before it in a run. The spec starts a write from a synthetic click and counts it,
+  settles a hung first write as gone through after a second message's copy and sees the second's words written back,
+  and on a phone measures the row under the bubble and over none of the next message.
