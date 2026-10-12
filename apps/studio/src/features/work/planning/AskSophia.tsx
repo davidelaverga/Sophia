@@ -192,8 +192,14 @@ function useFieldNext(first: string | undefined, question: string, setQuestion: 
     )
     if (!move || shown === null) return
     e.preventDefault()
-    if (move === 'accept') setQuestion(shown)
-    else setAway(true)
+    if (move === 'accept') {
+      setQuestion(shown)
+      return
+    }
+    // Escape here puts the suggestion away and is spent: the sheet's own Escape (useDialog, on the window) must not
+    // close the sheet with it (Codex on #268).
+    e.stopPropagation()
+    setAway(true)
   }
   return { id, shown, cap: focused ? shown : null, onKey, setFocused }
 }

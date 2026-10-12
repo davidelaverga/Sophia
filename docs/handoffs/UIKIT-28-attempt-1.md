@@ -12,13 +12,9 @@ Existing authority: Luis's instructions in this session («Procede con los arreg
 P1 through his merge loop; no deploy, no production data.
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/light-fills` from `ui/light-mark` at `fae1df79`
 (stacked on PR #249 → #248 → … → #220; the base retargets as each merges)
-Ending commit/tree: `29b86ea9` (tree `a94a478e`), the code after the review: 6 files in the PR, `theme.css` (fill
-tokens in both themes; the paper's core, hover and channel; the opaque tints), `artifacts.css` (`.report-tile`,
-`.report-cover-mark`, `.report-cover-tag` on the tokens), `e2e/light-fills.spec.ts` (new, 4; typed in `e8954db1`),
-`e2e/light-mode.spec.ts` (the hover pin), `docs/plans/light-fills.md`, and this handoff. Earlier state: `4a55180b`
-(tree `2b2ee9d3b0e6`, the first five files). The records (`425d3b01`, `26ee4730`, `a19fd016`, this one) follow the
-code; if the PR is squashed at merge, one commit carries all of it under an id this file cannot know before it exists
-(Codex on #250).
+Ending commit/tree: `cfbfaec711f4` (tree `10301183b210`), the last commit of `ui/light-fills`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 6 files changed against
+`ui/light-mark` at that commit: `e2e/light-fills.spec.ts`, `e2e/light-mode.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `docs/handoffs/UIKIT-28-attempt-1.md`, `docs/plans/light-fills.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

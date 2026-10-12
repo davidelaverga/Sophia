@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `7ae4f7f2` (6 files: `next-up.ts` + test, `NextUp.tsx`, `PlanBoard.tsx`,
-`board.css`, `e2e/next-up.spec.ts`) and `docs/plans/next-up.md`; the commit after it adds only this handoff. A squash on
-merge gives the work an id this file cannot know.
+Ending commit/tree: `ea7211636d9b` (tree `26e556ff746c`), the last commit of `ui/next-up`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`ui/next-ask` at that commit: `e2e/next-up.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/board.css`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-38-attempt-1.md`, `docs/plans/next-up.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

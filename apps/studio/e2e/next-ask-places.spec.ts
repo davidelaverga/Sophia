@@ -62,3 +62,20 @@ test('next ask · a task’s sheet: the field suggests the first question its st
   await page.keyboard.press('Tab')
   await expect(field).toHaveValue(first)
 })
+
+test('next ask · a task’s sheet: Escape in its empty field puts the suggestion away and leaves the sheet open (Codex on #268)', async ({
+  page,
+}) => {
+  await page.goto('/work.html?viewer=davide')
+  await page.locator('.task-tile').first().click()
+  const field = page.getByRole('textbox', { name: 'Ask Sophia about this task' })
+  await expect(field).toBeVisible()
+  const first = (await field.getAttribute('placeholder')) ?? ''
+  await field.focus()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.task-sheet')).toBeVisible()
+  await expect(field).not.toHaveAttribute('placeholder', first)
+  // A second Escape, nothing left to put away, is the sheet's: it closes.
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.task-sheet')).toHaveCount(0)
+})

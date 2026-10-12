@@ -126,7 +126,9 @@ export interface PaletteRow {
  */
 export function paletteRows(query: string, commands: readonly Offered[], recent: readonly string[]): PaletteRow[] {
   const withGroup = (command: Offered) => ({ command, label: GROUP_WORDS[command.group] })
-  if (wordsOf(query).length > 0) return matchCommands(query, commands).map(withGroup)
+  // Anything typed is a query, punctuation alone too (it matches nothing, so Enter searches): only a blank field shows
+  // «For you» and Recent (Codex on #264).
+  if (query.trim() !== '') return matchCommands(query, commands).map(withGroup)
   const yours = commands.filter((c) => c.group === 'you')
   const last = recent
     .map((id) => commands.find((c) => c.id === id && c.group !== 'you'))

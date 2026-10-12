@@ -358,15 +358,22 @@ function useDockFocus(wide: boolean) {
   useEffect(() => {
     const onFocus = (e: FocusEvent) => {
       const el = e.target instanceof HTMLElement ? e.target : null
-      named.current = el?.closest('.mini-dock') ? dockKey(el) : null
+      // The report pane's call row too: crossing into the wide header it is hidden as the dock's same controls come up
+      // there (Codex on #254).
+      named.current = el?.closest('.mini-dock, .report-pane-call') ? dockKey(el) : null
     }
     document.addEventListener('focusin', onFocus)
     return () => document.removeEventListener('focusin', onFocus)
   }, [])
   useLayoutEffect(() => {
     const name = named.current
-    if (!name || document.activeElement !== document.body) return
-    const again = [...document.querySelectorAll<HTMLElement>('.mini-dock button')].find((b) => dockKey(b) === name)
+    const at = document.activeElement
+    // Lost to the page, or left on a control no longer drawn (the pane's row, hidden by the move).
+    const lost = at === document.body || (at instanceof HTMLElement && at.getClientRects().length === 0)
+    if (!name || !lost) return
+    const again = [...document.querySelectorAll<HTMLElement>('.mini-dock button')].find(
+      (b) => dockKey(b) === name && b.getClientRects().length > 0,
+    )
     again?.focus({ preventScroll: true })
   }, [wide])
 }

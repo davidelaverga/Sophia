@@ -11,9 +11,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `f37e8ff5` (5 files: `project-go.tsx`, `ConversationsView.tsx`,
-`KnowledgeReports.tsx`, `SearchSheet.tsx`, `e2e/ask-instead.spec.ts`) and `docs/plans/ask-instead.md`; the commit after
-it adds only this handoff. A squash on merge gives the work an id this file cannot know.
+Ending commit/tree: `92729a69e9d8` (tree `7da1c2f06669`), the last commit of `ui/ask-instead`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/same-question` at that commit: `e2e/ask-instead.spec.ts`, `src/features/artifacts/KnowledgeReports.tsx`, `src/features/conversations/ConversationsView.tsx`, `src/features/conversations/NewConversation.tsx`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `src/features/search/SearchSheet.tsx`, `src/features/studio/project-go.tsx`, `docs/handoffs/UIKIT-42-attempt-1.md`, `docs/plans/ask-instead.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

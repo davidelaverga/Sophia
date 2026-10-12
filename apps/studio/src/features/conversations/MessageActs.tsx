@@ -25,12 +25,13 @@ const own = (e: MouseEvent) => e.stopPropagation()
 const SAID_MS = 2000
 
 /** What the last copy said: each press says it anew (its own number), so the timer restarts and a reader hears it. */
-type Said = { kind: 'copied' | 'failed' | 'waiting'; n: number }
+type Said = { kind: 'copied' | 'failed' | 'waiting' | 'overtaken'; n: number }
 
 const WORDS: Readonly<Record<Said['kind'], string>> = {
   copied: 'Copied',
   failed: 'Not copied: select the words to copy them.',
   waiting: 'Waiting for the browser to allow copying…',
+  overtaken: 'An earlier copy landed after this one. Copy again to put these words back.',
 }
 
 /** Every message's way to put away what it said: a new copy anywhere clears the others' (Codex on #240). */
@@ -46,8 +47,8 @@ function useSaid() {
     }
   }, [])
   useEffect(() => {
-    // Waiting stays until the write settles; the rest go after a moment.
-    if (!said || said.kind === 'waiting') return undefined
+    // Waiting stays until the write settles, and an overtaken copy until it is pressed again; the rest go after a moment.
+    if (!said || said.kind === 'waiting' || said.kind === 'overtaken') return undefined
     const timer = setTimeout(() => setSaid(null), SAID_MS)
     return () => clearTimeout(timer)
   }, [said])
@@ -71,10 +72,12 @@ async function toClipboard(text: string): Promise<boolean> {
   }
 }
 
-/** One clipboard for the page: the presses count across every message, and the latest press's words are what it should
- * hold (Codex on #240). */
+/**
+ * One clipboard for the page: the presses count across every message; the latest press's words are what it should hold,
+ * and the latest press can be told when an earlier write lands over its own (Codex on #240).
+ */
 let presses = 0
-let latest = ''
+let latest = { text: '', landed: false, overtaken: () => undefined as void }
 /** How long a write may take before it is given up as not copied (a permission request left pending in a webview never
  * settles). */
 export const COPY_WAIT_MS = 4000
@@ -83,13 +86,13 @@ export const COPY_WAIT_MS = 4000
 const bounded = (write: Promise<boolean>) =>
   Promise.race([write, new Promise<'late'>((resolve) => setTimeout(() => resolve('late'), COPY_WAIT_MS))])
 
-/** An earlier write that went through after a later press: the latest words go back (and again, should a press come
- * meanwhile). */
-function restore(): void {
-  const text = latest
-  void toClipboard(text).then((ok) => {
-    if (ok && text !== latest) restore()
-  })
+/**
+ * An earlier write that went through after the latest one landed: the clipboard holds the earlier words. It is not
+ * written again from here (a promise after the gesture: Safari refuses it, Codex on #240); the latest message says so,
+ * and its own Copy, a gesture, puts its words back.
+ */
+function landed(text: string): void {
+  if (text !== latest.text && latest.landed) latest.overtaken()
 }
 
 export function MessageActs({ message, who, now, onQuote, propose, side = false }: Props) {
@@ -100,10 +103,12 @@ export function MessageActs({ message, who, now, onQuote, propose, side = false 
   const copy = () => {
     const press = ++presses
     const text = clipOf(message, who, now)
-    latest = text
+    latest = { text, landed: false, overtaken: () => say('overtaken') }
     const write = toClipboard(text)
     void write.then((ok) => {
-      if (ok && text !== latest) restore()
+      if (!ok) return
+      if (press === presses) latest.landed = true
+      else landed(text)
     })
     // Only this message says anything now: another's «Copied» from a moment ago goes (Codex on #240).
     clearAll()

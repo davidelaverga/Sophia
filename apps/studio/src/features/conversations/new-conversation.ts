@@ -50,6 +50,30 @@ function ownWords(title: string): Set<string> {
   return new Set(words)
 }
 
+/**
+ * Words that turn a question's meaning: a negation («not», «never», «without»; a «n't» counts as «not») and an order
+ * («before» against «after»). Two titles alike in all else ask different things when one negates and the other does
+ * not, or one says before where the other says after (Codex on #266).
+ */
+const NEGATIONS = new Set(['not', 'no', 'never', 'without', 'except', 'unless'])
+
+/** What turns a title: whether it negates, and the order it names (before, after, or neither). */
+function turnsOf(title: string): { negates: boolean; order: 'before' | 'after' | null } {
+  const folded = title.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
+  const words = folded.split(/[^\p{L}\p{N}]+/u)
+  const negates = words.some((w) => NEGATIONS.has(w)) || /n['\u2019]t\b/u.test(folded)
+  const before = words.includes('before')
+  const after = words.includes('after')
+  return { negates, order: before === after ? null : before ? 'before' : 'after' }
+}
+
+/** Whether two titles' turns agree: the same negation, and no order said one way in one and the other way in the other. */
+function turnsAgree(a: string, b: string): boolean {
+  const x = turnsOf(a)
+  const y = turnsOf(b)
+  return x.negates === y.negates && (x.order === null || y.order === null || x.order === y.order)
+}
+
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
 const SHARED_LEAST = 2
 const SHARE_LEAST = 0.6
@@ -65,6 +89,7 @@ export function sameQuestion<C extends { id: string; title: string; lastAt: stri
   const asked = ownWords(question)
   if (asked.size < SHARED_LEAST) return null
   const scored = conversations
+    .filter((c) => turnsAgree(question, c.title))
     .map((c) => {
       const own = ownWords(c.title)
       return { c, shared: [...asked].filter((w) => own.has(w)).length }
@@ -81,7 +106,13 @@ export const QUESTION_LIMIT = 120
 export function fitQuestion(words: string): string {
   const text = words.trim()
   if (text.length <= QUESTION_LIMIT) return text
-  const cut = text.slice(0, QUESTION_LIMIT - 1)
+  // Whole characters up to the limit (the field's, counted in UTF-16 units), never half of one: an emoji or a joined
+  // sequence crossing the cut is left out whole (Codex on #267).
+  let cut = ''
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
+    if (cut.length + segment.length > QUESTION_LIMIT - 1) break
+    cut += segment
+  }
   const at = cut.lastIndexOf(' ')
   return `${(at > 0 ? cut.slice(0, at) : cut).trimEnd()}…`
 }

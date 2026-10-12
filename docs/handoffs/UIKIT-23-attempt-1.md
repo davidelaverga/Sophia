@@ -7,9 +7,9 @@ Human owner / executor resource: Luis (merge) · Davide (the service's route) / 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/needs-api` from `ui/board-why` at `1b804658`
 (stacked on PR #244 → #243 → … → #220; the base retargets as each merges)
-Ending commit/tree: the branch's head as merged (`ui/needs-api`); the first delivery was `3c6a0cfd` (tree
-`e187d6abec46`, 17 files), and every later change is listed with its commit in the post-review notes below (Codex on
-#245: the record names the state delivered). The outcome and the obligations below are the final contract's.
+Ending commit/tree: `1587135c03e4` (tree `4072ccdfc7f0`), the last commit of `ui/needs-api`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 32 files changed against
+`ui/board-why` at that commit: `e2e/home-needs.spec.ts`, `e2e/resources.spec.ts`, `e2e/work.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/home.tsx`, `fixtures/work.tsx`, `src/api/needs.test.ts`, `src/api/needs.ts`, `src/app/SignedIn.tsx`, `src/app/account-cache.ts`, `src/app/useProjectRoute.ts`, `src/features/personal/Places.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/places-view.ts`, `src/features/personal/turn-shown.ts`, `src/features/personal/useNeeds.ts`, `src/features/resources/RequiredActions.tsx`, `src/features/resources/ResourcePanel.tsx`, `src/features/resources/link.test.ts`, `src/features/resources/link.ts`, `src/features/work/GoalList.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/ServedWork.tsx`, `docs/handoffs/UIKIT-23-attempt-1.md`, `docs/plans/needs-api.md`, `packages/contracts/amendments/A15-needs-you.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`. The review notes below name the commit of each later change.
 
 ## Outcome (the final contract, after every review round)
 

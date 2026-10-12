@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `79d66243` (5 files: `places-view.ts` + test, `Welcome.tsx`,
-`AskSophia.tsx`, `e2e/next-ask-places.spec.ts`) and `docs/plans/next-ask-places.md`; the commit after it adds only this
-handoff. A squash on merge gives the work an id this file cannot know.
+Ending commit/tree: `72c1b94b11a0` (tree `487363c9702b`), the last commit of `ui/next-ask-places`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`ui/ask-instead` at that commit: `e2e/home.spec.ts`, `e2e/next-ask-places.spec.ts`, `fixtures/home.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/places-view.test.ts`, `src/features/personal/places-view.ts`, `src/features/work/planning/AskSophia.tsx`, `docs/handoffs/UIKIT-43-attempt-1.md`, `docs/plans/next-ask-places.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
