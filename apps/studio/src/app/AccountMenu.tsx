@@ -7,7 +7,9 @@ import { Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
+import { askCommands } from './CommandsHost.tsx'
 import { PasskeySheet } from './PasskeySheet.tsx'
+import { keyLabel, onMac } from './shortcuts.ts'
 import { type Theme, useTheme } from './theme.ts'
 
 export interface AccountActions {
@@ -118,6 +120,14 @@ export function AccountMenu({ identity, where, actions }: Props) {
           </MenuItem>
           <MenuItem onClick={pick(actions.privacy)}>How privacy works</MenuItem>
           <Appearance />
+          {where === 'project' && (
+            <>
+              <MenuSep />
+              <MenuItem detail={keyLabel('mod+/', onMac)} onClick={pick(() => askCommands('index'))}>
+                Keyboard shortcuts
+              </MenuItem>
+            </>
+          )}
           <MenuSep />
           {passkeysOffered && authMode !== 'dev' && (
             <MenuItem onClick={pick(() => setPasskeys(true))}>Passkeys</MenuItem>
