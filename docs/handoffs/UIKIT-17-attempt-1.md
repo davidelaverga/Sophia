@@ -53,3 +53,11 @@ presses «Open the task» with the research running. That is the completed code 
 
 UIKIT-18 (Conversations: actions per message at the corner beside «Propose as decision»: copy, quote into the
 composer; what ↑ does with no edit API said in the note).
+
+## Post-review (Codex on #239, later rounds)
+
+- Two people with one name in «By» are told apart by their order («Someone», «Someone (2)»; `peopleOf`, a node test).
+- The kind strip scrolls inside its column on a narrow phone (`.updates-narrow .segmented`); updates-narrow.spec reads
+  no page overflow at 320 px.
+- Every task card takes its `#task-` address (research, design, brief: `useNamedCard` in `TaskCard`).
+- «In the brief» with the brief already open gives its tab the focus (`focusWhenThere`); a spec reads it.

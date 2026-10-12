@@ -347,8 +347,10 @@
   color: var(--warm);
   box-shadow: 0 0 0 2px var(--void);
 }
+/* Sophia's disc in the core's tint, at the warm's 32 %: 1.7:1 on paper, a disc the eye sees (12 % was 1.2:1: Codex on
+   #257). */
 :root[data-theme='light'] .conv-face.sophia {
-  background: rgb(var(--core-rgb) / 0.12);
+  background: rgb(var(--core-rgb) / 0.32);
 }
 .conv-face .umbral {
   width: 11px;
@@ -483,8 +485,9 @@
   text-align: center;
   margin: 10px 0 16px;
   color: var(--text-2);
-  font: var(--type-small) / var(--lh-small) var(--mono);
-  letter-spacing: 0.06em; /* the token's (docs/plans/eyebrows.md) */
+  /* A date: data at the label size (Codex on #241), in the eyebrows' tracking (docs/plans/eyebrows.md). */
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .conv-msg-by {
@@ -843,6 +846,33 @@
     width: 40px;
     height: 40px;
   }
+  /* What a copy or a proposal says takes its own line above the presses and wraps, so the three 40 px presses stay
+     inside the pane whatever it says (Codex on #240). */
+  .conv-acts {
+    flex-wrap: wrap;
+    max-width: calc(100% + 24px);
+  }
+  .conv-acts > [role='status'] {
+    flex-basis: 100%;
+    white-space: normal;
+  }
+}
+/* A member's message continuing a run, under a pointer: its acts beside the bubble at its middle (the bubble its box),
+   so the row never lies over the bubble above it (Codex on #240): left of one's own, right of another's. */
+@media (hover: hover) {
+  .conv-msg-body > .conv-acts.side {
+    top: 50%;
+    bottom: auto;
+    translate: 0 -50%;
+  }
+  .conv-msg.mine .conv-msg-body > .conv-acts.side {
+    right: calc(100% + 8px);
+    left: auto;
+  }
+  .conv-msg:not(.mine) .conv-msg-body > .conv-acts.side {
+    left: calc(100% + 8px);
+    right: auto;
+  }
 }
 /* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals
    waiting under it as quiet presses that fill it. */
@@ -862,12 +892,19 @@
   font-size: var(--type-small);
   line-height: var(--lh-small);
 }
+/* Inline, so a long title wraps with the line; a token with no break (a URL, an id) breaks inside the form (Codex on
+   #266: as an inline-flex it kept its whole width and the form clipped it on a phone). */
 .conv-same .text-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  display: inline;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
   color: var(--halo-text);
   font-size: var(--type-small);
+}
+.conv-same .text-button svg {
+  margin-left: 4px;
+  vertical-align: -2px;
 }
 .conv-same .text-button:hover {
   color: var(--text);

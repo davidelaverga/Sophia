@@ -48,3 +48,9 @@ to ask Sophia) and #8 (a message that reads like a decision).
 The conversation opened from the form takes the focus on its title (`start.arrive`, the started conversation's own
 path), so a keyboard or screen reader user is not left on `body`; same-question.spec presses it from the keyboard and
 reads the focus there.
+
+## Post-review (Codex on #266)
+
+- The matched title's press is inline and breaks anywhere, so a long title with no break in it (an id) wraps inside the
+  form on a phone; same-question.spec @phone sets one and reads the press inside the form and no page overflow (with the
+  old inline-flex it overflowed).

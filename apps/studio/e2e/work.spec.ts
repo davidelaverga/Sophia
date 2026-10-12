@@ -431,11 +431,8 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
 })
 
-test('a tile’s doer keeps its name whole, beside a short chip or above a long one; a wrapping blocker keeps its left edge', async ({
-  page,
-}) => {
-  await page.goto(PAGE)
-  await settled(page)
+/** A tile's doer and chip, and the blocker's press, as laid out (the alignment of #258, at any width). */
+async function tileAlignment(page: Page, longUnder = true) {
   // The tile that waits on a permission: its chip is the longest state the board says.
   const waiting = board(page)
     .locator('.task-tile', { has: page.locator('.task-tile-meta .tag') })
@@ -448,11 +445,14 @@ test('a tile’s doer keeps its name whole, beside a short chip or above a long 
       width: name.getBoundingClientRect().width,
       words: name.scrollWidth, // what its words need
       under: chip.getBoundingClientRect().top > name.getBoundingClientRect().bottom - 1,
+      // Beside it, clear of its words: where the tile is wide enough (a phone's single lane) the long chip fits there.
+      beside: chip.getBoundingClientRect().left >= name.getBoundingClientRect().right - 1,
     }
   })
   // The name holds its words whole (not cut to a letter), and the long chip stands under it.
   expect(read?.width ?? 0).toBeGreaterThanOrEqual((read?.words ?? Infinity) - 1)
-  expect(read?.under).toBe(true)
+  if (longUnder) expect(read?.under).toBe(true)
+  else expect(read?.under || read?.beside).toBe(true)
   // A short name keeps its chip beside it: «Luis · Ready for review» is one line.
   const short = board(page).locator('.task-tile', { hasText: 'Ready for review' }).first()
   const beside = await short.evaluate((el) => {
@@ -470,6 +470,22 @@ test('a tile’s doer keeps its name whole, beside a short chip or above a long 
     return [...range.getClientRects()].map((r) => Math.round(r.left))
   })
   expect(new Set(lines).size).toBe(1)
+}
+
+test('a tile’s doer keeps its name whole, beside a short chip or above a long one; a wrapping blocker keeps its left edge', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tileAlignment(page)
+})
+
+test('@phone · at a phone’s width the doer’s name stays whole beside or above its chip, the blocker’s lines on one edge (Codex on #258)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tileAlignment(page, false)
 })
 
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
@@ -3596,4 +3612,65 @@ test('codex · #107 · a cap below a cent, or between cents, starts the allowanc
     await expect(propose).toBeEnabled()
     expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
   }
+})
+
+test('a focused task whose blocker completes moves up next with the focus on it (Codex on #236)', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const blocked = lane(page, 'Blocked').locator('[data-task]').first()
+  await expect(blocked).toBeVisible()
+  const id = (await blocked.getAttribute('data-task')) ?? ''
+  await blocked.focus()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  await expect(lane(page, 'Up next').locator(`[data-task="${id}"]`)).toBeVisible()
+  await expect(page.locator(`[data-task="${id}"]`)).toBeFocused()
+})
+
+test('with a report beside Tasks the lanes follow the narrower board, not the window (Codex on #236)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${PAGE}?viewer=davide`)
+  const lanesBox = board(page).locator('.board-lanes')
+  await expect(lanesBox).toBeVisible()
+  // The board narrowed as a side report narrows it: its container at 692 px.
+  await board(page).evaluate((b) => {
+    b.style.width = '692px'
+  })
+  const columns = await lanesBox.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
+  expect(columns).toBeLessThanOrEqual(1)
+})
+
+test('the sheet’s H works with Caps Lock or Shift, and its controls say H and S in their tips (Codex on #241)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: /^Hold/ }).locator('.tip kbd')).toHaveText('H')
+  await expect(sheet.getByRole('button', { name: /^Stop/ }).first().locator('.tip kbd')).toHaveText('S')
+  // Shift held (or Caps Lock on) gives «H», not «h»: the sheet's key is the letter, whatever its case.
+  await sheet.focus()
+  await page.keyboard.press('Shift+H')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+})
+
+test('a decision named in the address chooses the goal that holds it, another goal shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&goals=6`)
+  await settled(page)
+  const theirs = board(page).locator('[data-decision]').first()
+  await expect(theirs).toBeVisible()
+  const id = (await theirs.getAttribute('data-decision')) ?? ''
+  const first = page.getByRole('tab', { name: /Reports export to PDF reliably/ })
+  // Another goal chosen from the rail: the decision's board is no longer mounted.
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(first).toHaveAttribute('aria-selected', 'false')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(first).toHaveAttribute('aria-selected', 'true')
+  await expect(board(page).locator(`[data-decision="${id}"] .plan-choice:not(:disabled)`).first()).toBeFocused()
 })

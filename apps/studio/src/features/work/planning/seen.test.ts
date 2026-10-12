@@ -301,3 +301,45 @@ describe('where a look is kept (Codex F-034)', () => {
     })
   })
 })
+
+/** A task held by `a` until it is complete. */
+const AFTER_A = { blocked_by: ['a'], activation: { kind: 'dependencies_satisfied' as const, producer_work_id: null } }
+
+describe('a lane moved while away (Codex on #236)', () => {
+  const done = {
+    lifecycle: 'complete' as const,
+    completion: { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e'] },
+  }
+  it('is a change: a task no longer blocked, and one newly blocked, said so', () => {
+    const blocked = rowsOf([
+      ['a', { lifecycle: 'running', assignment: assignment('a') }],
+      ['b', {}, AFTER_A],
+    ])
+    const free = rowsOf([
+      ['a', done],
+      ['b', {}, AFTER_A],
+    ])
+    const seen = glance(blocked, [])
+    assert.ok(changedSince(free, seen).has('b'))
+    const said = whileAway(free, [], seen, { viewerId: 'davide', people, now: NOW })
+    assert.ok(
+      [...said.phrases, ...said.rest].includes('Task b can start: what it waited on is complete'),
+      JSON.stringify(said),
+    )
+    const again = whileAway(blocked, [], glance(free, []), { viewerId: 'davide', people, now: NOW })
+    assert.ok([...again.phrases, ...again.rest].includes('Task b is blocked'), JSON.stringify(again))
+  })
+  it('a look kept before lanes were noted compares no lane', () => {
+    const rows = rowsOf([
+      ['a', { lifecycle: 'running', assignment: assignment('a') }],
+      ['b', {}, AFTER_A],
+    ])
+    const old: Seen = {
+      items: Object.fromEntries(
+        Object.entries(glance(rows, []).items).map(([k, v]) => [k, { mark: v.mark, result: v.result }]),
+      ),
+      decisions: {},
+    }
+    assert.deepEqual([...changedSince(rows, old)], [])
+  })
+})

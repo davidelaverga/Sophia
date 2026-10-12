@@ -45,3 +45,9 @@ threshold take them; the paper mark's glow at rest and live; her light's core on
 
 Light mode, the rest: a pass over the light pages with captures at a legible width (the pane scales 1440 down too far
 in this session) for whatever else reads wrong on paper; then the queue (Hold/Stop as text buttons, the dock).
+
+## Post-review (Codex on #249)
+
+- The tab's mark follows the appearance shown, not only the system's: `favicon-light.svg` and `favicon-dark.svg` hold
+  fixed inks, `applyTheme` points the SVG icon at the one shown and `public/entry.js` does so at first paint.
+  light-mark.spec crosses both ways (Light on a dark system, Dark on a light one) on the shipped page.

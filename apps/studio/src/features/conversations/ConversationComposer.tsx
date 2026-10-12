@@ -169,7 +169,8 @@ function hintOf(shown: Suggestion | null, question: boolean): Hint | null {
   if (shown)
     return {
       why: shown.why,
-      description: `Suggested: ${shown.words}. Tab puts it in the field; Escape puts it away.`,
+      // Why, too, for the keyboard and a screen reader (Codex on #262); a suggestion ending in «?» takes no full stop.
+      description: `Suggested: ${/[?.!]$/u.test(shown.words) ? shown.words : `${shown.words}.`} ${shown.why}. Tab puts it in the field; Escape puts it away.`,
     }
   if (question)
     return { why: 'A question: Tab asks Sophia too', description: 'A question: Tab asks Sophia to answer it too.' }

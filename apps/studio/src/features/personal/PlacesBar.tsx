@@ -207,6 +207,18 @@ function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
 }
 
 export function PlacesBar(props: Props) {
+  return (
+    <>
+      <PlacesHeader {...props} />
+      {/* The palette and the index of keys, here as in a project (docs/plans/places-commands.md). Beside the bar, not
+          in it: the bar's backdrop-filter holds fixed children to its own 48 px, so the veil would dim the bar alone
+          (Codex on #243). */}
+      <CommandsHost />
+    </>
+  )
+}
+
+function PlacesHeader(props: Props) {
   const { place, locked, newInWork, identity, call, chip, actions } = props
   return (
     <header className="topbar places-bar">
@@ -221,8 +233,6 @@ export function PlacesBar(props: Props) {
         <PrivacyChip place={place} chip={chip} onLock={actions.lockNow} onPrivacy={actions.privacy} />
         <AccountMenu identity={identity} where="places" actions={actions} />
       </div>
-      {/* The palette and the index of keys, here as in a project (docs/plans/places-commands.md). */}
-      <CommandsHost />
     </header>
   )
 }

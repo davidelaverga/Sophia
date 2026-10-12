@@ -5,15 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/conversation-acts` from `ui/updates-narrow` at
 `5633ec2c` (stacked on PR #239 → #238 → … → #220; the base retargets as each merges)
-Ending commit/tree: `4ac5d6f2` (tree `459363137df0`): 8 files, 5 new (`message-acts.ts`, `message-acts.test.ts`,
-`MessageActs.tsx`, `e2e/conversation-acts.spec.ts`, `docs/plans/conversation-acts.md`); `OpenConversation.tsx`,
-`conversations.css`, `packages/ui/src/Icon.tsx` (two icons: `copy`, `quote`). The commit after it adds only this
-handoff.
-After the review (Codex on #240, four P2): `d6e2af38` says «Not copied: select the words to copy them.» when the
-clipboard refuses or is absent (measured in the pane, whose clipboard refuses: rose, `data-kind="failed"`), says
-«Copied» anew on each success, sends the quote to the composer's own field past an open proposal form, and on a
-coarse pointer starts another's presses at the bubble's left (measured at 375: presses 2–134 in a pane 0–375; one's
-own 241–373). That is the completed code state of this PR.
+Ending commit/tree: the branch's head as merged (`ui/conversation-acts`); the first delivery was `4ac5d6f2`, and
+every later change is listed with its commit in the decisions and post-review notes below (Codex on #240: the
+record names the state delivered).
 
 ## Outcome
 
@@ -38,8 +32,9 @@ own 241–373). That is the completed code state of this PR.
   edge, 12 px above its top, as the propose press was); Quote on the first → the field holds «> And every claim keeps
   its source, one click away.\n— Lucía\n\n» and has the focus; Quote on the second (Sophia's) goes under it with a
   blank line between; Copy pressed with the pointer takes the focus, and the pane's clipboard refuses the write (and
-  the read: «permission denied»), so «Copied» was not seen here: by design nothing is said then. The spec grants
-  both permissions and reads the words back; CI is its run.
+  the read: «permission denied»), so «Copied» was not seen here (superseded: since the review a refused write says
+  «Not copied: select the words to copy them.» in the rose ink, as conversation-acts.spec reads). The spec grants both
+  permissions and reads the words back; CI is its run.
 
 ## Decisions and changes
 
@@ -68,3 +63,14 @@ own 241–373). That is the completed code state of this PR.
 
 Per informe-pasada-3 §6: the task sheet's name and keys with the micro-type pass (UIKIT-19), or Places onto
 `useCommands` (left in `commands.md`).
+
+## Post-review (Codex on #240, later rounds)
+
+- Copied and quoted words name their author by name (`portableBy`: «Lucía», never «You»); the byline keeps «You».
+- A copy on one message puts away what another said; a write long on its way is said waiting, not failed, and said
+  again when it lands (no instruction to copy by hand while a write may still overwrite it).
+- On a touch screen what a copy or a proposal says takes its own line and wraps, the 40 px presses inside the pane; the
+  pressed message's row is scrolled into sight.
+- Under a pointer, a member's message continuing a run shows its acts beside the bubble, not over the one above.
+- conversation-acts.spec: a status remounted per press; another's status cleared; no «You» on the clipboard; a run's
+  acts clear of the bubble above.

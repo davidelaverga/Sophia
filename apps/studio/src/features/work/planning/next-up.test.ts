@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { NOTHING_NEXT, nextUp, type NextUpInput } from './next-up.ts'
+import { answeredKey, NOTHING_NEXT, nextUp, type NextUpInput } from './next-up.ts'
 
 const input = (over: Partial<NextUpInput> = {}): NextUpInput => ({
-  answered: ['d1'],
-  decisions: [{ decision_id: 'd1', question: 'Ship the retry before the review is done?' }],
+  answered: [answeredKey('d1', 1)],
+  decisions: [{ decision_id: 'd1', revision: 1, question: 'Ship the retry before the review is done?' }],
   waiting: [],
   review: false,
   ...over,
@@ -13,16 +13,16 @@ const input = (over: Partial<NextUpInput> = {}): NextUpInput => ({
 describe('what is next after an answer', () => {
   it('is another of the viewer’s decisions first, those answered in this visit left out', () => {
     const decisions = [
-      { decision_id: 'd1', question: 'Ship the retry before the review is done?' },
-      { decision_id: 'd2', question: 'Keep the old export?' },
-      { decision_id: 'd3', question: 'Name the release?' },
+      { decision_id: 'd1', revision: 1, question: 'Ship the retry before the review is done?' },
+      { decision_id: 'd2', revision: 1, question: 'Keep the old export?' },
+      { decision_id: 'd3', revision: 1, question: 'Name the release?' },
     ]
     assert.deepEqual(nextUp(input({ decisions, waiting: [{ id: 't1', name: 'Run the tests' }], review: true })), {
       kind: 'decision',
       id: 'd2',
       words: 'Next: decide “Keep the old export?”',
     })
-    assert.equal(nextUp(input({ decisions, answered: ['d1', 'd2'] })).id, 'd3')
+    assert.equal(nextUp(input({ decisions, answered: [answeredKey('d1', 1), answeredKey('d2', 1)] })).id, 'd3')
   })
   it('then a task waiting for the viewer, the first in the board’s order', () => {
     const waiting = [
@@ -46,9 +46,17 @@ describe('what is next after an answer', () => {
   })
   it('cuts long words at a word, with an ellipsis, inside the quotes', () => {
     const long = 'Decide whether every report keeps its sources inline or moves them to the end'
-    const words = nextUp(input({ decisions: [{ decision_id: 'd9', question: long }] })).words
+    const words = nextUp(input({ decisions: [{ decision_id: 'd9', revision: 1, question: long }] })).words
     assert.ok(words.startsWith('Next: decide “Decide whether every report'), words)
     assert.ok(words.endsWith('…”'), words)
     assert.ok(words.length <= 64, words)
+  })
+})
+
+describe('what is next, a decision revised (Codex on #263)', () => {
+  it('a decision answered at one revision and proposed again at the next is the next one to decide', () => {
+    const decisions = [{ decision_id: 'd1', revision: 2, question: 'Ship the retry before the review is done?' }]
+    assert.equal(nextUp(input({ decisions, answered: [answeredKey('d1', 1)] })).id, 'd1')
+    assert.equal(nextUp(input({ decisions, answered: [answeredKey('d1', 2)] })).kind, 'none')
   })
 })

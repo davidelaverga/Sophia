@@ -1000,7 +1000,7 @@
   }
   .shell:has(> .report-pane[data-size='side']) .lobby,
   .shell:has(> .report-pane[data-size='side']) .wait-note,
-  .shell:has(> .report-pane[data-size='side']) .mini-dock {
+  .shell:has(> .report-pane[data-size='side']) .mini-dock:not(.topbar .mini-dock) {
     right: calc(var(--report-w) + var(--gutter));
   }
   /* And never wider than the room left beside the pane (a 761 px window leaves under 300). */
@@ -1529,4 +1529,11 @@
   overflow-wrap: anywhere;
   color: var(--text-2);
   font-size: var(--type-small);
+}
+
+/* The header holds the room's dock (a wide screen, a view other than the Studio): it stays in sight over a full or
+   narrow pane, so the pane does not repeat its switches and note with the same names (Codex on #254). */
+.shell:has(.topbar .mini-dock) .report-pane .report-pane-call,
+.shell:has(.topbar .mini-dock) .report-pane .report-pane-note {
+  display: none;
 }
