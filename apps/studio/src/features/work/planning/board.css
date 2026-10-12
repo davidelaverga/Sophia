@@ -282,7 +282,7 @@
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-  text-align: start;
+  text-align: left; /* a blocker's name that wraps keeps the left edge of «Waiting on», not a centred second line */
 }
 /* On a coarse pointer each press's target reaches 7 px above and below its words (theme.css): rows of blockers keep
    14 px between them, so no two targets meet (Codex on #244). */
@@ -474,15 +474,20 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+/* The doer's name and the state chip share a line while both fit at their own size; past that the chip drops under
+   the name rather than squeeze it to a letter (docs/plans/tasks-polish.md). */
 .task-tile-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px 8px;
   min-width: 0;
   font-size: var(--type-small);
 }
 .task-tile-name {
+  flex: 0 1 auto; /* never grows past its words, so a short name keeps the chip beside it */
+  min-width: 0;
   overflow: hidden;
   color: var(--text-3);
   white-space: nowrap;

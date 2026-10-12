@@ -431,6 +431,63 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
 })
 
+/** A tile's doer and chip, and the blocker's press, as laid out (the alignment of #258, at any width). */
+async function tileAlignment(page: Page, longUnder = true) {
+  // The tile that waits on a permission: its chip is the longest state the board says.
+  const waiting = board(page)
+    .locator('.task-tile', { has: page.locator('.task-tile-meta .tag') })
+    .first()
+  const read = await waiting.evaluate((el) => {
+    const name = el.querySelector<HTMLElement>('.task-tile-name')
+    const chip = el.querySelector<HTMLElement>('.task-tile-meta .tag')
+    if (!name || !chip) return null
+    return {
+      width: name.getBoundingClientRect().width,
+      words: name.scrollWidth, // what its words need
+      under: chip.getBoundingClientRect().top > name.getBoundingClientRect().bottom - 1,
+      // Beside it, clear of its words: where the tile is wide enough (a phone's single lane) the long chip fits there.
+      beside: chip.getBoundingClientRect().left >= name.getBoundingClientRect().right - 1,
+    }
+  })
+  // The name holds its words whole (not cut to a letter), and the long chip stands under it.
+  expect(read?.width ?? 0).toBeGreaterThanOrEqual((read?.words ?? Infinity) - 1)
+  if (longUnder) expect(read?.under).toBe(true)
+  else expect(read?.under || read?.beside).toBe(true)
+  // A short name keeps its chip beside it: «Luis · Ready for review» is one line.
+  const short = board(page).locator('.task-tile', { hasText: 'Ready for review' }).first()
+  const beside = await short.evaluate((el) => {
+    const name = el.querySelector('.task-tile-name')
+    const chip = el.querySelector('.task-tile-meta .tag')
+    return !!name && !!chip && Math.abs(name.getBoundingClientRect().top - chip.getBoundingClientRect().top) < 4
+  })
+  expect(beside).toBe(true)
+  // The blocker's press: left-aligned, its lines (when it wraps) on one left edge.
+  const why = board(page).locator('.lane-why .text-button').first()
+  await expect(why).toHaveCSS('text-align', 'left')
+  const lines = await why.evaluate((el) => {
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return [...range.getClientRects()].map((r) => Math.round(r.left))
+  })
+  expect(new Set(lines).size).toBe(1)
+}
+
+test('a tile’s doer keeps its name whole, beside a short chip or above a long one; a wrapping blocker keeps its left edge', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tileAlignment(page)
+})
+
+test('@phone · at a phone’s width the doer’s name stays whole beside or above its chip, the blocker’s lines on one edge (Codex on #258)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tileAlignment(page, false)
+})
+
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
   await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
   const held = lane(page, 'Blocked')
