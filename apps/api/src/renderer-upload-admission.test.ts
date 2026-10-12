@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict'
-import { request } from 'node:http'
+import { Agent, request } from 'node:http'
+import { clearTimeout as clearWallTimer, setTimeout as wallTimer } from 'node:timers'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import { it } from 'node:test'
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify'
-import { rendererUploadHooks, RENDER_BODY_MS, withRendererUpload } from './renderer-upload-admission.ts'
+import {
+  rendererUploadHooks,
+  RENDER_AUTHORIZATIONS,
+  RENDER_BODY_MS,
+  withRendererUpload,
+} from './renderer-upload-admission.ts'
 
 const MIB = 1024 * 1024
 const noop = () => {}
@@ -21,14 +27,14 @@ async function beforeSentinel<T>(promise: Promise<T>): Promise<T> {
     const result = await Promise.race([
       promise,
       new Promise<typeof sentinel>((resolve) => {
-        timer = setTimeout(() => resolve(sentinel), 2000)
+        timer = wallTimer(() => resolve(sentinel), 2000)
       }),
     ])
     assert.notEqual(result, sentinel, 'operation settled before the sentinel')
     if (result === sentinel) throw new Error('sentinel')
     return result
   } finally {
-    clearTimeout(timer)
+    clearWallTimer(timer)
   }
 }
 function appFor(
@@ -67,6 +73,31 @@ const upload = (app: FastifyInstance) =>
     headers: { 'content-type': 'application/pdf' },
     payload: '%PDF-small',
   })
+
+function partialUpload(app: FastifyInstance, contentType = 'application/pdf') {
+  const address = app.server.address()
+  assert.ok(address && typeof address === 'object')
+  const closed = deferred()
+  const agent = new Agent({ keepAlive: true })
+  const req = request({
+    hostname: '127.0.0.1',
+    port: address.port,
+    path: '/upload?valid=yes',
+    method: 'PUT',
+    agent,
+    headers: { 'content-type': contentType, 'content-length': '100' },
+  })
+  req.on('error', () => {})
+  req.once('socket', (socket) => socket.once('close', closed.finish))
+  const response = new Promise<number>((resolve) => {
+    req.once('response', (res) => {
+      res.resume()
+      res.once('end', () => resolve(res.statusCode ?? 0))
+    })
+  })
+  req.write('%PDF-')
+  return { req, agent, closed, response }
+}
 
 it('reserves route maxima before parsing, across app factories, and releases after actual handler settlement', async (t) => {
   const gate = deferred()
@@ -322,5 +353,185 @@ it('never charges a request that disconnects while its capability authorization 
     auth.finish()
     req.destroy()
     await app.close()
+  }
+})
+
+it('includes authorization time in the body deadline instead of granting a fresh body budget', async (t) => {
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  const gate = deferred()
+  gate.finish()
+  let entries = 0
+  const app = appFor(
+    64 * MIB,
+    gate,
+    () => entries++,
+    () => {
+      now = RENDER_BODY_MS - 1000
+      return Promise.resolve()
+    },
+  )
+  app.addHook('preValidation', (_req, _reply, done) => {
+    now = RENDER_BODY_MS + 1
+    done()
+  })
+  try {
+    assert.equal((await beforeSentinel(upload(app))).statusCode, 503)
+    assert.equal(entries, 0)
+  } finally {
+    await app.close()
+  }
+})
+
+it('refuses authorization that returns past the absolute deadline before its timer runs', async (t) => {
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  const gate = deferred()
+  gate.finish()
+  let entries = 0
+  let parsing = 0
+  const app = appFor(
+    64 * MIB,
+    gate,
+    () => entries++,
+    () => {
+      now = RENDER_BODY_MS + 1
+      return Promise.resolve()
+    },
+  )
+  app.addHook('preParsing', (_req, _reply, payload, done) => {
+    parsing += 1
+    done(null, payload)
+  })
+  try {
+    assert.equal((await beforeSentinel(upload(app))).statusCode, 503)
+    assert.equal(entries, 0)
+    assert.equal(parsing, 0, 'expired authorization never begins body parsing')
+  } finally {
+    await app.close()
+  }
+})
+
+it('bounds original authorizations across factories until actual settlement, even after public timeouts', async (t) => {
+  const gate = deferred()
+  gate.finish()
+  const auth = deferred()
+  let calls = 0
+  let entries = 0
+  const authorize = async () => {
+    const index = calls++
+    await auth.promise
+    if (index % 2) throw new Error('late synthetic refusal')
+  }
+  const app = appFor(64 * MIB, gate, () => entries++, authorize)
+  const other = appFor(64 * MIB, gate, () => entries++, authorize)
+  await Promise.all([app.ready(), other.ready()])
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const pending = Array.from({ length: RENDER_AUTHORIZATIONS }, (_, i) => Promise.resolve(upload(i % 2 ? other : app)))
+  // Observe socket errors immediately as well as successful refusal responses.
+  const settled = Promise.allSettled(pending)
+  try {
+    await nextTurn()
+    assert.equal(calls, RENDER_AUTHORIZATIONS)
+    const refused = await beforeSentinel(upload(other))
+    assert.equal(refused.statusCode, 503)
+    assert.equal(calls, RENDER_AUTHORIZATIONS, 'overflow never invoked authorization')
+    t.mock.timers.tick(RENDER_BODY_MS)
+    t.mock.timers.reset()
+    await beforeSentinel(settled)
+    assert.equal(entries, 0, 'timed-out authorization reached no handler')
+    assert.equal((await beforeSentinel(upload(other))).statusCode, 503)
+    assert.equal(calls, RENDER_AUTHORIZATIONS, 'public timeout did not refund original operation permits')
+    auth.finish()
+    await nextTurn()
+    assert.equal((await beforeSentinel(upload(other))).statusCode, 200)
+    assert.equal(entries, 1, 'late successes and rejections admitted no old requests')
+  } finally {
+    t.mock.timers.reset()
+    auth.finish()
+    await beforeSentinel(settled)
+    await app.close()
+    await other.close()
+  }
+})
+
+it('closes a partial real socket at the request deadline while authorization is still pending', async () => {
+  const gate = deferred()
+  gate.finish()
+  const auth = deferred()
+  const entered = deferred()
+  let entries = 0
+  const app = appFor(
+    64 * MIB,
+    gate,
+    () => entries++,
+    async () => {
+      entered.finish()
+      await auth.promise
+    },
+  )
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const address = app.server.address()
+  assert.ok(address && typeof address === 'object')
+  const closed = deferred()
+  const req = request({
+    hostname: '127.0.0.1',
+    port: address.port,
+    path: '/upload?valid=yes',
+    method: 'PUT',
+    headers: { 'content-type': 'application/pdf', 'content-length': '100' },
+  })
+  req.on('error', () => {})
+  req.once('close', closed.finish)
+  req.write('%PDF-')
+  try {
+    await beforeSentinel(entered.promise)
+    const started = performance.now()
+    const sentinel = setTimeout(() => req.destroy(), RENDER_BODY_MS + 2000)
+    try {
+      await closed.promise
+      assert.ok(performance.now() - started < RENDER_BODY_MS + 1500, 'authorization deadline beat cleanup sentinel')
+    } finally {
+      clearTimeout(sentinel)
+    }
+    auth.finish()
+    await nextTurn()
+    assert.equal(entries, 0)
+    assert.equal((await beforeSentinel(upload(app))).statusCode, 200)
+  } finally {
+    auth.finish()
+    req.destroy()
+    await app.close()
+  }
+})
+
+it('delivers early refusal responses and retains the original deadline for unfinished keep-alive bodies', async (t) => {
+  const gate = deferred()
+  gate.finish()
+  const held = deferred()
+  const entered = deferred()
+  const busy = appFor(64 * MIB, held, entered.finish)
+  const refused = appFor(0, gate, noop, () => Promise.reject(Object.assign(new Error('refused'), { statusCode: 401 })))
+  const parser = appFor(0, gate, noop)
+  const apps = [busy, refused, parser]
+  await Promise.all(apps.map((app) => app.listen({ host: '127.0.0.1', port: 0 })))
+  const holding = Promise.resolve(upload(busy))
+  await beforeSentinel(entered.promise)
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const sockets = [partialUpload(refused), partialUpload(busy), partialUpload(parser, 'unknown/unknown')]
+  try {
+    assert.deepEqual(await beforeSentinel(Promise.all(sockets.map((socket) => socket.response))), [401, 503, 415])
+    t.mock.timers.tick(RENDER_BODY_MS)
+    t.mock.timers.reset()
+    await beforeSentinel(Promise.all(sockets.map((socket) => socket.closed.promise)))
+  } finally {
+    t.mock.timers.reset()
+    held.finish()
+    for (const socket of sockets) {
+      socket.req.destroy()
+      socket.agent.destroy()
+    }
+    await beforeSentinel(holding)
+    await Promise.all(apps.map((app) => app.close()))
   }
 })
