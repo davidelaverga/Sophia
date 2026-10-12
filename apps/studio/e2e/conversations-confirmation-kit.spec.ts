@@ -45,6 +45,9 @@ for (const mode of ['desktop', '@phone']) {
     await expect(confirm).toContainText(
       'Later Sophia answers in this conversation can also be removed, even when they didn’t use these words.',
     )
+    await expect(confirm).toContainText(
+      'All other human messages, other conversations and recorded project decisions stay.',
+    )
     const heights = await confirm
       .getByRole('button')
       .evaluateAll((buttons) => buttons.map((b) => b.getBoundingClientRect().height))

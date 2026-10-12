@@ -148,3 +148,54 @@ not advanced. OP0002r6/OP0001r4 stay draft_not_authorized.
 Next bounded action: publish the scoped draft patch against the prepared
 ui/kit-with-con01 branch and obtain the automatic review for its exact head;
 then resolve findings and reconcile the held integration failure with Luis.
+
+## First push review and bounded correction
+
+First push a063457e9ea5e518d02fbb97015927b2ead8c5da,
+tree8c4cbbd339c865493f94620e10aa86f34fdd715c, is draft PR269 against
+Luis's preparation branch. Remote target advanced969f34bc before publication;
+the patch's source paths did not change there, but shared CSS/ProjectShell did.
+The reviewed/tested base stays011244; no latest-combined qualification is
+inferred. PR199/main remain untouched. Independent pre-push whole-diff review
+found no actionable new defect and separately ran107/107 focused unit tests.
+
+Automatic Codex review was explicitly requested after this push in
+PR269 comment6127738011 and completed for a063457e at15:55:40Z.
+Review5493173077 raised P2r4249962031: in a moderator removal, saying
+“Other people's messages stay” could include the chosen target. Accepted.
+The warning now says **“All other human messages, other conversations and
+recorded project decisions stay.”** This excludes the selected message and
+continues to distinguish other human messages from the later Sophia answers
+that conservative withdrawal can remove. No receipt or permission change.
+
+The desktop and phone assertion was added before source correction: both
+failed with the old words (exit1). After correction, all six cases in
+conversations-confirmation-kit.spec.ts passed (exit0). Final Studio typecheck
+and changed-file Prettier passed. Built-in browser independently displayed
+the corrected warning, Keep focus and Escape return in the three-pane fixture;
+desktop-confirmation-review-correction.jpg is the new source's screenshot.
+Earlier screenshots remain evidence of the first push only. Tab30 and owned
+Vite session were closed, viewport reset; no hosted effects.
+
+### First-push CI failure retained
+
+Both observed workflows' runtime-unit jobs failed in ordinary unit testing:
+2437 tests,2369 passed,1 failed,67 skipped. The failure is
+apps/studio/src/features/work/planning/fixture-boundary.test.ts:43, which
+reports features/work/GoalList.tsx as a production plan-seed offender. Real
+CI job114892411422 supplied this diagnostic. The browser jobs were cancelled;
+SQL/API, local Supabase auth, LiveKit and PDF jobs passed on this head.
+This is not green CI or evidence of running hosted acceptance.
+
+The same two-case fixture-boundary test was run on **unchanged0112445e** in
+the owned baseline worktree:1 passed/1 failed, exit1, same GoalList offender;
+the worktree was restored to d527f385. Neither path changes in this patch.
+No weakening of the fixture boundary or unrelated Tasks fix is included.
+Luis's lane needs to reconcile this base issue before a safe merge.
+
+The correction requires another exact-head automatic review after its push;
+the first review cannot clear the changed source. Its result and final source
+tuple will be recorded in PR269/mission198, without another docs-only push.
+Retained ownership requests were now posted directly to recorded foundation
+issue14 (6130159389) and research issue31 (6130159732), source handback only.
+No response or writer window is inferred. No Claude coding run was started.

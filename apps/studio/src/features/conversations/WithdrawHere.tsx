@@ -166,7 +166,7 @@ function WithdrawConfirm(props: {
       action={own ? 'Withdraw' : 'Remove'}
     >
       {own ? 'Withdraw this message?' : 'Remove this message?'} Its words leave this conversation for everyone. Later
-      Sophia answers in this conversation can also be removed, even when they didn’t use these words. Other people’s
+      Sophia answers in this conversation can also be removed, even when they didn’t use these words. All other human
       messages, other conversations and recorded project decisions stay. This can’t be undone.
     </ConversationConfirmation>
   )

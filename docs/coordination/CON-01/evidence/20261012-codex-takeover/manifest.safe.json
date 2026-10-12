@@ -32,6 +32,12 @@
       "file": "phone-notice.jpg",
       "sha256": "d7694d32899e6ca44daa119fef1c1602bfaea5ab722091a35ed0e2ffb8207488",
       "bytes": 29313
+    },
+    {
+      "file": "desktop-confirmation-review-correction.jpg",
+      "sha256": "cd4f7c35229e7042076b19762ff1ed2e84bc492f143d016d7d8f59374a52f4c4",
+      "bytes": 97042,
+      "source_scope": "Post-a063457e P2 moderator preservation correction; committed with this manifest update"
     }
   ]
 }
