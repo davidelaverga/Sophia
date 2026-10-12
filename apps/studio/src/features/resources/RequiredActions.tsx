@@ -45,7 +45,7 @@ function Request({ action, resource, viewerId, now }: Omit<Props, 'actions'> & {
   const open = action.state === 'open'
   const mine = viewerId === action.ownerId && open
   return (
-    <li className={`event waiting ${action.state}`}>
+    <li className={`event waiting ${action.state}`} data-request={action.id} tabIndex={-1}>
       <span className="dot" aria-hidden />
       <div className="waiting-body">
         <p className="waiting-operation">{action.operation}</p>
