@@ -1,0 +1,49 @@
+{
+  "checkpoint": "CX-0140",
+  "kind": "independent bounded local profile-copy probe and verified live author progress",
+  "reviewer_parent": "172cb28b2aa8240a7186494cbe214fb69fffa218",
+  "refs": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "CON": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "G2": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "dispatcher": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "runtime_plan": "46ddd769b7182e968da20219a9f6852757419805",
+    "Luis": "2c882dc58a1170891e41f778fe2a75689778ae0a"
+  },
+  "native": {
+    "session": "session_01KUDtFK9gWthsXSrepcLQz3",
+    "message": 681,
+    "state": "currently streaming",
+    "current_tool": "Showing execution-host deployment unit",
+    "tool_state": "running",
+    "read_only": true,
+    "input_sent": false,
+    "restored_session": "session_0155SjcXhv87RErnWEBWxfBM",
+    "restoration_confirmed_before": "2026-10-12T02:24:50Z",
+    "lease": "2026-10-12T02:24:12.127435Z through 02:27:12.127435Z",
+    "proposal_published": false
+  },
+  "private_file_sha256": {
+    "profile-copy.stdout.private.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "profile-copy.stderr.private.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "profile-copy-result.private.json": "ace6ab5bf147da2baca0dc57ff50322d8cf5a1caa90ae7675be7083e8302fb5f",
+    "CON-progress-chat.private.txt": "5adb583e79fc487ff15fac9409ad881945785ea0d66a30c67125f756accbcbe6",
+    "profile-copy-probe.mjs": "335c29eb7a671087cfdcd7ef342a8c42873c45302d37ae6033dd5d7cd1a1aee5",
+    "profile-copy.safe.json": "57afd4f72ef101bd14579f8bc3835b18336deedc45bcad45741b07fc23fabc48"
+  },
+  "profile_copy_safe_sha256": "df13dad2d8de98bb8871321ca4decccafab3a9ad1398799c0e781af7bfda7c6f",
+  "acceptance_change": false,
+  "all36_retained": {
+    "partialL1": 18,
+    "passedL1": 3,
+    "notrun": 15
+  },
+  "operations": {
+    "setup": "OP0002r5 draft_not_authorized",
+    "Ask": "OP0001r3 draft_not_authorized",
+    "hosted_effects": false,
+    "provider_execution": false,
+    "Ask_enabled": false
+  },
+  "cleanup": "owned root removed, no matching process path, artifact unchanged; no full B-1 cleanup qualification"
+}

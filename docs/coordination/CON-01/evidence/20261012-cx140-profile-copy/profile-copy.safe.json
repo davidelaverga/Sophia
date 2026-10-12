@@ -1,0 +1,35 @@
+{
+  "at": "2026-10-12T02:26:38.137Z",
+  "endedAt": "2026-10-12T02:26:49.354Z",
+  "kind": "local_baseline_profile_copy_no_provider",
+  "network": "sandbox-exec deny network* inherited",
+  "credential_names_passed": [],
+  "source": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "helpers_byte_identical_to": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "status": 0,
+  "signal": null,
+  "error": null,
+  "installMs": 376,
+  "profile_drift": [],
+  "boot": {
+    "status": 0,
+    "signal": null,
+    "timedOut": true,
+    "bridgeLoaded": true,
+    "notReady": true,
+    "ready": false,
+    "diagnosticCount": 0
+  },
+  "cleanup": "owned_root_removed_after_process_return",
+  "post_probe_owned_path_process_census": [],
+  "runtime_digest_before_and_after": "sophia-tree-v2:sha256:e24cb887c7a710069c2f2ac1dfa681611c25f129e39b990b09ce378aa133374c",
+  "runtime_entries": 28427,
+  "bundle_integrity_before_and_after": "sha512-3GH/FKrctU3Uw6953WUHxUA0/GTA4/AYzsgXn00otZ9XRAl977nov/DNBjfiJhCWwEq9FtBo7Ham7DFx6p5lRA==",
+  "limits": [
+    "Darwin baseline profile startup only; not a reply execution",
+    "No model request, service binding, credential or network access",
+    "No strace/full host-copy census, Linux containment, cancellation/withdrawal/crash/orphan qualification",
+    "No reusable native reply history created or tested",
+    "Filesystem removal after bounded process return is not a B-1 erasure receipt"
+  ]
+}
