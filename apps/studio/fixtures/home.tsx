@@ -32,6 +32,7 @@ import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useNeeds } from '../src/features/personal/useNeeds.ts'
+import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
 
 declare global {
@@ -271,6 +272,28 @@ const openPress = (
           : ''
   }`
 
+/** A personal log for the check of the seen mark: `log`, thirty turns in a short scrollport, the named reply (t9) the last, below the fold; `hidden`, the same under `hidden`. */
+const TURNS = query.get('turns')
+
+function FixtureLog({ hidden }: { hidden: boolean }) {
+  return (
+    <div className="msgs fixture-log" hidden={hidden} style={{ height: 120, overflow: 'auto' }}>
+      {Array.from({ length: 30 }, (_, i) => (
+        <div key={i} className="msg" data-turn={i === 29 ? 't9' : `t-${String(i)}`} style={{ height: 40 }}>
+          turn {i}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The fixture's personal space: with a log on the page (`turns=log|hidden`) the real watch decides, as it does in the
+ * app; without one it is taken to show every turn it names. A hidden log gives up soon, for the check.
+ */
+const personalShown = (turnId: string | null) =>
+  TURNS && turnId ? turnShown(turnId, TURNS === 'hidden' ? 400 : undefined) : Promise.resolve(true)
+
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
@@ -278,9 +301,9 @@ function Home() {
     'fixture-token',
     {
       project: (projectId, view, where) => pressed.push(openPress(view, projectId, where)),
-      personal: () => {
+      personal: (turnId) => {
         pressed.push('personal')
-        return Promise.resolve(true) // the fixture's personal space shows every turn it names
+        return personalShown(turnId)
       },
     },
     { enabled: viaApi, locked },
@@ -293,6 +316,7 @@ function Home() {
           {away ? 'Back to Home' : 'Leave Home'}
         </button>
       )}
+      {TURNS && <FixtureLog hidden={TURNS === 'hidden'} />}
       <div className="c-home" data-place-view="home" hidden={away}>
         <Welcome
           hello={greeting(NOW.getHours(), null, false)}
