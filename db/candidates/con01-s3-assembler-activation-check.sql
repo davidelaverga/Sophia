@@ -238,7 +238,7 @@ UNION ALL SELECT 'hold','semantic: native task view changed'
 UNION ALL SELECT 'hold','semantic: function definition or owner changed: '||e.f
  FROM fn_defs e LEFT JOIN pg_proc p ON p.oid=to_regprocedure(e.f) LEFT JOIN pg_roles o ON o.oid=p.proowner
  WHERE p.oid IS NULL OR o.rolname IS DISTINCT FROM 'postgres' OR (md5(pg_get_functiondef(p.oid)) IS DISTINCT FROM e.h
-      AND NOT (e.f='sophia.conversation_context_kept()' AND md5(pg_get_functiondef(p.oid))='d9d7573af29ebe996dceee4d3fe338f4'));
+      AND NOT (e.f='sophia.conversation_context_kept()' AND md5(pg_get_functiondef(p.oid))='d9d7573af29ebe996dceee4d3fe338f4'))
 
 
 UNION ALL SELECT 'hold','semantic: trigger registration or enabled state changed: '||e.r||'.'||e.n
