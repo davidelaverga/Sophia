@@ -54,8 +54,8 @@ test('start · quiet labels in the app’s sans, on its sizes, reading at 4.5:1'
   // «Start» waits for a question, inactive: WCAG asks nothing of an inactive control's words.
   expect(await lowContrast(page, '.conv-new', '[aria-disabled="true"]')).toEqual([])
   const sizes = await typeSizes(page, '.conv-new')
-  // The form's own heading is the view's 18 px, as the other conversation checks allow.
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '18px'], sizes.join(' ')).toContain(s)
+  // The form's own heading is a section head (15 px, `.conv-new > h3`): the only scope here that holds one.
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
   // The question is set at the title size, larger than the context under it.
   await expect(question(page)).toHaveCSS('font-size', '14px')
 })

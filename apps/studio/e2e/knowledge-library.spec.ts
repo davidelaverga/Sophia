@@ -109,7 +109,7 @@ test('library · the tiles keep to the app’s four type sizes', async ({ page }
   await page.getByRole('button', { name: 'More reports' }).click()
   await expect(page.getByRole('button', { name: 'An older fixture report' })).toBeVisible()
   const sizes = await typeSizes(page, '.report-cards')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '15px'], sizes.join(' ')).toContain(s)
 })
 
 test('library · Edit and History and changes keep their own presses on the tile', async ({ page }) => {

@@ -162,7 +162,7 @@
 }
 .conv-list-head h2 {
   margin: 0;
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
 }
 /* The title filter: the kit's search (36 px, its magnifier), as wide as the list. */
@@ -290,7 +290,9 @@
 .conv-head h3 {
   margin: 0;
   overflow: hidden;
-  font-size: 18px;
+  font-size: var(
+    --type-head
+  ); /* the open conversation's title is a section head: five sizes on the view (Codex on #248) */
   font-weight: 600;
   letter-spacing: -0.015em;
   text-overflow: ellipsis;
@@ -1068,7 +1070,7 @@
 }
 .conv-new > h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--type-head);
   font-weight: 600;
 }
 .conv-field {
@@ -1235,7 +1237,7 @@
     padding: 10px 14px 6px;
   }
   .conv-head h3 {
-    font-size: var(--type-title);
+    font-size: var(--type-head); /* a section head on a phone too (Codex on #248) */
   }
   .conv-head .conv-faces,
   .conv-output-words {

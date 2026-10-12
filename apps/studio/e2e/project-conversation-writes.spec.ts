@@ -254,7 +254,7 @@ test('writes · controls are at least 24 px, and the text keeps to the scale wit
     expect(short, state).toEqual([])
     const sizes = await typeSizes(page, '.conversations')
     expect(
-      sizes.filter((s) => !['10.5px', '12px', '13px', '14px', '18px'].includes(s)),
+      sizes.filter((s) => !['10.5px', '12px', '13px', '14px', '15px'].includes(s)),
       sizes.join(' '),
     ).toEqual([])
   }
