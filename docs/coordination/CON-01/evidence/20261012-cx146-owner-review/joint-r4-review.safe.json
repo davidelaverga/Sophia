@@ -1,0 +1,135 @@
+{
+  "at": "2026-10-12T03:58:48.339748+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "387fb2dcf3e26ac63aa1476ffa607f984cf898e6",
+    "tree": "be3ddfd634940bad95df1c17797fe6013daf4971",
+    "parent": "5969756faaf6827026ede11f7b76ead6a34fa2c7",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "49e59d2aa855a8f2cdb340a4e90b2270d181b4013368c2c237e36e43e534857b",
+    "lines": 888,
+    "readComplete": true,
+    "change": "one documentation file +149/-63; no implementation/source qualification"
+  },
+  "scope": "Bounded independent WBC02/SDD01 consumer review. No core/ledger/Luis/historical research/exclusive runtime ownership or integration/sourcewrite/operational authority claimed.",
+  "acceptedImprovements": [
+    "WithdrawnP1E and cursor replay now correctly distinguished; table511-514 is an optional core/ledger engineering choice, with a newly stated rejected-replay/accounting reason. No permanentstranding failure is reasserted by this reviewer.",
+    "Named claim/ready/go/stop/settle/receipt clocks improve the contract; blockingIO versus pollinterval is now distinguished. Remaining total/origin inconsistency is specified below.",
+    "Launcherentry-beforefork narrows the old nolease child uncertainty; bounded ownchild waitpidWNOHANG without numeric signals and explicit child_unsettled74 are sensible failclosed directions.",
+    "Settled/unsettled exit distinction258-274 and Retire579/597 are meaningful improvements; alarm/PDEATHSIG alone no longer claimed as proof there. All callers and incompletechildidentity crossings must obey that distinction.",
+    "Existing conditional(c)/fd3/no numericreplysignal/filter/template directions remain reasonable. Uncertainusage/reservations, noreset/retry, withdrawal/latepublication fences and othermissiongoal behavior must remain intact."
+  ],
+  "changesRequired": [
+    {
+      "id": "R4-NO-FUTURE-WRITER",
+      "classification": "DESIGN_INVARIANT_AND_CLEANUP_PROOF_GAP",
+      "lines": [
+        203,
+        204,
+        417,
+        491,
+        499,
+        602,
+        603,
+        610,
+        616,
+        633,
+        634
+      ],
+      "evidence": "491 still admits an older bridge surviving supervisorreplacement;499/616 assert newinstance/sweep/PDEATHSIG means old exited. Actualsupervisorlease names supervisorPID101-120, spawn183 is direct, same-supervisor generationexit216-221 does not establish orphanbridgeexit after supervisorloss. Firstclaim can be received before replacementhello, followed by delayedspawn/mkdir afterwards. Also a live launcher can pause aftermkdir203 and before firstleasewrite204, so emptyhome is not proof nofuturewriter.",
+      "required": "Specify actual identity-safe generation/launcher admission exclusion or verified oldwriter settlement before successful absent/empty or otherhome retirement. Changedbridgeauthority, DBterminalstate, one-time sweep/absence and nofork/content do not provide that filesystemwriter proof. If selectedhost lifecycle supplies it, bind that exact assumption/qualification and failclosedwhenunproven; otherwise retain unresolved/purgepending. No broad goal-supervisor rewrite/newVM/runtime or numericfallback authorized.",
+      "expectedCrossings": "L1 pauses afterfirstclaim/beforespawn and launcher pauses aftermkdir/beforelease; replacement sweep/hello/retire occurs; resumeoldwriter. Assert no latehomecreation/write after checked, or honest unresolved rather than falsepurge. Preserve allothermissionprocesses.",
+      "evidenceLimit": "Own static unchangedsource confirmation plus peer published Darwinactualsupervisor/ownedstandin crossing; root did not execute or requalify the peer probe here. Not an executed Q7/dsh/Linux/Render bug."
+    },
+    {
+      "id": "R4-FORK-RECORD-GAP",
+      "classification": "INCOMPLETE_PROCESS_IDENTITY_PROOF",
+      "lines": [
+        204,
+        219,
+        237,
+        238,
+        239,
+        240,
+        258,
+        299,
+        301,
+        604
+      ],
+      "evidence": "Durablelauncherentry precedes fork, but childentry is appended only afterfork237, beforepidfd238. Crash/alarm/partialchildentrywrite betweenfork anddurableappend leaves launcher-only or tornlease;299/604 enumerate nofork or handledfailure+settlement but omit interruptedpostfork path. Verifying launcherGone alone cannot prove an unrecordedchildgone. A caughtleasefailure with heldpidfd and reap is a different path.",
+      "required": "Represent incompletefork/childidentity recording as uncertain until an identity-safe proof establishes allownedwritersgone. An explicit pre-forkintent/completion protocol or another agreed mechanism may supply this; no required implementation chosen here. Launcher-onlyrecord alone must not permit cleanup after unsettledloss. Partial/tornlease must failclosed. Commoncleanup must cover append/fsync failure whether pidfd acquisition succeeds or fails.",
+      "expectedCrossings": "Ownedstandin interrupted afterfork/beforechildentry, midwayappend andfsync, with pidfdavailable/unavailable and launcher death/alarm. Verify no falselysettled/deleted/checked outcome, no numericsignals or unrelatedselection; retain unresolved until proof."
+    },
+    {
+      "id": "R4-STOP-PROOF-CLASSIFIER",
+      "classification": "CONTRADICTORY_STOP_RECEIPT_CONTRACT",
+      "lines": [
+        258,
+        269,
+        274,
+        301,
+        418,
+        431,
+        579,
+        597,
+        607,
+        654
+      ],
+      "evidence": "418 still answerschecked once launcherexited, while258-274/597 declare74 andsignalexits unsettled and require moreproof.431 only guards noexit, so an observedunsettledexit bypasses its protection.654 is similarly unconditional. This conflicts with newRetireclassifier and authorreported74childstillpresent observation693.",
+      "required": "Use same settled/unsettled/no-future-writer proof in Stop, Retire and allreceiptcallers. Launcherexit of74/signal is not Stopchecked; attempt boundedidentitycheck and return outcome_unknown/pending when proof absent. A nofork/settled exit proves only that launchers ownchildlifecycle, not existingforeignhomewriters. Keep lifecycleproof separate from create-rejected proof ofnocall439.",
+      "expectedCrossings": "Stop sees74/SIGALRM/PDEATHSIG, knownsettledcode, missing/torn/incompletelease or out-of-boundcheck. No Stopchecked or purgecompletion without valid proof; provider/accountingterminality remains independentlyhonest."
+    },
+    {
+      "id": "R4-TIMING-ORIGINS",
+      "classification": "TOTAL_BOUND_AND_CLOCK_CONTRACT_CORRECTION",
+      "lines": [
+        404,
+        405,
+        407,
+        408,
+        409,
+        417,
+        418,
+        428,
+        429,
+        430,
+        444,
+        822
+      ],
+      "evidence": "407 says killMs is TERM-to-KILL,418 says atkillMs afterStop. Originalbinding564 setsTERM2s andKILL5s afterStop.417 refused/unconfirmedgo stops asstopReply before answering, but428 createbound sums onlyclaim+ready+go. Stopformula uses onesettleWaitMs although409 defines perpending-settle retries, without parallel/commondeadline specified.",
+      "required": "Use one explicit timeorigin for TERM/KILL preserving original2s/5s schedule unless coordinated bindingamendment accepted. If termToKill interval is chosen for existingbehavior it is3s after2sgrace, not a silent7stotal. Include refusedgo cleanup in createbound or explicitly decouple cancellation safely while keeping fence/purgepending and allowing queuedStop. Bound aggregate settles under shareddeadline or honest sequentialsum. Separate queue-start, fencing, processverification andreceiptcompletion clocks.",
+      "expectedCrossings": "Fakeclock/stub for Stop arriving during claim/setup/ready/go, lost/refusedgo and pendingtwoordinals; assert exact sameorigin, no hiddencleanupwait and no checked due only to deadline."
+    },
+    {
+      "id": "R4-ACKNOWLEDGED-TERMINAL-WRITER",
+      "classification": "COORDINATED_CORE_LEDGER_BINDING_AMENDMENT_REQUIRED",
+      "lines": [
+        486,
+        515,
+        579,
+        582,
+        590,
+        613
+      ],
+      "evidence": "613 still says terminalreceipt-recorded andcapture-result-committed predicates are met by hello when no correspondingreceipt/turnend exists. Originalbinding572-580 requires concreteAPIproof for sevenconditions and relayclosed. Newterminalwriter can be coherent alternative, but absence of records is not theirpresence and contractsemantics are not defined by reasonlabels.",
+      "required": "Core/ledger/runtime owners must explicitly bind conditional terminalwriterproof predicates/keys for no-receipt/no-turnend outcomes and update acknowledged response/test contract. Preserve all otherobservation/usage/reservation/terminalstate/payloadscrub/closedrelay conditions and independent nofuturewriterproof. Do not mark nonexistentrecords recorded or treat terminalDBstate as blanketcleanup barrier.",
+      "expectedCrossings": "Each barrierpredicatewithheld, hello-terminal/no-receipt/no-turnend with actualdurablewriterproof, lateoldlease/duplicate receipts, queuedreceiptacktimeout and uncertainusage. If proofunavailable retainpurgepending."
+    }
+  ],
+  "evidenceAndHistoryCorrections": [
+    "Header7 cites historical f4472120 as corrected; actualreplay-corrected review is f42cdd11. Preserve originalf447 history; cite correctedrecord explicitly. No independentcompleteP1-E failure or mandatoryatomichello repair inferred.",
+    "AuthorL0Linuxstandins692-694 are reported evidence, not independently recovered/executed Linuxpinned-dshqualification by this root. PeerCX145actualsupervisorprobe is a separately published reported crossing with strictlimits, not thisrootexecution.",
+    "No newmainpoll/CIrerun. Lastobserved5ed752bd remainshistory; oldE/sourceCI and unchangedartifactinputs are not currentfullmain/deploymentqualification.",
+    "P1Linux/P7pinneddsh/P8selectedRender unit remain separate futurequalification. HistoricalLinuxVM/nullimageDigest351/734 does not grant newVM/host or repurposeexisting2GBjobdispatcher."
+  ],
+  "baseWindowOrderHandback": {
+    "base": "Exactdocs387fb2dc over5969756f independentlyreviewed; eight source dependencies matchparent. No accepted main/integrationbase or newsharedwindow.",
+    "window": "PhaseAwindowended/0053reserved; PhaseB/Q13/Studio held. CompatiblePhaseA93e consumerscope assessment is not Luisintegrationacceptance/mergeGO. Core/ledger/historicalowners must supply actualhandbacks.",
+    "order": "Consolidate above lifecycle/proof corrections in docs/stub-owned scope, publish immutablecandidate, independentlyrecheck affectedmechanisms; namedcore/ledger/Luis acceptedbase/window/order before sharedimplementation. Preserve G2plan5 order afterholds lifted: acceptedPhaseAprerequisite, additiveSQL, wire/contracts, bridge, supervisor/launcher/profile, qualification, each ownimmutablepin/fail-before/fullgates and combinedartifactidentity.",
+    "affectedFunctions": "SupervisorOptions.replies/environment/sweepReplies/start/recover/stop sequencing; reply-launch run/probe/check/sweep/digest, runtime-host/profile; ReplyChildren createReply/stopReply/retireReply/reconcileReply/dispose, ReplyChild lifecycle/bounds, ReplyRelay/fromJournal/reply-plugin. Core0049/conversationclaim/go/cancel/runtimehello/receipt/capture/observation/acknowledged/usageproofsource and generatedcontracts/routes require namedowners; no appliedmigration or Q13grant edits.",
+    "handback": "Local immutable sharedengineering record only; no CONnative control, cross-threadreply, newtask/monitor/runtime or sourcewriter. Architecture conditionaldirection retained; exactr4 CHANGES_REQUIRED due namedcontradictions, not merely because futurequalification has not run."
+  },
+  "effects": "Exactpublishedsource/comment/packet reads, Gitobjectfetch withoutcheckout/sourceedit, localjournal. No build/test/stubprobe/dsh/host/provider/model/image/credential/grant/spend/migration/deployment/publish.",
+  "sourceRecordSha256": "2489d9d36dd85c3673625bc8b52d342d26a4c7cc27ba1e9812a9a83a4d4ee74c",
+  "evidenceClass": "Peer independent source engineering review; not root-executed Linux qualification, core/ledger/Luis ACK, source window or operational approval."
+}
