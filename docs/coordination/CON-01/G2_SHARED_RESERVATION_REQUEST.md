@@ -1,9 +1,23 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 10 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 11 (owner incorporation; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
+
+**Revision 11, Codex takeover and retained-owner handbacks.** Davide transferred CON implementation to Codex on 12 October and required automatic Codex review after every push. This revision changes no executable source and opens no window. It incorporates the retained foundation owner's C-1, states its P-1 to P-4 precisely, and records the actual conditional research handback. The former CON Claude session is no longer the proposed feature writer.
+
+- Reviewed parent: `91110fdda17dab26b8b7b1a6f1026060d888fa7c`, document SHA256 `90ea5a52a1a292deb847d55d329d4fcd131538d4a0125507837b96d0f84973df`.
+- Foundation: [S1-05A-CC-0038](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-6131109861), actual session `session_0132HNzeA65ec3zBCL4KYtX2`. Conditional K-2b/runtime K-1b for exact r10; C-1 adds absence of observations and usage to local A-2/A-3 settlement. No unpublished work or active writer reported. Its interrupted multi-agent pass was stopped and is explicitly unqualified; the owner relies on its own source reads only. No tests were run by that owner.
+- Research: [SMC-M03-CC-0025](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-6130961758), actual session `session_018hCUhiK4hgMf5V5QPbkC9S`. Conditional K-2c for exact r10 only, H1–H5/O1–O4. No unpublished work, writer or monitor reported. Its goal/research path stays owned by M03.
+- Exact r10's root, K-1c and K-2d dispositions are recorded in [CC-0188](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6121348601); they are not extended to this material revision.
+- **Affected rechecks owed:** foundation's C-1/P delta, joint consumer and owner incorporation, and research compatibility. Core K-2a, Luis's base/Studio handback and K-5 remain absent.
+- **Research conditions are received, not yet fully incorporated:** the hello aggregation/capacity and non-raising fenced reply helper behavior need a separate exact amendment (§5). No claim that this revision clears H1–H5/O1–O4.
+- **Additional owner scope missing:** CC-0038 expressly does not acknowledge §3.3's bridge edits or §3.4's supervisor/launcher/profile edits. A precise retained-owner handback is required for those files/functions before writes; K-3's overlap/order ACK cannot proxy it.
+- **Preserved:** A-1, §3.2 and §3.3 are byte-identical to r10; frozen Q7 r8, applied migrations, executable files, artifacts and all operation drafts are untouched. A-2 is deliberately amended by C-1 and is no longer claimed byte-identical.
+- Observed main `83d9e33b6ce86cef5c75839ef9936f96e1ed5334` is not an accepted base. Phase A #256 and G1 composition still require Luis's acceptance. Ask remains off.
+
+## Historical revision records (each describes its own immutable pin)
 
 **Revision 10, after CX-0168 (reviewer `1706f438`): one docs-only correction to A-3.** Codex's root review of exact revision 9 (`1bd83eec`) finds its corrections to the deferral, the denial, D4's preflight and the citations responsive at proposal scope. It confirms A-1, A-2, §3.2 and §3.3 are unchanged. One new P2 remains, and it is accepted:
 
@@ -215,7 +229,7 @@ Each item is an existing Q7 r8 obligation that the joint ACK left to the core an
 |---|---|---|---|---|
 | B-1 | **Hello's lease-loss table:** keep it or drop it | **Keep it.** It ends a lease-lost request at the hello, whatever the new bridge answers to the replay. And it keeps a busy or replies-off bridge's `rejected` from releasing a reservation the old execution may have used. **If it is dropped,** the required alternative is accounting-safe: the bridge asks the claim before ever answering a replayed `create` `rejected`. Tests exist for both. P1-E stays withdrawn either way | S1-05A/BASE. SMC-M03 confirms that `runtime_hello`'s goal and research branch is preserved | §6, the table and "Why a table at all"; §10 |
 | B-2 | **The cleanup commands, `stop` and `retire`: their writers, keys and delivery.** Exactly one `retire` per attempt. One `stop` per attempt that was claimed, then cancelled. Each comes with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). The `runtime_commands` row exists only when a runtime is told: A-2's and A-3's local retirements have none (§3.1(d)'s counts). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **Two writers, using only existing unique constraints:**<ul><li>`conversation_cancel` writes the `stop`. Its `commands` row has key `conversation-stop:<attemptId>`, with the request's asker as its actor. Its one `outbox` row is `native.stop`, `binding/<bindingId>`, `cleanup` true, at epoch 2;</li><li>`conversation_retire` writes the `retire`. Its key is `conversation-retire:<attemptId>`, with the same actor. Its `outbox` row is `native.retire`, `binding/<bindingId>`, `cleanup` true, at the attempt's current epoch.</li></ul>The constraints are 0001's `UNIQUE(project_id, actor_id, idempotency_key)` and `UNIQUE(project_id, command_id, destination_key)`, and 0012's `UNIQUE(project_id, outbox_id)`. The actor is fixed per attempt, so each key stays unique per attempt whoever cancels. Each insert is `ON CONFLICT DO NOTHING`, **then the existing row is read back by its key and verified** (the same attempt, kind and epoch) before any dependent row. A mismatch refuses. So a repeated hello, receipt, withdrawal, erasure or source-out writes nothing new. **Precedence (PB3):** while an attempt's own `stop` has no recorded `checked` answer, `conversation_retire` writes nothing, whichever caller asks; that `checked` answer is the only path to such an attempt's `retire`. Both destinations stay inside the `native.%` reconcile filter, and the `create`'s rows are never reused. The owner may name other keys | S1-02 (the `commands` and `outbox` rows and keys); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §7, "Withdrawal"; §10's delivery counts |
-| B-3 | **The cursor rule** for `stop` and `retire`: replayed once per hello until a `checked` answer is recorded | A new version of `runtime_cursor` in 0049, with the same signature, owner, security, `search_path` and privileges. It is defined at 0012:399, and 0012 is not edited. Its only caller is `runtime_hello` (0028:105), so a `stop` or `retire` without a `checked` answer is replayed at each hello, and never in a loop within one connection. `runtime_poll` (0016:114) is not edited | S1-05A/BASE | §6, the `stopping` row |
+| B-3 | **The cursor rule** for reply `stop` and `retire`: replayed once per hello until that command has a recorded `checked` receipt | A new version of `runtime_cursor` in 0049, with the same signature, owner, security, `search_path` and privileges (0012:399 is not edited). **Reply cleanup only:** test absence of `runtime_receipts.stage = 'checked'` for the exact project/runtime-command id; never use `answered_stage`, which keeps the first answer. **Every goal command keeps the original `answered_stage IS NULL` predicate.** The single runtime low-water mark can replay later goal commands too; tests must prove their journal replay repeats no native effect. Its only caller is hello (0028:105); poll (0016:114) stays unchanged. The reply branch of bridge `execute` precedes the existing prior-receipt return, so cleanup is rechecked rather than answered from stale memory | S1-05A/BASE | §6, the `stopping` row |
 | B-4 | **BINDING_MAP §8.2.1:297 and :299,** which say "no second … outbox row or runtime command" beside "one `retire`" | Replaced in the accepted window by: "no second attempt, reservation, `create` or execution. Exactly one cleanup `retire`, with its own command and delivery rows; none on replay". CON edits its own binding only in that window, after B-2 is bound | CON, after B-2 | §6, "Owned by the core owner" |
 | B-5 | **The run gate, the claim, and whose lease each call needs** | `runtime_conversation_claim` and `runtime_conversation_go` (§3.1(c)) call `runtime_lease` first. A superseded bridge is refused with `40001`. The lease is the authenticated `bridgeInstanceId`; a body whose `leaseId` differs is refused. Then the request's row is locked, and `conversation_execution_claim` and `conversation_execution_go` run. One atomic `pending` → `running` transition, replayed for the same lease and command. **Claim, go and reserve act only for the claim's own lease. Settle also has Q7 r8's one recovery case:** the current bridge of the same runtime may resend a journaled settle for a request that capture ended, while its ordinal is `reserved`, or `settled` for an identical replay (§3.1(c)) | S1-05A/BASE (the entry points and `runtime_lease`); CON (the claim's table and functions, and S2's ledger) | §6, "The API and 0049"; §7's ledger table (r8:775) and "After a restart" |
 | B-6 | **The acknowledgement's eight predicates,** plus the relay's own condition | `runtime_conversation_acknowledged` → `conversation_acknowledged`. Each predicate is bound to its durable key as §7 lists them: `terminalWriter`, `createAnswered`, and `capture: none` only with no `turn/end` in both the journal and the database. A lease-loss `terminalWriter` is the hello's row in `conversation_executions`. **A cancelled request's `terminalWriter` is its `conversation_cancellations` row** (addendum A-1, §3.1(f)), never a later stop's answer. No predicate ever asserts a record that doesn't exist. **An attempt that no runtime was ever told of never reaches these predicates.** Its cleanup is settled locally: under addendum A-2 when it was cancelled, and under A-3 when its `create` was denied at dispatch while its request was still `pending`. The relay's `closed` is never asked of the API | S1-05A/BASE (the entry point, and A-1, A-2 and A-3 explicitly); CON (the predicates over its rows) | §7; addenda A-1, A-2 and A-3 are new |
@@ -289,6 +303,8 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 **The preservation test accounts for the insertions.** It doesn't claim whole definitions are byte-identical. For each function:
 - `pg_get_functiondef`, with each named insertion removed between its marker comments, equals the latest body byte for byte. An insertion that replaces text, like S4's in `conversation_source_out`, is compared with the original text restored in its place;
 - `proowner`, `prosecdef`, `proconfig` and `proacl` are equal before and after.
+
+**Receipt precision, P-3 (revision 11).** The reply branch preserves the foundation's first-answer evidence and command/outbox transition guards. If cleanup first answers `outcome_unknown` and later records `checked`, its `runtime_commands.answered_stage`, `outbox.state` and `commands.state` remain `outcome_unknown`; immutable `runtime_receipts` records both stages. The new `checked` drives only the reply binding's cleanup settlement and its one subsequent retire, as applicable. B-3 consults the recorded stage and stops replaying that cleanup. A later negative or duplicate stage cannot undo an already checked cleanup, revive the reply, publish text, release uncertain usage or reset an allowance. No reconcile change is added; 0053 keeps these rows outside its claim window. Tests pin each row and both stage orderings.
 
 **(c) The five authenticated runtime entry points** (new):
 - **The functions:** `sophia.runtime_conversation_claim`, `runtime_conversation_go`, `runtime_conversation_reserve`, `runtime_conversation_settle` and `runtime_conversation_acknowledged`. Each takes `(bytea, text, text, jsonb)` (the token hash, runtime unit, bridge instance and request) and returns `jsonb`.
@@ -499,7 +515,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 
   Until release is wired, **no reservation is ever released.** The receipt branch's `rejected` row finds none `reserved` in any reachable state: a reservation exists only after `go` (S2:311), and the hello's lease-loss rows move open ones to `uncertain`. Should one ever be found there, it becomes `uncertain`, still counted, and is never released. That narrows BINDING_MAP §8.4:437's "it is `released`" to the stub's reality for Phase B, and a test pins it.
 
-**(f) Three addenda to the frozen Q7 r8, named for explicit review.** A-1 and A-2 are unchanged since revision 4. A-3 is new in revision 9.
+**(f) Three addenda to the frozen Q7 r8, named for explicit review.** A-1 is unchanged since revision 4. A-2 and A-3 gain C-1's two absence checks in revision 11; A-3 was introduced in revision 9.
 - **Q7 r8 (`7d4a76d9`) stays frozen.** Its design ACK is not counted for any addendum.
 - **Who reviews each:** the retained runtime owner (S1-05A/BASE) and CON. The joint lane checks consumer compatibility (K-1b, K-1c).
 - **Not exceptions:** B-2's precedence guard and the settled-replay settle are restatements consistent with r8 (r8:709-718, :775). They are not exceptions.
@@ -513,9 +529,9 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - The stop's `checked` answer settles the binding, and is recorded as that.
   - The other seven predicates are unchanged, and none is skipped.
 
-**A-2: an attempt that no runtime was ever told of is retired locally.**
+**A-2: an attempt whose create never reached a runtime is retired locally, only after the complete local proof.**
 - **The case:** an attempt cancelled before any claim, when no runtime command was ever written for its binding.
-- **Why nothing exists to clean:** no bridge knows of the attempt, so none can claim, spawn, journal, observe, use or reserve anything for it.
+- **What no command proves:** no bridge can claim, spawn a conforming child, journal that child's output, or reserve a metered call for it. It does **not** prove that no observation or usage row exists: hello can disclose an unretired binding, and observation intake scopes to its runtime/binding without a command gate. C-1 therefore checks those two tables explicitly under the same project lock.
   - A claim needs the `create`'s runtime command for the caller's runtime (§3.1(c)), and a `pending` request.
   - A home exists only after a claim's spawn.
   - A reservation exists only after `go` (S2:311).
@@ -526,12 +542,15 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - the request is `cancelled`, and its `conversation_cancellations` row recorded the `create` as `superseded` or `left_to_dispatch`. That was read under the request lock at cancellation, so no runtime command existed then;
     - the `create`'s outbox row is now final and undispatched: `superseded` or `denied`;
     - no `conversation_executions` row exists for the attempt;
-    - no `runtime_commands` row exists for the binding.
+    - no `runtime_commands` row exists for the binding;
+    - **C-1:** no `native_observations` row exists for the binding;
+    - **C-1:** no `usage_records` row exists for the attempt.
 
     **The proof is historical, not a current absence.** A runtime command is written only in the same transaction that moves its outbox row to `acknowledged` (0012:768-770), and `conversation_dispatch` keeps that rule. A row that ended `superseded` or `denied` was never acknowledged, so no runtime command was ever written for it. The cancellation row records what held at cancellation. No migration in the base or in this manifest deletes `runtime_commands` rows. A test asserts that the recorded and final states agree, rather than relying on absence alone.
 - **What it writes:** the binding `retired`, the attempt `stopped`, the `retire`'s outbox row `settled`, and its `commands` row `checked`.
 - **What it never writes:** no `runtime_commands` row, no runtime receipt, no `create` answer, no claim, no `stop` and no call. The `create`'s `commands` row stays as the supersession or dispatch's denial left it. It is never marked answered.
 - **Fail closed:**
+  - **Contradictory observations or usage:** either C-1 check failing defers this retire through the existing typed-NULL deferral, without local settlement, deleting/scrubbing evidence, changing usage or declaring the barrier satisfied. Seed each independently, with every row except the already specified deferral transition unchanged.
   - **A row still in flight:** the `create`'s outbox row may still be `dispatching` or `outcome_unknown`, because a worker held its lease when the request was cancelled. Then the `retire` is deferred, not settled.
     - The `create`'s dispatch then finds the request no longer `pending`, and denies it. Or 0053's reconcile re-dispatches it into that same denial.
     - Only then does the `retire` settle.
@@ -543,13 +562,15 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **The case:** §3.1(d)'s denial case (B). `conversation_dispatch` holds the `create`'s live lease and the request is still `pending`, but `conversation_delivery_ineligible` gives a reason.
 - **Why nothing exists to clean:**
   - The `create`'s row is `dispatching` under this live lease, past D1's checks, so it was never `acknowledged`.
-  - A runtime command is written only in the transaction that acknowledges its row (0042:1893-1895). 0053's reconcile re-dispatches only a row with no runtime command. So no runtime was ever told.
+  - A runtime command is written only in the transaction that acknowledges its row (0042:1893-1895). 0053's reconcile re-dispatches only a row with no runtime command. So no create was ever dispatched; hello may still have disclosed the binding. Absence of observations and usage is checked separately by C-1.
   - With no runtime command there is no claim (§3.1(c)), no home, and no reservation (S2:311).
 - **Checked first,** under the dispatch's locks, before any write. All of these must hold:
   - the `create`'s row is `dispatching` under this transaction's live lease (D1);
   - no `runtime_commands` row exists for the binding;
   - no `conversation_executions` row exists for the attempt;
-  - no `conversation_reservations` row exists for the request, in any state: `reserved`, `settled`, `released` or `uncertain`.
+  - no `conversation_reservations` row exists for the request, in any state: `reserved`, `settled`, `released` or `uncertain`;
+  - **C-1:** no `native_observations` row exists for the binding;
+  - **C-1:** no `usage_records` row exists for the attempt.
 
   **The proof is in the transaction itself,** not a later absence.
 - **Only then does the one transaction write,** in this order:
@@ -557,7 +578,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   2. the request `failed`, reason `not_dispatched`, `settled_at = clock_timestamp()`, and only from `pending`;
   3. `conversation_retire`'s one `retire`, under B-2's key, read back and verified. No `stop` exists, so the precedence guard doesn't hold it back;
   4. its local settlement, with A-2's writes: the binding `retired`, the attempt `stopped`, the `retire`'s outbox row `settled` and its command `checked`.
-- **If any check fails, it refuses, and writes nothing** (revision 10). `conversation_dispatch` raises `55000`, with a fixed message and nothing from any row. The name is a proposal; S1-05A/BASE may rename it.
+- **If any check fails, it refuses, and writes nothing** (revision 10, extended by C-1). `conversation_dispatch` raises `55000`, with a fixed message and nothing from any row. The retained foundation owner confirmed this code in CC-0038.
   - The transaction rolls back. The `create`'s row stays as it was, the request stays `pending`, and every row is unchanged.
   - **What it doesn't do:**
     - no denial, no `failed` and no `not_dispatched`;
@@ -565,14 +586,14 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - no receipt, cancellation, claim, execution or call;
     - no reservation release, settlement or `uncertain` change, no counter or allowance change, and no reset or deletion.
   - **Why this is the truthful outcome:** contradictory evidence means the case isn't A-3's. Nothing here could name a `terminalWriter` for a `failed` request (r8:860-870): no receipt, capture, hello or A-1 cancellation ended it. So nothing is ended.
-  - **What happens next:** the row is handled like any undelivered row: D1's lease-expiry step, then 0053's reconcile. Each later dispatch refuses the same way while the contradiction stands. Resolving it is for its owner; nothing repairs it automatically.
+  - **What happens next:** the worker counts the exception as lost and does not immediately redispatch it. Its next per-pass `expire_dispatch_leases` moves an expired lease to `outcome_unknown`; 0053's reconcile returns a row with no runtime command to `pending`, then claim may lease it again. D1's own expiry step only applies to a dispatch actually called after expiry. Each later dispatch refuses while the contradiction remains; nothing repairs it automatically. No hot-loop or starvation waiver is implied.
 - **What it never writes:**
   - no runtime command, receipt, `create` answer, claim, `stop` or call;
   - no `conversation_cancellations` row, since this isn't a cancellation;
   - no `jobs`, goal or `project_events` row;
   - no reservation, counter or allowance change.
 - **The predicates:** like A-2's attempt, this one never reaches B-6's eight predicates. Its record is the request's `failed` state and A-3's rows. A-3 has only two outcomes, local retirement or a refusal that writes nothing, so no A-3 path ever needs a `terminalWriter` or a full retirement.
-- **Not changed:** A-1 and A-2, byte for byte. Every other attempt's `retire` keeps r8's full barrier.
+- **Not changed:** A-1, byte for byte. A-2 also receives C-1 in this revision. Every other attempt's `retire` keeps r8's full barrier.
 
 **Not edited:**
 - every other function in the inventory's §3. That includes `runtime_poll` (0016:114), `runtime_lease` (0012:387), `runtime_record_receipts`, `claim_runtime_outbox` and `reconcile_runtime_outbox`, which is 0053's after Phase A;
@@ -584,7 +605,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **`packages/persistence/src/runtime.db.test.ts`,** extended with Q7 r8 §10's SQL cases:
   - the hello table's rows;
   - the `stopping` replay once per hello;
-  - the cursor;
+  - B-3's reply-only receipt-aware cursor, including `outcome_unknown` then `checked`, both stage orderings, one stuck cleanup before later goal commands, and restart journal replay with no repeated goal effect;
   - the `retire`'s uniqueness across a repeated hello and a replayed receipt;
   - the claim and go;
   - `40001` for a superseded bridge;
@@ -597,6 +618,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - **race controls:**
       - with the `create`'s row `dispatching` under a held worker lease, the `retire` is deferred; the `create` is then denied, and only then does the `retire` settle;
       - with a `create` that did reach a runtime, the `retire` is delivered and acknowledged in full;
+      - **C-1:** seed one observation for the binding, then independently one usage record for the attempt. Each causes typed-NULL deferral, no local retirement or false deletion receipt, no cleanup of the contradictory evidence and no usage/allowance change. The digest allows only the exact existing deferral transition, not arbitrary row changes;
   - **denied at dispatch while the request is still `pending` (A-3).** Before the `create` is dispatched, the grant expires, the asker stops writing, or a source fails:
     - one transaction gives exactly A-3's four steps: the `create` row and its command `denied`; the request `failed` (`not_dispatched`); and one `retire`, settled locally (binding `retired`, attempt `stopped`, outbox `settled`, command `checked`);
     - no runtime command, receipt, claim, reservation, cancellation row, `jobs` row or project event;
@@ -606,8 +628,10 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
         - a `runtime_commands` row for the binding;
         - a `conversation_executions` row for the attempt;
         - a `conversation_reservations` row for the request, once `reserved` and once `uncertain`, with its grant's reserved and uncertain counters to match;
+        - **C-1:** a `native_observations` row for the binding;
+        - **C-1:** a `usage_records` row for the attempt;
       - in each, the dispatch refuses (`55000`) and the transaction rolls back;
-      - **every row is unchanged,** by a digest of each table's rows before and after: `outbox`, `commands`, `conversation_replies`, `work_attempts`, `execution_bindings`, `runtime_commands`, `conversation_executions`, `conversation_reservations`, the grant's counters and `project_events`;
+      - **every row is unchanged,** by a digest of each table's rows before and after: `outbox`, `commands`, `conversation_replies`, `work_attempts`, `execution_bindings`, `runtime_commands`, `conversation_executions`, `conversation_reservations`, `native_observations`, `usage_records`, the grant's counters and `project_events`. The before digest is taken **after claim commits**: its `dispatching`, lease and attempts increment are not A-3 writes (P-4);
       - **nothing is written:** no `failed`, `not_dispatched`, denial, `retire`, receipt, cancellation, claim or call; no reservation release, settlement or `uncertain` change, no allowance reset, and no deletion;
       - a later dispatch of the same row refuses the same way;
       - no case reaches B-6's predicates, and none needs a `terminalWriter`;
@@ -849,7 +873,7 @@ Q7 r8 §9's P1–P8 and §10's L1 cases run on the step 4 pin, composed with the
   - **G1's 0048 (PR #199),** because 0049 extends 0048's tables and functions, and `main` has neither. PR #199 is held at `d527f385`, pending Luis's Studio handback. So the integration owner either accepts G1 onto `main` first or names a composed base.
   - It is not `#211`'s diverged base, and not an unmerged CON candidate by default.
 - **The numbers:** 0049 for the migration, from CON's retained 0048–0050. A fresh census of every published ref, every PR and the local owner confirms it at the start. A16 is CON's amendment. **A collision stops the writer.** The historical reservations are not a fresh census, and 0053 stays reserved.
-- **One writer:** this CON thread, session `01KUDtFK9gWthsXSrepcLQz3` (D-10). Each owner in §1 is asked to acknowledge its own surfaces and to leave them unwritten during the window. The joint lane keeps its freeze on these surfaces until the handback, and #190 later merges `main` with its own writer. There is no second writer.
+- **One proposed writer:** Codex, session `01a1224a-32b4-7222-a017-50a277572d95`, under Davide's 12 October takeover. The former CON Claude session is no longer the feature implementer. This records the assignment, **not** a K-5 GO. Each retained owner must acknowledge its own surfaces and leave them unwritten during the exact window. The joint lane keeps its freeze until handback, and #190 later merges `main` with its own writer. No second writer or executable window is created here.
 - **The order:** §3's five steps. Each is pinned, reviewed and accepted before the next, and re-composes with the accepted base.
 
 **The gates (PB-GATE-ORDER).** CON chooses the first of the review's two sequences: **every accepted pin is complete and recorded.**
@@ -899,14 +923,17 @@ Any of these stops the writer and goes back to Codex.
 | K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1, A-2 and A-3, which the r8 design ACK does not cover. A-3 is new in revision 9, and its fallback was removed in revision 10 | **not recorded** (evidence below) |
 | K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). **A consumer ACK only.** **Withheld for exact revision 8** (`960f262f`; CX-0166 at `8bff1a41`; `joint-r8-review.safe.json`): one P2, PB8-A2-DEFER-HELPER-SCOPE, and one qualification gap, PB8-D4-EXISTING-ROW-INVENTORY. The review found D1, D2 and N1, D3's enqueue, D4's direction, C1 to C4 and D5's plan compatible at proposal scope. Revision 9 answers both. **Exact revision 9** (`1bd83eec`) **is changes-required at root** (CX-0168: PB9-A3-FALLBACK-TERMINAL-WRITER). The joint consumer's review of it reports the same gap; its final record wasn't in at CX-0168. Revision 10 answers that finding, so its **recheck is owed**. The exact-revision-5 ACK stays as it is, and isn't extended |
 | K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | **not recorded** |
-| K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | **not recorded** |
-| K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | **not recorded** |
+| K-2b | Retained S1-05A/BASE owner | §3.1(b)'s 0012-foundation rows, §3.1(c), `runtime_commands.kind`, B-3, §3.3's A04 binding/kind and §3.2's registration | **Conditional for exact r10 only:** [CC-0038](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-6131109861), actual session0132HNzeA65ec3zBCL4KYtX2, C-1. No active writer/unpublished work. This revision incorporates C-1/P-1 to P-4 and requires the owner's delta recheck. Its explicit exclusions include bridge/supervisor/profile scope, which is K-2e below |
+| K-2c | Recorded SMC-M03 owner | `runtime_hello` and `runtime_record_observations`; A11 preserved | **Conditional for exact r10 only:** [CC-0025](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-6130961758), actual session018hCUhiK4hgMf5V5QPbkC9S, H1–H5/O1–O4. No active writer/unpublished work/monitor. Research conditions are not yet fully incorporated; hello aggregation/capacity and non-raising fenced helper behavior need an exact amendment and affected rechecks. This is not permission to write the two bodies |
 | K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **conditional, against exact revision 5** (#198 comment 6120057551; its author is verified by Codex). The conditions are D1 to D5, C1 to C4 and N1, now in §3.1. **The owner's incorporation review of revision 8** (#198 comment 6120514429) acknowledges D1 to D3, D5, C1 to C4, N1, the ACLs and D4's CHECK as incorporated. It adds two corrections and a citation fix, which revision 9 makes: the explicit deferral and denial forms, and D4's preflight. **The owner's review of revision 9's corrections, and of A-3, is owed.** At CX-0168 the owner's review of revision 9 was in progress, and it isn't accepted or counted here. That review, or a fresh one, is owed for revision 10's A-3. None of this is K-1c, or a write GO |
 | K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **supplied, narrowly:** #198 comment 6120100817, from the retained source coordinator `session_0155SjcXhv87RErnWEBWxfBM` in its own source-coordination remit, against exact revision 5 (revision 6 unchanged in §1 to §4). Codex accepted it (CX-0164 at `c4389f84`; 6119717658). It covers the overlap and the order of regeneration only. It is not from `aca33481`, and it is no billing, product, merge or deploy approval. §3.2 and §3.3 are unchanged since revision 5, but K-3 is not extended to later revisions by this record. The same coordinator's 6120514429 restates that its K-3 covers revision 8's §3.2 and §3.3, byte-identical to revision 5's. They stay byte-identical in revision 9, as a fact rather than an extension. K-3 still covers only the overlap and the order |
 | K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | **not recorded.** #256 is a draft at `93e9313d` (mergeable). Luis's acceptance is pending in Codex's existing handoff (#256 comment 6116716003). #199 is a draft at `d527f385` (conflicting), pending Luis's Studio handback |
-| K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | **not started:** it waits on K-1b to K-4 |
+| K-2e | Retained S1-05A/R00 source owner, with joint preservation review | Exact §3.3 bridge/transport/protocol/index insertions and §3.4 supervisor/launcher/profile changes | **Not supplied:** CC-0038 expressly excludes them. Request only these already-listed files/functions, writer/unpublished-state and handback; no delegation, old batch, runtime/provider or source write. K-3's overlap/order is not a proxy for source ownership |
+| K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | **not started:** it waits on current affected rechecks and every required owner/base record, K-2e included |
 
 **Until all of them are recorded, nothing in §3 is written.** An owner that replaces a recommendation in §2 or §3 is recorded with its replacement. The affected rows are amended and acknowledged again.
+
+**Current incorporation state, revision 11.** K-1b's runtime part and K-2b were supplied conditionally for exact r10 in CC-0038; the core part is still absent. K-1c and K-2d for exact r10 are recorded in CC-0188/6121233960, not carried to r11. K-2c is conditional as above. K-3's prior exact overlap/order remains scoped; §3.2/§3.3 stay byte-identical here. Every old “not recorded” or “owed” state in the historical headers/evidence paragraph describes its original checkpoint, not an erasure of the new handbacks. The research conditions and additional K-2e scope remain open. This document is not source-ready Phase B.
 
 **The evidence for the state above.** Revision 6 searched through the newest comment at 07:26:57Z. Revision 7 adds only the two comments named in K-2d and K-3, revision 8 only Codex's K-3 disposition, revision 9 only CX-0166 and the owner's 6120514429, and revision 10 only CX-0168. No new inventory was made. The owner holds no evidenced route to the other owners beyond the planning record (S1-02 Luis; S1-05A and SMC-M01 Davide and Luis; SMC-M03 an unnamed implementer), and appoints no substitute. Revision 6's search:
 - **What was searched:** every comment created or edited from 05:00Z on (the request was first published at 05:36Z), in:
