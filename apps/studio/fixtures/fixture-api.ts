@@ -343,7 +343,12 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
 }
 
 /** A need's ref, with the record that holds it when the address needs it: a version's report, a decision's work item. */
-const needRef = (kind: string, id: string, within: string | null = null) => ({ kind, id, within })
+const needRef = (kind: string, id: string, within: string | null = null, resourceId: string | null = null) => ({
+  kind,
+  id,
+  within,
+  resourceId,
+})
 
 /** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
 export function needsAnswer(now = Date.now()) {
@@ -365,7 +370,9 @@ export function needsAnswer(now = Date.now()) {
         // A wait has no expiry (A13): a permission says how long it has waited instead.
         detail: 'Asked 10 min ago',
         at: at(-10),
-        ref: needRef('work_wait', 'wait-w1', '00000000-0000-4000-8000-0000000000c1'), // the wait, and the work item that holds it
+        // The wait by its request (A13's reference, the request Resources lists), the work item that holds it, and
+        // the resource whose tool holds the request.
+        ref: needRef('work_wait', 'action-1', '00000000-0000-4000-8000-0000000000c1', 'davide-claude'),
       }),
       need('guest:g1', 'guest', 'Marco Pereira is in the lobby', {
         detail: 'Waiting 2 min',
