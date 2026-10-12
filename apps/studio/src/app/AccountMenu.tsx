@@ -120,14 +120,10 @@ export function AccountMenu({ identity, where, actions }: Props) {
           </MenuItem>
           <MenuItem onClick={pick(actions.privacy)}>How privacy works</MenuItem>
           <Appearance />
-          {where === 'project' && (
-            <>
-              <MenuSep />
-              <MenuItem detail={keyLabel('mod+/', onMac)} onClick={pick(() => askCommands('index'))}>
-                Keyboard shortcuts
-              </MenuItem>
-            </>
-          )}
+          <MenuSep />
+          <MenuItem detail={keyLabel('mod+/', onMac)} onClick={pick(() => askCommands('index'))}>
+            Keyboard shortcuts
+          </MenuItem>
           <MenuSep />
           {passkeysOffered && authMode !== 'dev' && (
             <MenuItem onClick={pick(() => setPasskeys(true))}>Passkeys</MenuItem>

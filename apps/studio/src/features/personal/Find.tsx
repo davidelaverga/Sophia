@@ -5,7 +5,8 @@
 import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
-import { keyLabel, onMac, useShortcuts } from '../../app/shortcuts.ts'
+import { keyLabel, onMac } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import type { Row } from './conversation-view.ts'
 import { focusConversation } from './focus.ts'
 import { useEscape } from './useEscape.ts'
@@ -176,7 +177,7 @@ function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => voi
     clear()
     giveBack(back.current)
   }
-  useShortcuts({ 'mod+f': openFind }, on)
+  useCommands([{ id: 'find', words: 'Find in the conversation', group: 'do', key: 'mod+f', run: openFind }], on)
   useEscape(open && on, close)
   // Out of sight (another place, the padlock, a talk), it closes and keeps nothing: no query, nothing marked.
   useEffect(() => {

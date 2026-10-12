@@ -641,3 +641,47 @@ test('browser-account · blocked storage does not break navigation or account tr
   await anotherTab(context, session(SAME_ADDRESS))
   await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
 })
+
+test('browser-account · at Home the palette and the index know the places’ keys (docs/plans/places-commands.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  await expect(palette).toBeVisible()
+  const words = (await palette.getByRole('option').allInnerTexts()).join('\n')
+  for (const w of ['Home', 'Personal', 'Your projects', 'Your data', 'Lock your space', 'Your notes']) {
+    expect(words).toContain(w)
+  }
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+/')
+  const index = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(index).toBeVisible()
+  await expect(index.locator('.keys-list li')).toContainText([/Home\s*H$/, /Personal\s*P$/, /Your projects\s*W$/])
+  await expect(index.locator('.keys-list li')).toContainText([
+    /Your data\s*D$/,
+    /Lock your space\s*L$/,
+    /Your notes\s*T$/,
+  ])
+  await page.keyboard.press('Escape')
+  await account(page).click()
+  await expect(page.getByRole('menuitem', { name: /Keyboard shortcuts/ })).toBeVisible()
+})
+
+test('browser-account · at Home the palette’s veil covers the page, not the bar alone (Codex on #243)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await expect(page.getByRole('dialog', { name: 'Commands' })).toBeVisible()
+  const veil = await page.locator('.palette-veil').boundingBox()
+  const size = page.viewportSize()
+  expect(veil?.height).toBe(size?.height)
+  expect(veil?.width).toBe(size?.width)
+})
