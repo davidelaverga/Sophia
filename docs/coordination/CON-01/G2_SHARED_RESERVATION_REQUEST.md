@@ -1,11 +1,23 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 5 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 6 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
 
-**Revision 5, after CX-0161.** The joint review of revision 4 (`a31c023f`) and Codex's root review find all three PB3 corrections addressed at proposal scope. They also judge A-1's and A-2's directions compatible. One bounded P2 remains, a gap in the exact manifest rather than an observed failure, with the verdict `CHANGES_REQUIRED_ONE_BOUNDED_P2_EXACT_R4_K1C_NOT_SUPPLIED_NO_WRITE_GO`. It is accepted:
+**Revision 6, after CX-0162: the acknowledgement state, recorded; no manifest change.**
+- **Revision 5 (`b975bbe2`) has no findings.** The joint lane gave **K-1c** for that exact revision, A-1 and A-2 included, within its consumer remit (CX-0162). That is a consumer review only, not an owner ACK, an implementation qualification or a GO.
+- **This revision changes no part of the manifest.** §1 to §4 are byte-identical to revision 5's, so K-1c still names exactly what it reviewed. Only the following change:
+  - this header and the records table;
+  - §5's state column and its evidence;
+  - §6's operation-draft pointers: OP0002-r6 and OP0001-r4 replace r5 and r3. Both are `draft_not_authorized`, and neither is reviewed or approved here.
+- **Every other acknowledgement is still missing.** K-1b, K-2a to K-2d, K-3 and K-4 are each demonstrably not recorded (§5's evidence). No owner, identity or authority is inferred from routing records, planning files, consumer reviews or commit authors. So K-5 cannot start, and nothing in §3 is written.
+- **Carried for the implementer (CX-0162's notes), unchanged in scope:**
+  - **A-2's proof is the whole historical conjunction** (§3.1(f)). Final state alone, or row absence alone, is never enough.
+  - **Cause validation is null-safe and project-scoped.** The message lookup stays within the request's project and conversation. Each `cause_kind` and its fields are checked explicitly, so a NULL can never slip a malformed cause past a CHECK.
+  - **A source-answer withdrawal's cause is the immediate one:** the withdrawn answer, never a substituted upstream source.
+
+**Revision 5, after CX-0161.** Its disposition stands, unchanged below. The joint review of revision 4 (`a31c023f`) and Codex's root review find all three PB3 corrections addressed at proposal scope. They also judge A-1's and A-2's directions compatible. One bounded P2 remains, a gap in the exact manifest rather than an observed failure, with the verdict `CHANGES_REQUIRED_ONE_BOUNDED_P2_EXACT_R4_K1C_NOT_SUPPLIED_NO_WRITE_GO`. It is accepted:
 
 | Finding | Disposition | Where |
 |---|---|---|
@@ -60,6 +72,10 @@ What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consume
 | Codex's root review of revision 3 | [CX-0159](https://github.com/davidelaverga/Sophia/blob/2080f1d1945ae0d9d42a96933186c1828c466884/docs/coordination/CON-01/CX-0159.md) at `2080f1d1`; [#198 comment 6119240597](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119240597) |
 | The joint review of revision 4 | [`joint-phase-b-r4-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/a2118b1b7adac79c39eed93c3e29a3da4731f085/docs/coordination/CON-01/evidence/20261012-cx161-reservation-r4/joint-phase-b-r4-review.safe.json) at `a2118b1b`, SHA-256 `f37c213baff3bce3…` (original `9a9a9832c666c83f…`). One P2; K-1c not supplied |
 | Codex's root review of revision 4 | [CX-0161](https://github.com/davidelaverga/Sophia/blob/a2118b1b7adac79c39eed93c3e29a3da4731f085/docs/coordination/CON-01/CX-0161.md) at `a2118b1b`; [#198 comment 6119498696](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119498696) |
+| The joint review of revision 5 | [`joint-phase-b-r5-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/evidence/20261012-cx162-reservation-r5/joint-phase-b-r5-review.safe.json) at `2cb08a7b`, SHA-256 `86f1614cd3d98912…` (original `75904e556aead0be…`). `BOUNDED_CONSUMER_COMPATIBILITY_ACK_EXACT_PHASE_B_R5_K1C_ONLY_NO_WRITE_GO`; findings empty |
+| Codex's root review of revision 5 | [CX-0162](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/CX-0162.md) at `2cb08a7b`; [#198 comment 6119717658](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119717658) |
+| Revision 5 of this file | `b975bbe2409cce9d3349c049e2de5569b164b648`, tree `895b75e2`, SHA-256 `69219da474faf2c8…`, 677 lines. §1 to §4 here are byte-identical to it |
+| The current operation drafts | [`CON-01-OP-0002-r6.json`](https://github.com/davidelaverga/Sophia/blob/8af725ea44a6f16b4c0f2c6f6c004bef154c1fcf/docs/coordination/CON-01/CON-01-OP-0002-r6.json) (setup and human chat; SHA-256 `4ea475e83a44410c…`) and [`CON-01-OP-0001-r4.json`](https://github.com/davidelaverga/Sophia/blob/8af725ea44a6f16b4c0f2c6f6c004bef154c1fcf/docs/coordination/CON-01/CON-01-OP-0001-r4.json) (Ask; SHA-256 `661b196bb87f23bd…`), at `8af725ea`. Both are `draft_not_authorized`, and r5 and r3 stay as history. **Pointers only: not reviewed or approved here** |
 | Revision 4 of this file | `a31c023f5fe3ccd7c1731fd54aedb4877cfbc96e`, tree `31b660ea`, SHA-256 `b300b0a223933f6c…`, 635 lines |
 | Revision 3 of this file | `34397f7e7ee461949c3048918db68759e433f3cd`, tree `d659eaa2`, SHA-256 `68c924f0e83b558b…`, 541 lines |
 | Revision 2 of this file | `b6ee23a47188f94c291e0516643dce3f62309601`, tree `f71a9c7a`, SHA-256 `040c2041bd6aba50…`, 437 lines |
@@ -642,27 +658,46 @@ Any of these stops the writer and goes back to Codex.
 
 | # | From | Acknowledges | State |
 |---|---|---|---|
-| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | recorded by this revision |
-| K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1 and A-2, which the r8 design ACK does not cover | requested here |
-| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | requested here |
-| K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | requested here |
-| K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | requested here |
-| K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | requested here |
-| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | requested here |
-| K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | requested here |
-| K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | waits on Phase A's acceptance and G1 |
-| K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | after K-1 to K-4 |
+| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 6) |
+| K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1 and A-2, which the r8 design ACK does not cover | **not recorded** (evidence below) |
+| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). §1 to §4 are unchanged since. **A consumer ACK only** |
+| K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | **not recorded** |
+| K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | **not recorded** |
+| K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | **not recorded** |
+| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **not recorded.** The joint reviewer's K-1c and its r8 design ACK are consumer reviews, not this implementer's ACK of its own bodies |
+| K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **not recorded.** #190 is a draft at `5c10bce3`, with no activity since 2026-10-11T09:58Z |
+| K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | **not recorded.** #256 is a draft at `93e9313d` (mergeable). Luis's acceptance is pending in Codex's existing handoff (#256 comment 6116716003). #199 is a draft at `d527f385` (conflicting), pending Luis's Studio handback |
+| K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | **not started:** it waits on K-1b to K-4 |
 
 **Until all of them are recorded, nothing in §3 is written.** An owner that replaces a recommendation in §2 or §3 is recorded with its replacement. The affected rows are amended and acknowledged again.
+
+**The evidence for the state above** (revision 6; read on 2026-10-12, through the newest comment at 07:26:57Z):
+- **What was searched:** every comment created or edited from 05:00Z on (the request was first published at 05:36Z), in:
+  - issue #198, all five pages;
+  - PR #256: its comments, reviews and review threads;
+  - PR #199: its comments, its 122 reviews and its 71 review threads;
+  - PR #190: its comments, reviews and review threads.
+- **What it found:**
+  - No acknowledgement from S1-02, S1-05A/BASE, the SMC-M03 implementer, the joint implementer or #190's owner.
+  - No accepted base, no Phase A acceptance and no merge.
+  - The one comment in the window by anyone other than the account that posts CX and CC records is Luis's #199 comment 6118092274 (05:04Z). It is a Studio conflict note ("No CON-01 code of its own"), not an acknowledgement.
+- **Where each is still asked:**
+  - this file's §1 and §5, as revised through revision 5;
+  - for K-4, Codex's existing #256 handoff to Luis (6116716003).
+
+  No duplicate ownership request, new task or automation is created by this revision.
 
 ## 6. Already pending elsewhere, not repeated here
 
 - **Phase A's acceptance and merge:** PR #256, head `93e9313d`. The window has ended, and 0053 stays reserved.
-- **Luis's Studio handback:** the accepted base and order, the authoritative branch, the sole writer, and the four files with A15 and A16 regenerated. PR #199 stays at `d527f385`. CON's five follow-up corrections and `635a3ef2`'s withdrawal disclosure come after it.
+- **Luis's Studio handback:** the accepted base and order, the authoritative branch, the sole writer, and the four files with A15 and A16 regenerated. PR #199 stays at `d527f385`. There is no later explicit handback than his existing comments; the current reconciliation is #199 comment 6116157885.
+  - Luis's prepared resolutions are preserved.
+  - After the handback come CON's bounded corrections: the kit confirmation controls, the moderator's Remove wording, distinct coverage labels, and `635a3ef2`'s conservative withdrawal disclosure.
+  - Then Codex's independent recheck.
 - **Davide's:**
   - Q8: the reply profile rows and the runtime image;
   - D-4: no route bound, Ask stays off;
-  - OP-0002-r5 and OP-0001-r3 stay unapproved drafts.
+  - OP-0002-r6 (setup and human chat) and OP-0001-r4 (Ask) stay unapproved drafts. They replace r5 and r3, which stay as history.
 - **Q13's shared read policy and the reply identity's isolation:** `2ff7daeb`, its own scope (D-8).
 - **#211's room job and the Personal Find fix:** the personal owner's.
 
