@@ -34,7 +34,8 @@
     "job_logs": "Two reads of114606722479 returnedHTTP502; separatefresh run38185467853 jobs showed it in_progress. Timeout/error does not imply terminal; no restart/re-run/cancel.",
     "merge_GO": false,
     "currentMainMergeTree": "640414cd70f1b487ee4684e0d54f0d900fa9dfb5",
-    "joint_handback_requested": "Existing joint owner thread source-only coordination message sent, explicitly no operation repetition/PhaseB/mergeGO/core-authority substitution"
+    "joint_handback_requested": "Existing joint owner thread source-only coordination message sent, explicitly no operation repetition/PhaseB/mergeGO/core-authority substitution",
+    "last_wait": "114603140571 logread502, then freshsame-run38184271403jobs confirmsin_progress; no restart"
   },
   "PR190": {
     "open_billing_findings": [
@@ -97,5 +98,12 @@
       4238826987
     ],
     "disposition": "Author requested exact commit/current function/test/terminal-independent evidence map; no newtest/featureedit/rerun/blanketresolution. Reviewer read affected core source; no whole eight-thread clearance. Latest combined integration will invalidate affected prior evidence."
+  },
+  "delivery": {
+    "packet": "2006c541",
+    "mission_comment": 6116276231,
+    "exact_readback": true,
+    "native_map_request": "ExactCONmessage677 submittedandvisible; subsequent actualstreamactivelyreads cleanG1d527 source/tests/evidence; runningtool Checking D-3 status and the erase/withdraw components",
+    "status": "Mapperlive; returnedmapnotyetreviewed"
   }
 }
