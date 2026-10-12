@@ -44,7 +44,8 @@ test('light · Tasks: a report tile is an opaque tint with the accent as ink, at
   // Opaque: the tint is mixed with the paper, so it reads the same over a plane or a cover (Codex on #250).
   expect(rgb(tile?.fill ?? '')?.[4]).toBeUndefined()
   expect(tile?.fill).toBe('rgb(218, 228, 222)')
-  expect(tile?.ink).not.toBe(PAPER)
+  // The teal itself as the ink, not merely anything but the paper (Codex on #250).
+  expect(tile?.ink).toBe('rgb(15, 107, 91)')
   expect(contrast(tile?.ink ?? '', tile?.fill ?? '', PAPER)).toBeGreaterThanOrEqual(4.5)
 })
 
@@ -58,6 +59,25 @@ test('light · Knowledge: the cover’s format tag is an opaque tint of the ambe
   expect(tag?.fill).toBe('rgb(236, 225, 212)')
   expect(tag?.ink).toBe('rgb(143, 87, 23)')
   expect(contrast(tag?.ink ?? '', tag?.fill ?? '', PAPER)).toBeGreaterThanOrEqual(4.5)
+})
+
+test('light · a PDF’s tile is the opaque rose tint with the rose as ink (Codex on #250)', async ({ page }) => {
+  // No fixture page lists a PDF output today: a PDF tile is set beside the Markdown one, under the same rules.
+  await page.goto('/room.html?demo=1&place=work&theme=light')
+  await drawn(page, DRAWN.tasks)
+  await page.evaluate(() => {
+    const md = document.querySelector('.report-tile')
+    const pdf = md?.cloneNode()
+    if (!md || !(pdf instanceof HTMLElement)) return
+    pdf.dataset['format'] = 'pdf'
+    pdf.textContent = 'PDF'
+    md.after(pdf)
+  })
+  const pdf = await box(page, '.report-tile[data-format="pdf"]')
+  expect(pdf).not.toBeNull()
+  expect(pdf?.fill).toBe('rgb(239, 221, 222)')
+  expect(pdf?.ink).toBe('rgb(168, 55, 90)')
+  expect(contrast(pdf?.ink ?? '', pdf?.fill ?? '', PAPER)).toBeGreaterThanOrEqual(4.5)
 })
 
 test('light · the primary press is the brand’s violet, a step darker hovered, its ink at 4.5:1 or more', async ({

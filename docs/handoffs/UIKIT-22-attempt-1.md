@@ -5,9 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/board-why` from `ui/places-commands` at
 `7234a98c` (stacked on PR #243 → #242 → … → #220; the base retargets as each merges)
-Ending commit/tree: `70d8d558` (tree `6db658eb7e4e`): 7 files, 2 new (`e2e/board-why.spec.ts`,
-`docs/plans/board-why-blocked.md`); `plan.ts` (+ its test), `PlanBoard.tsx`, `PlanTab.tsx`, `board.css`. The commit
-after it adds only this handoff.
+Ending commit/tree: the branch's head as merged (`ui/board-why`); the first delivery was `70d8d558` (tree
+`6db658eb7e4e`, 7 files), and every later change is listed with its commit in the decisions and post-review notes below
+(Codex on #244: the record names the state delivered).
 
 ## Outcome
 
@@ -48,3 +48,14 @@ after it adds only this handoff.
 
 The queue from informe-pasada-3 §5 is done but for what needs an API (undo after Hold/Stop, «Needs you» badge and
 its API, «remind»); next is Luis's call: the API work with Davide (F2b, F8), or the lenses' product call.
+
+## Post-review (Codex on #244, later rounds)
+
+- Blockers are named in the plan's order (`blockersOf` filters the plan's rows; a unit test lists them reversed).
+- «and N more» stays in place as «fewer» (`aria-expanded`), so the focus is kept; a spec presses it by keyboard.
+- A blocker's long unbroken purpose wraps inside the lane (`overflow-wrap: anywhere`, shrinkable); a spec measures it.
+- The goal's chip wraps its marks to a second row instead of overflowing; a spec reads no overflow.
+- The task sheet's focus falls back to the task's own tile, else the board's first, when its opener is gone; a spec
+  completes the blocker with its sheet open and closes it.
+- The fixture's `waits=1` adds four blockers listed out of order, one with a long URL: the cap's regression case
+  (three named, «and 2 more», five after the press).
