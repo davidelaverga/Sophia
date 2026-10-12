@@ -487,12 +487,13 @@ test('arrow keys move across the tiles; Tab leaves the grid in one step', async 
     .getByRole('button')
     .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label') ?? ''))
   const at = (i: number) => tile(page, names[i] ?? '')
-  // How many tiles stand in a row at this width: the grid says (the page's column is 1280 at 1280 and up).
+  // How many tiles stand in a row at this width: the grid says (the page's column is 1280 at 1280 and up). Read from the
+  // layout (offsetTop), not the painted box: tiles still rising in as the page opens would read on two rows (CI).
   const perRow = await grid(page)
     .getByRole('button')
     .evaluateAll((ts) => {
-      const top = ts[0]?.getBoundingClientRect().top
-      return ts.filter((t) => Math.abs(t.getBoundingClientRect().top - (top ?? 0)) < 2).length
+      const tops = ts.map((t) => (t instanceof HTMLElement ? t.offsetTop : 0))
+      return tops.filter((top) => top === tops[0]).length
     })
   const last = names.length - 1
   await at(0).focus()
