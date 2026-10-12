@@ -1,11 +1,25 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 3 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 4 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
 
-**Revision 3, after CX-0157.** The joint review of revision 2 (`b6ee23a4`) and Codex's root review find CX-0155's four findings addressed at proposal scope. They found three new bounded P2s on adverse paths, with the verdict `CHANGES_REQUIRED_THREE_BOUNDED_P2_NOT_FULL_MANIFEST_ACK_NO_WRITE_GO`. Each is accepted:
+**Revision 4, after CX-0159.** The joint review of revision 3 (`34397f7e`) and Codex's root review find:
+- CX-0155's four findings still addressed;
+- CX-0157's `stop` delivery and source-out fixes standing;
+- the first `reserved` recovery settle fixed.
+
+They found three bounded P2s, contract gaps rather than observed failures, with the verdict `CHANGES_REQUIRED_THREE_BOUNDED_P2_K1C_NOT_SUPPLIED_NO_WRITE_GO`. Each is accepted. **Two of the corrections are named addenda to the frozen Q7 r8, for explicit review (§3.1(f)).** Q7 r8 itself is not rewritten, and its design ACK is not counted for them.
+
+| Finding | Disposition | Where |
+|---|---|---|
+| PB3-RECOVERY-SETTLED-REPLAY | **Accepted.** Revision 3's recovery case admitted only a `reserved` ordinal, so the new bridge's identical retry after a lost answer was refused before S2's own replay branch (S2:363-364). The recovery case now admits `reserved`, or `settled`, with every other condition unchanged. S2 then returns the existing receipt, without mutation, only for identical usage, and refuses anything else | §2 B-5, §3.1(c) |
+| PB3-STOPPING-RETIRE-PRECEDENCE | **Accepted.** For a claimed attempt that was cancelled, revision 3 required stop → `checked` → `retire`. But its generic `retire` callers (a terminal `create` receipt, capture, hello) were held back only by idempotency. `conversation_retire` and every caller now share one guard: while the attempt's own `stop` has no recorded `checked` answer, no `retire` is written by any path. A late `create` answer, capture or hello records its facts and changes neither the `cancelled` request, nor the `stopping` binding, nor any accounting | §2 B-2, §3.1(b), (d) |
+| PB3-UNDISPATCHED-CREATE-PROOF | **Accepted, through a named addendum.** Revision 3 delivered a `retire` to a runtime for an attempt that no runtime was ever told of. That `retire` could pass neither the entry points' scope nor Q7 r8's eight predicates. Revision 4 delivers it to no runtime:<ul><li>the cleanup is settled locally, exactly as the goal path already settles a cleanup for a binding with no runtime command (0042:1830-1837);</li><li>it happens only under locked proof that the `create` is permanently undispatched, unclaimed and unspawned (addendum A-2);</li><li>no receipt, `create` answer, claim, `stop` or call is invented, and no predicate is marked met.</li></ul>A durable cancellation record (`conversation_cancellations`) becomes the cancelled request's `terminalWriter` in every case, claimed or not (addendum A-1). A later stop's answer settles the binding, but it is never named as what ended the request | §2 B-6, §3.1(d), (f) |
+| The precision notes | **Accepted:**<ul><li>the promotion-equality test restores S4's original `UPDATE` in place of its replacement before comparing whole definitions;</li><li>an identical replay adds 0 rows, but a newly recorded `checked` stop after an `outcome_unknown` is a new transition, and writes the first `retire`;</li><li>claim takes an unclaimed request, so it can't require a claim to exist already;</li><li>the joint lane's K-1c now names this exact revision, not "the exact r2 manifest"</li></ul> | §3.1(b), (c), (d), (e); §1; §5 |
+
+**Revision 3, after CX-0157.** Its dispositions stand, unchanged below. The joint review of revision 2 (`b6ee23a4`) and Codex's root review find CX-0155's four findings addressed at proposal scope. They found three new bounded P2s on adverse paths, with the verdict `CHANGES_REQUIRED_THREE_BOUNDED_P2_NOT_FULL_MANIFEST_ACK_NO_WRITE_GO`. Each is accepted:
 
 | Finding | Disposition | Where |
 |---|---|---|
@@ -35,6 +49,9 @@ What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consume
 | Codex's root review and the combined packet | [CX-0155](https://github.com/davidelaverga/Sophia/blob/9fbc1fc26fcb5cd3a49d103a7e282d5bd8d75f0e/docs/coordination/CON-01/CX-0155.md) at `9fbc1fc2`; [#198 comment 6118556530](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6118556530) |
 | The joint review of revision 2 | [`joint-phase-b-r2-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/7b93140ad327617aad34f07634e76f7d311bd6cd/docs/coordination/CON-01/evidence/20261012-cx157-reservation-r2/joint-phase-b-r2-review.safe.json) at `7b93140a`, SHA-256 `aaf6b43e06f06372…` (original `2d37018cbace6ef1…`). Three P2s; CX-0155's four findings addressed at proposal scope |
 | Codex's root review of revision 2 | [CX-0157](https://github.com/davidelaverga/Sophia/blob/7b93140ad327617aad34f07634e76f7d311bd6cd/docs/coordination/CON-01/CX-0157.md) at `7b93140a`; [#198 comment 6118950446](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6118950446) |
+| The joint review of revision 3 | [`joint-phase-b-r3-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/2080f1d1945ae0d9d42a96933186c1828c466884/docs/coordination/CON-01/evidence/20261012-cx159-reservation-r3/joint-phase-b-r3-review.safe.json) at `2080f1d1`, SHA-256 `52ba6691dc9c12fb…` (original `13d622f405f19b73…`). Three P2s; K-1c not supplied |
+| Codex's root review of revision 3 | [CX-0159](https://github.com/davidelaverga/Sophia/blob/2080f1d1945ae0d9d42a96933186c1828c466884/docs/coordination/CON-01/CX-0159.md) at `2080f1d1`; [#198 comment 6119240597](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119240597) |
+| Revision 3 of this file | `34397f7e7ee461949c3048918db68759e433f3cd`, tree `d659eaa2`, SHA-256 `68c924f0e83b558b…`, 541 lines |
 | Revision 2 of this file | `b6ee23a47188f94c291e0516643dce3f62309601`, tree `f71a9c7a`, SHA-256 `040c2041bd6aba50…`, 437 lines |
 | Revision 1 of this file | `57f66b5067a4e50cc0df0190d491947f2624596b`, tree `7a571790`, SHA-256 `6aee5c9e789b23ea…`, 232 lines |
 | The owner routing | [`joint-owner-routing.r2.json`](https://github.com/davidelaverga/Sophia/blob/7dc23203eeaef3e91e4515f36127e1f86318d7c4/docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json) at `7dc23203`, SHA-256 `569fe9275b0bdb76…` |
@@ -56,9 +73,9 @@ Every surface Phase B touches has one recorded route. Each route is asked only a
 |---|---|---|
 | **CON's own:** the reply design; 0048's objects that Phase B replaces; S1–S4; the new `conversation_*` objects (§3.1(d)); A16; `packages/persistence/src/conversation-*.ts` | **CON-01** (this lane). **S2 is CON's reply-reservation ledger.** It is not the SMC-M01 mission ledger, and it needs no separate owner | Nothing; this file records CON's responsibility (K-1a). That responsibility doesn't extend to a shared surface |
 | **Core tables (0001):** `work_attempts`, `outbox` and `execution_bindings` (option C, §3.1(a)); `commands` (the `retire`'s idempotency key, read but not altered) | **Luis, S1-02** (routing r2, `core`: "source/schema coordination") | A narrow ACK of §3.1(a) and of B-2's rows. The lane names the current writer and reviewer for these tables |
-| **The 0012 runtime foundation:** `runtime_commands.kind`, `runtime_cursor`, `apply_runtime_receipt` and `runtime_lease`; the runtime entry-point pattern and its `sophia_api` grant; A04's `RuntimeWorkBinding` and `RuntimeCommand`; the runtime routes and their registration | **Davide/Luis, retained S1-05A/BASE** (routing r2: the access and product boundary; BASE.md:30 names the current writers) | A narrow ACK of §2's B-1, B-3, B-5 and B-6, of B-2's runtime part, and of §3.1(b), §3.1(c) and §3.2's registration. This is a scope ACK, not a mechanics choice: CON's recommendations stand unless the owner replaces one |
+| **The 0012 runtime foundation:** `runtime_commands.kind`, `runtime_cursor`, `apply_runtime_receipt` and `runtime_lease`; the runtime entry-point pattern and its `sophia_api` grant; A04's `RuntimeWorkBinding` and `RuntimeCommand`; the runtime routes and their registration | **Davide/Luis, retained S1-05A/BASE** (routing r2: the access and product boundary; BASE.md:30 names the current writers) | A narrow ACK of §2's B-1, B-3, B-5 and B-6, of B-2's runtime part, of §3.1(b), §3.1(c) and §3.2's registration, and, explicitly, of addenda A-1 and A-2 (§3.1(f)). This is a scope ACK, not a mechanics choice: CON's recommendations stand unless the owner replaces one |
 | **SMC-M03's latest bodies:** `runtime_hello` (0028:74) and `runtime_record_observations` (0023:20); A11's `RuntimeCommand` payload role and route | **The current SMC-M03 research implementer under Davide,** with Luis for UI integration | A narrow ACK that their goal and research paths are preserved, with only §3.1(b)'s named insertions |
-| **The joint lane's latest bodies:** `native_delivery_ineligible` (0041:149, SDD-01) and `dispatch_runtime_outbox` and `capture_native_result` (0042:1806 and :1724, WBC-02) | **The joint WBC-02/SDD-01 implementer,** for those bodies; their foundation is 0012's (S1-05A) | The implementer's ACK of the named insertions in its bodies. Separately, **the joint lane's consumer compatibility** with the exact r2 manifest. It has already judged B-1 to B-6 compatible as directions (CX-0155) |
+| **The joint lane's latest bodies:** `native_delivery_ineligible` (0041:149, SDD-01) and `dispatch_runtime_outbox` and `capture_native_result` (0042:1806 and :1724, WBC-02) | **The joint WBC-02/SDD-01 implementer,** for those bodies; their foundation is 0012's (S1-05A) | The implementer's ACK of the named insertions in its bodies. Separately, **the joint lane's consumer compatibility** with this exact revision, named by its commit and hash when acknowledged. It has already judged B-1 to B-6 compatible as directions (CX-0155) |
 | **#190's overlap:** the generated contracts and shared registration files that freeze r2 lists | **#190's owner** | The overlap and the order in which each side regenerates (Q10) |
 | **The base** | **Luis's integration review** | §4's exact commit and tree |
 | **The numbers, the census and the GO** | **Codex,** as the source coordinator | As for Phase A, after K-1 to K-4 |
@@ -81,11 +98,11 @@ Each item is an existing Q7 r8 obligation that the joint ACK left to the core an
 | # | The decision | CON's recommendation | Bound by | Q7 r8 |
 |---|---|---|---|---|
 | B-1 | **Hello's lease-loss table:** keep it or drop it | **Keep it.** It ends a lease-lost request at the hello, whatever the new bridge answers to the replay. And it keeps a busy or replies-off bridge's `rejected` from releasing a reservation the old execution may have used. **If it is dropped,** the required alternative is accounting-safe: the bridge asks the claim before ever answering a replayed `create` `rejected`. Tests exist for both. P1-E stays withdrawn either way | S1-05A/BASE. SMC-M03 confirms that `runtime_hello`'s goal and research branch is preserved | §6, the table and "Why a table at all"; §10 |
-| B-2 | **The cleanup commands, `stop` and `retire`: their writers, keys and delivery.** Exactly one `retire` per attempt. One `stop` per attempt that was claimed, then cancelled. Each comes with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **Two writers, using only existing unique constraints:**<ul><li>`conversation_cancel` writes the `stop`. Its `commands` row has key `conversation-stop:<attemptId>`, with the request's asker as its actor. Its one `outbox` row is `native.stop`, `binding/<bindingId>`, `cleanup` true, at epoch 2;</li><li>`conversation_retire` writes the `retire`. Its key is `conversation-retire:<attemptId>`, with the same actor. Its `outbox` row is `native.retire`, `binding/<bindingId>`, `cleanup` true, at the attempt's current epoch.</li></ul>The constraints are 0001's `UNIQUE(project_id, actor_id, idempotency_key)` and `UNIQUE(project_id, command_id, destination_key)`, and 0012's `UNIQUE(project_id, outbox_id)`. The actor is fixed per attempt, so each key stays unique per attempt whoever cancels. Each insert is `ON CONFLICT DO NOTHING`, **then the existing row is read back by its key and verified** (the same attempt, kind and epoch) before any dependent row. A mismatch refuses. So a repeated hello, receipt, withdrawal, erasure or source-out writes nothing new. Both destinations stay inside the `native.%` reconcile filter, and the `create`'s rows are never reused. The owner may name other keys | S1-02 (the `commands` and `outbox` rows and keys); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §7, "Withdrawal"; §10's delivery counts |
+| B-2 | **The cleanup commands, `stop` and `retire`: their writers, keys and delivery.** Exactly one `retire` per attempt. One `stop` per attempt that was claimed, then cancelled. Each comes with its own `commands`, `outbox` and `runtime_commands` rows (0012:74, 77-79). Never a new Ask, `create` or execution, attempt, reservation, call or allowance reset | **Two writers, using only existing unique constraints:**<ul><li>`conversation_cancel` writes the `stop`. Its `commands` row has key `conversation-stop:<attemptId>`, with the request's asker as its actor. Its one `outbox` row is `native.stop`, `binding/<bindingId>`, `cleanup` true, at epoch 2;</li><li>`conversation_retire` writes the `retire`. Its key is `conversation-retire:<attemptId>`, with the same actor. Its `outbox` row is `native.retire`, `binding/<bindingId>`, `cleanup` true, at the attempt's current epoch.</li></ul>The constraints are 0001's `UNIQUE(project_id, actor_id, idempotency_key)` and `UNIQUE(project_id, command_id, destination_key)`, and 0012's `UNIQUE(project_id, outbox_id)`. The actor is fixed per attempt, so each key stays unique per attempt whoever cancels. Each insert is `ON CONFLICT DO NOTHING`, **then the existing row is read back by its key and verified** (the same attempt, kind and epoch) before any dependent row. A mismatch refuses. So a repeated hello, receipt, withdrawal, erasure or source-out writes nothing new. **Precedence (PB3):** while an attempt's own `stop` has no recorded `checked` answer, `conversation_retire` writes nothing, whichever caller asks; that `checked` answer is the only path to such an attempt's `retire`. Both destinations stay inside the `native.%` reconcile filter, and the `create`'s rows are never reused. The owner may name other keys | S1-02 (the `commands` and `outbox` rows and keys); S1-05A/BASE (`runtime_commands.kind` and the callers) | §6, "The one exception"; §7, "Withdrawal"; §10's delivery counts |
 | B-3 | **The cursor rule** for `stop` and `retire`: replayed once per hello until a `checked` answer is recorded | A new version of `runtime_cursor` in 0049, with the same signature, owner, security, `search_path` and privileges. It is defined at 0012:399, and 0012 is not edited. Its only caller is `runtime_hello` (0028:105), so a `stop` or `retire` without a `checked` answer is replayed at each hello, and never in a loop within one connection. `runtime_poll` (0016:114) is not edited | S1-05A/BASE | §6, the `stopping` row |
 | B-4 | **BINDING_MAP §8.2.1:297 and :299,** which say "no second … outbox row or runtime command" beside "one `retire`" | Replaced in the accepted window by: "no second attempt, reservation, `create` or execution. Exactly one cleanup `retire`, with its own command and delivery rows; none on replay". CON edits its own binding only in that window, after B-2 is bound | CON, after B-2 | §6, "Owned by the core owner" |
-| B-5 | **The run gate, the claim, and whose lease each call needs** | `runtime_conversation_claim` and `runtime_conversation_go` (§3.1(c)) call `runtime_lease` first. A superseded bridge is refused with `40001`. The lease is the authenticated `bridgeInstanceId`; a body whose `leaseId` differs is refused. Then the request's row is locked, and `conversation_execution_claim` and `conversation_execution_go` run. One atomic `pending` → `running` transition, replayed for the same lease and command. **Claim, go and reserve act only for the claim's own lease. Settle also has Q7 r8's one recovery case:** the current bridge of the same runtime may resend a journaled settle for a request that capture ended, while its ordinal is still `reserved` (§3.1(c)) | S1-05A/BASE (the entry points and `runtime_lease`); CON (the claim's table and functions, and S2's ledger) | §6, "The API and 0049"; §7's ledger table (r8:775) and "After a restart" |
-| B-6 | **The acknowledgement's eight predicates,** plus the relay's own condition | `runtime_conversation_acknowledged` → `conversation_acknowledged`. Each predicate is bound to its durable key as §7 lists them: `terminalWriter`, `createAnswered`, and `capture: none` only with no `turn/end` in both the journal and the database. A lease-loss `terminalWriter` is the hello's row in `conversation_executions`. No predicate ever asserts a record that doesn't exist. The relay's `closed` is never asked of the API | S1-05A/BASE (the entry point); CON (the predicates over its rows) | §7 |
+| B-5 | **The run gate, the claim, and whose lease each call needs** | `runtime_conversation_claim` and `runtime_conversation_go` (§3.1(c)) call `runtime_lease` first. A superseded bridge is refused with `40001`. The lease is the authenticated `bridgeInstanceId`; a body whose `leaseId` differs is refused. Then the request's row is locked, and `conversation_execution_claim` and `conversation_execution_go` run. One atomic `pending` → `running` transition, replayed for the same lease and command. **Claim, go and reserve act only for the claim's own lease. Settle also has Q7 r8's one recovery case:** the current bridge of the same runtime may resend a journaled settle for a request that capture ended, while its ordinal is `reserved`, or `settled` for an identical replay (§3.1(c)) | S1-05A/BASE (the entry points and `runtime_lease`); CON (the claim's table and functions, and S2's ledger) | §6, "The API and 0049"; §7's ledger table (r8:775) and "After a restart" |
+| B-6 | **The acknowledgement's eight predicates,** plus the relay's own condition | `runtime_conversation_acknowledged` → `conversation_acknowledged`. Each predicate is bound to its durable key as §7 lists them: `terminalWriter`, `createAnswered`, and `capture: none` only with no `turn/end` in both the journal and the database. A lease-loss `terminalWriter` is the hello's row in `conversation_executions`. **A cancelled request's `terminalWriter` is its `conversation_cancellations` row** (addendum A-1, §3.1(f)), never a later stop's answer. No predicate ever asserts a record that doesn't exist. **An attempt that no runtime was ever told of never reaches these predicates.** Its cleanup is settled locally under addendum A-2. The relay's `closed` is never asked of the API | S1-05A/BASE (the entry point, and A-1 and A-2 explicitly); CON (the predicates over its rows) | §7; addenda A-1 and A-2 are new |
 
 ## 3. Phase B's exact scope, by step
 
@@ -129,12 +146,12 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 | `native_delivery_ineligible` | 0041:149 | Joint (SDD-01) | A first `WHEN g.id IS NULL` refuses |
 | `capture_native_result` | 0042:1724 | Joint (WBC-02) | A reply branch first, keyed on the attempt's `conversation_reply_id`, before any goal or job read. A `g.id IS NULL` guard |
 | `runtime_hello` | 0028:74 | SMC-M03; 0012 foundation | The reply bindings as a `UNION ALL` beside the goal bindings. B-1's table, in the hello's own transaction after its project lock and instance update |
-| `apply_runtime_receipt` | 0012:464 | S1-05A | A reply branch first, before the goal and job reads (BINDING_MAP §8.2.1). For cleanup, a `checked` `stop` settles the binding and calls `conversation_retire`; any other answer leaves it `stopping`, replayed at each hello (B-3). Either way, an open reservation becomes `uncertain`. A `checked` `retire` marks the binding `retired`; any other answer leaves it, replayed at each hello |
+| `apply_runtime_receipt` | 0012:464 | S1-05A | A reply branch first, before the goal and job reads (BINDING_MAP §8.2.1). For cleanup, a `checked` `stop` settles the binding and calls `conversation_retire`; any other answer leaves it `stopping`, replayed at each hello (B-3). Either way, an open reservation becomes `uncertain`. A `checked` `retire` marks the binding `retired`; any other answer leaves it, replayed at each hello. **A `create` answer for a cancelled attempt** (`rejected`, `failed` or `outcome_unknown`):<ul><li>is recorded once per stage (0016:97-102), and what it carries is scrubbed;</li><li>changes neither the `cancelled` request, nor the `stopping` binding, nor any accounting;</li><li>its `conversation_retire` call writes nothing while the attempt's own `stop` is unconfirmed (B-2's precedence)</li></ul> |
 | `runtime_record_observations` | 0023:20 | SMC-M03; 0012 foundation | A privacy-fenced reply branch, under the conversation writers' lock order (§8.2.2) |
 | `runtime_cursor` | 0012:399 | S1-05A | B-3's rule only |
 
 **The preservation test accounts for the insertions.** It doesn't claim whole definitions are byte-identical. For each function:
-- `pg_get_functiondef`, with each named insertion removed between its marker comments, equals the latest body byte for byte;
+- `pg_get_functiondef`, with each named insertion removed between its marker comments, equals the latest body byte for byte. An insertion that replaces text, like S4's in `conversation_source_out`, is compared with the original text restored in its place;
 - `proowner`, `prosecdef`, `proconfig` and `proacl` are equal before and after.
 
 **(c) The five authenticated runtime entry points** (new):
@@ -146,19 +163,23 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - Every call must name an attempt whose binding has that project, resource and unit, and whose `create` was queued for that runtime instance (`runtime_commands.runtime_id`).
   - The request, attempt, binding, command and ordinal must all belong together.
   - A unit name alone is never the scope.
-- **Claim, go and reserve** act only for the claim's own lease: the caller's `bridgeInstanceId`.
+- **Claim** takes the request only while no claim exists. Under the request lock, it records the caller's `bridgeInstanceId` as the claim's lease. A replay by the same lease and command answers as before, and any other caller is refused (`already_claimed`). It never requires a claim that doesn't exist yet.
+- **Go and reserve** act only for the claim's own lease: the caller's `bridgeInstanceId`.
 - **Settle** acts in two cases (PB2-RECOVERY-SETTLE-LEASE), and in no other:
   - **live:** the claim's lease is the caller's;
   - **recovery** (Q7 r8:775, :887), when all of these hold:
     - the caller holds the runtime's current lease, which `runtime_lease` has just proved;
     - the claim's lease is an earlier bridge instance of the same runtime;
     - the request is terminal, and `conversation_acknowledged`'s `terminalWriter` is capture;
-    - the ordinal is still `reserved`.
+    - the ordinal is `reserved`, or `settled`. A `settled` ordinal here is the identical replay of a recovery settle whose answer was lost (PB3-RECOVERY-SETTLED-REPLAY).
 
-  In both cases S2's `conversation_settle` then checks the amounts. It accepts `reserved` → `settled` or an identical replay, and refuses anything else (`outcome_conflict`).
-  - **An `uncertain` ordinal is never settled.**
+  In both cases S2's `conversation_settle` then checks the amounts. It accepts `reserved` → `settled`, or an identical replay, and refuses anything else (`outcome_conflict`).
+  - **For a `settled` ordinal,** it returns the existing receipt without any mutation, and only when the usage is identical (S2:363-364). The grant's counters don't move.
+  - **A later current instance** of the same runtime replays the same way.
+  - **A different body** is `outcome_conflict`.
+  - **An `uncertain` or `released` ordinal** is refused, and is never settled.
   - **The recovery case is settle only.** It never claims, goes, reserves, releases, resets an allowance or moves the claim.
-  - **Why capture is the only terminal writer here:** a request that a receipt or the hello's lease-loss rows ended has no `reserved` ordinal left, because both move open ones to `uncertain`.
+  - **Why capture is the only terminal writer here:** a request ended any other way loses its open ordinals to `uncertain`. That covers a receipt, the hello's lease-loss rows, and a cancellation, whose own `stop` answer moves them (Q7 r8 §7). A recovering bridge never settles a cancelled request's ordinal.
 - **Acknowledged** requires the scope only, because the recovering bridge asks it (Q7 r8 §7).
 - **Their ACL:** `REVOKE ALL ... FROM PUBLIC`, then `GRANT EXECUTE ... TO sophia_api`, for these five only.
 
@@ -172,11 +193,20 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 
 **(d) CON's new internal objects.** None has a grant: `REVOKE ALL ... FROM PUBLIC, sophia_api, sophia_worker`; each table has row security on and no policy.
 - **The table `sophia.conversation_executions`:** one row per attempt (`UNIQUE (project_id, attempt_id)`). It holds the request, the command, the lease (`bridgeInstanceId`), the epoch and the claim's outcome (`claimed`, `running` or `lost`). For a lease loss, it also holds the hello's instance that recorded it (B-6's `terminalWriter`).
+- **The table `sophia.conversation_cancellations` (new; addendum A-1):** one row per cancelled request (`UNIQUE (project_id, reply_id)`). `conversation_cancel` writes it in the same transaction as the `cancelled` state, and it is never changed afterwards. It records:
+  - the request, and its attempt if there is one;
+  - the reason and the time;
+  - the caller (`conversation_withdrawn_from` or `conversation_source_out`) and its cause: the withdrawn message's conversation and seq, the erasure, or the source;
+  - the epoch it raised;
+  - whether a claim existed, and the `stop` command it wrote, if any;
+  - what became of the `create`: superseded, left to dispatch's denial, or already dispatched.
+
+  It is the cancelled request's `terminalWriter` (B-6).
 - **The claim and go:** `conversation_execution_claim` and `conversation_execution_go` (B-5).
 - **Dispatch and delivery (PB2-STOP-DELIVERY):**
   - **`conversation_dispatch(o)`, by destination:**
     - `native.create`: the inventory's §4.2 eligibility, `conversation_reply_statement` and the payload, as a `create` runtime command at epoch 1;
-    - `native.stop` and `native.retire`, the cleanup rows: a `stop` or `retire` runtime command at the row's epoch. Its payload has no text, role or route, and nothing is assembled. **A cancelled request's grant, open state and sources are never checked for cleanup,** so they can't block an authorized attempt's cleanup.
+    - `native.stop` and `native.retire`, the cleanup rows: a `stop` or `retire` runtime command at the row's epoch. Its payload has no text, role or route, and nothing is assembled. **A cancelled request's grant, open state and sources are never checked for cleanup,** so they can't block an authorized attempt's cleanup. **Except under addendum A-2:** a `native.retire` row whose binding has never had any runtime command is delivered to no runtime. It is settled locally if A-2's conditions hold, and deferred otherwise (§3.1(f)).
   - **`conversation_reply_statement`:** BINDING_MAP §8.3's statement, built only from S3's recorded context. It refuses without one.
   - **`conversation_delivery_ineligible(o)`:**
     - for `native.create`, the inventory's §4.2 conditions;
@@ -184,11 +214,14 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - **Cancelling: `conversation_cancel(p_project uuid, p_reply uuid, p_reason text, p_at timestamptz)`.**
   - **Locks first:** its caller already holds the project and conversation locks. It locks the request's row, and does nothing unless the request is `pending` or `running`.
   - **Then reads:** the request's attempt, binding and claim, and whether the `create` has a runtime command. All of this is read **before** any state changes.
-  - **Then, in every case:** the request becomes `cancelled`, with the reason and `settled_at`, and the attempt's epoch rises to 2.
+  - **Then, in every case:**
+    - the request becomes `cancelled`, with the reason and `settled_at`, and the attempt's epoch rises to 2;
+    - its `conversation_cancellations` row is written in the same transaction (A-1);
+    - if a runtime command holds the `create`'s payload, it is scrubbed in place (Q7 r8's `payloadScrubbed`).
   - **What else depends on the claim:**
     - **No claim yet.** No execution exists, and none can start: a claim needs `pending` under this same lock.
       - The `create`'s outbox row, if still `pending`, is superseded, as `research_stop_revoked` does (0028:115). If a worker already holds its lease, dispatch finds the request no longer `pending` and denies it.
-      - No `stop` is written. `conversation_retire` writes the attempt's one `retire` now.
+      - No `stop` is written. `conversation_retire` writes the attempt's one `retire` now. If the `create` never reached a runtime, that `retire` reaches none either: A-2 settles it locally (§3.1(f)).
       - If the `create` already reached a runtime, the bridge's claim is refused `not_pending`. It spawns nothing and answers `outcome_unknown`, which writes nothing new.
     - **A claim exists, before or after `go`.** The binding becomes `stopping`, and B-2's one `stop` is written at epoch 2.
       - Its `checked` answer settles the binding and writes the one `retire`.
@@ -207,16 +240,21 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - by `capture_native_result`'s reply branch;
   - by `runtime_hello`'s lease-loss rows.
 
-  It writes nothing if the attempt's `retire` already exists. So **each attempt has exactly one `retire`**, whichever path reaches it first.
+  **One guard, in the writer, so every caller has it (PB3-STOPPING-RETIRE-PRECEDENCE).** Under the request's and the binding's locks, `conversation_retire` writes nothing in either of two cases:
+  - the attempt's `retire` already exists;
+  - the attempt has a `stop` (a claimed attempt that was cancelled) whose runtime command has no recorded `checked` answer.
+
+  So for such an attempt, a late `create` answer, capture or a hello writes no `retire`, however often it arrives. The stop's own `checked` answer, through `apply_runtime_receipt`, is the only path to it. A newly recorded `checked` after an earlier `outcome_unknown` is a new stage, not a replay, and writes the first `retire`. **Each attempt has exactly one `retire`.**
 - **The delivery counts,** in `commands` / `outbox` / `runtime_commands` rows per attempt:
 
   | How the attempt ends | `create` | `stop` | `retire` |
   |---|---|---|---|
   | Not cancelled: capture, a terminal receipt, or the hello's lease-loss rows | 1 / 1 / 1 | 0 | 1 / 1 / 1 |
-  | Cancelled before any claim, the `create` not yet dispatched | 1 / 1 (superseded) / 0 | 0 | 1 / 1 / 1 |
+  | Cancelled before any claim, the `create` never dispatched | 1 / 1 (superseded or denied) / 0 | 0 | 1 / 1 / 0: settled locally, no runtime told (A-2) |
   | Cancelled before any claim, the `create` already dispatched | 1 / 1 / 1 | 0 | 1 / 1 / 1 |
-  | Cancelled after a claim, before or after `go` | 1 / 1 / 1 | 1 / 1 / 1, at epoch 2 | 1 / 1 / 1 |
-  | Any replay: hello, receipt, withdrawal, erasure, source-out | +0 | +0 | +0 |
+  | Cancelled after a claim, before or after `go` | 1 / 1 / 1 | 1 / 1 / 1, at epoch 2 | 1 / 1 / 1, written only by the stop's own `checked` |
+  | An identical replay: hello, receipt, withdrawal, erasure, source-out | +0 | +0 | +0 |
+  | A new `checked` stop answer after an earlier `outcome_unknown` | +0 | its stage recorded once | the first `retire`, once |
 - **`conversation_acknowledged`:** B-6.
 - **Replaced from 0048, keeping each one's owner, security, `search_path` and privileges:**
   - `conversation_ask`, the admission (the inventory, §4.1);
@@ -248,7 +286,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - **Also unchanged:** the suppressions, tombstones and counts, and the answered branch (:457-465).
     - That branch still reaches later open requests in the same conversation through `conversation_withdrawn_from`, which now cancels each through `conversation_cancel`.
     - Nothing reaches other humans, other conversations or independent decisions.
-  - **The promotion-equality test** strips exactly this insertion from `conversation_source_out` and compares the rest byte for byte. Every other S4 function is compared whole.
+  - **The promotion-equality test** restores the candidate's original `UPDATE` (:454-455) in place of this insertion, then compares the whole definition with the candidate's byte for byte. Every other S4 function is compared whole, unchanged.
   - **Nothing else is added:** no source-policy trigger, grant or Q13 scope. `conversation_source_out` still has no caller but a test's owner setup, until the held source-writer and Q13 integration.
 - **The assembly dependency, named.** A reply's context is assembled only by the isolated identity that Q13's scope defines and qualifies (D-8's tests). Until Q13 is accepted and its own scope is written:
   - no reply can be assembled outside a test's owner setup;
@@ -259,6 +297,44 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - reconcile's is the attempt's `usage_records`, by ordinal (Q7 r8 §6). It is run only by an operator, separately authorized.
 
   Until release is wired, **no reservation is ever released.** The receipt branch's `rejected` row finds none `reserved` in any reachable state: a reservation exists only after `go` (S2:311), and the hello's lease-loss rows move open ones to `uncertain`. Should one ever be found there, it becomes `uncertain`, still counted, and is never released. That narrows BINDING_MAP §8.4:437's "it is `released`" to the stub's reality for Phase B, and a test pins it.
+
+**(f) Two addenda to the frozen Q7 r8, named for explicit review.**
+- **Q7 r8 (`7d4a76d9`) stays frozen.** Its design ACK is not counted for either addendum.
+- **Who reviews each:** the retained runtime owner (S1-05A/BASE) and CON. The joint lane checks consumer compatibility (K-1b, K-1c).
+- **Not exceptions:** B-2's precedence guard and the settled-replay settle are restatements consistent with r8 (r8:709-718, :775). They are not exceptions.
+
+**A-1: a cancelled request's terminal writer is its cancellation.**
+- **What r8 says:** `terminalWriter` names a receipt, capture, or the hello's lease-loss transition (r8 §7).
+- **Why that is not enough:** a cancelled request becomes terminal in `conversation_cancel`'s own transaction, before any `stop` is answered.
+  - Naming the later stop's `checked` would name something that did not cause it.
+  - An unclaimed cancellation has no `stop` at all.
+- **The addendum:** for a cancelled request, `terminalWriter` is its `conversation_cancellations` row (§3.1(d)), with its true cause, time and caller. The row is written under the same locks as the `cancelled` state.
+  - The stop's `checked` answer settles the binding, and is recorded as that.
+  - The other seven predicates are unchanged, and none is skipped.
+
+**A-2: an attempt that no runtime was ever told of is retired locally.**
+- **The case:** an attempt cancelled before any claim, when no runtime command was ever written for its binding.
+- **Why nothing exists to clean:** no bridge knows of the attempt, so none can claim, spawn, journal, observe, use or reserve anything for it.
+  - A claim needs the `create`'s runtime command for the caller's runtime (§3.1(c)), and a `pending` request.
+  - A home exists only after a claim's spawn.
+  - A reservation exists only after `go` (S2:311).
+- **What r8's barrier is for:** the eight predicates, and the relay's `closed`, gate a bridge's deletion of a home it may hold. Here there is no home, no relay and no bridge to ask. The predicates are not evaluated, and none is marked met.
+- **The settlement:** `conversation_dispatch` settles the attempt's `native.retire` row locally. That is what the goal path already does for a cleanup row whose binding has no runtime command (0042:1830-1837).
+  - **When:** in the dispatch transaction, under the project, outbox and binding locks.
+  - **Only if all of these hold:**
+    - no `runtime_commands` row has ever existed for the binding;
+    - no `conversation_executions` row exists for the attempt;
+    - the request is `cancelled`, with its `conversation_cancellations` row;
+    - the `create`'s outbox row is final and undispatched: `superseded` or `denied`.
+- **What it writes:** the binding `retired`, the attempt `stopped`, the `retire`'s outbox row `settled`, and its `commands` row `checked`.
+- **What it never writes:** no `runtime_commands` row, no runtime receipt, no `create` answer, no claim, no `stop` and no call. The `create`'s `commands` row stays as the supersession or dispatch's denial left it. It is never marked answered.
+- **Fail closed:**
+  - **A row still in flight:** the `create`'s outbox row may still be `dispatching` or `outcome_unknown`, because a worker held its lease when the request was cancelled. Then the `retire` is deferred, not settled.
+    - The `create`'s dispatch then finds the request no longer `pending`, and denies it. Or 0053's reconcile re-dispatches it into that same denial.
+    - Only then does the `retire` settle.
+  - **A runtime command did reach the binding:** A-2 never applies. The `retire` is delivered and acknowledged in full.
+- **Before it settles:** the hello may still list the binding `stopped` (r8's table). A bridge that never held it finds no home, and asks nothing.
+- **Unchanged:** every other attempt's `retire`, with r8's full barrier: process, future writer, relay, journal, observations, usage and reservations.
 
 **Not edited:**
 - every other function in the inventory's §3. That includes `runtime_poll` (0016:114), `runtime_lease` (0012:387), `runtime_record_receipts`, `claim_runtime_outbox` and `reconcile_runtime_outbox`, which is 0053's after Phase A;
@@ -276,13 +352,26 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - `40001` for a superseded bridge;
   - no reachable call to either S2 stub.
 - **Cleanup delivery (PB2-STOP-DELIVERY).** Each case counts every `commands`, `outbox` and `runtime_commands` row against §3.1(d)'s table. At step 1 they run in SQL, with each answer recorded through the runtime entry points as a stub bridge would record it. Step 4's `reply-runtime.test.mjs` repeats them across the stub runtime:
-  - cancelled before the `create` is dispatched: the `create` row superseded, no `stop`, and one `retire`;
+  - cancelled before the `create` is dispatched (A-2):
+    - the `create` row superseded, no `stop`, and one `retire`, settled locally: binding `retired`, outbox `settled`, command `checked`;
+    - no runtime command, receipt, claim, spawn, reservation or call, and the `create` never marked answered;
+    - the cancellation row is the `terminalWriter`;
+    - **race controls:**
+      - with the `create`'s row `dispatching` under a held worker lease, the `retire` is deferred; the `create` is then denied, and only then does the `retire` settle;
+      - with a `create` that did reach a runtime, the `retire` is delivered and acknowledged in full;
   - cancelled after the `create` reached a runtime, before any claim: the claim refused `not_pending`, no `stop`, and one `retire`;
+  - **cancelled after the claim, before `go` (PB3-STOPPING-RETIRE-PRECEDENCE),** with the launcher held so that there is no process proof:
+    - a late `create` `rejected`, `failed` or `outcome_unknown`, both before and after a `stop` `outcome_unknown`;
+    - capture;
+    - repeated hellos, each replaying the same `stop`.
+
+    The binding stays `stopping`, and there is no `retire`. A verified `checked` stop then writes exactly one. The counts, epochs and allowances don't move;
   - cancelled after `go`: one `stop` at epoch 2. It is dispatched with no statement, with the grant disabled and the source withdrawn.
     - Its `checked` answer gives the one `retire`.
     - Its `outcome_unknown` answer leaves the binding `stopping`, and the next hello replays the same `stop` with no new row;
   - repeated withdrawal, erasure and source-out, a repeated hello and a replayed receipt: no new row;
   - a key found with a different attempt, kind or epoch: refused, before any dependent row;
+  - in every cancelled case, `conversation_acknowledged` names the cancellation row as `terminalWriter` (A-1), never a stop's answer. Where a runtime did take the `create`, it names that runtime's real answer as `createAnswered`;
   - in every case, no new execution, attempt, reservation, call or allowance reset.
 - **Source-out (PB2-SOURCE-OUT-CANCEL).** A running request has a recorded context and a claimed attempt. Its source becomes ineligible, and `conversation_source_out` runs. The cases show:
   - the request `cancelled` (`source_withdrawn` or `source_out_of_scope`) and the epoch 2;
@@ -291,13 +380,18 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 
   Also: a pending request with no claim gets no `stop` and one `retire`, and the answered branch's same-conversation reach is unchanged.
 - **Recovery settle (PB2-RECOVERY-SETTLE-LEASE):**
-  - **positive:** bridge instance A claims, goes and reserves. Capture commits `answered`, and A goes before its settle is answered. Instance B of the same runtime says hello and resends the same settle, and the ordinal becomes `settled`. An identical resend replays the receipt;
+  - **positive:** bridge instance A claims, goes and reserves. Capture commits `answered`, and A goes before its settle is answered. Instance B of the same runtime says hello and resends the same settle, and the ordinal becomes `settled`;
+  - **the lost answer (PB3-RECOVERY-SETTLED-REPLAY):**
+    - B's recovery settle commits, but its answer is deliberately dropped;
+    - B's identical retry returns the same receipt, and the grant's reserved and spent counters don't move;
+    - a later instance C of the same runtime replays the same way;
   - **negatives:**
     - A, after B's hello (`40001`);
     - another resource, unit, project, attempt or ordinal;
     - an `uncertain` ordinal;
-    - a different body (`outcome_conflict`);
-    - a request that a receipt or the hello's lease-loss rows ended;
+    - a different body, on a `reserved` or a `settled` ordinal (`outcome_conflict`);
+    - a `released` ordinal;
+    - a request that a receipt, the hello's lease-loss rows or a cancellation ended;
     - B trying to claim, go or reserve.
 - **The option C and catalog cases:**
   - the two CHECKs and the unique attempt index;
@@ -310,7 +404,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   - `conversation-ledger.db.test.ts` (S2, `72bd63ec90e472b0…`);
   - the role-independent cases of `conversation-assembly.db.test.ts` (S3, `5b5121033a54b065…`) and `conversation-fences.db.test.ts` (S4, `fe9e536f1e1e3506…`).
 - **Held, not promoted:** their cases that record a context through `sophia_conversation_assembler`, and the module they use, `conversation-assembly.ts` (`35f18af65275a4eb…`, which issues `SET LOCAL ROLE` to that role in each transaction). These stay on #211, held with Q13, and every receipt names them as not run. No case is rewritten to pass without the role.
-- **The bridge to #211's results:** a promotion-equality case shows that each promoted S3 and S4 function and constraint is byte-identical to its candidate, except `conversation_source_out`'s one named insertion. So #211's recorded results stay attached to the same bodies, without being claimed as re-run. `conversation_source_out`'s results are not carried over: its own new case below covers it.
+- **The bridge to #211's results:** a promotion-equality case shows that each promoted S3 and S4 function and constraint is byte-identical to its candidate, except `conversation_source_out`'s one named insertion. So #211's recorded results stay attached to the same bodies, without being claimed as re-run. `conversation_source_out`'s results are not carried over: its own new case, above, covers it.
 - **`conversation-context.ts`** (`1b378011b228833d…`) and **`conversation-context.test.ts`** (`9123b01de94f790b…`) are promoted unexported and dormant, for S3's grammar cases.
 - **Existing tests:** `conversations.db.test.ts`, whose A10 case changes by design (the inventory, §6); `db/tests/0037_amendment_preservation.sql`; `personal.db.test.ts:922-929`.
 - **TypeScript:** `packages/persistence/src/outbox.ts`'s `OutboxRow.goal_id` becomes `string | null`. No worker code reads it.
@@ -507,8 +601,8 @@ Any of these stops the writer and goes back to Codex.
 | # | From | Acknowledges | State |
 |---|---|---|---|
 | K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | recorded by this revision |
-| K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, and B-2's key | requested here |
-| K-1c | The joint lane | Consumer compatibility with this exact r2 manifest. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | requested here |
+| K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1 and A-2, which the r8 design ACK does not cover | requested here |
+| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | requested here |
 | K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | requested here |
 | K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | requested here |
 | K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | requested here |
