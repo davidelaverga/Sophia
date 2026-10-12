@@ -14,11 +14,16 @@ at 1280 × 800, both themes, headless Chromium (`evaluacion-2026-10-12/conv-*-12
   dark-warm initial (`--warm` is `#965328` there) and a ring in the paper's void. Measured: the initial's contrast on
   its disc under 1.5:1 in light.
 
+- **Two trackings for one head.** The list's title («Conversations», 15/600) inherited the view titles' −0.02 em from
+  the generic `h2`; the open conversation's title and the kit's other 15 px heads (a goal's, a card's) sit at
+  −0.015 em. Measured: −0.3 px against −0.225 px.
+
 ## What changes
 
 - **One line of words at 20, one line of boxes at 8**, as the rows already have them: the pane's inline padding 8
   (was 10), the head's padding 12 (title at 20, the «+» press ending at 280 with the dates), the filter's box at 8,
   «Open»/«Mine» with a 2 px lead (words at 20), the rows' margin −8. Nothing moves vertically.
+- **The list's title takes the 15 px heads' tracking** (−0.015 em), as the open conversation's does.
 - **Faces on paper take a warm tint** (the warm channels at 32 %, 1.6:1 on paper: the own bubble's 8.5 % would vanish
   under a 10.5 px initial) with the warm ink, ringed in the head's plane; Sophia's a core tint; the room keeps its dark disc
   and pale initial.
