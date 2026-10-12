@@ -71,7 +71,10 @@ test('acts · a copy refused says so; a second copy says «Copied» anew', async
   await expect(first.getByRole('status')).toHaveText('Not copied: select the words to copy them.')
   await first.getByRole('button', { name: 'Copy' }).click()
   await expect(first.getByRole('status')).toHaveText('Copied')
+  // The third press says it anew: the status is a new node (its key), not the second's left standing (Codex on #240).
+  const before = await first.getByRole('status').elementHandle()
   await first.getByRole('button', { name: 'Copy' }).click()
+  await expect.poll(() => before.evaluate((el) => el.isConnected)).toBe(false)
   await expect(first.getByRole('status')).toHaveText('Copied')
   await expect(first.getByRole('status')).toHaveCount(1)
 })
@@ -150,9 +153,7 @@ test('acts · an earlier write that goes through late is written over with the l
   await expect(first.getByRole('status')).toHaveCount(0)
 })
 
-test('acts · a write that never settles is given up after its wait: «Not copied» is said, and the next copy «Copied»', async ({
-  page,
-}) => {
+test('acts · a write long on its way is said waiting, not failed, and the next copy «Copied»', async ({ page }) => {
   test.slow() // the wait is four seconds by design
   await page.addInitScript(() => {
     let presses = 0
@@ -166,8 +167,8 @@ test('acts · a write that never settles is given up after its wait: «Not copie
   await first.hover()
   await first.getByRole('button', { name: 'Copy' }).click()
   await expect(first.getByRole('status')).toHaveCount(0)
-  // Past the wait, the stuck write is given up and said so; the page keeps its Copy, and the next press goes through.
-  await expect(first.getByRole('status')).toHaveText(/Not copied/, { timeout: 8000 })
+  // Past the wait the write is said to be waiting, not failed (it may yet land); the next press goes through.
+  await expect(first.getByRole('status')).toHaveText(/Waiting for the browser/, { timeout: 8000 })
   await first.getByRole('button', { name: 'Copy' }).click()
   await expect(first.getByRole('status')).toHaveText('Copied')
   await expect(first.getByRole('status')).toHaveCount(1)
@@ -255,4 +256,54 @@ test('acts · another’s acts stand at the message’s right on a desktop: insi
   expect(Math.abs(read.row.right - (read.turnRight + 12))).toBeLessThan(1.5)
   expect(read.bubbleTop - read.row.bottom).toBeGreaterThanOrEqual(0)
   expect(read.bubbleTop - read.row.bottom).toBeLessThan(24)
+})
+
+test('acts · a copy on one message puts away what another said a moment ago (Codex on #240)', async ({ page }) => {
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  const second = messages(page).nth(1)
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await expect(first.getByRole('status')).toHaveText('Copied')
+  await second.hover()
+  await second.getByRole('button', { name: 'Copy' }).click()
+  await expect(second.getByRole('status')).toHaveText('Copied')
+  await expect(first.getByRole('status')).toHaveCount(0)
+})
+
+test('acts · words that leave the thread name their author by name, never «You» (Codex on #240)', async ({ page }) => {
+  await page.goto(PAGE)
+  const mine = open(page).locator('.conv-messages > li.mine').first()
+  await mine.hover()
+  await mine.getByRole('button', { name: 'Copy' }).click()
+  await expect(mine.getByRole('status').filter({ hasText: 'Copied' })).toBeVisible()
+  const clip = (await page.evaluate(() => navigator.clipboard.readText())).replaceAll('\r\n', '\n')
+  expect(clip).not.toContain('— You')
+})
+
+test('acts · in a run of one’s own messages, the later one’s acts lie over none of the one above (Codex on #240)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  for (const words of ['One more thing', 'and another']) {
+    await field(page).fill(words)
+    await page.keyboard.press('Enter')
+    await expect(messages(page).last()).toContainText(words)
+  }
+  const later = messages(page).last()
+  const earlier = messages(page).nth(-2)
+  await expect(later).toHaveAttribute('data-run', 'on')
+  await later.hover()
+  await expect(later.getByRole('button', { name: 'Copy' })).toBeVisible()
+  const row = await later.locator('.conv-acts').boundingBox()
+  const above = await earlier.locator('.conv-msg-body').boundingBox()
+  const overlaps =
+    !!row &&
+    !!above &&
+    row.x < above.x + above.width &&
+    row.x + row.width > above.x &&
+    row.y < above.y + above.height &&
+    row.y + row.height > above.y
+  expect(overlaps).toBe(false)
 })

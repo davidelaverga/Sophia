@@ -64,4 +64,16 @@ describe('the row over it', () => {
     ])
     assert.deepEqual(peopleOf({ ...R, decided: [], noted: [] }, {}, 'me'), [{ id: 'noor', name: 'Someone' }])
   })
+  it('tells apart two people with one name, unnamed or alike, by their order (Codex on #239)', () => {
+    const named = peopleOf(R, { lucia: 'Lucía', noor: 'Lucía' }, 'me')
+    assert.deepEqual(
+      named.map((p) => p.name),
+      ['Lucía', 'You', 'Lucía (2)'],
+    )
+    const unnamed = peopleOf(R, {}, 'me')
+    assert.deepEqual(
+      unnamed.map((p) => p.name),
+      ['Someone', 'You', 'Someone (2)'],
+    )
+  })
 })

@@ -5,7 +5,7 @@
 
 interface Props {
   label: string
-  keys?: string
+  keys?: string | undefined
   side?: 'top' | 'bottom'
   align?: 'center' | 'end'
 }
