@@ -13,7 +13,7 @@ import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands } from '../../app/useCommands.ts'
 import { VISION } from '../../app/vision.ts'
-import { ProjectGoProvider } from './project-go.tsx'
+import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
 import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
@@ -299,6 +299,13 @@ function CallKeptInReach({
   return <CallInReach.Provider value={call}>{children}</CallInReach.Provider>
 }
 
+/** Gives the focus to what a selector names once it is on the page (a view mounting): a few frames at most. */
+function focusWhenThere(selector: string, frames = 10) {
+  const el = document.querySelector<HTMLElement>(selector)
+  if (el) el.focus({ preventScroll: true })
+  else if (frames > 0) requestAnimationFrame(() => focusWhenThere(selector, frames - 1))
+}
+
 /** Tasks' plans: the page's own (a fixture), else the work board Sophia serves for the project, and its pilot entry (WBC-02). */
 function useTasksWork(
   props: Props,
@@ -560,6 +567,12 @@ function ProjectBody(props: BodyProps) {
  */
 function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.ReactNode }) {
   const { projectId, identity, room, snapshot, membership, panel, onShow } = props
+  // From Updates, a line that lives in the brief: the Studio view with the brief open (project-go.tsx).
+  useArrival('studio', () => {
+    if (panel.panel !== 'brief') panel.toggle('brief')
+    // Already open, it opens nothing: the focus is given to its tab as the view mounts (Codex on #239).
+    else focusWhenThere('#side-tab-brief')
+  })
   if (!VISION) return null
   return (
     <>

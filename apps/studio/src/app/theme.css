@@ -4780,6 +4780,23 @@ button.contribution-quote:hover {
   align-content: start;
   gap: 16px;
 }
+/* The row over the digest (docs/plans/updates-narrow.md): the kinds as a small segmented box, who as a small press
+   with a menu. */
+.updates-narrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.updates-person {
+  position: relative;
+}
+.updates-person .pill svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+  color: var(--text-3);
+}
 .updates-part > h3,
 .updates-part > .recap-section h4 {
   margin: 0;
@@ -5085,4 +5102,11 @@ button.contribution-quote:hover {
 }
 .task-row .task-said:empty {
   height: 0;
+}
+/* Updates' kind strip: on a narrow phone, five kinds with their counts outgrow the column; the strip scrolls in it, the
+   page does not (Codex on #239). */
+.updates-narrow .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
