@@ -206,3 +206,36 @@ Each one names the documentation that must state it, the installed code that mus
 3. Only then does D-4 put a named route, with its documentation, to Davide. Nothing here asks him to approve one.
 
 No provider call, sign-in, registration or credential transfer happens at any step of this proposal.
+
+## 4. Result for the pinned adapter and hosted topology: a demonstrated incompatibility (CX-0130)
+
+Codex asked for one supported subscription-only route, or the exact incompatibility with evidence (CX-0130). Its read-only recheck found the overview, preview-limitations, accounts and App Server pages byte-identical to its CX-0118 and CX-0119 copies.
+
+**Read at:** the pinned runtime install is unchanged at current main `e0200f1a`: `config/runtime-unit.json` is byte-identical to Step B `f36a8fa0`, SHA-256 `ced15d84…`. Installed files, read only:
+- `openai-responses.js` `3e95145f…`;
+- `openai-codex-responses.js` `6e69310d…`;
+- `auth/oauth/openai-codex.js` `41432753…`.
+
+**No supported subscription-only route exists for CON-01's hosted Ask with the pinned adapter.** Each gap below is enough on its own.
+
+| § | The gap | Evidence |
+|---|---|---|
+| 2.1 sign-in | The pinned adapter has no implementation of the documented app-specific flow. Its only installed OpenAI subscription sign-in is pi's own OAuth client, a fixed `CLIENT_ID`, for `chatgpt.com/backend-api` | OAUTH:22–25. `dist/auth/oauth/` holds `openai-codex` and other vendors' modules; nothing else for OpenAI |
+| 2.1 endpoint | `openai-codex` calls `chatgpt.com/backend-api/codex/responses`, not the documented `api.openai.com/v1/responses` | CODEX:20, 458–466 |
+| 2.1 topology | Hosted Sophia answers many members' asks from a remote service: Render API and runtime, Supabase database (OP-0002-r4 target identity). Per Codex's dated reading, the documented flow is for open-source apps run locally or self-hosted by their user, and sends a remote service to the partner process | the overview, as Codex read it (CX-0118, rechecked identical) |
+| 2.1 requesting account | The documented flow uses the operating user's own account. An ask by another member answered on one person's subscription is not documented as eligible, and D-4 forbids assuming it | D-4, §13 |
+| 2.2 hard bound | `openai-codex` puts no cap on the wire (CODEX:389–430). The public provider puts `max_output_tokens` on the wire whenever `maxTokens` is set and the model's compat allows it, the field the SIWC preview forbids (PUBLIC:230–231). With that compat off, it carries no cap either. No other documented hard bound is established | PUBLIC:16, 62, 230–231; preview-limitations, as Codex read it |
+| 2.3 terminal | An unknown status maps to `stop`; dsh has no unknown class | CODEX:558–562; SHARED:660–662; DSH:1380–1456 |
+| 2.4 refresh | Rotated refresh tokens, with a lock that holds within one host and PID namespace only | OAUTH:103–110; ATOMIC:180–181 |
+| 2.5 quota | No remaining-limit source in the pinned seam. The App Server's `account/rateLimits/read` belongs to another executor, which is not authorized | §2.5 |
+
+**The one topology the documentation might fit** is a runtime run locally by the account holder, answering only that holder's own asks. It still fails here: the pinned adapter doesn't implement the documented sign-in, and neither installed provider has a documented hard bound (§2.2). So no topology gets a supported route on the pinned adapter.
+
+**Consequences:**
+- D-4 binds no route; Asks stay `blocked` (`no_grant`).
+- There is no fallback: no pay-as-you-go, no other provider, no account rotation, no extra credits and no hidden reset.
+- Sophia's allowance stays its own ledger's count, shown as Sophia's (§2.5).
+
+**What would change this** lies outside CON-01, and is neither proposed nor asked:
+- a vendor-documented flow for a hosted, multi-member service, with a documented hard bound, terminal semantics, refresh lifecycle and remaining-limit source;
+- an adapter implementing it, qualified by the runtime owner (Q6, Q7).
