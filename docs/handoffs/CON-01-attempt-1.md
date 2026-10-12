@@ -27,9 +27,42 @@ Ending commit/tree and changed files:
 - 93 files differ from `main`: `db/migrations/0048_project_conversations.sql`, A16, the persistence and API conversation routes, the Studio's `features/conversations/`, its fixtures and specs, and the coordination records under [docs/coordination/CON-01](../coordination/CON-01/README.md).
 - Draft PR [#199](https://github.com/davidelaverga/Sophia/pull/199); coordination issue [#198](https://github.com/davidelaverga/Sophia/issues/198).
 
+## Saved-text policy accepted for the test cohort (2026-10-12, decision 8)
+
+This section and the two after it are current at 2026-10-12. The sections after those still describe 2026-10-10.
+
+**What is settled.** Davide answered: "Accept this policy for the test cohort". This is decision 8 in [`OWNER_DECISIONS_20261012.md`](https://github.com/davidelaverga/Sophia/blob/74826cb9e9c22b8d446390f7fb80bc5f31d4513d/docs/coordination/CON-01/OWNER_DECISIONS_20261012.md), recorded by Codex's CX-0174 at `74826cb9`, with #198 comment 6119717658 updated. It settles D-1, D-3 and Q-1 for the initial synthetic test cohort, under `conversation-text-v1`:
+- submitted titles, messages and published Sophia replies are visible to current project members;
+- they are kept for the project's life until withdrawn or erased, and stricter organization rules win;
+- authors withdraw their own messages; admins remove messages and erase whole conversations; editors write but can't erase other people's content;
+- drafts stay in browser memory;
+- backup and provider deletion limits are disclosed.
+
+D-9's conservative rule stays binding: later Sophia answers in the same conversation go, every other human message, conversation and independent decision stays, and nothing is regenerated automatically. The decision is recorded in [BINDING_MAP](../coordination/CON-01/BINDING_MAP.md) §5, §13 and §14. It is not reasked.
+
+**What the current contract already matches** (read on this ref, on #199's `d527f385` and on Luis's `d96626ac`):
+- members-only reads, and project-lifetime retention (A16's `audience: project_members`, `retention: until_withdrawn_or_erased`);
+- author-or-admin withdrawal (0048:354-356) and admin-only erasure (0048:380). Editors can't remove anyone else's content;
+- drafts in memory only: no `localStorage`, `sessionStorage` or IndexedDB in the conversations code at either pin;
+- the server's withdrawal reach. 0048:246-249 removes every Sophia answer in the same conversation from the withdrawn message on, whether or not it used it, and touches nothing else; S1 keeps that rule;
+- the erase confirmation, which claims nothing beyond the app.
+
+**Remaining discrepancies, each with its owned correction location:**
+1. **The served notice omits what decision 8 requires.** `CONVERSATION_NOTICE` (`packages/persistence/src/conversations.ts:29-30`, served as A16's `policy.notice` and shown again in the context's help) says only "Messages here are saved for this project and can be read by its members. Live room audio is not saved here."
+   - It doesn't state the retention, the controls, the backup retention or that a delivered copy can't be made unseen. BINDING_MAP §5 now lists what it must say.
+   - The fixture copy, `apps/studio/fixtures/conversation-wire.ts:94-95`, mirrors it. No test pins the text.
+   - Both files are CON's. Their correction is one CON source pin, made only within CON's permitted scope and reviewed. It isn't made here, and no window is opened.
+   - The provider part names its recipient only once D-4's route is bound, before Ask is activated. Ask is off, so nothing is sent to a provider today.
+2. **The withdrawal confirmation still says "Sophia's answers that read it"** (`apps/studio/src/features/conversations/WithdrawHere.tsx:175`, at both pins). It should state D-9's conservative rule.
+   - The reviewed correction is `635a3ef2`, CON's correction 4.
+   - It waits on Luis's Studio handback, so there are no concurrent Studio edits.
+3. **No correction, recorded only:** mission pack 03 §3's "editors/admins may moderate" is a frozen, hash-pinned input. Decision 8 supersedes it, and the pack isn't edited.
+
+**Not changed:** the reservation request stays byte-identical to revision 10 (`90ea5a52…`). There is no deployment, migration, configuration, account, grant or spend approval. `conversation_settings.approval_ref` is set only by an approved operation (OP-0002-r6 is `draft_not_authorized`). Ask stays off.
+
 ## G2 Phase B reservation request: reviewed at revision 10 (2026-10-12, CX-0169)
 
-This section and the next are current at 2026-10-12. The sections after them still describe 2026-10-10. This section records review outcomes only. The request's bytes are not changed by it, and no revision 11 is made for bookkeeping.
+This section records review outcomes only. The request's bytes are not changed by it, and no revision 11 is made for bookkeeping.
 
 **The reviewed pin:** [`G2_SHARED_RESERVATION_REQUEST.md`](../coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md), revision 10.
 - Commit `91110fdda17dab26b8b7b1a6f1026060d888fa7c`, tree `f2dd38e07fe672592b59987dd8dabfa68c97955b`.
@@ -229,7 +262,7 @@ These facts are source-only. Their sources:
 - **`pnpm check`** at `5c4f1c0` is not yet run (it passed at `4252cd7`).
 - **Local resources to clean up:** the PostgreSQL 16 cluster `/var/lib/postgresql/con01` (port 55432), and the worktrees `/home/user/sophia-g1-check`, `/home/user/sophia-g3-erase` and `/home/user/sophia-dev`. None holds anything hosted.
 - **Open PR threads:** every PR #199 thread stays unresolved until Codex reruns the affected evidence.
-- **Owner decisions open:**
+- **Owner decisions open** (as of 2026-10-10; D-1, D-3 and Q-1 have since been settled for the test cohort by decision 8, in the section at the top):
   - D-1 … D-5, and D-4 not yet askable (no supported route);
   - D-7, the test project's second actual account (Codex's setup draft prepared; the mailbox, roles and subjects unbound).
   - D-6 and B-1 are accepted as source design only. No cohort, policy, allowance or batch is approved.

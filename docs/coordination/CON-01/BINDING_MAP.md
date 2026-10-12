@@ -153,7 +153,12 @@ The key and the actor are the row's own key: the same key under another actor or
 
 ## 5. Saved-text policy `conversation-text-v1` (owner D-1)
 
-This is pack 03 §3, bound to this code. It is a product and technical policy proposal, not a legal conclusion.
+This is pack 03 §3, bound to this code. It is a product and technical policy, not a legal conclusion.
+
+**Accepted for the initial synthetic test cohort, 2026-10-12 (Davide: "Accept this policy for the test cohort").** This is decision 8 in [`OWNER_DECISIONS_20261012.md`](https://github.com/davidelaverga/Sophia/blob/74826cb9e9c22b8d446390f7fb80bc5f31d4513d/docs/coordination/CON-01/OWNER_DECISIONS_20261012.md), recorded by Codex's CX-0174 at `74826cb9`. It settles D-1, D-3 and Q-1 (§13) for that cohort only.
+- **It doesn't authorize** deployment, account creation, grants, provider execution or a wider cohort.
+- **It doesn't establish** implementation, disclosure or app acceptance; those are qualified separately.
+- **D-9's conservative withdrawal rule stays binding** (§6): later Sophia answers in the same conversation go even if they didn't use what was withdrawn. Every other human message, every other conversation and each independently governed decision stay, and nothing is regenerated automatically.
 
 - **What is saved:**
   - the text members submit in a named project conversation (title and messages);
@@ -163,7 +168,7 @@ This is pack 03 §3, bound to this code. It is a product and technical policy pr
   - Drafts stay in the browser's memory: today `talk-store.ts:54` keeps them in a `Map`, never in `localStorage`, and nothing changes that.
 - **Who reads it:** the project's current members, viewers included. Membership is checked on every read. Nothing from Personal is imported. There is no private mode inside a team project.
 - **How long:** for the life of the project, until withdrawn or erased. No numeric TTL is invented. A stricter organization policy, if one is named, wins.
-- **Controls:** an author withdraws their own message; an admin withdraws any message or erases a conversation. Viewers neither write nor erase. These controls reach conversation records only.
+- **Controls:** an author withdraws their own message; an admin withdraws any message or erases a conversation. Editors write, but can't withdraw or erase anyone else's content (Q-1; 0048:354-356 and :380). Viewers neither write nor erase. These controls reach conversation records only.
 - **Not backfilled:** no room chat, voice, captions, screenshots, telemetry or personal history becomes a conversation. A conversation is created only by Start.
 - **Limits disclosed, not hidden:**
   - Hosted database backups keep their own retention.
@@ -171,7 +176,19 @@ This is pack 03 §3, bound to this code. It is a product and technical policy pr
   - A reply's runtime session journal on the runtime host keeps its prompt until host cleanup (§8.5).
   - A reply already delivered to a browser cannot be made unseen.
 - **Notice (proposed copy):** shown above the composer before a person's first message in the project, and reachable afterwards from the conversation's context disclosure. *"Messages here are saved for this project and can be read by its members. Asking Sophia sends this conversation's recent messages and the project's accepted decisions to [the provider and model of the route Davide designates], under that provider's terms. Live room audio is not saved here."* Before activation, the bracket is replaced by the actual recipient, and the bounded runtime and provider retention limits are stated or linked (§8.5). The final words follow the policy as accepted; they do not promise zero provider retention or absolute deletion.
-- **Activation:** no project saves text until `conversation_settings` names the accepted policy with an `approval_ref` (Davide's decision reference). With the API switch off, nothing is served at all.
+- **What the served notice must say (decision 8).** This lists its content, not its final words:
+  - the text is saved for this project, and its current members can read it;
+  - it is kept for the project's life until withdrawn or erased, and a stricter organization rule wins;
+  - authors withdraw their own messages, and admins remove messages and erase conversations;
+  - hosted backups keep their own retention, and a copy already delivered can't be made unseen;
+  - once Ask is enabled, what asking sends, to which recipient, and under which terms and retention. The recipient is named only when D-4's route is bound, before Ask is activated;
+  - live room audio isn't saved here.
+- **The served copy falls short of that today.**
+  - `CONVERSATION_NOTICE` (`packages/persistence/src/conversations.ts:29-30`, served as A16's `policy.notice`) says only "Messages here are saved for this project and can be read by its members. Live room audio is not saved here."
+  - It omits the retention, the controls and the backup and delivered-copy limits.
+  - The fixture copy (`apps/studio/fixtures/conversation-wire.ts:94-95`) mirrors it.
+  - Both are CON's files. Their correction is a CON source pin, made only within CON's permitted scope and reviewed; nothing is opened by this record.
+- **Activation:** no project saves text until `conversation_settings` names the accepted policy with an `approval_ref` (Davide's decision reference). With the API switch off, nothing is served at all. Decision 8 is the policy reference for the test cohort. Setting it is an operation (OP-0002-r6, `draft_not_authorized`), not authorized here.
 
 ## 6. Withdrawal, erasure and what depends on them (G1)
 
@@ -1157,15 +1174,15 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 
 | Id | Decision | Proposal |
 |---|---|---|
-| D-1 | Saved-text policy `conversation-text-v1` (§5) and its notice | Accept as written, for the test project first |
+| D-1 | Saved-text policy `conversation-text-v1` (§5) and its notice | **Accepted, 2026-10-12 (Davide; decision 8), for the initial synthetic test cohort.** The notice must carry what §5 lists. The served copy's correction is owed (§5) |
 | D-2 | Replies that read a withdrawn message | Suppress them too (§6 step 2) |
-| D-3 | Admin conversation erasure in this slice | Include (§3, §6). It is small, and a title is saved text too |
+| D-3 | Admin conversation erasure in this slice | **Accepted, 2026-10-12 (decision 8):** admins remove messages and erase whole conversations (§3, §6). A title is saved text too |
 | D-4 | Reply route, credential reference, allowance, approval and `expires_at` (§8.4) | **Open, and not askable yet.** Davide's direction (2026-10-10) is the subscriptions, with no API or pay-as-you-go fallback. No documented, supported subscription path fits D-6 and B-1 today (§8.4's table). This file proposes no route until one is named with its documentation |
 | D-5 | The Conversations tab's gate (§9), with Luis | A dedicated build flag; `VISION` unchanged |
 | D-6 | Execution container (§8.2) | **Accepted, 2026-10-10** (source design, not live authorization): option C, each attempt owned by its reply request |
 | B-1 | Runtime host copies (§8.5) | **Accepted, 2026-10-10** (source design): a throwaway harness home per reply, on the existing pinned runtime, with Codex's qualifications, each bound in §8.5 |
 | D-7 | The new test project's two actual Sophia subjects and their roles (§8.6) | Davide asked for a second synthetic actual account. Its setup path is the draft CON-01-OP-0002-r4 at `f9f164e4` (`draft_not_authorized`; it supersedes r3 and r2): the Studio's member invitation and email OTP sign-in, never a dashboard-created account. The mailbox (email OTP) is an owner-provided private reference, now provided and held outside this repository, never published. The actual subjects, the role, the project, the approval and its expiry **remain unbound**; they are bound in Codex's real-auth setup batch, not here |
-| Q-1 | Moderation by editors (pack 03 §3 says editors/admins) | Admins only: every writer is an editor here, so editor moderation would let any writer erase anyone |
+| Q-1 | Moderation by editors (pack 03 §3 says editors/admins) | **Settled, 2026-10-12 (decision 8):** admins only. Editors write, but can't withdraw or erase other people's content. Every writer is an editor here, so editor moderation would let any writer erase anyone. Pack 03's wording is a frozen input, and decision 8 supersedes it |
 | D-8 | The cluster and database boundary of the reply execution identity (Q13, §8.7) | **Decided, 2026-10-11 (Davide): least-privilege per-identity isolation,** scoped to the intended database and the assembly operations it requires. A new login name, a one-database census, or continued inheritance of the broad `sophia_api` is not sufficient. Qualification tests actual admission, inherited and assumable roles, operational-writer denial, and the settlement of pre-existing out-of-scope connections. No shared or live permission change across the cluster, and no connection termination, is authorized. r4242913900 stays open until the affected qualification passes |
 | D-9 | Withdrawal's reach into later answers (§6, §8.3; r4241643135) | **Decided, 2026-10-11 (Davide): the conservative policy is accepted as the initial one,** disclosed: later Sophia answers in the same conversation may be removed even if they did not use what was withdrawn. Every other human message, the withdrawing author's other messages included, other conversations and independently governed decisions are preserved. Removed answers are never regenerated automatically |
 | D-6, B-1 | Execution container and runtime host copies | **Retained, 2026-10-11 (Davide):** option C, and a disposable home per reply |
@@ -1180,6 +1197,7 @@ Whether any older CON-01 reader is enabled anywhere is **UNVERIFIED**.
 | When | Change | Why |
 |---|---|---|
 | 2026-10-09 | First version (G0), revision 1 at `b00d07f` | — |
+| 2026-10-12 | Decision 8 recorded: D-1, D-3 and Q-1 are settled for the initial synthetic test cohort (§5, §13). §5 lists what the served notice must say, and names the owed copy correction in `conversations.ts:29-30` and its fixture. D-9's rule is restated. Nothing is activated or authorized | Davide's answer, recorded by CX-0174 at `74826cb9` |
 | 2026-10-11 | CC-0154, correcting CC-0151: §8.6's second-account bullet said the setup and human-chat batch allows no deploy or schema. Its draft scope (OP-0002-r4, order 2) does propose reviewed additive human-chat schema prerequisites and a deploy of the exact compatible API, readers and Studio with Ask disabled, at zero provider calls, zero native model calls and zero additional spend; the bullet now says so, and that the current draft authorizes nothing | Codex's review (CX-0128) |
 | 2026-10-11 | CC-0151, correcting CC-0150 after Codex's binding review: D-4 records that a personal subscription's eligibility for another requesting account's Ask is not assumed and must be explicitly qualified before activation, in place of an absolute that the owner did not state; D-9 and §6 preserve every other human message, the withdrawing author's other messages included; the current operation links (§8.2, §8.6, D-7, D-11) name Codex's OP-0002-r4 and OP-0001-r3 at `f9f164e4`, with every earlier draft kept as history | Codex's review of `f47128a1` (6114833701) |
 | 2026-10-11 | CC-0150: Davide's decisions recorded (§13 D-8 to D-12, the D-4 direction, D-6 and B-1 retained). Q13 is answered with least-privilege per-identity isolation (§8.7), with what is not sufficient and what its qualification must test. The conservative withdrawal policy is accepted, with its disclosure, the preserved scope and no automatic regeneration (§6). Q6 is partly answered and Q12 is a prerequisite under one recorded writer (§8.8). No source, role, harness, runtime or deployment change; r4241643135 and r4242913900 stay open until their affected qualification | Davide's decisions, relayed by Codex in CX-0128 |
