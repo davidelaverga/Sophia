@@ -1229,6 +1229,7 @@ img.avatar {
 .segmented {
   position: relative;
   display: flex;
+  min-height: 36px;
   padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
@@ -1240,11 +1241,11 @@ img.avatar {
 .segmented::before {
   content: '';
   position: absolute;
-  top: 3px;
-  bottom: 3px;
+  top: 0;
   left: 0;
   width: var(--thumb-w, 0);
-  transform: translateX(var(--thumb-x, 0));
+  height: var(--thumb-h, 0);
+  transform: translate(var(--thumb-x, 0), var(--thumb-y, 0));
   border-radius: var(--r-2);
   background: rgba(236, 235, 241, 0.08);
   box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
@@ -1252,7 +1253,8 @@ img.avatar {
 .segmented[data-thumb-ready]::before {
   transition:
     transform var(--base) var(--ease),
-    width var(--base) var(--ease);
+    width var(--base) var(--ease),
+    height var(--base) var(--ease);
 }
 .segmented button {
   position: relative;
@@ -1272,8 +1274,18 @@ img.avatar {
   color: var(--text-2);
 }
 /* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
-.segmented button:is([aria-selected='true'], [aria-checked='true']) {
+.segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
   color: var(--text);
+}
+/* The small one (docs/plans/segmented-scale.md): 32 px with 24 px presses in the small type, as the report viewer's
+   format switch. */
+.segmented.sz-sm {
+  min-height: 32px;
+}
+.segmented.sz-sm button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: var(--type-small);
 }
 /* A filter's count reads (the third ink); the chosen one's a step up, under its word. */
 .segmented .filter-count {
@@ -1282,7 +1294,7 @@ img.avatar {
   font-size: var(--type-small);
   color: var(--text-3);
 }
-.segmented button:is([aria-selected='true'], [aria-checked='true']) > .filter-count {
+.segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) > .filter-count {
   color: var(--text-2);
 }
 
