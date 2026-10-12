@@ -32,6 +32,7 @@ Hold, Resume and Stop from the board fence the runtime at once and are mirrored 
 | The admission decision of a review proposed under a goal with no plan in force is answered at the pilot entry | The board keeps WBC-01's reviewed rule that a plan only proposed is read only (Codex F-006 and the e2e checks); once a plan is in force, the board answers the next proposal itself |
 | The board and receipt routes check their whole reply against the contract (Ajv) and send plain JSON | `fast-json-stringify` cannot compile the packet's conditional rules; a reply that breaks the contract is never sent |
 | A Paperclip run cancel is a Sophia **Hold** | Losing a run must never lose the work; only an explicit Resume continues it |
+| The source reviewer is read from the host's binding when one is bound, and provisioned only under a durable per-company claim in the plugin's namespace (`002_reviewer_provisioning.sql`); a request that meets the claim answers 503 `reviewer_provisioning` | The pin's managed-agent reconcile is not atomic: root reproduced two live reviewers from two cold first commissions of one company on the pinned host (2026-10-11). A lock in memory does not outlive a replaced worker or server while the host's work goes on, and a lock in the host would fork the pin. See [the handoff](../handoffs/WBC-02-reviewer-race-attempt-1.md) |
 
 ## Shared boundaries with SDD-01
 
@@ -141,6 +142,12 @@ Sophia's side (amendment `A13`, `packages/contracts/amendments/A13-workboard-sou
 - A status change made by a person on the Paperclip issue is not mirrored back: Sophia is authoritative, and its next control sets the issue again.
 - Guidance and Ask stay unavailable (later missions).
 - The board serializer exception: the board and receipt routes bypass `fast-json-stringify` after checking against the contract.
+- A reconcile of the managed reviewer that the host never answered keeps its company's provisioning claimed: until the
+  reviewer it bound is there, or an operator fences the claim (`deploy/paperclip/fence-previous-instance.sql`), that
+  company's first commissions answer 503 `reviewer_provisioning`. A commission no longer reconciles a reviewer the host
+  already bound, so the pin's per-call refresh of that agent (its pause-reason backfill and binding write) runs only at
+  provisioning. An image from before `002_reviewer_provisioning.sql` reconciles without a claim: roll back to one only
+  with coordination stopped and drained (`deploy/paperclip/README.md`, Rollback).
 
 ## Remaining obligations
 
