@@ -687,12 +687,15 @@ function useNextUp(
   const next = shown ? nextUp({ answered, decisions: slot.asks.mine, waiting, review }) : null
   // The same, offered to the palette as «For you» (docs/plans/palette-knows.md).
   useCommands([
-    ...slot.asks.mine.map((d) => ({
-      id: `you-decide-${d.decision_id}`,
-      words: `Decide “${quoted(d.question)}”`,
-      group: 'you' as const,
-      run: () => slot.openDecisions(d.decision_id),
-    })),
+    // Those answered in this visit are not offered again while the board's next read catches up (Codex on #264).
+    ...slot.asks.mine
+      .filter((d) => !answered.includes(d.decision_id))
+      .map((d) => ({
+        id: `you-decide-${d.decision_id}`,
+        words: `Decide “${quoted(d.question)}”`,
+        group: 'you' as const,
+        run: () => slot.openDecisions(d.decision_id),
+      })),
     ...waiting.map((t) => ({
       id: `you-task-${t.id}`,
       words: `“${quoted(t.name)}” waits for you`,
