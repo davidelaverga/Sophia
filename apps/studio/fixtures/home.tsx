@@ -8,6 +8,7 @@
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
+import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary } from '@sophia/contracts'
@@ -269,11 +270,11 @@ const say = (text: string) => pressed.push(`say ${text}`)
 const openPress = (
   view: string,
   projectId: string,
-  where: { taskId?: string; decisionId?: string; requestId?: string },
+  where: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string },
 ) =>
   `open ${view} ${projectId}${
     where.requestId
-      ? ` #request-${where.requestId}`
+      ? ` #request-${requestAddress(where.resourceId ?? null, where.requestId)}`
       : where.decisionId
         ? ` #decision-${where.decisionId}`
         : where.taskId

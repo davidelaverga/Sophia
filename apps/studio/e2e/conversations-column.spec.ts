@@ -118,3 +118,15 @@ test('list @phone · at a phone’s width the words share one edge and the boxes
   const plus = await page.locator('.conv-list-head button').boundingBox()
   expect(Math.round(plus?.height ?? 0)).toBeGreaterThanOrEqual(40)
 })
+
+test('faces · on paper every disc is opaque, so two that overlap keep their colours (Codex on #257)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&theme=light`)
+  await drawn(page, DRAWN.conversations)
+  const discs = await page.evaluate(() =>
+    [...document.querySelectorAll('.conv-head .conv-face')].map((el) => getComputedStyle(el).backgroundColor),
+  )
+  expect(discs.length).toBeGreaterThan(1)
+  for (const disc of discs) expect(disc, discs.join(' ')).toMatch(/^rgb\(/)
+})

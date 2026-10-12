@@ -12,10 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `405e1b97` (12 files: `packages/ui` `next-ask-key.ts` + test,
-`NextAskHint.tsx`, `index.ts`; studio `next-ask.ts` + test, `useNextAsk.ts`, `ConversationComposer.tsx`,
-`OpenConversation.tsx`, `conversations.css`, `theme.css`, `e2e/next-ask.spec.ts`) and `docs/plans/next-ask.md`; the
-commit after it adds only this handoff. A squash on merge gives the work an id this file cannot know.
+Ending commit/tree: `fc5c6fb66f9e` (tree `7e1b5003b26b`), the last commit of `ui/next-ask`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 14 files changed against
+`ui/polish-eyebrows` at that commit: `e2e/next-ask.spec.ts`, `src/app/theme.css`, `src/features/conversations/ConversationComposer.tsx`, `src/features/conversations/OpenConversation.tsx`, `src/features/conversations/conversations.css`, `src/features/conversations/next-ask.test.ts`, `src/features/conversations/next-ask.ts`, `src/features/conversations/useNextAsk.ts`, `docs/handoffs/UIKIT-37-attempt-1.md`, `docs/plans/next-ask.md`, `packages/ui/src/NextAskHint.tsx`, `packages/ui/src/index.ts`, `packages/ui/src/next-ask-key.test.ts`, `packages/ui/src/next-ask-key.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 

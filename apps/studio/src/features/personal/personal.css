@@ -571,6 +571,13 @@
 .places .hw-side {
   container: hw-side / inline-size;
 }
+/* A row's note at any width of the side: one line, at most 16rem, cut with an ellipsis. A project's title may be 180
+   characters, and on one line it would push the row out of its column (Codex on #237); under 440 px it wraps (below). */
+.places .hw-side .hw-m {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 @container hw-side (max-width: 440px) {
   .places .hw-side .hw-row {
     grid-template-columns: 24px minmax(0, 1fr) auto;
@@ -590,7 +597,9 @@
   }
   .places .hw-side .hw-m {
     grid-area: m;
+    max-width: none;
     white-space: normal;
+    overflow-wrap: anywhere;
   }
   .places .hw-side .hw-go {
     grid-area: go;
