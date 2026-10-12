@@ -1,0 +1,85 @@
+{
+  "checkpoint": "CON-01-CX-0137",
+  "at": "2026-10-12T01:56:29.327445+00:00",
+  "classification": "Progress: independent source-map reconciliation; exact Luis phone timing arm exercised; both dispatcher CI runs terminal",
+  "source": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "G1": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "G2": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "Luis": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+    "Luis_tree": "82432de2f649b2c4c7e2a41add95ed916f27be0c",
+    "PhaseA": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
+  },
+  "disposition_map": {
+    "commit": "c372181483a07e6ef0bbcb98e1032ef702313993",
+    "tree": "7817f068aff0e8959ab8edb3588dc786bf809ade",
+    "sha256": "0d799d6d460ca8068b79f02e76a403d8136791071f0980f50495646aa6615cb4",
+    "author_receipt": 6116319303,
+    "independent": "Full document and receipt read; docs-only one174-line file on d527; all12 fix/refinement ancestors verified; current useErased/useSeen/useLetGo/withdrawal-held/open-read/lastAt functions and original CX17/21/26/67/73/76 sampled. Historical bounded evidence retained.",
+    "corrections_requested": [
+      "ProjectContext233 consumes erase, while actual moderate gate is ConversationsView146/230",
+      "Missing author replies r4238633930/r4238826987; keep unresolved pending reviewer disposition"
+    ],
+    "no_blanket_thread_resolution": true,
+    "no_G3_G4_acceptance": true
+  },
+  "phone_fixture": {
+    "evidence": "evidence/20261012-cx137-phone-erasure",
+    "first_attempt": "Feed reached remaining-row focus839ms; missed pre-reply draft window. Not a draft-race qualification. Server180s ceiling stopped before interaction; existing in-memory fixture still worked.",
+    "repeat": {
+      "feedFocusMs": 822,
+      "draftEnteredMs": 1168,
+      "waitAfterDraftMs": 2800,
+      "result": "Surviving Short or long briefs conversation/draft remains; textarea focused; no The conversation was erased receipt",
+      "bound": "One manual fixture pass; existing reply scheduled2500ms. Direct window.fixture.served unavailable in read-only evaluate, so no observed transport event/correlation claim. Does not clear reported intermittent automated failure."
+    },
+    "viewport": "390x844; not touch emulation",
+    "cleanup": "BothownedVitePID6683/6872 absent, ports50369/50524closed, exit0 receipts; tabs14/15closed,viewportreset, harness restored clean93e. No owned PG."
+  },
+  "PR256": {
+    "head": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "runs": {
+      "38184271403": "all6success; room114603140571 newlyterminalsuccess",
+      "38185467853": "all6success; room1146067224791164passed/1skip summary previouslyread"
+    },
+    "checks_success": 12,
+    "rerun_cancel": false,
+    "merge_GO": false,
+    "joint_source_handback": "Existingownerthreadnotified; actualPhaseAacceptance/nextbase/window stillnotreturned. SeparateSupabaserecoveryoperationnotrepeated/notCONauthority."
+  },
+  "policy": {
+    "settled": "Q13A,replyC,throwawayhome,conservativewithdrawal; see OWNER_DECISIONS_20261012",
+    "pending_product_question": "D1/D3/Q1 conversation-text-v1 for synthetic cohort explicitly asked of Davide; no answer observed. Team-visible submitted savedtext/project-lifetime-untilwithdrawal; own-authorwithdrawal/adminwholeerase, stricterorgwins, browser-memorydrafts, backup/providerlimits. Noactivationauthority from proposal."
+  },
+  "Luis_handback": "FreshPR199EdX2C6115106416fullyreread; no neweractualorder/base/fourpaths/contracts/authoritativePRhandback. Preservepreparedresolutions; no CON sharedStudio write window.",
+  "coordination": "ExactCONnative message679 visiblyverified; author actively adding missing replies/citation correction. Existingjointthreadsource-onlymessage sent; latestcursor37 reports separate mainCI/recoveryplanning, not CONhandback.",
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "verdict_changes": 0,
+    "sha256": "8116e8b521e314f0ceac584cc69d5e64a4a5cc1c5b9037f087c563dd5e1b14e7"
+  },
+  "operations": {
+    "setup": "OP0002r5 draft_not_authorized/notapprovalready",
+    "Ask": "OP0001r3 draft_not_authorized/notapprovalready",
+    "approval": null,
+    "hosted_SQL_config_deploy_account_grants": 0,
+    "app_provider_native_calls": 0,
+    "additional_app_spend": 0,
+    "coding_agent_coordination": "Actualresourceuse private/unmeasured; not Sophia Ask proof"
+  },
+  "readiness": {
+    "source_ready": "Incomplete canonical runtime/native/route/finalcombined integration",
+    "locally_verified": "Named bounded local PG/API and fixture paths only",
+    "reviewed": false,
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "serving_tuple": "No new live deployment/qualification. Last full tuple observed2026-10-11T12:02:21Z API1e912/runtime6ec/worker039/bridge1e912/Studio manualdpl_2ocn Gitunknown, historical not current proof.",
+  "rollback": "No live rollback executed/qualified; preserve governed saved data/withdrawal/uncertainty/allowance. Localfixture stopped and clean checkout restored.",
+  "next": "Recheck exact returned two author replies/map citation; actual Luis/joint/core/ledger handbacks then agreedcombined source and affected qualification; no effectapproval request before exact reviewable batches."
+}

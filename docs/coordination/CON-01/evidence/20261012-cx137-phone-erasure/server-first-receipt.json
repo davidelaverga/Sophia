@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-12T01:48:31.066437+00:00",
+  "scope": "Exact 2c882 phone feed-first erasure fixture on private loopback,180s ceiling, no API/provider",
+  "port": 50369,
+  "deadlineSeconds": 180,
+  "pid": 6683,
+  "stoppedByReviewerOrCeiling": true,
+  "exit": 0,
+  "pidAbsent": true,
+  "portClosed": true
+}

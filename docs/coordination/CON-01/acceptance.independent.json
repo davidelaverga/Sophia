@@ -1222,21 +1222,21 @@
     }
   ],
   "current_checkpoint": {
-    "record": "CX-0136.md",
-    "at": "2026-10-12T01:37:22.147969+00:00",
-    "classification": "Review-record reconciliation; actual CI wait verified",
-    "policy_authority": "OWNER_DECISIONS_20261012.md; explicit user choices settle replyC/home/withdrawal/Q13A, not operations or technical review",
+    "record": "CX-0137.md",
+    "at": "2026-10-12T01:56:29.327445+00:00",
+    "classification": "Progress: independent source-map reconciliation; exact Luis phone timing arm exercised; both dispatcher CI runs terminal",
     "review_reference_pins": {
+      "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
       "G1": "d527f3854222020abb6ba723bf0ea7480c76bb82",
       "G2": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
-      "UI": "2c882dc58a1170891e41f778fe2a75689778ae0a",
-      "PhaseA": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
-      "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8"
+      "Luis": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+      "Luis_tree": "82432de2f649b2c4c7e2a41add95ed916f27be0c",
+      "PhaseA": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
     },
-    "statement": "All case verdicts retained; current blockers corrected so settled owner decisions are not repeatedly requested. Historical checkpoint/source failure descriptions remain historical. Latest evidence CX133/134/135 is scoped; actual-app acceptance still absent.",
+    "statement": "All36caseverdicts unchanged. Exact source-disposition map reviewed, one Luis phone fixture timing arm passed, no combined/hosted/provider acceptance.",
     "readiness": {
-      "source_ready": "Incomplete canonical runtime/native/route and finalcombined integration",
-      "locally_verified": "Scoped PG/API/fixture evidence only; see CX133/134/135",
+      "source_ready": "Incomplete canonical runtime/native/route/finalcombined integration",
+      "locally_verified": "Named bounded local PG/API and fixture paths only",
       "reviewed": false,
       "authorized": false,
       "deployed": false,
@@ -1244,25 +1244,27 @@
       "owner_accepted": false
     },
     "operations": {
-      "setup": "CON-01-OP-0002-r5.json draft_not_authorized, approval_ready=false",
-      "Ask": "CON-01-OP-0001-r3.json draft_not_authorized, approval_ready=false",
-      "approval": null
+      "setup": "OP0002r5 draft_not_authorized/notapprovalready",
+      "Ask": "OP0001r3 draft_not_authorized/notapprovalready",
+      "approval": null,
+      "hosted_SQL_config_deploy_account_grants": 0,
+      "app_provider_native_calls": 0,
+      "additional_app_spend": 0,
+      "coding_agent_coordination": "Actualresourceuse private/unmeasured; not Sophia Ask proof"
     },
-    "open_review_boundaries": [
-      "Conservative policy selected; disclosure635a and unaffected-author/conversation/decision boundaries still require finalcombined qualification, so r4241643135 is not automatically resolved",
-      "Q13A r5 mechanically qualified locally; canonical owner-approved S3/runtime and hosted admission remain absent, r4242913900 stays open",
-      "Luis order/base/four Studio paths/generatedcontracts/authoritativePR handback missing; exact new layout reviewed only",
-      "Personal Find actual overflow defect remains; fixedclock is not its correction"
-    ],
     "ci_wait": {
-      "PR256": "Latest run38185467853 all6success including1164pass/1skip browser114606722479; older38184271403 browser114603140571 stillin_progress;11totalsuccess. No restart/rerun/cancel or mergeGO.",
-      "review": "Bot6115247020 completed at93e and6115259420 reported no majorissues; independently inspected",
-      "log_observation": "Two job-log reads returnedHTTP502; fresh run-jobs listing stillin_progress, so no terminal failure or restart inferred",
-      "PR211": "Exact7d8 latestbrowser failure114554922957 retained; no waiver"
+      "head": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+      "runs": {
+        "38184271403": "all6success; room114603140571 newlyterminalsuccess",
+        "38185467853": "all6success; room1146067224791164passed/1skip summary previouslyread"
+      },
+      "checks_success": 12,
+      "rerun_cancel": false,
+      "merge_GO": false,
+      "joint_source_handback": "Existingownerthreadnotified; actualPhaseAacceptance/nextbase/window stillnotreturned. SeparateSupabaserecoveryoperationnotrepeated/notCONauthority."
     },
-    "next": "Independently verify author PR211 metadata/thread correction; preserve liveCI handles, obtain source ownerhandbacks then sourceintegration and exactapprovalbatches",
-    "author_receipt": 6116215115,
-    "PR199_review_disposition": "8current/43totalopen/71threads; exactfix/evidencemaprequested, no blanketresolution"
+    "pending_product_policy": "D1/D3/Q1 conversation-text-v1 for synthetic cohort explicitly asked of Davide; no answer observed. Team-visible submitted savedtext/project-lifetime-untilwithdrawal; own-authorwithdrawal/adminwholeerase, stricterorgwins, browser-memorydrafts, backup/providerlimits. Noactivationauthority from proposal.",
+    "next": "Recheck exact returned two author replies/map citation; actual Luis/joint/core/ledger handbacks then agreedcombined source and affected qualification; no effectapproval request before exact reviewable batches."
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",
@@ -1409,7 +1411,49 @@
       "next": "Read exact combined terminal gate and fresh automatic review; independently reproduce concrete failures before G4/merge qualification; keep live operation inputs unresolved"
     }
   ],
-  "previous_checkpoint": "CX-0123.md",
+  "previous_checkpoint": {
+    "record": "CX-0136.md",
+    "at": "2026-10-12T01:37:22.147969+00:00",
+    "classification": "Review-record reconciliation; actual CI wait verified",
+    "policy_authority": "OWNER_DECISIONS_20261012.md; explicit user choices settle replyC/home/withdrawal/Q13A, not operations or technical review",
+    "review_reference_pins": {
+      "G1": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+      "G2": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+      "UI": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+      "PhaseA": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+      "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8"
+    },
+    "statement": "All case verdicts retained; current blockers corrected so settled owner decisions are not repeatedly requested. Historical checkpoint/source failure descriptions remain historical. Latest evidence CX133/134/135 is scoped; actual-app acceptance still absent.",
+    "readiness": {
+      "source_ready": "Incomplete canonical runtime/native/route and finalcombined integration",
+      "locally_verified": "Scoped PG/API/fixture evidence only; see CX133/134/135",
+      "reviewed": false,
+      "authorized": false,
+      "deployed": false,
+      "app_verified": false,
+      "owner_accepted": false
+    },
+    "operations": {
+      "setup": "CON-01-OP-0002-r5.json draft_not_authorized, approval_ready=false",
+      "Ask": "CON-01-OP-0001-r3.json draft_not_authorized, approval_ready=false",
+      "approval": null
+    },
+    "open_review_boundaries": [
+      "Conservative policy selected; disclosure635a and unaffected-author/conversation/decision boundaries still require finalcombined qualification, so r4241643135 is not automatically resolved",
+      "Q13A r5 mechanically qualified locally; canonical owner-approved S3/runtime and hosted admission remain absent, r4242913900 stays open",
+      "Luis order/base/four Studio paths/generatedcontracts/authoritativePR handback missing; exact new layout reviewed only",
+      "Personal Find actual overflow defect remains; fixedclock is not its correction"
+    ],
+    "ci_wait": {
+      "PR256": "Latest run38185467853 all6success including1164pass/1skip browser114606722479; older38184271403 browser114603140571 stillin_progress;11totalsuccess. No restart/rerun/cancel or mergeGO.",
+      "review": "Bot6115247020 completed at93e and6115259420 reported no majorissues; independently inspected",
+      "log_observation": "Two job-log reads returnedHTTP502; fresh run-jobs listing stillin_progress, so no terminal failure or restart inferred",
+      "PR211": "Exact7d8 latestbrowser failure114554922957 retained; no waiver"
+    },
+    "next": "Independently verify author PR211 metadata/thread correction; preserve liveCI handles, obtain source ownerhandbacks then sourceintegration and exactapprovalbatches",
+    "author_receipt": 6116215115,
+    "PR199_review_disposition": "8current/43totalopen/71threads; exactfix/evidencemaprequested, no blanketresolution"
+  },
   "checkpoint_history": [
     {
       "record": "CX-0083.md",
@@ -2398,6 +2442,49 @@
       "boundaryProposalCandidate": "82ce9f60376f7e606e44f1f601cd815d95ff5820",
       "boundaryProposalTree": "18cc2cb10c2215060a9710aa01e07117c0996537",
       "Q13": "Ownerarchitecturalchoicepending; heldproposalreviewed, boundarynotqualified"
+    },
+    {
+      "record": "CX-0136.md",
+      "at": "2026-10-12T01:37:22.147969+00:00",
+      "classification": "Review-record reconciliation; actual CI wait verified",
+      "policy_authority": "OWNER_DECISIONS_20261012.md; explicit user choices settle replyC/home/withdrawal/Q13A, not operations or technical review",
+      "review_reference_pins": {
+        "G1": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+        "G2": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "UI": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+        "PhaseA": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+        "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8"
+      },
+      "statement": "All case verdicts retained; current blockers corrected so settled owner decisions are not repeatedly requested. Historical checkpoint/source failure descriptions remain historical. Latest evidence CX133/134/135 is scoped; actual-app acceptance still absent.",
+      "readiness": {
+        "source_ready": "Incomplete canonical runtime/native/route and finalcombined integration",
+        "locally_verified": "Scoped PG/API/fixture evidence only; see CX133/134/135",
+        "reviewed": false,
+        "authorized": false,
+        "deployed": false,
+        "app_verified": false,
+        "owner_accepted": false
+      },
+      "operations": {
+        "setup": "CON-01-OP-0002-r5.json draft_not_authorized, approval_ready=false",
+        "Ask": "CON-01-OP-0001-r3.json draft_not_authorized, approval_ready=false",
+        "approval": null
+      },
+      "open_review_boundaries": [
+        "Conservative policy selected; disclosure635a and unaffected-author/conversation/decision boundaries still require finalcombined qualification, so r4241643135 is not automatically resolved",
+        "Q13A r5 mechanically qualified locally; canonical owner-approved S3/runtime and hosted admission remain absent, r4242913900 stays open",
+        "Luis order/base/four Studio paths/generatedcontracts/authoritativePR handback missing; exact new layout reviewed only",
+        "Personal Find actual overflow defect remains; fixedclock is not its correction"
+      ],
+      "ci_wait": {
+        "PR256": "Latest run38185467853 all6success including1164pass/1skip browser114606722479; older38184271403 browser114603140571 stillin_progress;11totalsuccess. No restart/rerun/cancel or mergeGO.",
+        "review": "Bot6115247020 completed at93e and6115259420 reported no majorissues; independently inspected",
+        "log_observation": "Two job-log reads returnedHTTP502; fresh run-jobs listing stillin_progress, so no terminal failure or restart inferred",
+        "PR211": "Exact7d8 latestbrowser failure114554922957 retained; no waiver"
+      },
+      "next": "Independently verify author PR211 metadata/thread correction; preserve liveCI handles, obtain source ownerhandbacks then sourceintegration and exactapprovalbatches",
+      "author_receipt": 6116215115,
+      "PR199_review_disposition": "8current/43totalopen/71threads; exactfix/evidencemaprequested, no blanketresolution"
     }
   ]
 }
