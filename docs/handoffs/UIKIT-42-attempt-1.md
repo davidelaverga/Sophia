@@ -42,3 +42,10 @@ it adds only this handoff. A squash on merge gives the work an id this file cann
 
 informe-inteligencia #4 (the next-ask piece on Home, a task's sheet and the personal space) and #8 (a message that reads
 like a decision offers «Propose as decision»).
+
+## Post-review (Codex on #267)
+
+- An ask arrival waits for the membership: `useArrival`'s `open` may answer `false` to keep the arrival, so a member on
+  a cold load whose membership is read after the search still gets the form; a confirmed viewer gets the list.
+- The words are fitted to a question's limit (`fitQuestion`, 120, cut at a word with an ellipsis), so a long query still
+  starts; `new-conversation.test.ts` holds it.

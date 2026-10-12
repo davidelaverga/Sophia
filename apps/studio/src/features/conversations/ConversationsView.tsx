@@ -29,12 +29,17 @@ import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
+import { fitQuestion } from './new-conversation.ts'
 import './conversations.css'
 
-/** The new conversation's form on a question, Sophia asked; a form whose words are on their way keeps them. */
+/**
+ * The new conversation's form on a question, Sophia asked; a form whose words are on their way keeps them. Words longer
+ * than a question may be are cut at a word to fit, with an ellipsis (Codex on #267).
+ */
 function beginOn(talk: ReturnType<typeof useTalk>, question: string) {
   if (talk.kept.start.held) return
-  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title: question, text: '', askSophia: true } } }))
+  const title = fitQuestion(question)
+  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title, text: '', askSophia: true } } }))
 }
 
 /** Newest activity first: sorted once per answer. */
@@ -67,6 +72,29 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
   return { list, all: list.data ?? [], settled: list.isSuccess && !list.isFetching }
 }
 
+/** What another view asked Conversations to open (project-go.tsx): a conversation, or words to ask Sophia. */
+function useArrivals(
+  ask: (id: string) => void,
+  writer: boolean | undefined,
+  talk: ReturnType<typeof useTalk>,
+  start: ReturnType<typeof useStart>,
+  show: () => void,
+) {
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
+  // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
+  useArrival('conversations', (to) => {
+    // Words to ask wait for the membership: a member gets the form, a confirmed viewer the list (Codex on #267).
+    if ('ask' in to && writer === undefined) return false
+    if (!('ask' in to)) ask(to.conversationId)
+    else if (writer) {
+      beginOn(talk, to.ask)
+      if (!start.starting) start.toggle()
+    }
+    show()
+    return undefined
+  })
+}
+
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const { me, writer } = readerOf(membership)
   const { list, all, settled } = useList(projectId, identity, cursor)
@@ -77,16 +105,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     choose(id)
     panes.show()
   })
-  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
-  // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
-  useArrival('conversations', (to) => {
-    if (!('ask' in to)) ask(to.conversationId)
-    else if (writer) {
-      beginOn(talk, to.ask)
-      if (!start.starting) start.toggle()
-    }
-    panes.show()
-  })
+  useArrivals(ask, writer, talk, start, panes.show)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
   // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).

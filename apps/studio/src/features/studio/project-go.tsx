@@ -53,14 +53,17 @@ export function ProjectGoProvider({ onShow, children }: { onShow: (view: View) =
   return <ProjectGo.Provider value={value}>{children}</ProjectGo.Provider>
 }
 
-/** What this view was asked to open, given to `open` once and then forgotten. */
-export function useArrival<V extends Arrival['view']>(view: V, open: (to: Extract<Arrival, { view: V }>) => void) {
+/**
+ * What this view was asked to open, given to `open` once and then forgotten. `open` answering `false` keeps it for a
+ * later render (what it needs is still being read).
+ */
+export function useArrival<V extends Arrival['view']>(view: V, open: (to: Extract<Arrival, { view: V }>) => unknown) {
   const shell = useContext(ProjectGo)
   const to = shell?.arrival
   useEffect(() => {
     if (!shell || !to || to.view !== view) return
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by its view just above
-    open(to as Extract<Arrival, { view: V }>)
+    if (open(to as Extract<Arrival, { view: V }>) === false) return
     shell.arrived()
   }, [shell, to, view, open])
 }
