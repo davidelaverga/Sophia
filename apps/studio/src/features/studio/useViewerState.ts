@@ -1,7 +1,7 @@
 // React binding for viewer-state.ts. Storage is a per-device convenience: when it is unavailable
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
 import { useEffect, useReducer, useRef, useState } from 'react'
-import { ADDRESS_MOVED } from '../../app/route.ts'
+import { ADDRESS_MOVED, pathIsFor } from '../../app/route.ts'
 import {
   LENS_FOR_KEY,
   addressLensFor,
@@ -101,10 +101,13 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
     if (!inAddress) return undefined
     return () => {
       const { pathname, search, hash } = window.location
+      // The address already another project's (Back or Forward while a call keeps this one on screen): its lens is its
+      // own, kept (Codex on #242).
+      if (!pathIsFor(pathname, projectId)) return
       const next = withLensInAddress(search, null)
       if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
     }
-  }, [inAddress])
+  }, [inAddress, projectId])
 
   return {
     state,

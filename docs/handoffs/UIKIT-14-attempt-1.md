@@ -5,11 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/board-blocked` from `ui/shadow` at `292f64d3`
 (stacked on PR #235 → #234 → … → #220; the base retargets as each merges)
-Ending commit/tree: `3ff86c5c` (tree `bcc06fb746b9`): 7 files, 1 new (`docs/plans/board-blocked.md`); `plan.ts`,
-`PlanBoard.tsx`, `board.css`, `plan.test.ts`, `served-board.test.ts`, `e2e/work.spec.ts`. The commit after it adds
-only this handoff. After the review (Codex on #236, P2): `84d8b4c2` keeps a dependent blocked while its blocker is
-anything but complete (a cancelled prerequisite satisfies nothing), with the case in `plan.test.ts`. That is the
-completed code state of this PR.
+Ending commit/tree: `e00b9242daaf` (tree `30903e81499e`), the last commit of `ui/board-blocked`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 13 files changed against
+`ui/shadow` at that commit: `e2e/widths.spec.ts`, `e2e/work.spec.ts`, `fixtures/work.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/Threads.tsx`, `src/features/work/planning/board.css`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `src/features/work/planning/seen.test.ts`, `src/features/work/planning/seen.ts`, `src/features/work/planning/served-board.test.ts`, `docs/handoffs/UIKIT-14-attempt-1.md`, `docs/plans/board-blocked.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
