@@ -93,6 +93,28 @@ interface Deps {
   store: ByteStore | null
 }
 
+/** Validate a real active capability/lease before shared body admission; slots create no source/write claim.
+ * The handler revalidates after parsing, so revocation/lease loss during body receipt still refuses storage.
+ */
+async function authorizeUpload(deps: Deps, req: FastifyRequest): Promise<void> {
+  const params = req.params
+  if (typeof params !== 'object' || params === null || !('jobId' in params) || typeof params.jobId !== 'string') {
+    throw new DomainError('invalid_request', 'A render upload names its job')
+  }
+  const job = params.jobId
+  const lease = leaseOf(req)
+  if (!new RegExp(UUID, 'u').test(job) || !new RegExp(UUID, 'u').test(lease)) {
+    throw new DomainError('invalid_request', 'A render upload names its job and lease')
+  }
+  if ('name' in params) {
+    const name = params.name
+    if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9.-]{0,150}\.png$/u.test(name)) {
+      throw new DomainError('invalid_request', 'A capture names its PNG')
+    }
+    await withService(deps.pool, (c) => rendererCaptureSlot(c, tokenOf(req), job, lease, name))
+  } else await withService(deps.pool, (c) => rendererOutputSlot(c, tokenOf(req), job, lease))
+}
+
 /** One file's bytes: inline text, or the byte store's object, checked against the hash the package recorded. */
 async function fileBytes(
   deps: Deps,
@@ -192,7 +214,7 @@ function captureRoutes(app: FastifyInstance, deps: Deps): void {
   app.put<{ Params: { jobId: string; name: string }; Body: unknown }>(
     '/v1/renderer/jobs/:jobId/captures/:name',
     {
-      ...rendererUploadHooks(CAPTURE_OUTPUT_LIMIT),
+      ...rendererUploadHooks(CAPTURE_OUTPUT_LIMIT, (req) => authorizeUpload(deps, req)),
       bodyLimit: CAPTURE_OUTPUT_LIMIT,
       schema: { params: captureParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderCaptureOutput#' } } },
     },
@@ -230,7 +252,7 @@ export function rendererRoutes(app: FastifyInstance, deps: Deps): void {
   app.put<{ Params: { jobId: string }; Body: unknown }>(
     '/v1/renderer/jobs/:jobId/output',
     {
-      ...rendererUploadHooks(RENDER_OUTPUT_LIMIT),
+      ...rendererUploadHooks(RENDER_OUTPUT_LIMIT, (req) => authorizeUpload(deps, req)),
       bodyLimit: RENDER_OUTPUT_LIMIT,
       schema: { params: jobParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderOutput#' } } },
     },

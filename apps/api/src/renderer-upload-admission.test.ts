@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { request } from 'node:http'
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import { it } from 'node:test'
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify'
 import { rendererUploadHooks, RENDER_BODY_MS, withRendererUpload } from './renderer-upload-admission.ts'
 
 const MIB = 1024 * 1024
@@ -31,13 +31,18 @@ async function beforeSentinel<T>(promise: Promise<T>): Promise<T> {
     clearTimeout(timer)
   }
 }
-function appFor(bytes: number, gate: ReturnType<typeof deferred>, entered: () => void): FastifyInstance {
+function appFor(
+  bytes: number,
+  gate: ReturnType<typeof deferred>,
+  entered: () => void,
+  authorize: (req: FastifyRequest) => Promise<void> = () => Promise.resolve(),
+): FastifyInstance {
   const app = Fastify()
   app.addContentTypeParser('application/pdf', { parseAs: 'buffer' }, (_req, body, done) => done(null, body))
   app.put(
     '/upload',
     {
-      ...rendererUploadHooks(bytes),
+      ...rendererUploadHooks(bytes, authorize),
       schema: {
         querystring: {
           type: 'object',
@@ -216,6 +221,106 @@ it('refuses parsed-late bodies before an overdue timer can be cleared and releas
     assert.equal((await upload(app)).statusCode, 200)
     assert.equal(entries, 1)
   } finally {
+    await app.close()
+  }
+})
+
+it('authorizes before shared body admission, refusing invalid callers without consuming capacity', async () => {
+  const gate = deferred()
+  gate.finish()
+  const entered = deferred()
+  const auth = deferred()
+  const app = Fastify()
+  app.addContentTypeParser('application/pdf', { parseAs: 'buffer' }, (_req, body, done) => done(null, body))
+  app.put(
+    '/blocked',
+    {
+      ...rendererUploadHooks(64 * MIB, async () => {
+        entered.finish()
+        await auth.promise
+        throw new Error('synthetic refused capability')
+      }),
+    },
+    (req) => withRendererUpload(req, () => Promise.resolve({ ok: true })),
+  )
+  const other = appFor(64 * MIB, gate, () => {})
+  const refused = app.inject({
+    method: 'PUT',
+    url: '/blocked',
+    headers: { 'content-type': 'application/pdf' },
+    payload: '%PDF-small',
+  })
+  const observed = Promise.resolve(refused)
+  try {
+    await beforeSentinel(entered.promise)
+    assert.equal(
+      (await beforeSentinel(upload(other))).statusCode,
+      200,
+      'pending capability check has reserved no shared body bytes',
+    )
+    auth.finish()
+    assert.equal((await beforeSentinel(observed)).statusCode, 500)
+    assert.equal(
+      (await beforeSentinel(upload(other))).statusCode,
+      200,
+      'refused capability has reserved no shared body bytes',
+    )
+  } finally {
+    auth.finish()
+    await beforeSentinel(observed)
+    await app.close()
+    await other.close()
+  }
+})
+
+it('never charges a request that disconnects while its capability authorization is pending', async () => {
+  const auth = deferred()
+  const entered = deferred()
+  const closed = deferred()
+  const gate = deferred()
+  gate.finish()
+  let first = true
+  const app = appFor(
+    64 * MIB,
+    gate,
+    () => {},
+    async () => {
+      if (!first) return
+      first = false
+      entered.finish()
+      await auth.promise
+    },
+  )
+  app.addHook('onRequest', (req, _reply, done) => {
+    req.raw.once('close', closed.finish)
+    done()
+  })
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const address = app.server.address()
+  assert.ok(address && typeof address === 'object')
+  const req = request({
+    hostname: '127.0.0.1',
+    port: address.port,
+    path: '/upload?valid=yes',
+    method: 'PUT',
+    headers: { 'content-type': 'application/pdf', 'content-length': '100' },
+  })
+  req.on('error', () => {})
+  req.write('%PDF-')
+  try {
+    await beforeSentinel(entered.promise)
+    req.destroy()
+    await beforeSentinel(closed.promise)
+    auth.finish()
+    await nextTurn()
+    assert.equal(
+      (await beforeSentinel(upload(app))).statusCode,
+      200,
+      'closed-during-auth request reserved no body capacity',
+    )
+  } finally {
+    auth.finish()
+    req.destroy()
     await app.close()
   }
 })

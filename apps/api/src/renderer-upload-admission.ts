@@ -48,14 +48,17 @@ function admit(req: FastifyRequest, bytes: number): void {
   })
 }
 
-/** Applied to upload routes only; existing global authentication runs first. Parse/schema errors release safely. */
+/** Applied to uploads only: real capability/lease authorization precedes body admission. Errors release safely. */
 export function rendererUploadHooks(
   maximumBytes: number,
+  authorize: (req: FastifyRequest) => Promise<void>,
 ): Pick<RouteShorthandOptions, 'onRequest' | 'preValidation' | 'onError' | 'onResponse'> {
   return {
-    onRequest: (req, _reply, done) => {
+    onRequest: async (req) => {
+      await authorize(req)
+      // A close during authorization precedes admission's listener; never charge an already-dead request.
+      if (req.raw.destroyed) throw new DomainError('unavailable', 'Renderer request closed')
       admit(req, maximumBytes)
-      done()
     },
     preValidation: (req, _reply, done) => {
       const state = admitted.get(req)

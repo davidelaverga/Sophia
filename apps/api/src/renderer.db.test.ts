@@ -6,6 +6,7 @@
 // stays as written because the API claims each key once in the database before it writes (0044, writeOnce), never
 // because the store refuses.
 import { createHash, randomUUID } from 'node:crypto'
+import { request } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
 import pg from 'pg'
@@ -246,6 +247,55 @@ describe('render runner endpoints (A11, 0030)', () => {
     )
     lease = job.leaseToken
     assert.deepEqual((await call('/v1/renderer/claim')).json, { job: null }, 'nothing else to claim')
+  })
+
+  it('refuses bogus partial PDF and PNG uploads before parsing or consuming shared body admission', async () => {
+    const from = written.length
+    const rejected = async (suffix: string, mime: string) => {
+      const req = request(`${base}/v1/renderer/jobs/${jobId}/${suffix}`, {
+        method: 'PUT',
+        headers: {
+          authorization: 'Bearer bogus-renderer-capability-0123456789',
+          'x-sophia-render-lease': lease,
+          'content-type': mime,
+          'content-length': '100',
+        },
+      })
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const answer = new Promise<number>((resolve, reject) => {
+        req.once('error', reject)
+        req.once('response', (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        })
+      })
+      req.write(mime === 'image/png' ? PNG.subarray(0, 4) : PDF.subarray(0, 5))
+      try {
+        const code = await Promise.race([
+          answer,
+          new Promise<number>((resolve) => {
+            timer = setTimeout(() => resolve(-1), 2000)
+          }),
+        ])
+        assert.equal(code, 401, 'unauthorized partial body answered before parser/sentinel')
+      } finally {
+        clearTimeout(timer)
+        req.destroy()
+        await answer.catch(() => 0)
+      }
+    }
+    await Promise.all([
+      rejected('output', 'application/pdf'),
+      rejected('output', 'application/pdf'),
+      rejected('captures/probe.png', 'image/png'),
+    ])
+    assert.equal(written.length, from, 'invalid capabilities caused no stored writes')
+    const valid = await call(`/v1/renderer/jobs/${jobId}/output`, {
+      method: 'PUT',
+      lease,
+      pdf: Buffer.from('invalid PDF'),
+    })
+    assert.equal(valid.status, 422, 'real runner/lease still reaches body validation after bogus requests')
   })
 
   it('serves each file as bytes under the lease, checked against the package', async () => {
