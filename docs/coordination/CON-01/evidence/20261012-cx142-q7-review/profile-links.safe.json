@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-12T02:55:18.788Z",
+  "kind": "local_frozen_offline_install_symlink_inventory_no_agent_boot",
+  "source": "3b1a7ea609526abbb3722ca144b7c7dd42b67c5e",
+  "helpersIdenticalTo": "7d8f415f",
+  "node": "v24.21.0",
+  "network": "sandbox-exec deny network*",
+  "credentialNamesPassed": [],
+  "status": 0,
+  "signal": null,
+  "error": null,
+  "installMs": 408,
+  "symlinkCount": 0,
+  "symlinks": [],
+  "special": [],
+  "cleanup": "owned_root_removed_after_install_return"
+}

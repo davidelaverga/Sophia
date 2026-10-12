@@ -1,0 +1,32 @@
+{
+  "classification": "independent source review plus owned offline baseline install inventory, no agent boot/provider",
+  "candidate": "1c404b44e35be65eee35e5d2f3442ab1f2e79ef9",
+  "tree": "226baffa2a3aa1701b47e1c07b3f73646d47aa01",
+  "proposalSha256": "b088c4d0c8e20e5aabd91814994be21e1d388807220550d8a9f4fb52542c15e5",
+  "mainAtDiscovery": "26237d30fa0570b711f7f71ed240fa465519d7dc",
+  "newMainPlusPhaseATree": "0deba714ddedff497b45c2ae2ddea3416220ae41",
+  "githubMergeRefStill": "40eaefcab4b970c4d97aecfcafbec28c31f5e214",
+  "reviewComment": 6116884508,
+  "nativeSession": "session_01KUDtFK9gWthsXSrepcLQz3",
+  "deliveredMessage": 683,
+  "authorObserved": "Currently streaming message / Running agent / Quote CX142 review verbatim",
+  "nativeUiRestored": "session_0155SjcXhv87RErnWEBWxfBM",
+  "privateChatSha256": "6afc75e40fb81bd7bb16bd8ce5dcbc79adf850e787dd206b0b1812d72b959c20",
+  "probeScriptSha256": "2788afb0b6dfe0e4a4d2f4799a7da39a25e3b7805d9f173eb82a6ee9f0f19f00",
+  "profileResultSha256": "fa84829c90f485a7f028af90d9889993ab67680ec80625f5842a56adaa66fb67",
+  "commands": [
+    "git show1c404b44 Q7 lines1\u2013442; hash docs and parent/tree",
+    "git show7d8 bridge dispatch/send/receipt queue/ACK, S2 reserve/settle/mark_uncertain/reconcile and binding8.2/8.2.1",
+    "Pinned Node24.21 libuv process.c and child_process API read via web primary sources",
+    "Discover checks and current review threads via Code Review/GitHub connectors; no rerun/cancel/waiver",
+    "git merge-tree --write-tree26237d30 93e; fetch actual refs/pull/256/merge; inspect parents/tree",
+    "node private profile-links-probe.mjs: sandbox-exec deny network*, explicit no-credential env, verified existing artifact, frozen offline supported profile install; count links/special files; remove owned root after return"
+  ],
+  "limitations": [
+    "No P1\u2013P8 or live provider qualification claimed",
+    "No feature/runtime/schema fix authored by reviewer",
+    "No shared-file or operation approval",
+    "No current combined-main test claim from merge-tree",
+    "No Linux reply-template or complete host-copy proof from baseline Darwin inventory"
+  ]
+}
