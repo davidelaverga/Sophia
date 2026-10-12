@@ -127,3 +127,9 @@
   request), the Studio opens Resources at `#request-<id>`, and `ResourcePanel` opens that request's resource and gives
   the request's row the focus, once per address, the address becoming the sheet's; a request not among those read
   opens nothing and the address waits. The task's id still comes along in `NeedAt`, for the record.
+- **Round 11 (P2)**: shown means in sight, not only drawn: `turnIsShown` asks the turn's box to meet its log's
+  (`.msgs`, the scrollport) and the window's, and brings a drawn turn below the fold into sight first (`scrollIntoView`,
+  instant: a kept scroll position, or a reply left under «Sophia answered», would otherwise let the mark advance
+  unseen). Home's fixture takes a log (`turns=log`: thirty turns in a short scrollport, the reply the last, below the
+  fold; `turns=hidden`: the same under `hidden`), so the real watch decides there too: the spec sees the seen mark only
+  after the turn is in sight (the log scrolled), and none when the log is hidden (the row stays).

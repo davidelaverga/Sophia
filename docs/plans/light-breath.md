@@ -57,3 +57,10 @@
   chosen: the heart fades (0.96 → 0.86 by 4 %) into a rim of the deep violet (`85 70 184` at 0.4 by 8.5 %), then
   the halo (0.44 → 0.24 → 0.1) thins to nothing by 48 %. B's rim was crisp and read as a disc; C's ink shadow under
   the heart did not show. Depth comes from the rim, not from a shadow.
+
+## After the review (Codex on #251, later round)
+
+The multiply moved from `.light` to its canvases (`.light > canvas`, with the edge mask): the whole light's blend took
+the formed mark with it, so on paper Umbral's `#8468ee` drew as `#8265e3` and no longer matched the favicon and the
+bar. The halo still lays ink on the page; the mark beside it is the brand's ink as drawn. light-mark.spec reads that no
+element from the mark up to the page blends, and a headless pixel read holds the drawn colour.
