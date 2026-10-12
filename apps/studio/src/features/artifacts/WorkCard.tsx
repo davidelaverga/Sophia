@@ -112,13 +112,16 @@ const offersRetry = (canAct: boolean, words: StateWords, research: ResearchProgr
 
 /**
  * Named in the address (`#task-<id>`, as a line of Updates names it): the card takes the focus and comes into view,
- * as a plan's tile would open its sheet (useOpenTask); a card has no sheet of its own.
+ * as a plan's tile would open its sheet (useOpenTask); a card has no sheet of its own. Every kind's card takes it
+ * (research, design, a brief: TaskCard; Codex on #239).
  */
-function useNamedCard(taskId: string) {
+export function useNamedCard(taskId: string) {
   const named = useAddressed(TASK)
   useEffect(() => {
     if (named.id !== taskId) return
-    const card = document.querySelector<HTMLElement>(`.work-card[data-task="${CSS.escape(taskId)}"]`)
+    const card = [...document.querySelectorAll<HTMLElement>('li.task[data-task], .work-card[data-task]')].find(
+      (el) => el.dataset['task'] === taskId,
+    )
     card?.focus({ preventScroll: true })
     card?.scrollIntoView({ block: 'center' })
   }, [named, taskId])
@@ -126,7 +129,6 @@ function useNamedCard(taskId: string) {
 
 export function WorkCard(props: Props) {
   const { task, identity, projectId, canAct = false } = props
-  useNamedCard(task.id)
   const { research, outputs, versions, words, current } = useResearch(props)
   const now = useNow()
   const open = useOpen(task.artifactId)
