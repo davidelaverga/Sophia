@@ -419,8 +419,8 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
   await page.waitForTimeout(400)
   await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
-  // With the slot shut, the address opens it: Escape shuts the decisions, the address names one again, they show.
-  await page.keyboard.press('Escape')
+  // With the slot shut, the address opens it: the pill shuts the decisions, the address names one again, they show.
+  await board(page).locator('.decision-pill').click()
   await expect(board(page).locator('[data-decision]')).toHaveCount(0)
   await page.evaluate(
     (hash) => {
