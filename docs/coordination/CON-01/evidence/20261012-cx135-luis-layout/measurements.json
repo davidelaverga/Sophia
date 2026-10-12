@@ -1,0 +1,233 @@
+{
+  "candidate": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+  "tree": "82432de2f649b2c4c7e2a41add95ed916f27be0c",
+  "desktop": [
+    {
+      "acts": {
+        "bottom": 281,
+        "height": 28,
+        "left": 834,
+        "right": 964,
+        "top": 253
+      },
+      "bubble": {
+        "bottom": 323,
+        "left": 328,
+        "right": 643.890625,
+        "top": 285
+      },
+      "byline": {
+        "bottom": 280,
+        "left": 332,
+        "right": 360.921875,
+        "top": 264
+      },
+      "classes": "conv-msg",
+      "gap": 4,
+      "inside": true,
+      "text": "And every claim keeps its source, one click away."
+    },
+    {
+      "acts": {
+        "bottom": 341,
+        "height": 28,
+        "left": 834,
+        "right": 964,
+        "top": 313
+      },
+      "bubble": {
+        "bottom": 390,
+        "left": 364,
+        "right": 835.0625,
+        "top": 345
+      },
+      "byline": {
+        "bottom": 346,
+        "left": 332,
+        "right": 333,
+        "top": 345
+      },
+      "classes": "conv-msg sophia",
+      "gap": 4,
+      "inside": true,
+      "text": "I can keep both versions apart so we compare them on the same question.11:12"
+    },
+    {
+      "acts": {
+        "bottom": 406,
+        "height": 28,
+        "left": 834,
+        "right": 964,
+        "top": 378
+      },
+      "bubble": {
+        "bottom": 448,
+        "left": 798.0390625,
+        "right": 952,
+        "top": 410
+      },
+      "byline": {
+        "bottom": 411,
+        "left": 947,
+        "right": 948,
+        "top": 410
+      },
+      "classes": "conv-msg mine",
+      "gap": 4,
+      "inside": true,
+      "text": "Please do. Short first."
+    },
+    {
+      "acts": {
+        "bottom": 481,
+        "height": 28,
+        "left": 834,
+        "right": 964,
+        "top": 453
+      },
+      "bubble": {
+        "bottom": 523,
+        "left": 328,
+        "right": 609.125,
+        "top": 485
+      },
+      "byline": {
+        "bottom": 480,
+        "left": 332,
+        "right": 360.921875,
+        "top": 464
+      },
+      "classes": "conv-msg",
+      "gap": 4,
+      "inside": true,
+      "text": "The short one still needs the March figures."
+    },
+    {
+      "acts": {
+        "bottom": 541,
+        "height": 28,
+        "left": 834,
+        "right": 964,
+        "top": 513
+      },
+      "bubble": {
+        "bottom": 590,
+        "left": 364,
+        "right": 865.421875,
+        "top": 545
+      },
+      "byline": {
+        "bottom": 546,
+        "left": 332,
+        "right": 333,
+        "top": 545
+      },
+      "classes": "conv-msg sophia",
+      "gap": 4,
+      "inside": true,
+      "text": "Added them, cited. The open question is how long the evidence section may be.11:35"
+    },
+    {
+      "acts": {
+        "bottom": 606,
+        "height": 28,
+        "left": 834,
+        "right": 964,
+        "top": 578
+      },
+      "bubble": {
+        "bottom": 648,
+        "left": 725.359375,
+        "right": 952,
+        "top": 610
+      },
+      "byline": {
+        "bottom": 611,
+        "left": 947,
+        "right": 948,
+        "top": 610
+      },
+      "classes": "conv-msg mine",
+      "gap": 4,
+      "inside": true,
+      "text": "Let’s look at it together tomorrow."
+    }
+  ],
+  "desktopControls": [
+    {
+      "classes": "button",
+      "focused": true,
+      "height": 26,
+      "text": "Remove"
+    },
+    {
+      "classes": "text-button",
+      "focused": false,
+      "height": 24,
+      "text": "Keep it"
+    }
+  ],
+  "wide": {
+    "columns": [
+      {
+        "left": 550,
+        "right": 1310,
+        "selector": ".conv-field-box",
+        "width": 760
+      },
+      {
+        "left": 550,
+        "right": 1310,
+        "selector": ".conv-quick",
+        "width": 760
+      },
+      {
+        "left": 550,
+        "right": 1310,
+        "selector": ".conv-compose-hint",
+        "width": 760
+      }
+    ],
+    "fine": true,
+    "viewport": {
+      "height": 1000,
+      "width": 1920
+    }
+  },
+  "phone": {
+    "acts": {
+      "bottom": 267,
+      "height": 28,
+      "left": 247,
+      "right": 377,
+      "top": 239
+    },
+    "bubble": {
+      "bottom": 329,
+      "top": 271
+    },
+    "coarse": false,
+    "controls": [
+      {
+        "classes": "button",
+        "focused": true,
+        "height": 26,
+        "text": "Remove"
+      },
+      {
+        "classes": "text-button",
+        "focused": false,
+        "height": 24,
+        "text": "Keep it"
+      }
+    ],
+    "fine": true,
+    "gap": 4,
+    "inside": true,
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  },
+  "limits": "L1 fixture only; pointer fine at both widths; no touch/coarse, provider, real persistence or final combined G4"
+}

@@ -1,0 +1,26 @@
+{
+  "candidate": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+  "tree": "82432de2f649b2c4c7e2a41add95ed916f27be0c",
+  "classification": "scoped local L1 browser fixture",
+  "files": {
+    "wide-alignment.jpg": "d0d3db858b1d4d9f0d6eb53d582f27757cc84171dfe4bed682afebc51e884a7d",
+    "measurements.json": "1382230f9e6f372be8d9d04e9ca8327084260df8d526fcb6e2cf119c429b16fa",
+    "server-receipt.json": "04aa6fb6240fc78a2c88114e7bd647fb1088a9929da5f9579274e61f24645043",
+    "desktop-confirmation.jpg": "ffce7aa6d52747e2815e36d411ee883fe24bbd8f4cb5aa1ce90e86639cae6c60",
+    "serve-owned.py": "1b0b565f421f838bdd39e868142632c4b60865f3bde405daf0138f4b901f031d",
+    "phone-confirmation.jpg": "3a59717c618e42588b5f0e5a354f9a1b3446cc9f4e87010502fde6aa693dd364"
+  },
+  "actions": [
+    "Clean owned detached harness moved 93e9313d -> 2c882dc5; exact Node24.21.0/pnpm11.7.0; dependencies byte-identical",
+    "Start original Vite fixture config on loopback49828 with180s ceiling and sanitized environment",
+    "IAB tab13: room.html?demo=1&conversations=1&place=conversations,1280x800; measure six rows; open Remove confirmation without submitting; Keep it",
+    "1920x1000 measure field/quick/hint;390x844 open Remove confirmation and Keep it",
+    "Save actual screenshots and read-only DOM measurements; close tab13/reset viewport; TERM only owned process group5416; clean detached harness restored93e9313d"
+  ],
+  "limits": [
+    "Pointer fine at both widths; no coarse/touch verification",
+    "No removal sent; no unknown/busy/idempotency/erasure/provider or live-app crossing",
+    "Fixture config enables proposed vision fixtures locally; no production build/config or unrelated proposal activation",
+    "Source diff read, not complete combined browser test suite or G4"
+  ]
+}

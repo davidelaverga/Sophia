@@ -1,0 +1,230 @@
+{
+  "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+  "operation": {
+    "requests": [
+      "CON-01-OP-0002-r5",
+      "CON-01-OP-0001-r3"
+    ],
+    "status": "draft_not_authorized",
+    "approval_ready": false,
+    "approval": null,
+    "expiry": null,
+    "candidates_and_artifacts": "unbound; review-reference pins are not deployment candidates",
+    "setup_human_chat": "bounded proposed cohort/setup and human-chat only; zero native/model calls; Ask disabled",
+    "Ask": "separate qualified one-subscription-route batch; missing finite execution allowance/expiry blocks provider execution",
+    "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+    "lastObservedTuple": {
+      "API": {
+        "service": "srv-daqrn08473hc73flhi8g",
+        "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "runtime": {
+        "service": "srv-darvmse0tbcc73d8kh3g",
+        "liveDeployment": "dep-db02hcou01pc738k4atg",
+        "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+      },
+      "worker": {
+        "service": "srv-darv7snpn0mc73e6c240",
+        "liveDeployment": "dep-db5dos8473hc73apq6b0",
+        "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+        "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+      },
+      "bridge": {
+        "service": "srv-darvcigu01pc73e24o4g",
+        "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "Studio": {
+        "project": "sophia-30911edf/sophia-studio",
+        "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+        "status": "Ready",
+        "source": "manual vercel deploy; Git unconnected; SHA unknown",
+        "domains": [
+          "studio.sophia-ei.com",
+          "sophia-studio.vercel.app"
+        ]
+      }
+    },
+    "tuple_limits": "Serving tuple and DB discovery above are dated; joint recovery operation reports cleanup but independent target preflight still required. No current deployment/rollback tuple asserted.",
+    "current_main": "e0200f1a discovered; draft candidate/artifact fields remain unbound, no deployment or rollback tuple refresh",
+    "database_discovery_refreshed": "2026-10-12T00:28:36.364Z",
+    "schema_preparation": "Exact source hashes and own incremental rehearsal recorded; final candidate/artifacts/preflight/commands/recovery/authority still unbound"
+  },
+  "readiness": {
+    "source_ready": "Bounded dispatcher prerequisite published; CON native/subscription/Q13 incomplete",
+    "locally_verified": "Scoped previous PG17 evidence retained; exact2c882 local browser geometry only, full real-app gates still open",
+    "reviewed": "Scoped source/owner prerequisite handback and rehearsal; whole mission false",
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "changed": false,
+    "fullVerdicts": "acceptance.independent.json",
+    "sha256": "689fe686ebe535868665b98cc5fb6aae56e740a9ff46e8ad9c32ac9c10608b22"
+  },
+  "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
+  "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
+  "goal_status": "active",
+  "checkpoint": "CON-01-CX-0135",
+  "at": "2026-10-12T01:30:36.465138+00:00",
+  "classification": "Progress: exact latest Luis layout independently measured; correction diagnosis accepted as diagnosis only",
+  "previous_turn": "progress: independent Q13 composition and actual Personal Find failure",
+  "owner_decisions": "OWNER_DECISIONS_20261012.md retained, no new low-level product question",
+  "next_bounded_action": "Luis actual engineering landing-order/base/four-path/generated-contract handback; CON bounded corrections then independent affected recheck. Personal owner actual Find correction separately.",
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "evidence": "evidence/20261012-cx134-q13-composition/manifest.json",
+  "source_pins": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "PR211": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "PR256": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "Q13": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
+    "dock": {
+      "head": "f5964bcbfb992535504d1248e00e8d57efaa7558",
+      "tree": "b1cc580579dd8c6a1337aa0d55e7aeeb853cb472"
+    },
+    "prepared_UI": {
+      "head": "c26154db28e5c2deb9489b3243f98be0d8c85b35",
+      "tree": "75a2e85498d783b88643b73d461bbd1588772823"
+    }
+  },
+  "owner_handback": {
+    "SHA256": "393a439a053c798840dc84be4d195b31bd3b76ac79362bbb78bae24b7f0d4449",
+    "migration_hashes_independently_matched": 9,
+    "runner_hash_matched": true,
+    "owner_AX_hash_matched_and_full_read": true,
+    "scope": "Conditional source/consumer compatibility only; no effect authority",
+    "joint_new_active_turn": "01a12d8c-fa4c-75b3-81f1-04c3741d41f6",
+    "joint_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:25",
+    "joint_status": "blocked pending separate Supabase test approval and PR190 billing decision"
+  },
+  "rehearsal": {
+    "scope": "new private PG17 proposed composition, see manifest",
+    "initialFailure": "test reason invalid; initial retained; candidate unchanged",
+    "retryPass": true
+  },
+  "resource_use": {
+    "owned_PG_clusters": 2,
+    "both_stopped_removed": true,
+    "other_clients_at_final_census": 0,
+    "hosted_connections_this_turn": 0,
+    "hosted_mutations": 0,
+    "provider_native_executions": 0,
+    "additional_spend": 0,
+    "new_accounts_projects_hosted": 0,
+    "owned_synthetic_projects": 4,
+    "no_pending_local_effect": true,
+    "owned_synthetic_conversations": 6,
+    "owned_fixture_servers": 1,
+    "owned_fixture_cleanup": true
+  },
+  "UI": "New refs carry unrelated main/UI-stack work but relevant dock/context source unchanged from803d. No new browser re-run justified; reproducedP2 retained. Luis exact writer/order/handback ACK pending; no source GO.",
+  "ci256": {
+    "head": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "purpose_built_current_status": "12 queued jobs across two runs; no rerun/cancel",
+    "no_inline_review_clearance_upgrade": true
+  },
+  "Q13": {
+    "source": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
+    "tree": "0b4c60c6928260484123bbe6bf4d1ed268b9daa6",
+    "activationSHA256": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "scopedCasesPassed": 7,
+    "fullInstalledQualification": false,
+    "evidence": "evidence/20261012-cx134-q13-composition/manifest.json",
+    "actualTargetActivation": "held; no authority inferred",
+    "reviewComposition": "e65f66b4fb2be29d19d7c8b1ccd1f3fb2e4de686dbe027c751b4bc63443f8922",
+    "proposedCompositionStagesPassed": 7,
+    "canonicalCandidateInstalledQualification": false,
+    "apiFunctionDenials": 138,
+    "allDenials": 146
+  },
+  "ci211": {
+    "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "job": 114554922957,
+    "run": 38168148111,
+    "conclusion": "failure",
+    "logTruncated": true,
+    "excerpt": "ci211-failure-excerpt.json",
+    "failures": [
+      "personal.spec.ts:583 presence/restsAbove null",
+      "personal.spec.ts:905 search current match viewport ratio0"
+    ],
+    "counts": {
+      "passed": 1230,
+      "failed": 2,
+      "skipped": 1
+    },
+    "priorPassesNotWaiver": true,
+    "headSourceComparison": "Personal component/test paths identical7d8 vs mainE; root cause not established",
+    "noRerunCancel": true,
+    "authorLocalEvidence": "40/40 Chromium141 vs CI Chrome153/full1233 load; not independent clearance"
+  },
+  "UI_automatic_review": [
+    {
+      "comment": 4243851255,
+      "head": "803d6c4c",
+      "finding": "Mutable participant-count focus key",
+      "independent": "Source confirmed currentf596: dockName aria-label else textContent, stored onlyfocusin; no dynamic browser reproduction yet"
+    },
+    {
+      "comment": 4243907032,
+      "head": "f5964bcb",
+      "finding": "Dock notes overlap second header row721\u2013760px",
+      "independent": "New bot finding; not independently qualified yet"
+    }
+  ],
+  "UI_handback": {
+    "CON": "CC-0161 read full; accepts bounded corrections, no shared writes before Luis handback",
+    "Luis": "ACK not present at fresh mission/PR read",
+    "gitMergeWithDisclosure": "c19adc4761154179ec4c5a791118357e04f2c821; compatibility only"
+  },
+  "mission6115780841ExactReadback": true,
+  "closing_at": "2026-10-12T01:12:23.859204+00:00",
+  "concurrent_live_work": "Joint thread cursor30 reports runner successful including cleanup and ongoing independent leftovers audit. Operator report only; no CON target discovery or borrowed approval.",
+  "mission": {
+    "id": 6115961845,
+    "exactReadback": true,
+    "CONnativeDelivery": "helper verified exact URL/title and visible message before foreground later changed to joint owner"
+  },
+  "CI_diagnosis_independent": {
+    "CC0163": 6115983631,
+    "authorPRComment": 6115958328,
+    "evidence": "evidence/20261012-cx134-personal-clock/manifest.json",
+    "midnightMechanismReproduced": true,
+    "noonOnlySearchFixAccepted": false,
+    "classification": "Baseline fixture short-list assumption plus actual Personal search visibility failure; existing owner correction required",
+    "cleanup": "server0/PIDabsent/portclosed/tabclosed/viewportreset/harnessunchanged"
+  },
+  "new_evidence": {
+    "candidate": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+    "tree": "82432de2f649b2c4c7e2a41add95ed916f27be0c",
+    "classification": "scoped local L1 browser fixture",
+    "files": {
+      "wide-alignment.jpg": "d0d3db858b1d4d9f0d6eb53d582f27757cc84171dfe4bed682afebc51e884a7d",
+      "measurements.json": "1382230f9e6f372be8d9d04e9ca8327084260df8d526fcb6e2cf119c429b16fa",
+      "server-receipt.json": "04aa6fb6240fc78a2c88114e7bd647fb1088a9929da5f9579274e61f24645043",
+      "desktop-confirmation.jpg": "ffce7aa6d52747e2815e36d411ee883fe24bbd8f4cb5aa1ce90e86639cae6c60",
+      "serve-owned.py": "1b0b565f421f838bdd39e868142632c4b60865f3bde405daf0138f4b901f031d",
+      "phone-confirmation.jpg": "3a59717c618e42588b5f0e5a354f9a1b3446cc9f4e87010502fde6aa693dd364"
+    },
+    "actions": [
+      "Clean owned detached harness moved 93e9313d -> 2c882dc5; exact Node24.21.0/pnpm11.7.0; dependencies byte-identical",
+      "Start original Vite fixture config on loopback49828 with180s ceiling and sanitized environment",
+      "IAB tab13: room.html?demo=1&conversations=1&place=conversations,1280x800; measure six rows; open Remove confirmation without submitting; Keep it",
+      "1920x1000 measure field/quick/hint;390x844 open Remove confirmation and Keep it",
+      "Save actual screenshots and read-only DOM measurements; close tab13/reset viewport; TERM only owned process group5416; clean detached harness restored93e9313d"
+    ],
+    "limits": [
+      "Pointer fine at both widths; no coarse/touch verification",
+      "No removal sent; no unknown/busy/idempotency/erasure/provider or live-app crossing",
+      "Fixture config enables proposed vision fixtures locally; no production build/config or unrelated proposal activation",
+      "Source diff read, not complete combined browser test suite or G4"
+    ]
+  }
+}

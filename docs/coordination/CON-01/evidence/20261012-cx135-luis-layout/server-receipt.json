@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-12T01:28:25.106569+00:00",
+  "scope": "Exact 2c882 Studio fixture layout on private loopback,180s ceiling, no API/provider",
+  "port": 49828,
+  "deadlineSeconds": 180,
+  "pid": 5416,
+  "exit": 0,
+  "pidAbsent": true,
+  "portClosed": true
+}
