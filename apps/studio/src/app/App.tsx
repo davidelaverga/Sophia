@@ -15,7 +15,7 @@ import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
 import { useProjectRoute } from './useProjectRoute.ts'
 import { LoadFailed } from './LoadFailed.tsx'
-import { loadSignedIn, sessionLikely, warmSignedIn } from './signed-in-load.ts'
+import { loadSignedIn, warmSignedIn } from './signed-in-load.ts'
 
 // Invitation links are a separate door: their page loads only when someone opens one.
 const JoinFlow = lazy(() => import('../features/access/JoinFlow.tsx').then((m) => ({ default: m.JoinFlow })))
@@ -80,10 +80,11 @@ function useAccountCache(signedInAs: string | null) {
 }
 
 /**
- * The signed-in Studio's chunk, fetched ahead (signed-in-load.ts) so it is here by the time the person is in: while who
- * is in is still found out when a session is likely (one kept, a sign-in's return), so the two go together, never one
- * after the other; a link offered; or on the sign-in page once they start (a key, a press, caught before any field keeps
- * it); never at rest. On a room's door, only for a member, whom the door hands to the Studio; never for a guest.
+ * The signed-in Studio's chunk, fetched ahead (signed-in-load.ts) so it is here by the time the person is in: as the
+ * page loads when a session is likely (one kept, a sign-in's return), so it goes with the session's check, never after
+ * it; a link offered; or on the sign-in page once they start (a key, a press, caught before any field keeps it); never
+ * at rest. On a room's door, for a member, whom the door hands to the Studio (and, as the page loads, for an account's
+ * session kept there); never for a guest.
  */
 function useSignedInAhead(state: AuthState, door: boolean) {
   const { status } = state
@@ -93,11 +94,8 @@ function useSignedInAhead(state: AuthState, door: boolean) {
       if (member) warmSignedIn()
       return undefined
     }
-    if (status === 'loading') {
-      if (sessionLikely()) warmSignedIn()
-      return undefined
-    }
-    if (status === 'signed_in') return undefined
+    // While who is in is found out, a likely session's chunk is already on its way (signed-in-load.ts, as it loads).
+    if (status === 'loading' || status === 'signed_in') return undefined
     if (status === 'link_offer') {
       warmSignedIn()
       return undefined
