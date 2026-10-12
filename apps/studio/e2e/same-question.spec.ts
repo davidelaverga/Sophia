@@ -38,3 +38,21 @@ test('same question · an unrelated question shows no line, and Start stays', as
   await expect(same(page)).toHaveCount(0)
   await expect(form(page).getByRole('button', { name: 'Start' })).toBeVisible()
 })
+
+test('same question @phone · a long title with no break wraps inside the form, its press whole (Codex on #266)', async ({
+  page,
+}) => {
+  await newConversation(page)
+  await form(page).getByRole('textbox', { name: 'Question' }).fill('Should briefs be short or long?')
+  await expect(same(page)).toBeVisible()
+  // A matched title holding one long token with no break in it (an id): set on the press as a title of the list would be.
+  await same(page)
+    .getByRole('button')
+    .evaluate((b) => {
+      const words = [...b.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '')
+      if (words) words.textContent = `“run-${'7f3a9c2b4e1d'.repeat(8)}”`
+    })
+  const [press, box] = await Promise.all([same(page).getByRole('button').boundingBox(), form(page).boundingBox()])
+  expect((press?.x ?? 0) + (press?.width ?? 0)).toBeLessThanOrEqual((box?.x ?? 0) + (box?.width ?? 0) + 0.5)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
+})

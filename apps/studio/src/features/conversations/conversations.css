@@ -892,12 +892,19 @@
   font-size: var(--type-small);
   line-height: var(--lh-small);
 }
+/* Inline, so a long title wraps with the line; a token with no break (a URL, an id) breaks inside the form (Codex on
+   #266: as an inline-flex it kept its whole width and the form clipped it on a phone). */
 .conv-same .text-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+  display: inline;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: left;
   color: var(--halo-text);
   font-size: var(--type-small);
+}
+.conv-same .text-button svg {
+  margin-left: 4px;
+  vertical-align: -2px;
 }
 .conv-same .text-button:hover {
   color: var(--text);
