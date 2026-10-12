@@ -166,6 +166,7 @@
   margin: 0;
   font-size: var(--type-head);
   font-weight: 600;
+  letter-spacing: -0.015em; /* the 15 px heads' tracking (the goal's, the card's, the open conversation's), not the view title's */
 }
 /* The title filter: the kit's search (36 px, its magnifier), as wide as the list. */
 .conv-filter {
