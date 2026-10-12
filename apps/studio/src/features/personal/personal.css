@@ -180,7 +180,7 @@
   flex-direction: column;
 }
 .places .hw-date {
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-3);
@@ -464,6 +464,11 @@
   background: rgb(var(--halo-rgb) / 0.12);
   animation: hw-listen 1.6s ease-in-out infinite;
 }
+/* Listening, it still answers: a press stops it (its own selector outranks the kit's pressed hover; Codex on #232). */
+.places .hw-mic[aria-pressed='true']:hover {
+  color: var(--text);
+  background: rgba(156, 130, 245, 0.22);
+}
 @keyframes hw-listen {
   50% {
     box-shadow: 0 0 0 6px rgb(var(--halo-rgb) / 0.08);
@@ -519,13 +524,14 @@
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
-/* On paper her halo is ink laid on the page, not light added to it (docs/plans/light-breath.md). The blend is the
-   light's as a group (its canvases, its breathing halo at -1, and the formed mark): measured on Home, the group blends
-   inside the side column's own stacking context (`.hw-side`, z-index 1, see-through), so the mark draws as the brand's
-   ink, #8468ee, not multiplied (Codex on #251; the mark outside the group is left in light-breath.md). */
+/* On paper the light is laid on the page as drawn: no blend. The room's `screen` adds light, which paper has none to
+   take; a `multiply` on the light's group either reached nothing (inside the side column's stacking context, with
+   what needs you) or tinted the formed mark with the paper (Home without needs: #8468ee drew as #8265e3). The halo
+   carries its own paper inks (`.light::after`), so it needs no blend to read as ink (Codex on #251). Home and Talk
+   alike. */
 :root[data-theme='light'] .places .hw-light .light,
 :root[data-theme='light'] .places .c3-talk-light .light {
-  mix-blend-mode: multiply;
+  mix-blend-mode: normal;
 }
 /* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
    it on the same hairlines as the projects'. */
@@ -1161,8 +1167,8 @@
 }
 /* The session about to start, said as Home says it: amber, quiet, mono. */
 .places .c3-way-note {
-  color: color-mix(in srgb, #e8c48d 85%, transparent);
-  font: var(--type-small) / var(--lh-small) var(--mono);
+  color: color-mix(in srgb, var(--soon) 85%, transparent);
+  font: var(--type-label) / var(--lh-small) var(--mono);
 }
 .places .c3-starters button:focus-visible {
   outline-offset: -2px;
@@ -1236,6 +1242,11 @@
 .places .ps-composer .message-bar .round[aria-pressed='true'] {
   color: var(--core);
   background: rgb(var(--halo-rgb) / 0.18);
+}
+/* Listening, it still answers: a press stops it (Codex on #232). */
+.places .ps-composer .message-bar .round[aria-pressed='true']:hover {
+  color: var(--text);
+  background: rgba(156, 130, 245, 0.3);
 }
 /* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
 .places .message-bar.listening textarea {
@@ -1799,6 +1810,10 @@
     padding: 0 3px 0 12px;
     background: #16120f;
   }
+  /* On paper the strip is the paper's raised plane, under the light ink (Codex on #234). */
+  :root[data-theme='light'] .places .room-pill {
+    background: var(--plane-2);
+  }
   .places .room-pill .t {
     margin-right: auto;
   }
@@ -2167,6 +2182,7 @@
 /* A day's moment (where you began, time together, time away) in her warm hand, after the day's name. */
 .places .c3-day-note {
   color: color-mix(in srgb, var(--warm) 70%, var(--text-3));
+  font-size: var(--type-label); /* a duration («14 days later»): data (Codex on #241) */
 }
 
 /* ---------- Ease (docs/plans/personal-moments.md §3) ---------- */
@@ -2311,4 +2327,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+/* On paper the session note is the soon ink whole: 85 % of it fell under 4.5:1 (Codex on #234). */
+:root[data-theme='light'] .places .c3-way-note {
+  color: var(--soon);
 }

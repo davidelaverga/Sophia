@@ -27,6 +27,8 @@ const PAGES = [
  */
 const PRESSES = [
   'summary', // a native disclosure (the mission's «Settings and history») is a press too (Codex on #232)
+  'select', // a select (the Invite sheet's Length) and a checkbox (the carry package's) are presses too (Codex on #232)
+  'input[type="checkbox"]',
   'button:not([aria-checked="true"]):not([aria-selected="true"]):not(.segmented [aria-pressed="true"])',
   'a[href]:not([aria-current])',
   '[role="button"]',
@@ -35,9 +37,10 @@ const PRESSES = [
   '[role="menuitemradio"]:not([aria-checked="true"])',
 ].join(', ')
 
-/** In the page: the presses on screen, each with its index in the page's order, its name and its centre. */
-function listPresses(selector: string) {
-  return [...document.querySelectorAll<HTMLElement>(selector)].flatMap((el, i) => {
+/** In the page (inside `scope`): the presses on screen, each with its index in that order, its name and its centre. */
+function listPresses({ selector, scope }: { selector: string; scope: string }) {
+  const within = document.querySelector(scope) ?? document.body
+  return [...within.querySelectorAll<HTMLElement>(selector)].flatMap((el, i) => {
     const r = el.getBoundingClientRect()
     const cs = getComputedStyle(el)
     // Inside a box that scrolls (the views' nav), what lies past its edge is not on screen.
@@ -74,8 +77,9 @@ function listPresses(selector: string) {
 }
 
 /** In the page: what the pointer can change on a press and what it holds, as one string. */
-function lookOf(args: { selector: string; i: number }) {
-  const el = document.querySelectorAll<HTMLElement>(args.selector)[args.i]
+function lookOf(args: { selector: string; scope: string; i: number }) {
+  const within = document.querySelector(args.scope) ?? document.body
+  const el = within.querySelectorAll<HTMLElement>(args.selector)[args.i]
   if (!el) return ''
   const keys = [
     'color',
@@ -96,18 +100,18 @@ function lookOf(args: { selector: string; i: number }) {
   return [el, ...el.querySelectorAll('*')].map(read).join('\n')
 }
 
-/** The presses on the page that do not answer the pointer, said. */
-async function unanswering(page: Page) {
-  const presses = await page.evaluate(listPresses, PRESSES)
+/** The presses on the page (inside `scope`: a sheet, a group, a form) that do not answer the pointer, said. */
+async function unanswering(page: Page, scope = 'body') {
+  const presses = await page.evaluate(listPresses, { selector: PRESSES, scope })
   expect(presses.length).toBeGreaterThan(0)
   const mute: string[] = []
   for (const press of presses) {
     await page.mouse.move(0, 0)
-    const rest = await page.evaluate(lookOf, { selector: PRESSES, i: press.i })
+    const rest = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
     await page.mouse.move(press.x, press.y)
     // The kit's answers take 140 ms; the slowest a step more.
     await page.waitForTimeout(260)
-    const over = await page.evaluate(lookOf, { selector: PRESSES, i: press.i })
+    const over = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
     if (over === rest) mute.push(press.name)
   }
   await page.mouse.move(0, 0)
@@ -133,6 +137,62 @@ for (const [name, url, parts] of PAGES) {
     // The door's one press waits for a name: given one, it is a press a person can see.
     if (name === 'the door') await page.getByPlaceholder('Your name').fill('Ana')
     expect(await unanswering(page)).toEqual([])
+  })
+}
+
+/** States a page reaches by a press, each swept inside what it opens (Codex on #232). */
+const REACHED: readonly [string, string, (page: Page) => Promise<void>, string][] = [
+  [
+    'Personal, the carry package open (its checkboxes)',
+    '/personal.html?notes=open&ready=1&many=1',
+    async (page) => {
+      await page.getByRole('button', { name: 'Review what to carry' }).click()
+      await expect(
+        page.getByRole('group', { name: 'Carry only what you choose' }).getByRole('checkbox').first(),
+      ).toBeVisible()
+    },
+    '.c3-pack',
+  ],
+  [
+    'the Invite sheet’s Calendar tab (its Length select)',
+    '/room.html?demo=1',
+    async (page) => {
+      await drawn(page, DRAWN.room)
+      await page.getByRole('button', { name: 'Invite' }).click()
+      await page.getByRole('tablist', { name: 'Invite' }).getByRole('tab', { name: 'Calendar' }).click()
+      await expect(page.getByRole('combobox', { name: 'Length' })).toBeVisible()
+    },
+    '[role="tabpanel"]:not([hidden])',
+  ],
+  [
+    'Home, its microphone listening',
+    '/home.html?demo=1',
+    async (page) => {
+      await drawn(page, DRAWN.home)
+      const mic = page.getByRole('button', { name: 'Speak instead' })
+      await mic.click()
+      await expect(mic).toHaveAttribute('aria-pressed', 'true')
+    },
+    '.hw-say',
+  ],
+  [
+    'Personal, its microphone listening',
+    '/personal.html?demo=1',
+    async (page) => {
+      await drawn(page, DRAWN.personal)
+      await page.getByRole('button', { name: 'Talk instead' }).click()
+      await expect(page.getByRole('button', { name: 'Stop listening' })).toBeVisible()
+    },
+    '.ps-composer',
+  ],
+]
+
+for (const [name, url, reach, scope] of REACHED) {
+  test(`answers · ${name}: every press in it changes under the pointer`, async ({ page }) => {
+    test.slow()
+    await page.goto(url)
+    await reach(page)
+    expect(await unanswering(page, scope)).toEqual([])
   })
 }
 

@@ -44,3 +44,8 @@ two rules), `e2e/view-titles.spec.ts` (new, 12 tests), `type-scale.spec.ts`, `wo
 ## Next bounded action
 
 Informe-ui-premium §6, step 2: Knowledge's HTML thumbnails on the dark surface (movement 4).
+
+## Post-review (Codex on #246)
+
+- The pulse's head beside Tasks takes its height from the view title's line (`calc(var(--lh-view) + 13px)`), so the two
+  rules meet again at 45 px; view-titles.spec compares their bottoms.

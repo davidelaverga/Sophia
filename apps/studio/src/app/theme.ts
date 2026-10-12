@@ -29,11 +29,22 @@ export function resolveTheme(theme: Theme, systemLight = matchMedia('(prefers-co
   return theme === 'system' ? (systemLight ? 'light' : 'dark') : theme
 }
 
-/** Puts the resolved appearance on the page's root. */
+/** The browser's chrome (a phone's bar, an installed window) in the page's ground (index.html's theme-color). */
+const CHROME = { light: '#fbf8f3', dark: '#07060b' } as const
+/**
+ * The tab's mark in the appearance shown, not the system's: favicon.svg follows only `prefers-color-scheme`, so a Light
+ * chosen on a dark system would keep the dark inks in the tab (Codex on #249). public/entry.js sets it at first paint.
+ */
+const ICON = { light: '/favicon-light.svg', dark: '/favicon-dark.svg' } as const
+
+/** Puts the resolved appearance on the page's root, and on the browser's chrome (Codex on #234). */
 export function applyTheme(theme: Theme = readTheme()): void {
   const page = document.documentElement
-  if (resolveTheme(theme) === 'light') page.dataset['theme'] = 'light'
+  const shown = resolveTheme(theme)
+  if (shown === 'light') page.dataset['theme'] = 'light'
   else delete page.dataset['theme']
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', CHROME[shown])
+  document.querySelector('link[rel="icon"][type="image/svg+xml"]')?.setAttribute('href', ICON[shown])
 }
 
 /** Keeps a choice on this browser and shows it. */
@@ -57,6 +68,12 @@ export function bootTheme(fromAddress: string | null = null): void {
   if (isTheme(fromAddress)) asked = fromAddress
   applyTheme()
   matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme())
+  // A choice made in another tab of the Studio is shown here too, the menu with it (Codex on #234).
+  window.addEventListener('storage', (e) => {
+    if (e.key !== KEY) return
+    applyTheme()
+    for (const listen of listeners) listen()
+  })
 }
 
 const subscribe = (listen: () => void) => {

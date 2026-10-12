@@ -7,29 +7,26 @@ Human owner / executor resource: Luis (merge) · Davide (the service's route) / 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/needs-api` from `ui/board-why` at `1b804658`
 (stacked on PR #244 → #243 → … → #220; the base retargets as each merges)
-Ending commit/tree: `3c6a0cfd` (tree `e187d6abec46`): 17 files, 5 new (`amendments/A15-needs-you.json`, `api/needs.ts`,
-`api/needs.test.ts`, `features/personal/useNeeds.ts`, `docs/plans/needs-api.md`); the contract's generated files
-(`openapi/openapi.json`, `generated-types.ts`, `generated/validators.*`), `generate-validators.ts`, `validate.ts`;
-`useProjectRoute.ts`, `SignedIn.tsx`, `Places.tsx`, `fixtures/fixture-api.ts`, `fixtures/home.tsx`,
-`e2e/home-needs.spec.ts`. The commit after it adds only this handoff.
+Ending commit/tree: the branch's head as merged (`ui/needs-api`); the first delivery was `3c6a0cfd` (tree
+`e187d6abec46`, 17 files), and every later change is listed with its commit in the post-review notes below (Codex on
+#245: the record names the state delivered). The outcome and the obligations below are the final contract's.
 
-## Outcome
+## Outcome (the final contract, after every review round)
 
 - **A15** (`packages/contracts/amendments/A15-needs-you.json`): `GET /api/v1/me/needs` → `NeedList { needs, readAt }`,
-  bearer, owner-only; a `Need` with `id`, `kind` (decision · permission · review · guest · reply), `title`,
-  `projectId` / `projectTitle`, `expiresAt`, `detail`, `at`, `ref` (the record it names). `generate` regenerated the
-  types and validators (`parseNeedList`); `generate:check` clean; the contracts' tests pass from the root.
-- **The Studio** (behind the vision flag): `api/needs.ts` (`listNeeds`, `needsOf`, `whereOf`), `useNeeds(token, go)`
-  (every 20 s, as the projects), Places hands Welcome `{ items, open }` at Home: a decision or a permission opens
-  the project's Tasks, a review its Knowledge, a guest its room, a reply the personal space (`useProjectRoute.openAt`,
-  `Places.onOpenView`). Without the flag nothing is read.
-- **The fixture**: `fixture-api.ts` answers the route (`needsAnswer`, one need of each kind, out of order); the Home
-  fixture's `needs=api` reads through the Studio's own client from that answer. `home-needs.spec.ts` (+1): the rows in
-  urgency order with the project's title; the presses go to `work`, `knowledge`, `studio` and `personal`.
-- **Davide's**: the route in `apps/api` (the five sources, owner-only, `readAt`, `403` for a guest), named in
-  `docs/plans/needs-api.md`.
-- Unverified here: the Playwright run (the local guard); CI is the run on record. Places' own call site (the real
-  app at Home) has no fixture page: its wiring is typechecked and the hook it calls is the one the fixture exercises.
+  bearer, owner-only, at most 200 by a deterministic order; and `POST /api/v1/me/needs/{id}/seen` (owner-only,
+  idempotent, 204): for a reply it advances the person's last seen personal turn; for any other kind it changes
+  nothing. A `Need` has `id` (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`, unique across projects),
+  `kind` — four: decision · permission · guest · reply (no review until a request record exists) — `title` (up to 1200
+  characters), `projectId` / `projectTitle`, `expiresAt` (a decision's only), `detail`, `at`, and `ref`
+  (`work_decision` · `work_wait` · `lobby_entry` · `personal_turn`, with `within` and `resourceId`).
+- **The Studio** (behind the vision flag): `api/needs.ts` (`listNeeds`, `markNeedSeen`, `needsOf`, `whereOf`, `atOf`,
+  `withoutResources`), `useNeeds` (every 20 s; a refusal hides the cached rows, a transient failure keeps them with a
+  note). A decision opens Tasks at its own choice (`#decision-`, choosing the goal that holds it); a permission its
+  request in Resources (`#request-`), or its task in the signed-in app while Resources has nothing served; a guest the
+  room; a reply the personal space, read again, marked seen once its turn is shown.
+- **The fixture**: `fixture-api.ts` and `home.tsx` answer both routes; `home-needs.spec`, `work.spec`, `resources.spec`
+  and `needs.test.ts` cover the presses, the seen mark, the failures and the refusal.
 
 ## Evidence
 
@@ -46,12 +43,16 @@ Ending commit/tree: `3c6a0cfd` (tree `e187d6abec46`): 17 files, 5 new (`amendmen
 - One route for the person, not five reads from Home: the service already keeps every source and knows the
   memberships; the Studio sorts (the expiring first) and never guesses where a need lives (`ref`).
 - `readAt` is the service's clock: expiries compare against it.
-- Marking read is left out of A15 on purpose: a need leaves the list when its record is answered where it lives.
+- A reply leaves through its seen mark (round 2); every other need leaves when its record is answered where it lives.
 
 ## Remaining obligations
 
-- Watch CI; the independent review (Codex) with no P1/P2 before merge. The base is `ui/board-why` until #244 merges.
-- Davide: the route (`listNeeds`) in `apps/api`, beside the personal routes, with its tests.
+- Watch CI; the independent review (Codex) with no P1/P2 before merge.
+- Davide: the two routes (`listNeeds`, `markNeedSeen`) in `apps/api`, beside the personal routes, with their tests,
+  from four sources (open `WorkDecision`s the person decides; `WorkWait`s of kind native_permission naming them; lobby
+  entries in rooms they admit to; Sophia's replies after their last seen turn), `403` for a guest; and two pieces of
+  new storage the routes need: `opened_at` beside each wait (a permission's `at`) and `last_seen_turn_seq` on
+  `personal_spaces` (the seen mark), each by a migration.
 
 ## Next bounded action
 
@@ -149,3 +150,11 @@ with the request focused, then is the sheet's) with it.
 One P2: a drawn turn is not a seen one. `turnIsShown` requires the turn to meet its scrollport and the window, scrolling
 it into sight first (instant). Home's fixture renders a log (`turns=log|hidden`) and hands the real `turnShown` the
 turn; home-needs.spec reads the seen mark after the log scrolled, and none when the log is hidden.
+
+## Post-review, round 12 (Codex on #245)
+
+One P1 and eight P2s: a 401/403 hides the cached rows (`refusedBy`; home-needs.spec refuses after a good read); the
+handoff's outcome and obligations say the final contract; A15 names the storage its routes need (`opened_at`,
+`last_seen_turn_seq`) and makes the id unique across projects; a decision chooses its goal (`GoalPlan.decisions`); a
+permission opens its task in the signed-in app (`withoutResources`, tested); the reply's wait observes its place shown,
+reads the space again and lasts as long as a read can (`turnShown`).

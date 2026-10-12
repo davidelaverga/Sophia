@@ -11,6 +11,9 @@ const HEADS = [
   '.connections > h3',
   '.resource-tile-name',
   '.conv-list-head h2',
+  // The open conversation's title and the new conversation's heading (Codex on #248): read in their own states below.
+  '.conv-head h3',
+  '.conv-new > h3',
 ].join(', ')
 
 const VIEWS: readonly [string, string, (typeof DRAWN)[keyof typeof DRAWN]][] = [
@@ -67,4 +70,21 @@ test('section heads · Tasks: a task tile’s title is the body’s size at 500,
   await expect(tile).toBeVisible()
   await expect(tile).toHaveCSS('font-size', '13px')
   await expect(tile).toHaveCSS('font-weight', '500')
+})
+
+test('section heads · the open conversation’s title and the new conversation’s heading are heads (Codex on #248)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/room.html?place=conversations&conversations=1')
+  await expect(page.getByRole('region', { name: 'Open conversation' }).locator('.conv-head h3')).toBeVisible()
+  const opened = await headsRead(page, '.conv-head h3')
+  expect(opened.count).toBe(1)
+  expect(opened.types).toEqual(['15px/20px 600'])
+  await page.goto('/room.html?place=conversations&demo=1')
+  await page.getByRole('button', { name: 'New conversation' }).click()
+  await expect(page.locator('.conv-new > h3')).toBeVisible()
+  const started = await headsRead(page, '.conv-new > h3')
+  expect(started.count).toBe(1)
+  expect(started.types).toEqual(['15px/20px 600'])
 })
