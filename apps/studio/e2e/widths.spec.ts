@@ -137,3 +137,13 @@ test('widths · at 1024 a view the keyboard reaches is scrolled clear of the fad
     })
     .toBe(true)
 })
+
+test('widths · at 1920 the composer’s hint keeps the column of its field and the quick asks', async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1000 })
+  await page.goto('/room.html?demo=1&conversations=1&place=conversations')
+  await drawn(page, DRAWN.conversations)
+  const left = async (sel: string) => (await page.locator(sel).boundingBox())?.x ?? NaN
+  const field = await left('.conv-field-box')
+  expect(Math.abs((await left('.conv-quick')) - field)).toBeLessThan(1)
+  expect(Math.abs((await left('.conv-compose-hint')) - field)).toBeLessThan(1)
+})
