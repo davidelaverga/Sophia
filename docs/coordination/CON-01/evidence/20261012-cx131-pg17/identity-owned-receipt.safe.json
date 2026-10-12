@@ -1,0 +1,22 @@
+{
+  "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+  "at": "2026-10-12T00:09:09.443479+00:00",
+  "harnessSha256": "20bd6553b0ff5e787b90751c7b4b59d7079f7ac9fbe9fa2140aca38de27e43a0",
+  "probeSha256": "98751200ba9b8c132a4f123602950140bce98111e593bf902ddd20942ede65f0",
+  "syntaxPreparation": "Initial node --check found a quoting error; corrected before cluster startup",
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "probeExit": 0,
+  "identityReceiptExists": true,
+  "closingCensus": {
+    "databases": [
+      "postgres"
+    ],
+    "other_clients": 0
+  }
+}

@@ -44,7 +44,10 @@
   },
   "independent_evidence": "evidence/20261012-cx129-phase-a/independent-proof.json",
   "published_evidence_commit": null,
-  "mission_comment": null,
+  "mission_comment": {
+    "id": 6115373555,
+    "exact_readback": true
+  },
   "coordination": {
     "CON_exact_native_delivery": "CX131 freshtargetmetadata, officialplatformconstraint, no-net-claim, correctedownerroute/viewsecurityoptions and Studioorderrequest deliveredvisible to exactCON; previoushandoff651queuedunread duringrunningtool notforced.",
     "CON_author_handback": "CC0156 issue6115206715 and CC0157 issue6115269247 complete read; exact native PhaseA terminal tool opened and read; Q13 immutable598b proposal fully read,3concrete review corrections sent visibly.",
@@ -174,11 +177,11 @@
     "sha256": "689fe686ebe535868665b98cc5fb6aae56e740a9ff46e8ad9c32ac9c10608b22"
   },
   "resource_use": {
-    "owned_clusters_started": 0,
+    "owned_clusters_started": 4,
     "owned_test_databases": 0,
     "synthetic_projects": 0,
     "synthetic_admissions": 0,
-    "outer_seconds_per_run": 0,
+    "outer_seconds_per_run": 180,
     "Sophia_provider_calls": 0,
     "real_native_executions": 0,
     "target_DB_connections": 1,
@@ -189,12 +192,13 @@
     "shared_live_grants": 0,
     "shared_live_sessions_terminated": 0,
     "new_spend": 0,
-    "coding_agent_coordination": "Unmeasured/private; not Sophia quota qualification."
+    "coding_agent_coordination": "Unmeasured/private; not Sophia quota qualification.",
+    "owned_cluster_startup_failures": 1
   },
-  "cleanup": "One actualtargetcatalogconnection READONLY, ROLLBACK+end confirmed. No runtime/provider/browserfixtureprocess started. No shared/hostedmutation or uncertain external effect. Hostedbrowser retained. Jointowncompatibilityreviewterminal; CON identitycomputationtoolrunning, no restart.",
+  "cleanup": "Initial owned startup failure investigated/recovered; four started owned clusters stopped0/status3/PIDabsent/removed. Successful clients ended, adversarial transactions rolled back, closing census postgres/0otherclients. No hosted operational effect. Earlier failed over-specific assertion preserved.",
   "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
   "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
-  "next_bounded_action": "Review exact revisedQ13claim/predicate/view/admissionproposal and actualStudioownershipresponse; no sharedsourcewriteuntilscope/owners/base/order/handback sealed. Source-onlysubscriptionproposal active. ExactPR256CI/sourceintegration decision separate from operations.",
+  "next_bounded_action": "Claude immutable activation authority-drift correction and independent affected checks; owner/Studio integration handback before shared writes; separately bind human-chat operation. No provider execution.",
   "goal_status": "active",
   "independent_static_checks": "evidence/20261012-cx130-checkpoint/static-checks.json; exact93e focused Prettier/oxlint type-aware/persistence typecheck all0; sanitized environment finite60s each/source clean",
   "Q13_current": {
@@ -264,5 +268,22 @@
     "actual_actions": "One boundedREADONLYrepeatableread metadata connection; statement5s/lock2s/connection7s; ROLLBACK and connectionend confirmed. No otherdatabaseconnection, grant/revoke/HBA/sessiontermination.",
     "official_source": "https://supabase.com/docs/guides/troubleshooting/custom-role-inherits-privileges-that-were-not-explicitly-granted-ddaa1c (Last edited2026-10-11), sayspostgrescannotrevoke template1CONNECT and PUBLICnetprivileges if enabled. Targetmetadata confirmsowner/PUBLICCONNECT, not an attemptedunauthorizedREVOKE.",
     "limitation": "No full platform-admin permission/control-plane proof, HBAaccess or finalidentityadmission tested. Generic owned-superuserREVOKE cannot establish viable targetremedy. KeepAskactivationheld pendingexact supportedtargetconfiguration or demonstratedincompatibility."
+  },
+  "Q13_r3_review": {
+    "sha": "fc3976ecd842357adfc58ae4c5cdd9d568f76452",
+    "tree": "ec0cb60257c07f8e9856261d7548b3d69df0af47",
+    "PG17_catalog_identities": "24/24 match published PG16; no corrected candidate installed",
+    "exact_check_sha256": "74e6ea2ff709030bffe0653ce6b96ef26a9c3ee236e9bbb9e0ff1b3f05b6fc79",
+    "six_corrected_controls": "PASS L1 ownedPG17",
+    "new_P2": "BYPASSRLS group drift produces zero activation holds and bypasses synthetic FORCE-RLS deny-all policy",
+    "evidence": "evidence/20261012-cx131-pg17/manifest.json",
+    "shared_write_GO": false,
+    "activation": false
+  },
+  "route_current": {
+    "sha": "c2241b8b17948b780be0b126ff654369634511c0",
+    "delta_full_read": true,
+    "supported_route_qualified": false,
+    "scope": "Pinned adapter/hosted topology incompatibility; not all-platform impossibility"
   }
 }

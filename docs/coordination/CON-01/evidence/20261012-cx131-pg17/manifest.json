@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-12T00:12:31.571775+00:00",
+  "scope": "Owned synthetic PG17 catalog identity evidence and exact proposal activation check; no final implementation qualification",
+  "proposal": "fc3976ecd842357adfc58ae4c5cdd9d568f76452",
+  "route": "c2241b8b17948b780be0b126ff654369634511c0",
+  "files": {
+    "earlier-episodes.json": "902918fffb04d0ba1aeffa95f6d63e05d7f055fff070de50c4f2f1ea87835de9",
+    "identity-comparison.json": "5a74dbefea9d69a3dda109fba6ef1d71ee180a5024e9ecaf25d47a4287c8e2be",
+    "identity-fingerprint.mjs": "98751200ba9b8c132a4f123602950140bce98111e593bf902ddd20942ede65f0",
+    "identity-identities.json": "31f77e28f26173b36f5750ff72f743ef57009669850a9cc1183a142af9f6bb4f",
+    "identity-owned-receipt.safe.json": "d23af6fe308f73170110aef1cd48bfc1ceb7ce8eee7b9b7060eb56f057cfe671",
+    "identity-run-owned.py": "20bd6553b0ff5e787b90751c7b4b59d7079f7ac9fbe9fa2140aca38de27e43a0",
+    "identity-source-manifest.json": "98876c87d8b9e39a7fb378e4579ccbac4636cf47566e58c582d153067a40d555",
+    "r3-activation-exact.sql": "74e6ea2ff709030bffe0653ce6b96ef26a9c3ee236e9bbb9e0ff1b3f05b6fc79",
+    "r3-activation-results.json": "709817ffbbf8ae0cb73453a9af5db34c92b3ca1bf1f60d7c5c3cc97adcbde389",
+    "r3-fingerprint.mjs": "12e551748dfc11a9ad49f7d1ec7dcf699974da8d5aa58a7a3454b51e7deb0a1c",
+    "r3-owned-receipt.safe.json": "5a04fa4acf4afb1ca443479bf4736a4a4abe8474148f1616f4ac81f3bc83d6ee",
+    "r3-run-owned.py": "20bd6553b0ff5e787b90751c7b4b59d7079f7ac9fbe9fa2140aca38de27e43a0"
+  }
+}

@@ -1,0 +1,280 @@
+[
+  {
+    "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+    "at": "2026-10-12T00:08:57.730528+00:00",
+    "harnessSha256": "efd1e6e4c3a83fcdd90a775ef9271144c5a22f85f17e6ce74fc795f6654ccd31",
+    "probeSha256": "98751200ba9b8c132a4f123602950140bce98111e593bf902ddd20942ede65f0",
+    "syntaxPreparation": "Initial node --check found a quoting error; corrected before cluster startup",
+    "cleanup": {
+      "startupNotConfirmed": true,
+      "clusterRemoved": false,
+      "successful": false
+    },
+    "subsequentRecovery": {
+      "statusExit": 3,
+      "pidFileAbsent": true,
+      "clusterRemoved": true,
+      "reason": "Server exited at startup because Unix socket path exceeded platform limit; no probe ran"
+    },
+    "episode": "cx131-pg17-identities"
+  },
+  {
+    "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+    "at": "2026-10-12T00:10:39.295379+00:00",
+    "harnessSha256": "20bd6553b0ff5e787b90751c7b4b59d7079f7ac9fbe9fa2140aca38de27e43a0",
+    "probeSha256": "acff2714bcf0cc61e3cddbb54c8ff9466c24af07e4f7668ac5e46d6e700dc51f",
+    "syntaxPreparation": "Initial node --check found a quoting error; corrected before cluster startup",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "probeExit": 1,
+    "identityReceiptExists": true,
+    "closingCensus": null,
+    "activation": {
+      "proposal": "fc3976ecd842357adfc58ae4c5cdd9d568f76452",
+      "cases": [
+        {
+          "name": "missing assembler",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "no assembler role"
+            },
+            {
+              "kind": "hold",
+              "what": "member of sophia_api"
+            },
+            {
+              "kind": "hold",
+              "what": "not a member of the assembler"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "member of sophia_api",
+            "no assembler role",
+            "not a member of the assembler"
+          ],
+          "expected": [
+            "no assembler role",
+            "member of sophia_api",
+            "not a member of the assembler"
+          ],
+          "match": true
+        },
+        {
+          "name": "control",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [],
+          "expected": [],
+          "match": true
+        },
+        {
+          "name": "login owns target",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "the login owns something in database postgres"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "the login owns something in database postgres"
+          ],
+          "expected": [
+            "the login owns something in database postgres",
+            "on the target database: CREATE",
+            "on the target database: TEMPORARY"
+          ],
+          "match": false
+        }
+      ]
+    },
+    "episode": "cx131-q13-r3-check"
+  },
+  {
+    "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+    "at": "2026-10-12T00:10:52.655558+00:00",
+    "harnessSha256": "20bd6553b0ff5e787b90751c7b4b59d7079f7ac9fbe9fa2140aca38de27e43a0",
+    "probeSha256": "a9e7f8e21019231b337ed2acb12264a13f9714cc245d3cf2f43b8a6b0f967e09",
+    "syntaxPreparation": "Initial node --check found a quoting error; corrected before cluster startup",
+    "cleanup": {
+      "stopExit": 0,
+      "stopped": true,
+      "pidAbsent": true,
+      "clusterRemoved": true,
+      "successful": true
+    },
+    "probeExit": 0,
+    "identityReceiptExists": true,
+    "closingCensus": {
+      "databases": [
+        "postgres"
+      ],
+      "other_clients": 0
+    },
+    "activation": {
+      "proposal": "fc3976ecd842357adfc58ae4c5cdd9d568f76452",
+      "cases": [
+        {
+          "name": "missing assembler",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "no assembler role"
+            },
+            {
+              "kind": "hold",
+              "what": "member of sophia_api"
+            },
+            {
+              "kind": "hold",
+              "what": "not a member of the assembler"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "member of sophia_api",
+            "no assembler role",
+            "not a member of the assembler"
+          ],
+          "expected": [
+            "no assembler role",
+            "member of sophia_api",
+            "not a member of the assembler"
+          ],
+          "match": true
+        },
+        {
+          "name": "control",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [],
+          "expected": [],
+          "match": true
+        },
+        {
+          "name": "login owns target",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "the login owns something in database postgres"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "the login owns something in database postgres"
+          ],
+          "expected": [
+            "the login owns something in database postgres"
+          ],
+          "match": true
+        },
+        {
+          "name": "direct CREATE and TEMP",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "on the target database: CREATE"
+            },
+            {
+              "kind": "hold",
+              "what": "on the target database: TEMPORARY"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "on the target database: CREATE",
+            "on the target database: TEMPORARY"
+          ],
+          "expected": [
+            "on the target database: CREATE",
+            "on the target database: TEMPORARY"
+          ],
+          "match": true
+        },
+        {
+          "name": "CONNECT grant option",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "on the target database: CONNECT with grant option"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "on the target database: CONNECT with grant option"
+          ],
+          "expected": [
+            "on the target database: CONNECT with grant option"
+          ],
+          "match": true
+        },
+        {
+          "name": "assembler owns table",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "the assembler owns something in postgres"
+            },
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [
+            "the assembler owns something in postgres"
+          ],
+          "expected": [
+            "the assembler owns something in postgres"
+          ],
+          "match": true
+        },
+        {
+          "name": "assembler BYPASSRLS drift",
+          "rows": [
+            {
+              "kind": "hold",
+              "what": "admitted to template1 (PUBLIC CONNECT)"
+            }
+          ],
+          "substantive": [],
+          "expected": null,
+          "match": null
+        }
+      ]
+    },
+    "episode": "cx131-q13-r3-check-run2"
+  }
+]

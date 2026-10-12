@@ -1,0 +1,344 @@
+{
+  "scope": "Canonical catalog identities only. Not final Q13 candidate qualification.",
+  "migrationSource": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "migrationsApplied": [
+    "db/migrations/0001_core.sql",
+    "db/migrations/0002_roles_rls.sql",
+    "db/migrations/0003_atomic_commands.sql",
+    "db/migrations/0004_queue_ownership.sql",
+    "db/migrations/0005_event_notify.sql",
+    "db/migrations/0006_idempotent_project_creation.sql",
+    "db/migrations/0007_dispatch_fencing.sql",
+    "db/migrations/0008_dispatch_result_idempotent.sql",
+    "db/migrations/0009_project_room.sql",
+    "db/migrations/0010_room_access.sql",
+    "db/migrations/0011_lobby_decline_block.sql",
+    "db/migrations/0012_runtime_service.sql",
+    "db/migrations/0013_room_exchange.sql",
+    "db/migrations/0014_room_removals.sql",
+    "db/migrations/0015_guest_joining.sql",
+    "db/migrations/0016_review_fences.sql",
+    "db/migrations/0017_empty_room.sql",
+    "db/migrations/0018_mission_ledger.sql",
+    "db/migrations/0019_default_mission_capture.sql",
+    "db/migrations/0020_typed_mission_turns.sql",
+    "db/migrations/0021_personal_space.sql",
+    "db/migrations/0022_research_readers.sql",
+    "db/migrations/0023_usage_cache.sql",
+    "db/migrations/0024_research_allowance.sql",
+    "db/migrations/0025_research_admission.sql",
+    "db/migrations/0026_research_submission.sql",
+    "db/migrations/0027_report_facts.sql",
+    "db/migrations/0028_research_revocation.sql",
+    "db/migrations/0029_research_spend_bounds.sql",
+    "db/migrations/0030_render_jobs.sql",
+    "db/migrations/0031_research_pdf.sql",
+    "db/migrations/0032_research_rendition.sql",
+    "db/migrations/0033_research_withdrawal_closure.sql",
+    "db/migrations/0034_render_judgement.sql",
+    "db/migrations/0035_announcement_delivery.sql",
+    "db/migrations/0036_section_facts.sql",
+    "db/migrations/0037_amendment_preservation.sql",
+    "db/migrations/0038_design_records.sql",
+    "db/migrations/0039_design_runtime.sql",
+    "db/migrations/0040_design_flow.sql",
+    "db/migrations/0041_design_lifecycle.sql",
+    "db/migrations/0042_source_review_coordination.sql",
+    "db/migrations/0043_design_delivery.sql",
+    "db/migrations/0044_object_write_once.sql",
+    "db/migrations/0045_render_requeue_output.sql",
+    "db/migrations/0048_project_conversations.sql"
+  ],
+  "readOnly": true,
+  "rollback": true,
+  "connectionEnded": true,
+  "version": {
+    "version": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+    "version_num": "170006"
+  },
+  "policies": [
+    {
+      "relname": "commands",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "contributions",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "conversation_messages",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "(sophia.is_member(project_id) AND (EXISTS ( SELECT 1\n   FROM sophia.conversations c\n  WHERE ((c.project_id = conversation_messages.project_id) AND (c.id = conversation_messages.conversation_id) AND (c.state = 'open'::text)))))",
+      "withcheck": null,
+      "qual_md5": "e76fc23de87f4b338688e22f5ab4d6b1",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "conversations",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "(sophia.is_member(project_id) AND (state = 'open'::text))",
+      "withcheck": null,
+      "qual_md5": "8c39e31aa575d8d6bb545db05993ba6b",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "decisions",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "execution_bindings",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "goals",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "jobs",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "mission_confirmation_targets",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "mission_entries",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "mission_note_consents",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "mission_note_policies",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "project_members",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "project_revisions",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "projects",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(id)",
+      "withcheck": null,
+      "qual_md5": "2755e13246aa841a78d079f595642542",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "source_dependencies",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "source_objects",
+      "polname": "eligible_sources_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "(sophia.is_member(project_id) AND ((owner_id = sophia.actor_id()) OR ((scope = 'project'::text) AND eligible AND (state = 'ready'::text))))",
+      "withcheck": null,
+      "qual_md5": "aafc1899b46eebed028871abe57807d2",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "source_texts",
+      "polname": "readable_source",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "(EXISTS ( SELECT 1\n   FROM sophia.source_objects s\n  WHERE ((s.project_id = source_texts.project_id) AND (s.id = source_texts.source_id))))",
+      "withcheck": null,
+      "qual_md5": "088c91c8879bb4247da7f13658543709",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    },
+    {
+      "relname": "work_attempts",
+      "polname": "members_read",
+      "polcmd": "r",
+      "polpermissive": true,
+      "roles": [
+        "sophia_api"
+      ],
+      "qual": "sophia.is_member(project_id)",
+      "withcheck": null,
+      "qual_md5": "c6b5d3e81ef41aae94b11f678470fa70",
+      "withcheck_md5": "d41d8cd98f00b204e9800998ecf8427e"
+    }
+  ],
+  "view": {
+    "definition": " SELECT j.project_id,\n    j.id,\n    j.kind,\n    a.goal_id,\n    j.attempt_id,\n    j.command_id,\n    c.actor_id,\n    j.state,\n    j.created_at,\n    j.input_source_id,\n    j.result_source_id,\n    j.reason,\n    c.body_source_id AS instruction_source_id,\n        CASE\n            WHEN ((c.state = 'denied'::text) AND (j.state = ANY (ARRAY['pending'::text, 'cancelled'::text]))) THEN 'denied'::text\n            WHEN (g.status = 'holding'::text) THEN 'holding'::text\n            WHEN (g.status = 'held'::text) THEN 'held'::text\n            WHEN (g.status = 'stopping'::text) THEN 'stopping'::text\n            WHEN (g.status = 'stopped'::text) THEN 'stopped'::text\n            WHEN (j.state = 'succeeded'::text) THEN 'result_ready'::text\n            WHEN (j.state = 'failed'::text) THEN 'failed'::text\n            WHEN (j.state = 'outcome_unknown'::text) THEN 'outcome_unknown'::text\n            WHEN (b.state = 'created'::text) THEN 'queued'::text\n            WHEN (b.state = 'launching'::text) THEN 'dispatched'::text\n            ELSE 'running'::text\n        END AS phase,\n    ( SELECT COALESCE(array_agg(d.source_id ORDER BY d.source_id), '{}'::uuid[]) AS \"coalesce\"\n           FROM (sophia.source_dependencies d\n             JOIN sophia.contributions ct ON (((ct.project_id = d.project_id) AND (ct.source_id = d.source_id))))\n          WHERE ((d.project_id = j.project_id) AND (d.derived_source_id = j.input_source_id))) AS input_source_ids,\n    j.artifact_id\n   FROM ((((sophia.jobs j\n     JOIN sophia.work_attempts a ON (((a.project_id = j.project_id) AND (a.id = j.attempt_id))))\n     JOIN sophia.goals g ON (((g.project_id = a.project_id) AND (g.id = a.goal_id))))\n     JOIN sophia.commands c ON (((c.project_id = j.project_id) AND (c.id = j.command_id))))\n     LEFT JOIN sophia.execution_bindings b ON (((b.project_id = a.project_id) AND (b.attempt_id = a.id))))\n  WHERE (sophia.is_task_kind(j.kind) AND (j.parent_job_id IS NULL));",
+    "definition_md5": "c0d03ea473637eab9be98b68e0216d65",
+    "reloptions": [
+      "security_barrier=true",
+      "security_invoker=true"
+    ]
+  },
+  "functions": [
+    {
+      "signature": "sophia.actor_id()",
+      "definition": "CREATE OR REPLACE FUNCTION sophia.actor_id()\n RETURNS uuid\n LANGUAGE sql\n STABLE\n SET search_path TO 'pg_catalog'\nAS $function$ SELECT nullif(current_setting('sophia.actor_id',true),'')::uuid $function$\n",
+      "definition_md5": "27098852bf55bc01c3c6b938a646491c"
+    },
+    {
+      "signature": "sophia.is_member(uuid)",
+      "definition": "CREATE OR REPLACE FUNCTION sophia.is_member(p_project uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'sophia'\nAS $function$ SELECT EXISTS(SELECT 1 FROM sophia.project_members WHERE project_id=p_project AND actor_id=sophia.actor_id() AND active) $function$\n",
+      "definition_md5": "73e40f4a2d8d6af95f8d414c6c2ee784"
+    },
+    {
+      "signature": "sophia.is_task_kind(text)",
+      "definition": "CREATE OR REPLACE FUNCTION sophia.is_task_kind(p_kind text)\n RETURNS boolean\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog'\nAS $function$\n SELECT p_kind IN ('draft_brief','research','design') $function$\n",
+      "definition_md5": "ab5390873bf78035cc94d99466f49d12"
+    },
+    {
+      "signature": "sophia.mission_capture_default()",
+      "definition": "CREATE OR REPLACE FUNCTION sophia.mission_capture_default()\n RETURNS text\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO 'pg_catalog'\nAS $function$ SELECT 'automatic'::text $function$\n",
+      "definition_md5": "d3212aa604efc9363d7d30e4ee0777a5"
+    }
+  ],
+  "census": {
+    "databases": [
+      "postgres"
+    ],
+    "other_clients": 0
+  }
+}

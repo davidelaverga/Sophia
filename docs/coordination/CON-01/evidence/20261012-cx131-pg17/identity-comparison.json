@@ -1,0 +1,107 @@
+{
+  "proposal": "c6d3479ab26f95fc3eef000f30771fb0b71cfba7",
+  "version": {
+    "version": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+    "version_num": "170006"
+  },
+  "checks": [
+    {
+      "object": "commands.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "contributions.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "conversation_messages.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "conversations.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "decisions.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "execution_bindings.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "goals.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "jobs.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "mission_confirmation_targets.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "mission_entries.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "mission_note_consents.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "mission_note_policies.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "project_members.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "project_revisions.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "projects.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "source_dependencies.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "source_objects.eligible_sources_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "source_texts.readable_source",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "work_attempts.members_read",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "sophia.actor_id()",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "sophia.is_member(uuid)",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "sophia.is_task_kind(text)",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "sophia.mission_capture_default()",
+      "matchesPublishedPG16": true
+    },
+    {
+      "object": "native_task_view",
+      "matchesPublishedPG16": true
+    }
+  ],
+  "all24Match": true,
+  "scope": "Raw canonical identity comparison only; no Q13 proposal installation or activation qualification"
+}
