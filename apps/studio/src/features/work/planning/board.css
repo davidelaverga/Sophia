@@ -947,7 +947,7 @@
 .task-sheet-activity .muted {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: var(--type-label);
+  font-size: var(--type-label); /* a time: the 10.5 px data scale (Codex on #241) */
 }
 
 /* ---- While you were away: one sentence from Sophia's light, over the board. ---- */

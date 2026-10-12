@@ -3562,3 +3562,41 @@ test('with a report beside Tasks the lanes follow the narrower board, not the wi
   const columns = await lanesBox.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
   expect(columns).toBeLessThanOrEqual(1)
 })
+
+test('the sheet’s H works with Caps Lock or Shift, and its controls say H and S in their tips (Codex on #241)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: /^Hold/ }).locator('.tip kbd')).toHaveText('H')
+  await expect(sheet.getByRole('button', { name: /^Stop/ }).first().locator('.tip kbd')).toHaveText('S')
+  // Shift held (or Caps Lock on) gives «H», not «h»: the sheet's key is the letter, whatever its case.
+  await sheet.focus()
+  await page.keyboard.press('Shift+H')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  // S asks Stop's question, its tip («Stop · S») not mistaken for its words (Codex on #241).
+  await sheet.focus()
+  await page.keyboard.press('s')
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
+})
+
+test('the sheet’s H is not pressed while the meeting’s recap covers it (Codex P1 on #241)', async ({ page }) => {
+  // In a call, a task's sheet open; leaving the call from the sheet brings the meeting's recap over it.
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await page.locator('.task-tile').first().click()
+  const sheet = page.locator('.task-sheet')
+  await expect(sheet).toBeVisible()
+  const hold = sheet.locator('.task-actions').getByRole('button', { name: /^(Hold|Resume)/ })
+  const offered = (await hold.count()) > 0
+  const before = offered ? ((await hold.first().textContent()) ?? '') : ''
+  await page.getByRole('dialog').getByRole('button', { name: 'Leave the room' }).first().click()
+  const recap = page.getByRole('dialog', { name: 'This meeting' })
+  await expect(recap).toBeVisible()
+  await page.keyboard.press('h')
+  await page.keyboard.press('s')
+  await page.waitForTimeout(300)
+  // The covered sheet pressed nothing: its Hold says what it said, and Stop asks no question.
+  if (offered) await expect(hold.first()).toHaveText(before)
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(0)
+  await expect(recap).toBeVisible()
+})

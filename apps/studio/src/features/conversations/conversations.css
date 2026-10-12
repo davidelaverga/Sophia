@@ -424,7 +424,7 @@
 .conv-earlier .text-button {
   padding: 0 10px;
   color: var(--text-2);
-  font: var(--type-label) / 24px var(--mono);
+  font: var(--type-small) / 24px var(--mono);
   text-decoration: none;
 }
 .conv-messages {
