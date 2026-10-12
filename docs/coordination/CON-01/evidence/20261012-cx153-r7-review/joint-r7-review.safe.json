@@ -1,0 +1,239 @@
+{
+  "at": "2026-10-12T05:07:48.123728+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "c48b17ae02dd9daf3daac5ff5a0b5f4da2b41e31",
+    "tree": "29042cc600181fb647fd5125424514eb74020cd4",
+    "parent": "09892924d7e743f8b8c96da4f6507f2457e4bdff",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "0e4e00cc1696e07caf6849860785be56e8cba4608735d79ae29ef3e11225f2a7",
+    "lines": 1250,
+    "readComplete": true,
+    "readChunks": [
+      "1-220",
+      "221-440",
+      "441-640",
+      "641-850",
+      "851-1055",
+      "1056-1250"
+    ],
+    "change": "Only proposal documentation +129/-41; no implementation changes."
+  },
+  "scope": "Fresh bounded independent WBC-02/SDD-01 runtime consumer engineering review. Read complete exact proposal; verified all12 source dependencies identical to parent and re-read affected actual supervisor/bridge/cursor/poll/receipt/hello/ledger/binding/transport/accounting sections. Previous verdict does not transfer. No shared source writer, core/ledger/Luis acceptance or operational authority.",
+  "inputs": [
+    {
+      "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "sha256": "0e4e00cc1696e07caf6849860785be56e8cba4608735d79ae29ef3e11225f2a7",
+      "lines": 1250,
+      "sameAsParent": false
+    },
+    {
+      "path": "apps/execution-host/src/runtime-supervisor.ts",
+      "sha256": "a3c3b88f9ba874d173faa5ccb4e7e31ce0325df6b71fcdd187e3f63b5207f87a",
+      "lines": 288,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/control-bridge.ts",
+      "sha256": "09d8d162921806bbd4d94d56751d399928194737432b2d1ef28e3ec88fd9d37c",
+      "lines": 1498,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c",
+      "lines": 263,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265,
+      "sameAsParent": true
+    },
+    {
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsParent": true
+    },
+    {
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsParent": true
+    },
+    {
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "lines": 273,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348,
+      "sameAsParent": true
+    },
+    {
+      "path": "packages/dsh-bundle/src/review-tools.ts",
+      "sha256": "8fe93d23e83285d733de392d2c8947ef58ec79482dfff9e5133da5a7cee9268b",
+      "lines": 328,
+      "sameAsParent": true
+    },
+    {
+      "path": "renderers/web/pdf/uml/landlock-launch.py",
+      "sha256": "490dbae10891c2831a5fd3d4accd83f91fc0ef6e68dd32ef38acfa046bdc4d66",
+      "lines": 287,
+      "sameAsParent": true
+    }
+  ],
+  "priorR6Disposition": [
+    {
+      "id": "R6-LEFTOVER-HOME-PROOF-SCOPE",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "lines": [
+        357,
+        393,
+        589,
+        616,
+        625,
+        764,
+        784,
+        808,
+        1163,
+        1173
+      ],
+      "assessment": "Settled launcher exit now proves only exact own home carrying fresh per-spawn nonce, observed by its live bridge; no proof for existinghome71, another nonce, empty/absent/zero/torn launcher record or unsettled/missing exit. Existing home gets fresh check. All Stop/retire/crossing/tests carry this and include71 controls. A valid own launcher record with torn fork intent may use scoped settled proof because fork follows both durable records; a torn launcher record cannot."
+    },
+    {
+      "id": "R6-STOP-REVERIFY",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "lines": [
+        589,
+        604,
+        686,
+        871,
+        876,
+        1125,
+        1130,
+        1177
+      ],
+      "assessment": "Fresh bounded check now allowed for every attempt without scoped live proof, retained ReplyChild included, same instance and new. Re-evaluate on hello, never stale receipt-only success, preserve original t0/settle deadline, no signals/allowance reset. New empty-home exception still needs one caller guard below; this does not revive old same-instance prohibition."
+    },
+    {
+      "id": "R6-SETTLE-TEST",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "lines": [
+        580,
+        618,
+        1081,
+        1087
+      ],
+      "assessment": "Two ordinals now wait for all applicable settle answers OR the shared deadline. One early answer cannot emit receipt with second pending; both-answer control emits at second answer; never resend after receipt and preserve uncertain accounting."
+    },
+    {
+      "id": "ROOT-NO-COMMAND-CONSISTENCY",
+      "status": "PARTIALLY_ADDRESSED_REMAINING_DELIVERY_ROW_WORDING",
+      "lines": [
+        18,
+        702,
+        1200,
+        1202
+      ],
+      "assessment": "Correctly distinguishes one idempotent cleanup retire from new Ask/create/execution and existing Stop replay. Still forbids any new outbox row, inconsistent with current delivery schema unless a different reviewed cleanup delivery binding is explicitly chosen. See findingR7-RETIRE-DELIVERY-ROWS. Any prior reviewer wording forbidding all cleanup outbox rows was too broad; do not preserve that erroneous literal restriction."
+    },
+    {
+      "id": "ROOT-VERIFIED-GONE-PRECISION",
+      "status": "ADDRESSED_AT_DESIGN_LEVEL",
+      "lines": [
+        461,
+        462,
+        1059
+      ],
+      "assessment": "Matching live identity is unsettled, never gone; identity mismatch unresolved. A free life lock alone is insufficient for executed child. Earlier shorthand436/864 must be read under this explicit rule, not treated as new settled-live exception."
+    }
+  ],
+  "findings": [
+    {
+      "id": "R7-RETIRE-DELIVERY-ROWS",
+      "severity": "P2",
+      "classification": "SOURCE_BOUND_QUALIFICATION_CONTRACT_CONTRADICTION",
+      "lines": [
+        702,
+        1200,
+        1202
+      ],
+      "title": "Allow the idempotent cleanup delivery rows required for retire",
+      "evidence": "Proposal permits writing exactly one retire command while still claiming no new outbox row. Actual0012_runtime_service.sql:74 requires runtime_commands.outbox_id and command_id;77 gives UNIQUE(project,outbox_id);78-79 foreign-key them to outbox/commands. Existing create already uses its one outbox row, so the new retire runtime command cannot reuse that id without conflicting; current dispatcher768-770 inserts from its own delivery row. No alternative cleanup delivery schema is bound by this proposal. Binding297/299 contains similarly overbroad no-second-command/outbox wording beside one retire, which also needs coordinated clarification when core binding is accepted.",
+      "reproducer": "Static constraint check: initial create has runtime_commands(project,outbox_id=O). A lease-loss hello needs new retireR. Nulloutbox violates NOTNULL; reuseO violates UNIQUE; a new delivery id requires an outbox row (and command identity), which702/1200 currently forbid. This is an impossible literal qualification assertion for retained ordinary delivery, not an executed SQL failure or a demand for new execution.",
+      "smallestCorrection": "Permit exactly one idempotent cleanup retire and its necessary commands/outbox/runtime delivery rows, keyed to the same reply/attempt. Forbid new Ask, create/execution, attempt, provider/model call, reservation and allowance reset. Replay existing Stop/retire without new dispatch. Core owner binds writer/idempotency and aligns Binding297/299 and tests; retain ordinary schema/FKs rather than silently bypassing them.",
+      "expectedChecks": "Future real-DB tests count exactly one cleanup command/delivery on lease loss and none on repeated hello/receipt replay; no second create/outbox for execution, no new attempt/reservation/call, original uncertain accounting preserved. No database test executed in this review."
+    },
+    {
+      "id": "R7-CURRENT-EMPTY-STOP-GUARD",
+      "severity": "P2",
+      "classification": "BOUNDED_CALLER_PROOF_GAP_NOT_DEMONSTRATED_PURGE_RACE",
+      "lines": [
+        422,
+        424,
+        456,
+        457,
+        467,
+        589,
+        764,
+        789,
+        794,
+        811,
+        1058,
+        1110
+      ],
+      "title": "Current-root empty needs the pending-launcher guard at Stop as well as the drain",
+      "evidence": "R7 correctly says new admission may follow a current-root drain422 and guards check absent with no unreaped launcher456/589/764. But current-root empty457/811 counts check0 solely on the drain/EEXIST premise. A pending launcher for this attempt can be paused before SH acquisition and thus is absent from that drain. The new stop classifier589 can accept empty despite an unreaped launcher, contradicting its process-settlement proof. EEXIST only blocks that launcher while the directory remains. General467 no-admission-can-follow is true for sealed roots, false for the newly admitted current-root case.",
+      "reproducer": "Static supported-leftover control, no duplicate claim: pre-seed an empty home as the existinghome fixture, then let this bridge obtain its one claimfirst/spawn and hold that one launcher before opening/locking .admit or before mkdir. Create times out with decoupled cleanup; Stop wait expires while launcher remains held. Exclusive current-root drain succeeds and returnsempty. Unlike absent,589 imposes no unreaped-launcher guard for empty, so Stop may answerchecked and markbinding settled while its own launcher is alive. Resume subsequently: while home remains it exits71 (or observesqueuedcancel), preserving the home. No runtime probe was executed.",
+      "callerLimit": "The full retained relay matters: the paused launcher still holds fd3. The live relay cannot becomeclosed until that end closes, so retire step765 independently blocks immediate deletion. The serial attempt queue and queued TERM/KILL likewise constrain resumption. Therefore this review does NOT claim an actual late-home creation, false purgecompletion, provider call, duplicate claim, or executed deletion. A new instance uses sealed old roots, where drain fences later admission. The bounded defect is Stopchecked accepting a proof that does not cover its pending current-generation launcher, and unqualified future-writer prose.",
+      "smallestCorrection": "For current-root empty, require the same no-unreaped-launcher/per-attempt spawn fence as absent before treating check0 as Stop settlement; otherwise retainoutcome_unknown/pending. Or explicitly require another identity-safe reap proof before that checked. Carry invariant through retire, keep relayclosed barrier, and scope467/EEXIST no-future-writer claim to sealed roots or guarded current-root cases. No per-request new namespace mechanism, feature rewrite or production permission is required.",
+      "expectedChecks": "Future existing empty-home control with one launcher paused before admission: drain may reportempty as filesystem state, but Stop staysunknown while that launcher is unreaped; retire stayspending through relayclosed/processproof. After controlled exit/reap and durable spawn fence, checked then exacthomecleanup once. Sealed-root empty remains valid on drain; current-root absence guard stays unchanged."
+    }
+  ],
+  "acceptedDirections": [
+    "Choice(c), bridge fd3/relay/claim/accounting ownership and resident launcher pidfd identity; no numeric reply signals or uid-wide sweep.",
+    "Admission SH before verify/mkdir through durable initial lease; namespace rename plus EX drain for sealed roots; whole leases separately require life lock and verifiedgone entries; torn/zero leases retained unresolved.",
+    "Life-lock reference inherited across fork, no unlock, child CLOEXEC only after durable entry+pidfd gate; no unrecorded-child deletion before exit proof; correct unused gate/status pipe closure and Landlock lease exclusion. Not a claim of actual orphan wait/reap or target compatibility.",
+    "Named eight API predicates plus separate relayclosed: actual terminalWriter durable receipt/capture/hello+lease, createAnswered, capturepublished/refused/none on journalandDB, observation/usageordinal keys, reservations, terminalState andpayloadScrubbed need core/ledger binding. No fabricated receipt.",
+    "Withdrawal and hello Stop unknown/checked mapping with same command replay; shared settle deadline/order; late usage preserved scrubbed and uncertain counts never reset.",
+    "Withdrawn P1-E stays withdrawn. Optional atomic hello lease-loss table is not mandatory pending-writer repair; if dropped, accounting-safe claim-before-rejected replay behavior remains required."
+  ],
+  "implementationNotesNotNewDefects": [
+    "Fresh proof-check budget should be bound in implementation and tests within each evaluation, including reconnect after original t0 deadline elapsed; preserve original kill/settle clock and honestunknown, never claim guaranteed death. Absence of future implementation tests by itself is not a proposal finding.",
+    "Current/sealed locator must refer to exact root,attempt,nonce/lease identity and detect duplicate homes; if own old path was renamed, fall back to check acrossroots. O_NOFOLLOW on finallease alone is not root/path identity proof; full no-link locator checks and singlewriter invariants remain.",
+    "Author L0 a5 artifacts are unchanged and expressly fixture-scoped. This root did not retrieve/run them in this turn; do not count another Codex reader as this root execution. Actual pinned dsh/Linux host/Render qualification still futureP1-P8 and named operationalauthority.",
+    "Local original r6 handback remains f5edc80a463493a75baa5da4e13254f96bdcb4fc00fd269a1b299201e0bff6b5 byte-identical shared/private; r7 header references ec28d195 as jointrecord viaCX0151. This root has not retrieved that separate cited record; no false provenance equivalence or mutation of original claimed."
+  ],
+  "baseWindowOrderHandback": {
+    "base": "Exactc48b17ae parent09892924; all12 manifest dependencies unchanged. No currentmain/CI/deployed qualification claimed; accepted integration base must come from integration owner, not this review.",
+    "sourceHolds": "Luis/core/ledger ACKs separate; current prepared21239/PR2452c1c and their visibility/productionResources issues are peer-reported context, not reviewed or accepted here. No approval from another mission transfers toCON. PhaseA prerequisite acceptance/window still separately owned,0053reserved; PhaseB/Q13/sharedsource/Studio held. Route9e not touched.",
+    "order": "Correct bounded proposal/caller/delivery assertions in owned docs and publish immutable pin. When actual base/window/owner gates lift: accepted PhaseA prerequisite, additiveSQL, wire/contracts, bridge, supervisorlauncherprofile, qualification; distinct immutablepins/failbefore/fullgates and combinedartifact. No applied migration edits, broader grants or new writer.",
+    "missionPreservation": "Both Paperclip/design missions and KeyStudio remain intact. Historicalbindings, role/route/modelartifactpins, cumulative requestordinal allowance, uncertain accounting, withdrawal/latepublication scrub and one pinned harness preserved. Full goal not complete or resumed operationally by this request."
+  },
+  "effects": "Immutable Gitobject fetch and exact source/diff/dependency reads plus localjournal. No feature/sourcecheckout edit, build/test/CI rerun/new harness/processprobe, nativeCON access, hosted/runtime/provider/model/image/database calls, grants/credentials/spending, merge, registry publication, migration or deployment. No cross-thread reply tool used.",
+  "reviewCheckout": {
+    "head": "88dbd785881381ebb8eb0287de1b5dd734842ff5",
+    "trackedClean": true,
+    "checkoutChanged": false
+  },
+  "originSha256": "d5bd2ac5dab1cd57934df0d2e49678ce52f331ff0bba0c15cb6513fc4acbae5f",
+  "excludedState": "Unrelated mission operational state excluded; no CON authority transfers."
+}
