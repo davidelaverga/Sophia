@@ -255,9 +255,21 @@ Reflect.set(globalThis, 'SpeechRecognition', HeardRecognition)
 
 /** Words handed to Sophia's conversation, as Places hands them (it opens Personal and its composer sends them). */
 const say = (text: string) => pressed.push(`say ${text}`)
-/** A need opened in a project: the view, the project, and the record's address (a decision's own, or its task's). */
-const openPress = (view: string, projectId: string, where: { taskId?: string; decisionId?: string }) =>
-  `open ${view} ${projectId}${where.decisionId ? ` #decision-${where.decisionId}` : where.taskId ? ` #task-${where.taskId}` : ''}`
+/** A need opened in a project: the view, the project, and the record's address (a request's, a decision's own, or its task's). */
+const openPress = (
+  view: string,
+  projectId: string,
+  where: { taskId?: string; decisionId?: string; requestId?: string },
+) =>
+  `open ${view} ${projectId}${
+    where.requestId
+      ? ` #request-${where.requestId}`
+      : where.decisionId
+        ? ` #decision-${where.decisionId}`
+        : where.taskId
+          ? ` #task-${where.taskId}`
+          : ''
+  }`
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
