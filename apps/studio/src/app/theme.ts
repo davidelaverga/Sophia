@@ -31,6 +31,11 @@ export function resolveTheme(theme: Theme, systemLight = matchMedia('(prefers-co
 
 /** The browser's chrome (a phone's bar, an installed window) in the page's ground (index.html's theme-color). */
 const CHROME = { light: '#fbf8f3', dark: '#07060b' } as const
+/**
+ * The tab's mark in the appearance shown, not the system's: favicon.svg follows only `prefers-color-scheme`, so a Light
+ * chosen on a dark system would keep the dark inks in the tab (Codex on #249). public/entry.js sets it at first paint.
+ */
+const ICON = { light: '/favicon-light.svg', dark: '/favicon-dark.svg' } as const
 
 /** Puts the resolved appearance on the page's root, and on the browser's chrome (Codex on #234). */
 export function applyTheme(theme: Theme = readTheme()): void {
@@ -39,6 +44,7 @@ export function applyTheme(theme: Theme = readTheme()): void {
   if (shown === 'light') page.dataset['theme'] = 'light'
   else delete page.dataset['theme']
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', CHROME[shown])
+  document.querySelector('link[rel="icon"][type="image/svg+xml"]')?.setAttribute('href', ICON[shown])
 }
 
 /** Keeps a choice on this browser and shows it. */
