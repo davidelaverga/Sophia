@@ -3,7 +3,7 @@
 // your projects (the ones Work shows first); on the right, alone, her own light behind Umbral, whose rays turn to you as
 // you move and to the line while you write or speak to her.
 import type { ProjectSummary } from '@sophia/contracts'
-import { Icon, Tip } from '@sophia/ui'
+import { Button, Icon } from '@sophia/ui'
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
@@ -249,16 +249,17 @@ function useSay(say: Props['actions']['say'], hidden: boolean) {
 function Mic({ voice }: { voice: ReturnType<typeof useDictation> }) {
   if (!voice.available) return null
   return (
-    <button
-      className="hw-mic has-tip"
-      type="button"
+    <Button
+      kind="icon"
+      size="sm"
+      className="hw-mic"
       aria-pressed={voice.listening}
       aria-label="Speak instead"
       onClick={voice.listening ? voice.stop : voice.start}
+      tip={{ label: 'Speak instead. Your voice stays on this device.', side: 'top', align: 'end' }}
     >
       <Icon name={voice.listening ? 'stop' : 'mic'} />
-      <Tip label="Speak instead. Your voice stays on this device." side="top" align="end" />
-    </button>
+    </Button>
   )
 }
 

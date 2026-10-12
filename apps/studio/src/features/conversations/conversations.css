@@ -25,26 +25,21 @@
   height: 100%;
   min-height: 0;
 }
+/* The icon presses (New conversation, back, Context, its Close): the kit's square (Button icon, 32 px) without the
+   square's edge, so the heads stay quiet. */
 .conversations .icon-button {
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  flex: none;
-  border: 0;
-  border-radius: 7px;
+  border-color: transparent;
   background: none;
   color: var(--text-2);
-  transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease);
 }
 .conversations .icon-button:hover {
+  border-color: transparent;
   background: var(--raise-2);
   color: var(--text);
 }
 .conversations .icon-button[aria-pressed='true'],
 .conversations .icon-button[aria-expanded='true'] {
+  border-color: transparent;
   background: rgba(156, 130, 245, 0.14);
   color: var(--text);
 }
@@ -104,17 +99,10 @@
   gap: 4px;
   padding: 8px 2px 4px;
 }
+/* «Open» and «Mine»: ghosts (28 px) in the small type. */
 .conv-show button {
-  min-height: 26px;
   padding: 0 10px;
-  border: 0;
-  border-radius: 7px;
-  background: none;
-  color: var(--text-2);
   font-size: var(--type-small);
-  transition:
-    background var(--fast) var(--ease),
-    color var(--fast) var(--ease);
 }
 .conv-show button:hover {
   background: var(--raise);
@@ -855,8 +843,8 @@
   font-size: var(--type-small);
 }
 .conv-propose-acts .pill {
-  height: 30px;
-  padding: 0 14px;
+  height: 28px;
+  padding: 0 12px;
 }
 .conv-help summary {
   min-height: 24px;

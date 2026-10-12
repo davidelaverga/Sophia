@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Goal } from '@sophia/contracts'
-import { Icon, Tag } from '@sophia/ui'
+import { Button, Icon, Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { GOAL_STATUS } from './labels.ts'
 import { WorkControls } from './WorkControls.tsx'
@@ -50,15 +50,16 @@ function SecondLine({ goal, next }: { goal: Goal; next?: React.ReactNode }) {
       <div className="goal-outcome-line">
         {next ?? <p className="goal-outcome">{goal.outcome}</p>}
         {folded && (
-          <button
-            type="button"
-            className="ghost goal-criteria-button"
+          <Button
+            kind="ghost"
+            size="sm"
+            className="goal-criteria-button"
             aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
             {folded}
             <Icon name="chevron" size={12} />
-          </button>
+          </Button>
         )}
       </div>
       {open && next && <p className="goal-outcome goal-outcome-open">{goal.outcome}</p>}

@@ -7,6 +7,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
+import { Button } from '@sophia/ui'
 import {
   listConversations,
   type ConversationAsk,
@@ -160,9 +161,10 @@ function ListPane(props: {
 /** New conversation: a + press beside the list's name, its words in its name and its tip. */
 function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
   return (
-    <button
+    <Button
       ref={start.button}
-      type="button"
+      kind="icon"
+      size="md"
       className="icon-button conv-start"
       aria-label="New conversation"
       title="New conversation"
@@ -172,7 +174,7 @@ function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
         <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
