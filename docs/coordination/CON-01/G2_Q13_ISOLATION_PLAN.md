@@ -1,4 +1,4 @@
-# G2 Q13: the reply assembler's least-privilege identity (proposal for early review, r3)
+# G2 Q13: the reply assembler's least-privilege identity (proposal for early review, r4)
 
 **Status: a proposal.** Nothing in it is installed or published as source.
 - **The shared read step (§3.3)** changes and adds objects other missions own. It stays held until those owners acknowledge it (CX-0128; owners and routing in §8).
@@ -6,7 +6,20 @@
 - **The deployment remedy for admission (§3.5)** runs only under a separately approved, exact deployment configuration. Nothing here approves one.
 - **No live effect** of any kind: no role, grant, policy, `pg_hba` or session change on any shared or hosted database.
 
-**r3 corrects r2** (`c6d3479a`), after Codex's early review (CX-0131):
+**r4 corrects r3** (`fc3976ec`), after Codex's PG17 evidence and its new P2 (CX-0131, `07b0ea44`):
+- **The assembler's own authority is checked, fail-closed (§3.4, T11 (g)–(o)).** r3 checked the login's authority and the assembler's ownership, but not what the assembler itself may do. Codex's reproducer: a clean login, other admission denied, then `ALTER ROLE sophia_conversation_assembler BYPASSRLS`. r3's check returned **no row**, and the login read a synthetic `FORCE ROW LEVEL SECURITY` deny-all row. The check now holds on:
+  - any role attribute on the assembler;
+  - any relation privilege other than `SELECT` on the 20, and any column grant;
+  - `EXECUTE` on anything outside the 10, and any schema privilege other than `USAGE` on `sophia`;
+  - any grant option;
+  - any policy naming it outside the 38 reviewed;
+  - any dependency of another kind;
+  - any member of the assembler that isn't a bare login.
+
+  It must also run again after any change to the login's or the assembler's authority (§3.4).
+- **PostgreSQL 17 (§3.3).** The 24 identities Codex took on 17.6 equal the 16 values. The guard accepts majors 16 and 17 and refuses any other.
+
+**r3 corrected r2** (`c6d3479a`), after Codex's early review (CX-0131):
 - **The activation check fails closed (§3.4, T11):**
   - an absent assembler role is a hold;
   - its membership checks compare against the assembler as a scalar, so an absent assembler no longer hides a login's other memberships;
@@ -113,11 +126,11 @@ It runs in the candidate's transaction, so a refusal installs nothing.
 
   All are deparsed with `search_path = pg_catalog`, so every name is schema-qualified.
 - **Another major version** is refused until its own identities are reviewed and added.
-- **The actual target is PostgreSQL 17.6** (Codex, CX-0131, read-only). So this guard refuses there until the 17.6 identities are taken on an owned 17.6 cluster and added in the CON pin, beside the 16 ones.
-  - I have no 17 binary here.
-  - Codex will collect the raw 17.6 canonical identities, from this exact SQL on its owned cluster, as reviewer evidence.
-  - I integrate them into the final candidate and qualify it. They are not a fix authored by the reviewer.
-- **The view's identity** is its definition plus its `security_barrier` and `security_invoker` options, as replaced at `0022_research_readers.sql:75`. Codex confirmed the options in that source line, not in the target's catalog. The 17.6 identities, the view's included, are still to be taken (above).
+- **The actual target is PostgreSQL 17.6** (Codex, CX-0131, read-only).
+- **Codex collected the 17.6 identities as reviewer evidence** (`07b0ea44`, `identity-comparison.json`). It used this exact SQL, on a fresh owned 17.6 cluster, from #211 `7d8f415f`'s migrations 0001–0045 and 0048; the six shared defining files are byte-identical to main `e0200f1a`.
+- **All 24 match the 16 values above:** the 19 policies, the 4 functions, and the view's definition with its options.
+- **r4 integrates that result:** the guard accepts majors 16 and 17 with the same values, and refuses any other. I qualify that on 16; 17 is Codex's independent recheck.
+- **The view's identity** is its definition plus its `security_barrier` and `security_invoker` options, as replaced at `0022_research_readers.sql:75`. Codex confirmed the options in that source line, not in the target's catalog. On its owned 17.6 cluster the view's identity also matched the 16 value (above).
 ```sql
 -- (Q13, D-8) What the compiler reads as the asker, and nothing else: the relations readMissionContext and the window
 -- read, native_task_view's base tables, the relations their SELECT policies read, the functions those policies and that
@@ -130,8 +143,8 @@ DECLARE was text:=current_setting('search_path');
  member text:='c6b5d3e81ef41aae94b11f678470fa70'; none text:='d41d8cd98f00b204e9800998ecf8427e';
 BEGIN
  PERFORM set_config('search_path','pg_catalog',true);
- IF current_setting('server_version_num')::int/10000<>16 THEN
-  RAISE EXCEPTION 'the Q13 read identities are reviewed for PostgreSQL 16 only' USING ERRCODE='55000';
+ IF current_setting('server_version_num')::int/10000 NOT IN (16,17) THEN
+  RAISE EXCEPTION 'the Q13 read identities are reviewed for PostgreSQL 16 and 17 only' USING ERRCODE='55000';
  END IF;
  IF (SELECT array_agg(s.v ORDER BY s.v COLLATE "C") FROM (
       SELECT c.relname||'.'||p.polname||' '||p.polcmd::text||' '||p.polpermissive::text||' '||
@@ -253,8 +266,21 @@ Proposed as `db/candidates/con01-s3-assembler-activation-check.sql`, a new CON f
 -- Fails closed: a missing login or assembler is a hold, and every membership check compares against the assembler's oid
 -- as a scalar, so an absent assembler (NULL) makes every membership of the login a hold rather than hiding them.
 WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
-     a AS (SELECT oid FROM pg_roles WHERE rolname='sophia_conversation_assembler'),
+     a AS (SELECT * FROM pg_roles WHERE rolname='sophia_conversation_assembler'),
      t AS (SELECT oid FROM pg_database WHERE datname=current_database()),
+     -- What the assembler may hold, by name, and nothing else (§3.2, §3.3 and the five entry points). Matched by
+     -- schema and name, never by a cast, so a database without schema sophia neither errors nor admits.
+     rels(r) AS (VALUES ('commands'),('contributions'),('conversation_messages'),('conversations'),('decisions'),
+      ('execution_bindings'),('goals'),('jobs'),('mission_confirmation_targets'),('mission_entries'),
+      ('mission_note_consents'),('mission_note_policies'),('native_task_view'),('project_members'),('project_revisions'),
+      ('projects'),('source_dependencies'),('source_objects'),('source_texts'),('work_attempts')),
+     fns(f) AS (VALUES ('actor_id()'),('is_member(uuid)'),('is_task_kind(text)'),('mission_capture_default()'),
+      ('conversation_assembly_project()'),('conversation_assembly_claim(uuid, integer)'),
+      ('conversation_assembly_begin(uuid, integer, uuid)'),('conversation_assembly_close(uuid, integer, uuid, text)'),
+      ('conversation_assembly_fail(uuid, integer, uuid, text)'),('conversation_record_context(uuid, integer, uuid, jsonb)')),
+     pols(r, p) AS (SELECT r, CASE r WHEN 'source_objects' THEN 'eligible_sources_read'
+       WHEN 'source_texts' THEN 'readable_source' ELSE 'members_read' END FROM rels WHERE r<>'native_task_view'
+      UNION ALL SELECT r, 'con01_assembly_bound' FROM rels WHERE r<>'native_task_view'),
      -- Where a shared dependency is named: a database by its own name, anything else by the database it lives in.
      dep AS (SELECT d.*, CASE WHEN d.classid='pg_database'::regclass
                THEN 'database '||coalesce((SELECT datname FROM pg_database WHERE oid=d.objid),'?')
@@ -283,6 +309,42 @@ UNION ALL SELECT 'hold', 'on the target database: '||x.privilege_type||CASE WHEN
 -- The assembler's: grants in the target alone (no database-level or shared entry), and it owns nothing anywhere.
 UNION ALL SELECT 'hold', 'the assembler '||CASE dep.deptype WHEN 'o' THEN 'owns something in ' ELSE 'holds something in ' END||dep.place
  FROM dep, a, t WHERE dep.refobjid=a.oid AND (dep.dbid<>t.oid OR dep.deptype='o')
+-- The assembler's own authority, exactly (CX-0131: BYPASSRLS drift): no attribute; on relations, SELECT on the 20 alone;
+-- no column grant; EXECUTE on the 10 alone; USAGE on schema sophia alone; no grant option anywhere; named only by the
+-- 38 reviewed policies; and no dependency of any other kind (types, languages, default privileges, large objects…).
+UNION ALL SELECT 'hold', 'the assembler has '||concat_ws(', ', CASE WHEN rolsuper THEN 'SUPERUSER' END,
+   CASE WHEN rolbypassrls THEN 'BYPASSRLS' END, CASE WHEN rolcanlogin THEN 'LOGIN' END, CASE WHEN rolcreatedb THEN 'CREATEDB' END,
+   CASE WHEN rolcreaterole THEN 'CREATEROLE' END, CASE WHEN rolreplication THEN 'REPLICATION' END)
+ FROM a WHERE rolsuper OR rolbypassrls OR rolcanlogin OR rolcreatedb OR rolcreaterole OR rolreplication
+UNION ALL SELECT 'hold', 'the assembler may '||x.privilege_type||' on '||n.nspname||'.'||c.relname
+   ||CASE WHEN x.is_grantable THEN ' with grant option' ELSE '' END
+ FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(c.relacl) x, a
+ WHERE x.grantee=a.oid AND NOT (n.nspname='sophia' AND c.relname IN (SELECT r FROM rels)
+   AND x.privilege_type='SELECT' AND NOT x.is_grantable)
+UNION ALL SELECT 'hold', 'the assembler may '||x.privilege_type||' on column '||c.relname||'.'||att.attname
+ FROM pg_attribute att JOIN pg_class c ON c.oid=att.attrelid CROSS JOIN LATERAL aclexplode(att.attacl) x, a
+ WHERE x.grantee=a.oid
+UNION ALL SELECT 'hold', 'the assembler may EXECUTE '||n.nspname||'.'||p.proname||'('||oidvectortypes(p.proargtypes)||')'
+   ||CASE WHEN x.is_grantable THEN ' with grant option' ELSE '' END
+ FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace CROSS JOIN LATERAL aclexplode(p.proacl) x, a
+ WHERE x.grantee=a.oid AND NOT (n.nspname='sophia' AND p.proname||'('||oidvectortypes(p.proargtypes)||')' IN (SELECT f FROM fns)
+   AND NOT x.is_grantable)
+UNION ALL SELECT 'hold', 'the assembler may '||x.privilege_type||' on schema '||n.nspname
+   ||CASE WHEN x.is_grantable THEN ' with grant option' ELSE '' END
+ FROM pg_namespace n CROSS JOIN LATERAL aclexplode(n.nspacl) x, a
+ WHERE x.grantee=a.oid AND NOT (n.nspname='sophia' AND x.privilege_type='USAGE' AND NOT x.is_grantable)
+UNION ALL SELECT 'hold', 'a policy names the assembler: '||p.polname||' on '||n.nspname||'.'||c.relname
+ FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid JOIN pg_namespace n ON n.oid=c.relnamespace, a
+ WHERE a.oid=ANY(p.polroles) AND NOT (n.nspname='sophia' AND (c.relname::text, p.polname::text) IN (SELECT r, p FROM pols))
+UNION ALL SELECT 'hold', 'the assembler holds something of another kind in '||dep.place
+ FROM dep, a WHERE dep.refobjid=a.oid AND dep.classid NOT IN ('pg_class'::regclass, 'pg_namespace'::regclass,
+   'pg_proc'::regclass, 'pg_policy'::regclass)
+-- Every identity that can act as the assembler, not only this login: each member must be a bare login.
+UNION ALL SELECT 'hold', 'a member of the assembler is not a bare login: '||r.rolname
+ FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member, a
+ WHERE m.roleid=a.oid AND (NOT r.rolcanlogin OR r.rolsuper OR r.rolbypassrls OR r.rolcreatedb OR r.rolcreaterole
+   OR r.rolreplication OR m.admin_option OR EXISTS(SELECT FROM pg_auth_members o WHERE o.member=r.oid AND o.roleid<>a.oid)
+   OR EXISTS(SELECT FROM pg_auth_members o WHERE o.roleid=r.oid))
 UNION ALL SELECT 'hold', 'session open in '||coalesce(s.datname,'?')||' (pid '||s.pid||')'
  FROM pg_stat_activity s, l WHERE s.usesysid=l.oid AND s.pid<>pg_backend_pid()
 UNION ALL SELECT 'hold', 'admitted to '||d.datname||CASE WHEN has_database_privilege('public', d.oid, 'CONNECT')
@@ -293,7 +355,11 @@ UNION ALL SELECT 'hold', 'admitted to '||d.datname||CASE WHEN has_database_privi
 - **Settlement:** the check returns no `session` row. A found session is settled only by its own client ending; nothing here terminates one.
 - **Admission configuration:** the check returns no `admitted to` row. Each database's denial must also be qualified by a fresh connection attempt (§3.5), under the deployment configuration approved for it.
 
-A changed admission configuration or a new database means re-running the check and the attempts before use.
+**When it must run again:**
+- a changed admission configuration or a new database means re-running the check and the attempts before use;
+- so does any change to a role, grant, policy or membership that touches the login or the assembler.
+
+The check binds the authority it reads at the moment it runs. Drift after that is caught only by running it again.
 
 ### 3.5 Admission: read-only discovery, then the bounded deployment remedy (owner-run, only when approved)
 
@@ -400,13 +466,26 @@ All run on owned disposable PostgreSQL through a real login: `LOGIN NOINHERIT`, 
 | Other database admission | **T7**, on an owned throwaway cluster: **before** the remedy, the login is admitted to `postgres`, `template1` and a synthetic database, holds nothing of Sophia's there, and §3.4 holds activation (`admitted to` rows). **After** §3.5's remedy (one other login re-granted `CONNECT` on `postgres`): a fresh connection by the login to each is refused (`42501`); it is admitted to the target; the re-granted login is admitted to `postgres`; §3.4 returns no row. The throwaway cluster is removed afterwards |
 | Scope to one database | **T8**: installing the candidate in a second database of the same cluster is refused ("privileges or objects of its own"). This replaces today's "adopts an existing role" control, which applied in a second database. The other found-role cases are kept |
 | Pre-existing out-of-scope session | **T9**: an owned session by the login is open in another database before the check. §3.4 returns its `session` row. Revoking `PUBLIC` `CONNECT` there does not end it: it still queries. Its client closes voluntarily, and the `session` row is gone. No other process is terminated |
-| Activation check fails closed | **T11**, the §3.4 query on owned disposable databases, each case in a rolled-back transaction: **(a)** no assembler role, with the login a member of `sophia_api`: `no assembler role`, `member of sophia_api` and `not a member of the assembler`; **(b)** the login owns the target database: `the login owns something in database <target>`; **(c)** `CREATE` and `TEMPORARY` granted on the target: one `on the target database:` row each; **(d)** `CONNECT` with the grant option: `on the target database: CONNECT with grant option`; **(e)** the assembler owns a table: `the assembler owns something in <target>`; **(f)** the login set up as §3.4 requires: no row but `admitted to` rows. Each must return its rows; at `7d8f` the check does not exist |
+| Activation check fails closed | **T11**, the §3.4 query on owned disposable databases, each case in a rolled-back transaction: **(a)** no assembler role, with the login a member of `sophia_api`: `no assembler role`, `member of sophia_api` and `not a member of the assembler`; **(b)** the login owns the target database: `the login owns something in database <target>` (the owner's implicit `CREATE` and `TEMPORARY` rows appear only where the version writes the owner's ACL, as on 16; they are not required); **(c)** `CREATE` and `TEMPORARY` granted on the target: one `on the target database:` row each; **(d)** `CONNECT` with the grant option: `on the target database: CONNECT with grant option`; **(e)** the assembler owns a table: `the assembler owns something in <target>`; **(f)** the login set up as §3.4 requires: no row but `admitted to` rows.
+
+The assembler's own authority (CX-0131), each with every other database's admission denied in the same rolled-back transaction, so the control returns no row at all:
+- **(g)** the assembler given `BYPASSRLS`: `the assembler has BYPASSRLS`. r3's text returns no row here, and the login reads a synthetic `FORCE ROW LEVEL SECURITY` deny-all row; r4 must hold;
+- **(h)** an extra `SELECT` on a table outside the 20, an `INSERT` on one of the 20, and a grant option: one row each;
+- **(i)** a column grant: `the assembler may SELECT on column …`;
+- **(j)** `EXECUTE` on a function outside the 10: `the assembler may EXECUTE …`;
+- **(k)** `CREATE` on a schema: `the assembler may CREATE on schema …`;
+- **(l)** a policy outside the 38 naming it: `a policy names the assembler: …`;
+- **(m)** a default privilege granted to it: `the assembler holds something of another kind …`;
+- **(n)** a group role, or a login with another membership, made a member of the assembler: `a member of the assembler is not a bare login: …`;
+- **(o)** the full installed candidate with its login, set up as required: no row beyond `admitted to` (the allowlist equals what §3.2 and §3.3 grant).
+
+Each must return its rows; at `7d8f` the check does not exist |
 | Concurrent identities and restart | **T10**: two logins, each a member of the assembler; neither can `SET ROLE` the other. Each `assembleReply` call opens and destroys its own connections: no backend pid is reused across calls, and `current_user` after each transaction is the login. A revoked login's next call fails at connect or `SET LOCAL ROLE`, and its claim count is unchanged: no fresh attempt is created by the failure |
 
 ## 6. What this does not settle
 
 - **Admission elsewhere:** on the actual target, `postgres` cannot revoke `template1`'s `PUBLIC` `CONNECT`, and no supported admission path is established, so activation stays held (§4). Elsewhere, it is held until §3.5 is approved, applied and qualified.
-- **PostgreSQL 17.6:** the target's identities are not yet taken; the guard refuses there until they are (§3.3).
+- **PostgreSQL 17.6:** the identities taken on Codex's owned 17.6 cluster equal the 16 values, so the guard accepts 16 and 17 and refuses any other major (§3.3). This is not evidence about the target's own catalog, which is read only at installation, by that guard.
 - **Inside its claim,** the login reads what the claim's asker may read in that project, in the 20 relations. That is the compiler's required read. Claiming is limited to pending replies and to three attempts each, as the S3 functions already enforce.
 - **Policy drift after install:**
   - A later migration that drops and recreates one of the 19 shared policies for `sophia_api` alone makes the assembly `unreadable` (fail-closed).
@@ -466,6 +545,33 @@ This applies the exact text on a disposable PG16 database. It is not the install
 | (e) the assembler owns a table | `the assembler owns something in <target>` |
 | (f) again, after the rolled-back cases | unchanged: the 2 `admitted to` rows |
 | Cleanup | the target, the login and the assembler dropped; census baseline, 0 clients |
+
+**r4.** Codex's owned 17.6 evidence (`07b0ea44`):
+- all 24 identities match the 16 values;
+- r3's six controls behaved as required;
+- **the new P2:** an assembler with `BYPASSRLS` passed r3's check with zero rows and read a `FORCE ROW LEVEL SECURITY` deny-all row.
+
+My runs on owned 55436 (PG 16.15) use r4's check (`bec619e1…`, doc block 5, verbatim), next to r3's (`74e6ea2f…`) as the fail-before.
+
+**Run A** (`q13-validate-r2.ts`/`.sh` on r4's text; `q13-r2.jsonl`, `q13-r2-check.out`): the drift, install, T3, T1, T4, T5 and T6 results as in r2, unchanged. On that full installed candidate, r4's check returns only the session and `admitted to` rows. So **the allowlist equals what §3.2 and §3.3 grant (T11 (o))**, and the second bare login is accepted.
+
+**Run B** (`q13-r4-t11.out`, `a20302fe…`). Each case ran in one rolled-back transaction with `postgres` and `template1` `CONNECT` revoked from `PUBLIC`, so the control is empty:
+
+| Case | r3 (fail-before) | r4 (after) |
+|---|---|---|
+| control (the assembler: `USAGE` on `sophia`, `SELECT` on `sophia.goals`) | none | none |
+| (g) Codex's reproducer: a `FORCE ROW LEVEL SECURITY` deny-all table granted to the assembler, its policy, then `BYPASSRLS` | **none** (the login then reads `visible 1`) | `the assembler has BYPASSRLS`; `may SELECT on public.cx131_rls`; `a policy names the assembler: deny_all on public.cx131_rls` |
+| (g′) `BYPASSRLS` alone | none | `the assembler has BYPASSRLS` |
+| (h) `SELECT` on `sophia.outbox`, `INSERT` on `sophia.goals`, `SELECT … WITH GRANT OPTION` | none | one row each |
+| (i) a column grant | none | `may SELECT on column outbox.id` |
+| (j) `EXECUTE` on `public.q13_f()` | none | `may EXECUTE public.q13_f()` |
+| (k) `CREATE` on schema `public` | none | `may CREATE on schema public` |
+| (l) an extra policy on `sophia.goals` | none | `a policy names the assembler: extra on sophia.goals` |
+| (m) a default privilege | none | `holds something of another kind in <target>` |
+| (n) a group role, and a login also in `sophia_api`, made members | none | `a member of the assembler is not a bare login:` for each |
+| Cleanup | | dropped; census baseline; `postgres` and `template1` ACLs as before (`(default)` and `{=c/postgres,postgres=CTc/postgres}`) |
+
+These run on a disposable PG 16 database: not the installed candidate on 17.6, and not a qualification. Codex rechecks independently.
 
 ## 8. Affected shared objects and the acknowledgements they need (expanded in r2)
 
