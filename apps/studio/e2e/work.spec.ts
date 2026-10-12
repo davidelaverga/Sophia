@@ -3574,4 +3574,8 @@ test('the sheet’s H works with Caps Lock or Shift, and its controls say H and 
   await sheet.focus()
   await page.keyboard.press('Shift+H')
   await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  // S asks Stop's question, its tip («Stop · S») not mistaken for its words (Codex on #241).
+  await sheet.focus()
+  await page.keyboard.press('s')
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
 })
