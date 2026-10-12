@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 `.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `270fce65` (tree `c0676074`): 3 files, 1 new (`e2e/conversations-column.spec.ts`) and
-`conversations.css`, `docs/plans/conversations-polish.md`; this handoff's commit follows. If the PR is squashed at merge,
-one commit carries all of it under an id this file cannot know before it exists.
+Ending commit/tree: `27ccb5b71289` (tree `c1b67643bc59`), the last commit of `ui/polish-conversations`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`ui/dock-header` at that commit: `e2e/conversations-column.spec.ts`, `src/features/conversations/conversations.css`, `docs/handoffs/UIKIT-33-attempt-1.md`, `docs/plans/conversations-polish.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
