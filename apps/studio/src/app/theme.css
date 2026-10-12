@@ -109,7 +109,7 @@
   --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
   --halo: #6d5bd0;
   --halo-text: #5546b8;
-  /* The primary press and Sophia's deepest fill on paper: the brand's violet (7.0:1 under the paper's ink), not a navy. */
+  /* The primary press and Sophia's deepest fill on paper: the brand's violet (6.7:1 under the paper's ink), not a navy. */
   --core: #5546b8;
   --warm: #965328;
   --teal: #0f6b5b;
