@@ -28,7 +28,8 @@ interface Props extends LightInput {
 /**
  * On a screen without a room the light follows its words (screen-rest.ts): it rests high when they would not fit
  * under it, and marks the screen (`data-rest-high`) so theme.css starts the words by the same numbers. A window that
- * changes decides afresh; words that grow can only lift the light, so typing never drops it back mid-word.
+ * changes decides afresh; words that grow can only lift the light, so typing never drops it back mid-word; the fonts
+ * arriving decide afresh too.
  */
 function useScreenRest(screen: boolean, box: RefObject<HTMLDivElement | null>): LightTarget | null {
   const [rest, setRest] = useState<LightTarget | null>(null)
@@ -49,7 +50,14 @@ function useScreenRest(screen: boolean, box: RefObject<HTMLDivElement | null>): 
     const grown = new ResizeObserver(() => place(true))
     resized.observe(room)
     grown.observe(words)
+    // The font arriving is not typing: words set in a wider fallback (a line more) that settle shorter are decided
+    // afresh, without the growth's latch, so a rest lifted only by the fallback comes back down (Codex on #247).
+    let live = true
+    void document.fonts.ready.then(() => {
+      if (live) place(false)
+    })
     return () => {
+      live = false
       resized.disconnect()
       grown.disconnect()
     }

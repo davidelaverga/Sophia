@@ -28,7 +28,9 @@
 
 - Before the change, the spec's new line fails on paper: the menu's shadow is `rgba(0, 0, 0, 0.55)`.
 - Mutant: `--shadow-k` left at 1 in the light block, the spec names the menu at 0.55.
-- `pnpm check` clean; `grep 'rgba(0, 0, 0'` over the sheets: 0.
+- Run for this change: `pnpm format`, `pnpm exec oxlint --type-aware .` and `pnpm exec tsc --noEmit -p apps/studio` clean, and
+  `grep 'rgba(0, 0, 0'` over the sheets: 0. The full `pnpm check` (builds, contracts, unit and integration tests) was
+  not run locally; CI runs it and is the run on record (Codex on #235).
 
 ## Left
 

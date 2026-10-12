@@ -150,7 +150,8 @@ function SophiaLine({
         </span>
       </p>
       {line.note && line.goes === 'work' && onWork ? (
-        <p key={line.note} className="line-note arrive">
+        // One key for the press, its words changing under it (3 sources read, then 4): the focus stays (Codex on #242).
+        <p key="work" className="line-note arrive">
           <button type="button" className="text-button" onClick={onWork}>
             {line.note}
           </button>

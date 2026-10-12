@@ -485,6 +485,39 @@ const MANY = [
   'Remove the old export path',
 ]
 
+const WAITS = [
+  'Agree the export’s font list',
+  'Read https://exports.example.test/reports/2026/fonts/embedding/check-every-glyph-before-the-pdf-retry-lands',
+  'Collect the support tickets on exports',
+  'Write the retry’s release note',
+]
+
+/**
+ * `waits=1`: four more tasks unassigned, and one by hand that waits on all four, listed in the reverse of the plan's
+ * order: the Blocked lane names three in the plan's order, the rest behind «and N more» (Codex on #244).
+ */
+export function manyBlockers(g: GoalView): GoalView {
+  const current = g.current_plan
+  if (!current) return g
+  const waited = WAITS.map((purpose, i) =>
+    planned(`wait-${String(i)}`, purpose, { assignee_kind: 'unassigned' as const, assignee_id: null }),
+  )
+  const waiting = planned('wait-all', 'Ship the export once all four land', {
+    ...byHand('luis'),
+    blocked_by: waited.map((w) => w.id).toReversed(),
+    activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+  })
+  return {
+    ...g,
+    current_plan: { ...current, items: [...current.items, ...waited, waiting] },
+    items: [
+      ...g.items,
+      ...waited.map((i) => projection(i.id, {})),
+      projection(waiting.id, { assignment: luisByHand(waiting.id) }),
+    ],
+  }
+}
+
 /** `many=1`: eight more tasks on the first plan, after the retry or unassigned, to see a lane fill and fold. */
 export function manyTasks(g: GoalView): GoalView {
   const extra = MANY.map((purpose, i) =>

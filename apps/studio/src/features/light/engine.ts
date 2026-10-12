@@ -186,7 +186,11 @@ export class LightEngine {
   private pointer: Point | null = null
   private readonly box: HTMLElement
 
+  /** The WebGL canvas: not displayed on paper (theme.css), when its frames are not drawn (Codex on #234). */
+  private readonly glCanvas: HTMLCanvasElement
+
   constructor(box: HTMLElement, glCanvas: HTMLCanvasElement, traceCanvas: HTMLCanvasElement) {
+    this.glCanvas = glCanvas
     this.box = box
     this.gl = createLightRenderer(glCanvas, this.reduced)
     if (!this.gl) box.dataset.fallback = ''
@@ -315,7 +319,8 @@ export class LightEngine {
   }
 
   private draw(t: number, flight: HandoffStep | null): void {
-    this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
+    // A canvas not displayed (on paper the halo is CSS) has no parent box to lay out in: no frame is drawn into it.
+    if (this.glCanvas.offsetParent !== null) this.gl?.draw(toFrame(this.springs, t, this.flow, this.input.mark ?? null))
     if (!this.trace) return
     this.trace.clearRect(0, 0, this.size.width, this.size.height)
     drawWorkLine(this.trace, this.edge, this.springs.workLine.value)

@@ -40,6 +40,10 @@ describe('what needs you on Home', () => {
     assert.equal(untilWords(NOW.getTime() + 3 * 24 * 3_600_000, NOW.getTime()), 'in 3 days')
     assert.equal(untilWords(NOW.getTime() + 30 * 3_600_000, NOW.getTime()), 'in 30 h') // hours to 47: never «1 days»
     assert.equal(untilWords(NOW.getTime() + 50 * 3_600_000, NOW.getTime()), 'in 2 days')
+    // Under a minute, «in a moment», as time-words' inTime says it; a minute and on, minutes (Codex on #237).
+    assert.equal(untilWords(NOW.getTime() + 30_000, NOW.getTime()), 'in a moment')
+    assert.equal(untilWords(NOW.getTime() + 59_999, NOW.getTime()), 'in a moment')
+    assert.equal(untilWords(NOW.getTime() + 60_000, NOW.getTime()), 'in 1 min')
     assert.deepEqual(needNote(need('x', { expiresAt: at(-1) }), NOW), { text: 'Launch plan · expired', tone: 'late' })
   })
 

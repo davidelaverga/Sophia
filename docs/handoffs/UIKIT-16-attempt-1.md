@@ -74,3 +74,12 @@ view with ids of the list's own; `commands.spec.ts` gains three checks. That is 
 
 UIKIT-17 (Updates: mark all as seen, filters, a destination on every item; Conversations: actions per message) per
 informe-pasada-3 §5, or Places onto `useCommands` with the host in the places' bar.
+
+## Post-review (Codex on #238, later rounds)
+
+- Only the field's and the list's keys are the palette's: a live call's switches over the field take their own Enter.
+- The palette's own command (Commands) is not one of its rows; the selection stays at 0 with an empty list.
+- With nothing matching, the listbox the field controls stays mounted (hidden) and a status says so.
+- A query in any script matches its own words; punctuation alone matches nothing instead of reading as blank.
+- The palette stays centred: CONTRIBUTING.md names it as the one exception to «no centered dialogs» (a launcher, not
+  a task: the same veil, `useDialog` and ways to close as a sheet).
