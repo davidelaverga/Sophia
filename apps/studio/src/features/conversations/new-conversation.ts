@@ -106,7 +106,13 @@ export const QUESTION_LIMIT = 120
 export function fitQuestion(words: string): string {
   const text = words.trim()
   if (text.length <= QUESTION_LIMIT) return text
-  const cut = text.slice(0, QUESTION_LIMIT - 1)
+  // Whole characters up to the limit (the field's, counted in UTF-16 units), never half of one: an emoji or a joined
+  // sequence crossing the cut is left out whole (Codex on #267).
+  let cut = ''
+  for (const { segment } of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
+    if (cut.length + segment.length > QUESTION_LIMIT - 1) break
+    cut += segment
+  }
   const at = cut.lastIndexOf(' ')
   return `${(at > 0 ? cut.slice(0, at) : cut).trimEnd()}…`
 }

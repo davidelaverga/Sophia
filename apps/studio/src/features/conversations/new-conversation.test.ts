@@ -97,3 +97,12 @@ describe('the same question, its turning words (Codex on #266)', () => {
     assert.equal(sameQuestion('Ship export before review?', here)?.id, 'b')
   })
 })
+
+describe('words given as a question, whole characters (Codex on #267)', () => {
+  it('never keeps half of a character crossing the cut', () => {
+    const fitted = fitQuestion(`${'a'.repeat(118)}\u{1F600}${'b'.repeat(20)}`)
+    assert.ok(fitted.length <= QUESTION_LIMIT)
+    assert.ok(fitted.isWellFormed(), 'no lone surrogate')
+    assert.ok(fitted.endsWith('…'))
+  })
+})
