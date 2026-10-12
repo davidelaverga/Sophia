@@ -9,7 +9,7 @@
  * @module @sophia/paperclip-plugin/memory-host
  */
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type pg from 'pg'
 import type { IssueStatus } from '@sophia/coordination/plugin-wire'
@@ -30,22 +30,110 @@ import { manifest } from './manifest.ts'
 /** The namespace the pinned host derives for this plugin key (plugin_<key>_<hash>). */
 export const NAMESPACE = 'plugin_sophia_coordination_00c896da3d'
 
-/** A connection to the database that holds the namespace (Paperclip's own database in production, never Sophia's). */
-export type Queryable = pg.Client
+/**
+ * A connection, or a pool of them, to the database that holds the namespace (Paperclip's own database in production,
+ * never Sophia's). A pool runs the statements of concurrent requests on separate connections, as the host's does.
+ */
+export type Queryable = pg.Client | pg.Pool
 
-/** Create the stub core table, the namespace and the plugin's migration in an empty database. */
+/** Create the stub core tables, the namespace and the plugin's migrations, in file order, in an empty database. */
 export async function installNamespace(db: Queryable): Promise<void> {
-  const migration = readFileSync(
-    fileURLToPath(new URL('../migrations/001_sophia_coordination.sql', import.meta.url)),
-    'utf8',
-  )
+  const dir = fileURLToPath(new URL('../migrations/', import.meta.url))
+  const migrations = readdirSync(dir)
+    .filter((f) => f.endsWith('.sql'))
+    .toSorted()
+    .map((f) => readFileSync(`${dir}${f}`, 'utf8'))
   await db.query('CREATE TABLE IF NOT EXISTS public.issues (id uuid PRIMARY KEY)')
   await db.query(
     `CREATE TABLE IF NOT EXISTS public.heartbeat_runs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), company_id text NOT NULL,
        status text NOT NULL DEFAULT 'queued', context_snapshot jsonb, created_at timestamptz NOT NULL DEFAULT now())`,
   )
   await db.query(`CREATE SCHEMA ${NAMESPACE}`)
-  await db.query(migration)
+  for (const migration of migrations) await db.query(migration)
+}
+
+/** A managed agent the simulated host created; every one carries the plugin's marker for the source reviewer. */
+export interface ManagedAgent {
+  readonly id: string
+  readonly companyId: string
+  status: string
+}
+
+/**
+ * The pinned host's managed-agent service for the source reviewer (server/src/services/plugin-managed-agents.ts at
+ * 5edf55d7), shared by every host that uses it, as one database is: `get` reads the binding; `reconcile` reads it, then
+ * relinks a live marked agent of the company that nothing binds, and else creates an agent and writes the binding, with
+ * no lock between the read and the write (two at once create two, and the later binding wins). Its work goes on when the
+ * caller stopped waiting.
+ */
+export interface ManagedAgents {
+  readonly agents: Map<string, ManagedAgent>
+  /** company id to the agent its binding names */
+  readonly bindings: Map<string, string>
+  /** reconciles asked, by company */
+  readonly asked: string[]
+  get(companyId: string): string | null
+  reconcile(companyId: string): Promise<string | null>
+  /** Live agents of a company. */
+  live(companyId: string): ManagedAgent[]
+}
+
+export interface ManagedAgentsOptions {
+  /** Runs inside reconcile between its read of the binding and its create, e.g. to hold one in flight. */
+  readonly between?: (companyId: string) => Promise<void> | undefined
+  /**
+   * Fault injection: `before`, an error and nothing done; `after`, the agent created and bound, then an error;
+   * `unanswered`, the worker stops waiting and the host never does it; `unanswered-landing`, the worker stops waiting
+   * while the host goes on and lands it (through `between`) later.
+   */
+  readonly fails?: (companyId: string) => 'before' | 'after' | 'unanswered' | 'unanswered-landing' | null
+}
+
+export function managedAgents(options: ManagedAgentsOptions = {}): ManagedAgents {
+  const agents = new Map<string, ManagedAgent>()
+  const bindings = new Map<string, string>()
+  const asked: string[] = []
+  const live = (companyId: string) =>
+    [...agents.values()].filter((a) => a.companyId === companyId && a.status !== 'terminated')
+  const get = (companyId: string) => {
+    const id = bindings.get(companyId)
+    const agent = id === undefined ? undefined : agents.get(id)
+    return agent && agent.companyId === companyId && agent.status !== 'terminated' ? agent.id : null
+  }
+  const reconcileNow = async (companyId: string): Promise<string> => {
+    const bound = get(companyId)
+    if (bound !== null) return bound
+    const orphan = live(companyId)[0]
+    if (orphan) {
+      bindings.set(companyId, orphan.id)
+      return orphan.id
+    }
+    await options.between?.(companyId)
+    const agent: ManagedAgent = { id: randomUUID(), companyId, status: 'idle' }
+    agents.set(agent.id, agent)
+    bindings.set(companyId, agent.id)
+    return agent.id
+  }
+  return {
+    agents,
+    bindings,
+    asked,
+    get,
+    live,
+    reconcile: async (companyId) => {
+      asked.push(companyId)
+      const fault = options.fails?.(companyId) ?? null
+      if (fault === 'before') throw new Error('injected: reconcile failed')
+      if (fault === 'unanswered') throw new UnansweredHostCall('injected: the host did not answer the reconcile')
+      if (fault === 'unanswered-landing') {
+        void reconcileNow(companyId)
+        throw new UnansweredHostCall('injected: the worker stopped waiting; the host goes on')
+      }
+      const id = await reconcileNow(companyId)
+      if (fault === 'after') throw new Error('injected: agent created and bound, then the call failed')
+      return id
+    },
+  }
 }
 
 export interface MemoryIssue extends Omit<HostIssueCreate, 'status' | 'projectId'> {
@@ -57,8 +145,10 @@ export interface MemoryIssue extends Omit<HostIssueCreate, 'status' | 'projectId
 
 export interface MemoryPaperclipOptions {
   readonly config: Readonly<Record<string, unknown>>
-  /** The managed source-reviewer agent; null when it is not provisioned. */
+  /** The managed source-reviewer agent; null when it is not provisioned. Ignored with `managed`. */
   readonly reviewerAgentId?: string | null
+  /** The pinned host's managed-agent service, shared by the hosts of one database (managedAgents). */
+  readonly managed?: ManagedAgents
   readonly now?: () => number
   /** The host process serving the plugin and its namespace; a test changes it to stand for another host. */
   readonly hostProcess?: () => HostProcess | null
@@ -189,8 +279,18 @@ export function memoryPaperclip(db: Queryable, options: MemoryPaperclipOptions):
   const wakeups: Wakeup[] = []
   const host: CoordinationHost = {
     issues: issueService(db, options, issues, wakeups),
-    reviewerAgent: () =>
-      Promise.resolve(options.reviewerAgentId === undefined ? 'agent-source-reviewer' : options.reviewerAgentId),
+    boundReviewerAgent: (companyId) =>
+      Promise.resolve(
+        options.managed
+          ? options.managed.get(companyId)
+          : options.reviewerAgentId === undefined
+            ? 'agent-source-reviewer'
+            : options.reviewerAgentId,
+      ),
+    reviewerAgent: (companyId) =>
+      options.managed
+        ? options.managed.reconcile(companyId)
+        : Promise.resolve(options.reviewerAgentId === undefined ? 'agent-source-reviewer' : options.reviewerAgentId),
     namespace: NAMESPACE,
     query: async <T extends Row>(sql: string, params: readonly unknown[]) => {
       checkQuery(sql, NAMESPACE, manifest.database.coreReadTables)
