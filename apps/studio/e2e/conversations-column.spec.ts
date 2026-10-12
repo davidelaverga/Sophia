@@ -34,6 +34,14 @@ test('list · one line of words at 20 and one line of boxes at 8; the «+» pres
   const boxes = await Promise.all(['.conv-filter', '.conv-row'].map((s) => edges(page, s)))
   expect(lefts(words)).toEqual([20, 20, 20])
   expect(lefts(boxes)).toEqual([8, 8])
+  // One head, one tracking: the list's title and the open conversation's title share the 15 px heads' letter-spacing.
+  const tracking = await page.evaluate(() =>
+    ['.conv-list-head h2', '.conv-head h3'].map((s) => {
+      const el = document.querySelector(s)
+      return el ? getComputedStyle(el).letterSpacing : null
+    }),
+  )
+  expect(tracking[0]).toBe(tracking[1])
   const plus = await edges(page, '.conv-list-head button')
   const date = await edges(page, '.conv-row .conv-row-at')
   expect(Math.round(plus?.right ?? NaN)).toBe(Math.round(date?.right ?? NaN))
