@@ -1,0 +1,25 @@
+{
+  "candidate": "78ced7f340654542374683121cdf3103c05c7671",
+  "origin": "Built-in browser, real Studio components with explicit simulated API/room fixture; L1 only",
+  "before": {
+    "contextOpen": "true",
+    "focus": "Leave the room",
+    "headerDockInert": false,
+    "width": 1000
+  },
+  "after": {
+    "contextOpen": "true",
+    "floatingDockInert": true,
+    "focus": {
+      "inert": false,
+      "insideContext": false,
+      "insideDock": false,
+      "name": "\n    Demo · simulated dataSophiaHomeH/WorkYour projectsW/Onboarding pilotStudioConversationsGoalsTas",
+      "tag": "BODY"
+    },
+    "width": 600
+  },
+  "expected": "Focus moves into the still-open context before the floating dock becomes inert",
+  "observed": "Focus becomes BODY, outside context; floating dock inert",
+  "verdict": "Reproduced P2 r4243806387"
+}

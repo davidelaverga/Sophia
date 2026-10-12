@@ -1,0 +1,98 @@
+{
+  "pins": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "pr254": {
+      "head": "78ced7f340654542374683121cdf3103c05c7671",
+      "base": "c7e1f6e15c4a0b9a4ec6a7ce9f3933161ace2df6",
+      "tree": "22c284b8ecb22a284fdc2e5575a26f6dcc138506",
+      "updated": "2026-10-12T00:07:12Z",
+      "draft": false
+    },
+    "pr190": {
+      "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+      "draft": true
+    },
+    "pr211": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "pr256": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
+  },
+  "ci211": {
+    "headRevision": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "checks": [],
+    "statuses": [],
+    "annotations": [],
+    "hasMore": false,
+    "job": null,
+    "jobs": [
+      {
+        "id": 114554922829,
+        "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "name": "SQL, persistence and API on PostgreSQL 16",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 114554922957,
+        "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "name": "The room in Chromium, on its fixture page",
+        "status": "in_progress",
+        "conclusion": null
+      },
+      {
+        "id": 114554922973,
+        "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "name": "runtime-unit",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 114554922974,
+        "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "name": "Live auth on local Supabase",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 114554923056,
+        "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "name": "Media bridge against a real LiveKit server",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 114554923137,
+        "head_sha": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+        "name": "Confined PDF renderer on a real Chromium",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "log": null,
+    "logTruncated": false,
+    "providerGuidance": "GitHub guidance for this response only: use checkRunId for output and annotations, runId from a GitHub Actions /runs/<id> link to list jobs, or jobId from a /jobs/<id> link for logs. page paginates checks, jobs or annotations. Keep the supplied account and returned headRevision on follow-up reads. Third-party CI exposes only the output reported to GitHub."
+  },
+  "review256": {
+    "review_threads": []
+  },
+  "pr254RelevantReviewComments": [
+    {
+      "id": 4243796398,
+      "user": "EdX2C",
+      "body": "Fixed in `78ced7f3`: the dock's notes stand in one stack (`.dock-notes`, a grid with an 8 px gap, each line its own height): above the floating dock, under the header's (`top: calc(100% + 10px)`, 240 px wide there). A wrapping error pushes her looking down by its own height; the two fixed offsets are gone. dock-header.spec reads the stack under the header holding the looking note. Lint, typecheck, the node tests and contracts:check are clean; the browser specs could not be run locally for this commit (the machine guard refused to start Playwright beside a heavy app), so CI is the run on record for them."
+    },
+    {
+      "id": 4243796450,
+      "user": "EdX2C",
+      "body": "Fixed in `78ced7f3`: the Conversations cover makes inert only the docks the panel covers, the floating one, never `.topbar .mini-dock`, which stands above the panel. dock-header.spec at 1000 px opens the context and reads the list inert, the header dock not, its Join enabled. Lint, typecheck, the node tests and contracts:check are clean; the browser specs could not be run locally for this commit (the machine guard refused to start Playwright beside a heavy app), so CI is the run on record for them."
+    },
+    {
+      "id": 4243806387,
+      "user": "chatgpt-codex-connector[bot]",
+      "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Move focus before making the relocated dock inert**\n\nWhen the Conversations context is open and focus is on a live header-dock control, resizing from 721 px or wider to 720 px or narrower causes `useDockFocus` to restore focus to the newly mounted floating control before this animation-frame callback makes that dock inert. Focus is consequently left inside an inert subtree or discarded to the document body instead of moving into the still-open context panel. Fresh evidence beyond the earlier focus thread is this ordering between layout-effect focus restoration and the delayed cover; redirect focus to the panel before covering the relocated dock.\n\nUseful? React with \ud83d\udc4d\u00a0/ \ud83d\udc4e."
+    },
+    {
+      "id": 5485614393,
+      "user": "chatgpt-codex-connector[bot]",
+      "body": "\n### \ud83d\udca1 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `78ced7f340`\n    \n\n<details> <summary>\u2139\ufe0f About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with \ud83d\udc4d.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "pid": 90371,
+  "port": 54463,
+  "maximumSeconds": 480,
+  "source": "78ced7f340654542374683121cdf3103c05c7671",
+  "wrapperSha256": "8f578fc1937bc9e631f5880a87673b36e501f31c5d868ab7603c271bb7995d38",
+  "scope": "Owned loopback Vite fixture, no hosted/API/native/provider execution",
+  "environment": "PATH HOME TMPDIR only"
+}

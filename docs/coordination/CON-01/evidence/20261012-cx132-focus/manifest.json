@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-12T00:21:29.600886+00:00",
+  "candidate": "78ced7f340654542374683121cdf3103c05c7671",
+  "tree": "22c284b8ecb22a284fdc2e5575a26f6dcc138506",
+  "scope": "Built-in-browser L1 fixture only; source review plus actual focus observation; no hosted/native/provider product verification",
+  "files": {
+    "fixture-cleanup.json": "b0ace46b0f19563d2cfa0d4bbada9fd9487c158d98344ebb0c7f46623553dd2f",
+    "fixture-owned.py": "8f578fc1937bc9e631f5880a87673b36e501f31c5d868ab7603c271bb7995d38",
+    "fixture-start.json": "f2fe86bea40503e1b0ccd22cef4b37b7f3c24183b766bbb359d7c72d94d187ce",
+    "focus-mobile.dom.txt": "4fb3ce00f4db75d01ea75f71b034f7cb2186e4bf5ec4b5b826caf64525cab156",
+    "focus-mobile.png": "f6d4664dd545a83b65eb4b3767c21f1d64bd5b7e8f0dafeeb19030978dcc5d25",
+    "focus-receipt.json": "7e9405b01a2566eb98137dee937a8722e6fccd308e4d50a0b3f6e39e3f401b54",
+    "source-ci-receipt.json": "0a47bb5d42e67b7e01adf31a49d28971465ce3617bc51f7731b0884c28be49da"
+  }
+}

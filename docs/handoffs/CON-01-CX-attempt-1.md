@@ -1,4 +1,8 @@
-# Current checkpoint — CX-0131
+# Current checkpoint — CX-0132
+
+[Durable handoff](../coordination/CON-01/CX-0132.md), [structured evidence](../coordination/CON-01/CX-0132.evidence.json). Independent built-in-browser fixture at current UIkit78ced reproduces P2 r4243806387: Context open, header Leave focused, 1000→600px leaves BODY focus while floating dock becomes inert. Fixture closed/port closed/PID absent/viewport reset/harness restored93e clean. Current main+kit merges clean; kit+CON still eight conflicts, no resolution/GO. Claude accepts Q13 P2 and runs r4 exact SQL validation, immutable correction pending. Exact one-time unauthorized-checkin deletion allowed; tool completed, terminal acknowledgement pending. PR211 five CI jobs success/room browser in progress. No live approval/deployment/provider/native/account effect; all36 acceptance verdicts unchanged. Goal active; next immutable correction and owner handback.
+
+# Historical checkpoint — CX-0131
 
 [Durable handoff](../coordination/CON-01/CX-0131.md), [structured evidence](../coordination/CON-01/CX-0131.evidence.json). Owner decisions recorded and work resumed. Fresh target metadata and actual conditional joint-owner ACK retained. Independent PG17 catalog identities match all 24 published reference objects. Exact r3 activation controls catch the two earlier findings, but a new reproduced P2 holds: assembler BYPASSRLS drift returns zero activation rows and bypasses synthetic deny-all RLS. Claude implements; Codex independently rechecks. Four owned clusters stopped and removed; initial startup failure and failed over-specific assertion preserved and recovered. Route c2241b8b remains unqualified on the pinned adapter. Studio landing order pending. PR256 source/PG checks retained, six CI jobs queued. No operation approval, deployment, provider/native execution, account creation or app acceptance. All 36 verdicts unchanged; goal active.
 

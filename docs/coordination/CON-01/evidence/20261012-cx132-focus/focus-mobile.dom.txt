@@ -1,0 +1,130 @@
+- banner:
+  - button "Home":
+    - generic: Sophia
+  - generic: /
+  - button "Work"
+  - generic: /
+  - heading "Onboarding pilot" [level=1]
+  - navigation "Project views":
+    - link "Studio":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/studio
+    - link "Conversations":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/conversations
+    - link "Goals":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/goals
+    - link "Tasks":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/work
+    - link "Knowledge":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/knowledge
+    - link "Updates":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/updates
+    - link "Resources":
+      - /url: /p/00000000-0000-4000-8000-0000000000aa/resources
+  - button "Search":
+  - button "Invite":
+    - generic: Invite
+  - button "Account":
+    - generic: L
+- main:
+  - region "Conversations":
+    - region "Open conversation":
+      - button "All conversations":
+      - heading "What makes a report worth reading?" [level=3]
+      - paragraph:
+        - generic: "Contributors:"
+        - text: Lucía, You · Sophia
+      - 'button "Pilot readout: what kept 12 of 14 teams"'
+      - button "Context" [expanded]:
+      - region "Messages":
+        - paragraph:
+          - button "Earlier messages"
+        - list:
+          - generic: Oct 6
+          - text: Lucía
+          - text: ·
+          - time: Oct 6, 11:09
+          - paragraph: And every claim keeps its source, one click away.
+          - button "Copy":
+          - button "Quote in your message":
+          - button "Propose as decision":
+          - generic: 11:09
+          - text: Sophia
+          - text: ·
+          - time: Oct 6, 11:12
+          - paragraph: I can keep both versions apart so we compare them on the same question.
+          - generic: 11:12
+          - button "Copy":
+          - button "Quote in your message":
+          - button "Propose as decision":
+          - text: You
+          - text: ·
+          - time: Oct 6, 11:20
+          - paragraph: Please do. Short first.
+          - button "Copy":
+          - button "Quote in your message":
+          - button "Propose as decision":
+          - generic: 11:20
+          - text: Lucía
+          - text: ·
+          - time: Oct 6, 11:28
+          - paragraph: The short one still needs the March figures.
+          - button "Copy":
+          - button "Quote in your message":
+          - button "Propose as decision":
+          - generic: 11:28
+          - text: Sophia
+          - text: ·
+          - time: Oct 6, 11:35
+          - paragraph: Added them, cited. The open question is how long the evidence section may be.
+          - generic: 11:35
+          - button "Copy":
+          - button "Quote in your message":
+          - button "Propose as decision":
+          - text: You
+          - text: ·
+          - time: Oct 6, 11:40
+          - paragraph: Let’s look at it together tomorrow.
+          - button "Copy":
+          - button "Quote in your message":
+          - button "Propose as decision":
+          - generic: 11:40
+      - form "Continue this conversation":
+        - textbox "Continue this question with the team"
+        - generic "Ask Sophia":
+          - checkbox "Ask Sophia" [checked]
+          - generic: Ask Sophia
+        - button "Send" [disabled]:
+          - generic: Send
+        - group "Ask Sophia in one press":
+          - button "Sum it up"
+          - button "What’s still open?"
+          - button "What did we decide?"
+    - complementary "Project context":
+      - button "Close the context":
+      - region "This conversation":
+        - heading "This conversation" [level=4]
+        - paragraph: Compared a short brief with a longer report that cites every source. We want the first screen to answer the question before anyone scrolls.
+        - paragraph: 1 open question
+      - heading "Project context" [level=3]
+      - paragraph: Bring every new team to a first shared report inside its first week.
+      - paragraph: Reports the team can act on in one read.
+      - region "Accepted decisions":
+        - heading "Accepted decisions" [level=4]
+        - list:
+          - listitem: Keep the brief to one page
+          - listitem: Reports open on the answer
+          - listitem: No payments in the first release
+        - button "and 2 more"
+      - region "Still open":
+        - heading "Still open" [level=4]
+        - list:
+          - text: Map first, list second
+          - button "Accept"
+          - button "Decline"
+        - paragraph: Proposed, not decided.
+        - status
+      - generic "How conversation context works"
+- group "Project room":
+  - button "In the room · 3": In the room · 3
+  - button "Microphone" [pressed]:
+  - button "Leave the room":

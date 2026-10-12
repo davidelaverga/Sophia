@@ -1,0 +1,170 @@
+{
+  "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+  "operation": {
+    "requests": [
+      "CON-01-OP-0002-r4",
+      "CON-01-OP-0001-r3"
+    ],
+    "status": "draft_not_authorized",
+    "approval_ready": false,
+    "approval": null,
+    "expiry": null,
+    "candidates_and_artifacts": "unbound; review-reference pins are not deployment candidates",
+    "setup_human_chat": "bounded proposed cohort/setup and human-chat only; zero native/model calls; Ask disabled",
+    "Ask": "separate qualified one-subscription-route batch; missing finite execution allowance/expiry blocks provider execution",
+    "lastObservedTupleAt": "2026-10-11T12:02:21.809835+00:00",
+    "lastObservedTuple": {
+      "API": {
+        "service": "srv-daqrn08473hc73flhi8g",
+        "liveDeployment": "dep-db0h6jad0e5s73bkine0",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "runtime": {
+        "service": "srv-darvmse0tbcc73d8kh3g",
+        "liveDeployment": "dep-db02hcou01pc738k4atg",
+        "source": "6ec64f36aae1fe60dfd4d54a21f861901ba7d630"
+      },
+      "worker": {
+        "service": "srv-darv7snpn0mc73e6c240",
+        "liveDeployment": "dep-db5dos8473hc73apq6b0",
+        "source": "0391bc66b8dc47f4268b6f785e11de182ff5d7e0",
+        "change": "New live deployment vs earlier dep-dasrio7; dashboard says Compute plan updated, same source,11h ago. No reviewer action or authority inferred."
+      },
+      "bridge": {
+        "service": "srv-darvcigu01pc73e24o4g",
+        "liveDeployment": "dep-db0h7rc9v7es73bed57g",
+        "source": "1e912b7ec83e55694de33d9ced1e4c8d915db4d6"
+      },
+      "Studio": {
+        "project": "sophia-30911edf/sophia-studio",
+        "production": "dpl_2ocnSuyh2Pbmvwf7RLtnj4upEyT1",
+        "status": "Ready",
+        "source": "manual vercel deploy; Git unconnected; SHA unknown",
+        "domains": [
+          "studio.sophia-ei.com",
+          "sophia-studio.vercel.app"
+        ]
+      }
+    },
+    "tuple_limits": "OnlyDBcatalogboundaryfresh; API/runtime/worker/bridge/Studio servingtuple remainsdated12:02:21UTC, no refresh/release/recoveryqualification.",
+    "current_main": "e0200f1a discovered; draft candidate/artifact fields remain unbound, no deployment or rollback tuple refresh",
+    "database_discovery_refreshed": "2026-10-11T23:56:29.377Z"
+  },
+  "readiness": {
+    "source_ready": "Bounded dispatcher prerequisite published; CON native/subscription/Q13 incomplete",
+    "locally_verified": "Prior scoped proof retained; exact78ced built-in-browser fixture reproduces P2, no hosted or final combined verification",
+    "reviewed": "Dispatcher scoped PASS retained; Q13 P2 correction pending and current Studio counterpart P2 independently reproduced; whole mission false",
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "changed": false,
+    "fullVerdicts": "acceptance.independent.json",
+    "sha256": "689fe686ebe535868665b98cc5fb6aae56e740a9ff46e8ad9c32ac9c10608b22"
+  },
+  "privacy_spending": "Private test inbox/account/quota/credential values outside Git. One supported subscription route only; no PAYG, extra credits, provider switching/account rotation or hidden allowance reset. No live batch approved.",
+  "rollback": "No live release/setup to roll back. Future recovery must preserve governed data/withdrawal/uncertainty/cumulative allowance and compatible read/erase controls. Exact artifact/rehearsal still unqualified; dated tuple is not rollback authority.",
+  "goal_status": "active",
+  "checkpoint": "CON-01-CX-0132",
+  "at": "2026-10-12T00:21:29.600886+00:00",
+  "classification": "Progress: independent built-in-browser reproduction of current Studio integration P2; refreshed exact refs/CI; author accepts Q13 P2 and validates r4",
+  "previous_turn": "progress: real PG17 evidence and activation failure changed next action",
+  "owner_decisions": "OWNER_DECISIONS_20261012.md retained, no new low-level product question",
+  "candidate": "78ced7f340654542374683121cdf3103c05c7671",
+  "candidate_tree": "22c284b8ecb22a284fdc2e5575a26f6dcc138506",
+  "evidence": "evidence/20261012-cx132-focus/manifest.json",
+  "finding": {
+    "severity": "P2",
+    "automatic_review_thread": "r4243806387",
+    "expected": "Open context receives focus before relocated floating dock becomes inert",
+    "observed": "1000px header Leave focused ->600px BODY focused, context open/floating dock inert",
+    "independent_reproduced": true,
+    "scope": "UIkit counterpart only; no final combined candidate exists"
+  },
+  "integration": {
+    "main_plus_kit_clean_tree": "c22e824ea64a10645159f0eb70c1ca5af0072eaf",
+    "kit_plus_CON_merge_exit": 1,
+    "conflicted_tree_not_candidate": "599190889c497967a4666fc54c467231b89a055d",
+    "conflict_paths": [
+      "apps/studio/src/features/conversations/ConversationRows.tsx",
+      "apps/studio/src/features/conversations/OpenConversation.tsx",
+      "apps/studio/src/features/conversations/conversations.css",
+      "apps/studio/src/features/studio/ProjectShell.tsx",
+      "packages/contracts/openapi/openapi.json",
+      "packages/contracts/src/generated-types.ts",
+      "packages/contracts/src/generated/validators.d.ts",
+      "packages/contracts/src/generated/validators.js"
+    ],
+    "owner_order_ACK": "Pending Luis; no shared source write or merge GO",
+    "unrelated_proposals": "A15-needs-you remains its UI owner lane; no voice/vision activation"
+  },
+  "Q13": {
+    "latest_published": "fc3976ecd842357adfc58ae4c5cdd9d568f76452",
+    "BYPASSRLS_P2": "Accepted in exact native stream; author confirmed evidence and preparing r4 allowlist/attribute checks with exact SQL A/B validation",
+    "new_candidate": "Not yet immutable/published at this checkpoint",
+    "shared_write_GO": false,
+    "native_checkin": "Delete-trigger tool invoked with one-time permission for exact trig_01No2QjX8ebsVDMWsqbmqQGq only; tool completed and returned trigger metadata. Final cancellation acknowledgement not yet established; no new monitor created."
+  },
+  "source_pins": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "pr254": {
+      "head": "78ced7f340654542374683121cdf3103c05c7671",
+      "base": "c7e1f6e15c4a0b9a4ec6a7ce9f3933161ace2df6",
+      "tree": "22c284b8ecb22a284fdc2e5575a26f6dcc138506",
+      "updated": "2026-10-12T00:07:12Z",
+      "draft": false
+    },
+    "pr190": {
+      "head": "5c10bce3060ca867402cb5ba869146a69af057c6",
+      "draft": true
+    },
+    "pr211": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "pr256": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
+  },
+  "ci211": {
+    "run": 38168148111,
+    "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "five_completed_success": [
+      "SQL, persistence and API on PostgreSQL 16",
+      "runtime-unit",
+      "Live auth on local Supabase",
+      "Media bridge against a real LiveKit server",
+      "Confined PDF renderer on a real Chromium"
+    ],
+    "one_in_progress": "The room in Chromium, on its fixture page",
+    "no_rerun_or_cancel": true,
+    "limit": "Job-status evidence only, no fresh semantic raw-log qualification"
+  },
+  "review256": "No inline review threads; scoped independent checks retained, no merge GO",
+  "resource_use": {
+    "owned_fixture_stacks": 1,
+    "elapsed_seconds": 69.385,
+    "ceiling_seconds": 480,
+    "new_PG_clusters": 0,
+    "hosted_mutations": 0,
+    "deployments": 0,
+    "real_provider_native_executions": 0,
+    "new_spend": 0,
+    "real_account_project_creations": 0
+  },
+  "cleanup": {
+    "pid": 90371,
+    "exit": 0,
+    "elapsedSeconds": 69.385,
+    "pidAbsent": true,
+    "portClosed": true,
+    "checkoutClean": true,
+    "fixture_tab_closed": true,
+    "viewport_reset": true,
+    "harness_restored_clean": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
+  },
+  "next_bounded_action": "Deliver exact Studio reproducer to Luis and CON; review immutable Q13 r4 and independently rerun affected PG17 check; owner-order ACK before shared writes",
+  "mission_comment": null,
+  "published_evidence_commit": null
+}
