@@ -230,7 +230,8 @@
 .board-lanes {
   display: grid;
   position: relative;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Four lanes; five while something is blocked (PlanBoard sets --lanes). */
+  grid-template-columns: repeat(var(--lanes, 4), minmax(0, 1fr));
   gap: 12px;
   align-items: start;
 }
@@ -247,6 +248,9 @@
 }
 .lane:nth-child(4) {
   --lane-delay: 240ms;
+}
+.lane:nth-child(5) {
+  --lane-delay: 320ms;
 }
 .lane-head {
   display: flex;
@@ -1372,15 +1376,31 @@
   margin-top: 40px;
 }
 
-@media (max-width: 1000px) {
-  .board-lanes {
+/* The lanes follow the board's own width, not the window's: a report open beside Tasks narrows the board as a smaller
+   window does (Codex on #236). Five lanes need 1148 px (each 220 and up): under it three and two; under 940 two
+   columns; under 714 one (the window's 1220, 1000 and 760 less the page's gutters, as before). */
+.board {
+  container: board / inline-size;
+}
+@container board (max-width: 1148px) {
+  .board-lanes[data-lanes='5'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+/* The five-lane rule above names the attribute too: the narrower rows name it as well, so they win (Codex on #236). */
+@container board (max-width: 940px) {
+  .board-lanes,
+  .board-lanes[data-lanes] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (max-width: 760px) {
-  .board-lanes {
+@container board (max-width: 714px) {
+  .board-lanes,
+  .board-lanes[data-lanes] {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+@media (max-width: 760px) {
   .goal-chip {
     width: 200px;
   }

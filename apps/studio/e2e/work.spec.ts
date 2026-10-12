@@ -47,25 +47,26 @@ test('the goal reads in two lines: its title and actions, then where its plan go
   await expect(page.locator('.view-head .count')).toHaveCount(0) // it counted goals; a plan counts its tasks
 })
 
-test('four lanes, each task in the one its state says; the words only where the lane doesn’t say them', async ({
+test('five lanes, each task in the one its state says; the words only where the lane doesn’t say them', async ({
   page,
 }) => {
   await page.goto(PAGE)
-  // WBC-01: Active, Up next, Unassigned, Complete. A finished run waiting for its check is Active, not done.
+  // WBC-01: Active, Up next, Blocked (while something is), Unassigned, Complete. A finished run waiting for its check
+  // is Active, not done; a task after one not done is Blocked, not next.
   expect(await titles(lane(page, 'Active'))).toEqual([
     'Implement the PDF retry',
     'Write the retry’s failing test',
     'Review the report pane',
   ])
-  expect(await titles(lane(page, 'Up next'))).toEqual([
-    'Review the retry’s candidate',
-    'Write the export’s release note',
-  ])
+  expect(await titles(lane(page, 'Up next'))).toEqual(['Review the retry’s candidate'])
+  expect(await titles(lane(page, 'Blocked'))).toEqual(['Write the export’s release note'])
   expect(await titles(lane(page, 'Unassigned'))).toEqual(['Measure render time on large reports'])
   expect(await titles(lane(page, 'Complete'))).toEqual(['Reproduce the failed render'])
   await expect(tile(page, 'work-1').locator('.task-chip')).toHaveText('Waiting on Davide')
   await expect(tile(page, 'work-2').locator('.task-chip')).toHaveText('Working')
   await expect(lane(page, 'Up next').locator('.task-chip')).toHaveCount(0)
+  await expect(lane(page, 'Blocked').locator('.task-chip')).toHaveCount(0) // the lane says it; the foot says on what
+  await expect(tile(page, 'work-3').locator('.task-tile-hangs')).toContainText('After Implement the PDF retry')
   await expect(tile(page, 'work-0b').locator('.task-chip')).toHaveText('Ready for review') // finished isn't accepted
   await expect(lane(page, 'Complete').locator('.task-chip')).toHaveCount(0) // the lane says it
   await expect(tile(page, 'work-1-review')).toContainText('Reviews Implement the PDF retry')
@@ -326,22 +327,93 @@ test('the board by keys: the arrows across lanes, Enter opens', async ({ page })
   await expect(tile(page, 'work-0b')).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(tile(page, 'work-2')).toBeFocused()
-  await page.keyboard.press('ArrowRight')
-  await expect(tile(page, 'work-3')).toBeFocused()
-  await page.keyboard.press('ArrowRight')
-  await expect(tile(page, 'work-4')).toBeFocused() // the nearest place in the next lane
+  // Across the lanes in their order on the board (a Blocked lane stands between Up next and Unassigned while something
+  // is blocked): each arrow lands on the first tile of the next lane that holds one.
+  const lanes = await page.evaluate(() =>
+    [...document.querySelectorAll('.lane')].map((l) =>
+      [...l.querySelectorAll('[data-task]')].map((t) => t.getAttribute('data-task') ?? ''),
+    ),
+  )
+  const after = lanes.slice(1).filter((l) => l.length > 0)
+  for (const next of after.slice(0, 2)) {
+    await page.keyboard.press('ArrowRight')
+    await expect(tile(page, next[0] ?? '')).toBeFocused() // the nearest place in the next lane
+  }
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('dialog', { name: 'Measure render time on large reports' })).toBeVisible()
+  await expect(page.getByRole('dialog')).toBeVisible()
+})
+
+test('five lanes under 1221 px stand three and two, each 220 and up; a thread follows the tiles when they move', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await settled(page)
+  await tile(page, 'work-3').hover()
+  await expect(board(page).locator('.thread')).toHaveCount(1)
+  const before = (await board(page).locator('.thread').getAttribute('d')) ?? ''
+  await page.setViewportSize({ width: 1100, height: 800 })
+  const lanes = await page.evaluate(() =>
+    [...document.querySelectorAll('.lane')].map((l) => {
+      const r = l.getBoundingClientRect()
+      return { width: Math.round(r.width), top: Math.round(r.top) }
+    }),
+  )
+  expect(lanes).toHaveLength(5)
+  for (const l of lanes) expect(l.width).toBeGreaterThanOrEqual(220)
+  expect(new Set(lanes.map((l) => l.top)).size).toBe(2) // three in the first row, two in the second
+  // Narrower, the board's own rows win over the five-lane rule: two columns at 800, one at 390.
+  const rows = async () =>
+    new Set(
+      await page.evaluate(() =>
+        [...document.querySelectorAll('.lane')].map((l) => Math.round(l.getBoundingClientRect().top)),
+      ),
+    ).size
+  await page.setViewportSize({ width: 800, height: 800 })
+  expect(await rows()).toBe(3)
+  await page.setViewportSize({ width: 390, height: 844 })
+  expect(await rows()).toBe(5)
+  await page.setViewportSize({ width: 1100, height: 800 })
+  // The thread is measured again as the tiles move (the pointer stays on the same tile): its end meets the waiting
+  // tile's own edge in the new layout, not where the tile stood before.
+  await tile(page, 'work-3').hover()
+  await expect.poll(() => board(page).locator('.thread').getAttribute('d')).not.toBe(before)
+  const d = (await board(page).locator('.thread').getAttribute('d')) ?? ''
+  const numbers = d.match(/-?\d+(\.\d+)?/g)?.map(Number) ?? []
+  const origin = await rect(board(page).locator('.board-lanes'))
+  const to = await rect(tile(page, 'work-3'))
+  const end = { x: (numbers.at(-2) ?? -1) + origin.x, y: (numbers.at(-1) ?? -1) + origin.y }
+  const onEdge =
+    end.x >= to.x - 1.5 &&
+    end.x <= to.x + to.width + 1.5 &&
+    end.y >= to.y - 1.5 &&
+    end.y <= to.y + to.height + 1.5 &&
+    Math.min(
+      Math.abs(end.x - to.x),
+      Math.abs(end.x - (to.x + to.width)),
+      Math.abs(end.y - to.y),
+      Math.abs(end.y - (to.y + to.height)),
+    ) < 1.5
+  expect(onEdge, `${JSON.stringify(end)} on ${JSON.stringify(to)}`).toBe(true)
 })
 
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
-  await page.goto(`${PAGE}?many=1`)
-  const next = lane(page, 'Up next')
-  await expect(next.locator('.task-tile')).toHaveCount(5)
-  await next.getByRole('button', { name: 'Show 3 more' }).click()
-  await expect(next.locator('.task-tile')).toHaveCount(8)
-  await next.getByRole('button', { name: 'Show fewer' }).click()
-  await expect(next.locator('.task-tile')).toHaveCount(5)
+  await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
+  const held = lane(page, 'Blocked')
+  await expect(held.locator('.task-tile')).toHaveCount(5)
+  await held.getByRole('button', { name: 'Show 2 more' }).click()
+  await expect(held.locator('.task-tile')).toHaveCount(7)
+  await held.getByRole('button', { name: 'Show fewer' }).click()
+  await expect(held.locator('.task-tile')).toHaveCount(5)
+})
+
+test('Blocked stands only while something is: a plan with nothing blocked keeps four lanes', async ({ page }) => {
+  await page.goto(`${PAGE}?goals=6`)
+  await expect(board(page).locator('.lane')).toHaveCount(5)
+  await expect(board(page).locator('.board-lanes')).toHaveCSS('grid-template-columns', /^(\S+ ){4}\S+$/)
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(board(page).locator('.lane')).toHaveCount(4)
+  await expect(lane(page, 'Blocked')).toHaveCount(0)
+  await expect(board(page).locator('.board-lanes')).toHaveCSS('grid-template-columns', /^(\S+ ){3}\S+$/)
 })
 
 test('a proposed plan says so; a superseded one leaves the goal as it is without one', async ({ page }) => {
@@ -639,11 +711,8 @@ test('wbc · UI-01 · loops of parents or blockers show each task once and say t
   await expect(notice).toContainText('Some tasks wait on each other in a loop')
   for (const id of ['loop-a', 'loop-b', 'wait-a', 'wait-b']) await expect(tile(page, id)).toHaveCount(1)
   await page.goto(`${PAGE}?case=deep`) // three levels: the retry, its review, the review's notes
-  expect(await titles(lane(page, 'Up next'))).toEqual([
-    'Review the retry’s candidate',
-    'Note what the review found',
-    'Write the export’s release note',
-  ])
+  expect(await titles(lane(page, 'Up next'))).toEqual(['Review the retry’s candidate', 'Note what the review found'])
+  expect(await titles(lane(page, 'Blocked'))).toEqual(['Write the export’s release note'])
   await page.goto(`${PAGE}?case=orphan`) // its parent isn't in the plan: it stands alone, once
   await expect(tile(page, 'stray')).toHaveCount(1)
   await expect(board(page).locator('.board-notice')).toHaveCount(0)
@@ -3451,4 +3520,45 @@ test('codex · #107 · a cap below a cent, or between cents, starts the allowanc
     await expect(propose).toBeEnabled()
     expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
   }
+})
+
+test('a focused task whose blocker completes moves up next with the focus on it (Codex on #236)', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const blocked = lane(page, 'Blocked').locator('[data-task]').first()
+  await expect(blocked).toBeVisible()
+  const id = (await blocked.getAttribute('data-task')) ?? ''
+  await blocked.focus()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  await expect(lane(page, 'Up next').locator(`[data-task="${id}"]`)).toBeVisible()
+  await expect(page.locator(`[data-task="${id}"]`)).toBeFocused()
+})
+
+test('a focused task moving into a lane past its five tiles gives the focus to the lane’s «Show more» (Codex on #236)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&many=1`)
+  const held = lane(page, 'Blocked')
+  await held.getByRole('button', { name: /^Show \d+ more$/ }).click()
+  const last = held.locator('[data-task]').last()
+  const id = (await last.getAttribute('data-task')) ?? ''
+  await last.focus()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  // Up next shows five; the task moved past them: its lane's press takes the focus.
+  await expect(lane(page, 'Up next').locator(`[data-task="${id}"]`)).toHaveCount(0)
+  await expect(lane(page, 'Up next').getByRole('button', { name: /^Show \d+ more$/ })).toBeFocused()
+})
+
+test('with a report beside Tasks the lanes follow the narrower board, not the window (Codex on #236)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${PAGE}?viewer=davide`)
+  const lanesBox = board(page).locator('.board-lanes')
+  await expect(lanesBox).toBeVisible()
+  // The board narrowed as a side report narrows it: its container at 692 px.
+  await board(page).evaluate((b) => {
+    b.style.width = '692px'
+  })
+  const columns = await lanesBox.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
+  expect(columns).toBeLessThanOrEqual(1)
 })

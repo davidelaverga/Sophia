@@ -119,7 +119,7 @@ describe('the board Sophia serves, as the Studio reads it', () => {
     const { goal, board } = served(true, [work({})])
     const row = board?.rows[0]
     assert.ok(row)
-    assert.equal(laneOf(row), 'active')
+    assert.equal(laneOf(row, board?.rows ?? []), 'active')
     const allowed = goal.items[0]?.available_actions.filter((a) => a.availability === 'allowed').map((a) => a.kind)
     assert.deepEqual(allowed?.toSorted(), ['hold', 'stop'])
   })
@@ -130,7 +130,7 @@ describe('the board Sophia serves, as the Studio reads it', () => {
     ])
     const row = board?.rows[0]
     assert.ok(row)
-    assert.equal(laneOf(row), 'complete')
+    assert.equal(laneOf(row, board?.rows ?? []), 'complete')
     assert.deepEqual(
       goal.items[0]?.candidates.map((c) => c.state),
       ['current'],
@@ -147,7 +147,7 @@ describe('the board Sophia serves, as the Studio reads it', () => {
     ])
     const row = board?.rows[0]
     assert.ok(row)
-    assert.equal(laneOf(row), 'closed')
+    assert.equal(laneOf(row, board?.rows ?? []), 'closed')
     assert.match(goal.items[0]?.closed_reason ?? '', /withdrawn/)
   })
 })
