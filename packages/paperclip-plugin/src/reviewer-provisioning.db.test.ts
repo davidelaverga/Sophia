@@ -5,8 +5,9 @@
 // its read of the binding and its create (managedAgents). Nothing here is the pinned host itself.
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
-import { after, before, beforeEach, describe, it } from 'node:test'
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test'
 import pg from 'pg'
+import { setImmediate as nextTurn } from 'node:timers/promises'
 import { signEnvelope } from '@sophia/coordination/envelope'
 import type { Commission } from '@sophia/coordination/plugin-wire'
 import { createEmptyDatabase, type EmptyDatabase } from '@sophia/test-support'
@@ -36,7 +37,7 @@ let pool: pg.Pool
 
 before(async () => {
   db = await createEmptyDatabase('sophia_pcrev')
-  pool = new pg.Pool({ connectionString: db.ownerUrl, max: 8 })
+  pool = new pg.Pool({ connectionString: db.ownerUrl, max: 8, statement_timeout: 5_000 })
   await installNamespace(pool)
 })
 after(async () => {
@@ -55,10 +56,13 @@ after(async () => {
   await db.drop()
 })
 beforeEach(async () => {
+  requireDrainedAnswers()
   await pool.query(
     `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, ${NAMESPACE}.reviewer_provisioning, public.heartbeat_runs`,
   )
 })
+
+afterEach(drainAnswers)
 
 const config = {
   signingPublicKey: sophia.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
@@ -127,23 +131,39 @@ async function until(what: string, check: () => boolean) {
 /** A request's answer if it came within a moment; 'pending' while it waits (on the old plugin, at the host's gate). */
 const soon = (answer: Promise<ApiResponse>) => Promise.race([answer, sleep(400).then(() => 'pending' as const)])
 
-async function answered(answer: Promise<ApiResponse>): Promise<ApiResponse> {
-  // A timeout reports failure, not cancellation. Observe and drain the original before another test truncates SQL.
-  const settled = answer.then(
-    (response) => ({ response }),
-    (error: unknown) => ({ error }),
-  )
+const pendingAnswers = new Set<Promise<void>>()
+
+function requireDrainedAnswers(): void {
+  assert.equal(pendingAnswers.size, 0, 'no SQL reset while an earlier answered request is unresolved')
+}
+
+async function drainAnswers(): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const outcome = await Promise.race([
-    settled,
+    Promise.all(pendingAnswers).then(() => 'drained' as const),
+    new Promise<'pending'>((resolve) => (timer = setTimeout(() => resolve('pending'), 2_000))),
+  ]).finally(() => clearTimeout(timer))
+  assert.equal(outcome, 'drained', 'original requests drain before any next SQL reset')
+}
+
+async function answered(answer: Promise<ApiResponse>): Promise<ApiResponse> {
+  // Observe originals independently of the answer deadline. Failed cleanup blocks every subsequent SQL reset.
+  const drained: Promise<void> = answer.then(
+    () => {
+      pendingAnswers.delete(drained)
+    },
+    () => {
+      pendingAnswers.delete(drained)
+    },
+  )
+  pendingAnswers.add(drained)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const response = await Promise.race([
+    answer,
     new Promise<'pending'>((resolve) => (timer = setTimeout(() => resolve('pending'), 10_000))),
   ]).finally(() => clearTimeout(timer))
-  if (outcome === 'pending') {
-    await settled
-    assert.fail('the commission answers before the sentinel')
-  }
-  if ('error' in outcome) throw outcome.error
-  return outcome.response
+  if (response === 'pending') assert.fail('the commission answers before the sentinel')
+  return response
 }
 
 const codeOf = (res: ApiResponse | 'pending') =>
@@ -187,6 +207,25 @@ async function resentOn503(p: ReturnType<typeof paperclip>, c: Commission): Prom
 }
 
 describe('the managed source reviewer, provisioned once per company', () => {
+  it('reports a stalled request promptly, retains it through failed cleanup and refuses the next SQL reset', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { promise, resolve } = Promise.withResolvers<ApiResponse>()
+    try {
+      const failed = assert.rejects(answered(promise), assert.AssertionError)
+      t.mock.timers.tick(10_000)
+      assert.equal(await Promise.race([failed.then(() => 'failed'), nextTurn('sentinel')]), 'failed')
+      assert.equal(pendingAnswers.size, 1, 'timing out is not original settlement')
+      const cleanup = assert.rejects(drainAnswers(), assert.AssertionError)
+      t.mock.timers.tick(2_000)
+      assert.equal(await Promise.race([cleanup.then(() => 'failed'), nextTurn('sentinel')]), 'failed')
+      assert.throws(requireDrainedAnswers, assert.AssertionError, 'the guard stops every subsequent SQL reset')
+    } finally {
+      resolve({ status: 200, body: {} })
+      await drainAnswers()
+    }
+    requireDrainedAnswers()
+  })
+
   it('two cold works of one company, each resent on 503 (synthetic): one live reviewer, both assigned to it', async () => {
     const hold = gate()
     const m = managedAgents({ between: () => hold.shut })
@@ -275,7 +314,7 @@ describe('the managed source reviewer, provisioned once per company', () => {
     const [first, second] = [commissionOf(), commissionOf()]
     // Observe rejection immediately, and drain the gated request before another test can truncate its tables.
     const original = slow.request(delivery(first))
-    const drained = original.then(
+    const originalOutcome = original.then(
       (response) => ({ response }),
       (error: unknown) => ({ error }),
     )
@@ -289,8 +328,9 @@ describe('the managed source reviewer, provisioned once per company', () => {
       assert.equal(m.asked.length, 2, 'the replacement is bound and its claim ended before the stale claimant proceeds')
     } finally {
       hold.open()
-      await drained
+      await drainAnswers()
     }
+    await originalOutcome
     const settled = await delayed
     if ('error' in settled) throw settled.error
     assert.equal(settled.response.status, 200)
