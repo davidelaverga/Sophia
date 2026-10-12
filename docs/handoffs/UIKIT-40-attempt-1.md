@@ -12,10 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `b7e59e4e` (6 files: `packages/ui` `next-ask-key.ts` + test,
-`NextAskHint.tsx`, `index.ts`; `ConversationComposer.tsx`; `e2e/question-asks.spec.ts`) and
-`docs/plans/question-asks.md`; the commit after it adds only this handoff. A squash on merge gives the work an id this
-file cannot know.
+Ending commit/tree: `74beaa2a6b61` (tree `87ca06c5001f`), the last commit of `ui/question-asks`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`ui/palette-knows` at that commit: `e2e/question-asks.spec.ts`, `src/features/conversations/ConversationComposer.tsx`, `docs/handoffs/UIKIT-40-attempt-1.md`, `docs/plans/question-asks.md`, `packages/ui/src/NextAskHint.tsx`, `packages/ui/src/index.ts`, `packages/ui/src/next-ask-key.test.ts`, `packages/ui/src/next-ask-key.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
