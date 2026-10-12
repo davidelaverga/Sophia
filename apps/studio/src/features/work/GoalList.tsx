@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
+import { EmptyState, Skeleton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { TaskCard } from '../conversation/TaskCard.tsx'
 import { workHeading } from '../conversation/conversation-view.ts'
@@ -154,9 +155,9 @@ export function GoalList({
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />
       {anyPlan && query && tabbed.length === 0 && listed.length === 0 && (
-        <p className="view-note">No goal or task answers “{query}”. Escape clears the search.</p>
+        <EmptyState>No goal or task answers “{query}”. Escape clears the search.</EmptyState>
       )}
-      {!snapshot && <div className="goal skeleton" aria-busy="true" />}
+      {!snapshot && <Skeleton label="Reading the goals…" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       {shown && <Rail goals={tabbed} shown={shown.id} plans={plans} onChoose={choose} />}
@@ -279,18 +280,21 @@ function NoGoals({
   onInvite: () => void
 }) {
   return (
-    <div className="empty">
-      <p>No goals yet. They’ll come from your conversations with Sophia in the room.</p>
-      <div className="control-row">
-        <button type="button" className="pill" onClick={onOpenStudio}>
-          Open the Studio
-        </button>
-        {canAct && (
-          <button type="button" className="pill" onClick={onInvite}>
-            Invite people
+    <EmptyState
+      actions={
+        <>
+          <button type="button" className="pill" onClick={onOpenStudio}>
+            Open the Studio
           </button>
-        )}
-      </div>
-    </div>
+          {canAct && (
+            <button type="button" className="pill" onClick={onInvite}>
+              Invite people
+            </button>
+          )}
+        </>
+      }
+    >
+      No goals yet. They’ll come from your conversations with Sophia in the room.
+    </EmptyState>
   )
 }

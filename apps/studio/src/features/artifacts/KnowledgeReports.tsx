@@ -9,7 +9,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
-import { Card, CardCover, Search, Segmented } from '@sophia/ui'
+import { Card, CardCover, EmptyState, Search, Segmented, Skeleton } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useDocumentViewer } from './DocumentViewer.tsx'
@@ -214,20 +214,22 @@ interface CardsProps {
 }
 
 function ReportCards({ cards, state, showProject, editable, identity, filtered, onClear }: CardsProps) {
-  if (state === 'loading') return <div className="goal skeleton" aria-busy="true" />
+  if (state === 'loading') {
+    return <Skeleton kind="card" count={3} label="Reading the reports…" className="report-cards" />
+  }
   if (state === 'failed') return <p className="muted">The reports couldn’t be loaded. Try again in a moment.</p>
   if (cards.length === 0 && filtered) {
     return (
-      <p className="empty">
+      <EmptyState>
         No reports match these filters.{' '}
         <button type="button" className="text-button" onClick={onClear}>
           Clear the filters
         </button>
-      </p>
+      </EmptyState>
     )
   }
   if (cards.length === 0) {
-    return <p className="empty">No reports here yet. Ask Sophia to research something, by voice or in the chat.</p>
+    return <EmptyState>No reports here yet. Ask Sophia to research something, by voice or in the chat.</EmptyState>
   }
   return (
     <ol className="report-cards">

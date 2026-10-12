@@ -264,16 +264,6 @@
   background: rgba(236, 235, 241, 0.05);
   font-size: var(--type-label);
 }
-.lane-empty {
-  display: grid;
-  place-items: center;
-  min-height: 56px;
-  border: 1px dashed var(--line);
-  border-radius: var(--r-4);
-  /* An empty lane says so in words: they read, as any line on the board does. */
-  color: var(--text-3);
-  font-size: var(--type-small);
-}
 .task-grid {
   display: grid;
   gap: 8px;

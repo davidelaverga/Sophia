@@ -4,6 +4,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import type { DiscussionEntry, Snapshot } from '@sophia/contracts'
+import { EmptyState } from '@sophia/ui'
 import { listReplies, type DiscussionReply } from '../../api/vision.ts'
 import { VISION } from '../../app/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -64,7 +65,9 @@ export function Conversation(props: Props) {
   return (
     <div className="conversation">
       <div className="conversation-history" ref={history} onScroll={onScroll}>
-        {empty && <p className="chat-empty">Messages stay in this conversation. Notes live in the brief.</p>}
+        {empty && (
+          <EmptyState className="chat-empty">Messages stay in this conversation. Notes live in the brief.</EmptyState>
+        )}
         <Discussion
           entries={discussion}
           me={me}

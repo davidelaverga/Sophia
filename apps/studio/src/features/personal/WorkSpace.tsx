@@ -4,7 +4,7 @@
 // projects nor "No projects yet"; a list that failed says so, with Try again.
 import { useEffect, useRef, useState } from 'react'
 import type { ProjectCreated, ProjectRelease, ProjectSummary } from '@sophia/contracts'
-import { Icon, Tip } from '@sophia/ui'
+import { EmptyState, Icon, Tip } from '@sophia/ui'
 import { createProject } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { useMounted } from '../../app/useMounted.ts'
@@ -226,12 +226,16 @@ function Card({ project, props, now }: { project: ProjectSummary; props: Props; 
 
 function Empty({ onStart }: { onStart: () => void }) {
   return (
-    <div className="c3-empty">
-      <p>No projects yet. A project is where your team and Sophia build something together.</p>
-      <button className="pill primary" type="button" onClick={onStart}>
-        Start a project
-      </button>
-    </div>
+    <EmptyState
+      className="c3-empty"
+      actions={
+        <button className="pill primary" type="button" onClick={onStart}>
+          Start a project
+        </button>
+      }
+    >
+      No projects yet. A project is where your team and Sophia build something together.
+    </EmptyState>
   )
 }
 

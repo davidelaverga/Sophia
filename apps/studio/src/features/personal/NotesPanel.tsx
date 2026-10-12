@@ -3,7 +3,7 @@
 // so before it happens.
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
-import { Icon, Tip } from '@sophia/ui'
+import { EmptyState, Icon, Tip } from '@sophia/ui'
 import type { Memory as Remembered } from './extras.ts'
 import { focusSoon } from './focus.ts'
 import { Memory } from './Memory.tsx'
@@ -150,7 +150,7 @@ export function NotesPanel(props: Props) {
       {!packing && props.memory && props.memory.items.length > 0 && notes !== undefined && (
         <h3 className="c3-label">Your notes</h3>
       )}
-      {notes?.length === 0 && <p className="ps-empty">{NOTES_EMPTY}</p>}
+      {notes?.length === 0 && <EmptyState className="ps-empty">{NOTES_EMPTY}</EmptyState>}
       {!packing &&
         notes?.map((note) => (
           <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>

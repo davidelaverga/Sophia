@@ -3,6 +3,7 @@
 // fold into one row with a count (pulse.ts).
 import type { Event as ProjectEvent } from '@sophia/contracts'
 import { isCursorAdvance } from '@sophia/contracts/validate'
+import { EmptyState } from '@sophia/ui'
 import type { Feed } from '../../projectors/projection.ts'
 import type { Connection } from '../studio/useProjectFeed.ts'
 import { pulseRows } from './pulse.ts'
@@ -34,7 +35,7 @@ export function WorkPulse({ feed, connection }: { feed: Feed | null; connection:
         <h4 id="pulse-title">Work pulse</h4>
       </div>
       {items.length === 0 ? (
-        <p className="empty">{QUIET[connection]}</p>
+        <EmptyState>{QUIET[connection]}</EmptyState>
       ) : (
         <ol className="events">
           {pulseRows(events).map((row) => (

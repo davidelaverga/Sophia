@@ -18,7 +18,7 @@ import {
 // oxlint-disable-next-line import/default -- Vite's `?url` import (typed by vite/client): the worker's same-origin asset URL
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Icon, Tip } from '@sophia/ui'
+import { Icon, ReadNote, Tip } from '@sophia/ui'
 import { fitScale, MAX_ZOOM, MIN_ZOOM, zoomStep } from './pdf-zoom.ts'
 
 GlobalWorkerOptions.workerSrc = workerUrl
@@ -202,7 +202,7 @@ const currentOf = (visible: ReadonlySet<number>) => (visible.size === 0 ? 1 : Ma
 
 export function PdfView({ bytes, full }: Props) {
   const opened = useDocument(bytes)
-  if (opened === null) return <p className="muted">Opening the PDF…</p>
+  if (opened === null) return <ReadNote>Opening the PDF…</ReadNote>
   if ('error' in opened) {
     return (
       <p className="muted" role="alert">
