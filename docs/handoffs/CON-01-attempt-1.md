@@ -58,6 +58,27 @@ D-9's conservative rule stays binding: later Sophia answers in the same conversa
    - It waits on Luis's Studio handback, so there are no concurrent Studio edits.
 3. **No correction, recorded only:** mission pack 03 §3's "editors/admins may moderate" is a frozen, hash-pinned input. Decision 8 supersedes it, and the pack isn't edited.
 
+**Discrepancy 1's correction (CX-0175), a candidate, not yet integrated.**
+- **The candidate:** `3878328f8bd62057d5e877775da8cfa2386696c1`, tree `e7d549fdecddc5087a4cdd0d121bc761b750af99`, parent `d527f385` (PR #199's head, not moved). It is on the review-only branch `claude/con01-saved-text-notice-review`, with no PR. Its write record is CC-0190 and its early receipt CC-0191.
+- **The change:** two CON files, +16/−3, the notice and its mirror only:
+  - `packages/persistence/src/conversations.ts`, `CONVERSATION_NOTICE` (blob `71fb6a9f`);
+  - `apps/studio/fixtures/conversation-wire.ts` (blob `1e3ff8f1`).
+- **What the notice now says:** current members read; kept for the project's life until withdrawn or erased, and a stricter organization rule wins; authors withdraw their own messages, and admins remove messages and erase conversations; hosted backups keep their own retention, and what was seen can't be unseen; live room audio isn't saved. It names no provider recipient and promises no deletion; that disclosure stays a pre-Ask gate.
+- **Codex's scoped review:** [CX-0177](https://github.com/davidelaverga/Sophia/blob/21b8d88898dd318b5bcc610dc6759f381df968c3/docs/coordination/CON-01/CX-0177.md) at `21b8d888`, `SCOPED_NOTICE_SOURCE_AND_LOCAL_IAB_FIXTURE_PASS`, with no blocking finding.
+  - In the in-app browser fixture, the first notice measures 624×72 at 1280×800 and 362×126 at 390×844, in 12px type on 18px lines, with no horizontal overflow.
+  - After the first message, the notice is complete in the context's help, on desktop and phone.
+  - The review covers this two-file correction only. It doesn't clear the full suites, the signed-in app, combined G3/G4, or the held integration and operations.
+- **CON's own gates at this exact content** (`/home/user/sophia-dev`, Node 24.21.0, pnpm 11.7.0):
+  - prettier, `oxlint --type-aware` and `pnpm -s typecheck`: exit 0;
+  - the conversation DB tests (persistence and API) on an owned disposable PostgreSQL 16: 32/32;
+  - **`pnpm -s test` exited 1:** 2209 tests, 2195 passed, 13 failed, 1 skipped. All 13 failures are `ERR_MODULE_NOT_FOUND` for `packages/dsh-bundle/dist/*`, because the worktree hadn't been built (`pnpm check` builds first). After `pnpm -s build`, those 13 files pass 117/117;
+  - **the 15 conversation browser specs, desktop and phone, with this container's Chromium: 187 passed, 1 failed.** The failure is `conversations-context-fence.spec.ts:73`, a frame-count assertion (`≤ 3`, got 4) under two workers. Alone, it passes 5/5. That is recorded as the result, not as a proven flake;
+  - the evidence spec (temporary, not committed): 2/2 at desktop and phone. Its measures match Codex's.
+  - The room's dock covers the help notice's last lines only while the help is just scrolled into view. That is the same at the base (`d527f385`), and in both the pane scrolls a further 90 px, clear of the dock.
+- **Not run:** `pnpm check` (it launches the pinned runtime), and the other Studio suites.
+- **Cleaned:** the disposable PostgreSQL is stopped and removed, the temporary specs are deleted, and the build and test outputs are removed. Both worktrees are clean.
+- **Next:** this pin rides into CON's source once that integration is accepted. No merge or window is opened by it.
+
 **Not changed:** the reservation request stays byte-identical to revision 10 (`90ea5a52…`). There is no deployment, migration, configuration, account, grant or spend approval. `conversation_settings.approval_ref` is set only by an approved operation (OP-0002-r6 is `draft_not_authorized`). Ask stays off.
 
 ## G2 Phase B reservation request: reviewed at revision 10 (2026-10-12, CX-0169)
