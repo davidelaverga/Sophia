@@ -464,7 +464,7 @@
   text-align: center;
   margin: 10px 0 16px;
   color: var(--text-2);
-  font: var(--type-small) / var(--lh-small) var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.09em;
   text-transform: uppercase;
 }
@@ -823,6 +823,33 @@
   .conv-act {
     width: 40px;
     height: 40px;
+  }
+  /* What a copy or a proposal says takes its own line above the presses and wraps, so the three 40 px presses stay
+     inside the pane whatever it says (Codex on #240). */
+  .conv-acts {
+    flex-wrap: wrap;
+    max-width: calc(100% + 24px);
+  }
+  .conv-acts > [role='status'] {
+    flex-basis: 100%;
+    white-space: normal;
+  }
+}
+/* A member's message continuing a run, under a pointer: its acts beside the bubble at its middle (the bubble its box),
+   so the row never lies over the bubble above it (Codex on #240): left of one's own, right of another's. */
+@media (hover: hover) {
+  .conv-msg-body > .conv-acts.side {
+    top: 50%;
+    bottom: auto;
+    translate: 0 -50%;
+  }
+  .conv-msg.mine .conv-msg-body > .conv-acts.side {
+    right: calc(100% + 8px);
+    left: auto;
+  }
+  .conv-msg:not(.mine) .conv-msg-body > .conv-acts.side {
+    left: calc(100% + 8px);
+    right: auto;
   }
 }
 /* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals

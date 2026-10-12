@@ -97,5 +97,13 @@ export function peopleOf(
     ...r.made.map((m) => m.askedBy),
     ...r.noted.map((n) => n.actorId),
   ]
-  return [...new Set(ids)].map((id) => ({ id, name: id === me ? 'You' : (names[id] ?? 'Someone') }))
+  const named = [...new Set(ids)].map((id) => ({ id, name: id === me ? 'You' : (names[id] ?? 'Someone') }))
+  // Two people with one name (two unnamed, or two members called alike) are told apart by their order: «Someone»,
+  // «Someone (2)» (Codex on #239).
+  const seen = new Map<string, number>()
+  return named.map((p) => {
+    const n = (seen.get(p.name) ?? 0) + 1
+    seen.set(p.name, n)
+    return n === 1 ? p : { ...p, name: `${p.name} (${String(n)})` }
+  })
 }
