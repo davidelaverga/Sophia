@@ -226,5 +226,12 @@
       "Fixture config enables proposed vision fixtures locally; no production build/config or unrelated proposal activation",
       "Source diff read, not complete combined browser test suite or G4"
     ]
+  },
+  "delivery": {
+    "packet": "025c077f",
+    "PR199": 6116157885,
+    "mission198": 6116159428,
+    "exact_readback": true,
+    "native": "session_01KUDtFK9gWthsXSrepcLQz3; submitted and visibly verified with exact recipient guard"
   }
 }
