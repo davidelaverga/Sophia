@@ -497,7 +497,15 @@ function useTileFocus(rows: readonly PlanRow[]) {
     const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
       (el) => el.dataset['task'] === id,
     )
-    tile?.focus({ preventScroll: true })
+    if (tile) {
+      tile.focus({ preventScroll: true })
+      return
+    }
+    // Moved into a lane past the tiles it shows (five, the rest one press away): the focus goes to that press, so the
+    // keyboard can reveal it; never to the page (Codex on #236).
+    const row = rows.find((r) => r.item.id === id)
+    const lane = row ? document.querySelector(`.board .lane[data-lane="${laneOf(row, rows)}"]`) : null
+    lane?.querySelector<HTMLElement>('.lane-more')?.focus({ preventScroll: true })
   }, [rows])
 }
 
