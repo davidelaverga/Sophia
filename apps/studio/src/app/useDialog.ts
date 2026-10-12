@@ -27,6 +27,11 @@ function keepFocusInside(e: KeyboardEvent, root: HTMLElement): void {
 /** The dialogs taking keys, the latest on top: only the top one hears Escape and Tab. */
 const taking: { panel: HTMLElement; close: () => void }[] = []
 
+/** Whether this panel is the dialog on top, the one that takes keys: a sheet covered by another (a recap) is not. */
+export function isTopDialog(panel: Element): boolean {
+  return taking.at(-1)?.panel === panel
+}
+
 /** Every open dialog closes, the top one first: what opens next (a report from a recap) must not sit under one. */
 export function closeEveryDialog(): void {
   for (const dialog of taking.toReversed()) dialog.close()
