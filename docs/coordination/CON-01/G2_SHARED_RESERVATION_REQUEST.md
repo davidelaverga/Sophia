@@ -1,11 +1,23 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 7 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 8 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
 
-**Revision 7, after CX-0164: K-2d's conditions incorporated, and one amendment (D4).**
+**Revision 8, after Codex's K-3 disposition (CX-0164 at `c4389f84`): K-3 recorded as supplied, within its exact scope; no manifest change.**
+- **The disposition:** Codex independently read and accepted #198 comment 6120100817 as the retained source coordinator's explicit K-3. The coordinator is session `session_0155SjcXhv87RErnWEBWxfBM`, acting in its own source-coordination remit.
+  - **Scope:** exact revision 5, with §1 to §4 unchanged at revision 6.
+  - **Where it is recorded:** #198 comment 6119717658 (updated), and the safe record `actual-owner-handback.safe.json` at `c4389f84` (SHA-256 `cca6dacb49a80f18…`).
+- **What K-3 is, narrowly:** the preservation of #190's overlap, and the order of regeneration and integration (§3.2, §3.3; Q10).
+- **What K-3 is not:**
+  - an acknowledgement from the unreachable historical actor `aca33481`;
+  - an approval of #190's billing direction, product, merge or deploy.
+- **K-3 is not extended.** Revision 7's amendment changed only §3.1, so §3.2 and §3.3, which K-3 covers, are byte-identical to revision 5's. That is stated as a fact, not as an extension of K-3 to revisions 7 or 8.
+- **Unchanged here:** revision 7's §3.1 amendment still needs its affected rechecks: Codex's independent recheck, the joint lane's consumer recheck (K-1c was for revision 5), and the owner's review of D4 under K-2d. §1 to §4 are byte-identical to revision 7's.
+- **Nothing is opened:** no source window, and no operational authority.
+
+**Revision 7, after CX-0164: K-2d's conditions incorporated, and one amendment (D4).** Its K-3 bullet below is superseded by revision 8's disposition.
 - **What arrived:** the joint WBC-02/SDD-01 implementer (session `session_0155SjcXhv87RErnWEBWxfBM`) gave **K-2d, conditional,** against exact revision 5, in #198 comment 6120057551. Codex verified the author, and that 0041's and 0042's whole bytes at the owner's cited `e0200f1a` equal current `main` `3c40b1c6`. The conditions are D1 to D5, C1 to C4 and N1.
 - **What revision 7 does:** it writes those conditions into §3.1 as the owner stated them. Each is exactly the owner's condition, and none widens what may be written:
 
@@ -103,6 +115,8 @@ What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consume
 | Codex's root review of revision 4 | [CX-0161](https://github.com/davidelaverga/Sophia/blob/a2118b1b7adac79c39eed93c3e29a3da4731f085/docs/coordination/CON-01/CX-0161.md) at `a2118b1b`; [#198 comment 6119498696](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119498696) |
 | The joint review of revision 5 | [`joint-phase-b-r5-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/evidence/20261012-cx162-reservation-r5/joint-phase-b-r5-review.safe.json) at `2cb08a7b`, SHA-256 `86f1614cd3d98912…` (original `75904e556aead0be…`). `BOUNDED_CONSUMER_COMPATIBILITY_ACK_EXACT_PHASE_B_R5_K1C_ONLY_NO_WRITE_GO`; findings empty |
 | Codex's root review of revision 5 | [CX-0162](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/CX-0162.md) at `2cb08a7b`; [#198 comment 6119717658](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119717658) |
+| Codex's K-3 disposition | CX-0164 at `c4389f844b15599850d490cf85abc1dceafad591`, with `evidence/20261012-cx164-owner-coordination/actual-owner-handback.safe.json` (SHA-256 `cca6dacb49a80f18…`); #198 comment 6119717658, updated. It counts 6120100817 as a narrow K-3 for exact revision 5 (and revision 6, unchanged in §1 to §4) |
+| Revision 7 of this file | `330e52be6904afb0f2dfd5960e373cc0f6f85c1f`, tree `66af72f1`, SHA-256 `fdb76bf6045a20ba…`, 778 lines. §1 to §4 here are byte-identical to it |
 | The joint implementer's K-2d, and its K-3 statement | [#198 comment 6120057551](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120057551): K-2d, conditional (D1 to D5, C1 to C4, N1), against exact revision 5; its author is verified by Codex. [#198 comment 6120100817](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120100817): a K-3 statement in the coordinator's own remit, received and not yet verified |
 | Revision 6 of this file | `193badb41cd5919bd863429b6ac07e2ac2bc7311`, tree `6304b5be`, SHA-256 `9b04335e14f5f84c…`, 712 lines. Its §1 to §4 were byte-identical to revision 5's |
 | Revision 5 of this file | `b975bbe2409cce9d3349c049e2de5569b164b648`, tree `895b75e2`, SHA-256 `69219da474faf2c8…`, 677 lines. The revision that K-1c, K-2d and the K-3 statement each name |
@@ -724,20 +738,20 @@ Any of these stops the writer and goes back to Codex.
 
 | # | From | Acknowledges | State |
 |---|---|---|---|
-| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 7) |
+| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 8) |
 | K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1 and A-2, which the r8 design ACK does not cover | **not recorded** (evidence below) |
 | K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). **A consumer ACK only.** Revision 7 amends §3.1 (D4 and K-2d's conditions), so its **recheck is owed** |
 | K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | **not recorded** |
 | K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | **not recorded** |
 | K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | **not recorded** |
 | K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **conditional, against exact revision 5** (#198 comment 6120057551; its author is verified by Codex). The conditions are D1 to D5, C1 to C4 and N1, now in §3.1. **The owner's review of revision 7's D4 amendment is pending.** It is not K-1c, and not a write GO |
-| K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **unresolved, not claimed.** 6120057551 gave the overlap and order with authority reserved. #198 comment 6120100817 then states an acknowledgement in the coordinator's own retained remit, against revision 5. That is received, but not yet verified or accepted as K-3 by Codex and the owner |
+| K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **supplied, narrowly:** #198 comment 6120100817, from the retained source coordinator `session_0155SjcXhv87RErnWEBWxfBM` in its own source-coordination remit, against exact revision 5 (revision 6 unchanged in §1 to §4). Codex accepted it (CX-0164 at `c4389f84`; 6119717658). It covers the overlap and the order of regeneration only. It is not from `aca33481`, and it is no billing, product, merge or deploy approval. §3.2 and §3.3 are unchanged since revision 5, but K-3 is not extended to later revisions by this record |
 | K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | **not recorded.** #256 is a draft at `93e9313d` (mergeable). Luis's acceptance is pending in Codex's existing handoff (#256 comment 6116716003). #199 is a draft at `d527f385` (conflicting), pending Luis's Studio handback |
 | K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | **not started:** it waits on K-1b to K-4 |
 
 **Until all of them are recorded, nothing in §3 is written.** An owner that replaces a recommendation in §2 or §3 is recorded with its replacement. The affected rows are amended and acknowledged again.
 
-**The evidence for the state above.** Revision 6 searched through the newest comment at 07:26:57Z. Revision 7 adds only the two comments named in K-2d and K-3, and no new inventory was made. Revision 6's search:
+**The evidence for the state above.** Revision 6 searched through the newest comment at 07:26:57Z. Revision 7 adds only the two comments named in K-2d and K-3, and revision 8 only Codex's K-3 disposition. No new inventory was made. Revision 6's search:
 - **What was searched:** every comment created or edited from 05:00Z on (the request was first published at 05:36Z), in:
   - issue #198, all five pages;
   - PR #256: its comments, reviews and review threads;
