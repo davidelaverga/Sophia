@@ -46,6 +46,10 @@ this handoff.
   scroll width is its width.
 - After the review (Codex on #254, round 2): the floating offsets reset in the header (`inset: auto`, measured 10–38
   in the 48 px bar); with a note and her looking at once, the note comes first and her looking hangs under it.
+- After the review (Codex on #254, later round): the panel takes the focus before covering the dock (`cover()`),
+  `data-dock-key` names a dock control across its move (`dockKey` in ProjectShell), and the two-row header's notes
+  hang under the views' row (`top: calc(100% + 54px)` at 721–760 px). dock-header.spec: the notes at 740 px; the
+  focus handed to the panel when the dock floats under it.
 
 ## Remaining obligations
 

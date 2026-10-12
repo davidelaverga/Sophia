@@ -114,4 +114,9 @@
   in A13 (the Studio cuts it for the eye). A reply is marked seen once its turn is shown in the personal space
   (`turnShown`: the `.msg[data-turn]` watched for up to 20 s), not on the press: a space that failed to read marks
   nothing and the need stays.
-
+- **Round 9 (P2 ×4)**: the decision address is the board slot's own (`useSlot`): it opens the slot when shut and names
+  the decision for the focus, which `Decisions` gives inside its own list (the current revision's choice, not a stale
+  one elsewhere in the document), once per address (its sequence is kept: `replaceState` fires no `hashchange`, so the
+  same address could not have come twice), then lets the address go. `turnIsShown` asks for a drawn turn
+  (`getClientRects().length > 0`): the personal space kept mounted under a hidden place has the `.msg` in the document
+  and shows nothing, so a need is marked seen only once the space is in sight with the turn in it.

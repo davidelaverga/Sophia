@@ -90,6 +90,26 @@ test('dock · what the dock says hangs under the header, on the page: Sophia loo
   expect(read?.within).toBe(true)
 })
 
+test('dock · in the header of two rows (740 px) what the dock says hangs under the views’ row', async ({ page }) => {
+  await page.setViewportSize({ width: 740, height: 800 })
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&video=screen&looking=screen&place=work')
+  await drawn(page, DRAWN.tasks)
+  await expect(dock(page).locator('.sophia-looking')).toBeVisible()
+  const read = await page.evaluate(() => {
+    const el = document.querySelector('.topbar .mini-dock .sophia-looking')
+    const topbar = document.querySelector('.topbar')
+    const nav = document.querySelector('.view-nav')
+    if (!el || !topbar || !nav) return null
+    const r = el.getBoundingClientRect()
+    const t = topbar.getBoundingClientRect()
+    const n = nav.getBoundingClientRect()
+    return { rows: t.height, underHeader: r.top >= t.bottom - 0.5, underNav: r.top >= n.bottom - 0.5 }
+  })
+  expect(read?.rows).toBeGreaterThan(80) // two rows: 92 px, not one
+  expect(read?.underHeader).toBe(true)
+  expect(read?.underNav).toBe(true)
+})
+
 test('dock · nowhere on the Studio view (the room is the view) and behind a shut door', async ({ page }) => {
   await page.goto('/room.html?demo=1')
   await drawn(page, DRAWN.room)
@@ -135,6 +155,31 @@ test('dock · under 1180 px with Conversations’ context open, the header dock 
   await expect(dock(page).getByRole('button', { name: /^Join the room/ })).toBeEnabled()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('complementary', { name: 'Project context' })).toHaveCount(0)
+})
+
+test('dock · with the context open, the dock’s control focused loses the header and is covered: the panel takes the focus', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 800 })
+  await page.goto('/room.html?demo=1&conversations=1&place=conversations')
+  const toggle = page.getByRole('region', { name: 'Open conversation' }).getByRole('button', { name: 'Context' })
+  await expect(toggle).toBeVisible()
+  await toggle.click()
+  await expect(page.getByRole('complementary', { name: 'Project context' })).toBeVisible()
+  const join = () => dock(page).getByRole('button', { name: /^Join the room/ })
+  await join().focus()
+  await expect(join()).toBeFocused()
+  // Narrower, the dock floats under the panel: covered, its control cannot keep the focus; the panel has it.
+  await page.setViewportSize({ width: 700, height: 800 })
+  await expect.poll(() => page.locator('.mini-dock').evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        dock: document.querySelector<HTMLElement>('.mini-dock')?.inert ?? null,
+        focus: document.activeElement?.closest('#conv-context') !== null,
+      })),
+    )
+    .toEqual({ dock: true, focus: true })
 })
 
 test('dock · what the dock says stands in one stack: its box, under the header, holds the looking note', async ({
