@@ -202,7 +202,17 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 12px 20px 12px 16px;
+}
+/* Its presses (Enlarge, Chat, Close) are a sheet's head's: 28 px squares without the edge, Close 20 from the edge. */
+.report-pane-head .round {
+  width: 28px;
+  height: 28px;
+  border-color: transparent;
+  background: transparent;
+}
+.report-pane-head .round:hover {
+  background: rgba(236, 235, 241, 0.06);
 }
 /* The call's switches, a row of their own under the head, only where the pane covers the dock or the mini dock (the
    full page, and a phone below): a live microphone, camera or shared screen stays in sight with its off switch, as
@@ -1035,6 +1045,10 @@
   .report-tabs .report-format button,
   .report-pane-head .round {
     min-height: 44px;
+  }
+  /* The viewer's head presses keep a finger's width too, as a sheet head's do: 28 wide is the desktop's. */
+  .report-pane-head .round {
+    min-width: 40px;
   }
   /* A citation's number gets its target from an empty box around it, as an inline text button does, so no line moves.
      Not in a table: past the edge of its frame, the box would make the frame scroll. Each target is its own

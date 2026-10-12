@@ -48,7 +48,7 @@ export function CalendarTab({ context }: { context: SheetContext }) {
     void queryClient.invalidateQueries({ queryKey: snapshotKey(context.projectId, context.identity.name) })
   const editable = canInvite(context.membership)
   return (
-    <section className="sheet-body" aria-label="Calendar">
+    <section className="sheet-tab-body" aria-label="Calendar">
       <p className="sheet-lead">
         When the room meets, in your time ({zoneName()}). Everyone in the room sees what’s next; invitations don’t
         include sessions yet.
