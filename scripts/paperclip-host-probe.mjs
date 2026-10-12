@@ -8,7 +8,7 @@
 // wakeup queues a run; so must a review that ended blocked and a denied permit; new work on the same reviewer runs; an
 // adapter that cannot reach Sophia fails its run, for an operator (what later wakeups do is recorded). And the built
 // plugin installs through the pin's own loader (WBC-02-CX-0010): manifest and capability validation, the registry
-// record and the raw packaged migration, each statement checked by the host as an install checks it. The wakeup is made as plugin-host-services.ts
+// record and the raw packaged migrations, each statement checked by the host as an install checks it. The wakeup is made as plugin-host-services.ts
 // makes a plugin's requestWakeup. The probe's test file is written into the checkout's server tests only for the run
 // (vitest resolves the pin's TypeScript there) and removed afterwards; nothing is installed anywhere.
 import { spawnSync } from 'node:child_process'
@@ -164,7 +164,7 @@ describe("sophia_dsh on the pinned heartbeat (WBC-02-CX-0007)", () => {
     console.log("[probe] same issue after its failed run", JSON.stringify({ queued: Boolean(same) }));
   }, 120_000);
 
-  it("the built plugin installs through the pin's own loader: manifest, capabilities and its raw migration (WBC-02-CX-0010)", async () => {
+  it("the built plugin installs through the pin's own loader: manifest, capabilities and its raw migrations (WBC-02-CX-0010)", async () => {
     const loader = pluginLoader(db, { enableNpmDiscovery: false });
     const installed = await loader.installPlugin({ localPath: process.env.SOPHIA_PLUGIN_DIR });
     expect(installed.manifest?.id).toBe("sophia.coordination");
@@ -175,7 +175,7 @@ describe("sophia_dsh on the pinned heartbeat (WBC-02-CX-0007)", () => {
     );
     const names = Array.from(tables).map((row) => row.table_name);
     console.log("[probe] installed namespace tables", JSON.stringify(names));
-    expect(names).toEqual(["commissions", "controls", "effects", "envelope_nonces", "wakes"]);
+    expect(names).toEqual(["commissions", "controls", "effects", "envelope_nonces", "reviewer_provisioning", "wakes"]);
   }, 120_000);
 });
 `
