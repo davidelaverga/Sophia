@@ -72,3 +72,9 @@ handoff.
 ## Next bounded action
 
 UIKIT-07: `Skeleton` with the empty states (informe-30 §2.1: «todas las vistas cargan y vacían igual que Resources»).
+
+## After CI (2026-10-12)
+
+The sort menu in its field is placed 7 px under the field's padding box (6 under its edge), and menu-scale.spec waits
+for the arrival to settle before reading the place (`settled: true` in `ONE`). Measured headless: at rest 5 → 6; the
+field is 36 px with a 1 px edge, the plane's `top` was 40 px of 34.
