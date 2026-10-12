@@ -1,0 +1,24 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
++ actual - expected
+
+  {
++   creationledger: 1,
+-   creationLedger: 1,
+    projects: 1
+  }
+
+    at file:///Users/davidelaverga/.codex/operator-journal/CON-01/attempt-1/cx133-q13-r5-check/fingerprint.mjs:42:10
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: { projects: 1, creationledger: 1 },
+  expected: { projects: 1, creationLedger: 1 },
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

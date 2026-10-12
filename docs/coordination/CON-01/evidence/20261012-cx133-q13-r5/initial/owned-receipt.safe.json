@@ -1,0 +1,17 @@
+{
+  "scope": "Owned disposable local PG17; no hosted/native/provider effects",
+  "at": "2026-10-12T00:54:11.578102+00:00",
+  "harnessSha256": "b0e2ed4fdc67a6416d8376d075519920ee4593acb810e939abfd951d936f675b",
+  "probeSha256": "0d060bb1ce6aca79934ca8318ecfdddf478f7e4ab68336f6021c14de96c59f24",
+  "syntaxPreparation": "node --check before owned cluster startup",
+  "cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  },
+  "probeExit": 1,
+  "identityReceiptExists": true,
+  "closingCensus": null
+}

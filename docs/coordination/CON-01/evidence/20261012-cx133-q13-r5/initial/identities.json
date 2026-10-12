@@ -1,0 +1,177 @@
+{
+  "scope": "Exact Q13 r5 activation query only on owned synthetic PG17; not installed S3 qualification",
+  "proposal": {
+    "source": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
+    "tree": "0b4c60c6928260484123bbe6bf4d1ed268b9daa6",
+    "proposalSHA256": "b138bca641a4a507b501b3ff5737aa68a56e7cc3d97d7f26162c718a802f2069",
+    "activationSHA256": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "block": 5,
+    "blocks": 7
+  },
+  "migrationSource": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "migrationsApplied": [
+    "db/migrations/0001_core.sql",
+    "db/migrations/0002_roles_rls.sql",
+    "db/migrations/0003_atomic_commands.sql",
+    "db/migrations/0004_queue_ownership.sql",
+    "db/migrations/0005_event_notify.sql",
+    "db/migrations/0006_idempotent_project_creation.sql",
+    "db/migrations/0007_dispatch_fencing.sql",
+    "db/migrations/0008_dispatch_result_idempotent.sql",
+    "db/migrations/0009_project_room.sql",
+    "db/migrations/0010_room_access.sql",
+    "db/migrations/0011_lobby_decline_block.sql",
+    "db/migrations/0012_runtime_service.sql",
+    "db/migrations/0013_room_exchange.sql",
+    "db/migrations/0014_room_removals.sql",
+    "db/migrations/0015_guest_joining.sql",
+    "db/migrations/0016_review_fences.sql",
+    "db/migrations/0017_empty_room.sql",
+    "db/migrations/0018_mission_ledger.sql",
+    "db/migrations/0019_default_mission_capture.sql",
+    "db/migrations/0020_typed_mission_turns.sql",
+    "db/migrations/0021_personal_space.sql",
+    "db/migrations/0022_research_readers.sql",
+    "db/migrations/0023_usage_cache.sql",
+    "db/migrations/0024_research_allowance.sql",
+    "db/migrations/0025_research_admission.sql",
+    "db/migrations/0026_research_submission.sql",
+    "db/migrations/0027_report_facts.sql",
+    "db/migrations/0028_research_revocation.sql",
+    "db/migrations/0029_research_spend_bounds.sql",
+    "db/migrations/0030_render_jobs.sql",
+    "db/migrations/0031_research_pdf.sql",
+    "db/migrations/0032_research_rendition.sql",
+    "db/migrations/0033_research_withdrawal_closure.sql",
+    "db/migrations/0034_render_judgement.sql",
+    "db/migrations/0035_announcement_delivery.sql",
+    "db/migrations/0036_section_facts.sql",
+    "db/migrations/0037_amendment_preservation.sql",
+    "db/migrations/0038_design_records.sql",
+    "db/migrations/0039_design_runtime.sql",
+    "db/migrations/0040_design_flow.sql",
+    "db/migrations/0041_design_lifecycle.sql",
+    "db/migrations/0042_source_review_coordination.sql",
+    "db/migrations/0043_design_delivery.sql",
+    "db/migrations/0044_object_write_once.sql",
+    "db/migrations/0045_render_requeue_output.sql",
+    "db/migrations/0048_project_conversations.sql"
+  ],
+  "cases": [
+    {
+      "name": "clean authority control",
+      "expected": [],
+      "rolledBack": true,
+      "rows": [],
+      "pass": true
+    },
+    {
+      "name": "PUBLIC default TEMPORARY",
+      "expected": [
+        "effective: the login and the assembler may TEMPORARY on the target database (PUBLIC)"
+      ],
+      "rolledBack": true,
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "effective: the login and the assembler may TEMPORARY on the target database (PUBLIC)"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "PG17 PUBLIC MAINTAIN on allowlisted goals",
+      "expected": [
+        "effective: the login and the assembler may MAINTAIN on sophia.goals (PUBLIC)"
+      ],
+      "rolledBack": true,
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "effective: the login and the assembler may MAINTAIN on sophia.goals (PUBLIC)"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "PG17 direct assembler MAINTAIN on allowlisted goals",
+      "expected": [
+        "the assembler may MAINTAIN on sophia.goals",
+        "effective: the assembler may MAINTAIN on sophia.goals"
+      ],
+      "rolledBack": true,
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "the assembler may MAINTAIN on sophia.goals"
+        },
+        {
+          "kind": "hold",
+          "what": "effective: the assembler may MAINTAIN on sophia.goals"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "PUBLIC column operational write",
+      "expected": [
+        "effective: the login and the assembler may UPDATE on sophia.projects (PUBLIC)"
+      ],
+      "rolledBack": true,
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "effective: the login and the assembler may UPDATE on sophia.projects (PUBLIC)"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "missing assembler with broad role",
+      "expected": null,
+      "rolledBack": true,
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "no assembler role"
+        },
+        {
+          "kind": "hold",
+          "what": "member of sophia_api"
+        },
+        {
+          "kind": "hold",
+          "what": "not a member of the assembler"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "PUBLIC real Sophia operational writer",
+      "rolledBack": true,
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "effective: the login and the assembler may EXECUTE sophia.create_project(text, text) (PUBLIC)"
+        }
+      ],
+      "identity": {
+        "current_user": "sophia_conversation_assembler",
+        "session_user": "cx131_exec"
+      },
+      "writerReceipt": {
+        "cursor": "0",
+        "projectId": "68a9ec6d-1913-4042-b19e-4858efb70d49"
+      },
+      "actualRows": {
+        "projects": 1,
+        "creationledger": 1
+      }
+    }
+  ],
+  "connectionEnded": true,
+  "version": {
+    "version": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+    "version_num": "170006"
+  }
+}

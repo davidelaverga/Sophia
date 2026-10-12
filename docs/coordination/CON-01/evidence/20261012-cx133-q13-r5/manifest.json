@@ -1,0 +1,34 @@
+{
+  "at": "2026-10-12T00:56:07.527565+00:00",
+  "scope": "Q13 r5 exact activation-query recheck, owned synthetic PG17.6 only; not full installed S3 or live qualification",
+  "initialFailure": "Reviewer expected camel-case unquoted SQL alias creationLedger; PostgreSQL returns creationledger. Six cases passed and operational writer created one project and ledger row, then assertion failed. Transaction rolled back and cluster stopped/removed. Failure retained.",
+  "retry": "Only assertion alias corrected; seven cases pass on fresh separately owned cluster. No proposal or feature source modified.",
+  "cases": [
+    "clean zero-hold control after other admission and PUBLIC TEMPORARY denied",
+    "PUBLIC TEMPORARY hold",
+    "PUBLIC MAINTAIN on allowlisted goals hold (PG17)",
+    "direct assembler MAINTAIN hold (PG17)",
+    "PUBLIC column UPDATE hold",
+    "missing assembler plus broad sophia_api membership holds",
+    "PUBLIC operational function hold; execution as assembler actually writes one project and creation ledger row, rolled back; zero after rollback"
+  ],
+  "cleanup": "Both clusters stop0/status3/PID absent/removed; final postgres-only census0otherclients; no pending local effect",
+  "limits": "No hosted grants/revocation/termination, no full installed candidate/native/provider/app proof, no shared source write. Activation remains held on actual-target admission and effective authority.",
+  "files": {
+    "initial/activation-exact.sql": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "initial/fingerprint.mjs": "0d060bb1ce6aca79934ca8318ecfdddf478f7e4ab68336f6021c14de96c59f24",
+    "initial/identities.json": "b945dc82b1a08c00b70e9b36bda737e847c406ceb30d83fe5accfc61383987e2",
+    "initial/owned-receipt.safe.json": "154d4bbc26ee4c579741d1bb1b40e52a2647050dfcaf522a8e390955c3892f90",
+    "initial/probe.log": "82a62debb0cff2a9cac7af3fa3cbf25103d5369a8a038854cea4a0678795d3a6",
+    "initial/proposal-manifest.json": "da3f7baa0b7c5a01871089091bb11ced9f3154ba366d0e46c1a44cbf5f2e21ec",
+    "initial/run-owned.py": "b0e2ed4fdc67a6416d8376d075519920ee4593acb810e939abfd951d936f675b",
+    "retry-1/activation-exact.sql": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "retry-1/fingerprint.mjs": "48109abbfe1e585ca9ea5967cda2ea4fa22117a7764b0e3442c9b97362f7ac97",
+    "retry-1/identities.json": "e6ae49386ab18af1354bfefb0bb1ddf22fe2506ad447f46820609a2f5613172f",
+    "retry-1/owned-receipt.safe.json": "c5523e6ffcdebfb25f495cadd267772a864b1f9a98a0d84fa91c19cb0833b9e0",
+    "retry-1/probe.log": "d3da9a82d350b9620086b5062468b479f3de6088f839a6dbd8235d1445390826",
+    "retry-1/proposal-manifest.json": "da3f7baa0b7c5a01871089091bb11ced9f3154ba366d0e46c1a44cbf5f2e21ec",
+    "retry-1/run-owned.py": "b0e2ed4fdc67a6416d8376d075519920ee4593acb810e939abfd951d936f675b",
+    "source-manifest.json": "e5b6e6330d0297300c1d23c42243d8413ef202d1cc0cbbaee700b58f77068203"
+  }
+}

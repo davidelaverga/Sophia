@@ -84,7 +84,7 @@
     "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
     "PR211": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
     "PR256": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
-    "Q13": "9211a35e6b8bf1e895dbe457eca139d201336a78",
+    "Q13": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
     "dock": {
       "head": "f5964bcbfb992535504d1248e00e8d57efaa7558",
       "tree": "b1cc580579dd8c6a1337aa0d55e7aeeb853cb472"
@@ -101,7 +101,8 @@
     "owner_AX_hash_matched_and_full_read": true,
     "scope": "Conditional source/consumer compatibility only; no effect authority",
     "joint_new_active_turn": "01a12d8c-fa4c-75b3-81f1-04c3741d41f6",
-    "joint_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:24"
+    "joint_cursor": "05536df8-cc0b-448c-939a-b8a87359d323:25",
+    "joint_status": "blocked pending separate Supabase test approval and PR190 billing decision"
   },
   "rehearsal": {
     "baseline": 36,
@@ -137,7 +138,7 @@
     "warning": "pg warns about concurrent reads on one client in snapshot; current pinned driver serialized and equality passed. No feature fix."
   },
   "resource_use": {
-    "owned_PG_clusters": 2,
+    "owned_PG_clusters": 4,
     "both_stopped_removed": true,
     "other_clients_at_final_census": 0,
     "hosted_connections_this_turn": 0,
@@ -146,7 +147,8 @@
     "additional_spend": 0,
     "new_accounts_projects_hosted": 0,
     "owned_synthetic_projects": 1,
-    "no_pending_local_effect": true
+    "no_pending_local_effect": true,
+    "all_four_stopped_removed": true
   },
   "UI": "New refs carry unrelated main/UI-stack work but relevant dock/context source unchanged from803d. No new browser re-run justified; reproducedP2 retained. Luis exact writer/order/handback ACK pending; no source GO.",
   "ci256": {
@@ -154,7 +156,15 @@
     "purpose_built_current_status": "12 queued jobs across two runs; no rerun/cancel",
     "no_inline_review_clearance_upgrade": true
   },
-  "Q13": "Exact native author reproduces PUBLIC writer and tests r5 effective privileges/defaults/stored references; still in-progress tool, no immutable revision published in fresh ref read. No installation/activation GO.",
+  "Q13": {
+    "source": "2ff7daeb34cd56d9a5eec2f0bee8f36cc175b36e",
+    "tree": "0b4c60c6928260484123bbe6bf4d1ed268b9daa6",
+    "activationSHA256": "70e232cc96eb00a4bb8d23d5bc40102c4c262cd56a12f7323d7f2dc423ce9174",
+    "scopedCasesPassed": 7,
+    "fullInstalledQualification": false,
+    "evidence": "evidence/20261012-cx133-q13-r5/manifest.json",
+    "actualTargetActivation": "held; no authority inferred"
+  },
   "ci211": {
     "head": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
     "job": 114554922957,
@@ -173,7 +183,8 @@
     },
     "priorPassesNotWaiver": true,
     "headSourceComparison": "Personal component/test paths identical7d8 vs mainE; root cause not established",
-    "noRerunCancel": true
+    "noRerunCancel": true,
+    "authorLocalEvidence": "40/40 Chromium141 vs CI Chrome153/full1233 load; not independent clearance"
   },
   "UI_automatic_review": [
     {
@@ -188,5 +199,12 @@
       "finding": "Dock notes overlap second header row721\u2013760px",
       "independent": "New bot finding; not independently qualified yet"
     }
-  ]
+  ],
+  "closing_at": "2026-10-12T00:56:07.527565+00:00",
+  "UI_handback": {
+    "CON": "CC-0161 read full; accepts bounded corrections, no shared writes before Luis handback",
+    "Luis": "ACK not present at fresh mission/PR read",
+    "gitMergeWithDisclosure": "c19adc4761154179ec4c5a791118357e04f2c821; compatibility only"
+  },
+  "mission6115780841ExactReadback": true
 }
