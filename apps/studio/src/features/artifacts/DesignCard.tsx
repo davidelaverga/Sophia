@@ -46,7 +46,13 @@ export function DesignCard(props: Props) {
   const { task, identity } = props
   const { design, words, page } = useDesign(props)
   return (
-    <Card as="li" className="task work-card" data-state={design?.state ?? 'designing'} tabIndex={-1}>
+    <Card
+      as="li"
+      className="task work-card"
+      data-state={design?.state ?? 'designing'}
+      data-task={props.task.id}
+      tabIndex={-1}
+    >
       <div className="goal-meta work-card-head">
         <Tag tone={words.tone}>{words.label}</Tag>
         <span className="muted">{designOf(design)}</span>

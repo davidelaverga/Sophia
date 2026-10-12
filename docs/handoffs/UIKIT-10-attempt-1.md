@@ -6,8 +6,9 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/press-answers` from `ui/type-leading` at
 `dbe0b9a2` (stacked on PR #231 → #230 → #229 → #228 → #227 → #224 → #223 → #222 → #221 → #220; the base retargets as
 each merges)
-Ending commit/tree: `4e83c6dc` (tree `1e767c148902`): 3 files, 2 new (`e2e/press-answers.spec.ts`,
-`docs/plans/press-answers.md`) and `theme.css`. The commit after it adds only this handoff.
+Ending commit/tree: the branch's head as merged (`ui/press-answers`); the first delivery was `4e83c6dc`, and every
+later change, with its commit, is in the post-review sections below (Codex on #232: the record names the state
+delivered, not an intermediate one).
 
 ## Outcome
 
@@ -74,3 +75,13 @@ Two disclosures set a resting ink at the same specificity as `summary:hover` and
 changed nothing: `.mission-more > summary` (the mission's «Settings and history») and `.conv-help summary` («How
 conversation context works»). Each says its hover again (`color: var(--text)`). Measured on Conversations: 0.66 → 1 of
 the ink under the pointer; press-answers.spec (14) passes locally.
+
+## Post-review (Codex on #232, later round)
+
+- A native `disabled` text press no longer brightens under the pointer, nor sinks (`:not([aria-disabled='true'],
+  :disabled)` on both).
+- A select and a checkbox answer the pointer (`select:hover`, `input[type='checkbox']:hover`), and the sweep counts them.
+- Home's and Personal's microphones answer while listening (their own pressed selectors outranked the kit's pressed
+  hover: each says its hover again).
+- press-answers.spec sweeps four states reached by a press, each inside what it opens: the carry package's checkboxes,
+  the Invite sheet's Calendar tab, Home's and Personal's microphones listening.
