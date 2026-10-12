@@ -848,7 +848,7 @@
 }
 .thread {
   fill: none;
-  stroke: #b9a8ff;
+  stroke: var(--halo-text); /* the light's darkened ink on paper (Codex on #234) */
   stroke-opacity: 0.9;
   stroke-width: 2;
   stroke-linecap: round;
