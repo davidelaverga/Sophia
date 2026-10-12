@@ -7,11 +7,17 @@ export const NOTHING_NEXT = 'Nothing else here waits on you.'
 /** Words inside the quotes, at most this long (cut at a word, with an ellipsis). */
 const QUOTED = 48
 
+/**
+ * A decision as answered in this visit: its id at its revision. A revision proposed later is a new decision to answer,
+ * as the decision card treats it (Codex on #263).
+ */
+export const answeredKey = (decisionId: string, revision: number) => `${decisionId}#${String(revision)}`
+
 export interface NextUpInput {
-  /** The decisions answered in this visit, the last one included. */
+  /** The decisions answered in this visit, the last one included (`answeredKey`). */
   answered: readonly string[]
   /** The viewer's decisions still answerable here. */
-  decisions: readonly { decision_id: string; question: string }[]
+  decisions: readonly { decision_id: string; revision: number; question: string }[]
   /** The tasks waiting for the viewer, in the board's order. */
   waiting: readonly { id: string; name: string }[]
   /** A review that proposes a change waits in the bar. */
@@ -34,7 +40,7 @@ function quoted(words: string): string {
 }
 
 export function nextUp({ answered, decisions, waiting, review }: NextUpInput): NextUp {
-  const decision = decisions.find((d) => !answered.includes(d.decision_id))
+  const decision = decisions.find((d) => !answered.includes(answeredKey(d.decision_id, d.revision)))
   if (decision)
     return { kind: 'decision', id: decision.decision_id, words: `Next: decide “${quoted(decision.question)}”` }
   const task = waiting[0]

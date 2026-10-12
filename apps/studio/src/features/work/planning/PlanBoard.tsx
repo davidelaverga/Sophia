@@ -52,7 +52,7 @@ import {
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
-import { nextUp } from './next-up.ts'
+import { answeredKey, nextUp } from './next-up.ts'
 import { NextUp } from './NextUp.tsx'
 import { Folded } from './PlanNotes.tsx'
 import type { Challenge } from './challenges.ts'
@@ -706,12 +706,15 @@ interface BodyProps extends Props {
   board: Board
 }
 
-/** The tasks waiting for the viewer (their wait is the viewer's to answer), in the board's lane order. */
+/**
+ * The tasks with a request pending for the viewer, in the board's lane order: by the request, not by the mark, so a
+ * task planned or queued with the viewer's request open counts too, as `forViewer` reads it (Codex on #263).
+ */
 const waitingFor = (rows: readonly PlanRow[], viewerId: string | null) =>
   viewerId === null
     ? []
     : LANES.flatMap((l) => inLane(rows, l.key))
-        .filter((r) => r.status.mark === 'waiting' && r.status.on?.id === viewerId)
+        .filter((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId))
         .map((r) => ({ id: r.item.id, name: r.item.purpose }))
 
 /**
@@ -731,12 +734,17 @@ function useNextUp(
   const next = shown
     ? nextUp({ answered, decisions: slot.asks.mine, waiting: waitingFor(rows, viewerId), review })
     : null
+  // The line moves on once the answer is recorded: conflict, denied, expired or unknown keep the decision the one to
+  // answer, and the line says nothing yet (Codex on #263).
   const decide =
     onDecide &&
-    ((answer: DecisionAnswer) => {
-      setAnswered((was) => [...was, answer.decision_id])
-      setShown(true)
-      return onDecide(answer)
+    (async (answer: DecisionAnswer) => {
+      const said = await onDecide(answer)
+      if (said === 'recorded') {
+        setAnswered((was) => [...was, answeredKey(answer.decision_id, answer.revision)])
+        setShown(true)
+      }
+      return said
     })
   const close = () => setShown(false)
   const go = () => {
