@@ -26,17 +26,22 @@ commits on the branch merge its base forward or touch only this record). 10 file
 
 ## Evidence
 
-- Lint (type-aware) and typecheck clean. No pure logic beyond the arrival: no node test.
-- `e2e/ask-instead.spec.ts` (2) written; not run locally: the machine guard refused Playwright while AION2 was open. A
+- `new-conversation.test.ts` (10, two new: the words fitted to a question's limit; never half a character at the
+  cut): pass. Lint (type-aware) and typecheck clean.
+- `e2e/ask-instead.spec.ts` (3: Knowledge finding nothing; Search finding nothing; the form already open takes
+  Search's words with the focus) written; not run locally: the machine guard refused Playwright while AION2 was open. A
   headless probe read both: Knowledge «No reports match these filters.» with the press, then the form with «zebra
   crossings in the north», Sophia asked, the focus inside; Search «Nothing in this project matches…» with the press,
   the sheet gone, the same form. CI is the run on record.
+- CI on the stack's tip `4020b4ba` (#268, which holds this branch), run 38302673542: all six jobs green, the
+  browser job with `ask-instead.spec.ts`; «Live auth on local Supabase» after one rerun of that job, its first try refused by
+  Docker Hub's rate limit before any test ran.
 - Capture `evaluacion-2026-10-12/inteligencia/ask-instead-knowledge.png`.
 
 ## Remaining obligations
 
-- Watch CI for `ask-instead.spec.ts`; the independent review (Codex) with no P1/P2 before merge. The base is
-  `ui/same-question` until #266 merges.
+- CI watched: green on the tip (above). The independent review (Codex) with no open P1 before merge; its P2s go to
+  follow-ups. The base is `ui/same-question` until #266 merges.
 
 ## Next bounded action
 
@@ -55,3 +60,9 @@ like a decision offers «Propose as decision»).
 - With the form already open, Search's words land in its question and the question takes the focus, two frames on,
   after the closing sheet has handed the focus back to its opener (`focusQuestion`); ask-instead.spec reads it, and it
   fails without the change.
+
+## Post-review, round 3 (Codex on #267)
+
+- `92729a69`: the question is cut at whole characters (`fitQuestion` walks graphemes with `Intl.Segmenter`), so an
+  emoji or a joined sequence crossing the limit is left out whole, never half; `new-conversation.test.ts` holds it.
+- This record's counts and CI result brought to the final branch (as Codex asked of #266's, P1 4251947535).
