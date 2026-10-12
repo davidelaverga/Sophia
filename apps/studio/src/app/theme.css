@@ -4990,7 +4990,7 @@ button.contribution-quote:hover {
   margin: 0;
   color: var(--text-2);
   font: 500 var(--type-small) / var(--lh-small) var(--mono);
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em; /* the token's (docs/plans/eyebrows.md): Updates had a third more */
   text-transform: uppercase;
 }
 .updates-part > .recap-section h4 {

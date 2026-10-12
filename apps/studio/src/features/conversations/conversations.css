@@ -483,8 +483,9 @@
   text-align: center;
   margin: 10px 0 16px;
   color: var(--text-2);
+  /* A date: data at the label size (Codex on #241), in the eyebrows' tracking (docs/plans/eyebrows.md). */
   font: var(--type-label) / var(--lh-small) var(--mono);
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 .conv-msg-by {
