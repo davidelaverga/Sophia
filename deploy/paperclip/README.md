@@ -156,7 +156,10 @@ local forward above. Over loopback, in the service's shell:
    "isLocalPath": true}`.
 6. Configure it for the company (`POST /api/plugins/<id>/config`).
 
-The plugin reconciles the managed `source-reviewer` agent at the first commission.
+The plugin reconciles the managed `source-reviewer` agent at a company's first commission, one request at a time: the
+pin's reconcile is not atomic, so it is asked for only under the company's provisioning claim
+(`002_reviewer_provisioning.sql`), and a first commission that meets the claim answers 503, which Sophia's worker
+reconciles and sends again. Once the host bound the reviewer, commissions read it without a claim.
 
 **Secrets (the service's secret store; names only).**
 
@@ -177,7 +180,7 @@ Sophia's signing private key and the integration board key never enter Paperclip
   carries it at that path. A restart reloads it from there (`loadAll`).
 - An upgrade is a new image. The host then re-reads the manifest and re-applies the plugin's migrations by checksum,
   so `001_sophia_coordination.sql` must never change once a service has installed it: a later schema change is a new
-  file.
+  file (`002_reviewer_provisioning.sql` is one).
 - The adapter's record is rewritten at every start.
 
 **Fencing a previous instance.** A status write that the host never answered stays open until an operator fences
@@ -185,7 +188,9 @@ it ([WBC-02-CC-0009](../../docs/coordination/WBC-02/WBC-02-CC-0009.md)). Meanwhi
 confirmed, and every settlement still restores Sophia's latest control if the write lands. An issue create the host
 never answered likewise keeps its commission key claimed until it is fenced: Sophia's lookup answers 503 and no second
 create begins, however long it takes. A wakeup ask the host never answered is not asked again until a run confirms it
-or it is fenced. The plugin never fences any of them itself. A statement the instance had sent can wait in its database session and commit after the instance died
+or it is fenced. A reconcile of the managed reviewer the host never answered keeps its company's provisioning claimed:
+until the reviewer it bound is there, or the claim is fenced, that company's first commissions answer 503. The plugin
+never fences any of them itself. A statement the instance had sent can wait in its database session and commit after the instance died
 (Codex's WBC-02-CX-0024; `packages/paperclip-plugin/src/operator-fence.db.test.ts` reproduces it with a killed
 client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance.sql), run by an operator:
 
@@ -198,17 +203,30 @@ client). So the fence is [`fence-previous-instance.sql`](fence-previous-instance
    psql "$PAPERCLIP_DATABASE_URL" -v before='<T>' -v operator='<who, which deploy>' -f fence-previous-instance.sql
    ```
 
-   The script lists the open writes, creates and wakeup asks begun before T, then ends every session of that role
-   begun before T. Ending a session rolls back what it had not committed. It fences them only while none of those
-   sessions remains: if it reports `UPDATE 0` with any still listed, run it again.
+   The script lists the open writes, creates, wakeup asks and reviewer provisionings begun before T, then ends every
+   session of that role begun before T. Ending a session rolls back what it had not committed. It fences them only
+   while none of those sessions remains: if it reports `UPDATE 0` with any still listed, run it again.
 
 The settle job then settles the fenced writes within a minute. Never fence while the instance that served them may
 still run.
 
 **Rollback.** Redeploy the previous image digest. Plugin and adapter come from that image, and the database keeps the
-plugin's namespace, whose migration files the previous image also carries unchanged. To stop coordination without
-Paperclip, disable the plugin (`POST /api/plugins/<id>/disable`) or stop the service. Sophia keeps every record, and
-an unknown delivery is reconciled by its key. The database is separate: dropping it is D4's operator's choice.
+plugin's namespace, whose migration files the previous image also carries unchanged. An image from before
+`002_reviewer_provisioning.sql` is not a target while commissions can reach it: its plugin reconciles the managed
+reviewer without a claim, so two first commissions of a company at once leave two live reviewers again. Before rolling
+back to such an image, stop coordination and drain it:
+
+1. Stop new work and deliveries: `set_coordination_grant(<project>, 'disabled', …)` and remove the Sophia worker's
+   coordination variables (pending deliveries wait in Sophia's outbox; see Rollback below).
+2. Disable the plugin (`POST /api/plugins/<id>/disable`), so no commission reaches its routes.
+3. Then redeploy the older digest, and keep coordination stopped while it runs: the grant disabled, the worker
+   variables absent and the plugin disabled.
+4. Resume only on a repaired image that passed its qualification, never on the older one.
+
+That an older image loads, with this table left in place and unused (the pin applies only the files a package carries,
+`server/src/services/plugin-database.ts`), is schema compatibility, not safe concurrency. To stop coordination without
+Paperclip, disable the plugin (`POST /api/plugins/<id>/disable`) or stop the service. Sophia keeps every record, and an
+unknown delivery is reconciled by its key. The database is separate: dropping it is D4's operator's choice.
 
 **Qualification, on a local stack (`scripts/paperclip-service-probe.mjs`).** The pin's server is built as its own build
 stage builds it and started by `start.sh` with the image's environment, on a throwaway database and home. The results
@@ -255,4 +273,6 @@ The batch, its targets and costs are in [WBC-02-CC-0005](../../docs/coordination
 - Code: the previous API, worker and Studio run on `0042` unchanged. `0042` itself stays (no down migration); its
   tables are idle without a grant.
 - Paperclip: uninstall the plugin and the adapter, or stop the service. Sophia's records stay authoritative; a
-  commission whose delivery is unknown is reconciled by its key, never created twice.
+  commission whose delivery is unknown is reconciled by its key, never created twice. An image from before
+  `002_reviewer_provisioning.sql` runs only with coordination stopped and drained (Rollback, under the service above);
+  commissions resume only on a repaired, qualified image.
