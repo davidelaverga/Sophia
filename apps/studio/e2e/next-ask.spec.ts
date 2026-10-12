@@ -110,3 +110,16 @@ test('next ask · with words written, Tab is Tab: the field keeps them and the f
   await expect(field(page)).toHaveValue('a')
   await expect(field(page)).not.toBeFocused()
 })
+
+test('next ask · the field’s description says why too, for the keyboard and a screen reader (Codex on #262)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await askAndWait(page, 'Sum it up')
+  await expect(field(page)).toHaveAttribute('placeholder', PROPOSAL_ASK)
+  const described = await field(page).evaluate((el) => {
+    const id = el.getAttribute('aria-describedby') ?? ''
+    return id ? (document.getElementById(id)?.textContent ?? '') : ''
+  })
+  expect(described).toContain('Because it is proposed and not decided')
+})
