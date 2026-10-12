@@ -30,6 +30,8 @@ an id this file cannot know before it exists.
 
 - The lead, not the end cluster: hiding the connection pill's words at 1280 would have taken a status away for 13 px;
   two pixels off each side of seven words gives 28 and keeps everything said.
+- After the review (Codex on #259): the 1280 px nav test waits for `document.fonts.ready` and polls its reading, so
+  a fallback face (narrower) or an overflow read a frame late cannot pass or fail it by chance.
 
 ## Remaining obligations
 

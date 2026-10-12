@@ -157,20 +157,23 @@ for (const [name, url] of [
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(url)
     await expect(page.locator('.view-nav a').first()).toBeVisible()
-    const read = await page.evaluate(() => {
-      const nav = document.querySelector('.view-nav')
-      if (!nav) return null
-      const links = [...nav.querySelectorAll('a')]
-      const box = nav.getBoundingClientRect()
-      const first = links[0]?.getBoundingClientRect()
-      const last = links.at(-1)?.getBoundingClientRect()
-      return {
-        fits: nav.scrollWidth <= nav.clientWidth,
-        moreStart: nav.hasAttribute('data-more-start'),
-        moreEnd: nav.hasAttribute('data-more-end'),
-        whole: !!first && !!last && first.left >= box.left - 0.5 && last.right <= box.right + 0.5,
-      }
-    })
-    expect(read).toEqual({ fits: true, moreStart: false, moreEnd: false, whole: true })
+    // Measured once the app's fonts are in (a fallback face is narrower) and the nav has read its own overflow.
+    await page.evaluate(() => document.fonts.ready)
+    const read = () =>
+      page.evaluate(() => {
+        const nav = document.querySelector('.view-nav')
+        if (!nav) return null
+        const links = [...nav.querySelectorAll('a')]
+        const box = nav.getBoundingClientRect()
+        const first = links[0]?.getBoundingClientRect()
+        const last = links.at(-1)?.getBoundingClientRect()
+        return {
+          fits: nav.scrollWidth <= nav.clientWidth,
+          moreStart: nav.hasAttribute('data-more-start'),
+          moreEnd: nav.hasAttribute('data-more-end'),
+          whole: !!first && !!last && first.left >= box.left - 0.5 && last.right <= box.right + 0.5,
+        }
+      })
+    await expect.poll(read).toEqual({ fits: true, moreStart: false, moreEnd: false, whole: true })
   })
 }
