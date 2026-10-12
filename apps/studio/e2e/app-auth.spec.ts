@@ -670,3 +670,18 @@ test('browser-account · at Home the palette and the index know the places’ ke
   await account(page).click()
   await expect(page.getByRole('menuitem', { name: /Keyboard shortcuts/ })).toBeVisible()
 })
+
+test('browser-account · at Home the palette’s veil covers the page, not the bar alone (Codex on #243)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await expect(page.getByRole('dialog', { name: 'Commands' })).toBeVisible()
+  const veil = await page.locator('.palette-veil').boundingBox()
+  const size = page.viewportSize()
+  expect(veil?.height).toBe(size?.height)
+  expect(veil?.width).toBe(size?.width)
+})

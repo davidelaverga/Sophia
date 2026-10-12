@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Need } from '@sophia/contracts'
-import { atOf, clockSkew, needsOf, whereOf } from './needs.ts'
+import { atOf, clockSkew, needsOf, whereOf, withoutResources } from './needs.ts'
 
 const P = '00000000-0000-4000-8000-000000000004'
 
@@ -70,5 +70,16 @@ describe('what needs the person, from the wire', () => {
     assert.equal(clockSkew('2026-10-11T09:00:10Z', received), 10_000)
     assert.equal(clockSkew('2026-10-11T08:59:30Z', received), -30_000)
     assert.equal(clockSkew('not a time', received), 0)
+  })
+})
+
+describe('a need opened in the signed-in app, Resources not served yet (Codex on #245)', () => {
+  it('opens a permission at the task that holds its wait; every other view as it is', () => {
+    assert.deepEqual(withoutResources('resources', { requestId: 'req-1', resourceId: 'r1', taskId: 'w1' }), {
+      view: 'work',
+      at: { taskId: 'w1' },
+    })
+    assert.deepEqual(withoutResources('resources', { requestId: 'req-1' }), { view: 'work', at: {} })
+    assert.deepEqual(withoutResources('work', { decisionId: 'd1' }), { view: 'work', at: { decisionId: 'd1' } })
   })
 })

@@ -28,3 +28,8 @@
   light (`z-index: 0`, the light above); the floor's role at `rgb(150, 83, 40)` reads 4.5:1 or more on the paper; in
   the dark room `.room-stage::before` has no background and the role keeps the warm at 0.85.
 - `pnpm format`, `lint`, `typecheck`; measured in the pane; a headless capture of the room in light for the handoff.
+
+## After the review, round 2 (Codex on #252)
+
+The vignette is `ellipse closest-side`, so the warm reaches each edge's midpoint (0.05) and the corners; the spec
+measures it from a screenshot of the vignette alone.

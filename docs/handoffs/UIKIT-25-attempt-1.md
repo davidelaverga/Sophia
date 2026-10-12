@@ -6,8 +6,15 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/sign-in-lede` from `ui/view-titles` at
 `fb51d281` (stacked on PR #246 → #245 → … → #220; the base retargets as each merges)
-Ending commit/tree: `f5a6cb3b` (tree `78aab7cacafd`): 3 files: `src/app/SignIn.tsx` (the line), `e2e/signin-lede.spec.ts` (new, 3 tests),
-`docs/plans/sign-in-lede.md`. The commit after it adds only this handoff.
+Writable scope: `apps/studio/src/app/SignIn.tsx`, `apps/studio/src/app/auth-words.ts` (+ its test),
+`apps/studio/src/features/light/SophiaLight.tsx` (the screen's rest after the fonts), `apps/studio/e2e/signin-lede.spec.ts`,
+`docs/plans/sign-in-lede.md`, and this handoff.
+Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
+Existing authority: Luis's instructions in this session («Procede», quoted in the plan); merge on green CI with no Codex
+P1, through Luis's merge loop; no deploy, no production data, no comment on Davide's PRs.
+Ending commit/tree: the branch's head as merged (`ui/sign-in-lede`); the first delivery was `f5a6cb3b` (tree
+`78aab7cacafd`, 3 files), then `72d8c8bf` (the words owned by `auth-words.ts`), `8fa956b8` (her attention follows the
+field when the fonts arrive) and the post-review commits below (Codex on #247: the record names the state delivered).
 
 ## Outcome
 
@@ -48,3 +55,16 @@ need Luis's eye on a calibration before code; prepare the comparison, not the PR
 Fixed in `72d8c8bf`: the sentence is owned by `auth-words.ts` (`SIGN_IN_LEDE`, the sign-in's words module) with a node test
 beside the module's others; `SignIn` only renders it, as CONTRIBUTING's Copy rule asks. `signin-lede.spec` keeps its own
 literal, so a change of words is caught twice. Format, lint, typecheck, `auth-words.test.ts`: clean.
+
+## Post-review, round 2 (Codex on #247)
+
+- `8fa956b8` (not recorded before): her attention is aimed again when `document.fonts.ready` resolves and when the body
+  is resized (a `ResizeObserver`), so a late font that reflows the lede never leaves her looking where the field was.
+- Now: the font's callback measures only a field still connected, with a cleanup flag (an email sent while the font
+  loads aims nothing); the screen's rest is decided afresh when the fonts arrive (`useScreenRest`), so a rest lifted
+  only by the fallback's extra line comes down.
+- The plan's «nothing moves» was wrong and is corrected: the title and the light stay, the controls move one line and
+  the gap (34 px) lower.
+- `signin-lede.spec` (+3, and one line asserted at both widths): the 48 px between the title and the providers with the
+  title unmoved; the late font, held by the test and released after the lede reflows, with her attention on the
+  field; at the boundary height, the rest lifted by the fallback and back down when the font arrives.

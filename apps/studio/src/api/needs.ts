@@ -68,6 +68,16 @@ export function atOf(ref: WireNeed['ref']): NeedAt {
   return {}
 }
 
+/**
+ * Where a need opens while the Resources view has nothing served (SignedIn supplies no resources yet, SCM-01/02): a
+ * permission goes to the task that holds its wait, whose sheet names it, never to a view that only says it is coming
+ * (Codex on #245). Every other need opens where it lives.
+ */
+export function withoutResources(view: View, at: NeedAt): { view: View; at: NeedAt } {
+  if (view !== 'resources') return { view, at }
+  return { view: 'work', at: at.taskId ? { taskId: at.taskId } : {} }
+}
+
 /** Where a need lives: the personal space for Sophia's reply (or anything without a project), else its project's view, at the record its ref names. */
 export function whereOf(need: Pick<WireNeed, 'kind' | 'projectId' | 'ref'>): Where {
   if (need.kind === 'reply' || need.projectId === null) return { place: 'personal' }

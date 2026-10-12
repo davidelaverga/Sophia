@@ -3597,3 +3597,64 @@ test('codex · #107 · a cap below a cent, or between cents, starts the allowanc
     expect(await form.evaluate((f) => f instanceof HTMLFormElement && f.checkValidity())).toBe(true)
   }
 })
+
+test('a focused task whose blocker completes moves up next with the focus on it (Codex on #236)', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide`)
+  const blocked = lane(page, 'Blocked').locator('[data-task]').first()
+  await expect(blocked).toBeVisible()
+  const id = (await blocked.getAttribute('data-task')) ?? ''
+  await blocked.focus()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  await expect(lane(page, 'Up next').locator(`[data-task="${id}"]`)).toBeVisible()
+  await expect(page.locator(`[data-task="${id}"]`)).toBeFocused()
+})
+
+test('with a report beside Tasks the lanes follow the narrower board, not the window (Codex on #236)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${PAGE}?viewer=davide`)
+  const lanesBox = board(page).locator('.board-lanes')
+  await expect(lanesBox).toBeVisible()
+  // The board narrowed as a side report narrows it: its container at 692 px.
+  await board(page).evaluate((b) => {
+    b.style.width = '692px'
+  })
+  const columns = await lanesBox.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
+  expect(columns).toBeLessThanOrEqual(1)
+})
+
+test('the sheet’s H works with Caps Lock or Shift, and its controls say H and S in their tips (Codex on #241)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: /^Hold/ }).locator('.tip kbd')).toHaveText('H')
+  await expect(sheet.getByRole('button', { name: /^Stop/ }).first().locator('.tip kbd')).toHaveText('S')
+  // Shift held (or Caps Lock on) gives «H», not «h»: the sheet's key is the letter, whatever its case.
+  await sheet.focus()
+  await page.keyboard.press('Shift+H')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+})
+
+test('a decision named in the address chooses the goal that holds it, another goal shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&goals=6`)
+  await settled(page)
+  const theirs = board(page).locator('[data-decision]').first()
+  await expect(theirs).toBeVisible()
+  const id = (await theirs.getAttribute('data-decision')) ?? ''
+  const first = page.getByRole('tab', { name: /Reports export to PDF reliably/ })
+  // Another goal chosen from the rail: the decision's board is no longer mounted.
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(first).toHaveAttribute('aria-selected', 'false')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(first).toHaveAttribute('aria-selected', 'true')
+  await expect(board(page).locator(`[data-decision="${id}"] .plan-choice:not(:disabled)`).first()).toBeFocused()
+})

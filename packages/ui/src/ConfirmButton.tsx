@@ -1,6 +1,7 @@
 // A button whose action cuts someone off asks first, in place: what will happen, then the choice. Focus goes
 // to the safe answer, so a second Enter never confirms by accident.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Tip } from './Tip.tsx'
 
 interface Props {
   /** The button at rest, e.g. "Turn off link". */
@@ -19,6 +20,10 @@ interface Props {
   /** The confirming button waits, e.g. until that is known. */
   confirmDisabled?: boolean
   onConfirm: () => void
+  /** Its key where one presses it (a task's sheet: S), in its tip as every single-key shortcut is. */
+  keys?: string | undefined
+  /** What it does, in its tip (a goal's Stop: «End the work for good»); the label when only a key is given. */
+  tip?: string | undefined
 }
 
 export function ConfirmButton(props: Props) {
@@ -44,7 +49,7 @@ export function ConfirmButton(props: Props) {
       <button
         ref={rest}
         type="button"
-        className={className}
+        className={props.keys || props.tip ? `${className} has-tip` : className}
         disabled={disabled}
         onClick={() => {
           setAsking(true)
@@ -52,6 +57,7 @@ export function ConfirmButton(props: Props) {
         }}
       >
         {label}
+        {(props.keys || props.tip) && <Tip label={props.tip ?? label} keys={props.keys} side="top" />}
       </button>
     )
   }
