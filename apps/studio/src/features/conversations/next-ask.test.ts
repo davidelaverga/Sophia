@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ConversationMessage } from '../../api/vision.ts'
-import { nextAsk, QUICK_ASKS, quickAsks, sameAsk, threadOf, type AskContext } from './next-ask.ts'
+import { nextAsk, olderAsks, QUICK_ASKS, quickAsks, sameAsk, threadOf, type AskContext } from './next-ask.ts'
 
 const at = (over: Partial<AskContext> = {}): AskContext => ({
   newest: 'sophia',
@@ -108,5 +108,29 @@ describe('the thread, as the next ask reads it', () => {
     assert.deepEqual(threadOf(undefined, 'me'), { newest: null, asked: [] })
     const lucia = { pages: [{ messages: [msg('05', 'member', 'lucia', 'And?')], before: null }], pageParams: [null] }
     assert.deepEqual(threadOf(lucia, 'me'), { newest: 'theirs', asked: [] })
+  })
+})
+
+describe('the next ask, after the review (Codex on #262)', () => {
+  it('keeps what was put away out of the quick asks too', () => {
+    assert.deepEqual(quickAsks([], null, ['What’s still open?']), ['Sum it up', 'What did we decide?'])
+  })
+  it('reads the viewer’s older asks a page at a time, only until six are in', async () => {
+    const pages: Record<string, { messages: ConversationMessage[]; before: string | null }> = {
+      '6': {
+        messages: [msg('b', 'member', 'me', 'b'), msg('x', 'member', 'them', 'x'), msg('c', 'member', 'me', 'c')],
+        before: '3',
+      },
+      '3': { messages: [msg('a', 'member', 'me', 'a'), msg('y', 'member', 'them', 'y')], before: null },
+    }
+    const read: string[] = []
+    const fetch = (before: string) => {
+      read.push(before)
+      return Promise.resolve(pages[before] ?? { messages: [], before: null })
+    }
+    assert.deepEqual(await olderAsks(fetch, '6', 'me', 2), ['b', 'c'])
+    assert.deepEqual(read, ['6'])
+    assert.deepEqual(await olderAsks(fetch, '6', 'me', 3), ['a', 'b', 'c'])
+    assert.deepEqual(await olderAsks(fetch, null, 'me', 3), [])
   })
 })

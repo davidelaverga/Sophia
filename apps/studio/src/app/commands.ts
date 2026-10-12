@@ -69,13 +69,13 @@ export function onCommands(listener: () => void): () => void {
   }
 }
 
-/** Letters and digits, lower, accents folded: "Résumé the brief" → ["resume", "the", "brief"]. */
+/** Letters and digits of any script, lower, accents folded: "Résumé the brief" → ["resume", "the", "brief"]. */
 const wordsOf = (text: string) =>
   text
     .toLowerCase()
     .normalize('NFD')
-    .replaceAll(/[̀-ͯ]/g, '')
-    .split(/[^a-z0-9]+/)
+    .replaceAll(/\p{M}/gu, '')
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((w) => w !== '')
 
 /** How well a command answers the words asked: 0 when a word starts none of its own, else the sum of its hits. */
@@ -99,11 +99,13 @@ function scoreOf(asked: readonly string[], command: Offered): number {
  * the order they came in. Nothing asked: all of them, as they came.
  */
 export function matchCommands(query: string, commands: readonly Offered[]): Offered[] {
-  const asked = wordsOf(query)
   // Nothing asked: every command, in the groups' order (go, view, room, do), each group as registered.
-  if (asked.length === 0) {
+  if (query.trim() === '') {
     return [...commands].toSorted((a, b) => GROUP_ORDER.indexOf(a.group) - GROUP_ORDER.indexOf(b.group))
   }
+  // Something typed that names no word (punctuation alone): nothing matches; it is not a blank query (Codex on #238).
+  const asked = wordsOf(query)
+  if (asked.length === 0) return []
   return commands
     .map((command, at) => ({ command, at, score: scoreOf(asked, command) }))
     .filter((s) => s.score > 0)

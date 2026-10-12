@@ -19,7 +19,10 @@ interface Props {
 
 /** What is typed, what it names, which row is active, and what the keys do. */
 function usePalette({ onClose, onSearch }: Props) {
-  const all = useOffered()
+  // The palette's own command (Commands) is not offered inside it: run, it would close and reopen the same palette with
+  // nothing changed (Codex on #238).
+  const offered = useOffered()
+  const all = useMemo(() => offered.filter((c) => c.id !== 'commands'), [offered])
   const [query, setQuery] = useState('')
   const [at, setAt] = useState(0)
   // What was run last, read once as the palette opens.
@@ -39,9 +42,12 @@ function usePalette({ onClose, onSearch }: Props) {
   }
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.nativeEvent.isComposing) return // an IME's candidate keys are the field's, not the list's (Codex on #238)
+    // Only the field's and the list's keys: a live call's switches over the field take their own Enter (Codex on #238).
+    if (!(e.target instanceof Element) || !e.target.closest('.palette-field, [role="listbox"]')) return
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
-      setAt((was) => Math.min(Math.max(was + (e.key === 'ArrowDown' ? 1 : -1), 0), shown.length - 1))
+      // An empty list keeps the index at its first row, for one arriving meanwhile (Codex on #238).
+      setAt((was) => Math.max(0, Math.min(was + (e.key === 'ArrowDown' ? 1 : -1), shown.length - 1)))
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (active) pick(active)
@@ -76,23 +82,23 @@ function Row({
   )
 }
 
-/** The rows, or the one line when nothing matches. */
+/** The rows; when nothing matches, the list stays (the field controls it) and a status says so (Codex on #238). */
 function Rows({ id, p, canSearch }: { id: string; p: ReturnType<typeof usePalette>; canSearch: boolean }) {
-  if (p.shown.length === 0) {
-    return (
-      <p className="palette-none">
-        {canSearch ? (
-          <>
-            Nothing does that. <kbd>↵</kbd> searches the project instead.
-          </>
-        ) : (
-          'Nothing does that.'
-        )}
-      </p>
-    )
-  }
+  const none = p.shown.length === 0
   return (
-    <ul id={id} className="palette-list" role="listbox" aria-label="Commands">
+    <>
+      <p className={none ? 'palette-none' : 'sr-only'} role="status">
+        {none && (canSearch ? 'Nothing does that. Enter searches the project instead.' : 'Nothing does that.')}
+      </p>
+      <List id={id} p={p} />
+    </>
+  )
+}
+
+/** The listbox the field controls, mounted even while empty. */
+function List({ id, p }: { id: string; p: ReturnType<typeof usePalette> }) {
+  return (
+    <ul id={id} className="palette-list" role="listbox" aria-label="Commands" hidden={p.rows.length === 0}>
       {p.rows.map((row, i) => (
         <Row
           key={row.command.id}
