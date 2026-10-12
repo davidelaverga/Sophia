@@ -6,11 +6,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { EmptyState, Search as SearchField, Segmented, Skeleton } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { useClock } from './clock.ts'
-import { linkedId, showInAddress } from './link.ts'
+import { linkedId, REQUEST, requestOf, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
 import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
+import { useAddressed } from './useAddressed.ts'
 import type { EffortAsk } from './change.ts'
 import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceSheet.tsx'
 import { glance, readSeen, whileAway, writeSeen, type Seen } from './away.ts'
@@ -343,12 +344,45 @@ function useViewClock(given: Props): Date {
   return now
 }
 
+/** The request's row, once the sheet has drawn it (a frame or a few after its resource opened): it takes the focus. */
+function focusRequest(id: string, tries = 10): void {
+  const row = document.querySelector<HTMLElement>(`[data-request="${CSS.escape(id)}"]`)
+  if (row) row.focus()
+  else if (tries > 0) requestAnimationFrame(() => focusRequest(id, tries - 1))
+}
+
+/**
+ * A request named in the address (`#request-<id>`, from Home's «needs you», needs-api.md): its resource's sheet opens
+ * and the request takes the focus, once per address; the address is the sheet's from then on. A request not among
+ * those read opens nothing, and the address is kept for when it is.
+ */
+function useAddressedRequest(
+  actions: readonly RequiredAction[],
+  resources: readonly Resource[],
+  setOpen: (id: string | null) => void,
+) {
+  const named = useAddressed(REQUEST)
+  const handled = useRef(-1)
+  useEffect(() => {
+    if (handled.current === named.seq || !named.id) return
+    // By the request and its resource when the address names both (Codex on #245).
+    const { resourceId, requestId } = requestOf(named.id)
+    const action = actions.find((a) => a.id === requestId && (resourceId === null || a.resourceId === resourceId))
+    if (!action || !resources.some((r) => r.id === action.resourceId)) return
+    handled.current = named.seq
+    setOpen(action.resourceId)
+    showInAddress(action.resourceId)
+    requestAnimationFrame(() => focusRequest(action.id))
+  }, [named, actions, resources, setOpen])
+}
+
 export function ResourcePanel(given: Props) {
   const now = useViewClock(given)
   const props = { ...given, now }
   const { resources, observations, actions, viewerId } = props
   // The address's resource is kept until the resources are read; it opens when it is among them.
   const [open, setOpen] = useState<string | null>(() => linkedId(window.location.hash))
+  useAddressedRequest(actions, resources, setOpen)
   const selected = resources.find((r) => r.id === open)
   const show = (id: string | null) => {
     setOpen(id)

@@ -30,7 +30,7 @@ import {
   idOf,
 } from './data.ts'
 import { missionWritten } from './mission-writes.ts'
-import { DEMO, DEMO_ORIGINS } from './demo.ts'
+import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -342,13 +342,74 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
   })
 }
 
+/** A need's ref, with the record that holds it when the address needs it: a version's report, a decision's work item. */
+const needRef = (kind: string, id: string, within: string | null = null, resourceId: string | null = null) => ({
+  kind,
+  id,
+  within,
+  resourceId,
+})
+
+/** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
+export function needsAnswer(now = Date.now()) {
+  const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString()
+  const here = { projectId: PROJECT, projectTitle: PROJECT_NAME }
+  const need = (id: string, kind: string, title: string, over: Record<string, unknown>) => ({
+    id,
+    kind,
+    title,
+    ...here,
+    expiresAt: null,
+    detail: null,
+    ...over,
+  })
+  return {
+    readAt: new Date(now).toISOString(),
+    needs: [
+      need('permission:wait-w1', 'permission', 'Claude Code asks to run the export tests', {
+        // A wait has no expiry (A13): a permission says how long it has waited instead.
+        detail: 'Asked 10 min ago',
+        at: at(-10),
+        // The wait by its request (A13's reference, the request Resources lists), the work item that holds it, and
+        // the resource whose tool holds the request.
+        ref: needRef('work_wait', 'action-1', '00000000-0000-4000-8000-0000000000c1', 'davide-claude'),
+      }),
+      need('guest:g1', 'guest', 'Marco Pereira is in the lobby', {
+        detail: 'Waiting 2 min',
+        at: at(-2),
+        ref: needRef('lobby_entry', 'g1'),
+      }),
+      need('decision:d1', 'decision', 'Ship the retry with the hotfix?', {
+        expiresAt: at(20),
+        at: at(-60),
+        ref: needRef('work_decision', 'd1', '00000000-0000-4000-8000-0000000000c3'), // the work item that holds it
+      }),
+      need('reply:t9', 'reply', 'Sophia replied about the launch date', {
+        projectId: null,
+        projectTitle: null,
+        detail: 'Yesterday',
+        at: at(-1440),
+        ref: needRef('personal_turn', 't9'),
+      }),
+    ],
+  }
+}
+
+/** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
+function ownRead(project: Project, url: URL) {
+  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
+  return undefined
+}
+
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
-  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  const own = ownRead(project, url)
+  if (own !== undefined) return own
   const reviews = REVIEWS_OF.exec(url.pathname)
   if (reviews?.[2]) return reviewsRead(project, reviews[2])
   const tasksOf = TASKS_OF.exec(url.pathname)?.[1]

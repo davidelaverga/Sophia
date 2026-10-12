@@ -8,6 +8,7 @@
 // action taken,
 // as "open <id>", "join <id>", "back <id>", "work", "new project", "unlock", "say <words>", "need <id>". `needs=some|none`: what
 // needs you on the right (the vision flag; the demo's some); absent, the Studio's own Home, her light alone.
+import { requestAddress } from '../src/features/resources/link.ts'
 import '@fontsource-variable/geist/wght.css'
 import '@fontsource-variable/geist-mono/wght.css'
 import type { ProjectSummary } from '@sophia/contracts'
@@ -30,18 +31,45 @@ import { DEMO, DEMO_LABEL, HOME_PROJECT } from './demo.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
 import { bootTheme } from '../src/app/theme.ts'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useNeeds } from '../src/features/personal/useNeeds.ts'
+import { turnShown } from '../src/features/personal/turn-shown.ts'
+import { needsAnswer } from './fixture-api.ts'
 
 declare global {
   interface Window {
-    homeFixture?: { pressed: string[]; hear: () => void; landing: () => string | null }
+    homeFixture?: {
+      pressed: string[]
+      hear: () => void
+      landing: () => string | null
+      needsReads: () => number
+      /** `needsFail=1`: the route fails until this is called (the service back), so Try again can be seen to work. */
+      recover: () => void
+      /** The service goes away after a good read: every read from now on fails, the rows read last are kept. */
+      breakNeeds: () => void
+      /** The service refuses the person from now on (403): what was read before is not shown any more. */
+      refuseNeeds: () => void
+    }
   }
 }
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 const pressed: string[] = []
+/** How many times the needs' route was read (`needs=api`): none behind a shut padlock. */
+let needsReads = 0
 window.homeFixture = {
   pressed,
+  needsReads: () => needsReads,
+  recover: () => {
+    failing = null
+  },
+  breakNeeds: () => {
+    failing = 503
+  },
+  refuseNeeds: () => {
+    failing = 403
+  },
   hear: () => HeardRecognition.listening?.hear(),
   // Where the focus lands on the way back from Personal (focus.ts): an element's id, else its tag.
   landing: () => {
@@ -140,6 +168,44 @@ const NEEDS: Record<string, Need[] | undefined> = {
   none: [],
 }
 const needs = VISION ? NEEDS[query.get('needs') ?? (DEMO ? 'some' : '')] : undefined
+/**
+ * `needs=api`: the Studio's own read of GET /api/v1/me/needs (api/needs.ts), answered here as the fixture's API would;
+ * its seen write (POST …/needs/<id>/seen) is recorded as "seen <id>" and that need leaves the next answer.
+ */
+const viaApi = query.get('needs') === 'api'
+/** `needsFail=1`: every read of the route fails (503) until `homeFixture.recover()`, so Home's note and its Try again can be checked. */
+let failing: number | null = query.get('needsFail') === '1' ? 503 : null
+if (viaApi) {
+  const real = window.fetch.bind(window)
+  const seen = new Set<string>()
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const { pathname } = new URL(url, window.location.href)
+    const marked = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(pathname)
+    if (marked && init?.method === 'POST') {
+      const needId = decodeURIComponent(marked[1] ?? '')
+      seen.add(needId)
+      pressed.push(`seen ${needId}`)
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    if (pathname === '/api/v1/me/needs') {
+      needsReads += 1
+      if (failing !== null) {
+        const error =
+          failing === 403
+            ? { code: 'forbidden', message: 'Not permitted' }
+            : { code: 'dependency_unavailable', message: 'The service is away' }
+        const body = JSON.stringify({ error })
+        return Promise.resolve(new Response(body, { status: failing, headers: { 'content-type': 'application/json' } }))
+      }
+      const answer = needsAnswer()
+      const body = JSON.stringify({ ...answer, needs: answer.needs.filter((n) => !seen.has(n.id)) })
+      return Promise.resolve(new Response(body, { headers: { 'content-type': 'application/json' } }))
+    }
+    return real(input, init)
+  }
+}
+const client = new QueryClient()
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
 // The demo's Personal: its last words minutes ago, as Home's «Continue» says them.
@@ -200,10 +266,58 @@ Reflect.set(globalThis, 'SpeechRecognition', HeardRecognition)
 
 /** Words handed to Sophia's conversation, as Places hands them (it opens Personal and its composer sends them). */
 const say = (text: string) => pressed.push(`say ${text}`)
+/** A need opened in a project: the view, the project, and the record's address (a request's, a decision's own, or its task's). */
+const openPress = (
+  view: string,
+  projectId: string,
+  where: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string },
+) =>
+  `open ${view} ${projectId}${
+    where.requestId
+      ? ` #request-${requestAddress(where.resourceId ?? null, where.requestId)}`
+      : where.decisionId
+        ? ` #decision-${where.decisionId}`
+        : where.taskId
+          ? ` #task-${where.taskId}`
+          : ''
+  }`
+
+/** A personal log for the check of the seen mark: `log`, thirty turns in a short scrollport, the named reply (t9) the last, below the fold; `hidden`, the same under `hidden`. */
+const TURNS = query.get('turns')
+
+function FixtureLog({ hidden }: { hidden: boolean }) {
+  return (
+    <div className="msgs fixture-log" hidden={hidden} style={{ height: 120, overflow: 'auto' }}>
+      {Array.from({ length: 30 }, (_, i) => (
+        <div key={i} className="msg" data-turn={i === 29 ? 't9' : `t-${String(i)}`} style={{ height: 40 }}>
+          turn {i}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The fixture's personal space: with a log on the page (`turns=log|hidden`) the real watch decides, as it does in the
+ * app; without one it is taken to show every turn it names. A hidden log gives up soon, for the check.
+ */
+const personalShown = (turnId: string | null) =>
+  TURNS && turnId ? turnShown(turnId, TURNS === 'hidden' ? { within: 400 } : {}) : Promise.resolve(true)
 
 /** Home, with a way to step away from it (as going to another place does), for the checks of what stops out of sight. */
 function Home() {
   const [away, setAway] = useState(query.has('away'))
+  const fromApi = useNeeds(
+    'fixture-token',
+    {
+      project: (projectId, view, where) => pressed.push(openPress(view, projectId, where)),
+      personal: (turnId) => {
+        pressed.push('personal')
+        return personalShown(turnId)
+      },
+    },
+    { enabled: viaApi, locked },
+  )
   return (
     <div className="places" data-place="home">
       {/* The check's own control: not part of a demo's recording. */}
@@ -212,6 +326,7 @@ function Home() {
           {away ? 'Back to Home' : 'Leave Home'}
         </button>
       )}
+      {TURNS && <FixtureLog hidden={TURNS === 'hidden'} />}
       <div className="c-home" data-place-view="home" hidden={away}>
         <Welcome
           hello={greeting(NOW.getHours(), null, false)}
@@ -219,7 +334,13 @@ function Home() {
           date={dateLine(NOW)}
           says={sophiaSays(projects, NOW, call)}
           you={you}
-          reads={set === 'failed' ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }] : []}
+          reads={
+            set === 'failed'
+              ? [{ state: 'failed', failed: READ_FAILED.projects, retry: () => undefined }]
+              : fromApi.read
+                ? [fromApi.read]
+                : []
+          }
           projects={projects}
           loadingProjects={set === 'loading'}
           now={NOW}
@@ -227,7 +348,9 @@ function Home() {
           count={workCount(projects)}
           locked={locked}
           hidden={away}
-          needs={needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined}
+          needs={
+            fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
+          }
           actions={{
             personal: () => pressed.push('personal'),
             notes: () => pressed.push('notes'),
@@ -251,6 +374,8 @@ createRoot(root).render(
     <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
       {DEMO ? DEMO_LABEL : 'Simulated — Home over labelled projects, no account'}
     </p>
-    <Home />
+    <QueryClientProvider client={client}>
+      <Home />
+    </QueryClientProvider>
   </StrictMode>,
 )

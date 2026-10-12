@@ -6,7 +6,7 @@ import { TaskCard } from '../conversation/TaskCard.tsx'
 import { workHeading } from '../conversation/conversation-view.ts'
 import { GoalTabs } from './GoalTabs.tsx'
 import { GoalCard } from './GoalCard.tsx'
-import { TASK } from '../resources/link.ts'
+import { DECISION, TASK } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import { moving } from '../resources/motion.ts'
 import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
@@ -21,6 +21,8 @@ export interface GoalPlan {
   next?: React.ReactNode
   /** Its tasks' ids: an address naming one of them (`#task-<id>`) chooses this goal. */
   tasks?: readonly string[]
+  /** Its decisions' ids: an address naming one (`#decision-<id>`, from Home) chooses this goal too (Codex on #245). */
+  decisions?: readonly string[]
   /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
   attention?: boolean
 }
@@ -44,6 +46,10 @@ interface Props {
 /** The goal whose plan has a task, by its id; undefined when none has. */
 const goalOf = (plans: Props['plans'], task: string | null) =>
   task ? Object.entries(plans ?? {}).find(([, p]) => p.tasks?.includes(task))?.[0] : undefined
+
+/** The goal whose plan holds a decision, by its id; undefined when none does. */
+const goalOfDecision = (plans: Props['plans'], decision: string | null) =>
+  decision ? Object.entries(plans ?? {}).find(([, p]) => p.decisions?.includes(decision))?.[0] : undefined
 
 type Goal = Snapshot['goals'][number]
 
@@ -92,6 +98,13 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
   // arrive, and each time a link is followed. A goal chosen from the rail holds until the address is followed again.
   const named = useAddressed(TASK)
   const [chosen, setChosen] = useState<{ id: string; seq: number } | null>(null)
+  // A decision named in the address chooses its goal, so its board is mounted to open it (the board's own slot); the
+  // choice holds after the board lets the address go, as a goal chosen from the rail does (Codex on #245).
+  const decided = useAddressed(DECISION)
+  const decidedGoal = goalOfDecision(plans, decided.id)
+  useEffect(() => {
+    if (decidedGoal) setChosen({ id: decidedGoal, seq: named.seq })
+  }, [decidedGoal, decided.seq, named.seq])
   const goal = (chosen?.seq === named.seq ? chosen.id : null) ?? goalOf(plans, named.id)
   const shown = tabbed.length > 1 ? (tabbed.find((g) => g.id === goal) ?? tabbed[0]) : null
   const anyPlan = Object.keys(plans ?? {}).length > 0

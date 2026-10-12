@@ -106,6 +106,7 @@ function slotOf(goal: GoalView, { board, people, viewerId, now, ports }: Shared)
     tab: <PlanTab goal={goal} resources={NO_RESOURCES} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
+    decisions: goal.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, goal.decisions, viewerId, now),
   }
 }

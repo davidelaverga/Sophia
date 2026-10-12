@@ -396,6 +396,41 @@ test('five lanes under 1221 px stand three and two, each 220 and up; a thread fo
   expect(onEdge, `${JSON.stringify(end)} on ${JSON.stringify(to)}`).toBe(true)
 })
 
+test('a decision named in the address (#decision-, from Home) is scrolled to and its first choice takes the focus', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material`) // Davide decides: his decision stands on the board
+  await settled(page)
+  const asked = board(page).locator('[data-decision]').first()
+  await expect(asked).toBeVisible()
+  const id = (await asked.getAttribute('data-decision')) ?? ''
+  expect(id).not.toBe('')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  // The focus lands on its first open choice; the address lets the decision go once it is reached.
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
+  await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('')
+  // Handled once: the focus moved on stays where it went (the address is not read again on a later render).
+  await page.keyboard.press('Tab')
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  await page.waitForTimeout(400)
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).not.toBeFocused()
+  // With the slot shut, the address opens it: the pill shuts the decisions, the address names one again, they show.
+  await board(page).locator('.decision-pill').first().click()
+  await expect(board(page).locator('[data-decision]')).toHaveCount(0)
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(asked.locator('.plan-choice:not(:disabled)').first()).toBeFocused()
+})
+
 test('a full lane shows five and keeps the rest one press away', async ({ page }) => {
   await page.goto(`${PAGE}?many=1`) // six more after the retry: Blocked holds seven
   const held = lane(page, 'Blocked')
@@ -3578,6 +3613,28 @@ test('the sheet’s H works with Caps Lock or Shift, and its controls say H and 
   await sheet.focus()
   await page.keyboard.press('s')
   await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
+})
+
+test('a decision named in the address chooses the goal that holds it, another goal shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&goals=6`)
+  await settled(page)
+  const theirs = board(page).locator('[data-decision]').first()
+  await expect(theirs).toBeVisible()
+  const id = (await theirs.getAttribute('data-decision')) ?? ''
+  const first = page.getByRole('tab', { name: /Reports export to PDF reliably/ })
+  // Another goal chosen from the rail: the decision's board is no longer mounted.
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(first).toHaveAttribute('aria-selected', 'false')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(first).toHaveAttribute('aria-selected', 'true')
+  await expect(board(page).locator(`[data-decision="${id}"] .plan-choice:not(:disabled)`).first()).toBeFocused()
 })
 
 test('the sheet’s H is not pressed while the meeting’s recap covers it (Codex P1 on #241)', async ({ page }) => {

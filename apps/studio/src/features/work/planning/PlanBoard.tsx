@@ -17,7 +17,7 @@
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EmptyState, Icon } from '@sophia/ui'
-import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
+import { DECISION, linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
 import type { QuotaObservation, Resource } from '../../resources/resource.ts'
 import { answers, SearchQuery } from '../TaskSearch.tsx'
@@ -406,6 +406,19 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
   // The decisions shown take the slot: a decision of the viewer's arriving while the card is open takes its place.
   const decisionsShown = asks.shown && asks.open.length > 0
   const reviewShown = review !== null && openId === review.review_id && !decisionsShown
+  // A decision named in the address (`#decision-`, from Home's «needs you»): the slot opens on it and names it for the
+  // focus (Decisions gives it to the first choice of that decision, in this board's own list), once per address (the
+  // sequence is kept: replaceState fires no hashchange), then the address lets it go (Codex on #245).
+  const named = useAddressed(DECISION)
+  const handled = useRef(-1)
+  useEffect(() => {
+    if (handled.current === named.seq || !named.id || !asks.open.some((d) => d.decision_id === named.id)) return
+    handled.current = named.seq
+    setOpenId(null)
+    setFocus(named.id)
+    if (!asks.shown) asks.toggle()
+    showInAddress(null, DECISION)
+  }, [named, asks])
   // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
   const wasShown = useRef(reviewShown)
   useEffect(() => {
