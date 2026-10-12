@@ -5,7 +5,13 @@
 // Start sends the same intent again under its key, never a second conversation. Cancel puts the form away.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, type RefObject } from 'react'
-import { startConversation, type ConversationAsk, type ConversationStarted } from '../../api/vision.ts'
+import { Icon } from '@sophia/ui'
+import {
+  startConversation,
+  type ConversationAsk,
+  type ConversationStarted,
+  type ConversationSummary,
+} from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -13,7 +19,8 @@ import { writeFailure } from './ConversationComposer.tsx'
 import { firstWords } from './conversation-list.ts'
 import { contextQuery } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
-import { askOf, startable, startersOf } from './new-conversation.ts'
+import { askOf, sameQuestion, startable, startersOf } from './new-conversation.ts'
+import { sameQuestionLine } from './same-question-view.ts'
 
 /** How long a conversation's question may be. */
 export const QUESTION_MAX = 120
@@ -31,6 +38,10 @@ interface Props {
   onRefused: (words: string | null) => void
   onStarted: (started: ConversationStarted, ask: ConversationAsk) => void
   onCancel: () => void
+  /** The conversations here, for the one that already asks the question (docs/plans/same-question.md). */
+  conversations: readonly ConversationSummary[]
+  /** Opens one of them instead of starting another. */
+  onOpenExisting: (conversationId: string) => void
 }
 
 /** The start's write: the held intent again, or the form's words as a new one. */
@@ -74,6 +85,8 @@ export function NewConversation(props: Props) {
   // On its way past a few seconds, the Studio's slow note.
   const slow = useSlow(busy)
   const said = words ?? (slow ? SLOW_NOTE : null)
+  // Not while held: its words are on their way, and the conversation they start is not «another» yet.
+  const same = fixed ? null : sameQuestion(shown.title, props.conversations)
   return (
     <form
       className="conv-new"
@@ -90,6 +103,7 @@ export function NewConversation(props: Props) {
         fixed={fixed}
         starters={fixed ? [] : starters}
         onChange={(change) => onFields({ ...fields, ...change })}
+        same={same && { title: same.title, open: () => props.onOpenExisting(same.id) }}
       />
       <div className="conv-compose-acts">
         <button type="submit" className="pill" aria-disabled={!ready || busy || undefined}>
@@ -123,6 +137,8 @@ function Fields(props: {
   fixed: boolean
   starters: readonly string[]
   onChange: (change: Partial<ConversationAsk>) => void
+  /** A conversation here that already asks it, and the press that opens it. */
+  same: { title: string; open: () => void } | null
 }) {
   const { question, shown, fixed, onChange } = props
   return (
@@ -138,6 +154,15 @@ function Fields(props: {
           onChange={(e) => onChange({ title: e.target.value })}
         />
       </label>
+      {props.same && (
+        <p className="conv-same" role="status">
+          {sameQuestionLine(props.same.title).lead}{' '}
+          <button type="button" className="text-button" onClick={props.same.open}>
+            {sameQuestionLine(props.same.title).press}
+            <Icon name="forward" size={12} />
+          </button>
+        </p>
+      )}
       {props.starters.length > 0 && (
         <div className="conv-starters" role="group" aria-label="Start from what’s still open">
           {props.starters.map((s) => (

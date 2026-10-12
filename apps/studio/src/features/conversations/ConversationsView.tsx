@@ -78,6 +78,13 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   })
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
+  // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
+  const openOne = (id: string, fromForm = false) => {
+    start.close()
+    choose(id)
+    panes.show()
+    if (fromForm) start.arrive(id)
+  }
   return (
     <section
       ref={panes.view}
@@ -97,13 +104,16 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         start={writer ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
-        onOpen={(id) => {
-          start.close()
-          choose(id)
-          panes.show()
-        }}
+        onOpen={openOne}
       />
-      {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
+      {start.starting && (
+        <NewConversation
+          {...{ projectId, identity }}
+          {...start.form}
+          conversations={all}
+          onOpenExisting={(id) => openOne(id, true)}
+        />
+      )}
       {shown && <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes }} />}
       <ProjectContext
         {...{ projectId, identity, cursor }}
@@ -447,6 +457,8 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     starting,
     arrived,
     clearArrived,
+    /** The conversation opened from the form takes the focus on its title, as a started one does. */
+    arrive: setArrived,
     button,
     toggle: () => (starting ? cancel() : setForm(true)),
     close: () => setForm(false),
