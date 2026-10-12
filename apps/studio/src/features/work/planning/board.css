@@ -590,6 +590,24 @@
   align-items: center;
   gap: 8px 12px;
 }
+/* Next up (docs/plans/next-up.md): one line under the bar after an answer; its press a text press with an arrow, in the
+   halo's ink, as a way on. */
+.next-up {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-body);
+  line-height: var(--lh-body);
+}
+.next-up .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--halo-text);
+  font-size: var(--type-body);
+}
+.next-up .text-button:hover {
+  color: var(--text);
+}
 .board-lens {
   width: fit-content;
 }
