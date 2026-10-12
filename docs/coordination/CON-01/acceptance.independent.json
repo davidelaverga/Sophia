@@ -1264,7 +1264,20 @@
       "joint_source_handback": "Existingownerthreadnotified; actualPhaseAacceptance/nextbase/window stillnotreturned. SeparateSupabaserecoveryoperationnotrepeated/notCONauthority."
     },
     "pending_product_policy": "D1/D3/Q1 conversation-text-v1 for synthetic cohort explicitly asked of Davide; no answer observed. Team-visible submitted savedtext/project-lifetime-untilwithdrawal; own-authorwithdrawal/adminwholeerase, stricterorgwins, browser-memorydrafts, backup/providerlimits. Noactivationauthority from proposal.",
-    "next": "Recheck exact returned two author replies/map citation; actual Luis/joint/core/ledger handbacks then agreedcombined source and affected qualification; no effectapproval request before exact reviewable batches."
+    "next": "ActualLuis/joint/core/ledgerhandbacks and ownerpolicyanswer, thenagreedcombinedsourcequalification and separatelyreviewableeffectbatches",
+    "PR199_map_correction": {
+      "receipt": 6116376138,
+      "map": "b353f6b754286f7dbf3de575e6a4cfcf8a31a270",
+      "tree": "eb0f27ab1a0e08a463410d210f9815f199ec700f",
+      "sha256": "6cb9fb0fcf841b9ec4ab6ed0d8bfa8d5a5eab424804425e5d4dc517f2d3d7455",
+      "delta": "Onlyintroductionandgate/consumercitationcorrected, independentlyverifiedagainstsource",
+      "actual_replies": {
+        "4244137608": 4238633930,
+        "4244137959": 4238826987
+      },
+      "verdict": "Documentationaccurate; boundedsourcehistoryonly; no threadorG3closure",
+      "additional_tests": "None: docs/repliesonly,noaffectedsourcechange"
+    }
   },
   "historical_header_pin": {
     "candidate_sha": "70771a3738b585b14a2819a8e1d32b8da09cdbeb",

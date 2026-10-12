@@ -59,7 +59,7 @@
     "passed_L1": 3,
     "not_run": 15,
     "verdict_changes": 0,
-    "sha256": "8116e8b521e314f0ceac584cc69d5e64a4a5cc1c5b9037f087c563dd5e1b14e7"
+    "sha256": "374e38a61a7df4e6e0d53563b7353365bcd4fdf0809cb76115d8d7f9f716d55b"
   },
   "operations": {
     "setup": "OP0002r5 draft_not_authorized/notapprovalready",
@@ -81,5 +81,18 @@
   },
   "serving_tuple": "No new live deployment/qualification. Last full tuple observed2026-10-11T12:02:21Z API1e912/runtime6ec/worker039/bridge1e912/Studio manualdpl_2ocn Gitunknown, historical not current proof.",
   "rollback": "No live rollback executed/qualified; preserve governed saved data/withdrawal/uncertainty/allowance. Localfixture stopped and clean checkout restored.",
-  "next": "Recheck exact returned two author replies/map citation; actual Luis/joint/core/ledger handbacks then agreedcombined source and affected qualification; no effectapproval request before exact reviewable batches."
+  "next": "ActualLuis/joint/core/ledgerhandbacks and ownerpolicyanswer, thenagreedcombinedsourcequalification and separatelyreviewableeffectbatches",
+  "closing_recheck": {
+    "receipt": 6116376138,
+    "map": "b353f6b754286f7dbf3de575e6a4cfcf8a31a270",
+    "tree": "eb0f27ab1a0e08a463410d210f9815f199ec700f",
+    "sha256": "6cb9fb0fcf841b9ec4ab6ed0d8bfa8d5a5eab424804425e5d4dc517f2d3d7455",
+    "delta": "Onlyintroductionandgate/consumercitationcorrected, independentlyverifiedagainstsource",
+    "actual_replies": {
+      "4244137608": 4238633930,
+      "4244137959": 4238826987
+    },
+    "verdict": "Documentationaccurate; boundedsourcehistoryonly; no threadorG3closure",
+    "additional_tests": "None: docs/repliesonly,noaffectedsourcechange"
+  }
 }
