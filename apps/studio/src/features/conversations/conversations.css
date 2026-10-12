@@ -891,7 +891,6 @@
     position: relative;
     bottom: auto;
     margin-top: 4px;
-
   }
   /* Another's message sits at the pane's left: three 40 px presses anchored to the row's right would stand far from a
      short bubble under a thumb, so on a touch screen they start at the bubble's left and run right. */

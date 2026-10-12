@@ -490,9 +490,11 @@ function usePanes() {
       const thread = view.current?.querySelector('.conv-scroll')
       if (thread) thread.scrollTop = thread.scrollHeight
       // Pressed from the list a phone now hides (the row with it): the focus goes to the conversation's title, never
-      // to the page. Where the list stays in sight, the row keeps it.
+      // to the page. Where the list stays in sight, the row keeps it. A reader who reached another control before
+      // this frame keeps that focus: the hidden row alone is no longer a reason to move it.
       const pressed = from instanceof HTMLElement && from.closest('.conv-list') ? from : null
-      if (pressed && (document.activeElement === document.body || !pressed.checkVisibility())) {
+      const current = document.activeElement
+      if (pressed && (current === document.body || (current === pressed && !pressed.checkVisibility()))) {
         view.current?.querySelector<HTMLElement>('.conv-head h3')?.focus({ preventScroll: true })
       }
     })
