@@ -25,10 +25,13 @@ interface Props {
   onShow: (view: View) => void
 }
 
+/** The share of the row an end's fade covers (theme.css: the mask's 18 % and 82 %). */
+const FADE = 0.18
+
 /**
- * A row that scrolls keeps its current item in sight and marks the ends that hide more items (data-more-start,
- * data-more-end) for the CSS fade. Both run again when the row or the current item changes size, as when the
- * font arrives after the first layout.
+ * A row that scrolls keeps its current item in sight and clear of the fades, and marks the ends that hide more items
+ * (data-more-start, data-more-end) for the CSS fade. Both run again when the row or the current item changes size, as
+ * when the font arrives after the first layout.
  */
 function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
   useEffect(() => {
@@ -43,17 +46,36 @@ function useScrollRow(ref: RefObject<HTMLElement | null>, current: string) {
       row.toggleAttribute('data-more-end', last !== undefined && last.right > box.right + 1)
     }
     const item = row.querySelector('[aria-current="page"]')
+    // Into sight, and out of a fade: an end that hides more fades 18 % of the row, where the current view must not stand
+    // (Codex on #233: Updates at 1024, in sight but under the fade before Resources), nor a link the keyboard reached.
+    const clear = (el: Element) => {
+      const box = row.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      const fade = box.width * FADE
+      const moreEnd = row.scrollLeft + row.clientWidth < row.scrollWidth - 1
+      const overEnd = r.right - (box.right - fade)
+      const overStart = box.left + fade - r.left
+      if (moreEnd && overEnd > 0) row.scrollLeft += overEnd
+      else if (row.scrollLeft > 0 && overStart > 0) row.scrollLeft -= overStart
+    }
     const settle = () => {
-      item?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      if (item) clear(item)
       mark()
+    }
+    // Only a focus the keyboard brought: a mouse press focuses its link too, and scrolling then would move the link from
+    // under the pointer between press and release, so the click would miss it (Codex on #233).
+    const onFocus = (e: FocusEvent) => {
+      if (e.target instanceof Element && e.target.matches(':focus-visible')) clear(e.target)
     }
     settle()
     row.addEventListener('scroll', mark, { passive: true })
+    row.addEventListener('focusin', onFocus)
     const observer = new ResizeObserver(settle)
     observer.observe(row)
     if (item) observer.observe(item)
     return () => {
       row.removeEventListener('scroll', mark)
+      row.removeEventListener('focusin', onFocus)
       observer.disconnect()
     }
   }, [ref, current])
