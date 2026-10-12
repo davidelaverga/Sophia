@@ -118,7 +118,9 @@ test('acts · two presses overlapping: each write starts in its press, the lates
   await expect(first.getByRole('status')).toHaveCount(1)
 })
 
-test('acts · an earlier write that goes through late is written over with the latest words', async ({ page }) => {
+test('acts · an earlier write that lands late is said on the latest message, whose Copy puts its words back (Codex on #240)', async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     let presses = 0
     window.clipWrites = []
@@ -147,10 +149,15 @@ test('acts · an earlier write that goes through late is written over with the l
   const writes = await page.evaluate(() => window.clipWrites ?? [])
   expect(writes).toHaveLength(2)
   expect(writes[0]).not.toBe(writes[1])
-  // The first goes through now, over the second's words: the second's go back, and the first message says nothing.
+  // The first goes through now, over the second's words. Nothing is written from a promise (Safari refuses a write
+  // after the gesture): the second message says so, and its Copy, pressed again, writes its words back.
   await page.evaluate(() => window.settleFirstCopy?.())
-  await expect.poll(() => page.evaluate(() => window.clipWrites ?? [])).toEqual([writes[0], writes[1], writes[1]])
+  await expect(second.getByRole('status')).toHaveText(/An earlier copy landed after this one/)
+  expect(await page.evaluate(() => window.clipWrites ?? [])).toEqual([writes[0], writes[1]])
   await expect(first.getByRole('status')).toHaveCount(0)
+  await second.getByRole('button', { name: 'Copy' }).click()
+  await expect(second.getByRole('status')).toHaveText('Copied')
+  await expect.poll(() => page.evaluate(() => window.clipWrites ?? [])).toEqual([writes[0], writes[1], writes[1]])
 })
 
 test('acts · a write long on its way is said waiting, not failed, and the next copy «Copied»', async ({ page }) => {
@@ -306,4 +313,28 @@ test('acts · in a run of one’s own messages, the later one’s acts lie over 
     row.y < above.y + above.height &&
     row.y + row.height > above.y
   expect(overlaps).toBe(false)
+})
+
+test('@phone · acts · what a copy says takes its room under the bubble, never over its words (Codex on #240)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: () => Promise.reject(new Error('denied')) } })
+  })
+  await page.goto(PAGE)
+  // A phone shows one pane at a time: the conversation opens from its row.
+  await page
+    .getByRole('button', { name: /What makes a report worth reading/ })
+    .first()
+    .tap()
+  const first = messages(page).first()
+  await first.tap()
+  await first.getByRole('button', { name: 'Copy' }).tap()
+  // Refused: a long line that wraps, above the presses, inside the row.
+  await expect(first.getByRole('status')).toHaveText(/Not copied/)
+  const [body, acts] = await Promise.all([
+    first.locator('.conv-msg-body').boundingBox(),
+    first.locator('.conv-acts').boundingBox(),
+  ])
+  expect(acts?.y ?? 0).toBeGreaterThanOrEqual((body?.y ?? 0) + (body?.height ?? 0) - 0.5)
 })
