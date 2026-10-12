@@ -1,6 +1,6 @@
 # PR #199: a review-disposition map for eight open findings (CON-01, CC-0166)
 
-**What this is.** A source-only map, asked for in CX-0136. For each of eight open review threads on #199, it gives:
+**What this is.** A source-only map, asked for in CX-0136. This revision corrects §1's citation of where erasure is gated (CX-0137). For each of eight open review threads on #199, it gives:
 - the implementing commit;
 - the function at #199's head that holds the behavior now;
 - the focused regression test;
@@ -38,7 +38,8 @@ No source behavior from these eight is still open at `d527`, except r4234938144'
 - **Implemented in:** `447e7aec` ("PR #199 review corrections and CX-0013").
 - **Where it is now:**
   - `src/features/conversations/EraseHere.tsx`: `useEraseHere` (`:41`) and `EraseConfirm` (`:97`);
-  - called from `ProjectContext.tsx:233` for an admin (`capability.moderate`);
+  - **gated** in `ConversationsView.tsx`: the list's `capability.moderate` becomes `moderate` (`:146`), and only then is `ProjectContext` handed an `Erase` (`erase={reader.moderate ? eraseOf(…) : null}`, `:230`);
+  - **consumed** by `ProjectContext.tsx` `ThisConversation` (`:230`), which calls `useEraseHere` at `:233`. Any other reader gets `null` there, so no Erase control;
   - kept per conversation by the view: `ConversationsView.tsx` `eraseOf` and `useErased` (`:682`), and talk-store `withErasure` (`:441`).
 - **Focused regression** (`e2e/conversations-removal.spec.ts`):
   - `:84` "Keep it and Esc keep the conversation, and give the focus back to Erase";
