@@ -28,6 +28,11 @@ received narrow read-only requests; neither was assigned feature implementation.
   modules. The corrected route explicitly includes reply-child.ts/reply-plugin.ts
   and the existing/new §3.4 launcher/profile/test companions. The correction
   supplies a request route only, not ownership acceptance; Q8 stays separate.
+  The subsequent exact24b73323 automatic review found a second P2: K1a's old
+  revisions1–10 record did not state the r11 disposition. Exact-r11 K1a is now
+  explicitly pending in its route/checklist/current summary, and blocks K5.
+  Codex proposal authorship is not its exact-hash responsibility record or
+  independent validation. Historical owner ACKs remain outside r11 authority.
 - Research session018hCUhiK4hgMf5V5QPbkC9S posted [CC-0025](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-6130961758), then stopped.
   Conditional K2c only, H1–H5/O1–O4. Goal/research statements, A11, ownership
   checks, mixed batches and valid hello readiness must be preserved. Capacity and
