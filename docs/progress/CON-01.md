@@ -2,48 +2,37 @@
 
 The mission's one record of where things stand. Source, local tests, independent review, hosted operations and Davide's acceptance are kept apart. Evidence levels follow pack 07: **L0** source and static, **L1** local real API, PostgreSQL and pinned dsh with a labelled stub provider, **L2** authorized real provider, **L3** deployed app, **L4** Davide's acceptance. A level never promotes another.
 
-**Current continuation, 12 October Codex takeover.** Davide directed Codex to
-continue CON-01 alone and check automatic Codex review after every push. The
-former CON Claude feature session is stopped; do not resume it for implementation
-or gates. Retained owners supply only their specifically authorized handbacks.
-Codex-authored changes require independent whole-diff pre-push review and the
-exact pushed head's automatic review; authorship is not independent validation.
-This current section and the Next action below supersede earlier assignments
-and pending-decision instructions. Historical evidence is retained under its own
-candidate and level, not promoted to deployed-app acceptance.
+**Current continuation, 13 October source-only takeover.** Davide approved local
+source authoring and draft publication through2026-10-13T08:00:00Z, replacing
+missing owner-ACK/accepted-base prerequisites for that scope only. The
+[approval/GO and exact composed source handoff](../handoffs/CON-01-codex-source-takeover-2.md)
+are the current continuation. Historical owner ACKs retain their actual pins;
+Luis integration/merge review and Davide acceptance remain separate. Codex alone
+implements CON; no former Claude feature/review workflow or monitor.
 
-| Item | Value |
-|---|---|
-| Coordination | [docs/coordination/CON-01](../coordination/CON-01/README.md), its [binding map](../coordination/CON-01/BINDING_MAP.md) |
-| Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
-| Branch / PR | Retained feature `claude/con01-project-conversations` / [199](https://github.com/davidelaverga/Sophia/pull/199), draft/unmerged atd527f385. Codex UI `codex/con01-takeover-prep` / [269](https://github.com/davidelaverga/Sophia/pull/269), exact6e7e64d0. Codex docs `codex/con01-owner-incorporation-r11` / [271](https://github.com/davidelaverga/Sophia/pull/271); current r12 identities/reviews in the [publication receipt](../coordination/CON-01/receipts/codex-research-r12-publication.md); r11 endingf9180c73 remains reviewed at its original pin |
-| Base | Main observed83d9e33b6ce86cef5c75839ef9936f96e1ed5334/tree9bda4080eb9980a24ca020a1e508d1d17e8ce8f0; not an accepted combined base. Luis's integration/Studio handback remains required. Historical initial base4f7470c and subsequent author merges below remain evidence only |
-| Implementer / operator / independent review | Codex session01a1224a-32b4-7222-a017-50a277572d95 is sole CON feature implementer and operator. Repository-required independent pre-push reviewer plus exact-head automatic review validate Codex-authored changes. Luis retains integration/shared Studio ownership; Davide final product authority |
-| Reservations | Historical A16/0048–0050/runtime-unit entries in the binding map do not open a current window or create a runtime installation. Phase B requires fresh accepted-base census, path/number reservation and finite sole-writer K5 GO after all current acknowledgements; dispatcher PR256 acceptance/landing is a prerequisite |
-| Decisions / operation approvals | OptionC, disposable isolated harness home per execution attempt, Q13A, conservative withdrawal and conversation-text-v1 synthetic-cohort policy accepted. These are not hosted/account/grant/deployment/provider/spending approval. OP0002r6 and OP0001r4 remain draft_not_authorized, approval_readyfalse, approval_refnull; Ask off |
+Own branch `codex/con01-takeover-source-20261013`, base32854caf, source922773b2/
+treeb0d7ef0f. Dispatcher17142 imported first; current main +G1/kit/UI269 composed,
+then dormant G2/docs271 retained. Luis's newer touch message actions and
+same-question/ask-instead wiring preserved; A15+A16 generation reproduced without
+changing any pre-existing OpenAPI route/schema. Focus race fixed with a
+controlled failing-before browser regression; no criterion weakened.
 
-## Current gates and limits
-
-| Gate | Current fact | Remaining boundary |
+| Gate | Actual current evidence | Remaining boundary |
 |---|---|---|
-| G0 | Settled design/policy choices above; r12 proposes research aggregation/capacity/helper compatibility after the conditional handbacks | Exact-r12 K1a and affected owner/joint/K3/base records pending; no source GO |
-| G1 |32/32 actual local PG/API cases pass at56182a22, including success/denial/lost-reply idempotency and human-only zero operational rows ([receipt](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6130575940)) | Not Q13/native/provider or two-account deployed-app qualification |
-| G2 | Docs-only r12 [research amendment](../coordination/CON-01/G2_RESEARCH_COMPATIBILITY_AMENDMENT.md); foundation14/6131109861 and research31/6130961758 remain conditional exact-r10 | Exact new H4=502 hello/ready and helper/preservation owner reviews, K2e existing/new runtime-source handback, core/shared base/window, Q13 and subscription topology/quota/native cleanup remain unqualified; no executable Phase B write |
-| G3 |2696e7e64d0: safe confirmation/coverage/cohort-notice patch; five corrected withdrawal-helper crossings pass; automatic result6131441696 no major issues | Original phone late-erasure focus and privacy frame criterion remain open; runtime-unit CI has the base-reproduced GoalList fixture-boundary failure, browser job114977376275 finished failure:1537pass/4fail (eyebrows Conversations, work-space pointer, Resources arrow focus, task Stop keys); other job114977403325 still running at the current checkpoint. Failures not waived or assigned to this patch without reproduction. No whole-suite or combined gate pass |
-| G4 | Current main/preparation/feature identities recovered | No accepted combined tree/artifacts; previous main merge-tree conflicts in conversations.css, personal.css, home-needs.spec.ts; no integration or merge performed |
-| G5 operations/app | Existing signed-in hosted browser tab accessible read-only; no Conversations navigation visible | No approved setup/Ask batch, designated two immutable subjects/project/cohort or verified serving app/API/runtime tuple; actual two-account/provider episode not run |
+| G0 | Accepted OptionC, throwaway home, Q13A, conservative withdrawal and conversation-text-v1 test cohort | No supported subscription route/credential/quota/execution qualification |
+| G1 |922773b2: realPG17.6/API +dormantS1–S4/runtime172/172pass, SQL47migrations/5filespass | This is local evidence; Q13identity and hosted records unqualified |
+| G2 | Reviewed r12 plan retained; S1–S4 remain dormant, no runtime imports/admission | Implement/qualify least privilege, request/runtime/cleanup/correlation and mixed research preservation; Askoff |
+| G3 |73/73affected browser cases, controlled focus fail-before then4/4after; actual built-in-browser local desktop/same-question/phone draft return | Additional119/119preservation cases pass; full Studio suite and signed-in real-provider episode unqualified; earlier failures retained |
+| G4 | Exact local composition exists; initial ordinary check exit0 is diagnostic because source changed during it | Final pinned gate and independent whole-diff review in progress; no push/automatic result inferred here; Luis integration review pending |
+| G5 | Read-only hosted discovery retained | Separate setup/Ask batches unapproved; serving tuple/two actors/native answer not app_verified |
 
-Readiness stays scoped: UI source_ready/locally_verified/reviewed at its stated
-candidate; combined reviewed/authorized/deployed/app_verified/owner_accepted are
-not established. The [current retained acceptance ledger](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json)
-has36 individual verdicts:18partial_L1,3passed_L1,15not_run, copied without
-verdict changes from the recorded reviewer evidence atceb4e14e. It is retained
-evidence, not independent validation of this authored documentation or a new
-whole-gate acceptance. The older acceptance/findings below are archival, not a
-second current ledger. No broader mission or product completion.
-The unrequested retained-owner review workflow was stopped; displayed265.1k
-tokens, actual subscription deduction unknown, interrupted findings unqualified.
-Sophia provider calls/spend0; no further Claude feature/review workflow or monitor.
+Readiness is scoped to actual source/checks. Source-only authorization is not
+hosted authorization. No merge/deploy/account/grant/credential/provider/spend
+effect. OP0002r6/OP0001r4 remain draft_not_authorized. Retained acceptance ledger
+[36cases](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json)
+remains18partial_L1/3passed_L1/15not_run. No product/other-mission completion.
+Both ownedPG clusters stopped/removed; private logs retained. The earlier
+stopped workflow's actual subscription deduction remains unknown.
 
 ## Historical gates (retained author checkpoints, not current instructions)
 
@@ -185,18 +174,15 @@ Run in this session with each exit code written by the shell, never through a pi
 
 ## Next action
 
-Codex recovers the [r12 publication receipt](../coordination/CON-01/receipts/codex-research-r12-publication.md)
-and checks the exact pushed head's automatic review before further source work. Do not
-restart the former CON Claude coding session or rerun old full suites/batches.
-Review/publish the bounded r12 research compatibility amendment, then obtain
-exact affected-owner rechecks, precise K2e existing/new runtime-source handback and Luis's accepted
-combined-base/held-focus-function handback. Record exact-r12 K1a only against its
-reviewed immutable commit/document hash; proposal authorship is not that ACK.
-PR256 acceptance/landing and fresh finite K5 GO precede all executable shared
-writes. Independent review and affected integration checks follow each source pin.
+Finish terminal checks and independent whole-diff review of this exact combined
+candidate, publish a reviewable draft, and check the automatic Codex review for
+every pushed exact head. Then implement the separate Q13A/dormant G2 slices in
+r12 dependency order within the approved source window. Stop affected writes on
+active owner overlap/collision or expiry, and hand back immutable source/tree/
+artifact identities and actual results. No new Claude workflow or old batches.
 
-Operation batches remain separate and unapproved. Bind actual candidates,
-artifacts, targets, accounts/roles, credential references, payer/finite caps/expiry,
-concurrent-live-work handling and recovery before returning them for Davide's
-approval. No route/provider switch, personal-subscription sharing assumption or
-allowance reset. Ask stays off. Davide retains final product acceptance.
+Prepare setup/human-chat and Ask batches separately with actual source/artifacts,
+targets, accounts/roles, credential references, payer, finite allowances/expiry,
+concurrent-live-work handling and recovery. Return only complete reviewable
+batches for approval; no route switch, personal-subscription sharing assumption
+or allowance reset. Askoff; Davide retains final product acceptance.

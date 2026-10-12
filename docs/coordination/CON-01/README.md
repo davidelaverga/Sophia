@@ -1,8 +1,21 @@
 # CON-01 coordination
 
-**12 October takeover:** Davide instructed Codex to continue CON-01 alone and check automatic Codex review after every push. Codex is now the sole proposed feature implementer and operator. Earlier independent evidence remains scoped to its original author/candidate; Codex-authored changes require external review and are not self-certified independent evidence. Retained owners only supply their own handbacks; no feature implementation is delegated back to Claude. Luis retains integration/Studio ownership. The source/base/window gates and separately approved hosted batches are unchanged.
+**Current13October source-only takeover:** [approved source window, exact composition,
+checks and handoff](../../handoffs/CON-01-codex-source-takeover-2.md). Davide's
+approval replaces missing owner-ACK/accepted-base holds only for local source
+writes and draft publication until2026-10-13T08:00Z. It does not invent owner
+ACKs or authorize merge/hosted/provider effects. Codex is sole feature author;
+independent whole-diff review before each push and automatic exact-head review
+after each push remain required. Luis integration/merge review and Davide
+product acceptance remain separate. Askoff.
 
-Current docs-only reservation incorporation: [revision 12](G2_SHARED_RESERVATION_REQUEST.md), branch `codex/con01-owner-incorporation-r11`, from exact r10 `91110fdd`. [R12 handoff](../../handoffs/CON-01-codex-research-r12.md) and [research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md). R11 exactf9180c73 automatic review is clear; the new candidate needs its own review. Actual conditional foundation and research handbacks are [CC-0038](https://github.com/davidelaverga/Sophia/issues/14#issuecomment-6131109861) and [CC-0025](https://github.com/davidelaverga/Sophia/issues/31#issuecomment-6130961758). They do not open a window, accept main83d9e33b as a base, or extend to a changed manifest. The table's original branch/base describe the feature's retained history.
+The [r12 reservation](G2_SHARED_RESERVATION_REQUEST.md) and
+[research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md) remain the reviewed
+source scope; their historical no-window status describes their publication,
+not the later explicit source-only approval. Retained conditional owner
+handbacks remain exact-r10 only. Source base32854caf, composed922773b2; own branch
+`codex/con01-takeover-source-20261013`. Earlier table/history below retains the
+original feature/PR inputs and evidence at their own pins.
 
 CON-01 completes saved project conversations. Two or more named text conversations in one project, durable member messages with real authorship and stable paging, Ask Sophia on or off, a real read-only native answer in the conversation it was asked in, the three quick asks, the shared current mission context with separate histories, coverage-aware summary and question projections, and enforceable withdrawal ([pack](../../missions/2026-10-09-con01-conversations/README.md), [mission](../../missions/2026-10-09-con01-conversations/01_MISSION.md)).
 
