@@ -341,7 +341,6 @@ function headerDock(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: (
   return <MiniDock room={room} looking={lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))} onOpen={onOpen} />
 }
 
-/** A dock control's name, the same in both places the dock is mounted: its label, else its words. */
 /** What names a dock control across its move: its key (the words of a pill change with the room's state), else its label. */
 const dockKey = (el: Element) =>
   el.getAttribute('data-dock-key') ?? el.getAttribute('aria-label') ?? el.textContent.trim()
@@ -391,8 +390,7 @@ export function ProjectShell(props: Props) {
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked)
   useBeyondTheView(props, snapshot.data, room, blocked)
-  const mayInvite = !!shown && canInvite(membership)
-  const at = { view, inviting, mayInvite, shown: !!shown, blocked: !!blocked }
+  const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
     <CallKeptInReach room={room} background={!!props.background}>

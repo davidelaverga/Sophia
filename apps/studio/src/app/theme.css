@@ -2870,10 +2870,24 @@ button.contribution-quote:hover {
     bottom: auto;
     max-width: 240px;
   }
-  /* Live, the dock says the room's state itself: the connection pill yields its room, so the views' nav keeps standing
-     at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more). */
-  .topbar-end:has(.mini-dock[data-live]) .connection {
+  /* Live, the dock says the room's state itself: the connection pill yields its room when it would only say «Up to
+     date», so the views' nav keeps standing at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more).
+     Connecting, reconnecting or catching up is said beside the dock still: stale data in a call is not hidden (Codex
+     on #254). */
+  .topbar-end:has(.mini-dock[data-live]) .connection[data-state='live'] {
     display: none;
+  }
+  /* The header's dock is at the top of the page: its tips open under its controls, not above the window (Codex on
+     #254). */
+  .topbar .mini-dock .tip {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+}
+/* A finger's width in the header too: the switches keep 40 px across on a coarse pointer (Codex on #254). */
+@media (min-width: 721px) and (pointer: coarse) {
+  .topbar .mini-dock .round {
+    min-width: 40px;
   }
 }
 /* The header of two rows (721 to 760 px: the views' row, 44 px, stands under the end cluster): what the dock says hangs
@@ -2957,7 +2971,9 @@ button.contribution-quote:hover {
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
   position: fixed;
-  top: calc(var(--topbar) + 24px);
+  /* Under what the header's dock says, when it says something (a device error, Sophia looking): MiniDock keeps
+     --dock-notes-h, so the notes never cover the door's Decline and Let in (Codex on #254). */
+  top: calc(var(--topbar) + 24px + var(--dock-notes-h, 0px));
   right: var(--gutter);
   z-index: 15;
   width: min(320px, calc(100% - 2 * var(--gutter)));

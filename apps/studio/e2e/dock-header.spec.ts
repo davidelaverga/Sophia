@@ -215,3 +215,96 @@ test('dock @phone · on a narrow screen the dock floats at the bottom right as b
   expect(read?.bottom).toBeGreaterThan(0)
   expect(read?.bottom).toBeLessThan(80)
 })
+
+test('dock · in a call a stale feed still says Reconnecting beside the dock; only «Up to date» yields (Codex on #254)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await drawn(page, DRAWN.tasks)
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  const shown = (state: string) =>
+    page.evaluate((s) => {
+      const pill = document.querySelector<HTMLElement>('.topbar .connection')
+      if (!pill) return null
+      pill.dataset['state'] = s
+      return getComputedStyle(pill).display !== 'none'
+    }, state)
+  expect(await shown('live')).toBe(false)
+  for (const s of ['connecting', 'reconnecting', 'resyncing']) expect(await shown(s), s).toBe(true)
+})
+
+test('dock · the header dock’s tips open under their controls, inside the window (Codex on #254)', async ({ page }) => {
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await drawn(page, DRAWN.tasks)
+  const leave = dock(page).getByRole('button', { name: 'Leave the room' })
+  await leave.focus()
+  const tip = leave.locator('.tip')
+  await expect(tip).toBeVisible()
+  const [t, b] = await Promise.all([tip.boundingBox(), leave.boundingBox()])
+  expect(t?.y ?? -1).toBeGreaterThanOrEqual((b?.y ?? 0) + (b?.height ?? 0))
+})
+
+test('dock · a side report leaves the header dock in its place (Codex on #254)', async ({ page }) => {
+  await page.goto('/room.html?demo=1&place=work')
+  await drawn(page, DRAWN.tasks)
+  const before = await dock(page).boundingBox()
+  await page.evaluate(() => {
+    const pane = document.createElement('div')
+    pane.className = 'report-pane'
+    pane.dataset['size'] = 'side'
+    const shell = document.querySelector<HTMLElement>('.shell')
+    shell?.style.setProperty('--report-w', '560px') // as the pane's width sets it
+    shell?.append(pane)
+  })
+  const after = await dock(page).boundingBox()
+  expect(Math.round(after?.x ?? 0)).toBe(Math.round(before?.x ?? 1))
+})
+
+test('dock · with the header dock in sight, a full report does not repeat the call’s switches (Codex on #254)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await drawn(page, DRAWN.tasks)
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  const hidden = await page.evaluate(() => {
+    const pane = document.createElement('div')
+    pane.className = 'report-pane'
+    pane.dataset['size'] = 'full'
+    pane.innerHTML = '<div class="report-pane-call"><button>Microphone</button></div><p class="report-pane-note">x</p>'
+    document.querySelector('.shell')?.append(pane)
+    const call = pane.querySelector('.report-pane-call')
+    const note = pane.querySelector('.report-pane-note')
+    return [call && getComputedStyle(call).display, note && getComputedStyle(note).display]
+  })
+  expect(hidden).toEqual(['none', 'none'])
+})
+
+test('dock · what the dock says pushes the lobby under it (Codex on #254)', async ({ page }) => {
+  await page.goto(
+    '/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&video=screen&looking=screen&place=work&lobby=waiting',
+  )
+  await drawn(page, DRAWN.tasks)
+  const looking = dock(page).locator('.sophia-looking')
+  await expect(looking).toBeVisible()
+  const lobby = page.locator('.lobby')
+  await expect(lobby).toBeVisible()
+  const [n, l] = await Promise.all([page.locator('.topbar .dock-notes').boundingBox(), lobby.boundingBox()])
+  expect(l?.y ?? 0).toBeGreaterThanOrEqual((n?.y ?? 0) + (n?.height ?? 0))
+})
+
+test('dock · on a touch screen the header’s switches keep a finger’s width (Codex on #254)', async ({ browser }) => {
+  const context = await browser.newContext({ viewport: { width: 1024, height: 768 }, hasTouch: true, isMobile: false })
+  const page = await context.newPage()
+  await page.goto('/room.html?demo=1&call=on&people=2&floor=1&sophia=listening&place=work')
+  await drawn(page, DRAWN.tasks)
+  const widths = await page.evaluate(() =>
+    matchMedia('(pointer: coarse)').matches
+      ? [...document.querySelectorAll<HTMLElement>('.topbar .mini-dock .round')].map(
+          (el) => el.getBoundingClientRect().width,
+        )
+      : null,
+  )
+  test.skip(widths === null, 'this browser does not report a coarse pointer for a touch context')
+  for (const w of widths ?? []) expect(w).toBeGreaterThanOrEqual(40)
+  await context.close()
+})
