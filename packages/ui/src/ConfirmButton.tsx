@@ -22,6 +22,8 @@ interface Props {
   onConfirm: () => void
   /** Its key where one presses it (a task's sheet: S), in its tip as every single-key shortcut is. */
   keys?: string | undefined
+  /** What it does, in its tip (a goal's Stop: «End the work for good»); the label when only a key is given. */
+  tip?: string | undefined
 }
 
 export function ConfirmButton(props: Props) {
@@ -47,7 +49,7 @@ export function ConfirmButton(props: Props) {
       <button
         ref={rest}
         type="button"
-        className={props.keys ? `${className} has-tip` : className}
+        className={props.keys || props.tip ? `${className} has-tip` : className}
         disabled={disabled}
         onClick={() => {
           setAsking(true)
@@ -55,7 +57,7 @@ export function ConfirmButton(props: Props) {
         }}
       >
         {label}
-        {props.keys && <Tip label={label} keys={props.keys} side="top" />}
+        {(props.keys || props.tip) && <Tip label={props.tip ?? label} keys={props.keys} side="top" />}
       </button>
     )
   }

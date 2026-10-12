@@ -50,6 +50,8 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
               confirm="Stop for good"
               keep="Keep working"
               className="text-button"
+              // Its tip as Hold has its own: the destructive press says what it does too (Codex on #253).
+              tip={COMMAND.stop.hint}
               disabled={busy}
               onConfirm={() => void admission.submit('stop')}
             />
