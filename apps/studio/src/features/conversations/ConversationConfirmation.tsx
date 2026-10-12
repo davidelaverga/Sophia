@@ -49,7 +49,7 @@ export function ConversationConfirmation(props: Props) {
         >
           {props.busy ? PENDING[props.action] : props.action}
         </Button>
-        <Button ref={safe} kind="ghost" size="md" aria-disabled={props.busy || undefined} onClick={keep}>
+        <Button ref={safe} size="sm" aria-disabled={props.busy || undefined} onClick={keep}>
           Keep it
         </Button>
       </div>

@@ -199,3 +199,36 @@ tuple will be recorded in PR269/mission198, without another docs-only push.
 Retained ownership requests were now posted directly to recorded foundation
 issue14 (6130159389) and research issue31 (6130159732), source handback only.
 No response or writer window is inferred. No Claude coding run was started.
+
+## Second push review and pending-control correction
+
+Second push956cf90f5721af809eb803ec938dcdb60c6a254b,
+tree393da4b9ae6c7c2c3316181c053b94acd409604b, received its explicit review
+request6130204818. Bot review5494645707 completed18:32:57Z with a new
+P2r4251190947: Keep used the ghost kind, whose aria-disabled state had no
+muted appearance and still changed on hover. Accepted. The kit's existing
+neutral pill at size sm now supplies the disabled appearance and hover guard;
+no shared theme/conversations CSS edit. Aria-disabled keeps focus stable and
+the existing guard ignores pending presses. Both withdrawal and erasure use
+the same helper. Default desktop height stays28/28; touch now40/40. Earlier
+phone36px Keep measurement belongs to the earlier source only.
+
+The pending style assertion failed before correction (opacity1 rather than
+0.45, exit1). After correction, all six confirmation browser cases passed,
+including muted opacity/default cursor/unchanged hover and ignored Keep;
+safe-focus and touch-control expectations also pass. Studio typecheck and
+targeted helper lint passed. Prettier initially flagged the expanded browser
+assertion; formatted it and reran the changed-file check successfully.
+
+Built-in browser showed actual local fixture Removing/Keep controls muted
+and marked disabled, with focus retained on Removing. The captured
+desktop-pending-controls.jpg is the latest helper source. Synthetic fixture
+settlement was observed afterward, then tab31 and the owned Vite server were
+closed and viewport reset. This is not a real withdrawal/provider acceptance.
+
+Latest-head CI runtime-unit job114951506103 again failed the same untouched
+GoalList fixture-boundary assertion; other jobs were still in progress at
+that checkpoint. No all-green claim or CI rerun/cancellation. The wording
+thread was resolved after its source correction; the new style thread waits
+for the next exact-head review. Final tuple and third-push review result go
+in PR269/mission198. All earlier integration/ownership/operation holds stand.

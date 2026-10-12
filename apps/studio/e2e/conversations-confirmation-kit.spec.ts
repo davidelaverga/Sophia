@@ -51,7 +51,7 @@ for (const mode of ['desktop', '@phone']) {
     const heights = await confirm
       .getByRole('button')
       .evaluateAll((buttons) => buttons.map((b) => b.getBoundingClientRect().height))
-    expect(heights).toEqual(mode === '@phone' ? [40, 36] : [28, 28])
+    expect(heights).toEqual(mode === '@phone' ? [40, 40] : [28, 28])
     await page.keyboard.press('Enter')
     await expect(confirm).toHaveCount(0)
     expect(await writes(page)).toHaveLength(0)
@@ -68,8 +68,20 @@ test('confirmation kit · pending moderator removal cannot be repeated or dismis
   const confirm = await askToRemove(page)
   await confirm.getByRole('button', { name: 'Remove', exact: true }).click()
   const pending = confirm.getByRole('button', { name: 'Removing…' })
+  const keep = confirm.getByRole('button', { name: 'Keep it' })
   await expect(pending).toHaveAttribute('aria-disabled', 'true')
-  await expect(confirm.getByRole('button', { name: 'Keep it' })).toHaveAttribute('aria-disabled', 'true')
+  await expect(keep).toHaveAttribute('aria-disabled', 'true')
+  await expect(keep).toHaveCSS('opacity', '0.45', { timeout: 500 })
+  await expect(keep).toHaveCSS('cursor', 'default')
+  const ink = await keep.evaluate((b) => ({
+    color: getComputedStyle(b).color,
+    bg: getComputedStyle(b).backgroundColor,
+  }))
+  await keep.hover()
+  await expect(keep).toHaveCSS('color', ink.color)
+  await expect(keep).toHaveCSS('background-color', ink.bg)
+  await keep.click({ force: true })
+  await expect(confirm).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(confirm).toBeVisible()
   await pending.click({ force: true })

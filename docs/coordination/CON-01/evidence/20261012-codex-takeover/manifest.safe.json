@@ -38,6 +38,12 @@
       "sha256": "cd4f7c35229e7042076b19762ff1ed2e84bc492f143d016d7d8f59374a52f4c4",
       "bytes": 97042,
       "source_scope": "Post-a063457e P2 moderator preservation correction; committed with this manifest update"
+    },
+    {
+      "file": "desktop-pending-controls.jpg",
+      "sha256": "4b27da7d9da7d61679a1886e4907a61ff261a9ff0fb1c38f467e3f56148bd530",
+      "bytes": 96949,
+      "source_scope": "Post-956cf90f P2 disabled neutral Keep correction; committed with this manifest update"
     }
   ]
 }
