@@ -515,15 +515,16 @@
   aspect-ratio: 1;
   margin-top: -20px;
 }
-/* The halo's layers (the canvases) blend and fade at the edge; the formed mark beside them does neither: blended, Umbral
-   would not be the brand's ink (on paper, #8468ee multiplied read #8265e3; Codex on #251). */
-.places .hw-light .light > canvas {
+.places .hw-light .light {
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
-/* On paper her halo is ink laid on the page, not light added to it (docs/plans/light-breath.md). */
-:root[data-theme='light'] .places .hw-light .light > canvas,
-:root[data-theme='light'] .places .c3-talk-light .light > canvas {
+/* On paper her halo is ink laid on the page, not light added to it (docs/plans/light-breath.md). The blend is the
+   light's as a group (its canvases, its breathing halo at -1, and the formed mark): measured on Home, the group blends
+   inside the side column's own stacking context (`.hw-side`, z-index 1, see-through), so the mark draws as the brand's
+   ink, #8468ee, not multiplied (Codex on #251; the mark outside the group is left in light-breath.md). */
+:root[data-theme='light'] .places .hw-light .light,
+:root[data-theme='light'] .places .c3-talk-light .light {
   mix-blend-mode: multiply;
 }
 /* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
