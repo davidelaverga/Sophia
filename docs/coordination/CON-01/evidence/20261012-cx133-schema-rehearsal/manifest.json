@@ -1,12 +1,12 @@
 {
   "files": [
     {
-      "path": "ci211-failure-excerpt.txt",
-      "sha256": "9687d68fc0548738bc86124d36d15628816bfd059487e495026667cf2d3931aa"
+      "path": "ci211-failure-excerpt.json",
+      "sha256": "7002a067cd080306cef857b95b213da3763b4d73e3ecab721dbd4fab6fb1570f"
     },
     {
       "path": "ci211-receipt.json",
-      "sha256": "42d37c139d84c4e55398150e635c7648f617cc4baa51a89b9e1e567e5a7536ef"
+      "sha256": "881651033b1f51827dff64290da16678f1967ee7e1c6e5da111458caa3491ee2"
     },
     {
       "path": "initial/fingerprint.mjs",
