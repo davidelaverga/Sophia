@@ -1,0 +1,703 @@
+{
+  "at": "2026-10-12T06:21:53.806078+00:00",
+  "status": "CHANGES_REQUIRED_THREE_BOUNDED_P2_NOT_FULL_MANIFEST_ACK_NO_WRITE_GO",
+  "candidate": {
+    "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+    "tree": "f71a9c7a5af6d16c21196166f1504fd73a5dcce2",
+    "parent": "57f66b5067a4e50cc0df0190d491947f2624596b",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "sha256": "040c2041bd6aba5002c8fa22b4fb24e0252590202419dc5b4d47521d90822bad",
+    "lines": 437,
+    "completeRead": true,
+    "readChunks": [
+      "1-145",
+      "146-290",
+      "291-437"
+    ],
+    "diff": "Only reservation documentation +338/-133. No implementation or owner ACK supplied by this commit."
+  },
+  "scope": "Fresh independent bounded consumer and own latest-body insertion-scope review against exact packet, frozen Q7 r8, prior four findings, recovered freeze/owner routing, actual candidates/callers/generators/recorders and fresh main/PR metadata. Original four findings do not transfer unchanged; each independently dispositioned below. No foundational-owner, implementation-author or integration-owner impersonation; no source or operational GO.",
+  "inputs": [
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "sha256": "040c2041bd6aba5002c8fa22b4fb24e0252590202419dc5b4d47521d90822bad",
+      "lines": 437,
+      "sameAsPriorReviewedBlob": false
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "sha256": "7b7e89a6a222eb9302c947745c59f0459498d7b3260123526a2195cecca4236c",
+      "lines": 128,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+      "lines": 754,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "apps/api/src/routes/runtime.ts",
+      "sha256": "2cee9da14f99ebfff047831f4f529e097d6e93350cfc3646429eaf0ee69757c0",
+      "lines": 227,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "sha256": "97f1af3c814b7715047b1c880666a4b37a5004ff12e92f460e9d0d1db1e3eeda",
+      "lines": 126,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/dsh-bundle/src/role-registry.ts",
+      "sha256": "b1c58652c90dc80dc6f7a243720d0849be0ccf92f1dabe6f3ac3d13d02b40228",
+      "lines": 109,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "7dc23203eeaef3e91e4515f36127e1f86318d7c4",
+      "path": "docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+      "lines": 205,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "sha256": "1336ba1b8e61818ccba166af996d930c6db5a236a51fa1054c72e519f84e8ec6",
+      "lines": 120,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "lines": 55,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "lines": 495,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/contracts/amendments/A16-project-conversations.json",
+      "sha256": "c5a60040129bcf2c86821d72410a086ffcde026f74c16f01abf5c875bea34b5d",
+      "lines": 1415,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "scripts/build-artifacts.mjs",
+      "sha256": "7d27eaceca5cd53f9ad8b08f0e21bd9a8d8d2e58ba8f8506fe100e0ff0867279",
+      "lines": 65,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "scripts/lib/artifacts.mjs",
+      "sha256": "7df38a1f0a69b429973335424e33ccea8dda1cacdf1925c177684c799a5c0ba6",
+      "lines": 142,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "config/dsh/base-rows.reviewed.json",
+      "sha256": "24ccd633f607b658c8ad8a052c107688dc25eaae86bee5cd2a52af707342e772",
+      "lines": 384,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "config/dsh/profile/cordis.patch.yml",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "lines": 1,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/contracts/package.json",
+      "sha256": "5fab2a20db2bbb5d8f6c0dc3a5ed813811e5c63c187e776b7aece91c4a8889cd",
+      "lines": 21,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0041_design_lifecycle.sql",
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "lines": 650,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0042_source_review_coordination.sql",
+      "sha256": "9e6064b7b78bf55342cd6f23e62ccaaa96a3a28ad8c8b48136af6557c89e408b",
+      "lines": 1980,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0001_core.sql",
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e",
+      "lines": 248,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/BASE.md",
+      "sha256": "d58298a699f5d6ab83a4e3d3818ace1c7b7f7d196e4b116d8fb7e612e971f043",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/progress/SMC-M01-contract-binding.md",
+      "sha256": "8b508a253b26636f354968c22e1e195e1df2e6fdd0eeea5d442d53684eb3004f",
+      "lines": 208,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/research.ts",
+      "sha256": "10100ddb7bbafc125fb00f6020387a90c96f87f545324bfa1d61eb742b6e3b5a",
+      "lines": 228,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "01777c5ca32b8a92f2214db9eb91d4a039e6e60f",
+      "path": "docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+      "lines": 272,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "lines": 430,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/contracts/src/validate.ts",
+      "sha256": "ab7c1b6afed6a89db29d989a73d4a77a56bac44d6bc80ee802ddb5c6fa2161bd",
+      "lines": 144,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "config/roles.json",
+      "sha256": "1e6fead81e3549f332cca788775cb546ad546dab2f46cf70323bbefff84dae19",
+      "lines": 114,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/dsh-bundle/src/protocol.ts",
+      "sha256": "54f72e7b9837aeaa09dab19358178a6d86d1e3e40045160d8189807d72a744e7",
+      "lines": 67
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "lines": 273
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/dsh-bundle/tsconfig.json",
+      "sha256": "8fc06816a9592dde59fe000b6c9e4eabadf6e647700970c2fd171c2fb61a4dba",
+      "lines": 16
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/dsh-bundle/package.json",
+      "sha256": "a66620892548928e6a5f85dc09885aac336deecb952c924234a986e6fc3057f7",
+      "lines": 57
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "scripts/lib/profile.mjs",
+      "sha256": "cfd710cbc5d7e9d7f6e6afc1f1291763128d4c4d60d062e00d23c290c3730c00",
+      "lines": 186
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/conversation-context.ts",
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739",
+      "lines": 456
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/conversation-context.test.ts",
+      "sha256": "9123b01de94f790b6277e58113e6c2c786a8b74248decfc71903ee6a6e6815e7",
+      "lines": 708
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/conversation-assembly.ts",
+      "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "lines": 455
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/conversation-assembly.db.test.ts",
+      "sha256": "5b5121033a54b06505030631de2b44d2f90cffe5308f6b31fef406f2a7d39996",
+      "lines": 2360
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "packages/persistence/src/conversation-fences.db.test.ts",
+      "sha256": "fe9e536f1e1e35063b22e97683799d059527e410da6e3c6fa10559e2d5298ed3",
+      "lines": 2088
+    },
+    {
+      "commit": "b6ee23a47188f94c291e0516643dce3f62309601",
+      "path": "db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265
+    }
+  ],
+  "provenance": {
+    "priorReview": {
+      "sha256": "894e518aff23f3ec07635a8930449191f48f0eb8b575a149a7fe0f504356591e",
+      "originalUnchanged": true
+    },
+    "freezeR2Sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+    "ownerRoutingR2Sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+    "Q7R8ConsumerDesignAckSha256": "fc4f61ca63e063fc0ae49ebae3c6c3864f2931f6b37c8ce11894fb9827a982fc",
+    "allRetained": true,
+    "inputVerification": "60 exact source/document inputs hashed and matched immutable Git objects. All49 inherited source inputs except this proposal remain byte-identical to prior review, including inputs re-read from current main3c. Exact S1-S4 hashes/line counts at7d8 independently match packet and b6 candidate."
+  },
+  "priorFourDisposition": [
+    {
+      "id": "PB-OWNER-ROUTING",
+      "status": "ADDRESSED_AT_RESERVATION_DESIGN_LEVEL",
+      "lines": [
+        12,
+        28,
+        29,
+        30,
+        43,
+        46,
+        47,
+        48,
+        49,
+        55,
+        65,
+        405,
+        406,
+        407,
+        408,
+        409,
+        410,
+        411
+      ],
+      "assessment": "False no-other-owner premise withdrawn. Distinguishes CON S2 from SMC-M01, S1-02 core schema routing, retained S1-05A/BASE runtime foundation, SMC-M03 current bodies, joint latest0041/0042 body insertion ACK and separate consumer compatibility, PR190 overlap and Luis integration. Existing planning is routing evidence, not writer appointment. No blanket M01 ACK required when M01 objects/ACLs remain unchanged. This root supplies independent compatibility review, not actual implementer K2d or all-foundation ownership ACK."
+    },
+    {
+      "id": "PB-SQL-MANIFEST",
+      "status": "ORIGINAL_ENUMERATION_OMISSIONS_ADDRESSED_NEW_BOUNDARY_GAPS_BELOW",
+      "lines": [
+        96,
+        100,
+        101,
+        102,
+        103,
+        110,
+        126,
+        127,
+        133,
+        143,
+        144,
+        146,
+        150,
+        153,
+        158,
+        162,
+        163,
+        164,
+        165,
+        167,
+        171,
+        173,
+        174,
+        178,
+        182,
+        199,
+        202
+      ],
+      "assessment": "Now enumerates optionC correlation/nullability/CHECK/FK/index changes, retired/kind CHECKs, latest seven function bodies and insertions, five authenticated wrappers/signatures/ACLs, internal objects, retire writer/key, complete pinned S1-S4 object counts/hashes and ACL adaptations. Actual S3 role preamble/inheritedsophia_api grant and five-entrypoint role grant are excluded, assembler removed from exact S3/S4 REVOKE lists that would reference an absent role. No role/identity activation from old candidate. Q13-dependent assembly remains owner-test-only/dormant. S2 release/reconcile remain actual no_proof_source stubs with no new caller; anomalous reserved-after-rejected narrows to uncertain/count rather than false release, pending CON/core owner binding. This addresses prior enumeration errors; new precise Stop/cancellation/recovery-settle gaps prevent whole-manifest ACK."
+    },
+    {
+      "id": "PB-IMPLEMENTATION-COMPANIONS",
+      "status": "ADDRESSED_AT_RESERVATION_DESIGN_LEVEL",
+      "lines": [
+        215,
+        218,
+        228,
+        229,
+        231,
+        233,
+        237,
+        239,
+        241,
+        244,
+        256,
+        257,
+        258,
+        260,
+        273,
+        294,
+        299,
+        303,
+        320,
+        322,
+        324,
+        325,
+        326,
+        329,
+        332,
+        333,
+        370,
+        375
+      ],
+      "assessment": "Names new conversation-runtime.ts five capability-bound persistence wrappers using existing research pattern, imports RuntimeCaller read-only; routes and registration/index exports; exact ten SCHEMAS/VALIDATED additions and all generated companions. Canonical reply-template rows replace wrong bare patch path. No broad role/registry/specialist edit; unlisted plugin entry need stops writer. Profile lock explicitly recorder-generated archive integrity, not dependency/workspace lock authority. Tests in root tests/unit glob; Python unittest wrapper included in pnpm check, actual unsupported platform/capabilities remain future test evidence. No new generator edit or executable output claimed."
+    },
+    {
+      "id": "PB-GATE-ORDER",
+      "status": "ADDRESSED_AT_RESERVATION_DESIGN_LEVEL",
+      "lines": [
+        15,
+        78,
+        86,
+        215,
+        226,
+        280,
+        282,
+        283,
+        284,
+        305,
+        308,
+        343,
+        362,
+        364,
+        367,
+        369,
+        370,
+        371,
+        372,
+        373,
+        375,
+        378,
+        379,
+        380
+      ],
+      "assessment": "Chooses first prior sequence: each accepted bundle-changing pin records archive identities/profile lock alongside source and runs full ordinary checks, SQL/DB and available crossings. Additive route shapes in Step2, A04 union/kind change co-located with bridge Step3, Step4 launcher/profile/runtime integration, finalP1-P8 on complete composed pin. Recording once at end withdrawn. Actual root package globs, bundle tsconfig, recorder writes and runtime-wire allowlists support this plan. Missing future crossings marked not present/held not run, never passed. No gates executed in this review, and no old probe/target evidence transferred."
+    }
+  ],
+  "findings": [
+    {
+      "id": "PB2-STOP-DELIVERY",
+      "severity": "P2",
+      "classification": "EXHAUSTIVE_MANIFEST_DELIVERY_CONTRADICTION",
+      "lines": [
+        70,
+        101,
+        114,
+        147,
+        151,
+        156
+      ],
+      "title": "Include native.stop in reply dispatch and cleanup delivery counts",
+      "evidence": "The closed manifest says dispatch_runtime_outbox sends every reply row to conversation_dispatch and returns114. That helper lists only native.create and native.retire147;101 permits create plus at most one cleanup row. Yet151/156 require conversation_cancel to write Stop at epoch2, and frozen Q7 requires Stop receipt checked/unknown, same-command replay and eventual retire. Existing runtime path delivers Stop through an outbox row and then runtime command, as0012:768-770 and0028 research_stop_revoked:120-127 demonstrate; the ordinary goal path cannot handle a reply row after the explicit reply-first return/null-goal guard.",
+      "reproducer": "Static bounded cancellation case: one admitted reply create/delivered/go, then withdrawal raises epoch and writes stop. Its native.stop reply outbox reaches conversation_dispatch, whose exhaustive destinations lack Stop. If stop is delivered as required, create+Stop+retire require distinct ordinary delivery rows, contrary to at-most-one-cleanup wording. No command/provider execution or SQL test was run; this is the proposed delivery contract gap, not an observed production failure.",
+      "smallestCorrection": "Enumerate native.stop cleanup delivery at the raised attempt epoch in conversation_dispatch and conversation_delivery_ineligible, without assembling a prompt or requiring an enabled grant/open request/source eligibility after cancellation. State create plus the one idempotent Stop when cancellation requires it, plus exactly one cleanup retire; Stop/retire replay uses existing command/delivery identities. Define the relevant Stop key/idempotency alongside retire. Tests count each actual ordinary commands/outbox/runtime row, Stop checked/unknown/replay and retire once; no new execution/attempt/reservation/call or reset."
+    },
+    {
+      "id": "PB2-SOURCE-OUT-CANCEL",
+      "severity": "P2",
+      "classification": "PROMOTED_SOURCE_BOUNDARY_NOT_ADAPTED_TO_NATIVE_CANCELLATION",
+      "lines": [
+        151,
+        158,
+        165,
+        173,
+        185,
+        210,
+        343
+      ],
+      "title": "Join promoted source-out cancellation to the native Stop path",
+      "evidence": "Packet takes S4 byte-identical except named ACL adaptations and promises promoted-body equality210. Actual pinned S4 conversation_source_out:452-456 directly updates a running/pending reply to cancelled, with no conversation_cancel call, epoch change or native Stop delivery. Its reply-state trigger S3:412-421 only scrubs context; S4 message/fence helpers do not dispatch Stop for this branch. Packet lists cancel callers as withdrawal/erasure, grant switch and asker removal151, but not source-out. Frozen Q7/binding requires a source leaving the predicate to stop/cancel native work under the same classifier and accounting.",
+      "reproducer": "Static supported owner-fixture case: a reply is running with a recorded context and native attempt, then a source it read becomes ineligible and conversation_source_out runs. S4 changes reply state and scrubs/tombstones context, but the native attempt remains at its old epoch with no Stop queued. Later completion/capture may still refuse publication; that privacy fence is retained, but it is not native cancellation or bounded process settlement. This review does not claim text publication, automatic live source trigger, new provider call or a completed purge.",
+      "smallestCorrection": "Declare an exact CON-owned S4 source_out adaptation invoking conversation_cancel for the affected live reply/attempt under the established lock order, retaining S4 suppressions/tombstones/counts/terminal semantics and unchanged S2 uncertain amounts. Enumerate that body insertion as a promotion-equality exception and add a running-source-out \u2192 Stop/epoch/unknown-or-checked/retire-once crossing. If deliberately deferred, explicitly hold this native cancellation crossing and dependent full qualification rather than calling unchanged S4 a complete PhaseB cancellation implementation. No shared source-policy trigger/grant/Q13 scope expansion implied."
+    },
+    {
+      "id": "PB2-RECOVERY-SETTLE-LEASE",
+      "severity": "P2",
+      "classification": "AUTHENTICATED_WRAPPER_CONFLICTS_WITH_FROZEN_RECOVERY_TABLE",
+      "lines": [
+        131,
+        132,
+        139,
+        140,
+        178,
+        180,
+        343
+      ],
+      "title": "Distinguish original execution lease from current recovery settlement authority",
+      "evidence": "131 requires claim, go, reserve AND settle to act only for the original claim lease equal to the current caller bridgeInstanceId;132 makes an exception only for acknowledged. Frozen Q7 r8:775 and878-888 requires a new bridge to resend the exact journaled settle when capture already ended the request and the ordinal is still reserved. S2:349-375 accepts reserved\u2192settled or identical settled replay and rejects uncertain. That recovery case has old execution claim leaseA and new authenticated runtime leaseB; claiming again is forbidden and cannot fix it.",
+      "reproducer": "Static frozen-Q7 case: bridgeA claims/goes, one reservation is reserved, capture commits terminal answered, journal has the settle body but its answer is not committed before restart. BridgeB says hello; request is already terminal, so the running lease-loss row does not mark its reservation uncertain. B is authorized current runtime lease and sees stopped binding. Q7 recovery resends exact settle; wrapper rule131 refuses because claim leaseA differs from callerB. Reservation can remain reserved and full retire reservation barrier cannot be satisfied by the required path. No runtime harness executed and no permanent-stranding claim outside this specific proposed rule.",
+      "smallestCorrection": "Keep runtime_lease authentication/current-instance fencing and exact project/resource/runtime/binding/attempt identity for every call. Keep original claim lease strict for claim/go/live reserve. Give settlement an explicit narrow recovery rule for the current authorized bridge on terminal capture + still-reserved ordinal and validated recorded/journaled settle, preserving identical-body idempotency and amount checks. Never settle uncertain, transfer execution ownership, re-claim/go, release/reset allowance or permit another runtime resource/project. Bind this with retained runtime and CON ledger owners. Add positive old-claim/new-current-lease capture-reserved recovery plus superseded/wrong binding/uncertain/conflicting-body negatives."
+    }
+  ],
+  "boundedCompatibilityAndOwnInsertionScope": {
+    "acceptedDesignDirections": "B1-B6 frozen design directions remain compatible at consumer level; ownership routing corrected. Earlier Q7 exactr8 design ACK stays valid, not a new blanket manifest or source writer ACK.",
+    "ownBodies": [
+      {
+        "function": "dispatch_runtime_outbox",
+        "latest": "0042_source_review_coordination.sql:1806",
+        "boundedScope": "A reply-first branch keyed to reply correlation before any goal read/lock, returning to conversation_dispatch; explicit null-goal denial after the old goal lock. Destination helper must include the required Stop seam above. Preserve existing goal/research/design/source-review/Paperclip command payloads, source-review steering refusal, epoch/state/lease checks, authority, default/signature/security/search_path/ACL and ordinary delivery rows."
+      },
+      {
+        "function": "capture_native_result",
+        "latest": "0042_source_review_coordination.sql:1724",
+        "boundedScope": "Reply-first branch keyed to binding attempt reply ID, before goal/job reads; acknowledged null-goal refusal. Preserve original research/design/design_review/source-review/brief branches, no late publication/privacy weakening, correct once-only cleanup writer and full barrier."
+      },
+      {
+        "function": "native_delivery_ineligible",
+        "latest": "0041_design_lifecycle.sql:149",
+        "boundedScope": "First null-goal refusal in goal-only eligibility CASE. Reply eligibility handled separately, including cleanup Stop/retire after cancellation; preserve every existing membership/source/grant/epoch/status/research/design condition byte-for-byte."
+      }
+    ],
+    "acceptanceLimit": "This independent root can accept the above consumer preservation/insertion boundaries as intended engineering scope only. It cannot supply the actual joint Claude implementer K2d ACK, unreviewed exact implementation patch acceptance, S1-02/S1-05A/SMC-M03/CON/PR190 owner decisions, Luis integration acceptance or a write GO. Complete exact-r2 manifest K1c remains withheld pending three concrete corrections above.",
+    "otherOwners": "CON owns its S2 and source_out/assembly/predicate adapters; retained core/runtime lanes decide foundation/table/ACL/cursor bindings; SMC-M03 confirms its latest bodies; actual PR190 owner confirms overlap/regeneration; Luis seals integration composition; source coordinator records census/window only after prerequisites. No fresh human engineering question or invented M01 owner approval required."
+  },
+  "nonBlockingImplementationNotes": [
+    "B2 actual uniqueness constraints exist. ON CONFLICT DO NOTHING alone does not return an existing command identity: implementation must resolve and verify existing command/outbox semantic identity before dependent rows, preserve atomicity, and not reuse create outbox. This is future writer review, not a new speculative failure here.",
+    "The unit-name string alone is not full authorization identity: actual runtime_lease returns a project/resource/runtime instance. Wrapper implementation must bind command/attempt/binding to that exact authenticated scope and claim, including same-unit wrong-resource negatives. No caller actor field or generic alias authority.",
+    "Line55 no M01 object is read overstates retained dependencies: dormant promoted context code uses the mission compiler identity, mission/ledger revisions and accepted mission/decision data. Say no M01 object/definition/ACL changes; unchanged read dependencies/preservation still exist. This does not require a blanket M01 ACK or Q13 policy change.",
+    "Profile/module loading remains Q8-bound. Bundle files includes dist/*.js, but package exports do not expose arbitrary subpaths; concrete reply row/entry must resolve using approved loader form. Packet303 rightly stops on unlisted plugin-entry need; no package export change or actual load success inferred.",
+    "Test relocation/root globs and Python wrapper are a valid plan, not execution. Unsupported Linux containment or target compatibility needs exact future evidence and honest failed/skipped/held status, never exit0 alone. Step4 profile/host-start digest is not committed template qualification."
+  ],
+  "freshBaseAndHolds": {
+    "metadata": {
+      "at": "2026-10-12T06:18:43.287063+00:00",
+      "main": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "prs": {
+        "190": {
+          "baseRefOid": "fec45a0e96c4679a09da02be979503910a623c5c",
+          "headRefOid": "5c10bce3060ca867402cb5ba869146a69af057c6",
+          "isDraft": true,
+          "number": 190,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/190"
+        },
+        "199": {
+          "baseRefOid": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+          "headRefOid": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+          "isDraft": true,
+          "number": 199,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/199"
+        },
+        "256": {
+          "baseRefOid": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+          "headRefOid": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+          "isDraft": true,
+          "number": 256,
+          "state": "OPEN",
+          "url": "https://github.com/davidelaverga/Sophia/pull/256"
+        }
+      }
+    },
+    "currentMainTree": "bd6c1022ffe5db6574fb8e6bd324da0235542393",
+    "actualMainSourceDelta": "Independently fetched3c40b1c and compared all changed paths to5ed752bd: UI components/Studio/tests and UI documentation only. No db/API/contracts/runtime/profile/recorder/root package/lock/planning changes; prior exact dependency source bodies remain unchanged. This does not qualify UI integration, current main CI or deployed tuple.",
+    "PhaseA": "Fresh PR256 remains draft/open exact93e9313d; no acceptance/mergeGO. Current-main nonmutating b53af9e composition/CI status are peer-reported, not reproduced or qualified by this review.0053 reservation retained.",
+    "G1Studio": "Fresh PR199 draft/open exactd527f385; G1/main or named accepted composition still required. Luis preparede160c5b7/hover changes are peer-reported context, not inspected/accepted; shared Studio handback remains held.",
+    "order": "After corrected packet and actual narrow owner ACKs, accepted PhaseA/G1/main base commit/tree and fresh census/sole writer start/expiry/return must be sealed. Keep SQL\u2192additive shapes/routes\u2192A04+bridge\u2192supervisor/launcher/profile\u2192qualification with per-pin identities/gates and exact affected crossings. No unaccepted PR211 default base or applied migration edits."
+  },
+  "effects": "Immutable Git object fetch and read-only current ref/PR metadata, exact static source/diff/hash reads and local journal only. No native CON access, peer/author message, source implementation edit, test/build/CI rerun, old batch/new harness/process probe, DB/hosted/provider/model/image calls, credential/grant/spend/merge/registry/deploy/migration/automation effects.",
+  "terminalHandback": "Complete source-only terminal review for independent reviewer consolidation before author correction. Three bounded P2 contract/scope repairs, no observed production failure. Original four corrections accepted at the stated design/scope levels; no old findings mechanically revived. Shared safe record contains source hashes/paths and review evidence, no credentials.",
+  "safeCopy": {
+    "original_sha256": "2d37018cbace6ef1fcc7b7f68f9ed280d1f16316dd5a0c49c0ed48170dc172c4",
+    "omissions": [
+      "reviewCheckout identity",
+      "inputs[].local extraction paths",
+      "provenance priorReview private filesystem path",
+      "freshBaseAndHolds.held: combined other-mission operational-state text"
+    ],
+    "findings_and_dispositions": "preserved verbatim; no authority inferred",
+    "CON_holds": "Q13/Q8/D4 route/Ask, actual narrow owners and integration base/window, Studio handback and OP0002r5/OP0001r3 approval remain pending, per root CX157"
+  }
+}
