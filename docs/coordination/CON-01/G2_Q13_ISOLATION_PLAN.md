@@ -1,4 +1,4 @@
-# G2 Q13: the reply assembler's least-privilege identity (proposal for early review, r2)
+# G2 Q13: the reply assembler's least-privilege identity (proposal for early review, r3)
 
 **Status: a proposal.** Nothing in it is installed or published as source.
 - **The shared read step (§3.3)** changes and adds objects other missions own. It stays held until those owners acknowledge it (CX-0128; owners and routing in §8).
@@ -6,9 +6,22 @@
 - **The deployment remedy for admission (§3.5)** runs only under a separately approved, exact deployment configuration. Nothing here approves one.
 - **No live effect** of any kind: no role, grant, policy, `pg_hba` or session change on any shared or hosted database.
 
-**r2 corrects r1** (`598b1d1c`), after Codex's early review (CX-0130):
+**r3 corrects r2** (`c6d3479a`), after Codex's early review (CX-0131):
+- **The activation check fails closed (§3.4, T11):**
+  - an absent assembler role is a hold;
+  - its membership checks compare against the assembler as a scalar, so an absent assembler no longer hides a login's other memberships;
+  - the target-database exception admits exactly one ACL entry, `CONNECT` alone without the grant option. Ownership of the target, `CREATE`, `TEMPORARY` or a grant option on it are holds;
+  - the assembler owning anything, anywhere, is a hold.
+- **Attribution (§3.3, §4):**
+  - Codex's `PUBLIC` inventory was of the target database `postgres`, not `template1`, which was not read;
+  - the view's options were confirmed in source `0022:75`, not in the target's catalog;
+  - the proved constraint is that `postgres` cannot revoke `template1`'s `PUBLIC` `CONNECT`, and that no supported admission path is established. It is not a proof that the platform has none.
+
+  Activation stays held.
+
+**r2 corrected r1** (`598b1d1c`), after Codex's early review (CX-0130):
 - **Admission.** r1 let the owner accept another database's `PUBLIC` admission. The selected boundary is the intended database alone (D-8). So every admission elsewhere now **holds activation** until its denial is qualified under an approved deployment configuration (§3.4, §3.5, §4). There is no acceptance path.
-- **On the actual target** (Codex's read-only metadata, CX-0131), `template1`'s `PUBLIC` `CONNECT` can't be revoked by the deploying role. That is a **demonstrated incompatibility**, and activation stays held (§4).
+- **On the actual target** (Codex's read-only metadata, CX-0131): the proved constraint is that the deploying role `postgres` cannot revoke `template1`'s `PUBLIC` `CONNECT`, and no supported admission path for the login is established. Activation stays held (§4).
 - **The actor.** r1 let the execution login read as any actor, in any project, in the 20 relations. Its reads are now bound to the one claim its own transaction began, for that claim's project and asker, by 19 restrictive policies on the assembler alone (§3.2, §3.3). A wrong actor, project, reply or lease reads nothing (T3).
 - **The drift guard.** r1 compared policy names, commands, permissiveness and roles, not predicates, despite saying so. It now also binds the reviewed identities: each predicate's text, `native_task_view`'s definition and options, and each function's definition. It fails closed on any difference (§3.3, T2).
 
@@ -100,8 +113,11 @@ It runs in the candidate's transaction, so a refusal installs nothing.
 
   All are deparsed with `search_path = pg_catalog`, so every name is schema-qualified.
 - **Another major version** is refused until its own identities are reviewed and added.
-- **The actual target is PostgreSQL 17.6** (Codex, CX-0131, read-only). So this guard refuses there until the 17.6 identities are taken on an owned 17.6 cluster and added in the CON pin, beside the 16 ones. I have no 17 binary here.
-- **The view's identity** is its definition plus its `security_barrier` and `security_invoker` options, as replaced at `0022_research_readers.sql:75` (Codex confirmed it on the target).
+- **The actual target is PostgreSQL 17.6** (Codex, CX-0131, read-only). So this guard refuses there until the 17.6 identities are taken on an owned 17.6 cluster and added in the CON pin, beside the 16 ones.
+  - I have no 17 binary here.
+  - Codex will collect the raw 17.6 canonical identities, from this exact SQL on its owned cluster, as reviewer evidence.
+  - I integrate them into the final candidate and qualify it. They are not a fix authored by the reviewer.
+- **The view's identity** is its definition plus its `security_barrier` and `security_invoker` options, as replaced at `0022_research_readers.sql:75`. Codex confirmed the options in that source line, not in the target's catalog. The 17.6 identities, the view's included, are still to be taken (above).
 ```sql
 -- (Q13, D-8) What the compiler reads as the asker, and nothing else: the relations readMissionContext and the window
 -- read, native_task_view's base tables, the relations their SELECT policies read, the functions those policies and that
@@ -234,25 +250,39 @@ Proposed as `db/candidates/con01-s3-assembler-activation-check.sql`, a new CON f
 - **Where and how:** run in the target database by the owner, with `-v login=<the execution login>`, after the login is created and granted the assembler, and before it is used.
 - **Every row it returns holds activation.** Zero rows are required. There is no row an owner accepts.
 ```sql
+-- Fails closed: a missing login or assembler is a hold, and every membership check compares against the assembler's oid
+-- as a scalar, so an absent assembler (NULL) makes every membership of the login a hold rather than hiding them.
 WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
      a AS (SELECT oid FROM pg_roles WHERE rolname='sophia_conversation_assembler'),
-     t AS (SELECT oid FROM pg_database WHERE datname=current_database())
+     t AS (SELECT oid FROM pg_database WHERE datname=current_database()),
+     -- Where a shared dependency is named: a database by its own name, anything else by the database it lives in.
+     dep AS (SELECT d.*, CASE WHEN d.classid='pg_database'::regclass
+               THEN 'database '||coalesce((SELECT datname FROM pg_database WHERE oid=d.objid),'?')
+               ELSE coalesce((SELECT datname FROM pg_database WHERE oid=d.dbid),'(shared)') END AS place
+               FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass)
 SELECT 'hold' AS kind, 'no such login' AS what WHERE NOT EXISTS(SELECT FROM l)
+UNION ALL SELECT 'hold', 'no assembler role' WHERE NOT EXISTS(SELECT FROM a)
 UNION ALL SELECT 'hold', 'attribute' FROM l
  WHERE rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole OR rolreplication OR NOT rolcanlogin
-UNION ALL SELECT 'hold', 'member of '||m.roleid::regrole FROM pg_auth_members m, l, a
- WHERE m.member=l.oid AND m.roleid<>a.oid
-UNION ALL SELECT 'hold', 'assembler edge: admin option or no SET' FROM pg_auth_members m, l, a
- WHERE m.member=l.oid AND m.roleid=a.oid AND (m.admin_option OR NOT m.set_option)
-UNION ALL SELECT 'hold', 'not a member of the assembler' FROM l, a
- WHERE NOT EXISTS(SELECT FROM pg_auth_members m WHERE m.member=l.oid AND m.roleid=a.oid)
+UNION ALL SELECT 'hold', 'member of '||m.roleid::regrole FROM pg_auth_members m, l
+ WHERE m.member=l.oid AND m.roleid IS DISTINCT FROM (SELECT oid FROM a)
+UNION ALL SELECT 'hold', 'assembler edge: admin option or no SET' FROM pg_auth_members m, l
+ WHERE m.member=l.oid AND m.roleid=(SELECT oid FROM a) AND (m.admin_option OR NOT m.set_option)
+UNION ALL SELECT 'hold', 'not a member of the assembler' FROM l
+ WHERE NOT EXISTS(SELECT FROM pg_auth_members m WHERE m.member=l.oid AND m.roleid=(SELECT oid FROM a))
 UNION ALL SELECT 'hold', 'the login has a member: '||m.member::regrole FROM pg_auth_members m, l WHERE m.roleid=l.oid
 UNION ALL SELECT 'hold', 'the assembler is a member of '||m.roleid::regrole FROM pg_auth_members m, a WHERE m.member=a.oid
-UNION ALL SELECT 'hold', 'own privilege or object in '||coalesce((SELECT datname FROM pg_database WHERE oid=d.dbid),'(shared)')
- FROM pg_shdepend d, l, t WHERE d.refclassid='pg_authid'::regclass AND d.refobjid=l.oid
-  AND NOT (d.dbid=0 AND d.classid='pg_database'::regclass AND d.objid=t.oid)   -- its CONNECT on the target alone
-UNION ALL SELECT 'hold', 'assembler holds something in '||coalesce((SELECT datname FROM pg_database WHERE oid=d.dbid),'(shared)')
- FROM pg_shdepend d, a, t WHERE d.refclassid='pg_authid'::regclass AND d.refobjid=a.oid AND d.dbid<>t.oid
+-- The login's own dependencies: none, except one ACL entry on the target database itself (checked exactly below).
+UNION ALL SELECT 'hold', 'the login '||CASE dep.deptype WHEN 'o' THEN 'owns something in ' ELSE 'holds something in ' END||dep.place
+ FROM dep, l, t WHERE dep.refobjid=l.oid
+  AND NOT (dep.dbid=0 AND dep.classid='pg_database'::regclass AND dep.objid=t.oid AND dep.deptype='a')
+-- That ACL entry is CONNECT alone, without the grant option: no CREATE, TEMPORARY or anything else on the target.
+UNION ALL SELECT 'hold', 'on the target database: '||x.privilege_type||CASE WHEN x.is_grantable THEN ' with grant option' ELSE '' END
+ FROM pg_database db, aclexplode(db.datacl) x, l, t
+ WHERE db.oid=t.oid AND x.grantee=l.oid AND (x.privilege_type<>'CONNECT' OR x.is_grantable)
+-- The assembler's: grants in the target alone (no database-level or shared entry), and it owns nothing anywhere.
+UNION ALL SELECT 'hold', 'the assembler '||CASE dep.deptype WHEN 'o' THEN 'owns something in ' ELSE 'holds something in ' END||dep.place
+ FROM dep, a, t WHERE dep.refobjid=a.oid AND (dep.dbid<>t.oid OR dep.deptype='o')
 UNION ALL SELECT 'hold', 'session open in '||coalesce(s.datname,'?')||' (pid '||s.pid||')'
  FROM pg_stat_activity s, l WHERE s.usesysid=l.oid AND s.pid<>pg_backend_pid()
 UNION ALL SELECT 'hold', 'admitted to '||d.datname||CASE WHEN has_database_privilege('public', d.oid, 'CONNECT')
@@ -321,23 +351,23 @@ REVOKE CONNECT ON DATABASE D FROM PUBLIC;
 
 **That is not the selected boundary.** So every admission elsewhere holds activation until the §3.5 remedy, under an approved configuration, denies it and the denial is qualified.
 
-**On the actual target this is a demonstrated incompatibility.** Codex's read-only discovery (CX-0131) shows the one other connectable database, `template1`, is owned by `supabase_admin` with `PUBLIC` `CONNECT`. The deploying role `postgres` is not a superuser, and Supabase documents that it cannot revoke `template1`'s `CONNECT`. No act within the deploying role's capability denies the execution login's admission to `template1`:
-- no `CONNECT` revocation;
-- no shown `pg_hba` path: `pg_hba_file_rules` is readable only by superusers by default, and no per-role admission setting is shown available to that role.
+**On the actual target: the proved constraint.** Codex's read-only metadata (CX-0131) shows:
+- the one other connectable database, `template1`, is owned by `supabase_admin` with `PUBLIC` `CONNECT`;
+- the deploying role `postgres` is not a superuser.
+
+Supabase's own page says `postgres` cannot revoke `template1`'s `CONNECT`. So the §3.5 remedy can't deny the execution login's admission to `template1` on this target. **No supported `pg_hba` or other admission path for the login is established.** That is not a proof that the platform has none; it is a statement that none is established and qualified. Until one is, activation stays held.
 
 **The consequences:**
 - §3.4 returns `admitted to template1 (PUBLIC CONNECT)` on the target. **Activation stays held**, with no exception and no new policy default.
-- **What `PUBLIC` holds there** (Codex, catalog-only):
-  - among the non-system schemas, only `USAGE` on `public`;
-  - no `pg_net`, `http` or `pg_cron`, and no network relations or functions;
-  - other `PUBLIC` function grants exist behind schemas without `PUBLIC` `USAGE`.
-
-  That bounds the effect but does not lift the hold. The installed identity's actual negative qualification on the target is still owed.
-- **What would change it** is outside CON and outside the deploying role:
+- **What `PUBLIC` holds in `template1` is not established.** Codex did not connect to `template1` or read its catalog.
+- Codex's catalog-only inventory (CX-0131) was of the **target database `postgres`**. It found, among the non-system schemas, only `USAGE` on `public`; no `pg_net`, `http` or `pg_cron`, and no network relations or functions; and other `PUBLIC` function grants behind schemas without `PUBLIC` `USAGE`.
+- So no network-execution failure is claimed in either database. The installed identity's actual negative qualification on the target is still owed.
+- **What would change it** is outside CON:
   - the template's owner revoking `PUBLIC` `CONNECT` on `template1`;
+  - a supported admission path for the login, once established and qualified;
   - or a deployment in which the deploying role owns every connectable database.
 
-  Neither is proposed, assumed or asked here.
+  None is proposed, assumed or asked here.
 
 **Not inferred:**
 - no `CONNECT` revocation, `pg_hba` edit, grant or session termination on any shared or hosted cluster;
@@ -370,11 +400,12 @@ All run on owned disposable PostgreSQL through a real login: `LOGIN NOINHERIT`, 
 | Other database admission | **T7**, on an owned throwaway cluster: **before** the remedy, the login is admitted to `postgres`, `template1` and a synthetic database, holds nothing of Sophia's there, and §3.4 holds activation (`admitted to` rows). **After** §3.5's remedy (one other login re-granted `CONNECT` on `postgres`): a fresh connection by the login to each is refused (`42501`); it is admitted to the target; the re-granted login is admitted to `postgres`; §3.4 returns no row. The throwaway cluster is removed afterwards |
 | Scope to one database | **T8**: installing the candidate in a second database of the same cluster is refused ("privileges or objects of its own"). This replaces today's "adopts an existing role" control, which applied in a second database. The other found-role cases are kept |
 | Pre-existing out-of-scope session | **T9**: an owned session by the login is open in another database before the check. §3.4 returns its `session` row. Revoking `PUBLIC` `CONNECT` there does not end it: it still queries. Its client closes voluntarily, and the `session` row is gone. No other process is terminated |
+| Activation check fails closed | **T11**, the §3.4 query on owned disposable databases, each case in a rolled-back transaction: **(a)** no assembler role, with the login a member of `sophia_api`: `no assembler role`, `member of sophia_api` and `not a member of the assembler`; **(b)** the login owns the target database: `the login owns something in database <target>`; **(c)** `CREATE` and `TEMPORARY` granted on the target: one `on the target database:` row each; **(d)** `CONNECT` with the grant option: `on the target database: CONNECT with grant option`; **(e)** the assembler owns a table: `the assembler owns something in <target>`; **(f)** the login set up as §3.4 requires: no row but `admitted to` rows. Each must return its rows; at `7d8f` the check does not exist |
 | Concurrent identities and restart | **T10**: two logins, each a member of the assembler; neither can `SET ROLE` the other. Each `assembleReply` call opens and destroys its own connections: no backend pid is reused across calls, and `current_user` after each transaction is the login. A revoked login's next call fails at connect or `SET LOCAL ROLE`, and its claim count is unchanged: no fresh attempt is created by the failure |
 
 ## 6. What this does not settle
 
-- **Admission elsewhere:** on the actual target, a demonstrated incompatibility. `template1`'s `PUBLIC` `CONNECT` can't be revoked by the deploying role, so activation stays held (§4). Elsewhere, it is held until §3.5 is approved, applied and qualified.
+- **Admission elsewhere:** on the actual target, `postgres` cannot revoke `template1`'s `PUBLIC` `CONNECT`, and no supported admission path is established, so activation stays held (§4). Elsewhere, it is held until §3.5 is approved, applied and qualified.
 - **PostgreSQL 17.6:** the target's identities are not yet taken; the guard refuses there until they are (§3.3).
 - **Inside its claim,** the login reads what the claim's asker may read in that project, in the 20 relations. That is the compiler's required read. Claiming is limited to pending replies and to three attempts each, as the S3 functions already enforce.
 - **Policy drift after install:**
@@ -422,6 +453,19 @@ All run on owned disposable PostgreSQL through a real login: `LOGIN NOINHERIT`, 
 | Cleanup | every database and role dropped; census `postgres`, `sophia_api`, `sophia_worker` / `postgres`, `template0`, `template1` / 0 clients |
 
 This applies the exact text on a disposable PG16 database. It is not the installed candidate, not PG 17.6, and not a qualification.
+
+**r3: only §3.4's check changed** since that run. §3.1–§3.3 and §3.5's discovery are byte-identical to the r2 text validated above. The check (`74e6ea2f…`, doc block 5, verbatim) was run on owned 55436 per T11, each adverse case in a rolled-back transaction (`q13-r3-t11.out`, `ed928bf1…`):
+
+| Case | Rows returned |
+|---|---|
+| (a) no assembler role; the login a member of `sophia_api` | `no assembler role`, `member of sophia_api`, `not a member of the assembler`, plus the `admitted to` rows. r2's check would have returned only the `admitted to` rows, because its empty `a` dropped the membership checks |
+| (f) the login set up as required | the 2 `admitted to` rows alone (`postgres`, `template1`) |
+| (b) the login owns the target | `the login owns something in database <target>`, plus `CREATE` and `TEMPORARY` (an owner's implicit ACL) |
+| (c) `CREATE` and `TEMPORARY` granted on the target | one `on the target database:` row each |
+| (d) `CONNECT` with the grant option | `on the target database: CONNECT with grant option` |
+| (e) the assembler owns a table | `the assembler owns something in <target>` |
+| (f) again, after the rolled-back cases | unchanged: the 2 `admitted to` rows |
+| Cleanup | the target, the login and the assembler dropped; census baseline, 0 clients |
 
 ## 8. Affected shared objects and the acknowledgements they need (expanded in r2)
 
