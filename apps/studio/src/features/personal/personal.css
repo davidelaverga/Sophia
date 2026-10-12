@@ -524,13 +524,14 @@
   mask-image: radial-gradient(closest-side, #000 50%, transparent);
   mix-blend-mode: screen;
 }
-/* On paper her halo is ink laid on the page, not light added to it (docs/plans/light-breath.md). The blend is the
-   light's as a group (its canvases, its breathing halo at -1, and the formed mark): measured on Home, the group blends
-   inside the side column's own stacking context (`.hw-side`, z-index 1, see-through), so the mark draws as the brand's
-   ink, #8468ee, not multiplied (Codex on #251; the mark outside the group is left in light-breath.md). */
+/* On paper the light is laid on the page as drawn: no blend. The room's `screen` adds light, which paper has none to
+   take; a `multiply` on the light's group either reached nothing (inside the side column's stacking context, with
+   what needs you) or tinted the formed mark with the paper (Home without needs: #8468ee drew as #8265e3). The halo
+   carries its own paper inks (`.light::after`), so it needs no blend to read as ink (Codex on #251). Home and Talk
+   alike. */
 :root[data-theme='light'] .places .hw-light .light,
 :root[data-theme='light'] .places .c3-talk-light .light {
-  mix-blend-mode: multiply;
+  mix-blend-mode: normal;
 }
 /* Given what needs you (the vision flag): the right half is a column, her light smaller at its head, the list under
    it on the same hairlines as the projects'. */
