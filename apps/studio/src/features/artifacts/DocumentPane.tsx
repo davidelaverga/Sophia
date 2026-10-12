@@ -8,10 +8,9 @@ import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
-import { Icon, Segmented, Tip } from '@sophia/ui'
+import { Icon, Segmented, Tabs, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { nextInRow } from '../../app/roving.ts'
 import { modalOnScreen, onScreen as isVisible, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
 import {
   checkedBlob,
@@ -886,41 +885,22 @@ const TABS: readonly ViewerTab[] = VISION
  * between them. The format switch sits beside the row, not in it (a tab list holds tabs only).
  */
 function PaneTabs({ tab, onTab, sources, versions, tasks, formats, format, onFormat }: TabsProps) {
-  const buttons = useRef(new Map<ViewerTab, HTMLButtonElement>())
   const label: Record<ViewerTab, string> = {
     document: 'Document',
     sources: `Sources${count(sources)}`,
     history: `History${count(versions)}`,
     tasks: `Tasks${count(tasks)}`,
   }
-  const onKey = (e: React.KeyboardEvent) => {
-    const next = nextInRow(TABS, tab, e.key)
-    if (!next) return
-    e.preventDefault()
-    onTab(next)
-    buttons.current.get(next)?.focus()
-  }
   return (
     <div className="report-tabs">
-      <div className="report-tablist" role="tablist" aria-label="Report" onKeyDown={onKey}>
-        {TABS.map((id) => (
-          <button
-            key={id}
-            ref={(el) => {
-              if (el) buttons.current.set(id, el)
-            }}
-            type="button"
-            role="tab"
-            id={`report-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls="report-tabpanel"
-            tabIndex={tab === id ? 0 : -1}
-            onClick={() => onTab(id)}
-          >
-            {label[id]}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        label="Report"
+        className="report-tablist"
+        items={TABS.map((id) => ({ id, label: label[id], controls: 'report-tabpanel' }))}
+        value={tab}
+        onChange={onTab}
+        idFor={(id) => `report-tab-${id}`}
+      />
       {formats.length > 1 && <FormatSwitch formats={formats} format={format} onFormat={onFormat} />}
     </div>
   )
