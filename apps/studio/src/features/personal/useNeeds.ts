@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Need as WireNeed } from '@sophia/contracts'
 import { ApiError } from '../../api/client.ts'
+import { tokenSubject } from '../../app/auth-callback.ts'
 import { clockSkew, listNeeds, markNeedSeen, needsOf, whereOf, type NeedAt } from '../../api/needs.ts'
 import type { View } from '../../app/route.ts'
 import { VISION } from '../../app/vision.ts'
@@ -55,7 +56,9 @@ export interface NeedsRead {
 export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {}): NeedsRead {
   const { enabled = VISION, locked = false } = options
   const client = useQueryClient()
-  const queryKey = ['vision', 'needs', token]
+  // Keyed by the account, not the token: a refreshed token is the same person, and their rows stay while it reads
+  // again (Codex on #245).
+  const queryKey = ['vision', 'needs', tokenSubject(token) ?? token]
   const read = useQuery({
     queryKey,
     // When the answer arrived, beside it: `readAt` is the service's clock and this is the browser's, at the same moment.

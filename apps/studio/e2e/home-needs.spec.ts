@@ -112,7 +112,8 @@ test('home · needs you from the read (A15): the Studio’s client, the rows in 
   await rows.nth(3).click() // a reply in the personal space
   expect(await pressed(page)).toEqual([
     'open work 00000000-0000-4000-8000-0000000000aa #decision-d1', // the decision's own choice on the board, not the task's sheet
-    'open resources 00000000-0000-4000-8000-0000000000aa #request-action-1', // the request, not only the task that waits on it
+    // The request with its resource (two resources may hold one request id: Codex on #245), not only the task that waits.
+    'open resources 00000000-0000-4000-8000-0000000000aa #request-davide-claude/action-1',
     'open studio 00000000-0000-4000-8000-0000000000aa',
     'personal',
     'seen reply:t9', // a reply has no answer of its own: opening it is its seen mark, and it leaves the list
