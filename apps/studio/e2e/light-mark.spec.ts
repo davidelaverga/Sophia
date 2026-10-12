@@ -16,12 +16,18 @@ const marks = (page: Page) =>
       .map((svg) => {
         const you = svg.querySelector('.umbral-you')
         const her = svg.querySelector('.umbral-sophia')
+        // Blended on the way to the screen? The mark's own blend, and every ancestor's up to the page (a blended
+        // ancestor blends the mark with it).
+        let blended = false
+        for (let el: Element | null = svg; el; el = el.parentElement)
+          if (getComputedStyle(el).mixBlendMode !== 'normal') blended = true
         return {
           where: svg.closest('.threshold') ? 'threshold' : (svg.parentElement?.className ?? ''),
           live: svg.hasAttribute('data-live'),
           you: you ? getComputedStyle(you).fill : null,
           her: her ? getComputedStyle(her).fill : null,
           filter: her ? getComputedStyle(her).filter : null,
+          blended,
         }
       }),
   )
@@ -41,6 +47,8 @@ for (const [name, url, parts] of PAGES) {
     for (const m of seen) {
       expect(m.you, m.where).toBe(INK)
       expect(m.her, m.where).toBe(HALO_DEEP)
+      // As drawn, too: no blend between the mark and the paper (the halo's canvases multiply; the mark is beside them).
+      expect(m.blended, m.where).toBe(false)
       // The threshold breathes (its keyframes animate the filter); the bar's mark rests without one.
       if (m.where !== 'threshold' && !m.live) expect(m.filter, m.where).toBe('none')
     }
