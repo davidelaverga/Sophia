@@ -86,11 +86,14 @@ const NOBODY: People = { participants: [], feeds: [], sophia: null, audioBlocked
 /** How this person gets a room token: as a member of the project, or as a guest the lobby admitted. */
 export type IssueToken = () => Promise<RoomToken>
 
-/** A token from the API, then LiveKit, which loads only now: it is most of the Studio's weight. */
+/**
+ * A token from the API, then LiveKit, which loads only now: it is most of the Studio's weight. The grant the token
+ * names, if any (A15, its principal's alone), goes with it: only then does the page emit its voice receipts.
+ */
 async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
   const issued = await issue()
   const { connectRoom } = await import('./livekit-room.ts')
-  return connectRoom(issued.serverUrl, issued.token, cb)
+  return connectRoom(issued, cb)
 }
 
 /**

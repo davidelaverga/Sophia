@@ -38,8 +38,11 @@ import type { ChatCaption, ChatInput, ChatNotice, ChatReply } from '@sophia/cont
 //    floor, and Sophia's spoken reply, under the same fences as her audio. Each fragment is passed on and forgotten
 //    (captions.ts); no transcript reaches a log, a tool call, the API or retained state. A typed reply stays the
 //    sender's. SOPHIA_LIVE_CAPTIONS=off sends none.
+//  - Under a voice qualification grant, with SOPHIA_VOICE_EVIDENCE=on (off by default), the session records the
+//    principal's receipts and holds itself to the grant's bound and deadline (qualification.ts): past them it sends
+//    nothing more to Google and closes it. Without both, none of it runs.
 import type { FunctionCall, FunctionResponse } from '@google/genai'
-import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
+import type { MediaAssignment, MediaEvidenceAck, MediaToolCall, MediaToolResult } from '@sophia/contracts'
 import {
   base64ToPcm,
   FormatError,
@@ -51,11 +54,16 @@ import {
   ReplyAudio,
   type ReplyEnd,
 } from './audio.ts'
+import { withinAttempt } from './attempt.ts'
 import { Captions } from './captions.ts'
-import { type Assignment, ExchangeState, type InputState } from './exchange-state.ts'
+import { EVIDENCE_RETRY_MS } from './evidence-sender.ts'
+import { RESERVE_RETRY_MS, RESERVE_TIMEOUT_MS } from './qualification-ledger.ts'
+import { type Assignment, type Attribution, ExchangeState, type InputState } from './exchange-state.ts'
+import { PRESENCE_SEQUENCE_MAX, type PresenceSequence, processPresenceSequence } from './presence-sequence.ts'
 import { GuideContext } from './guide-context.ts'
 import type { GuideVersion, MissionGuide } from './guide.ts'
 import type { ConnectLive, LiveEvents, LiveLink } from './live-session.ts'
+import { type GuardStop, SessionQualification } from './qualification.ts'
 import type { JoinRoom, RoomLink, RoomPerson, VisualSource } from './rtc.ts'
 import { type MediaService, ServiceError } from './service.ts'
 import { isToolName, refusedResponse, TOOL_SETS, toolResponse, WRITE_TOOLS, type ToolSet } from './tools.ts'
@@ -80,8 +88,32 @@ export interface SessionDeps {
   lost?: (exchangeId: string) => void
   /** Waits before a tool call whose reply was lost is sent again, with the same identity; tests shorten them. */
   toolRetryMs?: readonly number[]
+  /** One tool call attempt's transport ceiling (TOOL_ATTEMPT_MS); tests shorten it. */
+  toolAttemptMs?: number
+  /**
+   * One attempt's bound for the presence report, the quiesce acknowledgement, a holder event and an announcement's record
+   * (POST_ATTEMPT_MS); tests shorten it.
+   */
+  postAttemptMs?: number
+  /**
+   * The counter the presence reports' reportSeq comes from (presence-sequence.ts): this process's, shared by every
+   * session, unless a test gives its own.
+   */
+  presenceSequence?: PresenceSequence
   /** Live captions for the members present (CX-0023); false sends none (SOPHIA_LIVE_CAPTIONS=off). On by default. */
   liveCaptions?: boolean
+  /**
+   * Voice qualification evidence (SOPHIA_VOICE_EVIDENCE=on, A15): a session whose assignment names a grant records its
+   * receipts and holds itself to the grant (qualification.ts). Off by default: then nothing of it runs.
+   */
+  voiceEvidence?: boolean
+  /** The deployed commit the provider receipts name (RENDER_GIT_COMMIT, 40 hex), or null. */
+  bridgeCommit?: string | null
+  /** Waits before a receipt whose answer was lost is sent again; tests shorten them. */
+  evidenceRetryMs?: readonly number[]
+  /** Waits before a reservation whose answer was lost is asked again, and each attempt's limit; tests shorten them. */
+  reserveRetryMs?: readonly number[]
+  reserveTimeoutMs?: number
 }
 
 const everyInterval = (fn: () => void, ms: number) => {
@@ -103,6 +135,18 @@ export const HOLDER_GRACE_MS = 5000
 export const HOLDER_ARRIVAL_MS = 5000
 /** A holder event the API did not take is sent again after this wait. */
 export const HOLDER_RETRY_MS = 2000
+/**
+ * How long one attempt of the quiesce acknowledgement, a holder event, an announcement's record or a presence report may
+ * take, its body's read included (item 7 of the PR #190 review: these posts had no bound but undici's own 300 s). Past it
+ * the request is cancelled and its socket closed. The first three are sent again with the same identity after their own
+ * wait (QUIESCE_RETRY_MS, HOLDER_RETRY_MS, RECEIPT_RETRY_MS); each is idempotent on the API (0013 media_ack_quiesce, ON
+ * CONFLICT DO NOTHING; media_holder_event, compare-and-set on actor and epoch; 0035 media_record_announced, a union
+ * upsert). A presence report is never sent again: the next tick builds a new one with the next reportSeq, and the API
+ * ignores a cut one that commits after it (item 7 C; 0052, provisional number).
+ */
+export const POST_ATTEMPT_MS = 3000
+/** A quiesce acknowledgement the API did not take is sent again after this wait, on the tick, while still asked for. */
+export const QUIESCE_RETRY_MS = 2000
 /** How long after the last frame handed to the AudioSource the room still hears Sophia (its 200 ms queue). */
 const PLAYING_TAIL_MS = 250
 const RECONNECT_DELAYS_MS = [250, 1000, 2000, 4000, 8000]
@@ -121,11 +165,27 @@ const SHOWN_KEPT = 20
 const BACKFILL_MS = 3000
 /** Caption ends kept while the room link is down, to send once it is back. */
 const CAPTION_ENDS_KEPT = 20
+/**
+ * The holder's chunks kept while their generation is reserved (under a grant): five seconds, the oldest dropped first,
+ * and counted as dropped (Codex r4234936797).
+ */
+const HELD_CHUNKS = 50
 /** How long closing waits for the announcements it still owes the API (best effort; the API keeps listing the rest). */
 const CLOSE_FLUSH_MS = 3000
 /** A heard notice whose receipt the API did not take is recorded again after this wait, until it is. */
 const RECEIPT_RETRY_MS = 5000
 const TOOL_RETRY_MS = [250, 1000]
+/**
+ * One tool call attempt's TRANSPORT CEILING (item 7 B of the PR #190 review: the call had no bound but undici's own
+ * 300 s). It is NOT a proven worst-case handler or provider conversational deadline: nothing here measures how long a
+ * handler may run or how long the provider waits for a tool response. Past it the request is cancelled, its socket
+ * closed, and the call goes as a lost reply does: sent again with the same identity after its TOOL_RETRY_MS wait, at
+ * most twice, and a write still unconfirmed is `unknown`, never "nothing changed" (answerTo, unanswered). The API keys
+ * each call by its identity: a repeat is answered from its record or waits for its fence (0046 live_tool_calls, 0047
+ * live_call_keys and live_call_fences), so it never runs twice. A call in flight never holds a close: close() does not
+ * wait for tool calls, so the bridge's stop bound (STOP_DEADLINE_MS, 35 s) is unchanged.
+ */
+export const TOOL_ATTEMPT_MS = 20_000
 const TOOL_FAILED: MediaToolResult = { status: 'error', output: { reason: 'The tool failed; nothing was changed.' } }
 /** A write whose reply never came: it may have been saved. The guide reconciles by reading, not by writing again. */
 const WRITE_UNCONFIRMED: MediaToolResult = {
@@ -250,7 +310,11 @@ const resultKey = (r: Pick<Result, 'taskId' | 'resultRevision'>) => `${r.taskId}
  * - `shown`: the results whose card the exchange has shown, so the replacement can show them again to a member who
  *   reloads or arrives (CX-0022);
  * - `captionEnds`: the ends of captions cut off while the room link was down (ids and sequences, never words), which
- *   the replacement sends once it has joined, so no member's caption is left as still being said (CX-0023).
+ *   the replacement sends once it has joined, so no member's caption is left as still being said (CX-0023);
+ * - `ledger`: under a voice qualification grant, what the replaced session spent that the API may not hold yet
+ *   (SessionQualification.ledger(); Codex r4234649847), with every obligation it inherited and had not seen land
+ *   (Codex r4234949420): one ledger for the whole chain of sessions on the exchange. The replacement opens no provider
+ *   connection until all of it is on the API.
  * A process restart forgets it.
  */
 export interface Handover {
@@ -259,7 +323,26 @@ export interface Handover {
   done: string[]
   shown: Result[]
   captionEnds?: ChatCaption[]
+  ledger?: InheritedLedger
 }
+
+/**
+ * What the sessions replaced on an exchange spent and the API may not hold yet (SessionQualification.ledger()), one
+ * ledger for the whole chain (Codex r4234949420): a session hands over its own with whatever it inherited and had not
+ * seen land, so a session replaced while it still waited on its own handover passes that wait on.
+ */
+export interface InheritedLedger {
+  /** Charges still unanswered when it was handed over; a session whose own handover had not come yet counts one. */
+  unanswered: number
+  /** Whether a charge was refused or never confirmed, anywhere in the chain. */
+  lost: boolean
+  /** Once every charge is answered, whether all landed: one per session of the chain, side by side, never nested. */
+  landings: Promise<boolean>[]
+}
+
+/** Whether every charge of a ledger landed, once all are answered. */
+const landedAll = (ledger: InheritedLedger): Promise<boolean> =>
+  ledger.lost ? Promise.resolve(false) : Promise.all(ledger.landings).then((landed) => landed.every(Boolean))
 
 /**
  * Typed words reach Google after the bridge's own marker; inside them, an opening bracket before "Sophia" or
@@ -280,6 +363,18 @@ interface TypedTurn {
   toolIds: Set<string>
 }
 const CALL_ID = /^[A-Za-z0-9_.:-]{1,64}$/
+
+/**
+ * A tool call as it arrived from the provider, read then and never later: whose it is (the turn's holder, or null), the
+ * typed turn that counts it as pending, its input mode, the utterance it answers, and whether input was paused.
+ */
+interface Arrival {
+  who: Attribution | null
+  turn: TypedTurn | null
+  inputMode: 'text' | 'voice'
+  utterance: number
+  paused: boolean
+}
 
 export const toAssignment = (a: MediaAssignment): Assignment => ({
   exchangeId: a.exchangeId,
@@ -319,6 +414,14 @@ function statusOf(response: FunctionResponse): unknown {
   return typeof output === 'object' && output !== null && 'status' in output ? output.status : undefined
 }
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err))
+/** A transcript's length in characters (code points): all a qualification receipt keeps of it. */
+const charsOf = (text: string) => Array.from(text).length
+
+/** What function calls carry as billed output text: each name and its serialized arguments, in characters. */
+const payloadChars = (calls: readonly FunctionCall[]) =>
+  calls.reduce((sum, call) => sum + (call.name ?? '').length + JSON.stringify(call.args ?? {}).length, 0)
+/** How many 16-bit samples base64 PCM carries, without decoding it. */
+const pcmSamples = (data: string) => Math.floor(Buffer.byteLength(data, 'base64') / 2)
 const shortString = (value: unknown) => (typeof value === 'string' && value.length <= 64 ? value : undefined)
 
 /** The ids a tool answer carries (the work it started or controlled, a refusal's code), for the log only. */
@@ -436,8 +539,12 @@ export class RoomSession {
   private lastReport = 0
   private reportDirty = true
   private reporting = false
+  /** This session logged that its process's presence sequence is spent (presence-sequence.ts). */
+  private sequenceSpentLogged = false
   private published = ''
   private readonly acked = new Set<string>()
+  /** When a quiesce acknowledgement the API did not take is sent again (on the tick), or null. */
+  private ackRetryAt: number | null = null
   /** Results sent to Google as a notice: while one waits to be heard, and once it was heard. */
   private readonly announced = new Set<string>()
   /**
@@ -459,6 +566,13 @@ export class RoomSession {
   private readonly heard = new Set<string>()
   /** A session that replaces a lost one announces nothing until it has what that one handed over. */
   private awaitingHandover = false
+  /**
+   * What the session this one replaces spent and the API may not hold yet, once it is handed over: under a grant, no
+   * provider connection opens until all of it is on the API (inheritedSettled()).
+   */
+  private inherited: Promise<InheritedLedger | null> | null = null
+  /** That ledger once handed over (null: none); undefined while the handover is still to come. */
+  private inheritedNow: InheritedLedger | null | undefined = undefined
   /** Leaving the room, once closing: a room's next exchange may join after it, whatever is still settling. */
   private leaving: Promise<void> | null = null
   /** Members who said they read Sophia (text mode); dropped when they leave. They decide whether she speaks. */
@@ -502,6 +616,27 @@ export class RoomSession {
   private readonly captions: Captions
   /** Captions that ended while the room link was down: an end carries no words, so it waits to be sent. */
   private captionEnds: ChatCaption[] = []
+  /** Under a voice qualification grant with SOPHIA_VOICE_EVIDENCE=on: its receipts and bound; otherwise null. */
+  private readonly qualification: SessionQualification | null
+  /** The bound or the grant's deadline stopped the provider for good (guardStop). */
+  private guarded = false
+  /**
+   * The assignment names a grant this bridge does not hold to its limits (SOPHIA_VOICE_EVIDENCE off): it opens no
+   * provider connection (decline()).
+   */
+  private readonly declined: boolean
+  /** Under a grant: the holder's chunks waiting for their generation's reservation, and reservations under way. */
+  /**
+   * Input waiting for a reservation (its generation's, or a top-up), each chunk with its speaker and the provider
+   * connection it waits on: only that connection's grant lets it go on.
+   */
+  /**
+   * Chunks waiting for their connection's reservation, each with the samples dropped before it that its window has not
+   * counted yet: the chunker's backlog drops pending when it was held, and the chunks evicted ahead of it.
+   */
+  private readonly held: Array<{ identity: string; connection: number; chunk: Int16Array; dropped: number }> = []
+  private typedReserving = false
+  private noticeReserving = false
 
   constructor(assignment: MediaAssignment, deps: SessionDeps, handover: Handover | Promise<Handover> | null = null) {
     this.exchangeId = assignment.exchangeId
@@ -511,12 +646,23 @@ export class RoomSession {
     this.state = new ExchangeState(toAssignment(assignment))
     this.guideContext = new GuideContext(assignment)
     this.captions = new Captions(this.exchangeId, (packet) => this.sendCaption(packet))
+    this.qualification = this.qualify(assignment)
+    this.declined = deps.voiceEvidence !== true && assignment.qualification !== undefined
     // Unique across bridge restarts, and so is the provider session that starts from it: tool-call idempotency keys
     // include the provider session (amendment A06).
     this.connection = Math.floor(deps.now())
     this.providerSession = this.connection
     if (handover instanceof Promise) {
       this.awaitingHandover = true
+      this.inherited = handover
+        .then(
+          (h) => h.ledger ?? null,
+          () => null,
+        )
+        .then((ledger) => {
+          this.inheritedNow = ledger
+          return ledger
+        })
       void handover
         .then(
           (h) => this.takeOver(h),
@@ -525,7 +671,11 @@ export class RoomSession {
         .then(() => {
           this.awaitingHandover = false
         })
-    } else if (handover) this.takeOver(handover)
+    } else if (handover) {
+      this.takeOver(handover)
+      this.inherited = handover.ledger ? Promise.resolve(handover.ledger) : null
+      this.inheritedNow = handover.ledger ?? null
+    }
   }
 
   /**
@@ -558,6 +708,41 @@ export class RoomSession {
     if (this.room) this.sendCaptionEnds()
   }
 
+  /**
+   * An assignment that names a grant, with SOPHIA_VOICE_EVIDENCE=on: the receipts and the bound (qualification.ts).
+   * Their sequence continues the exchange's, when a session replaced on it numbered some already (MediaBridge).
+   */
+  private qualify(assignment: MediaAssignment): SessionQualification | null {
+    const { deps } = this
+    const grant = assignment.qualification
+    if (!deps.voiceEvidence || !grant) return null
+    const qualification = new SessionQualification({
+      exchangeId: this.exchangeId,
+      grant,
+      model: deps.model,
+      instructionSha256: deps.guide.combined.sha256,
+      bridgeCommit: deps.bridgeCommit ?? null,
+      record: (write, signal) => deps.service.recordEvidence(write, signal),
+      retryMs: deps.evidenceRetryMs ?? EVIDENCE_RETRY_MS,
+      now: () => deps.now(),
+      attribution: () => this.state.attribution(),
+      ended: (reason) => this.qualificationEnded(reason),
+      stop: (why) => this.guardStop(why),
+      reserve: (reserve, signal) => deps.service.reserveQualification(reserve, signal),
+      reserveRetryMs: deps.reserveRetryMs ?? RESERVE_RETRY_MS,
+      reserveTimeoutMs: deps.reserveTimeoutMs ?? RESERVE_TIMEOUT_MS,
+      log: deps.log,
+    })
+    qualification.floor(assignment)
+    return qualification
+  }
+
+  /** The API's guard ended the exchange (a receipt's answer said so): close now, before the poll brings the end. */
+  private qualificationEnded(reason: MediaEvidenceAck['reason']): void {
+    this.deps.log('qualification.exchange_ended', { exchangeId: this.exchangeId, reason })
+    void this.close()
+  }
+
   /** What this session still owes its room, once it is closed: see Handover. */
   handover(): Handover {
     // A delivery still under way when the close stopped waiting has no known outcome: it is owed again.
@@ -574,7 +759,32 @@ export class RoomSession {
     const delivered = (key: string) => this.heard.has(key) || (this.cardsDelivered.get(key) ?? 0) > 0
     const done = [...this.announced].filter((key) => !owing.has(key) && delivered(key))
     const captionEnds = this.captionEnds.length > 0 ? { captionEnds: [...this.captionEnds] } : {}
-    return { owed, unrecorded, done, shown: [...this.shown.values()], ...captionEnds }
+    const ledger = this.ledgerToHand()
+    return { owed, unrecorded, done, shown: [...this.shown.values()], ...captionEnds, ...(ledger ? { ledger } : {}) }
+  }
+
+  /**
+   * Under a grant, the ledger this session hands over (Codex r4234949420): its own, with what it inherited and has not
+   * seen land, whether that is known yet or not. Inherited and seen landed (it opened), it is only its own. Still to
+   * come (this session was replaced before its own handover came), it is one unanswered link that lands when the chain
+   * before it does. Known, its charges, its loss and its landings go on as they are.
+   */
+  private ledgerToHand(): InheritedLedger | null {
+    if (!this.qualification) return null
+    const own = this.qualification.ledger()
+    const mine: InheritedLedger = { unanswered: own.unanswered, lost: own.lost, landings: [own.landed] }
+    if (this.inherited === null) return mine
+    const known = this.inheritedNow
+    if (known === undefined) {
+      const before = this.inherited.then((ledger) => (ledger ? landedAll(ledger) : true))
+      return { unanswered: mine.unanswered + 1, lost: mine.lost, landings: [...mine.landings, before] }
+    }
+    if (known === null) return mine
+    return {
+      unanswered: mine.unanswered + known.unanswered,
+      lost: mine.lost || known.lost,
+      landings: [...mine.landings, ...known.landings],
+    }
   }
 
   /** Join the room first (so guests are seen before anything is heard), then connect Google. */
@@ -653,6 +863,7 @@ export class RoomSession {
     const before = this.assignment
     const change = this.state.update(toAssignment(next), this.deps.now())
     this.assignment = next
+    this.qualification?.floor(next)
     if (change.handoff || change.stopSpeaking || change.lookChanged || before.state !== next.state) {
       this.deps.log('assignment.changed', { exchangeId: this.exchangeId, ...epochs(next), ...change })
     }
@@ -681,17 +892,20 @@ export class RoomSession {
     this.deps.log('context.rebuild', { exchangeId: this.exchangeId, reason })
     this.handle = null
     const hadContext = this.live !== null || this.connecting
+    const replaced = this.connection
     this.connection += 1
     this.live?.close()
     this.live = null
     if (!hadContext) return
-    this.chunker.clear()
+    this.qualification?.turnEnded(replaced, 'lost')
+    this.clearInput()
     this.state.bumpGeneration()
     this.silence(this.pendingReply(this.deps.now()), 'recovered')
     this.endTurn(true)
     this.state.provider = 'recovering'
     this.reconnectAt = this.deps.now()
     this.reportDirty = true
+    this.qualification?.recovering(replaced, this.state.provider)
   }
 
   /**
@@ -710,6 +924,7 @@ export class RoomSession {
     this.stopTicking?.()
     const owed = this.flushAnnouncements()
     this.logReply('closed')
+    const evidence = this.qualification ? this.closeQualification(this.qualification) : null
     this.captions.cut()
     this.framer.clear()
     this.connection += 1
@@ -718,6 +933,19 @@ export class RoomSession {
     this.leaving = this.leaveRoom()
     await this.leaving
     await owed
+    if (evidence) await evidence
+  }
+
+  /**
+   * The receipts end with the session; the close waits for those still queued, bounded as for its announcements. With
+   * them, what the session owes the exchange's ledger is settled (qualification.ts settle(), bounded by the ledger's own
+   * attempts): every charge for what it already spent, then the bridge's stop if its bound stopped it (Codex
+   * r4234233106), so neither is lost with a process that exits once the close resolves.
+   */
+  private async closeQualification(qualification: SessionQualification): Promise<void> {
+    qualification.closed(this.lost ? 'lost' : 'ended')
+    await Promise.all([qualification.flush(CLOSE_FLUSH_MS), qualification.settle()])
+    this.deps.log('evidence.closed', { exchangeId: this.exchangeId, ...qualification.delivery })
   }
 
   private async leaveRoom(): Promise<void> {
@@ -919,6 +1147,44 @@ export class RoomSession {
       return
     }
     this.typedSeen.add(key)
+    const typed = `[Project member typed message]\n${escapeMarkers(packet.text)}`
+    if (this.qualification) return this.typedUnderGrant(this.qualification, identity, packet, typed)
+    this.acceptTyped(identity, packet, typed)
+  }
+
+  /**
+   * Under a grant, a typed message may start a generation: it is reserved first, and sent once granted, if the
+   * conversation still takes it, on the connection it was reserved for (Codex r4235562640): one that recovered
+   * meanwhile is another provider connection, whose output that grant does not cover, so the sender is refused and
+   * nothing is sent. One waits at a time; a refusal stops the session.
+   */
+  private typedUnderGrant(
+    qualification: SessionQualification,
+    identity: string,
+    packet: ChatInput,
+    typed: string,
+  ): void {
+    if (this.typedReserving) {
+      this.typedReply(identity, packet, 'refused', 'Wait for the current reply before sending another message.')
+      return
+    }
+    this.typedReserving = true
+    const connection = this.connection
+    void qualification.prompt(connection, typed.length).then((stop) => {
+      this.typedReserving = false
+      if (stop) this.guardStop(stop)
+      const busy = this.awaitingReply || this.responding || this.typedOutputUntilTurnEnd
+      const moved = connection !== this.connection || this.closed
+      if (stop || busy || moved || !this.mayAcceptTyped(identity, packet)) {
+        this.typedReply(identity, packet, 'refused', 'Sophia cannot receive this message now.')
+        return
+      }
+      this.acceptTyped(identity, packet, typed)
+    })
+  }
+
+  /** A typed message admitted: it reaches Google under the bridge's marker, and its reply goes to its sender alone. */
+  private acceptTyped(identity: string, packet: ChatInput, typed: string): void {
     this.typedOutputUntilTurnEnd = true
     this.typedInputEpoch = packet.inputEpoch
     this.typedStartedAt = this.deps.now()
@@ -936,7 +1202,8 @@ export class RoomSession {
       toolIds: new Set(),
     }
     try {
-      this.live?.sendNotice(`[Project member typed message]\n${escapeMarkers(packet.text)}`)
+      this.live?.sendNotice(typed)
+      this.qualification?.typed({ actorId: identity, inputEpoch: packet.inputEpoch })
       this.typedReply(identity, packet, 'accepted')
       this.deps.log('chat.admitted', { exchangeId: this.exchangeId, turnId: packet.id, inputEpoch: packet.inputEpoch })
     } catch {
@@ -967,17 +1234,109 @@ export class RoomSession {
     const live = this.live
     if (this.typedOutputUntilTurnEnd) return
     if (!live || !this.state.mayForwardAudio(identity, this.deps.now())) return
+    const droppedBefore = this.chunker.dropped
     try {
       this.chunker.push(samples, rate, channels)
     } catch (err: unknown) {
       if (err instanceof FormatError) return this.deps.log('audio.refused', { error: err.message })
       throw err
     }
+    let dropped = this.chunker.dropped - droppedBefore
     for (let chunk = this.chunker.take(); chunk; chunk = this.chunker.take()) {
-      live.sendAudio(chunk)
-      this.state.forwarded()
-      if (isAudible(chunk)) this.heardAt = this.deps.now()
+      const pending = dropped
+      const gate = this.gate(identity, chunk, pending)
+      if (gate === 'stop') return
+      dropped = 0
+      // A chunk held keeps the drop pending before it: it is counted when the chunk goes (Codex r4234936797).
+      if (gate === 'hold') this.hold(identity, chunk, pending)
+      else this.forward(live, chunk)
     }
+  }
+
+  private forward(live: LiveLink, chunk: Int16Array): void {
+    live.sendAudio(chunk)
+    this.state.forwarded()
+    if (isAudible(chunk)) this.heardAt = this.deps.now()
+  }
+
+  /**
+   * Whether this chunk of the holder's audio may go to the provider now: always, without a grant. Under one, the first
+   * after a turn ended waits ('hold') while its generation is reserved, and so does one its connection's allowance does
+   * not cover while the allowance is topped up; every chunk after it waits behind it, until that reservation (never
+   * another's) is granted; a refusal stops the session.
+   */
+  private gate(identity: string, chunk: Int16Array, dropped: number): 'send' | 'hold' | 'stop' {
+    const q = this.qualification
+    if (!q) return 'send'
+    // Behind the speaker's chunks still waiting for this connection's reservation: in order, never ahead of them.
+    if (this.isHolding(identity, this.connection)) return 'hold'
+    const verdict = q.input(this.connection, identity, chunk, dropped, this.state.assignment.inputEpoch)
+    if (verdict === null) return 'send'
+    if (verdict === 'hold') return 'hold'
+    this.guardStop(verdict)
+    return 'stop'
+  }
+
+  /**
+   * Keep a chunk while its generation is being reserved (at most HELD_CHUNKS, the oldest dropped first and counted:
+   * evictOldest), with the drop pending before it. Once granted, what its speaker has held on that connection goes on,
+   * in order, if they still may, each with its drop counted as it goes; their first chunk held asks to be told. Another
+   * speaker's chunks (the floor moved meanwhile), and a later connection's (a reconnection while the old reservation was
+   * in flight), are theirs to release, never taken or dropped with these.
+   */
+  private hold(identity: string, chunk: Int16Array, dropped: number): void {
+    const connection = this.connection
+    const first = !this.isHolding(identity, connection)
+    this.held.push({ identity, connection, chunk, dropped })
+    if (this.held.length > HELD_CHUNKS) this.evictOldest()
+    const q = this.qualification
+    if (!first || !q) return
+    void q.granted(connection).then((stop) => {
+      if (stop) return this.guardStop(stop)
+      const held = this.takeHeld(identity, connection)
+      const live = this.live
+      if (connection !== this.connection || !live || !this.state.mayForwardAudio(identity, this.deps.now())) return
+      for (const next of held) {
+        const gate = this.gate(identity, next.chunk, next.dropped)
+        if (gate === 'stop') return
+        if (gate === 'send') this.forward(live, next.chunk)
+        else this.hold(identity, next.chunk, next.dropped)
+      }
+    })
+  }
+
+  /**
+   * The oldest chunk held goes, never sent (Codex r4234936797): its samples, and the drop it carried, pass to the next
+   * chunk its speaker holds on that connection, so the gap is counted once, on the first chunk after it that reaches the
+   * provider (input_window.droppedSamples). The one just held is always such a chunk when the oldest is the same
+   * speaker's on the same connection; another speaker's or an older connection's held chunks never reach the provider,
+   * nor any window of theirs, so nothing is carried for them.
+   */
+  private evictOldest(): void {
+    const evicted = this.held.shift()
+    if (!evicted) return
+    const next = this.held.find((h) => h.identity === evicted.identity && h.connection === evicted.connection)
+    if (next) next.dropped += evicted.chunk.length + evicted.dropped
+  }
+
+  /** Whether this speaker has chunks waiting on this connection's reservation. */
+  private isHolding(identity: string, connection: number): boolean {
+    return this.held.some((h) => h.identity === identity && h.connection === connection)
+  }
+
+  /** This speaker's chunks held on this connection, in order, taken out; anyone else's, and other connections', stay. */
+  private takeHeld(identity: string, connection: number): Array<{ chunk: Int16Array; dropped: number }> {
+    const mine = (h: { identity: string; connection: number }) => h.identity === identity && h.connection === connection
+    const taken = this.held.filter(mine).map(({ chunk, dropped }) => ({ chunk, dropped }))
+    const rest = this.held.filter((h) => !mine(h))
+    this.held.splice(0, this.held.length, ...rest)
+    return taken
+  }
+
+  /** Nothing of the old input reaches Google afterwards: what the chunker has, and what waits for a reservation. */
+  private clearInput(): void {
+    this.chunker.clear()
+    this.held.length = 0
   }
 
   private onFrame(identity: string, source: VisualSource, frame: RgbaFrame, capturedAt: number): void {
@@ -991,7 +1350,8 @@ export class RoomSession {
    * settle starts now, so its end is acted on even if the old turn ends before the next tick.
    */
   private handoff(): void {
-    this.chunker.clear()
+    this.qualification?.windowEnded('handoff')
+    this.clearInput()
     this.live?.sendAudioStreamEnd()
     this.absence = null
     if (this.state.input(this.deps.now()) === 'settling') this.wasSettling = true
@@ -1034,7 +1394,8 @@ export class RoomSession {
     }
     if (this.pauseApplied) return
     this.pauseApplied = true
-    this.chunker.clear()
+    this.qualification?.windowEnded('paused')
+    this.clearInput()
     this.sampler.clear()
     this.live?.sendAudioStreamEnd()
     this.state.bumpGeneration()
@@ -1059,8 +1420,11 @@ export class RoomSession {
       inputClosed: true,
       outputCleared: true,
     } as const
-    this.deps.service.ackQuiesce(ack).catch((err: unknown) => {
+    this.bounded((signal) => this.deps.service.ackQuiesce(ack, signal)).catch((err: unknown) => {
+      // Sent again, the same request, after QUIESCE_RETRY_MS on the tick while the assignment still names it (or at
+      // once when the room's presence is known again).
       this.acked.delete(requestId)
+      this.ackRetryAt = this.deps.now() + QUIESCE_RETRY_MS
       this.deps.log('quiesce.ack_failed', { requestId, error: message(err) })
     })
   }
@@ -1103,10 +1467,15 @@ export class RoomSession {
     }
   }
 
+  /** One attempt of a post to the API, within POST_ATTEMPT_MS (attempt.ts): cancelled past it, its socket closed. */
+  private bounded<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    return withinAttempt(this.deps.postAttemptMs ?? POST_ATTEMPT_MS, run)
+  }
+
   /** Report the absence to the API; one it did not take is sent again after HOLDER_RETRY_MS. */
   private holderEvent(absence: HolderAbsence, event: 'left' | 'gone'): void {
     const body = { exchangeId: this.exchangeId, actorId: absence.actorId, inputEpoch: absence.inputEpoch, event }
-    this.deps.service.holder(body).catch((err: unknown) => {
+    this.bounded((signal) => this.deps.service.holder(body, signal)).catch((err: unknown) => {
       if (event === 'left') absence.leftReported = false
       else absence.goneReported = false
       absence.retryAt = this.deps.now() + HOLDER_RETRY_MS
@@ -1116,14 +1485,136 @@ export class RoomSession {
 
   // Provider side ------------------------------------------------------------------------------------------------
 
+  /** Under a grant, whether the bound let it through; when it did not, the provider is closed for good (guardStop). */
+  private within(stop: GuardStop | null): boolean {
+    if (stop === null) return true
+    this.guardStop(stop)
+    return false
+  }
+
+  /**
+   * The provider's tool calls, attributed as they arrive. Under a grant they are its output (billed text, and perhaps a
+   * generation nobody asked for): measured, held to the bound and paid before any handler runs; a cut or a refusal runs
+   * none, and the calls of a connection replaced meanwhile are never run.
+   */
+  private callTools(calls: FunctionCall[], connection: number): void {
+    // Everything a call is run as is read as it arrives, as before there was anything to wait for: a turn ending or a
+    // floor moving while it waits changes none of it, and its typed turn counts it as pending from now.
+    const turn = this.typedTurn
+    if (this.typedOutputUntilTurnEnd && (!turn || !this.state.mayPlay(turn.generation))) return
+    const who = this.state.attribution()
+    const arrival: Arrival = {
+      who,
+      turn,
+      inputMode: who && this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
+      utterance: this.guideContext.utterance,
+      paused: this.state.input(this.deps.now()) === 'paused',
+    }
+    if (turn) {
+      turn.pendingTools += calls.length
+      turn.usedTools = true
+      for (const call of calls) turn.toolIds.add(call.id ?? '')
+    }
+    const q = this.qualification
+    if (!q) {
+      for (const call of calls) void this.runTool(call, connection, arrival)
+      return
+    }
+    this.callUnderGrant(q, calls, connection, arrival)
+  }
+
+  /**
+   * Under a grant, calls are measured and charged as they arrive, and run once what they cost is durable on the API:
+   * their payload, and their generation when nobody reserved it. A cut or a refusal runs none; the calls of a connection
+   * replaced meanwhile never run. They run in the order they came: what they wait for is their connection's (its
+   * generation's charge, its allowance's top-up), so a later message never waits for less than an earlier one.
+   */
+  private callUnderGrant(q: SessionQualification, calls: FunctionCall[], connection: number, arrival: Arrival): void {
+    void q.called(connection, calls.length, payloadChars(calls)).then((stop) => {
+      if (stop) return this.guardStop(stop)
+      if (connection !== this.connection || this.closed) {
+        if (arrival.turn) arrival.turn.pendingTools -= calls.length
+        return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, connection })
+      }
+      for (const call of calls) void this.runTool(call, connection, arrival)
+    })
+  }
+
+  /**
+   * Under a grant, the bound or the grant's deadline says stop (qualification.ts): nothing more reaches the provider,
+   * whose connection closes for good, and what is playing stops. The session stays in the room, unavailable and saying
+   * why, until the API ends the exchange (its guard, from what was reported, or at the deadline) and the assignment goes.
+   */
+  private guardStop(why: GuardStop): void {
+    if (this.closed || this.guarded) return
+    this.guarded = true
+    this.deps.log('qualification.stopped', { exchangeId: this.exchangeId, why })
+    this.finishTyped('This conversation reached its limit; this reply was stopped.')
+    this.qualification?.turnEnded(this.connection, 'lost')
+    this.connection += 1
+    this.live?.close()
+    this.live = null
+    this.reconnectAt = null
+    this.clearInput()
+    this.state.bumpGeneration()
+    this.silence(null, 'closed')
+    this.endTurn(true)
+    this.fail(`Sophia stopped: this conversation reached its qualification limit (${why})`)
+    this.qualification?.closed('guard')
+    void this.qualification?.stopped()
+  }
+
   private async connect(): Promise<void> {
     if (this.closed || this.connecting) return
+    if (this.declined) return this.decline()
     this.connecting = true
     try {
-      if (await this.checkGuideBound()) await this.openProvider()
+      if ((await this.inheritedSettled()) && (await this.checkGuideBound())) await this.openProvider()
     } finally {
       this.connecting = false
     }
+  }
+
+  /**
+   * Under a grant, a session that replaces another on its exchange opens no provider connection, so reserves nothing
+   * and sends no input, until everything the replaced session spent is on the API (Codex r4234649847): otherwise its
+   * reservations could take the exchange's last turn or budget before an already spent charge ends it. The handover
+   * comes once the replaced session closed, and its close waits for those charges, bounded (settle()); it carries what
+   * that session inherited and had not seen land, so a chain of replacements waits on all of it (r4234949420). All
+   * answered and taken: it opens. Still unanswered then: it fails closed, unavailable and saying so
+   * (qualification.inherited_unsettled), and opens once they are all taken, if they are. One refused or never
+   * confirmed, anywhere in the chain: it stays closed for good; the API ends the exchange (a refusal ends it) or its
+   * deadline does. Never past the bound, whatever the wait.
+   */
+  private async inheritedSettled(): Promise<boolean> {
+    const inherited = this.inherited
+    if (!inherited || !this.qualification) return true
+    const ledger = await inherited
+    if (this.closed) return false
+    if (!ledger || (ledger.unanswered === 0 && !ledger.lost)) {
+      this.inherited = null
+      return true
+    }
+    const detail = { exchangeId: this.exchangeId, charges: ledger.unanswered, lost: ledger.lost }
+    this.deps.log('qualification.inherited_unsettled', detail)
+    this.fail('Sophia waits until what the conversation before this one spent is on the record')
+    if (!ledger.lost)
+      void landedAll(ledger).then((landed) => {
+        if (this.closed) return
+        if (!landed) return this.deps.log('qualification.inherited_lost', { exchangeId: this.exchangeId })
+        this.inherited = null
+        void this.connect()
+      })
+    return false
+  }
+
+  /**
+   * An assignment names a grant this bridge does not hold to its limits (SOPHIA_VOICE_EVIDENCE is off): no provider
+   * connection opens, so nothing of the grant is spent unbounded. Sophia is unavailable there, and says why.
+   */
+  private decline(): void {
+    this.deps.log('qualification.declined', { exchangeId: this.exchangeId })
+    this.fail('Sophia does not take part in a qualification run this bridge does not record (SOPHIA_VOICE_EVIDENCE)')
   }
 
   /**
@@ -1158,6 +1649,11 @@ export class RoomSession {
     const connection = this.connection
     const resumed = this.handle !== null
     if (!resumed) this.providerSession += 1
+    if (this.qualification) {
+      const stop = await this.qualification.connecting(connection, resumed)
+      if (stop) return this.guardStop(stop)
+      if (connection !== this.connection || this.isClosed()) return
+    }
     this.guideContext.sessionStarted(!resumed, this.everReady && !resumed)
     const { guide } = this.deps
     this.deps.log('provider.setup', {
@@ -1178,6 +1674,7 @@ export class RoomSession {
           systemInstruction: guide.instruction,
           tools: this.tools.declarations,
           resumptionHandle: this.handle,
+          ...(this.qualification ? { maxOutputTokens: this.qualification.maxOutputTokens } : {}),
         },
         this.events(connection),
       )
@@ -1196,7 +1693,7 @@ export class RoomSession {
         if (current()) this.ready(connection)
       },
       toolCalls: (calls) => {
-        if (current()) for (const call of calls) void this.runTool(call, connection)
+        if (current()) this.callTools(calls, connection)
       },
       toolCancellations: (ids) => {
         for (const id of ids) this.cancelled.add(`${connection}:${id}`)
@@ -1225,7 +1722,10 @@ export class RoomSession {
       resumption: (handle) => {
         if (current() && handle) this.handle = handle
       },
-      usage: (usage) => this.deps.log('provider.usage', { totalTokens: usage.totalTokenCount }),
+      usage: (usage) => {
+        this.deps.log('provider.usage', { totalTokens: usage.totalTokenCount })
+        this.qualification?.usage(connection, usage)
+      },
       closed: (reason) => {
         if (current()) this.recover(reason)
       },
@@ -1234,6 +1734,7 @@ export class RoomSession {
 
   private ready(connection: number): void {
     this.deps.log('provider.ready', { exchangeId: this.exchangeId, connection, resumed: this.handle !== null })
+    this.qualification?.ready(connection)
     this.state.provider = 'ready'
     this.readyConnection = connection
     this.everReady = true
@@ -1245,6 +1746,8 @@ export class RoomSession {
   /** Stop stale output, forget the connection and schedule the next one (resumed if a handle is held). */
   private recover(reason: string): void {
     if (this.closed) return
+    const lost = this.connection
+    this.qualification?.turnEnded(lost, 'lost')
     // Resuming abandoned typed work could deliver an uncorrelated continuation as room audio.
     if (this.typedOutputUntilTurnEnd) this.handle = null
     this.finishTyped('Connection interrupted. The message will not be sent again automatically.')
@@ -1256,7 +1759,7 @@ export class RoomSession {
     this.live = null
     // A handle that failed twice in a row before the connection was ready is dropped: the next start is cold.
     if (failedBeforeReady && this.attempts >= 1) this.handle = null
-    this.chunker.clear()
+    this.clearInput()
     // A reply cut off mid-turn stops; one Google finished is already here and plays out.
     if (this.responding) {
       this.state.bumpGeneration()
@@ -1269,10 +1772,12 @@ export class RoomSession {
     this.reason = delay === undefined ? `Sophia’s voice service is unavailable: ${reason}` : null
     this.reconnectAt = this.deps.now() + (delay ?? UNAVAILABLE_RETRY_MS)
     this.reportDirty = true
+    this.qualification?.recovering(lost, this.state.provider)
     this.deps.log('provider.recover', { exchangeId: this.exchangeId, reason, attempt: this.attempts })
   }
 
   private bargeIn(): void {
+    this.qualification?.turnEnded(this.connection, 'interrupted')
     if (this.typedTurn?.usedTools) return this.rebuild('typed tool continuation interrupted')
     this.state.bumpGeneration()
     this.silence(null, 'interrupted')
@@ -1300,6 +1805,7 @@ export class RoomSession {
    * can be found for are not shown.
    */
   private inputWords(text: string, finished: boolean): void {
+    if (this.qualification && !this.within(this.qualification.heard(this.connection, charsOf(text), finished))) return
     if (text.trim()) this.wordsHeard()
     const input = this.state.input(this.deps.now())
     const who = this.state.attribution()
@@ -1312,6 +1818,8 @@ export class RoomSession {
    * typed turn's continuation, a pause or guest, a stopped reply still arriving), so no caption shows what is not heard.
    */
   private outputWords(text: string): void {
+    const q = this.qualification
+    if (q && text && !this.within(q.output(this.connection, { chars: charsOf(text) }))) return
     if (this.typedTurn) return this.typedOutput(text)
     if (this.typedOutputUntilTurnEnd || this.fenced(this.deps.now())) return
     const generation = this.state.currentGeneration()
@@ -1343,6 +1851,7 @@ export class RoomSession {
   }
 
   private turnComplete(): void {
+    this.qualification?.turnEnded(this.connection, 'turn_complete')
     const turn = this.typedTurn
     if (turn && (turn.pendingTools > 0 || turn.responses.length > 0)) {
       // WHEN_IDLE creates another provider turn. Send one batch only AFTER the current boundary, keeping
@@ -1371,6 +1880,7 @@ export class RoomSession {
   private logReply(how: ReplyEnd): void {
     const figures = this.reply.end(how, this.framer.queued, this.framer.dropped)
     if (figures) this.deps.log('audio.reply', { exchangeId: this.exchangeId, ...figures })
+    this.qualification?.replyEnded(how)
     this.captions.replyEnded(how)
   }
 
@@ -1394,6 +1904,8 @@ export class RoomSession {
   }
 
   private audioOut(data: string, mimeType: string | undefined): void {
+    // Under a grant, every chunk the provider sends is counted, the ones dropped below too: it was generated.
+    if (this.audioStopped(data, mimeType)) return
     if (this.typedOutputUntilTurnEnd) return // Typed replies are visible text; no voice recording or playback is added.
     const generation = this.state.currentGeneration()
     if (this.fence) {
@@ -1405,20 +1917,53 @@ export class RoomSession {
       this.fence = null
     }
     if (!this.state.mayPlay(generation)) return
-    let samples: Int16Array
-    try {
-      const rate = pcmRate(mimeType)
-      if (rate !== OUTPUT_RATE) throw new FormatError(`output at ${rate} Hz; the room track is ${OUTPUT_RATE} Hz`)
-      samples = base64ToPcm(data)
-    } catch (err: unknown) {
-      if (err instanceof FormatError) return this.deps.log('audio.output_refused', { error: err.message })
-      throw err
-    }
+    const samples = this.decodedOutput(data, mimeType)
+    if (!samples) return
     this.responding = true
     const droppedBefore = this.framer.dropped
     this.framer.push(samples, generation)
     this.reply.received(samples.length, this.framer.queued, droppedBefore, this.deps.now())
+    this.qualification?.replyReceived(samples.length)
     void this.pump()
+  }
+
+  /**
+   * Sophia's audio as the room's track takes it: 24 kHz PCM of whole 16-bit samples, decoded; or null when it is not,
+   * logged as a refused output (audio.output_refused). Nothing of the session changes.
+   */
+  private decodedOutput(data: string, mimeType: string | undefined): Int16Array | null {
+    try {
+      const rate = pcmRate(mimeType)
+      if (rate !== OUTPUT_RATE) throw new FormatError(`output at ${rate} Hz; the room track is ${OUTPUT_RATE} Hz`)
+      return base64ToPcm(data)
+    } catch (err: unknown) {
+      if (!(err instanceof FormatError)) throw err
+      this.deps.log('audio.output_refused', { error: err.message })
+      return null
+    }
+  }
+
+  /**
+   * Under a grant, whether this chunk of audio stopped the session (Codex r4235651864): it is counted and charged as it
+   * came (q.output). A chunk the reply under way would have played, and that decodes as audioOut decodes it, is recorded
+   * as received, its decoded samples and never a frame played; one the room's track would refuse (another rate, a
+   * broken sample) is refused and logged as audioOut refuses it, and records no reply (Codex P2 r4235822091). Then the
+   * provider closes for good (guardStop), and nothing of it reaches the room.
+   */
+  private audioStopped(data: string, mimeType: string | undefined): boolean {
+    const q = this.qualification
+    const stop = q?.output(this.connection, { samples: pcmSamples(data) }) ?? null
+    if (!q || !stop) return false
+    const samples = this.wouldPlay() ? this.decodedOutput(data, mimeType) : null
+    if (samples) q.replyReceived(samples.length)
+    this.guardStop(stop)
+    return true
+  }
+
+  /** Whether audio arriving now would go to the room's reply, as audioOut routes it: read only, nothing changed. */
+  private wouldPlay(): boolean {
+    if (this.typedOutputUntilTurnEnd || this.fenced(this.deps.now())) return false
+    return this.state.mayPlay(this.state.currentGeneration())
   }
 
   /** Feed the AudioSource with backpressure; anything of an older generation is never played. */
@@ -1434,6 +1979,7 @@ export class RoomSession {
         await room.play(frame)
         this.playingUntil = this.deps.now() + PLAYING_TAIL_MS
         this.reply.played()
+        this.qualification?.replyPlayed(frame)
         this.noticeHeard()
       }
     } catch (err: unknown) {
@@ -1444,27 +1990,30 @@ export class RoomSession {
     }
   }
 
-  private async runTool(call: FunctionCall, connection: number): Promise<void> {
+  /**
+   * One call, as it arrived (`callTools`): it runs as whose it was, and its response's continuation answers them,
+   * whoever holds the floor by then.
+   */
+  private async runTool(call: FunctionCall, connection: number, arrival: Arrival): Promise<void> {
     const id = call.id ?? ''
     const name = call.name ?? ''
-    const turn = this.typedTurn
-    if (this.typedOutputUntilTurnEnd && (!turn || !this.state.mayPlay(turn.generation))) return
-    if (turn) {
-      turn.pendingTools += 1
-      turn.usedTools = true
-      turn.toolIds.add(id)
-    }
-    const response = await this.toolOutcome(id, name, call.args ?? {})
+    const { who, turn } = arrival
+    const response = await this.toolOutcome(id, name, call.args ?? {}, arrival)
     if (turn) turn.pendingTools -= 1
     // Never answer a call the provider cancelled, or one from a connection that has since been replaced.
     if (connection !== this.connection || this.cancelled.has(`${connection}:${id}`)) {
       return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, name, connection })
     }
-    this.queueToolResponse(turn, response, connection)
+    this.queueToolResponse(turn, response, connection, who)
   }
 
-  private queueToolResponse(turn: TypedTurn | null, response: FunctionResponse, connection: number): void {
-    if (!turn) return this.answerTools([response], connection)
+  private queueToolResponse(
+    turn: TypedTurn | null,
+    response: FunctionResponse,
+    connection: number,
+    who: Attribution | null,
+  ): void {
+    if (!turn) return this.answerTools([response], connection, who)
     if (this.typedTurn !== turn || !this.state.mayPlay(turn.generation)) return
     turn.responses.push(response)
     this.flushTypedTools(turn)
@@ -1474,18 +2023,46 @@ export class RoomSession {
     if (this.typedTurn !== turn || !turn.providerEnded || turn.pendingTools > 0 || turn.responses.length === 0) return
     const responses = turn.responses.splice(0)
     turn.providerEnded = false
-    this.answerTools(responses, this.connection)
+    this.answerTools(responses, this.connection, { actorId: turn.identity, inputEpoch: turn.packet.inputEpoch })
   }
 
-  private answerTools(responses: FunctionResponse[], connection: number): void {
+  /**
+   * Under a grant, a tool response may start a generation (its WHEN_IDLE continuation): it is reserved first, and sent
+   * once granted, if its connection is still the current one. A refusal stops the session.
+   */
+  private answerTools(responses: FunctionResponse[], connection: number, who: Attribution | null): void {
+    const q = this.qualification
+    if (!q) return this.sendTools(responses, connection, who)
+    let chars: number
+    try {
+      chars = JSON.stringify(responses).length
+    } catch {
+      return this.toolsUndelivered(connection)
+    }
+    void q.prompt(connection, chars).then((stop) => {
+      if (stop) return this.guardStop(stop)
+      if (connection !== this.connection || this.closed) {
+        return this.deps.log('tool.dropped', { exchangeId: this.exchangeId, connection })
+      }
+      this.sendTools(responses, connection, who)
+    })
+  }
+
+  private sendTools(responses: FunctionResponse[], connection: number, who: Attribution | null): void {
     try {
       this.live?.sendToolResponses(responses)
     } catch {
-      this.deps.log('tool.delivery_unknown', { exchangeId: this.exchangeId, connection })
-      this.finishTyped('Tool reply delivery is unconfirmed. Your message will not be sent again automatically.')
-      return this.rebuild('tool response delivery unconfirmed')
+      return this.toolsUndelivered(connection)
     }
+    this.qualification?.asked(who)
     for (const response of responses) this.logAnswered(response, connection)
+  }
+
+  /** A tool response that may not have reached the provider: the connection is replaced, never answered twice. */
+  private toolsUndelivered(connection: number): void {
+    this.deps.log('tool.delivery_unknown', { exchangeId: this.exchangeId, connection })
+    this.finishTyped('Tool reply delivery is unconfirmed. Your message will not be sent again automatically.')
+    this.rebuild('tool response delivery unconfirmed')
   }
 
   private logAnswered(response: FunctionResponse, connection: number): void {
@@ -1498,14 +2075,20 @@ export class RoomSession {
     })
   }
 
-  private async toolOutcome(id: string, name: string, args: Record<string, unknown>): Promise<FunctionResponse> {
+  private async toolOutcome(
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+    arrival: Arrival,
+  ): Promise<FunctionResponse> {
     const call = { id, name }
     if (!CALL_ID.test(id) || !isToolName(name, this.tools.names))
       return toolResponse(call, { status: 'error', output: { reason: 'Unknown tool' } })
-    if (this.state.input(this.deps.now()) === 'paused') {
+    // Paused as it arrived, or by the time it would run: either way it waits for the person to ask again.
+    if (arrival.paused || this.state.input(this.deps.now()) === 'paused') {
       return refusedResponse(call, 'The conversation is paused; ask again when it resumes.')
     }
-    const who = this.state.attribution()
+    const { who } = arrival
     if (!who)
       return refusedResponse(call, 'I couldn’t tell who asked that. Could the person holding the floor ask again?')
     const request: MediaToolCall = {
@@ -1516,8 +2099,8 @@ export class RoomSession {
       args,
       inputEpoch: who.inputEpoch,
       actorId: who.actorId,
-      utterance: this.guideContext.utterance,
-      inputMode: this.typedInputEpoch === who.inputEpoch ? 'text' : 'voice',
+      utterance: arrival.utterance,
+      inputMode: arrival.inputMode,
       guide: this.deps.guide.version,
     }
     const write = WRITE_TOOLS.has(name)
@@ -1532,22 +2115,27 @@ export class RoomSession {
   }
 
   /**
-   * Send one call; a lost reply is sent again with the same identity, which the API answers with the receipt of a
-   * write it already applied (an API from before CX-0026 refused a repeated Hold, Resume or Stop instead). A write is
-   * `unknown`, never "nothing changed", while still unconfirmed after the retries, and once its reply was lost,
-   * whatever else its repeat is answered (answerTo, unanswered). A refusal (4xx) is not retried.
+   * Send one call, each attempt within its transport ceiling (TOOL_ATTEMPT_MS); a lost reply, or one past the ceiling,
+   * is sent again with the same identity, which the API answers with the receipt of a write it already applied (an API
+   * from before CX-0026 refused a repeated Hold, Resume or Stop instead). A write is `unknown`, never "nothing
+   * changed", while still unconfirmed after the retries, and once its reply was lost, whatever else its repeat is
+   * answered (answerTo, unanswered). A refusal (4xx) is not retried. Nothing is sent again once the session closed.
    */
   private async callService(request: MediaToolCall, write: boolean): Promise<MediaToolResult> {
     const waits = this.deps.toolRetryMs ?? TOOL_RETRY_MS
+    const ceiling = this.deps.toolAttemptMs ?? TOOL_ATTEMPT_MS
     for (let attempt = 0; ; attempt += 1) {
       try {
-        return answerTo(write && attempt > 0, await this.deps.service.toolCall(request))
+        const result = await withinAttempt(ceiling, (signal) => this.deps.service.toolCall(request, signal))
+        return answerTo(write && attempt > 0, result)
       } catch (err: unknown) {
         this.deps.log('tool.failed', { name: request.name, attempt, error: message(err) })
         const refused = err instanceof ServiceError && err.status < 500
         const wait = waits[attempt]
         if (refused || wait === undefined || this.closed) return unanswered(write, attempt, refused)
         await new Promise((resolve) => setTimeout(resolve, wait))
+        // Closed during the wait: not sent again. A write already attempted stays unknown, never "nothing changed".
+        if (this.isClosed()) return unanswered(write, attempt, false)
       }
     }
   }
@@ -1558,11 +2146,16 @@ export class RoomSession {
   tick(): void {
     if (this.closed) return
     const now = this.deps.now()
+    if (this.qualification) this.within(this.qualification.due())
     this.expireTyped(now)
     this.settled(now)
     this.applyPause()
     this.sendFrame(now)
     this.checkHolder()
+    if (this.ackRetryAt !== null && now >= this.ackRetryAt) {
+      this.ackRetryAt = null
+      this.ackQuiesce()
+    }
     if (this.joinRetryAt !== null && now >= this.joinRetryAt) {
       this.joinRetryAt = null
       void this.join()
@@ -1610,7 +2203,14 @@ export class RoomSession {
     const frame = this.sampler.take(now, this.state.assignment.observationEpoch)
     if (!frame || !looking || !this.live) return
     if (!this.state.mayForwardFrame(looking.participantIdentity, looking.source, frame.observationEpoch)) return
+    if (this.qualification && !this.paidFrame(this.qualification)) return
     this.live.sendFrame(toJpeg(frame))
+  }
+
+  /** Under a grant, whether this frame was paid for: one the allowance does not cover yet is dropped (and counted). */
+  private paidFrame(qualification: SessionQualification): boolean {
+    const verdict = qualification.frame(this.connection)
+    return verdict !== 'drop' && this.within(verdict)
   }
 
   /**
@@ -1638,10 +2238,29 @@ export class RoomSession {
   private announceAloud(next: Result, notice: string, recipients: readonly string[], now: number): void {
     const live = this.live
     if (!live || this.state.provider !== 'ready' || !this.silent(now)) return
+    const q = this.qualification
+    if (!q) return this.sayNotice(next, notice, recipients, live)
+    // Under a grant, the notice's generation is reserved first; it is said once granted, if Sophia is still idle.
+    if (this.noticeReserving) return
+    this.noticeReserving = true
+    const connection = this.connection
+    void q.prompt(connection, notice.length).then((stop) => {
+      this.noticeReserving = false
+      if (stop) return this.guardStop(stop)
+      const granted = this.live
+      if (connection !== this.connection || !granted || this.state.provider !== 'ready') return
+      if (this.silent(this.deps.now())) this.sayNotice(next, notice, recipients, granted)
+    })
+  }
+
+  private sayNotice(next: Result, notice: string, recipients: readonly string[], live: LiveLink): void {
     const key = resultKey(next)
     this.announced.add(key)
     const event = { exchangeId: this.exchangeId, taskId: next.taskId, resultRevision: next.resultRevision }
     this.notice = { key, result: next, event, cards: this.track(key, next, this.sendCards(next, recipients)) }
+    // Asked before the notice makes the next turn a system turn: whether holder input went to the provider since its
+    // last turn ended decides which generations the notice may be (qualification-recorder.ts).
+    this.qualification?.asked(null)
     this.state.systemTurn()
     live.sendNotice(notice)
   }
@@ -1831,7 +2450,7 @@ export class RoomSession {
   }
 
   private sendReceipt(key: string, receipt: Receipt): Promise<void> {
-    const sending = this.deps.service.announced(receipt.event).then(
+    const sending = this.bounded((signal) => this.deps.service.announced(receipt.event, signal)).then(
       () => {
         // A newer record of the same result may have replaced this one meanwhile: it is still to be sent.
         if (this.receipts.get(key) === receipt) this.receipts.delete(key)
@@ -1896,20 +2515,32 @@ export class RoomSession {
     if (this.room && !this.roomDown && !this.reporting && due) this.report(now)
   }
 
+  /**
+   * One presence report, numbered when it is built from this process's counter, within POST_ATTEMPT_MS. One whose
+   * attempt failed or was cut is never sent again: the session is marked dirty, and the next tick builds a new one with
+   * the next number (item 7 C). With the counter spent, nothing is sent.
+   */
   private report(now: number): void {
+    const reportSeq = (this.deps.presenceSequence ?? processPresenceSequence).next()
+    if (reportSeq === null) {
+      if (!this.sequenceSpentLogged) this.deps.log('presence.sequence_spent', { max: PRESENCE_SEQUENCE_MAX })
+      this.sequenceSpentLogged = true
+      return
+    }
     this.reporting = true
     this.reportDirty = false
     this.lastReport = now
     const participants = this.people.map((p) => ({ identity: p.identity, standing: p.standing }))
-    this.deps.service
-      .presence({
-        roomId: this.assignment.roomId,
-        exchangeId: this.exchangeId,
-        bridgeInstanceId: this.deps.bridgeInstanceId,
-        voice: this.state.provider,
-        reason: this.reason,
-        participants,
-      })
+    const report = {
+      roomId: this.assignment.roomId,
+      exchangeId: this.exchangeId,
+      bridgeInstanceId: this.deps.bridgeInstanceId,
+      voice: this.state.provider,
+      reason: this.reason,
+      participants,
+      reportSeq,
+    }
+    this.bounded((signal) => this.deps.service.presence(report, signal))
       .catch((err: unknown) => {
         this.reportDirty = true
         this.deps.log('presence.report_failed', { error: message(err) })

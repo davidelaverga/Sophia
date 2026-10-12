@@ -1,5 +1,6 @@
 // The Studio app itself (fixtures/app.tsx: App, its sign-in and the Supabase client, unchanged), signed in by a
-// synthetic Supabase Auth service these checks answer in the page (vite.app.config.ts): what the app keeps on the
+// synthetic Supabase Auth service these checks answer in the page (vite.app-build.config.ts: the page built, React's
+// development build, so each check's fresh browser context loads it whole within its time): what the app keeps on the
 // device as who is in changes. Codex's re-review of 6e9e2a9b found every page load forgetting the review proposals kept
 // unanswered (review-proposal.ts): App forgot them in an effect's cleanup, which ran as each load went from finding out
 // who is in to signed in. The fixture pages, which have no App, could not see it. Codex's automatic review of 06bf6229
@@ -8,7 +9,7 @@
 // (`work=lost` answers the app's reads in the page, fixtures/app.tsx).
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
-const APP = 'http://127.0.0.1:5198'
+const APP = 'http://127.0.0.1:5197'
 /** supabase-js's own key for a session with the synthetic Auth service at 127.0.0.1: `sb-<host's first label>-…`. */
 const SESSION_KEY = 'sb-127-auth-token'
 const PREFIX = 'sophia.review.proposal.v1:'
@@ -192,14 +193,25 @@ async function anotherTab(
 }
 
 /**
- * Who the app says is in: the address its account menu heads with, read by a poll (`expect.poll`). Each read is bounded
- * and closes the menu again: an identity that changes while the menu is open closes it, and the poll reads again.
+ * signedInAs's bounds, measured with the browser, its pages and the servers held to two cores, on the project's Studio,
+ * where Sophia's light draws every frame: opening the account menu took up to 2.97 s, reading its head up to 1.64 s,
+ * and one whole read, closing included, 6.75 s. A poll may need two reads (the identity can change after the first), so
+ * it has room for two.
+ */
+const ACCOUNT_CLICK_MS = 4000
+const MENU_HEAD_MS = 2500
+const SIGNED_IN_AS_POLL = { timeout: 15_000 }
+
+/**
+ * Who the app says is in: the address its account menu heads with, read by a poll (`expect.poll`, SIGNED_IN_AS_POLL).
+ * Each read is bounded and closes the menu again: an identity that changes while the menu is open closes it, and the
+ * poll reads again.
  */
 async function signedInAs(page: Page) {
   const head = page.locator('.menu-head')
   try {
-    await account(page).click({ timeout: 1000 })
-    return (await head.textContent({ timeout: 1000 })) ?? ''
+    await account(page).click({ timeout: ACCOUNT_CLICK_MS })
+    return (await head.textContent({ timeout: MENU_HEAD_MS })) ?? ''
   } catch {
     return ''
   } finally {
@@ -287,16 +299,16 @@ test('codex · 06bf6229 · the viewer’s account under a new address keeps its 
   const parsed = async () =>
     Object.fromEntries(Object.entries(await tabHolds(page)).map(([k, v]) => [k, JSON.parse(v) as unknown]))
   expect(await parsed()).toEqual(keptAsSent())
-  await expect.poll(() => signedInAs(page)).toBe(DAVIDE.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(DAVIDE.email)
 
   // Davide changes his address, in another tab: Supabase's client there tells this one, the same account updated.
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
-  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(RENAMED.email)
   expect(await parsed()).toEqual(keptAsSent())
   expect(await unexpectedOf(page)).toEqual([])
   await page.reload()
   await expect(account(page)).toBeVisible()
-  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(RENAMED.email)
   expect(await parsed()).toEqual(keptAsSent())
 
   // Under the new address, the form finds the same proposal, frozen, and proposes it again: its key, its request.
@@ -463,7 +475,7 @@ test('browser-account · navigating to Work stores the flag under the subject, a
   await page.keyboard.press('h')
   await expect(page.locator('div.places[data-place="home"]')).toBeVisible()
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
-  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(RENAMED.email)
   // Enter still goes to Work: same subject, same stored flag.
   await enterFromHome(page)
   await expect(page.locator('div.places[data-place="work"]')).toBeVisible()
@@ -488,7 +500,7 @@ test('browser-account · another subject at the same address enters Personal, no
   await expect(account(page)).toBeVisible()
   // Another account at the same address comes in: a different subject.
   await anotherTab(context, session(SAME_ADDRESS))
-  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(SAME_ADDRESS.email)
   // Enter from Home: the new account has no flag of its own, so it goes to Personal (default),
   // not Work (which would mean it read Davide's subject flag or the legacy email flag).
   await enterFromHome(page)
@@ -532,11 +544,11 @@ test('browser-account · viewer-state lens restores under same subject after ema
   await expect(page.locator('#lens-explore[aria-selected="true"]')).toBeVisible()
   // Davide changes address: same subject, the lens stays.
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
-  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(RENAMED.email)
   await expect(page.locator('#lens-explore[aria-selected="true"]')).toBeVisible()
   // Another subject at the same address: no seeded viewer state, so the default lens (converse) shows.
   await anotherTab(context, session(SAME_ADDRESS))
-  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(SAME_ADDRESS.email)
   await expect(page.locator('#lens-converse[aria-selected="true"]')).toBeVisible()
   // Davide's stored viewer state is untouched.
   expect(await page.evaluate((k) => localStorage.getItem(k), davideViewerKey)).toContain('"explore"')
@@ -566,7 +578,7 @@ test('browser-account · pending Start survives USER_UPDATED: started conversati
   await expect.poll(() => askedOf(page)).toContain(`POST ${startPath} by ${DAVIDE.id}`)
   // While the start is in flight, Davide changes email from another tab.
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
-  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(RENAMED.email)
   // Barrier: the rendered list still shows the original 3 conversations (on da769 the changed-email key
   // triggers a refetch that settles here; on the fix the cached data is already in place).
   await expect(list.locator('.conv-row')).toHaveCount(3)
@@ -604,7 +616,7 @@ test('browser-account · pending Send survives USER_UPDATED: sent message appear
   await expect.poll(() => askedOf(page)).toContain(`POST ${sendPath} by ${DAVIDE.id}`)
   // While the send is in flight, Davide changes email from another tab.
   await anotherTab(context, session(RENAMED), 'USER_UPDATED')
-  await expect.poll(() => signedInAs(page)).toBe(RENAMED.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(RENAMED.email)
   // Barrier: the rendered transcript still shows the original messages (on da769 the changed-email key
   // triggers a refetch that settles here; on the fix the cached data is already in place).
   await expect(page.locator('.conv-msg')).toHaveCount(MESSAGE_COUNT)
@@ -639,5 +651,5 @@ test('browser-account · blocked storage does not break navigation or account tr
   await expect(page.locator('.places[data-place="work"]')).toBeVisible()
   // Another account coming in still works.
   await anotherTab(context, session(SAME_ADDRESS))
-  await expect.poll(() => signedInAs(page)).toBe(SAME_ADDRESS.email)
+  await expect.poll(() => signedInAs(page), SIGNED_IN_AS_POLL).toBe(SAME_ADDRESS.email)
 })

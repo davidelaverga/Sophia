@@ -10,6 +10,7 @@ import type {
   Membership,
   MissionContext,
   Receipt,
+  RoomToken,
   Snapshot,
   SourceReviewAvailability,
   WorkBoardView,
@@ -20,6 +21,7 @@ import {
   membership,
   mission,
   PROJECT,
+  QUALIFICATION,
   ROOM,
   roomToken,
   snapshot,
@@ -68,6 +70,17 @@ import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
+
+/** Whether the room tokens this page is given name a grant: from `qualification=on`, until `grantTokens` says. */
+let granted = new URLSearchParams(window.location.search).get('qualification') === 'on'
+
+/** The next room tokens name the grant, or not, as the API's do once a grant is made, or once it ends. */
+export function grantTokens(on: boolean): void {
+  granted = on
+}
+
+/** The room token this page is given: naming the grant while there is one, as the API names it to its principal (A15). */
+const issuedToken = (): RoomToken => (granted ? { ...roomToken, qualification: QUALIFICATION } : roomToken)
 
 /** Requests the fixture didn't expect, as `METHOD /path`: the checks assert there are none. */
 export const unexpected: string[] = []
@@ -1003,7 +1016,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   const doneOf = TASK_DONE.exec(path)?.[1]
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
-  if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/room-token`) return json(issuedToken())
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
   return exchangeWritten(project, path, init, () => publish(project))

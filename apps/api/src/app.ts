@@ -13,6 +13,7 @@ import {
 } from '@sophia/persistence'
 import { describeAuthRejection, type VerifyActor } from './auth.ts'
 import { writeOnce, type ByteStore } from './byte-store.ts'
+import { CALL_FENCE_SESSIONS, CallFences } from './call-fence.ts'
 import { CompanionRunner, companionFailure, type Companion } from './companion.ts'
 import { registerCors } from './cors.ts'
 import { ProjectEventHub } from './event-hub.ts'
@@ -81,6 +82,21 @@ export interface AppDeps {
    * agent later. Without one, a personal message is refused (503) before anything is kept.
    */
   companion?: Companion | null
+  /** The deployed commit (RENDER_GIT_COMMIT, 40 hex), served by /health so a probe can name what it reached; else null. */
+  commit?: string | null
+  /**
+   * Voice qualification evidence (A15, migration 0046), off by default. On, the API runs 0046's guard on every bridge
+   * presence report and assignment poll, takes the bridge's receipts, answers the principal's read and names the grant
+   * on its principal's room token, and is ready only with 0046. Off, none of that: an assignment's grant is not passed
+   * on, so a bridge never records.
+   */
+  voiceQualification?: boolean
+  /**
+   * With voice qualification on, at most this many voice tool calls are made at once in this process, each under its
+   * key's fence, a database session of its own beside the pool's (Codex P1 r4234782537): CALL_FENCE_SESSIONS (8) by
+   * default. A call that finds none free within its wait (5 s) answers unknown, and runs and marks nothing.
+   */
+  callFenceSessions?: number
 }
 
 /**
@@ -88,9 +104,16 @@ export interface AppDeps {
  * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call. 0043
  * (#117) is required by the two functions the capture routes call, the only ones this API calls that main's doesn't:
  * the migration is one transaction, and its other changes replace functions under their own signatures. The previous
- * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts).
+ * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts). The bridge's
+ * presence reports carry their process's sequence (the presence-order amendment and 0052, provisional numbers): this API
+ * accepts reportSeq, so it requires 0052's last sequence per room and process (its column, read from pg_attribute) and
+ * the guest aggregate its media_report_presence calls. The previous API calls 0052's function with no reportSeq (its
+ * contract has none) and stays ready on either database; the bridge that sends reportSeq is deployed after this API.
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
+  AND EXISTS(SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid=to_regclass('sophia.room_bridge_reports')
+    AND attname='last_seq' AND NOT attisdropped)
+  AND to_regprocedure('sophia.room_guests_asserted(uuid,timestamptz)') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
   AND to_regprocedure('sophia.create_project(text,text)') IS NOT NULL
   AND to_regprocedure('sophia.transfer_input_floor(uuid,uuid,bigint,text)') IS NOT NULL
@@ -155,13 +178,41 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
-  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.media_claim_live_call(uuid,bigint,uuid,text,text,text)') IS NOT NULL AS ok`
 
 /**
  * What an API with a byte store also requires: the claim every write makes first (0044, writeOnce). An API without
  * one, and the previous API, require nothing of 0044, so it is not needed before the store is configured.
  */
 export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(text,text,bigint)') IS NOT NULL AS ok`
+
+/**
+ * What an API with voice qualification on (A15) calls of 0046: its guard, the bridge's receipts, the principal's read and
+ * the room token's grant; of 0047, a recorded call's answer, its fence's generation, and the seal and the mark that
+ * write the answer under it (Codex P1 r4234782534); and of 0051, the service's numbering of the bridge's receipts
+ * (Codex P1 r4232908444). An API with it off, the default, and the previous API, require nothing of 0046 or 0051, and
+ * of 0047 only the claim (REQUIRED_SCHEMA).
+ */
+export const VOICE_SCHEMA = `SELECT to_regprocedure('sophia.voice_qualification_guard()') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_evidence(uuid,uuid,integer,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_evidence_write(uuid,uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regclass('sophia.voice_evidence_high_water') IS NOT NULL
+  AND to_regclass('sophia.voice_evidence_writes') IS NOT NULL
+  AND to_regprocedure('sophia.media_voice_reserve(uuid,uuid,text,integer,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.voice_qualification_evidence_read(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.voice_room_qualification(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.media_record_live_call(uuid,bigint,uuid,text,text)') IS NOT NULL
+  AND to_regprocedure('sophia.live_call_admits(uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.live_call_command()') IS NOT NULL
+  AND to_regprocedure('sophia.media_live_call_answer(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.media_fence_live_call(uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.live_call_seal(uuid,text,bigint,text)') IS NOT NULL
+  AND to_regprocedure('sophia.media_mark_live_call(uuid,uuid,text,bigint,text)') IS NOT NULL
+  AND to_regprocedure('sophia.exchange_calls(uuid,timestamptz)') IS NOT NULL
+  AND to_regprocedure('sophia.room_live_presence(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.native_task_exchanges(uuid,uuid[])') IS NOT NULL
+  AND to_regprocedure('sophia.task_withdrawn_sources(uuid,uuid)') IS NOT NULL AS ok`
 
 /**
  * The byte store the routes are given: written once per key, by a claim the database keeps (0044). The operator's
@@ -200,20 +251,22 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  const voice = deps.voiceQualification === true
+  registerHealth(app, deps.pool, { stores: Boolean(deps.byteStore), voice, commit: deps.commit ?? null })
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
-  projectionRoutes(app, { pool: deps.pool })
+  projectionRoutes(app, { pool: deps.pool, voice })
   commandRoutes(app, { pool: deps.pool })
-  conversationRoutes(app, { pool: deps.pool })
+  conversationRoutes(app, { pool: deps.pool, voice })
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
   designRoutes(app, { pool: deps.pool, store })
-  roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
+  roomRoutes(app, { pool: deps.pool, livekit: deps.livekit, voice })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })
-  mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit })
+  const fences = new CallFences(deps.callFenceSessions ?? CALL_FENCE_SESSIONS)
+  mediaRoutes(app, { pool: deps.pool, hub: mediaHub, livekit: deps.livekit, voice, fences })
   accessRoutes(app, { pool: deps.pool, livekit: deps.livekit, invites: deps.invites, mailer: deps.mailer ?? null })
   sourceRoutes(app, { pool: deps.pool, store })
   rendererRoutes(app, { pool: deps.pool, store })
@@ -346,14 +399,19 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
-  app.get('/health', () => ({ ok: true }))
+function registerHealth(
+  app: FastifyInstance,
+  pool: pg.Pool,
+  { stores, voice, commit }: { stores: boolean; voice: boolean; commit: string | null },
+): void {
+  app.get('/health', () => ({ ok: true, commit }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
       const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
-      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const voiced = voice ? (await pool.query<{ ok: boolean }>(VOICE_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store || !voiced) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })

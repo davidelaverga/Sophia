@@ -3,26 +3,43 @@ import type { ChatCaption, ChatNotice, ChatReply } from '@sophia/contracts/room-
 // for the API. This is bridge-logic evidence only (S1-05A cases A06, A09–A14 and §7 holder departure); it is not a live model or media
 // test and does not count toward A04/A05 acceptance.
 import type { FunctionResponse } from '@google/genai'
-import type { MediaAssignment, MediaToolCall, MediaToolResult } from '@sophia/contracts'
+import {
+  openapi,
+  type MediaAssignment,
+  type MediaEvidenceAck,
+  type MediaEvidenceWrite,
+  type MediaQualificationReservation,
+  type MediaQualificationReserve,
+  type MediaToolCall,
+  type MediaToolResult,
+  type VoiceQualification,
+} from '@sophia/contracts'
 import assert from 'node:assert/strict'
+import http from 'node:http'
+import net from 'node:net'
 import { beforeEach, describe, it } from 'node:test'
 import { inspect } from 'node:util'
 import { OUTPUT_FRAME, pcmToBase64 } from './audio.ts'
 import { SETTLE_MS } from './exchange-state.ts'
 import { GUIDE_DIR, loadMissionGuide, type GuideVersion, type MissionGuide } from './guide.ts'
 import type { LiveEvents, LiveLink, LiveOptions } from './live-session.ts'
+import { PRESENCE_SEQUENCE_MAX, PresenceSequence } from './presence-sequence.ts'
+import { Sha256Chain } from './qualification-recorder.ts'
 import {
   HOLDER_ARRIVAL_MS,
   HOLDER_GRACE_MS,
   HOLDER_RETRY_MS,
+  POST_ATTEMPT_MS,
+  QUIESCE_RETRY_MS,
   PRESENCE_EVERY_MS,
+  TOOL_ATTEMPT_MS,
   TYPED_REPLY_MS,
   escapeMarkers,
   RoomSession,
   type Handover,
 } from './room-session.ts'
 import type { LookTarget, RoomEvents, RoomLink, RoomPerson } from './rtc.ts'
-import { type MediaService, ServiceError } from './service.ts'
+import { httpMediaService, type MediaService, ServiceError } from './service.ts'
 import { DECLARED_NAMES, TOOL_SETS } from './tools.ts'
 
 const LUIS = '11111111-1111-4111-8111-111111111111'
@@ -215,6 +232,64 @@ class FakeService implements MediaService {
     this.calls.push(c)
     return this.result
   }
+  /** Voice qualification receipts as the API received them (A15), every attempt; and its guard's answer. */
+  evidence: MediaEvidenceWrite[] = []
+  ack: Pick<MediaEvidenceAck, 'ended' | 'reason'> = { ended: false, reason: null }
+  /** The numbers the API gave, per exchange and write identity, as 0051 gives them: a repeat is given its own again. */
+  numbered = new Map<string, number>()
+  recordEvidence = async (w: MediaEvidenceWrite) => {
+    await Promise.resolve()
+    this.evidence.push(w)
+    return this.number(w)
+  }
+  number(w: MediaEvidenceWrite): MediaEvidenceAck {
+    const key = `${w.exchangeId} ${w.writeId}`
+    const own = this.numbered.get(key)
+    const seq = own ?? [...this.numbered.keys()].filter((k) => k.startsWith(`${w.exchangeId} `)).length + 1
+    this.numbered.set(key, seq)
+    return { seq, replayed: own !== undefined, ...this.ack }
+  }
+  /**
+   * The API's durable bound (A15), as a FAKE: every reservation is granted and connections are numbered, unless a test
+   * refuses (as the API would, ending the exchange) or makes it fail.
+   */
+  reservations: MediaQualificationReserve[] = []
+  ordinals = 0
+  refuse: MediaQualificationReservation['stop'] | 'error' = null
+  /** When set, `refuse` applies to reservations of this kind only. */
+  refuseKind: MediaQualificationReserve['kind'] | null = null
+  /** While set, each reservation waits for the test to answer it (the API is slow). */
+  holdReservations = false
+  private readonly waiting: Array<{ kind: string; answer: () => void }> = []
+  answerReservations(): void {
+    for (const { answer } of this.waiting.splice(0)) answer()
+  }
+  /** The kinds of the reservations waiting for an answer, in the order asked. */
+  waitingKinds(): string[] {
+    return this.waiting.map((w) => w.kind)
+  }
+  /** Answer the last waiting reservation of this kind. */
+  answerLast(kind: string): void {
+    const at = this.waiting.map((w) => w.kind).lastIndexOf(kind)
+    if (at >= 0) this.waiting.splice(at, 1)[0]?.answer()
+  }
+  /** Answer the first waiting reservation of this kind. */
+  answerFirst(kind: string): void {
+    const at = this.waiting.map((w) => w.kind).indexOf(kind)
+    if (at >= 0) this.waiting.splice(at, 1)[0]?.answer()
+  }
+  reserveQualification = async (r: MediaQualificationReserve) => {
+    await Promise.resolve()
+    if (this.holdReservations)
+      await new Promise<void>((resolve) => this.waiting.push({ kind: r.kind, answer: resolve }))
+    this.reservations.push(r)
+    const refused = this.refuseKind === null || this.refuseKind === r.kind ? this.refuse : null
+    if (refused === 'error') throw new ServiceError(503, 'POST /v1/media/qualification-reserve: 503')
+    if (refused) return { ok: false, ordinal: null, stop: refused, ended: true }
+    if (r.kind === 'connection') this.ordinals += 1
+    const ordinal = r.kind === 'connection' ? this.ordinals : (r.ordinal ?? null)
+    return { ok: true, ordinal, stop: null, ended: false }
+  }
   /** The operations the fake API executes: the declared ones unless a test says otherwise. */
   surface: string[] | null = [...DECLARED_NAMES]
   surfaceChecks = 0
@@ -235,11 +310,14 @@ const statusOf = (r: FunctionResponse | undefined): unknown => {
 const flush = () => new Promise((resolve) => setImmediate(resolve))
 /** A callback a test replaces once the thing it waits on exists. */
 const noop = (): void => undefined
-/** Turns of the event loop until `done` holds: retries wait on real timers, which a busy machine delays. */
+/**
+ * Turns of the event loop until `done` holds: retries wait on real timers, which a busy machine delays. Past `ms` the
+ * test fails on an assertion naming what it waited for: the behaviour did not happen in time.
+ */
 async function until(what: string, done: () => boolean, ms = 2000): Promise<void> {
   const deadline = Date.now() + ms
   while (!done()) {
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`)
+    if (Date.now() > deadline) assert.fail(`timed out waiting for ${what}`)
     await new Promise((resolve) => setTimeout(resolve, 1))
   }
 }
@@ -247,6 +325,8 @@ async function until(what: string, done: () => boolean, ms = 2000): Promise<void
 const pcm16k = (n = 1600) => new Int16Array(n).fill(100)
 /** 100 ms of the holder saying something. */
 const voice16k = (n = 1600) => new Int16Array(n).fill(2000)
+/** 100 ms of the holder's speech whose samples carry a mark, so the order sent shows. */
+const marked16k = (mark: number) => new Int16Array(1600).fill(mark)
 const speech = (frames = 2) => pcmToBase64(new Int16Array(OUTPUT_FRAME * frames).fill(300))
 const OUT = 'audio/pcm;rate=24000'
 /** `frames` 20 ms frames of Sophia's speech; frame k carries the value first + k + 1, so order and gaps show. */
@@ -269,6 +349,18 @@ let joinTokens: string[]
 let logs: Array<[string, Record<string, unknown>]>
 /** SOPHIA_LIVE_CAPTIONS as the next session gets it: unset unless a test says otherwise. */
 let liveCaptions: boolean | undefined
+/** SOPHIA_VOICE_EVIDENCE as the next session gets it: unset (off) unless a test says otherwise. */
+let voiceEvidence: boolean | undefined
+/** Each reservation attempt's time limit, when a test bounds it (the close's settling is bounded by it). */
+let reserveTimeoutMs: number | undefined
+/** One attempt's bound for the quiesce acknowledgement, holder events and announcement records, when a test sets it. */
+let postAttemptMs: number | undefined
+/** One tool call attempt's transport ceiling, when a test sets it (item 7 B). */
+let toolAttemptMs: number | undefined
+/** The presence reports' counter the next session is given, when a test gives one; otherwise the process's. */
+let presenceSequence: PresenceSequence | undefined
+/** The waits before a tool call is sent again, when a test sets them; otherwise none ([0, 0]). */
+let toolRetryWaits: number[] | undefined
 
 /** What a replacement session is given: the handover, one still on its way, or nothing. */
 type Handed = Handover | Promise<Handover> | null
@@ -301,11 +393,16 @@ function newSession(over: Partial<MediaAssignment>, people: RoomPerson[], handov
       model: 'fake-model',
       guide,
       bridgeInstanceId: 'bridge-test',
-      toolRetryMs: [0, 0],
+      toolRetryMs: toolRetryWaits ?? [0, 0],
       now: () => clock,
       log: (event, fields) => logs.push([event, fields ?? {}]),
       every: () => () => undefined,
       ...(liveCaptions === undefined ? {} : { liveCaptions }),
+      ...(voiceEvidence === undefined ? {} : { voiceEvidence, evidenceRetryMs: [0, 0], reserveRetryMs: [0, 0] }),
+      ...(reserveTimeoutMs === undefined ? {} : { reserveTimeoutMs }),
+      ...(postAttemptMs === undefined ? {} : { postAttemptMs }),
+      ...(toolAttemptMs === undefined ? {} : { toolAttemptMs }),
+      ...(presenceSequence === undefined ? {} : { presenceSequence }),
     },
     handover,
   )
@@ -341,6 +438,12 @@ beforeEach(() => {
   joinTokens = []
   logs = []
   liveCaptions = undefined
+  voiceEvidence = undefined
+  reserveTimeoutMs = undefined
+  postAttemptMs = undefined
+  toolAttemptMs = undefined
+  toolRetryWaits = undefined
+  presenceSequence = undefined
 })
 
 describe('room session: who Google hears (cases A10, A11)', () => {
@@ -3620,6 +3723,2895 @@ describe('room session: live captions (CX-0023)', () => {
     live.events.inputTranscript('wait', false)
     assert.equal(room.clears, clears + 1)
     assert.deepEqual(room.captions, [])
+    await session.close()
+  })
+})
+
+// Voice qualification evidence (A15; qualification.ts) -----------------------------------------------------------------
+
+const GRANT_ID = '77777777-7777-4777-8777-777777777777'
+const RUN_BINDING = 'ab'.repeat(32)
+/** The grant an assignment names (A15): Luis is its principal, and its deadline is 15 minutes off the test's clock. */
+const grant = (over: Partial<VoiceQualification> = {}): VoiceQualification => ({
+  grantId: GRANT_ID,
+  runBindingSha256: RUN_BINDING,
+  principalActorId: LUIS,
+  deadline: new Date(clock + 900_000).toISOString(),
+  maxProviderConnections: 3,
+  maxTurns: 20,
+  maxOutputTokensPerTurn: 1000,
+  maxUsageTokens: 200_000,
+  ...over,
+})
+
+type Schema = Record<string, unknown>
+const COMPONENTS = openapi.components.schemas
+const RECEIPT_SCHEMAS: Record<MediaEvidenceWrite['receipt']['kind'], string> = {
+  input_window: 'VoiceInputWindowReceipt',
+  input_turn: 'VoiceInputTurnReceipt',
+  provider: 'VoiceProviderReceipt',
+  output_reply: 'VoiceOutputReplyReceipt',
+  session_closed: 'VoiceSessionClosedReceipt',
+}
+
+/**
+ * Where a value breaks a schema of the contract (openapi.json, as amended by A15), checked for the keywords A15's
+ * evidence schemas use: type, const, enum, pattern, bounds, required, additionalProperties false, anyOf and $ref. An
+ * empty list: it validates, as the API's Ajv would take it.
+ */
+function breaches(value: unknown, schema: Schema, at = '$'): string[] {
+  if (typeof schema.$ref === 'string') return breaches(value, COMPONENTS[schema.$ref.split('/').at(-1) ?? ''] ?? {}, at)
+  if (Array.isArray(schema.anyOf)) {
+    const options = schema.anyOf as Schema[]
+    return options.some((option) => breaches(value, option, at).length === 0) ? [] : [`${at}: matches no anyOf`]
+  }
+  const found: string[] = []
+  if ('const' in schema && value !== schema.const) found.push(`${at}: is not ${String(schema.const)}`)
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) found.push(`${at}: is not one of its enum`)
+  return [...found, ...typeBreaches(value, schema, at)]
+}
+
+function typeBreaches(value: unknown, schema: Schema, at: string): string[] {
+  const kinds: Record<string, () => string[]> = {
+    object: () => objectBreaches(value, schema, at),
+    string: () => stringBreaches(value, schema, at),
+    integer: () => numberBreaches(value, schema, at),
+    number: () => numberBreaches(value, schema, at),
+    boolean: () => (typeof value === 'boolean' ? [] : [`${at}: not a boolean`]),
+    null: () => (value === null ? [] : [`${at}: not null`]),
+  }
+  return kinds[String(schema.type)]?.() ?? [`${at}: a schema this check does not read`]
+}
+
+function stringBreaches(value: unknown, schema: Schema, at: string): string[] {
+  if (typeof value !== 'string') return [`${at}: not a string`]
+  const pattern = typeof schema.pattern === 'string' ? new RegExp(schema.pattern, 'u') : null
+  return pattern && !pattern.test(value) ? [`${at}: does not match ${pattern.source}`] : []
+}
+
+function numberBreaches(value: unknown, schema: Schema, at: string): string[] {
+  const whole = schema.type === 'number' || Number.isInteger(value)
+  if (typeof value !== 'number' || !Number.isFinite(value) || !whole) return [`${at}: not ${String(schema.type)}`]
+  const below = typeof schema.minimum === 'number' && value < schema.minimum
+  const above = typeof schema.maximum === 'number' && value > schema.maximum
+  return below || above ? [`${at}: ${value} is out of bounds`] : []
+}
+
+function objectBreaches(value: unknown, schema: Schema, at: string): string[] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return [`${at}: not an object`]
+  const properties = (schema.properties ?? {}) as Record<string, Schema>
+  const found = ((schema.required ?? []) as string[]).filter((k) => !(k in value)).map((k) => `${at}.${k}: missing`)
+  for (const [k, v] of Object.entries(value)) {
+    const property = properties[k]
+    if (property) found.push(...breaches(v, property, `${at}.${k}`))
+    else if (schema.additionalProperties === false) found.push(`${at}.${k}: not declared`)
+  }
+  return found
+}
+
+/** A receipt's fields, for reading in a test. */
+const fields = (w: MediaEvidenceWrite | undefined) => w?.receipt as Record<string, unknown> | undefined
+const tag = (w: MediaEvidenceWrite) => (w.receipt.kind === 'provider' ? `provider:${w.receipt.phase}` : w.receipt.kind)
+const chainOf = (frames: Int16Array[]) => {
+  const chain = new Sha256Chain()
+  for (const frame of frames) chain.add(frame)
+  return chain.hex
+}
+
+describe('room session: voice qualification evidence (A15), off by default', () => {
+  /** One scripted exchange: everything that reached the provider, the room and the API, and how many receipts. */
+  async function scripted(over: Partial<MediaAssignment>) {
+    service = new FakeService()
+    // Each run as a new process would number its presence reports, so two runs' traffic compares equal.
+    presenceSequence = new PresenceSequence()
+    const { session, room, live } = await ready(over)
+    const holder = over.inputActorId ?? LUIS
+    room.events.audio(holder, voice16k(), 16000, 1)
+    room.events.audio(holder, pcm16k(), 16000, 1)
+    await flush()
+    live.events.inputTranscript('Synthetic words', true)
+    live.events.audio(speech(2), OUT)
+    live.events.toolCalls([{ id: 'call-off', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    live.events.usage({ totalTokenCount: 1000, promptTokenCount: 900 })
+    await flush()
+    session.tick()
+    await session.close()
+    return {
+      receipts: service.evidence.length,
+      provider: {
+        options: JSON.stringify(live.options),
+        audio: live.audio,
+        streamEnds: live.streamEnds,
+        notices: live.notices,
+        responses: JSON.stringify(live.responses),
+        closed: live.closed,
+      },
+      room: {
+        played: room.played.map((frame) => frame.join()),
+        clears: room.clears,
+        attributes: JSON.stringify(room.attributes),
+        captions: room.captions.length,
+      },
+      api: JSON.stringify([service.presences, service.calls, service.holders, service.announcedEvents, service.acks]),
+    }
+  }
+
+  it('without a grant, off or on: nothing is recorded or reserved, and what is sent is as before', async () => {
+    const before = await scripted({})
+    assert.equal(before.receipts, 0)
+    assert.equal(JSON.parse(before.provider.options).maxOutputTokens, undefined, 'the setup names no output cap')
+    assert.equal(service.reservations.length, 0)
+    voiceEvidence = false
+    assert.deepEqual(await scripted({}), before, 'off')
+    voiceEvidence = true
+    assert.deepEqual(await scripted({}), before, 'on, but the assignment names no grant')
+    assert.equal(service.reservations.length, 0)
+  })
+
+  it('a grant this bridge does not record (SOPHIA_VOICE_EVIDENCE off or unset): no provider connection, and it says why', async () => {
+    for (const flag of [undefined, false]) {
+      voiceEvidence = flag
+      service = new FakeService()
+      const session = newSession({ qualification: grant() }, [member(LUIS)])
+      await session.start()
+      session.tick()
+      await flush()
+      assert.equal(lives.length, 0, 'the grant’s spend has no bound here, so none of it is spent')
+      assert.equal(session.observed().voice, 'unavailable')
+      assert.match(String(service.presences.at(-1)?.reason), /SOPHIA_VOICE_EVIDENCE/)
+      assert.deepEqual([service.evidence.length, service.reservations.length], [0, 0])
+      await session.close()
+    }
+    assert.equal(logs.filter(([event]) => event === 'qualification.declined').length, 2)
+  })
+
+  it('on, with a grant, while another member holds the floor: nothing is recorded; the grant’s cap still binds', async () => {
+    const before = await scripted({ inputActorId: DAVIDE })
+    voiceEvidence = true
+    const other = await scripted({ inputActorId: DAVIDE, qualification: grant() })
+    assert.equal(other.receipts, 0, 'nothing of another member’s turn, and no lifecycle while they hold the floor')
+    const { maxOutputTokens, ...options } = JSON.parse(other.provider.options) as Record<string, unknown>
+    assert.equal(maxOutputTokens, 1000, 'the session is under the grant, whoever speaks')
+    assert.deepEqual({ ...other, provider: { ...other.provider, options: JSON.stringify(options) } }, before)
+  })
+
+  it('the schema check reads A15: an undeclared field, free text or a value out of bounds is refused', () => {
+    const write = {
+      exchangeId: EXCHANGE,
+      grantId: GRANT_ID,
+      writeId: '99999999-9999-4999-8999-999999999999',
+      receipt: {
+        kind: 'session_closed',
+        schema: 'sophia.bridge.voice_qualification.v1',
+        grantId: GRANT_ID,
+        runBindingSha256: RUN_BINDING,
+        atMs: 1,
+        providerClosed: true,
+        windows: 0,
+        turns: 0,
+        replies: 0,
+        toolCalls: 0,
+        typedMessages: 0,
+        transcriptRetained: false,
+        reason: 'ended',
+      },
+    }
+    const writeSchema = COMPONENTS.MediaEvidenceWrite as Schema
+    assert.deepEqual(breaches(write, writeSchema), [])
+    for (const bad of [
+      { ...write, receipt: { ...write.receipt, text: 'Draft the brief' } },
+      { ...write, receipt: { ...write.receipt, transcriptRetained: true } },
+      { ...write, receipt: { ...write.receipt, reason: 'because' } },
+      { ...write, writeId: 'not-a-uuid' },
+      { ...write, seq: 1 },
+      { ...write, receipt: { ...write.receipt, windows: 0.5 } },
+    ])
+      assert.notDeepEqual(breaches(bad, writeSchema), [], JSON.stringify(bad).slice(0, 80))
+  })
+})
+
+describe('room session: voice qualification evidence (A15), on with SOPHIA_VOICE_EVIDENCE=on and a grant', () => {
+  it('each receipt goes with its own attempt’s signal, so the service can cancel it at its bound (Codex r4235355799)', async () => {
+    voiceEvidence = true
+    const signals: Array<AbortSignal | undefined> = []
+    service.recordEvidence = async (w: MediaEvidenceWrite, signal?: AbortSignal) => {
+      await Promise.resolve()
+      signals.push(signal)
+      service.evidence.push(w)
+      return service.number(w)
+    }
+    const { session } = await ready({ qualification: grant() })
+    await until('a receipt sent', () => signals.length > 0)
+    await session.close()
+    assert.ok(
+      signals.every((signal) => signal instanceof AbortSignal && !signal.aborted),
+      'every attempt had a signal of its own, not aborted: answered in time',
+    )
+    assert.equal(new Set(signals).size, signals.length, 'one per attempt')
+  })
+
+  it('the principal’s turn, its reply, a tool round with its WHEN_IDLE continuation, usage and the close', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    assert.equal(live.options.maxOutputTokens, 1000, 'the grant’s per-turn output is the session’s cap')
+    for (let i = 0; i < 3; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.inputTranscript('Draft the brief please', true)
+    live.events.audio(speech(2), OUT)
+    live.events.toolCalls([{ id: 'call-q1', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(live.responses.length, 1)
+    live.events.turnComplete()
+    await flush()
+    // Luis's microphone stays open (a quiet chunk): the next turn is his again.
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    await flush()
+    // The tool response's WHEN_IDLE continuation: a generation nobody asked for, answering Luis's turn.
+    live.events.outputTranscript('Here is where it stands', false)
+    live.events.audio(speech(1), OUT)
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    live.events.usage({ totalTokenCount: 30_000, promptTokenCount: 26_000 })
+    await session.close()
+
+    assert.deepEqual(service.evidence.map(tag), [
+      'provider:setup',
+      'provider:ready',
+      'input_window',
+      'input_turn',
+      'output_reply',
+      'input_window',
+      'input_turn',
+      'output_reply',
+      'provider:usage',
+      'provider:closed',
+      'session_closed',
+    ])
+    assert.equal(new Set(service.evidence.map((w) => w.writeId)).size, 11, 'each receipt its own write identity')
+    assert.deepEqual(
+      service.evidence.map((w) => service.numbered.get(`${w.exchangeId} ${w.writeId}`)),
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+      'numbered by the API, in the order it took them',
+    )
+    for (const w of service.evidence) {
+      assert.deepEqual(breaches(w, COMPONENTS.MediaEvidenceWrite as Schema), [], tag(w))
+      const declared = (COMPONENTS[RECEIPT_SCHEMAS[w.receipt.kind]] as { properties: Schema }).properties
+      assert.deepEqual(Object.keys(w.receipt).toSorted(), Object.keys(declared).toSorted(), `exactly A15’s ${tag(w)}`)
+      assert.deepEqual([w.exchangeId, w.grantId, w.receipt.grantId], [EXCHANGE, GRANT_ID, GRANT_ID])
+      assert.equal(w.receipt.runBindingSha256, RUN_BINDING)
+    }
+    const [setup, , window, turn, reply, , , continuation, usage, , close] = service.evidence
+    assert.deepEqual(pick(fields(setup), 'connection', 'resumed', 'model', 'instructionSha256', 'bridgeCommit'), {
+      connection: 1,
+      resumed: false,
+      model: 'fake-model',
+      instructionSha256: GUIDE.combined.sha256,
+      bridgeCommit: null,
+    })
+    const sessions = new Set(service.evidence.map((w) => fields(w)?.providerSession).filter(Boolean))
+    assert.equal(sessions.size, 1, 'one provider session, named the same on every receipt')
+    const loud = 2000 / 32_768
+    assert.deepEqual(
+      pick(fields(window), 'windowSeq', 'endReason', 'chunkCount', 'sampleCount', 'audibleChunkCount', 'rms', 'peak'),
+      {
+        windowSeq: 1,
+        endReason: 'turn_complete',
+        chunkCount: 3,
+        sampleCount: 4800,
+        audibleChunkCount: 3,
+        rms: loud,
+        peak: loud,
+      },
+    )
+    assert.equal(fields(window)?.pcmSha256Chain, chainOf([voice16k(), voice16k(), voice16k()]), 'the PCM forwarded')
+    assert.deepEqual(
+      pick(
+        fields(turn),
+        'turnOrdinal',
+        'inputTranscriptionObserved',
+        'transcriptChars',
+        'finished',
+        'attributedToHolder',
+      ),
+      {
+        turnOrdinal: 1,
+        inputTranscriptionObserved: true,
+        transcriptChars: 22,
+        finished: true,
+        attributedToHolder: true,
+      },
+    )
+    assert.deepEqual(pick(fields(turn), 'modelResponded', 'toolCallCount', 'outcome'), {
+      modelResponded: true,
+      toolCallCount: 1,
+      outcome: 'answered',
+    })
+    assert.deepEqual(
+      pick(fields(reply), 'replyOrdinal', 'turnOrdinal', 'terminal', 'samplesReceived', 'framesPlayed'),
+      {
+        replyOrdinal: 1,
+        turnOrdinal: 1,
+        terminal: 'played',
+        samplesReceived: 960,
+        framesPlayed: 2,
+      },
+    )
+    assert.equal(fields(reply)?.playedSha256Chain, chainOf(room.played.slice(0, 2)), 'the frames handed to the room')
+    assert.deepEqual(pick(fields(continuation), 'replyOrdinal', 'turnOrdinal', 'framesPlayed', 'durationMs'), {
+      replyOrdinal: 2,
+      turnOrdinal: 2,
+      framesPlayed: 1,
+      durationMs: 20,
+    })
+    assert.deepEqual(pick(fields(usage), 'usageTokens', 'lastPromptTokens', 'turns', 'connectionsOpened'), {
+      usageTokens: 30_000,
+      lastPromptTokens: 26_000,
+      turns: 2,
+      connectionsOpened: 1,
+    })
+    assert.deepEqual(pick(fields(close), 'windows', 'turns', 'replies', 'toolCalls', 'typedMessages', 'reason'), {
+      windows: 2,
+      turns: 2,
+      replies: 2,
+      toolCalls: 1,
+      typedMessages: 0,
+      reason: 'ended',
+    })
+    const all = JSON.stringify(service.evidence)
+    assert.equal(all.includes('Draft the brief') || all.includes('Here is where'), false, 'no words, only counts')
+  })
+
+  it('a receipt the API did not take never holds audio back: same identity and body again, then dropped and counted', async () => {
+    voiceEvidence = true
+    service.recordEvidence = async (w: MediaEvidenceWrite) => {
+      await Promise.resolve()
+      service.evidence.push(structuredClone(w))
+      throw new ServiceError(503, 'POST /v1/media/evidence-writes: 503')
+    }
+    const { room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(live.audio, 2, 'forwarded at once, whatever the receipts are waiting for')
+    await until('setup and ready dropped', () => logs.filter(([event]) => event === 'evidence.dropped').length === 2)
+    const setup = service.evidence.filter((w) => w.writeId === service.evidence[0]?.writeId)
+    assert.equal(setup.length, 3, 'sent, then twice again')
+    assert.deepEqual(setup[1], setup[0])
+    assert.deepEqual(setup[2], setup[0])
+    const second = service.evidence[3]
+    assert.ok(second && second.writeId !== setup[0]?.writeId, 'the next receipt, its own identity')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'evidence.dropped').map(([, d]) => [d.writeId, d.kind, d.why, d.dropped]),
+      [
+        [setup[0]?.writeId, 'provider', 'unanswered', 1],
+        [second.writeId, 'provider', 'unanswered', 2],
+      ],
+    )
+    // An API that never answers: the receipts wait, the holder is still heard.
+    service.recordEvidence = () => new Promise<MediaEvidenceAck>(() => undefined)
+    live.events.turnComplete()
+    for (let i = 0; i < 5; i += 1) room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(live.audio, 7)
+  })
+
+  it('the floor moves to the principal while Sophia still answers another member: nothing of that turn is recorded', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunks wait for the grant
+    assert.equal(live.audio, 2, 'Davide was heard: the turn Sophia answers is his')
+    live.events.audio(speech(2), OUT)
+    await flush()
+    // The floor moves to Luis, the principal, while Sophia's answer to Davide is still arriving.
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    live.events.audio(speech(3), OUT)
+    live.events.toolCalls([{ id: 'call-davide', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    await session.close()
+    const kinds = service.evidence.map(tag)
+    assert.ok(kinds.includes('session_closed'), 'Luis held the floor: the session’s close is his to record')
+    for (const kind of ['input_window', 'input_turn', 'output_reply'])
+      assert.ok(!kinds.includes(kind), `no ${kind}: nothing of Davide’s turn is recorded as Luis’s`)
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 0, replies: 0, toolCalls: 0 })
+  })
+
+  it('the floor moves to the principal before Sophia’s answer to another member begins: that answer is not his', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(live.audio, 1, 'Davide was heard: the turn Sophia answers is his')
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    live.events.audio(speech(3), OUT)
+    live.events.toolCalls([{ id: 'call-davide', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    await session.close()
+    assert.deepEqual(
+      service.evidence.map(tag).filter((kind) => !kind.startsWith('provider:')),
+      ['session_closed'],
+      'Luis held the floor, and nothing of Davide’s turn is recorded as his',
+    )
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 0, replies: 0, toolCalls: 0 })
+  })
+
+  it('the continuation of another member’s tool round is theirs, even with the floor moved and the principal heard first', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.toolCalls([{ id: 'call-d', name: 'project_status', args: {} }]) // Davide's call
+    await until('Davide’s tool response sent', () => live.responses.length === 1)
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    await flush()
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone is forwarded before the continuation
+    await flush()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(3), OUT) // the WHEN_IDLE continuation: Sophia tells Davide his result
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.ok(
+      !service.evidence.some((w) => w.receipt.kind === 'output_reply'),
+      'nothing of the answer to Davide’s call is recorded as Luis’s',
+    )
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'replies', 'toolCalls'), { replies: 0, toolCalls: 0 })
+  })
+
+  /** The samples of each output_reply recorded, in order. */
+  const recordedSamples = () =>
+    service.evidence.filter((w) => w.receipt.kind === 'output_reply').map((w) => fields(w)?.samplesReceived)
+
+  it('another member’s slow tool response sent while the principal’s turn is under way: neither generation is recorded (R2 P2)', async () => {
+    voiceEvidence = true
+    let release: ((r: MediaToolResult) => void) | undefined
+    service.toolCall = async (c) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((resolve) => {
+        release = resolve
+      })
+    }
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-d', name: 'project_status', args: {} }]) // Davide's call; the API is slow
+    await flush()
+    live.events.audio(speech(2), OUT) // "one moment, Davide"
+    live.events.turnComplete()
+    await flush()
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis asks something
+    await flush()
+    await flush()
+    release?.({ status: 'ok', output: { summary: 'x' } }) // Davide's answer is sent while Luis's turn is under way
+    await until('Davide’s tool response sent', () => live.responses.length === 1)
+    live.events.audio(speech(2), OUT) // Sophia answers Luis (960 samples), or is it Davide's continuation?
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone, a quiet room
+    await flush()
+    await flush()
+    live.events.audio(speech(3), OUT) // Davide's WHEN_IDLE continuation (1440 samples), or an answer to Luis?
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.deepEqual(recordedSamples(), [], 'no one’s rather than a guess: never Davide’s 1440 as Luis’s reply')
+  })
+
+  it('a notice sent after the principal’s words were forwarded may be either of the next two generations: neither is recorded', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis speaks; no transcript of it yet
+    await flush()
+    await flush()
+    session.update(
+      assignment({ qualification: grant(), results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }] }),
+    )
+    session.tick()
+    for (let i = 0; i < 4; i += 1) await flush()
+    assert.equal(live.notices.length, 1, 'the notice was sent')
+    for (const frames of [2, 3]) {
+      live.events.audio(speech(frames), OUT) // the answer to Luis, and the notice: in an order that cannot be told
+      await flush()
+      live.events.turnComplete()
+      await flush()
+      room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone, a quiet room
+      await flush()
+      await flush()
+    }
+    await session.close()
+    assert.deepEqual(recordedSamples(), [])
+  })
+
+  it('the principal’s slow tool response sent while Davide’s words own the turn: after a handoff back, not the principal’s (Codex)', async () => {
+    voiceEvidence = true
+    let release: ((r: MediaToolResult) => void) | undefined
+    service.toolCall = async (c) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((resolve) => {
+        release = resolve
+      })
+    }
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-l', name: 'project_status', args: {} }]) // Luis's call; the API is slow
+    await flush()
+    live.events.audio(speech(1), OUT) // "one moment, Luis"
+    live.events.turnComplete()
+    await flush()
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    // Davide's microphone is forwarded, below the bridge's audible floor: no reply is fenced at the handoff, so only
+    // the receipts' own rule keeps what may answer him off Luis's record.
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1)
+    await flush()
+    await flush()
+    release?.({ status: 'ok', output: { summary: 'x' } }) // Luis's answer is sent while Davide's input owns the turn
+    await until('Luis’s tool response sent', () => live.responses.length === 1)
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 3, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // the floor is Luis's again, his microphone forwarded before any output
+    await flush()
+    await flush()
+    const before = recordedSamples().length
+    live.events.audio(speech(2), OUT) // Sophia's answer to Davide, or Luis's continuation: it cannot be told
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.equal(recordedSamples().length, before, 'never what may answer Davide recorded as Luis’s')
+  })
+
+  it('a provider interruption that arrives after a handoff away and back: what may answer the peer is not the principal’s (root’s control 5)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1) // 1. Luis speaks; the provider responds
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-l', name: 'project_status', args: {} }])
+    await until('Luis’s tool response sent', () => live.responses.length === 1) // 2. sent while it is under way
+    live.events.audio(speech(1), OUT) // 3. 480 samples of Luis's reply
+    await flush()
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(DAVIDE, pcm16k(), 16000, 1) // 4. Davide's microphone, forwarded at epoch 2
+    await flush()
+    await flush()
+    session.update(assignment({ inputActorId: LUIS, inputEpoch: 3, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // 5. back to Luis, forwarded at epoch 3
+    await flush()
+    await flush()
+    live.events.interrupted() // 6. only now does the provider's interruption arrive
+    await flush()
+    for (const frames of [2, 3]) {
+      live.events.audio(speech(frames), OUT) // 7. 960, then 1440: the answer to Davide, or Luis's continuation
+      await flush()
+      live.events.turnComplete()
+      await flush()
+    }
+    await session.close()
+    assert.deepEqual(recordedSamples(), [OUTPUT_FRAME], 'only Luis’s own 480')
+  })
+
+  it('a notice cut before a word leaves no mark: the principal’s next reply is recorded (R2 P3)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({
+      qualification: grant(),
+      results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }],
+    })
+    session.tick()
+    for (let i = 0; i < 4; i += 1) await flush()
+    assert.equal(live.notices.length, 1, 'the notice was sent, nothing forwarded before it')
+    live.events.interrupted() // talked over before Sophia said a word of it
+    await flush()
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis asks
+    await flush()
+    await flush()
+    live.events.audio(speech(2), OUT) // Sophia answers Luis
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.deepEqual(recordedSamples(), [OUTPUT_FRAME * 2])
+  })
+
+  it('a result notice is no one’s turn, even when the principal’s open microphone is forwarded before it is said', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({
+      qualification: grant(),
+      results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }],
+    })
+    session.tick()
+    for (let i = 0; i < 4; i += 1) await flush()
+    assert.equal(live.notices.length, 1, 'the notice was sent')
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // Luis's open microphone, a quiet room
+    await flush()
+    live.events.audio(speech(2), OUT) // Sophia says the notice
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    assert.ok(!service.evidence.some((w) => w.receipt.kind === 'output_reply'), 'the notice is not Luis’s reply')
+  })
+
+  it('a reply to the principal still playing as the floor moves away ends with its receipt; the next member’s is not', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.holding = true
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(2), OUT) // Sophia answers Luis; the frames wait in the room's queue
+    await flush()
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    room.holding = false
+    await room.release(10) // Luis's reply plays on after the floor moved
+    live.events.turnComplete()
+    await flush()
+    clock += 5000
+    session.tick()
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(4), OUT) // Sophia answers Davide
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    await flush()
+    await session.close()
+    assert.deepEqual(replyEnds(), ['played', 'played'])
+    const replies = service.evidence.filter((w) => w.receipt.kind === 'output_reply')
+    assert.deepEqual(
+      replies.map((w) => pick(fields(w), 'replyOrdinal', 'turnOrdinal', 'terminal', 'samplesReceived', 'framesPlayed')),
+      [{ replyOrdinal: 1, turnOrdinal: 1, terminal: 'played', samplesReceived: 960, framesPlayed: 2 }],
+      'Luis’s reply, whole, and nothing of Davide’s',
+    )
+    assert.equal(fields(replies[0])?.playedSha256Chain, chainOf(room.played.slice(0, 2)))
+    const close = service.evidence.find((w) => w.receipt.kind === 'session_closed')
+    assert.deepEqual(pick(fields(close), 'windows', 'replies', 'toolCalls'), { windows: 1, replies: 1, toolCalls: 0 })
+  })
+
+  it('an answer that says the API’s guard ended the exchange closes the session, provider included, at once', async () => {
+    voiceEvidence = true
+    const { room, live } = await ready({ qualification: grant() })
+    service.ack = { ended: true, reason: 'usage' }
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.turnComplete()
+    await until('the session closed', () => room.closed && live.closed)
+    assert.ok(logs.some(([event, d]) => event === 'qualification.exchange_ended' && d.reason === 'usage'))
+    await until('its close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    assert.equal(fields(service.evidence.at(-1))?.reason, 'ended')
+  })
+})
+
+describe('room session: the bridge’s own bound under a grant (qualification-reserve.ts)', () => {
+  /** Stopped for `why`: the provider closed for good, Sophia unavailable, and the receipts end with the guard’s close. */
+  async function stoppedFor(why: string, session: RoomSession, live: FakeLive): Promise<void> {
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      [why],
+    )
+    assert.equal(live.closed, true)
+    assert.equal(session.observed().voice, 'unavailable')
+    await until('the guard’s close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    assert.deepEqual(service.evidence.slice(-2).map(tag), ['provider:closed', 'session_closed'])
+    assert.equal(fields(service.evidence.at(-1))?.reason, 'guard')
+    clock += 60_000
+    session.tick()
+    await flush()
+    assert.equal(lives.length, 1, 'no connection is opened again')
+    const recorded = service.evidence.length
+    await session.close()
+    assert.equal(service.evidence.length, recorded, 'nothing is recorded after the guard’s close')
+  }
+
+  it('stops at the usage budget: the next generation must fit with what was reported, before its input is sent', async () => {
+    voiceEvidence = true
+    // A generation reserves the context (25,000) and its output twice (2 × 1000): two fit in 60,000, unreported.
+    const { session, room, live } = await ready({ qualification: grant({ maxUsageTokens: 60_000 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    live.events.usage({ totalTokenCount: 40_000, promptTokenCount: 30_000 })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(live.audio, 1, 'the input that could start the next generation is not sent')
+    await stoppedFor('usage', session, live)
+  })
+
+  it('stops at the grant’s turns', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxTurns: 1 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    assert.equal(live.audio, 1)
+    await stoppedFor('turns', session, live)
+  })
+
+  it('stops before a connection past the grant’s opens', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxProviderConnections: 1 }) })
+    live.events.goAway('1s')
+    clock += 1000
+    session.tick()
+    await flush()
+    assert.equal(lives.length, 1, 'the second connection is never opened')
+    await stoppedFor('connections', session, live)
+  })
+
+  it('cuts a generation past the grant’s per-turn output, whatever the provider was configured with', async () => {
+    voiceEvidence = true
+    // 64 tokens of audio out: two seconds at the assumed 32 tokens a second.
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    assert.equal(live.options.maxOutputTokens, 64)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(50), OUT)
+    await flush()
+    assert.equal(room.played.length, 50)
+    live.events.audio(speech(60), OUT)
+    await flush()
+    assert.equal(room.played.length, 50, 'nothing of the chunk past the cap is played')
+    await stoppedFor('output', session, live)
+    const reply = service.evidence.find((w) => w.receipt.kind === 'output_reply')
+    assert.deepEqual(pick(fields(reply), 'terminal', 'framesPlayed'), { terminal: 'closed', framesPlayed: 50 })
+  })
+
+  it('cuts a generation whose words alone pass the per-turn cap: nothing after the cut is forwarded or played (Codex r4233559250)', async () => {
+    voiceEvidence = true
+    // A per-turn cap of 64 tokens: 192 characters of Sophia's words, at the assumed 3 a token.
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.audio(speech(10), OUT) // 10 tokens of audio: far within the cap
+    await flush()
+    assert.equal(room.played.length, 10)
+    const forwarded = live.audio
+    live.events.outputTranscript('x'.repeat(300), false) // 100 tokens of words
+    await flush()
+    assert.equal(live.closed, true, 'the provider is closed at the cut')
+    live.events.audio(speech(10), OUT)
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(room.played.length, 10, 'nothing arriving after the cut is played')
+    assert.equal(live.audio, forwarded, 'nothing more is forwarded')
+    await stoppedFor('output', session, live)
+  })
+
+  for (const first of ['words', 'call'] as const) {
+    it(`a generation nobody reserved whose first ${first === 'words' ? 'words pass' : 'function call passes'} the cap: cut, and charged unasked before the stop (Codex r4233954386)`, async () => {
+      voiceEvidence = true
+      const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+      // Nobody spoke and nothing was asked: what the provider sends now starts a generation nobody reserved.
+      if (first === 'words') live.events.outputTranscript('x'.repeat(300), false)
+      else live.events.toolCalls([{ id: 'call-big', name: 'project_status', args: { note: 'x'.repeat(300) } }])
+      await flush()
+      await flush()
+      assert.deepEqual(
+        service.reservations.map((r) => [r.kind, r.charge ?? null]),
+        [
+          ['connection', null],
+          ['unasked', 25_000 + 2 * 64],
+          ['stop', null],
+        ],
+        'its turn and its charge reach the API, before the stop that ends the exchange',
+      )
+      assert.equal(service.calls.length, 0, 'no handler ran')
+      await stoppedFor('output', session, live)
+    })
+  }
+
+  it('every unasked charge is answered before the stop, not only the latest (Codex r4234233112, root’s sequence)', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true
+    live.events.audio(speech(1), OUT) // a generation nobody reserved: its charge is held
+    await flush()
+    live.events.turnComplete()
+    live.events.outputTranscript('x'.repeat(300), false) // another nobody reserved, on the same connection, cut at once
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked', 'unasked'])
+    service.answerLast('unasked') // the second charge only
+    await flush()
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked'], 'no stop while the first charge is unanswered')
+    service.answerFirst('unasked')
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
+    await session.close()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'unasked', 'unasked', 'stop'],
+    )
+  })
+
+  it('sequential unasked charges: the stop follows the last (Codex r4234233112, control)', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true
+    live.events.audio(speech(1), OUT)
+    await flush()
+    service.answerFirst('unasked') // the first charge answered before the next turn
+    await flush()
+    live.events.turnComplete()
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked'])
+    service.answerFirst('unasked')
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
+    await session.close()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'unasked', 'unasked', 'stop'],
+    )
+  })
+
+  it('the close resolves only once a cut unasked generation’s charge and the stop are answered (Codex r4234233106, root’s sequence)', async () => {
+    voiceEvidence = true
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked'])
+    let closed = false
+    const closing = session.close().then(() => {
+      closed = true
+    })
+    await flush()
+    await flush()
+    assert.equal(closed, false, 'not while the charge is unanswered')
+    service.answerFirst('unasked')
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    assert.equal(closed, false, 'nor while the stop is')
+    service.answerFirst('stop')
+    await closing
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'unasked', 'stop'],
+    )
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled'),
+      [],
+    )
+  })
+
+  it('the close is bounded: an API that never answers leaves the charge unsettled, logged, and the close resolves (Codex r4234233106)', async () => {
+    voiceEvidence = true
+    reserveTimeoutMs = 50 // three attempts of 50 ms, twice (the charges, then the stop): 300 ms
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true // and never answered
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    const started = Date.now()
+    await session.close()
+    assert.ok(Date.now() - started < 2000, 'within its bound')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled').map(([, d]) => [d.charges, d.stop]),
+      [[1, 'unsent']],
+    )
+  })
+
+  it('the close’s whole bound: several charges never answered, and the close still resolves within it, logging them all (Codex r4234233106)', async () => {
+    voiceEvidence = true
+    reserveTimeoutMs = 50 // three attempts of 50 ms, twice (the charges, then the stop): 300 ms
+    const { session, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    service.holdReservations = true // and never answered
+    live.events.audio(speech(1), OUT) // three generations nobody reserved, the last cut at its first words
+    await flush()
+    live.events.turnComplete()
+    live.events.audio(speech(1), OUT)
+    await flush()
+    live.events.turnComplete()
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['unasked', 'unasked', 'unasked'])
+    const started = Date.now()
+    await session.close()
+    const took = Date.now() - started
+    assert.ok(took >= 250 && took < 2000, `the charges are concurrent: one bound for all of them (${String(took)} ms)`)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled').map(([, d]) => [d.charges, d.stop]),
+      [[3, 'unsent']],
+      'all three logged; the stop owed, never sent, since it waits for them',
+    )
+  })
+
+  it('a close that owes nothing resolves at once, as before (Codex r4234233106, control)', async () => {
+    voiceEvidence = true
+    reserveTimeoutMs = 10_000 // a bound it never waits for
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    await flush()
+    const started = Date.now()
+    await session.close()
+    assert.ok(Date.now() - started < 1000)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.charge_unsettled'),
+      [],
+    )
+  })
+
+  it('a generation asked for and cut by its words sends no unasked charge (Codex r4233954386, control)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.outputTranscript('x'.repeat(300), false)
+    await flush()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'generation', 'stop'],
+    )
+    await stoppedFor('output', session, live)
+  })
+
+  it('a turn whose words stay within the per-turn cap goes on as before, and is charged no more (Codex r4233559250)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(10), OUT)
+    live.events.outputTranscript('x'.repeat(60), false) // 20 tokens of words
+    live.events.turnComplete()
+    await flush()
+    assert.equal(live.closed, false)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped'),
+      [],
+    )
+    assert.deepEqual(
+      service.reservations.map((r) => [r.kind, r.charge ?? null]),
+      [
+        ['connection', null],
+        ['generation', 25_000 + 2 * 64 + 4000],
+      ],
+      'its generation at its worst case with the allowance it filled; the words came out of that allowance',
+    )
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.deepEqual(
+      service.reservations.map((r) => r.kind),
+      ['connection', 'generation', 'generation'],
+      'the next turn is asked for as before',
+    )
+    await session.close()
+  })
+
+  it('the holder’s transcribed words are not output: however many, they never trip the per-turn cap (Codex r4233559250)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.inputTranscript('w'.repeat(600), false) // 200 tokens of the holder's words
+    live.events.inputTranscript('w'.repeat(600), true)
+    await flush()
+    assert.equal(live.closed, false)
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped'),
+      [],
+    )
+    live.events.audio(speech(10), OUT)
+    live.events.outputTranscript('x'.repeat(60), false)
+    await flush()
+    assert.equal(room.played.length, 10, 'Sophia’s answer plays')
+    await session.close()
+  })
+
+  for (const by of ['tick', 'input'] as const) {
+    it(`stops at the grant’s deadline (${by === 'tick' ? 'on the tick' : 'before input, ahead of the tick'})`, async () => {
+      voiceEvidence = true
+      const { session, room, live } = await ready({
+        qualification: grant({ deadline: new Date(clock + 60_000).toISOString() }),
+      })
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      await flush() // its generation is reserved first: the chunk waits for the grant
+      clock += 59_999
+      session.tick()
+      assert.equal(live.closed, false)
+      clock += 1
+      if (by === 'tick') {
+        session.tick()
+        assert.equal(live.closed, true, 'the tick stops it, before anything more is sent')
+      }
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      assert.equal(live.audio, 1, 'nothing is forwarded at the deadline')
+      await stoppedFor('deadline', session, live)
+    })
+  }
+
+  for (const turns of [2, 3]) {
+    it(`a tool response’s WHEN_IDLE continuation is the generation reserved for it; a second round’s response is one more (${turns} turns; Codex r4233559261)`, async () => {
+      voiceEvidence = true
+      const { session, room, live } = await ready({ qualification: grant({ maxTurns: turns }) })
+      room.events.audio(LUIS, voice16k(), 16000, 1)
+      await flush() // its generation is reserved first: the chunk waits for the grant
+      live.events.toolCalls([{ id: 'round-1', name: 'project_status', args: {} }])
+      await flush()
+      assert.equal(live.responses.length, 1, 'the holder’s turn and the tool response: two generations reserved')
+      live.events.turnComplete() // the holder's generation ends; the response's stays open for its own turn end
+      // The tool response's continuation, the generation reserved for it, starts a second tool round.
+      live.events.audio(speech(1), OUT)
+      live.events.toolCalls([{ id: 'round-2', name: 'project_status', args: {} }])
+      await flush()
+      assert.deepEqual(
+        service.reservations.map((r) => r.kind).filter((kind) => kind !== 'stop'),
+        ['connection', 'generation', 'generation', ...(turns === 3 ? ['generation'] : [])],
+        'nothing charged unasked: the continuation was reserved, so the session counts what the API counted',
+      )
+      if (turns === 2) {
+        assert.equal(live.responses.length, 1, 'the second round’s response would start a third generation: refused')
+        await stoppedFor('turns', session, live)
+      } else {
+        assert.equal(live.responses.length, 2)
+        assert.equal(
+          logs.some(([event]) => event === 'qualification.stopped'),
+          false,
+        )
+        await session.close()
+      }
+    })
+  }
+})
+
+describe('room session: the exchange’s durable bound, reserved on the API before anything is spent (A15)', () => {
+  const kinds = () => service.reservations.map((r) => r.kind)
+  const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
+
+  it('reserves each connection before it opens, and its receipts name the durable ordinal the API gave', async () => {
+    voiceEvidence = true
+    service.ordinals = 2 // an earlier session of this exchange opened two
+    const { session, live } = await ready({ qualification: grant() })
+    assert.deepEqual(kinds(), ['connection'])
+    assert.deepEqual(service.reservations[0], { exchangeId: EXCHANGE, grantId: GRANT_ID, kind: 'connection' })
+    await session.close()
+    const provider = service.evidence.filter((w) => w.receipt.kind === 'provider').map((w) => fields(w))
+    assert.ok(provider.length > 0 && provider.every((r) => r?.connection === 3 && r.connectionsOpened === 3))
+    assert.equal(live.closed, true)
+  })
+
+  it('a connection the API refuses is never opened: the session stops, and says so', async () => {
+    voiceEvidence = true
+    service.refuse = 'connections'
+    const session = newSession({ qualification: grant() }, [member(LUIS)])
+    await session.start()
+    await flush()
+    assert.equal(lives.length, 0)
+    assert.deepEqual(stops(), ['connections'])
+    assert.equal(session.observed().voice, 'unavailable')
+    await until('its close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    assert.equal(fields(service.evidence.at(-1))?.reason, 'guard')
+    await session.close()
+  })
+
+  it('an API that does not answer is a refusal: asked a bounded number of times, then nothing opens (fail closed)', async () => {
+    voiceEvidence = true
+    service.refuse = 'error'
+    const session = newSession({ qualification: grant() }, [member(LUIS)])
+    await session.start()
+    await until('given up', () => stops().length > 0)
+    assert.deepEqual(
+      kinds().filter((k) => k !== 'stop'),
+      ['connection', 'connection', 'connection'],
+      'once, then twice again',
+    )
+    assert.ok(kinds().includes('stop'), 'and the API is told of the stop (it fails closed the same)')
+    assert.equal(lives.length, 0)
+    assert.deepEqual(stops(), ['unconfirmed'])
+    await session.close()
+  })
+
+  it('input waits while its generation is reserved, then goes on in order; a refusal sends none of it', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    service.holdReservations = true
+    for (let i = 0; i < 3; i += 1) room.events.audio(LUIS, new Int16Array(1600).fill(2000 + i), 16000, 1)
+    await flush()
+    assert.equal(live.audio, 0, 'nothing reaches the provider before the API granted the generation')
+    service.answerReservations()
+    await flush()
+    assert.deepEqual(sent, [2000, 2001, 2002], 'then all of it, in order')
+    assert.deepEqual(kinds(), ['connection', 'generation'])
+    const charge = service.reservations[1]?.charge ?? 0
+    assert.ok(charge >= 25_000 + 2 * 1000, 'charged at its worst case: the context again and its output twice')
+    live.events.turnComplete()
+    service.refuse = 'usage'
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    service.answerReservations()
+    await flush()
+    assert.equal(live.audio, 3, 'refused: none of the next turn’s input was sent')
+    assert.deepEqual(stops(), ['usage'])
+    assert.equal(live.closed, true)
+    // The close waits for the bridge's stop to be answered (r4234233106): the API answers it.
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
+    await session.close()
+  })
+
+  it('a generation nobody asked for is charged as its output arrives; refused, the session stops', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    live.events.audio(speech(2), OUT) // nobody asked: no input, no prompt
+    await flush()
+    assert.deepEqual(kinds(), ['connection', 'unasked'])
+    assert.equal(service.reservations[1]?.ordinal, 1)
+    live.events.turnComplete()
+    await flush()
+    service.refuse = 'turns'
+    const played = room.played.length
+    live.events.audio(speech(2), OUT)
+    await flush()
+    assert.deepEqual(kinds(), ['connection', 'unasked', 'unasked', 'stop'])
+    assert.deepEqual(stops(), ['turns'])
+    live.events.audio(speech(2), OUT)
+    await flush()
+    assert.ok(room.played.length <= played + 2, 'nothing of what follows the refusal is played')
+    await session.close()
+  })
+
+  it('a generation nobody asked for while input’s reservation is in flight is charged too: three ran, three charged', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(2), OUT) // the first generation, reserved
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // the open microphone asks for the next; the API is slow
+    await flush()
+    const held = live.audio
+    live.events.audio(speech(2), OUT) // a generation nobody asked for
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.equal(live.audio, held, 'the chunk still waits for its own reservation')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.equal(live.audio, held + 1, 'granted, the held chunk goes on')
+    live.events.audio(speech(2), OUT) // the third, under the input's own reservation
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.deepEqual(kinds().toSorted(), ['connection', 'generation', 'generation', 'unasked'])
+    await session.close()
+  })
+
+  it('input’s reservation granted while an unasked generation is under way pays for the next one, not for that one', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(2), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, pcm16k(), 16000, 1) // asks for the next generation; the API is slow
+    await flush()
+    live.events.audio(speech(2), OUT) // a generation nobody asked for starts meanwhile
+    await flush()
+    service.holdReservations = false
+    service.answerReservations() // both answered while it is still under way
+    await flush()
+    await flush()
+    live.events.turnComplete() // the unasked one ends; the input's grant is still unspent
+    await flush()
+    live.events.audio(speech(2), OUT) // the next generation, under the input's own reservation
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.deepEqual(kinds().toSorted(), ['connection', 'generation', 'generation', 'unasked'], 'charged once each')
+    await session.close()
+  })
+
+  it('the bridge’s own stop reaches the API whoever holds the floor, though nothing was recorded', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ inputActorId: DAVIDE, qualification: grant() })
+    room.events.audio(DAVIDE, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    for (let i = 0; i < 40 && stops().length === 0; i += 1) live.events.audio(speech(50), OUT) // past the turn's cap
+    await flush()
+    await flush()
+    assert.deepEqual(stops(), ['output'])
+    assert.deepEqual(service.evidence, [], 'Davide held the floor: nothing recorded')
+    assert.deepEqual(kinds(), ['connection', 'generation', 'stop'], 'the stop told to the API all the same')
+    await session.close()
+  })
+
+  it('held input goes on in order, under its own reservation, never ahead of it when another is granted first', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, new Int16Array(1600).fill(1000), 16000, 1)
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, new Int16Array(1600).fill(2000), 16000, 1) // held: its reservation is in flight
+    await flush()
+    live.events.toolCalls([{ id: 'call-b2', name: 'project_status', args: {} }]) // a late call of the last turn
+    // Its generation nobody reserved is charged (unasked): the call runs once the API counted it.
+    await until('the call’s generation charged', () => service.waitingKinds().includes('unasked'))
+    service.answerFirst('unasked')
+    const generations = () => service.waitingKinds().filter((k) => k === 'generation').length
+    await until('the tool response reserved', () => generations() === 2) // the held chunk's, then the response's
+    service.answerLast('generation') // the API answers the tool response's reservation first
+    await flush()
+    await flush()
+    room.events.audio(LUIS, new Int16Array(1600).fill(3000), 16000, 1)
+    await flush()
+    assert.deepEqual(sent, [1000], 'nothing goes before the held chunk’s own reservation is granted')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.deepEqual(sent, [1000, 2000, 3000], 'in the order spoken')
+    assert.equal(live.responses.length, 1)
+    await session.close()
+  })
+
+  it('a handoff while input waits for its reservation: the new holder’s held chunks go on, only the old holder’s are dropped', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, voice16k(), 16000, 1) // Luis's next words wait for their reservation
+    await flush()
+    const before = live.audio
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    room.events.audio(DAVIDE, voice16k(), 16000, 1) // Davide's first words wait on the same reservation
+    await flush()
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.equal(live.audio, before + 1, 'Davide’s chunk went on; Luis’s, from before the handoff, did not')
+    await session.close()
+  })
+
+  it('a reconnection while input waits: the old connection’s late grant leaves the new one’s held chunks to it (R2 nit)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    service.holdReservations = true
+    room.events.audio(LUIS, voice16k(), 16000, 1) // held: its reservation on connection 1 is in flight
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['generation'])
+    live.events.goAway('1s') // the provider connection is replaced meanwhile
+    clock += 1000
+    session.tick()
+    await until('the new connection reserved', () => service.waitingKinds().length === 2)
+    service.answerLast('connection')
+    await until('the new connection opened', () => lives.length === 2)
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    await flush()
+    const sent: number[] = []
+    const link: LiveLink = next
+    link.sendAudio = (chunk) => {
+      next.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, marked16k(4000), 16000, 1) // Luis speaks on the new connection: held behind its own
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['generation', 'generation'])
+    service.answerFirst('generation') // the old connection's late answer comes first
+    await flush()
+    await flush()
+    assert.deepEqual(sent, [], 'nothing goes before its own connection’s reservation')
+    service.answerReservations() // then the new connection's own
+    await flush()
+    await flush()
+    assert.deepEqual(sent, [4000], 'Luis’s first words on the new connection reach it')
+    service.holdReservations = false
+    room.events.audio(LUIS, marked16k(5000), 16000, 1)
+    await flush()
+    assert.deepEqual(sent, [4000, 5000], 'in the order spoken')
+    await session.close()
+  })
+
+  it('a function call whose payload alone passes the per-turn cap is cut: no handler runs (Codex r4232908459)', async () => {
+    voiceEvidence = true
+    // A per-turn cap of 64 tokens: 192 characters of names and arguments.
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    live.events.toolCalls([{ id: 'call-big', name: 'project_status', args: { note: 'x'.repeat(300) } }])
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'no handler ran')
+    assert.equal(live.responses.length, 0)
+    assert.deepEqual(stops(), ['output'])
+    await session.close()
+  })
+
+  it('a function call’s handler waits until what its payload owes is paid on the API (Codex r4232908459)', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, marked16k(1000), 16000, 1) // its generation, granted with the turn's allowance
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(room) // the allowance spent: a top-up is in flight
+    live.events.toolCalls([{ id: 'call-1', name: 'project_status', args: { note: 'y'.repeat(60) } }])
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the call owes past the allowance: nothing runs before the top-up is granted')
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the handler ran', () => service.calls.length === 1)
+    await until('its response sent', () => live.responses.length === 1)
+    await session.close()
+  })
+
+  it('a call that waits on its payment while its connection is replaced never runs', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, marked16k(1000), 16000, 1)
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(room)
+    live.events.toolCalls([{ id: 'call-old', name: 'project_status', args: { note: 'y'.repeat(60) } }])
+    await flush()
+    live.events.goAway('1s') // the provider connection is replaced meanwhile
+    clock += 1000
+    session.tick()
+    await until('the new connection reserved', () => service.waitingKinds().includes('connection'))
+    service.answerFirst('spend') // the old connection's top-up is granted only now
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the old connection’s call is never run')
+    assert.equal(live.responses.length, 0)
+    assert.ok(
+      logs.some(([event]) => event === 'tool.dropped'),
+      'dropped, and logged',
+    )
+    await session.close()
+  })
+
+  it('a call that waits on its payment runs as whose it was when it arrived, though its turn ended meanwhile', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, marked16k(1000), 16000, 1) // its generation, granted with the turn's allowance
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(room)
+    live.events.toolCalls([{ id: 'call-luis', name: 'project_status', args: { note: 'y'.repeat(60) } }])
+    await flush()
+    live.events.turnComplete() // from here on, a call arriving is nobody's
+    await flush()
+    assert.equal(service.calls.length, 0, 'nothing runs before it is paid')
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the handler ran', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.actorId, LUIS, 'Luis’s call, as it arrived: not refused as nobody’s')
+    assert.equal(service.calls[0]?.inputEpoch, 1)
+    assert.equal(service.calls[0]?.inputMode, 'voice')
+    await session.close()
+  })
+
+  it('a typed turn’s call that waits on its payment stays that turn’s when the provider turn ends meanwhile', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.typed?.(LUIS, {
+      kind: 'input',
+      id: REQUEST,
+      exchangeId: EXCHANGE,
+      inputEpoch: 1,
+      text: 'Synthetic typed request',
+    })
+    await until('the typed message accepted', () => room.chat.some((c) => c.packet.kind === 'accepted'))
+    service.holdReservations = true
+    // Sophia's typed words spend the turn's allowance: a top-up is asked for, and waits.
+    for (let i = 0; i < 200 && !service.waitingKinds().includes('spend'); i += 1) {
+      live.events.outputTranscript('z'.repeat(300), false)
+      await flush()
+    }
+    assert.deepEqual(service.waitingKinds(), ['spend'])
+    live.events.toolCalls([{ id: 'typed-paid', name: 'project_status', args: {} }])
+    await flush()
+    live.events.turnComplete()
+    await flush()
+    assert.equal(service.calls.length, 0, 'nothing runs before it is paid')
+    assert.equal(
+      room.chat.some((c) => c.packet.kind === 'complete'),
+      false,
+      'the typed turn waits for its call: the provider turn ending is not its end',
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the handler ran', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.actorId, LUIS)
+    assert.equal(service.calls[0]?.inputMode, 'text')
+    await until('its response sent as the typed turn’s continuation', () => live.responses.length === 1)
+    live.events.turnComplete()
+    await flush()
+    assert.deepEqual(
+      room.chat.filter((c) => c.packet.kind === 'complete').map((c) => c.identity),
+      [LUIS],
+      'then the typed turn ends, once, to its sender',
+    )
+    await session.close()
+  })
+
+  /**
+   * Luis's words went to the provider under their generation, then the connection was replaced mid-turn: his turn
+   * stands (A14), and nothing is reserved on the new connection, so what the provider sends there (the call it repeats)
+   * is a generation nobody reserved, as it is for a restarted bridge whose session-local counters start empty.
+   */
+  async function resumed() {
+    const opened = await ready({ qualification: grant() })
+    opened.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    await flush()
+    opened.live.events.goAway('1s')
+    clock += 1000
+    opened.session.tick()
+    await until('the new connection opened', () => lives.length === 2)
+    const next = lives.at(-1)
+    assert.ok(next && next !== opened.live)
+    next.events.setupComplete()
+    await flush()
+    return { ...opened, next }
+  }
+
+  it('a call of a generation nobody reserved runs only once the API counted that generation (Codex r4232975798)', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-u', name: 'project_status', args: {} }])
+    await flush()
+    await flush()
+    assert.deepEqual(
+      service.waitingKinds(),
+      ['unasked', 'spend'],
+      'its generation is being charged, and its payload paid (the new connection has no allowance yet)',
+    )
+    service.answerFirst('spend')
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'paid, but nothing runs before the API counted its generation')
+    service.answerFirst('unasked')
+    await until('the handler ran', () => service.calls.length === 1)
+    assert.equal(service.calls[0]?.actorId, LUIS, 'as Luis’s, whose turn it is')
+    await until('its response reserved', () => service.waitingKinds().includes('generation'))
+    service.holdReservations = false
+    service.answerReservations()
+    await until('its response sent', () => next.responses.length === 1)
+    await session.close()
+  })
+
+  it('a call of a generation nobody reserved, refused by the API at its limit: no handler runs, and the session stops', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    // The exchange's durable turns are spent, whatever this session counted: its generation is refused (its payload's
+    // top-up, a charge only, still fits).
+    service.refuse = 'turns'
+    service.refuseKind = 'unasked'
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-x', name: 'control_work', args: { taskId: ENTRY, action: 'hold' } }])
+    await flush()
+    service.answerFirst('spend') // its payload is paid first
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'paid, but its generation is not counted yet: nothing runs')
+    service.answerFirst('unasked') // the API refuses it
+    await flush()
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the refused generation’s call never ran: nothing admitted')
+    assert.equal(next.responses.length, 0)
+    assert.deepEqual(stops(), ['turns'])
+    // The close waits for the bridge's stop to be answered (r4234233106): the API answers it.
+    await until('the stop asked', () => service.waitingKinds().includes('stop'))
+    service.answerReservations()
+    await session.close()
+  })
+
+  it('calls of a generation nobody reserved run in the order they came, once it is counted', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-1', name: 'project_status', args: {} }])
+    next.events.toolCalls([{ id: 'call-2', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.waitingKinds().filter((k) => k === 'unasked').length, 1, 'one generation, charged once')
+    service.answerReservations()
+    await until('both ran', () => service.calls.length === 2)
+    assert.deepEqual(
+      service.calls.map((c) => c.callId),
+      ['call-1', 'call-2'],
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await session.close()
+  })
+
+  it('a call of a generation nobody reserved, whose connection is replaced while it is counted, never runs', async () => {
+    voiceEvidence = true
+    const { session, next } = await resumed()
+    service.holdReservations = true
+    next.events.toolCalls([{ id: 'call-old', name: 'project_status', args: {} }])
+    await flush()
+    next.events.goAway('1s') // that connection is replaced meanwhile
+    service.answerReservations() // its generation is counted, and its payload paid, only now
+    await flush()
+    await flush()
+    assert.equal(service.calls.length, 0, 'the old connection’s call is never run')
+    assert.ok(
+      logs.some(([event]) => event === 'tool.dropped'),
+      'dropped, and logged',
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await session.close()
+  })
+
+  it('a tool response waits for its generation’s reservation; refused, it is never sent', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    service.refuse = 'usage'
+    live.events.toolCalls([{ id: 'call-r', name: 'project_status', args: {} }])
+    await flush()
+    assert.equal(service.calls.length, 1, 'the call itself ran')
+    assert.equal(live.responses.length, 0, 'its answer would start a generation the API refused')
+    assert.deepEqual(stops(), ['usage'])
+    await session.close()
+  })
+
+  /** The holder speaks until a chunk asks for a top-up of the allowance, which the API holds; returns the next mark. */
+  async function untilTopUp(room: FakeRoom, identity = LUIS, from = 1001): Promise<number> {
+    let mark = from
+    for (; !service.waitingKinds().includes('spend') && mark < from + 2000; mark += 1) {
+      room.events.audio(identity, marked16k(mark), 16000, 1)
+      await flush()
+    }
+    return mark
+  }
+
+  it('input past its allowance waits behind a top-up, then goes on in the order spoken; the top-up counts no turn', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, marked16k(1000), 16000, 1) // its generation, granted with the turn's allowance
+    await flush()
+    service.holdReservations = true
+    const next = await untilTopUp(room) // `next - 1` asked for the top-up, and waits for it
+    assert.equal(sent.at(-1), next - 2, 'the allowance paid for every chunk sent')
+    for (let mark = next; mark < next + 3; mark += 1) room.events.audio(LUIS, marked16k(mark), 16000, 1)
+    await flush()
+    assert.equal(sent.at(-1), next - 2, 'nothing past the allowance is sent before the top-up is granted')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.deepEqual(sent.slice(-4), [next - 1, next, next + 1, next + 2], 'then all of it, in the order spoken')
+    assert.deepEqual(kinds(), ['connection', 'generation', 'spend'], 'a charge, no generation')
+    const topUp = service.reservations.at(-1)
+    assert.equal(topUp?.ordinal, 1, 'charged to the connection it pays for')
+    assert.ok((topUp?.charge ?? 0) > 3990 && (topUp?.charge ?? 0) <= 4000, 'the allowance filled up again')
+    assert.deepEqual(stops(), [])
+    await session.close()
+  })
+
+  it('a frame the allowance does not cover asks for a top-up and is dropped; one while it is in flight is dropped too', async () => {
+    voiceEvidence = true
+    const looking = { participantIdentity: LUIS, source: 'camera' as const }
+    const { session, room, live } = await ready({ qualification: grant(), looking })
+    const img = { rgba: new Uint8Array(16).fill(1), width: 2, height: 2 }
+    const show = async () => {
+      clock += 1000
+      room.events.frame(LUIS, 'camera', img, clock)
+      session.tick()
+      await flush()
+    }
+    service.holdReservations = true
+    await show()
+    assert.equal(live.frames, 0, 'nothing is paid for yet: dropped')
+    assert.deepEqual(service.waitingKinds(), ['spend'])
+    await show()
+    assert.equal(live.frames, 0, 'its top-up still in flight: dropped, never sent unpaid')
+    assert.deepEqual(service.waitingKinds(), ['spend'], 'one top-up at a time')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.frame_dropped').map(([, d]) => d.dropped),
+      [1, 2],
+      'each drop counted',
+    )
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await show()
+    assert.equal(live.frames, 1, 'granted: the next frame is sent')
+    assert.deepEqual(kinds(), ['connection', 'spend'])
+    await session.close()
+  })
+
+  it('a top-up the API refuses stops the session: held input is never sent, and a frame’s refusal stops it too', async () => {
+    voiceEvidence = true
+    const one = await ready({ qualification: grant() })
+    one.room.events.audio(LUIS, marked16k(1000), 16000, 1)
+    await flush()
+    service.holdReservations = true
+    await untilTopUp(one.room)
+    const sent = one.live.audio
+    service.refuse = 'usage'
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.equal(one.live.audio, sent, 'refused: nothing it would have paid for was sent')
+    assert.deepEqual(stops(), ['usage'])
+    assert.equal(one.live.closed, true)
+    await one.session.close()
+
+    logs = []
+    service.refuse = null
+    const looking = { participantIdentity: LUIS, source: 'camera' as const }
+    const two = await ready({ qualification: grant(), looking })
+    service.refuse = 'usage'
+    clock += 1000
+    two.room.events.frame(LUIS, 'camera', { rgba: new Uint8Array(16).fill(1), width: 2, height: 2 }, clock)
+    two.session.tick()
+    await flush()
+    await flush()
+    assert.deepEqual(stops(), ['usage'], 'no input waited for it: the refusal stops the session all the same')
+    assert.equal(two.live.frames, 0)
+    assert.equal(two.live.closed, true)
+    await two.session.close()
+  })
+
+  it('a handoff while input waits behind a top-up: the new holder’s chunks go on in their order, the old holder’s are dropped', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    room.events.audio(LUIS, marked16k(1000), 16000, 1)
+    await flush()
+    service.holdReservations = true
+    const next = await untilTopUp(room) // Luis's chunk `next - 1` waits for the top-up
+    room.events.audio(LUIS, marked16k(next), 16000, 1) // and his next behind it
+    await flush()
+    const before = sent.length
+    session.update(assignment({ inputActorId: DAVIDE, inputEpoch: 2, qualification: grant() }))
+    clock += SETTLE_MS + 1
+    session.tick()
+    for (const mark of [7001, 7002, 7003]) room.events.audio(DAVIDE, marked16k(mark), 16000, 1)
+    await flush()
+    assert.equal(sent.length, before, 'Davide’s chunks wait behind the same top-up')
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    await flush()
+    assert.deepEqual(sent.slice(before), [7001, 7002, 7003], 'his, in his order; Luis’s from before the handoff, none')
+    await session.close()
+  })
+
+  it('off, a tool response is sent as before, never measured (an output JSON cannot carry fails nothing)', async () => {
+    // A FAKE output no JSON can carry (a BigInt): the API's never is, but measuring it must not run, or throw, off.
+    service.result = { status: 'ok', output: { size: 1n } } as unknown as MediaToolResult
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'call-off', name: 'project_status', args: {} }])
+    await until('the response sent', () => live.responses.length === 1)
+    assert.ok(logs.some(([event]) => event === 'tool.answered'))
+    await session.close()
+  })
+
+  it('under a grant, a tool response that cannot be measured is never sent: its delivery is unknown, and said', async () => {
+    service.result = { status: 'ok', output: { size: 1n } } as unknown as MediaToolResult
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    live.events.toolCalls([{ id: 'call-on', name: 'project_status', args: {} }])
+    await until('its delivery unknown', () => logs.some(([event]) => event === 'tool.delivery_unknown'))
+    assert.equal(live.responses.length, 0)
+    await session.close()
+  })
+})
+
+/** One 100 ms chunk of 16 kHz audio, its samples all `value`. */
+const chunkOf = (value: number) => new Int16Array(1600).fill(value)
+/** `n` chunks' worth in one frame, chunk k's samples all `first + k`: the chunker keeps its 5, and drops the rest. */
+function burst(n: number, first: number): Int16Array {
+  const frame = new Int16Array(n * 1600)
+  for (let k = 0; k < n; k += 1) frame.fill(first + k, k * 1600, (k + 1) * 1600)
+  return frame
+}
+
+describe('room session: audio dropped while its reservation waits is counted (Codex r4234936797)', () => {
+  /** room-session.ts HELD_CHUNKS (not imported, so the test also runs against a source without it): 5 s of chunks. */
+  const HELD = 50
+
+  /**
+   * The holder's audio while its generation's reservation is held (the API slow, as when its first attempt times out
+   * and the retry waits): `frames` in order, then the grant; the chunks the provider got (by their first sample) and
+   * the input window's receipt once the turn completes.
+   */
+  async function heldThenGranted(frames: Int16Array[]) {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    const sent: number[] = []
+    const link: LiveLink = live
+    link.sendAudio = (chunk) => {
+      live.audio += 1
+      sent.push(chunk[0] ?? 0)
+    }
+    service.holdReservations = true
+    for (const frame of frames) room.events.audio(LUIS, frame, 16000, 1)
+    await flush()
+    assert.equal(live.audio, 0, 'nothing reaches the provider before the API granted the generation')
+    service.holdReservations = false
+    service.answerReservations()
+    await until('the held audio went on', () => live.audio > 0)
+    await flush()
+    live.events.audio(speech(1), OUT)
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const window = fields(service.evidence.find((w) => w.receipt.kind === 'input_window'))
+    return { sent, window: pick(window, 'chunkCount', 'sampleCount', 'droppedSamples') }
+  }
+
+  it('root’s sequence: held past the queue, the last HELD_CHUNKS go, and the evicted samples are counted as dropped', async () => {
+    const n = HELD + 7
+    const { sent, window } = await heldThenGranted(Array.from({ length: n }, (_, i) => chunkOf(1000 + i)))
+    assert.deepEqual(
+      sent,
+      Array.from({ length: HELD }, (_, i) => 1007 + i),
+      'the last 50, in order',
+    )
+    assert.deepEqual(window, { chunkCount: HELD, sampleCount: HELD * 1600, droppedSamples: (n - HELD) * 1600 })
+  })
+
+  it('a drop pending before the hold is counted once the queue is released, with what was evicted after it', async () => {
+    // 7 chunks in one frame: the chunker drops 2 (3,200 samples), pending on the first chunk held. Then 48 more: 53
+    // held, so the 3 oldest are evicted, the first carrying the pending drop.
+    const singles = Array.from({ length: 48 }, (_, i) => chunkOf(3000 + i))
+    const { sent, window } = await heldThenGranted([burst(7, 2000), ...singles])
+    assert.deepEqual(sent, [2005, 2006, ...singles.map((_, i) => 3000 + i)])
+    assert.deepEqual(window, { chunkCount: HELD, sampleCount: HELD * 1600, droppedSamples: 3200 + 3 * 1600 })
+  })
+
+  it('a drop pending before a short hold is counted once', async () => {
+    const { sent, window } = await heldThenGranted([burst(7, 2000)])
+    assert.deepEqual(sent, [2002, 2003, 2004, 2005, 2006])
+    assert.deepEqual(window, { chunkCount: 5, sampleCount: 5 * 1600, droppedSamples: 3200 })
+  })
+
+  it('a hold shorter than the queue drops nothing and records 0 (control)', async () => {
+    const { sent, window } = await heldThenGranted([chunkOf(1), chunkOf(2), chunkOf(3)])
+    assert.deepEqual(sent, [1, 2, 3])
+    assert.deepEqual(window, { chunkCount: 3, sampleCount: 4800, droppedSamples: 0 })
+  })
+})
+
+describe('room session: a typed message reserved on one connection is sent on it or not at all (Codex r4235562640)', () => {
+  const packet = () => ({
+    kind: 'input' as const,
+    id: REQUEST,
+    exchangeId: EXCHANGE,
+    inputEpoch: 1,
+    text: 'Synthetic typed request',
+  })
+  const kinds = () => service.reservations.map((r) => r.kind)
+
+  /** The provider connection lost and recovered: a new one, its own connection reserved and answered, then ready. */
+  async function recovered(session: RoomSession, live: FakeLive): Promise<FakeLive> {
+    live.events.closed('network lost')
+    clock += 1000
+    session.tick()
+    await flush()
+    service.answerFirst('connection')
+    await until('the new connection', () => lives.length === 2)
+    const next = lives.at(-1)
+    assert.ok(next && next !== live)
+    next.events.setupComplete()
+    await flush()
+    return next
+  }
+
+  it('the connection recovers while its generation is reserved: nothing is sent on the new one, the sender is refused, and no turn is charged unasked there', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    service.holdReservations = true
+    room.events.typed?.(LUIS, packet())
+    await flush()
+    assert.deepEqual(service.waitingKinds(), ['generation'])
+    const next = await recovered(session, live)
+    service.answerFirst('generation')
+    await flush()
+    // Had it gone out on the new connection, the provider would answer it there, a generation that grant never covered.
+    if (next.notices.length > 0) next.events.outputTranscript('Synthetic reply', false)
+    service.holdReservations = false
+    service.answerReservations()
+    await flush()
+    // Recorded as the API answered them: the new connection's, then the typed message's generation.
+    assert.deepEqual(kinds(), ['connection', 'connection', 'generation'], 'no turn charged unasked')
+    assert.deepEqual([live.notices, next.notices], [[], []], 'sent on neither connection')
+    assert.equal(room.chat.at(-1)?.packet.kind, 'refused', 'the sender is told')
+    service.holdReservations = false
+    await session.close()
+  })
+
+  it('no recovery (control): sent once granted, on its connection', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    service.holdReservations = true
+    room.events.typed?.(LUIS, packet())
+    await flush()
+    service.answerFirst('generation')
+    await flush()
+    assert.equal(live.notices.length, 1)
+    assert.equal(room.chat.at(-1)?.packet.kind, 'accepted')
+    service.holdReservations = false
+    await session.close()
+  })
+
+  it('a recovery before the message (control): reserved and sent on the new connection', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant() })
+    service.holdReservations = true
+    const next = await recovered(session, live)
+    room.events.typed?.(LUIS, packet())
+    await flush()
+    service.answerFirst('generation')
+    await flush()
+    assert.deepEqual([live.notices.length, next.notices.length], [0, 1])
+    assert.equal(room.chat.at(-1)?.packet.kind, 'accepted')
+    assert.deepEqual(kinds(), ['connection', 'connection', 'generation'])
+    service.holdReservations = false
+    await session.close()
+  })
+})
+
+describe('room session: provider output that stops the session is recorded as the model’s response, never played or run (Codex r4235651864)', () => {
+  /**
+   * The principal's turn under a per-turn cap of 64: its generation reserved (25,000 + 2 × 64 + its 4,000 allowance) and
+   * granted, one 100 ms chunk sent from the allowance (4.2: 3,995.8 left).
+   */
+  async function asked() {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(s.live.audio, 1)
+    return s
+  }
+
+  /** Once the session's close is recorded: its stop (if any), the turn's, the reply's and the close's receipts. */
+  async function receipts() {
+    await until('the close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    const of = (kind: string) => fields(service.evidence.find((w) => w.receipt.kind === kind))
+    return {
+      stops: logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      turn: pick(of('input_turn'), 'modelResponded', 'toolCallCount', 'outcome'),
+      reply: of('output_reply'),
+      closed: pick(of('session_closed'), 'turns', 'replies', 'toolCalls', 'reason'),
+    }
+  }
+
+  /** The charges asked after the turn's generation: each spend, and the stop. */
+  const after = () =>
+    service.reservations.filter((r) => r.kind === 'spend' || r.kind === 'stop').map((r) => [r.kind, r.charge ?? null])
+
+  it('the first audio of a turn past the cap: the model responded, its reply received and never played, and the 37 it leaves charged once', async () => {
+    const { session, room, live } = await asked()
+    // 130 s of Sophia's audio in one chunk: 4,160 tokens, 4,032 past its generation's reserve, 36.2 past the allowance.
+    live.events.audio(speech(6500), OUT)
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0, 'nothing of it played')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0, outcome: 'connection_lost' })
+    assert.deepEqual(pick(r.reply, 'terminal', 'samplesReceived', 'framesPlayed', 'firstPlayedAtMs'), {
+      terminal: 'closed',
+      samplesReceived: OUTPUT_FRAME * 6500,
+      framesPlayed: 0,
+      firstPlayedAtMs: null,
+    })
+    assert.deepEqual(r.closed, { turns: 1, replies: 1, toolCalls: 0, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [
+      ['spend', 37],
+      ['stop', null],
+    ])
+    await session.close()
+  })
+
+  it('the first words of a turn past the cap: the model responded, nothing played, and the 877 they leave charged once', async () => {
+    const { session, room, live } = await asked()
+    // 15,000 characters: 5,000 tokens, 4,872 past the reserve, 876.2 past the allowance.
+    live.events.outputTranscript('x'.repeat(15_000), false)
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0, outcome: 'connection_lost' })
+    assert.equal(r.reply, undefined, 'words are no reply audio')
+    assert.deepEqual(r.closed, { turns: 1, replies: 0, toolCalls: 0, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [
+      ['spend', 877],
+      ['stop', null],
+    ])
+    await session.close()
+  })
+
+  it('the first function call of a turn past the cap: the model responded with one call, none runs, and the 885 its payload leaves charged once', async () => {
+    const { session, live } = await asked()
+    // project_status and {"pad":"x…"}: 15,024 characters, 5,008 tokens, 4,880 past the reserve, 884.2 past the allowance.
+    live.events.toolCalls([{ id: 'call-cut', name: 'project_status', args: { pad: 'x'.repeat(15_000) } }])
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.deepEqual(service.calls, [], 'no handler ran')
+    assert.deepEqual(live.responses, [], 'and nothing was answered to the provider')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 1, outcome: 'connection_lost' })
+    assert.deepEqual(r.closed, { turns: 1, replies: 0, toolCalls: 1, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [
+      ['spend', 885],
+      ['stop', null],
+    ])
+    await session.close()
+  })
+
+  it('a typed turn’s audio past the cap: the model responded, and no reply is recorded, as a typed reply never has one', async () => {
+    voiceEvidence = true
+    const { session, room, live } = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    const typed = { kind: 'input' as const, id: REQUEST, exchangeId: EXCHANGE, inputEpoch: 1, text: 'Synthetic typed' }
+    room.events.typed?.(LUIS, typed)
+    await flush()
+    assert.equal(live.notices.length, 1, 'sent once its generation was granted')
+    live.events.audio(speech(6500), OUT)
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0)
+    assert.equal(r.reply, undefined, 'no reply receipt: its audio would never have played')
+    assert.deepEqual(r.closed, { turns: 1, replies: 0, toolCalls: 0, reason: 'guard' })
+    await session.close()
+  })
+
+  it('a response within the cap goes on as before: played, its call run, recorded, and nothing more charged (control)', async () => {
+    const { session, room, live } = await asked()
+    live.events.audio(speech(2), OUT)
+    live.events.toolCalls([{ id: 'call-ok', name: 'project_status', args: {} }])
+    await flush()
+    await until('played', () => room.played.length === 2)
+    assert.equal(service.calls.length, 1, 'its handler ran')
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const r = await receipts()
+    assert.deepEqual(r.stops, [])
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 1, outcome: 'answered' })
+    assert.deepEqual(pick(r.reply, 'samplesReceived', 'framesPlayed'), {
+      samplesReceived: OUTPUT_FRAME * 2,
+      framesPlayed: 2,
+    })
+    assert.deepEqual(r.closed, { turns: 1, replies: 1, toolCalls: 1, reason: 'ended' })
+    assert.deepEqual(after(), [])
+  })
+
+  it('a stop with no output from the provider (the deadline) records nothing responded (control)', async () => {
+    const { session, room } = await asked()
+    clock += 900_000
+    session.tick()
+    await flush()
+    const r = await receipts()
+    assert.deepEqual(r.stops, ['deadline'])
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(r.turn, { modelResponded: false, toolCallCount: 0, outcome: 'connection_lost' })
+    assert.equal(r.reply, undefined)
+    assert.deepEqual(r.closed, { turns: 0, replies: 0, toolCalls: 0, reason: 'guard' })
+    await until('the stop asked', () => after().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(after(), [['stop', null]])
+    await session.close()
+  })
+})
+
+/** Two project_status calls whose names and arguments come to `chars` characters in all (14 + 10 + pad each). */
+const twoCalls = (chars: number) => {
+  const pad = 'x'.repeat((chars - 2 * 24) / 2)
+  return [
+    { id: 'call-r1', name: 'project_status', args: { pad } },
+    { id: 'call-r2', name: 'project_status', args: { pad } },
+  ]
+}
+
+describe('room session: root’s reproductions, in their shapes, on the real RoomSession path (comment 4235772067)', () => {
+  /**
+   * The principal's turn under a per-turn cap of 64, one 1,600-sample chunk of their input admitted (its generation
+   * reserved and granted), then `out` from the provider.
+   */
+  async function admittedThen(out: (live: FakeLive) => void) {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush() // its generation is reserved first: the chunk waits for the grant
+    assert.equal(s.live.audio, 1, 'the one chunk, admitted')
+    out(s.live)
+    await flush()
+    return s
+  }
+
+  /** Once the session's close is recorded: its stops, the input turn's receipt and the reply's. */
+  async function closed() {
+    await until('the close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    const of = (kind: string) => fields(service.evidence.find((w) => w.receipt.kind === kind))
+    return {
+      stops: logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      turn: pick(of('input_turn'), 'modelResponded', 'toolCallCount'),
+      reply: pick(of('output_reply'), 'samplesReceived', 'framesPlayed'),
+    }
+  }
+
+  const spent = () => service.reservations.filter((r) => r.kind === 'spend' || r.kind === 'stop').map((r) => r.kind)
+
+  it('(1) the first text chunk, 300 characters: recorded as a response, the stop, nothing more charged', async () => {
+    const { session, room } = await admittedThen((live) => live.events.outputTranscript('x'.repeat(300), false))
+    const r = await closed()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0 })
+    await until('the stop asked', () => spent().includes('stop'))
+    assert.deepEqual(spent(), ['stop'], 'within its reserve: no spend')
+    await session.close()
+  })
+
+  it('(2) the first audio chunk, 72,000 samples: recorded as received, never played; the stop, nothing more charged', async () => {
+    const { session, room } = await admittedThen((live) => live.events.audio(speech(150), OUT))
+    const r = await closed()
+    assert.deepEqual(r.stops, ['output'])
+    assert.equal(room.played.length, 0, 'playback of it refused')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0 })
+    assert.deepEqual(r.reply, { samplesReceived: 72_000, framesPlayed: 0 })
+    await until('the stop asked', () => spent().includes('stop'))
+    assert.deepEqual(spent(), ['stop'])
+    await session.close()
+  })
+
+  it('(3) the first function payload, 2 calls of 300 characters: no handler runs, nothing is answered, and toolCallCount is 2', async () => {
+    const { session, live } = await admittedThen((l) => l.events.toolCalls(twoCalls(300)))
+    const r = await closed()
+    assert.deepEqual(r.stops, ['output'])
+    assert.deepEqual(service.calls, [], 'no handler ran')
+    assert.deepEqual(live.responses, [], 'nothing answered')
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 2 })
+    await until('the stop asked', () => spent().includes('stop'))
+    assert.deepEqual(spent(), ['stop'])
+    await session.close()
+  })
+
+  it('(5) a first audio chunk within the cap, 24,000 samples (control): played, and recorded as before', async () => {
+    const { session, room, live } = await admittedThen((l) => l.events.audio(speech(50), OUT))
+    await until('played', () => room.played.length === 50)
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const r = await closed()
+    assert.deepEqual(r.stops, [])
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 0 })
+    assert.deepEqual(r.reply, { samplesReceived: 24_000, framesPlayed: 50 })
+    assert.deepEqual(spent(), [])
+  })
+
+  it('(6) a first function payload within the cap, 2 calls of 150 characters (control): both handlers run and are answered, toolCallCount 2', async () => {
+    const { session, live } = await admittedThen((l) => l.events.toolCalls(twoCalls(150)))
+    await until('both answered', () => live.responses.length === 2)
+    assert.deepEqual(
+      service.calls.map((c) => c.callId),
+      ['call-r1', 'call-r2'],
+      'both handlers ran',
+    )
+    live.events.turnComplete()
+    await flush()
+    await session.close()
+    const r = await closed()
+    assert.deepEqual(r.stops, [])
+    assert.deepEqual(r.turn, { modelResponded: true, toolCallCount: 2 })
+  })
+})
+
+describe('room session: root’s reproduction of the words that stop the session, settled on the real RoomSession path (comment 4235772147)', () => {
+  /**
+   * A budget of 31,000 and a cap of 64: one 1,600-sample chunk of the principal's input admitted, then a final
+   * transcription of 18,000 characters (6,000 tokens): 1 from their credit, 3,995.8 from the allowance, 2,004 spent.
+   */
+  async function heardPast(hold = false) {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64, maxUsageTokens: 31_000 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(s.live.audio, 1)
+    service.holdReservations = hold // when held, what is asked from now on waits for the test
+    s.live.events.inputTranscript('x'.repeat(18_000), true)
+    await flush()
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why),
+      ['usage'],
+    )
+    return s
+  }
+  const asked = () => service.reservations.map((r) => [r.kind, r.charge ?? null])
+  const OWED = [
+    ['connection', null],
+    ['generation', 29_128],
+    ['spend', 2004],
+    ['stop', null],
+  ]
+
+  it('(7) taken: the receipt counts the 18,000 characters, the 2,004 is spent before the stop, and the ledger handed over holds nothing unsettled', async () => {
+    const { session } = await heardPast()
+    await until('the stop asked', () => asked().length === 4)
+    assert.deepEqual(asked(), OWED)
+    await session.close()
+    const turn = fields(service.evidence.find((w) => w.receipt.kind === 'input_turn'))
+    assert.deepEqual(pick(turn, 'transcriptChars', 'finished', 'inputTranscriptionObserved'), {
+      transcriptChars: 18_000,
+      finished: true,
+      inputTranscriptionObserved: true,
+    })
+    const ledger = session.handover().ledger
+    assert.deepEqual([ledger?.unanswered, ledger?.lost], [0, false])
+  })
+
+  it('(7) refused: the spend is asked, refused, and the ledger handed over says lost; the session stays stopped', async () => {
+    service.refuse = 'usage'
+    service.refuseKind = 'spend'
+    const { session, room, live } = await heardPast()
+    await until('the stop asked', () => asked().length === 4)
+    assert.deepEqual(asked(), OWED, 'asked, never dropped')
+    room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(live.audio, 1, 'nothing more sent')
+    await session.close()
+    const ledger = session.handover().ledger
+    assert.deepEqual([ledger?.unanswered, ledger?.lost], [0, true])
+  })
+
+  it('(7) never answered within the close’s bound: the ledger handed over carries it, and the stop behind it, unanswered', async () => {
+    reserveTimeoutMs = 50
+    const { session } = await heardPast(true)
+    await until('the spend asked', () => service.waitingKinds().includes('spend'))
+    await session.close()
+    const ledger = session.handover().ledger
+    assert.deepEqual([ledger?.unanswered, ledger?.lost], [2, false], 'the spend, and the stop not sent behind it')
+    service.holdReservations = false
+    service.answerReservations()
+  })
+})
+
+describe('room session: audio that stops the session is recorded as received only as audioOut would take it (Codex P2 r4235822091)', () => {
+  /** The principal's turn under a cap of 64, one 1,600-sample chunk admitted, then one chunk of Sophia's audio. */
+  async function cutBy(data: string, mimeType = OUT) {
+    voiceEvidence = true
+    const s = await ready({ qualification: grant({ maxOutputTokensPerTurn: 64 }) })
+    s.room.events.audio(LUIS, voice16k(), 16000, 1)
+    await flush()
+    assert.equal(s.live.audio, 1)
+    s.live.events.audio(data, mimeType)
+    await flush()
+    return s
+  }
+  const refused = () => logs.filter(([event]) => event === 'audio.output_refused').map(([, d]) => d.error)
+  const stops = () => logs.filter(([event]) => event === 'qualification.stopped').map(([, d]) => d.why)
+  const charged = () =>
+    service.reservations.filter((r) => r.kind === 'spend' || r.kind === 'stop').map((r) => [r.kind, r.charge ?? null])
+  /** Once the guard's close is recorded: the reply's receipt (if any) and the close's counts. */
+  async function receipts() {
+    await until('the close recorded', () => service.evidence.some((w) => w.receipt.kind === 'session_closed'))
+    const of = (kind: string) => fields(service.evidence.find((w) => w.receipt.kind === kind))
+    return {
+      reply: of('output_reply'),
+      turn: pick(of('input_turn'), 'modelResponded'),
+      closed: pick(of('session_closed'), 'turns', 'replies'),
+    }
+  }
+
+  it('a 24 kHz chunk of 144,001 bytes (an odd length) past the cap: counted and charged as before, refused as audioOut refuses it, and no reply recorded', async () => {
+    // pcmSamples counts 72,000 (3 s, 96 tokens): past the cap of 64, so it stops the session as before.
+    const { session, room } = await cutBy(Buffer.alloc(144_001, 1).toString('base64'))
+    assert.deepEqual(stops(), ['output'], 'counted: the same stop')
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.equal(r.reply, undefined, 'no output_reply: it was never audio the room could take')
+    assert.deepEqual(refused(), ['PCM data has an odd byte length'], 'logged as audioOut logs it')
+    assert.deepEqual(r.turn, { modelResponded: true }, 'the provider produced it')
+    assert.deepEqual(r.closed, { turns: 1, replies: 0 })
+    await until('the stop asked', () => charged().some(([kind]) => kind === 'stop'))
+    assert.deepEqual(charged(), [['stop', null]], 'charged as before: within its reserve')
+    await session.close()
+  })
+
+  it('a valid chunk past the cap carried as line-wrapped base64: the decoded 72,000 samples are recorded, not the apparent count', async () => {
+    const wrapped = speech(150).replace(/.{76}/g, '$&\n')
+    assert.ok(Math.floor(Buffer.byteLength(wrapped, 'base64') / 2) > 72_000, 'the apparent count is larger')
+    const { session, room } = await cutBy(wrapped)
+    assert.deepEqual(stops(), ['output'])
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(pick(r.reply, 'samplesReceived', 'framesPlayed'), { samplesReceived: 72_000, framesPlayed: 0 })
+    await session.close()
+  })
+
+  it('a valid 72,000-sample chunk past the cap (control): received 72,000, nothing played', async () => {
+    const { session, room } = await cutBy(speech(150))
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.deepEqual(pick(r.reply, 'samplesReceived', 'framesPlayed'), { samplesReceived: 72_000, framesPlayed: 0 })
+    assert.deepEqual(refused(), [])
+    await session.close()
+  })
+
+  it('a 16 kHz chunk past the cap (control): no reply recorded, as before', async () => {
+    const { session, room } = await cutBy(speech(150), 'audio/pcm;rate=16000')
+    assert.deepEqual(stops(), ['output'])
+    const r = await receipts()
+    assert.equal(room.played.length, 0)
+    assert.equal(r.reply, undefined)
+    await session.close()
+  })
+
+  it('a chunk of an odd length within the cap (control): refused and logged by audioOut as before, nothing played, no stop', async () => {
+    const { session, room } = await cutBy(Buffer.alloc(2401, 1).toString('base64'))
+    assert.deepEqual(stops(), [])
+    assert.deepEqual(refused(), ['PCM data has an odd byte length'])
+    await flush()
+    assert.equal(room.played.length, 0)
+    await session.close()
+    const r = await receipts()
+    assert.equal(r.reply, undefined)
+  })
+})
+
+/** What a local peer saw of one request: when it came, when the bridge closed its socket (or null), and its body. */
+interface Seen {
+  at: number
+  closedAt: number | null
+  body: string
+}
+
+/**
+ * A LABELLED local peer for the media routes (item 7): `silent` accepts each connection half-open and never answers
+ * (net, allowHalfOpen); `drip` answers 200 with its headers, then a byte every 100 ms, never ending the body; `answer`
+ * answers 204, or 200 with `json` when given. Each request is noted, with when its socket closed.
+ */
+async function peer(shape: 'silent' | 'drip' | 'answer', json?: string) {
+  const seen: Seen[] = []
+  const sockets = new Set<net.Socket>()
+  /** The bridge closed the socket: its end (a half-open peer never closes its own side) or the socket's close. */
+  const note = (socket: net.Socket) => {
+    const entry: Seen = { at: Date.now(), closedAt: null, body: '' }
+    sockets.add(socket)
+    const closed = () => (entry.closedAt ??= Date.now())
+    socket.on('end', closed)
+    socket.on('close', closed)
+    return entry
+  }
+  let server: net.Server
+  if (shape === 'silent') {
+    server = net.createServer({ allowHalfOpen: true }, (socket) => {
+      const entry = note(socket)
+      // A request is what arrives: undici may open a connection it then closes with nothing sent on it.
+      socket.on('data', (chunk) => {
+        if (entry.body === '') seen.push(entry)
+        entry.body += chunk.toString()
+      })
+      socket.resume()
+    })
+  } else {
+    server = http.createServer((req, res) => {
+      const entry = note(req.socket)
+      seen.push(entry)
+      req.on('data', (chunk: Buffer) => (entry.body += chunk.toString()))
+      req.on('end', () => {
+        if (shape === 'answer' && json !== undefined) {
+          res.writeHead(200, { 'content-type': 'application/json' }).end(json)
+        } else if (shape === 'answer') {
+          res.writeHead(204).end()
+        } else {
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.write('{')
+          const drip = setInterval(() => res.write(' '), 100)
+          req.socket.on('close', () => clearInterval(drip))
+        }
+      })
+    })
+  }
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address() as net.AddressInfo
+  const media = httpMediaService(`http://127.0.0.1:${String(port)}`, 'synthetic-capability')
+  return {
+    media,
+    seen,
+    /** The request bodies (the JSON a silent peer read after the headers). */
+    bodies: () => seen.map((s) => s.body.slice(s.body.indexOf('{'))),
+    close: () => {
+      for (const socket of sockets) socket.destroy()
+      return new Promise<void>((resolve) => server.close(() => resolve()))
+    },
+  }
+}
+
+describe('room session: the quiesce acknowledgement, holder events and announcement records are bounded per attempt (item 7)', () => {
+  const BOUND = 200
+  /** Real time for the bound to cut an attempt, with timer slack. */
+  const cut = () => new Promise((resolve) => setTimeout(resolve, BOUND + 300))
+  /** The first request was cut at its bound: its socket closed within it, with slack. */
+  const cutAtBound = (s: Seen | undefined) =>
+    s !== undefined && s.closedAt !== null && s.closedAt - s.at >= BOUND - 20 && s.closedAt - s.at < BOUND + 1000
+
+  for (const shape of ['silent', 'drip'] as const) {
+    it(`holder (${shape} peer): the event is cut at its bound, its socket closed, and sent again, the same event, after HOLDER_RETRY_MS`, async () => {
+      postAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.holder = p.media.holder
+        const { session, room } = await ready()
+        room.join([member(DAVIDE)])
+        await until('the left event sent', () => p.seen.length === 1)
+        await cut()
+        assert.ok(cutAtBound(p.seen[0]), JSON.stringify(p.seen[0]))
+        clock += HOLDER_RETRY_MS - 1
+        session.tick()
+        await flush()
+        assert.equal(p.seen.length, 1, 'not before its wait')
+        clock += 1
+        session.tick()
+        await until('sent again', () => p.seen.length === 2)
+        const [first, again] = p.bodies()
+        assert.equal(again, first, 'the same event: exchange, actor, epoch and kind')
+        assert.equal(JSON.parse(first ?? '{}').event, 'left')
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+
+    it(`ackQuiesce (${shape} peer): the acknowledgement is cut at its bound and sent again on the tick, the same request, with nothing else happening`, async () => {
+      postAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.ackQuiesce = p.media.ackQuiesce
+        const { session } = await ready()
+        session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST }))
+        await until('the acknowledgement sent', () => p.seen.length === 1)
+        await cut()
+        assert.ok(cutAtBound(p.seen[0]), JSON.stringify(p.seen[0]))
+        clock += QUIESCE_RETRY_MS - 1
+        session.tick()
+        await flush()
+        assert.equal(p.seen.length, 1, 'not before its wait')
+        clock += 1
+        session.tick()
+        await until('sent again', () => p.seen.length === 2)
+        const [first, again] = p.bodies()
+        assert.equal(again, first)
+        assert.equal(JSON.parse(first ?? '{}').requestId, REQUEST)
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+
+    it(`announced (${shape} peer): the record is cut at its bound and sent again, the same record, after its retry wait`, async () => {
+      postAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.announced = p.media.announced
+        const { session, room } = await ready({ results: [{ taskId: TASK, resultRevision: 1, kind: 'research' }] })
+        room.events.textMode?.(LUIS, true)
+        room.events.textMode?.(DAVIDE, true)
+        session.tick()
+        await until('the record sent', () => p.seen.length === 1)
+        await cut()
+        assert.ok(cutAtBound(p.seen[0]), JSON.stringify(p.seen[0]))
+        for (let i = 0; i < 5 && p.seen.length === 1; i += 1) {
+          clock += 1000
+          session.tick()
+          await flush()
+        }
+        await until('sent again', () => p.seen.length === 2)
+        const [first, again] = p.bodies()
+        assert.equal(again, first, 'the same exchange, job and revision, the same delivery')
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+  }
+
+  it('ackQuiesce: a request no longer asked for is not sent again (control)', async () => {
+    postAttemptMs = BOUND
+    const p = await peer('silent')
+    try {
+      service.ackQuiesce = p.media.ackQuiesce
+      const { session } = await ready()
+      session.update(assignment({ state: 'paused', pauseReason: 'guest', quiesceRequestId: REQUEST }))
+      await until('the acknowledgement sent', () => p.seen.length === 1)
+      await cut()
+      session.update(assignment({ state: 'open', quiesceRequestId: null, roomRevision: 2 }))
+      clock += QUIESCE_RETRY_MS * 3
+      session.tick()
+      await flush()
+      assert.equal(p.seen.length, 1)
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('an attempt answered in time is not aborted afterwards: its timer is cleared (control)', async () => {
+    postAttemptMs = BOUND
+    const p = await peer('answer')
+    const signals: Array<AbortSignal | undefined> = []
+    try {
+      service.holder = (e: Parameters<MediaService['holder']>[0], signal?: AbortSignal) => {
+        signals.push(signal)
+        return p.media.holder(e, signal)
+      }
+      const { session, room } = await ready()
+      room.join([member(DAVIDE)])
+      await until('answered', () => p.seen.length === 1)
+      await cut()
+      assert.equal(signals.length, 1)
+      assert.equal(signals[0]?.aborted, false, 'never aborted once answered')
+      clock += HOLDER_RETRY_MS * 3
+      session.tick()
+      await flush()
+      assert.equal(p.seen.length, 1, 'answered: not sent again')
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('the default bound is 3 s, inside the presence cadence: a silent peer is cut at it, not at undici’s 300 s', async () => {
+    assert.equal(POST_ATTEMPT_MS, 3000)
+    assert.ok(POST_ATTEMPT_MS < PRESENCE_EVERY_MS)
+    const p = await peer('silent')
+    try {
+      service.holder = p.media.holder
+      const { session, room } = await ready()
+      room.join([member(DAVIDE)])
+      await until('the left event sent', () => p.seen.length === 1)
+      await until('cut at its bound', () => p.seen[0]?.closedAt !== null, 5000)
+      const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
+      assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+})
+
+describe('room session: a tool call attempt is bounded by its transport ceiling (item 7 B)', () => {
+  const BOUND = 200
+  const NOTE = { kind: 'observation', epistemic: 'reported', text: 'A note' }
+  /** Each attempt was cut at its bound: its socket closed within it, with slack for timers and the loop. */
+  const cutAtBound = (s: Seen) =>
+    s.closedAt !== null && s.closedAt - s.at >= BOUND - 20 && s.closedAt - s.at < BOUND + 1000
+  /** The `tool.failed` lines: each attempt, and why. */
+  const failed = () => logs.filter(([event]) => event === 'tool.failed').map(([, d]) => [d.attempt, d.error])
+
+  for (const shape of ['silent', 'drip'] as const) {
+    it(`a write (${shape} peer): each attempt cut at its ceiling, its socket closed, sent again twice as the same call, then unknown, never "nothing changed"`, async () => {
+      toolAttemptMs = BOUND
+      const p = await peer(shape)
+      try {
+        service.toolCall = p.media.toolCall
+        const { session, room, live } = await ready()
+        room.events.audio(LUIS, pcm16k(), 16000, 1)
+        live.events.toolCalls([{ id: 'ceiling-w', name: 'record_mission_note', args: NOTE }])
+        await until('answered', () => live.responses.length === 1, 5000)
+        assert.equal(p.seen.length, 3, 'the first attempt and two more')
+        await until('every attempt’s socket closed', () => p.seen.every((x) => x.closedAt !== null))
+        assert.ok(p.seen.every(cutAtBound), JSON.stringify(p.seen))
+        const [first, ...again] = p.bodies()
+        assert.ok(
+          again.every((b) => b === first),
+          'the same call: id, connection, arguments, speaker, epoch',
+        )
+        assert.equal(JSON.parse(first ?? '{}').callId, 'ceiling-w')
+        assert.deepEqual(failed(), [
+          [0, `no answer within ${String(BOUND)} ms`],
+          [1, `no answer within ${String(BOUND)} ms`],
+          [2, `no answer within ${String(BOUND)} ms`],
+        ])
+        const output = live.responses[0]?.response?.output as { status: string; next: string }
+        assert.equal(output.status, 'unknown', 'it may have been applied')
+        assert.match(output.next, /Read project_status/)
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+  }
+
+  it('a read past its ceiling: tried three times, then an error (it changed nothing)', async () => {
+    toolAttemptMs = BOUND
+    const p = await peer('silent')
+    try {
+      service.toolCall = p.media.toolCall
+      const { session, room, live } = await ready()
+      room.events.audio(LUIS, pcm16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'ceiling-r', name: 'project_status', args: {} }])
+      await until('answered', () => live.responses.length === 1, 5000)
+      assert.equal(p.seen.length, 3)
+      assert.equal(statusOf(live.responses[0]), 'error')
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('an answer that comes past the ceiling is not waited for: the call goes again as the same call, and only the repeat’s receipt reaches the provider', async () => {
+    toolAttemptMs = BOUND
+    const signals: Array<AbortSignal | undefined> = []
+    const sent: MediaToolCall[] = []
+    let late: (() => void) | null = null
+    service.toolCall = (c: MediaToolCall, signal?: AbortSignal) => {
+      sent.push(c)
+      signals.push(signal)
+      if (sent.length === 1)
+        // The API applied it but its answer comes late, whatever the signal says.
+        return new Promise<MediaToolResult>((resolve) => {
+          late = () => resolve({ status: 'committed', output: { entryId: 'late', ledgerRevision: 1 } })
+        })
+      return Promise.resolve({ status: 'committed', output: { entryId: ENTRY, ledgerRevision: 3 } })
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'late-1', name: 'record_mission_note', args: NOTE }])
+    await until('answered', () => live.responses.length === 1, 5000)
+    ;(late as (() => void) | null)?.()
+    await flush()
+    assert.equal(sent.length, 2)
+    assert.deepEqual(sent[1], sent[0], 'the same call again')
+    assert.equal(signals[0]?.aborted, true, 'the first attempt was cancelled at its ceiling')
+    assert.equal(signals[1]?.aborted, false)
+    assert.equal(live.responses.length, 1, 'one answer')
+    assert.deepEqual(live.responses[0]?.response?.output, { status: 'committed', entryId: ENTRY, ledgerRevision: 3 })
+    await session.close()
+  })
+
+  it('a call answered in time is not cut afterwards: its timer is cleared (control)', async () => {
+    toolAttemptMs = BOUND
+    const p = await peer('answer', JSON.stringify({ status: 'ok', output: { stage: 'running' } }))
+    const signals: Array<AbortSignal | undefined> = []
+    try {
+      service.toolCall = (c: MediaToolCall, signal?: AbortSignal) => {
+        signals.push(signal)
+        return p.media.toolCall(c, signal)
+      }
+      const { session, room, live } = await ready()
+      room.events.audio(LUIS, pcm16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'in-time', name: 'project_status', args: {} }])
+      await until('answered', () => live.responses.length === 1, 5000)
+      await new Promise((resolve) => setTimeout(resolve, BOUND + 100))
+      assert.equal(p.seen.length, 1)
+      assert.notEqual(signals[0]?.aborted, true, 'never aborted once answered')
+      assert.equal(statusOf(live.responses[0]), 'ok')
+      assert.deepEqual(failed(), [])
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('a call the provider cancels while it is on its way is not cancelled on the API: its answer is dropped, never sent to the provider', async () => {
+    const signals: Array<AbortSignal | undefined> = []
+    let answer: (() => void) | null = null
+    service.toolCall = (c: MediaToolCall, signal?: AbortSignal) => {
+      service.calls.push(c)
+      signals.push(signal)
+      return new Promise<MediaToolResult>((resolve) => (answer = () => resolve({ status: 'ok', output: {} })))
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'cancelled-1', name: 'project_status', args: {} }])
+    await until('on its way', () => service.calls.length === 1)
+    live.events.toolCancellations(['cancelled-1'])
+    await flush()
+    assert.notEqual(signals[0]?.aborted, true, 'the API call goes on: it may already be applied')
+    ;(answer as (() => void) | null)?.()
+    await until('dropped', () => logs.some(([event]) => event === 'tool.dropped'))
+    assert.equal(live.responses.length, 0, 'a cancelled call is never answered')
+    assert.equal(service.calls.length, 1)
+    await session.close()
+  })
+
+  it('a call whose attempt failed is not sent again when the close comes during its retry wait (P3 on 792f5489)', async () => {
+    toolRetryWaits = [200, 200]
+    const fake = service
+    fake.toolCall = async (c: MediaToolCall) => {
+      await Promise.resolve()
+      fake.calls.push(c)
+      throw new Error('socket hang up')
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'closing-wait', name: 'record_mission_note', args: NOTE }])
+    await until('the first attempt failed', () => logs.some(([event]) => event === 'tool.failed'))
+    await session.close()
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    assert.equal(fake.calls.length, 1, 'one attempt: the close came during the wait')
+    assert.equal(live.responses.length, 0, 'the provider is gone: nothing is sent to it')
+    assert.ok(logs.some(([event, d]) => event === 'tool.dropped' && d.name === 'record_mission_note'))
+  })
+
+  it('a call in flight at the close does not hold it, and is not sent again after it', async () => {
+    let fail: (() => void) | null = null
+    service.toolCall = (c: MediaToolCall) => {
+      service.calls.push(c)
+      return new Promise<MediaToolResult>((_resolve, reject) => (fail = () => reject(new Error('socket hang up'))))
+    }
+    const { session, room, live } = await ready()
+    room.events.audio(LUIS, pcm16k(), 16000, 1)
+    live.events.toolCalls([{ id: 'closing-1', name: 'record_mission_note', args: NOTE }])
+    await until('on its way', () => service.calls.length === 1)
+    const started = Date.now()
+    await session.close()
+    assert.ok(Date.now() - started < 1000, 'the close did not wait for the call')
+    ;(fail as (() => void) | null)?.()
+    for (let i = 0; i < 5; i += 1) await flush()
+    assert.equal(service.calls.length, 1, 'not sent again once closed')
+    assert.equal(live.responses.length, 0)
+  })
+
+  it('the default ceiling is 20 s: a silent API is cut at it, not at undici’s 300 s', async () => {
+    assert.equal(TOOL_ATTEMPT_MS, 20_000)
+    const p = await peer('silent')
+    try {
+      service.toolCall = p.media.toolCall
+      const { session, room, live } = await ready()
+      room.events.audio(LUIS, pcm16k(), 16000, 1)
+      live.events.toolCalls([{ id: 'default-1', name: 'project_status', args: {} }])
+      await until('sent', () => p.seen.length === 1)
+      await until('cut at its ceiling', () => p.seen[0]?.closedAt !== null, 25_000)
+      const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
+      assert.ok(ms >= TOOL_ATTEMPT_MS - 20 && ms < TOOL_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+})
+
+/** The reportSeq of each request a peer read. */
+const seqsOf = (bodies: string[]) => bodies.map((b) => (JSON.parse(b) as { reportSeq?: number }).reportSeq)
+
+describe('room session: presence reports are numbered by their process and bounded per attempt (item 7 C)', () => {
+  const OTHER_EXCHANGE = 'abababab-abab-4bab-8bab-abababababab'
+  const OTHER_ROOM = 'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd'
+
+  it('each report takes the next number of the counter when it is built, one in flight at a time; a replacement session and another room share the counter', async () => {
+    presenceSequence = new PresenceSequence()
+    const first = await ready()
+    const from = service.presences.length
+    first.session.tick()
+    await flush()
+    first.session.tick()
+    await flush()
+    clock += PRESENCE_EVERY_MS
+    first.session.tick()
+    await flush()
+    await first.session.close()
+    const replacement = await ready()
+    replacement.session.tick()
+    await flush()
+    const other = await ready({ exchangeId: OTHER_EXCHANGE, roomId: OTHER_ROOM })
+    other.session.tick()
+    await flush()
+    clock += PRESENCE_EVERY_MS
+    replacement.session.tick()
+    await flush()
+    assert.deepEqual(
+      service.presences.slice(from).map((r) => [r.exchangeId, r.reportSeq]),
+      [
+        [EXCHANGE, 1],
+        [EXCHANGE, 2],
+        [EXCHANGE, 3],
+        [OTHER_EXCHANGE, 4],
+        [EXCHANGE, 5],
+      ],
+    )
+    await replacement.session.close()
+    await other.session.close()
+  })
+
+  it('without a counter of its own, every session takes the process’s: numbers rise across sessions', async () => {
+    const one = await ready()
+    one.session.tick()
+    await flush()
+    const two = await ready({ exchangeId: OTHER_EXCHANGE, roomId: OTHER_ROOM })
+    two.session.tick()
+    await flush()
+    clock += PRESENCE_EVERY_MS
+    one.session.tick()
+    await flush()
+    const seqs = service.presences.slice(-3).map((r) => r.reportSeq ?? 0)
+    assert.equal(seqs.length, 3)
+    assert.ok(seqs[0]! >= 1 && seqs[1]! > seqs[0]! && seqs[2]! > seqs[1]!, JSON.stringify(seqs))
+    await one.session.close()
+    await two.session.close()
+  })
+
+  for (const shape of ['silent', 'drip'] as const) {
+    it(`presence (${shape} peer): a report is cut at the default 3 s bound and never sent again; the next tick sends a new one with a higher number`, async () => {
+      const p = await peer(shape)
+      try {
+        service.presence = p.media.presence
+        const { session } = await ready()
+        session.tick()
+        await until('the report sent', () => p.seen.length === 1)
+        clock += PRESENCE_EVERY_MS * 2
+        session.tick()
+        await flush()
+        assert.equal(p.seen.length, 1, 'one report in flight at a time')
+        // Cut: its socket closed by the bridge at the bound (the peer never closes it), its failure handled then.
+        await until('the report’s socket closed', () => (p.seen[0]?.closedAt ?? null) !== null, POST_ATTEMPT_MS + 3000)
+        const ms = (p.seen[0]?.closedAt ?? 0) - (p.seen[0]?.at ?? 0)
+        assert.ok(ms >= POST_ATTEMPT_MS - 20 && ms < POST_ATTEMPT_MS + 1000, `cut after ${String(ms)} ms`)
+        session.tick()
+        await until('a new report', () => p.seen.length === 2)
+        const [cutSeq, nextSeq] = seqsOf(p.bodies())
+        assert.ok(
+          typeof cutSeq === 'number' && typeof nextSeq === 'number' && nextSeq > cutSeq,
+          `${cutSeq} then ${nextSeq}`,
+        )
+        assert.equal(seqsOf(p.bodies()).filter((s) => s === cutSeq).length, 1, 'the cut report is never sent again')
+        await session.close()
+      } finally {
+        await p.close()
+      }
+    })
+  }
+
+  it('an answered report is not aborted afterwards, and the next one waits for the cadence (control)', async () => {
+    postAttemptMs = 200
+    const p = await peer('answer')
+    const signals: Array<AbortSignal | undefined> = []
+    try {
+      service.presence = (r: Parameters<MediaService['presence']>[0], signal?: AbortSignal) => {
+        signals.push(signal)
+        return p.media.presence(r, signal)
+      }
+      const { session } = await ready()
+      session.tick()
+      await until('answered', () => p.seen.length === 1)
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      assert.equal(signals[0]?.aborted, false, 'never aborted once answered')
+      session.tick()
+      await flush()
+      assert.equal(p.seen.length, 1, 'not due before PRESENCE_EVERY_MS')
+      clock += PRESENCE_EVERY_MS
+      session.tick()
+      await until('the next report', () => p.seen.length === 2)
+      const [one, two] = seqsOf(p.bodies())
+      assert.ok((two ?? 0) > (one ?? 0))
+      await session.close()
+    } finally {
+      await p.close()
+    }
+  })
+
+  it('at Number.MAX_SAFE_INTEGER the counter is spent: that number is sent, then no report at all (never wrapped or reused), logged once', async () => {
+    presenceSequence = new PresenceSequence(PRESENCE_SEQUENCE_MAX - 1)
+    const { session } = await ready()
+    const from = service.presences.length
+    session.tick()
+    await flush()
+    assert.deepEqual(
+      service.presences.slice(from).map((r) => r.reportSeq),
+      [PRESENCE_SEQUENCE_MAX],
+    )
+    for (let i = 0; i < 3; i += 1) {
+      clock += PRESENCE_EVERY_MS
+      session.tick()
+      await flush()
+    }
+    assert.equal(service.presences.length, from + 1, 'nothing past the bound')
+    assert.deepEqual(
+      logs.filter(([event]) => event === 'presence.sequence_spent'),
+      [['presence.sequence_spent', { max: PRESENCE_SEQUENCE_MAX }]],
+    )
     await session.close()
   })
 })

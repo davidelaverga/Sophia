@@ -6,7 +6,7 @@
 // revised; a refusal is typed `not_started:<code>`, and a call whose outcome is unknown is `unconfirmed:<code>`.
 import type { MediaToolResult } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { readHtmlPages, requestDesignEdit, withActor } from '@sophia/persistence'
+import { liveCallAdmits, readHtmlPages, requestDesignEdit, withActor } from '@sophia/persistence'
 import type { ToolContext } from './mission-tools.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -59,8 +59,10 @@ export async function reviseHtmlPage(ctx: ToolContext): Promise<MediaToolResult>
   try {
     const [page] = await withActor(ctx.pool, ctx.actorId, 'read', (c) => readHtmlPages(c, ctx.projectId, [taskId]))
     if (!page) return refused('not_started:no_html_page', 'That report has no designed HTML page to revise.')
-    const receipt = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      requestDesignEdit(
+    const receipt = await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+      // Voice qualification on (A15): the edit's task is linked to the call that asked for it, in this transaction.
+      if (ctx.liveCall) await liveCallAdmits(c, ctx.projectId, ctx.key)
+      const edit = await requestDesignEdit(
         c,
         ctx.projectId,
         ctx.key,
@@ -72,8 +74,11 @@ export async function reviseHtmlPage(ctx: ToolContext): Promise<MediaToolResult>
           ...(ctx.args.styles === true ? { styles: true } : {}),
         },
         'voice',
-      ),
-    )
+      )
+      // A recorded call's answer, with what it admitted (Codex P1 r4234782534): the transaction's last statement.
+      await ctx.seal?.(c, 'admitted')
+      return edit
+    })
     return {
       status: 'admitted',
       output: {

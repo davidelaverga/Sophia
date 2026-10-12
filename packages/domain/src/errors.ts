@@ -23,6 +23,7 @@ export type ErrorCode =
   | 'note_policy_denied'
   | 'confirmation_required'
   | 'native_task_retired'
+  | 'evidence_route_retired'
   | 'research_gate_closed'
   | 'research_limit_reached'
   | 'coordination_capability_required'
@@ -62,6 +63,8 @@ const DISPOSITION: Record<ErrorCode, { status: number; retry: Retry }> = {
   confirmation_required: { status: 409, retry: 'never' },
   // New brief admission is retired (SMC-M01); existing briefs stay readable and controllable.
   native_task_retired: { status: 410, retry: 'never' },
+  // The bridge's own receipt numbering is retired (Codex P1 r4232908444): the service numbers each write (0051).
+  evidence_route_retired: { status: 410, retry: 'never' },
   // The project has no research grant, or its gate is closed: no research is admitted and nothing is spent (SMC-M03).
   research_gate_closed: { status: 403, retry: 'never' },
   // A research call would pass its allowance, the grant's total or the source policy's limit (SMC-M03).

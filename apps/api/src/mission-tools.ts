@@ -43,6 +43,15 @@ export interface ToolContext {
   call: MediaToolCall
   /** The call's arguments, as the model sent them: data to check, never trusted. */
   args: Record<string, unknown>
+  /** The call was recorded (voice qualification on, A15): the command it admits is linked to it (liveCallAdmits). */
+  liveCall?: boolean
+  /**
+   * A recorded call's answer, sealed in the transaction that writes what the call does, as its last statement, with the
+   * outcome the handler answers (media-tools CallSeal; Codex P1 r4234782534): the write and the answer commit together,
+   * or neither does. It throws when this attempt's fence was lost or taken by another, and the write must roll back.
+   * Absent for a call that is not recorded.
+   */
+  seal?: (c: pg.PoolClient, outcome: MediaToolResult['status']) => Promise<void>
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -223,9 +232,11 @@ async function readable(ctx: ToolContext, ref: SourceRef): Promise<Readable | nu
 /** Reading a pending proposal back to the speaker puts it to them: it becomes the exchange's confirmation target. */
 async function putToSpeaker(ctx: ToolContext, decisionId: string): Promise<boolean> {
   try {
-    await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      presentMissionProposal(c, ctx.projectId, decisionId, turnOf(ctx.call, true)),
-    )
+    await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+      await presentMissionProposal(c, ctx.projectId, decisionId, turnOf(ctx.call, true))
+      // The read that puts a proposal answers 'ok' (readSelectedSource).
+      await ctx.seal?.(c, 'ok')
+    })
     return true
   } catch {
     // A viewer, a paused exchange or a call without its utterance: the text is still read, nothing is put.
@@ -322,9 +333,11 @@ export async function recordMissionNote(ctx: ToolContext): Promise<MediaToolResu
       'What kind of note is it (observation, expectation, outcome, blocker, explanation, lesson candidate or continuity), and what should it say?',
     )
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      recordMissionEntry(c, ctx.projectId, ctx.key, { ...write, turn: turnOf(ctx.call, false) }),
-    )
+    const r = await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+      const entry = await recordMissionEntry(c, ctx.projectId, ctx.key, { ...write, turn: turnOf(ctx.call, false) })
+      await ctx.seal?.(c, 'committed')
+      return entry
+    })
     return {
       status: 'committed',
       output: {
@@ -366,9 +379,11 @@ export async function proposeChange(ctx: ToolContext): Promise<MediaToolResult> 
   const write = proposalWrite(ctx.args)
   if (!write) return clarify('What exactly is proposed (a mission, constraint or lesson), in one clear statement?')
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      proposeMissionChange(c, ctx.projectId, ctx.key, { ...write, turn: turnOf(ctx.call, true) }),
-    )
+    const r = await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+      const proposed = await proposeMissionChange(c, ctx.projectId, ctx.key, { ...write, turn: turnOf(ctx.call, true) })
+      await ctx.seal?.(c, 'proposed')
+      return proposed
+    })
     return {
       status: 'proposed',
       output: {
@@ -395,13 +410,15 @@ export async function decideChange(ctx: ToolContext): Promise<MediaToolResult> {
     return clarify('Which proposal, at which revision, and is the answer to accept or reject it?')
   const proposalId = args.proposalId
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
-      decideMissionChange(c, ctx.projectId, proposalId, ctx.key, {
+    const r = await withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+      const decided = await decideMissionChange(c, ctx.projectId, proposalId, ctx.key, {
         decision,
         expectedRevision: revision,
         turn: turnOf(ctx.call, true),
-      }),
-    )
+      })
+      await ctx.seal?.(c, 'committed')
+      return decided
+    })
     return {
       status: 'committed',
       output: {

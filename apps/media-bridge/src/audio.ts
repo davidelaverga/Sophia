@@ -25,11 +25,16 @@ const OUTPUT_FRAME_MS = OUTPUT_FRAME / OUTPUT_SAMPLES_PER_MS
 
 export class FormatError extends Error {}
 
-/** Little-endian base64 of 16-bit samples, as Google's realtime input expects. */
-export function pcmToBase64(samples: Int16Array): string {
+/** The bytes of 16-bit samples, little-endian: what Google's realtime input carries. */
+export function pcmBytes(samples: Int16Array): Buffer {
   const bytes = Buffer.alloc(samples.length * 2)
   for (let i = 0; i < samples.length; i += 1) bytes.writeInt16LE(samples[i] ?? 0, i * 2)
-  return bytes.toString('base64')
+  return bytes
+}
+
+/** Little-endian base64 of 16-bit samples, as Google's realtime input expects. */
+export function pcmToBase64(samples: Int16Array): string {
+  return pcmBytes(samples).toString('base64')
 }
 
 export function base64ToPcm(data: string): Int16Array {

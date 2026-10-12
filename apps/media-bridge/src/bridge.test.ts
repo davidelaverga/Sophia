@@ -1,10 +1,12 @@
 // The assignment loop against LABELLED FAKES (no LiveKit, no Google): one session per live exchange.
-import type { MediaAssignment } from '@sophia/contracts'
+import type { FunctionResponse } from '@google/genai'
+import type { MediaAssignment, MediaEvidenceWrite, MediaPresenceReport } from '@sophia/contracts'
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { MediaBridge } from './bridge.ts'
+import { MediaBridge, STOP_DEADLINE_MS } from './bridge.ts'
 import { loadMissionGuide } from './guide.ts'
-import type { LiveLink } from './live-session.ts'
+import type { LiveEvents, LiveLink } from './live-session.ts'
+import { SETTLE_DEPTH } from './qualification.ts'
 import type { RoomEvents, RoomLink } from './rtc.ts'
 import type { MediaService } from './service.ts'
 import { DECLARED_NAMES } from './tools.ts'
@@ -38,19 +40,52 @@ const E2 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
 interface RoomFake {
   people?: { identity: string; standing: 'editor' }[]
   sendChat?: RoomLink['sendChat']
+  /** Leaving the room never finishes (LiveKit's disconnect hangs). */
+  leaveHangs?: boolean
+  /** The bridge's stop deadline, when a test bounds it. */
+  stopDeadlineMs?: number
+  /** How the API answers a tool call, when a test calls one. */
+  toolCall?: MediaService['toolCall']
+  /** The presence reports the API took, in order, when a test keeps them. */
+  presences?: MediaPresenceReport[]
 }
 
-function harness(fake: RoomFake = {}) {
+/**
+ * With `evidence`, SOPHIA_VOICE_EVIDENCE is on and the receipts the API takes are kept there, in the order it took them;
+ * it numbers them as 0051 does, per exchange, a repeated write identity its own number again.
+ */
+function harness(fake: RoomFake = {}, evidence?: MediaEvidenceWrite[]) {
   const log: string[] = []
   const roomEvents: RoomEvents[] = []
+  const lives: LiveEvents[] = []
+  const toolResponses: FunctionResponse[] = []
+  const ordinals = new Map<string, number>()
   const service: MediaService = {
     assignments: () => Promise.reject(new Error('unused')),
-    presence: () => Promise.resolve(),
+    presence: (report) => {
+      fake.presences?.push(report)
+      return Promise.resolve()
+    },
     ackQuiesce: () => Promise.resolve(),
     holder: () => Promise.resolve(),
     announced: () => Promise.resolve(),
-    toolCall: () => Promise.reject(new Error('unused')),
+    toolCall: fake.toolCall ?? (() => Promise.reject(new Error('unused'))),
     toolSurface: () => Promise.resolve({ names: [...DECLARED_NAMES] }),
+    recordEvidence: (write) => {
+      if (!evidence) return Promise.reject(new Error('unused'))
+      const own = evidence.findIndex((w) => w.writeId === write.writeId)
+      if (own < 0) evidence.push(write)
+      const numbered = evidence.filter((w) => w.exchangeId === write.exchangeId)
+      const seq = numbered.findIndex((w) => w.writeId === write.writeId) + 1
+      return Promise.resolve({ seq, replayed: own >= 0, ended: false, reason: null })
+    },
+    // The API's durable bound, as a FAKE that grants everything: bridge-bound.test.ts holds it to a grant.
+    reserveQualification: (reserve) => {
+      if (reserve.kind === 'connection') ordinals.set(reserve.exchangeId, (ordinals.get(reserve.exchangeId) ?? 0) + 1)
+      const ordinal =
+        reserve.kind === 'connection' ? (ordinals.get(reserve.exchangeId) ?? 1) : (reserve.ordinal ?? null)
+      return Promise.resolve({ ok: true, ordinal, stop: null, ended: false })
+    },
   }
   const bridge = new MediaBridge({
     service,
@@ -67,18 +102,20 @@ function harness(fake: RoomFake = {}) {
         setState: () => Promise.resolve(),
         close: async () => {
           await Promise.resolve()
+          if (fake.leaveHangs) await new Promise(() => undefined)
           log.push('leave')
         },
       }
       return room
     },
-    connectLive: async () => {
+    connectLive: async (_options, events) => {
       await Promise.resolve()
+      lives.push(events)
       const live: LiveLink = {
         sendAudio: () => undefined,
         sendAudioStreamEnd: () => undefined,
         sendFrame: () => undefined,
-        sendToolResponses: () => undefined,
+        sendToolResponses: (responses) => void toolResponses.push(...responses),
         sendNotice: () => undefined,
         close: () => undefined,
       }
@@ -91,13 +128,74 @@ function harness(fake: RoomFake = {}) {
     now: Date.now,
     log: (event) => log.push(event),
     every: () => () => undefined,
+    ...(evidence ? { voiceEvidence: true } : {}),
+    ...(fake.stopDeadlineMs === undefined ? {} : { stopDeadlineMs: fake.stopDeadlineMs }),
   })
-  return { bridge, log, roomEvents }
+  return { bridge, log, roomEvents, lives, toolResponses }
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve))
 
 describe('media bridge assignment loop', () => {
+  it('a stop is bounded: a session whose close never finishes is left at the deadline, and logged (Codex r4234233106)', async () => {
+    const { bridge, log } = harness({ leaveHangs: true, stopDeadlineMs: 100 })
+    await bridge.apply([assignment(E1)])
+    await settle()
+    const started = Date.now()
+    await bridge.stop()
+    assert.ok(Date.now() - started < 1000, 'within its deadline')
+    assert.deepEqual(
+      log.filter((l) => l === 'bridge.stop_deadline'),
+      ['bridge.stop_deadline'],
+    )
+  })
+
+  it('a stop with a tool call in flight is not held by it: well within its 35 s deadline; the call, failing after it, is not sent again, and nothing reaches the provider (item 7 B)', async () => {
+    assert.equal(STOP_DEADLINE_MS, 35_000, 'the stop bound is unchanged')
+    assert.equal(SETTLE_DEPTH, 3, 'and so is the chain a close settles')
+    const principal = '11111111-1111-4111-8111-111111111111'
+    const calls: string[] = []
+    let fail: (() => void) | null = null
+    const { bridge, log, roomEvents, lives, toolResponses } = harness({
+      people: [{ identity: principal, standing: 'editor' }],
+      toolCall: (call) => {
+        calls.push(call.callId)
+        return new Promise((_resolve, reject) => (fail = () => reject(new Error('socket hang up'))))
+      },
+    })
+    await bridge.apply([assignment(E1, { inputActorId: principal })])
+    await settle()
+    const [room] = roomEvents
+    const [live] = lives
+    assert.ok(room && live)
+    live.setupComplete()
+    room.audio(principal, new Int16Array(1600).fill(2000), 16000, 1)
+    live.toolCalls([{ id: 'in-flight-1', name: 'project_status', args: {} }])
+    for (let i = 0; i < 20 && calls.length === 0; i += 1) await settle()
+    assert.deepEqual(calls, ['in-flight-1'], 'the call is on its way to the API')
+    const started = Date.now()
+    await bridge.stop()
+    assert.ok(Date.now() - started < 1000, `stopped in ${String(Date.now() - started)} ms, not held by the call`)
+    assert.equal(log.includes('bridge.stop_deadline'), false)
+    // Its attempt fails once the bridge stopped (a lost reply): a running session would send it again.
+    ;(fail as (() => void) | null)?.()
+    // Past the first retry's wait (TOOL_RETRY_MS: 250 ms), with margin.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    assert.deepEqual(calls, ['in-flight-1'], 'not sent again once stopped')
+    assert.deepEqual(toolResponses, [], 'nothing reaches the provider')
+  })
+
+  it('a stop whose sessions close in time logs no deadline (control)', async () => {
+    const { bridge, log } = harness({ stopDeadlineMs: 5000 })
+    await bridge.apply([assignment(E1)])
+    await settle()
+    const started = Date.now()
+    await bridge.stop()
+    assert.ok(Date.now() - started < 1000)
+    assert.ok(!log.includes('bridge.stop_deadline'))
+    assert.ok(log.includes('leave'))
+  })
+
   it('keeps one session per live exchange, updates it, and closes an ended one before the room’s next joins', async () => {
     const { bridge, log } = harness()
     await bridge.apply([assignment(E1)])
@@ -126,6 +224,28 @@ describe('media bridge assignment loop', () => {
     await bridge.apply([assignment(E1)])
     await settle()
     assert.equal(log.filter((l) => l === 'join').length, 2)
+    await bridge.stop()
+  })
+
+  it('a session that replaces a lost one continues its process’s presence numbers, never starting again (item 7 C)', async () => {
+    const presences: MediaPresenceReport[] = []
+    const { bridge, roomEvents } = harness({ presences })
+    await bridge.apply([assignment(E1)])
+    await settle()
+    bridge.session(E1)?.tick()
+    await settle()
+    roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await bridge.apply([assignment(E1)])
+    await settle()
+    bridge.session(E1)?.tick()
+    await settle()
+    const [lost, replacement] = presences.map((r) => r.reportSeq ?? 0)
+    assert.equal(presences.length, 2)
+    assert.ok(
+      lost !== undefined && lost >= 1 && replacement !== undefined && replacement > lost,
+      `${lost} then ${replacement}`,
+    )
     await bridge.stop()
   })
 
@@ -175,6 +295,50 @@ describe('media bridge assignment loop', () => {
     await bridge.apply([assignment(E2, { inputEpoch: 2 })])
     assert.ok(Date.now() - started < 1000, 'not held by the ended session')
     assert.equal(bridge.session(E2)?.observed().inputEpoch, 2)
+    await bridge.stop()
+  })
+
+  it('an exchange’s receipts, across the sessions that replace one another on it, each carry their own identity and no number: the service numbers them (A15, 0051)', async () => {
+    const principal = '11111111-1111-4111-8111-111111111111'
+    const qualification = {
+      grantId: '77777777-7777-4777-8777-777777777777',
+      runBindingSha256: 'ab'.repeat(32),
+      principalActorId: principal,
+      deadline: new Date(Date.now() + 900_000).toISOString(),
+      maxProviderConnections: 3,
+      maxTurns: 20,
+      maxOutputTokensPerTurn: 1000,
+      maxUsageTokens: 200_000,
+    }
+    const evidence: MediaEvidenceWrite[] = []
+    const { bridge, roomEvents } = harness({ people: [{ identity: principal, standing: 'editor' }] }, evidence)
+    const assigned = [assignment(E1, { inputActorId: principal, qualification }), assignment(E2, { qualification })]
+    await bridge.apply(assigned)
+    await settle()
+    roomEvents[0]?.connection('disconnected', 'livekit: 1')
+    await settle()
+    await bridge.apply(assigned)
+    await settle()
+    assert.equal(roomEvents.length, 3, 'E1 joined again')
+    const e1 = evidence.filter((w) => w.exchangeId === E1)
+    assert.equal(new Set(e1.map((w) => w.writeId)).size, e1.length, 'each receipt its own identity')
+    assert.equal(
+      e1.some((w) => 'seq' in w),
+      false,
+      'the bridge numbers nothing',
+    )
+    const kinds = e1.map((w, i) => [i + 1, w.receipt.kind === 'provider' ? w.receipt.phase : w.receipt.kind])
+    assert.deepEqual(kinds, [
+      [1, 'setup'],
+      [2, 'closed'],
+      [3, 'session_closed'],
+      [4, 'setup'],
+    ])
+    assert.equal(
+      evidence.some((w) => w.exchangeId === E2),
+      false,
+      'nobody holds E2’s floor: nothing is recorded there',
+    )
     await bridge.stop()
   })
 })
