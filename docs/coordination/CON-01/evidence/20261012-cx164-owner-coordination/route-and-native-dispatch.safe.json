@@ -1,0 +1,64 @@
+{
+  "at": "2026-10-12T07:42:58.234543+00:00",
+  "status": "ACTUAL_EXISTING_OWNER_ROUTE_DEMONSTRATED_NO_FRESH_K2D_ACK_OBTAINED",
+  "scope": "Narrow owner routing only; completed exact-r5 K1c consumer review not repeated. No source/operational authority supplied.",
+  "manifest": {
+    "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "sha256": "69219da474faf2c8b234542e2b273784adc228884b5dde2c9c989a6e6e82d6f7",
+    "K1c": "already supplied by separate bounded exact-r5 consumer record; not K2d"
+  },
+  "K2d": {
+    "existingSession": "session_0155SjcXhv87RErnWEBWxfBM",
+    "observedURL": "https://claude.ai/epitaxy/session_0155SjcXhv87RErnWEBWxfBM",
+    "observedTitle": "Paperclip mission implementation - Claude Code",
+    "routeEvidence": "resume-integration-review-preparation.json names sourceWriter Claude native mission session_0155SjcXhv87RErnWEBWxfBM. Shared freeze r2 response ownerAcknowledgements.jointImplementer binds that session and verified native freeze ACK evidence. Saved actual mission AX at resume-main-e020-phaseA-engineering-handback-sent-AX.txt:6 verifies title and exact URL.",
+    "actualExistingAcknowledgement": "Historical joint implementer freeze/preservation ACK only: absence of in-flight writes, own-lane shared-surface freeze and later ownership return. It is NOT the exact-r5 insertion K2d ACK, and no such new ACK was obtained in this turn.",
+    "neededNarrowAcknowledgement": [
+      "Actual implementer to acknowledge intended reply-first insertions for dispatch_runtime_outbox (latest0042:1806) and capture_native_result (latest0042:1724), plus null-goal refusal for native_delivery_ineligible (latest0041:149), against exact-r5 manifest/hash.",
+      "Preserve all existing goal/research/design/source-review/Paperclip bodies and signatures/security/search_path/ACL; dispatch reply rows return before existing goal cleanup/control.settle; preserve insert-runtime-command/outbox-ack atomicity. No applied migrations edited.",
+      "State current implementer/write-freeze status and own exact overlap; no implementation, core/foundation ACK, accepted-base/source-window/merge GO inferred. Named unlisted need returns for amendment."
+    ]
+  },
+  "K3": {
+    "relationship": "Evidence places PR190 product writer within the SAME existing Paperclip mission session, rather than demonstrating a separate retained owner session. K3 is nevertheless a distinct acknowledgement from K2d.",
+    "writerEvidence": "shared-runtime-window-owner-ack-final-AX.txt:51 says #190 writer (aca33481) is idle until coordinated main merge; :174 says #190 merges main afterwards by own writer under root review; :190 requires keeping both sides and regenerating contracts only by generator. Saved same-session AX resume-main-e020-phaseA-engineering-handback-sent-AX.txt:516 lists background task Product writer: resume PR190 repair queue.",
+    "identityLimit": "aca33481 is an observed task/writer label, not a separately verified native session ID. Do not invent or start a new session from it. This is documented parent route, not a new writer appointment or proof that historic idle state remains current.",
+    "neededBoundary": "Ask that same existing mission coordinator to obtain/confirm its actual PR190 product writer K3 for shared API/index/contract/generated overlap and regeneration/integration order. Do not use K2d or consumer K1c in its place. No billing/product decision or PR190 merge is authorized by this request."
+  },
+  "availabilityThisTurn": {
+    "action": "Read-only CUA lookup of exact authorized mission URL in selected connected Codex In-app Browser2, without navigation or session content access.",
+    "result": "Tab not found in browser2.",
+    "limit": "Native Claude app was not inspected this turn and other sessions were not opened. This demonstrates absence of an exact open browser tab, not universal owner unreachability. No outgoing message or fresh ACK claimed."
+  },
+  "holds": "K1b/K2a-K2c/K3/K4/K5 and actual K2d not supplied by this route record. Luis Studio handback and all original joint mission holds remain separate. No source window; Ask disabled. No owner authority invented.",
+  "effects": "Narrow local evidence reads and one read-only exact-browser-tab lookup, plus this local route handback. No external message, new task/session/automation, source edit/merge/window or operational/provider effect. Release audit and completed consumer verdict unchanged.",
+  "evidence": [
+    {
+      "name": "resume-integration-review-preparation.json",
+      "sha256": "a042b7d033de0fad461bcbc075b016afa6019edd6df1a075bef038c98e94b3b1"
+    },
+    {
+      "name": "shared-runtime-CON01-WBC02-SDD01-source-window-20261012-r2-response.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179"
+    },
+    {
+      "name": "shared-runtime-window-owner-ack-final-AX.txt",
+      "sha256": "02d2eb1cca26bc187f1df9915624a2ab1e0a36e8facfbe2e93af03776abc3456"
+    },
+    {
+      "name": "resume-main-e020-phaseA-engineering-handback-sent-AX.txt",
+      "sha256": "6983d397a2fbddb8d66decf54c10376edecc9338c0d37eacf2649c6320ece7c2"
+    }
+  ],
+  "originalSha256": "42183adcf7385c984491265d66099659505085d6e3d7ca1ca2b1ef6f8646cae0",
+  "rootEvidenceHashesVerified": "4/4 match",
+  "rootNativeContinuation": {
+    "exactSessionVerified": "session_0155SjcXhv87RErnWEBWxfBM",
+    "title": "Paperclip mission implementation - Claude Code",
+    "access": "Actual native Claude sidebar Paperclip mission button selected; asynchronous navigation settled to exact evidenced URL. Browser-tab absence did not establish owner unreachability.",
+    "beforeSend": "Actual owner completed/holding, empty Prompt531/disabled Send532. No inference that historical freeze state was current.",
+    "dispatch": "One bounded source-only K2d and separate K3 request pasted; observed enabled Send532, submitted once, visible message1001/Running/Stop1010 with empty Prompt531.",
+    "verdict": "Live request, no fresh ACK yet. No source window, merge or operational authority supplied."
+  }
+}
