@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-12T00:25:29.439246+00:00",
+  "scope": "Exact r4 activation proposal only on ownedPG17; not full installed S3/native/app qualification",
+  "files": {
+    "activation-exact.sql": "bec619e14c7d04c779f8cb8a6d191e75796e11d8dd1fb3cc51a8763ae1f2707a",
+    "activation-results.json": "5173bf0f9a8ec802928c5b2403f6e72eb55b1d3a2566616f404e917c29064e7b",
+    "fingerprint.mjs": "54b219a84965f1e6081dc746b89a66417bb575529f52851a1da8504bd117a244",
+    "owned-receipt.safe.json": "d5964f485ea16efdbda33c95576ab61815c8a7de83999cd81f3a9ebdc211b0cc",
+    "proposal-manifest.json": "d96535496fb0673de35bfe9efa7a18fd0c0985b2194cfba51fb90658c6f758cb",
+    "run-owned.py": "20bd6553b0ff5e787b90751c7b4b59d7079f7ac9fbe9fa2140aca38de27e43a0",
+    "source-manifest.json": "98876c87d8b9e39a7fb378e4579ccbac4636cf47566e58c582d153067a40d555"
+  }
+}

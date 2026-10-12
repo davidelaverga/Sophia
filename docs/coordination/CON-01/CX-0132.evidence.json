@@ -105,11 +105,16 @@
     "unrelated_proposals": "A15-needs-you remains its UI owner lane; no voice/vision activation"
   },
   "Q13": {
-    "latest_published": "fc3976ecd842357adfc58ae4c5cdd9d568f76452",
+    "latest_published": "9211a35e6b8bf1e895dbe457eca139d201336a78",
     "BYPASSRLS_P2": "Accepted in exact native stream; author confirmed evidence and preparing r4 allowlist/attribute checks with exact SQL A/B validation",
-    "new_candidate": "Not yet immutable/published at this checkpoint",
+    "new_candidate": "r4 published, independently tested with further effective-authority hold; no source-write GO",
     "shared_write_GO": false,
-    "native_checkin": "Delete-trigger tool invoked with one-time permission for exact trig_01No2QjX8ebsVDMWsqbmqQGq only; tool completed and returned trigger metadata. Final cancellation acknowledgement not yet established; no new monitor created."
+    "native_checkin": "Delete-trigger tool invoked with one-time permission for exact trig_01No2QjX8ebsVDMWsqbmqQGq only; tool completed and returned trigger metadata. Final cancellation acknowledgement not yet established; no new monitor created.",
+    "tree": "deaecd9d0bec0a4da63af7b9212dae35ea1cdba7",
+    "r4_diff_full_read": true,
+    "independent_affected_controls": "Six previous controls + BYPASSRLS hold PASS on ownedPG17; no full installed S3 qualification",
+    "new_P2": "PUBLIC EXECUTE on real Sophia create_project writer is effective but exact activation SQL returns zero; actual protected-role call writes project and creation ledger, transaction rolled back",
+    "evidence": "evidence/20261012-cx132-q13-r4/manifest.json"
   },
   "source_pins": {
     "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
@@ -146,12 +151,13 @@
     "owned_fixture_stacks": 1,
     "elapsed_seconds": 69.385,
     "ceiling_seconds": 480,
-    "new_PG_clusters": 0,
+    "new_PG_clusters": 1,
     "hosted_mutations": 0,
     "deployments": 0,
     "real_provider_native_executions": 0,
     "new_spend": 0,
-    "real_account_project_creations": 0
+    "real_account_project_creations": 0,
+    "rolled_back_synthetic_project_creations": 1
   },
   "cleanup": {
     "pid": 90371,
@@ -164,7 +170,17 @@
     "viewport_reset": true,
     "harness_restored_clean": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
   },
-  "next_bounded_action": "Deliver exact Studio reproducer to Luis and CON; review immutable Q13 r4 and independently rerun affected PG17 check; owner-order ACK before shared writes",
-  "mission_comment": null,
-  "published_evidence_commit": null
+  "next_bounded_action": "Claude immutable effective PUBLIC-authority correction and independent affected PG17 checks; actual Studio/owner integration handback before shared writes",
+  "mission_comment": {
+    "id": 6115547451,
+    "exact_readback": true
+  },
+  "published_evidence_commit": "ab9b1d859ddac849b30bec192a2bc9598c18b030",
+  "PG_cleanup": {
+    "stopExit": 0,
+    "stopped": true,
+    "pidAbsent": true,
+    "clusterRemoved": true,
+    "successful": true
+  }
 }

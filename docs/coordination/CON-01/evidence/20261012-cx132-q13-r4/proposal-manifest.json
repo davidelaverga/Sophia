@@ -1,0 +1,7 @@
+{
+  "proposal": "9211a35e6b8bf1e895dbe457eca139d201336a78",
+  "tree": "deaecd9d0bec0a4da63af7b9212dae35ea1cdba7",
+  "docSha256": "8b5e73d9d3adfb7b3e8cf868b6e772c41d0b05f079d9cf7376207647df104c0c",
+  "activationSha256": "bec619e14c7d04c779f8cb8a6d191e75796e11d8dd1fb3cc51a8763ae1f2707a",
+  "scope": "Exact proposal activation check only, not full installed S3 qualification"
+}

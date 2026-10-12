@@ -1,0 +1,177 @@
+{
+  "proposal": "9211a35e6b8bf1e895dbe457eca139d201336a78",
+  "cases": [
+    {
+      "name": "missing assembler",
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "no assembler role"
+        },
+        {
+          "kind": "hold",
+          "what": "member of sophia_api"
+        },
+        {
+          "kind": "hold",
+          "what": "not a member of the assembler"
+        },
+        {
+          "kind": "hold",
+          "what": "admitted to template1 (PUBLIC CONNECT)"
+        }
+      ],
+      "substantive": [
+        "member of sophia_api",
+        "no assembler role",
+        "not a member of the assembler"
+      ],
+      "expected": [
+        "no assembler role",
+        "member of sophia_api",
+        "not a member of the assembler"
+      ],
+      "match": true
+    },
+    {
+      "name": "control with owned other admission denied",
+      "rows": [],
+      "substantive": [],
+      "expected": [],
+      "match": true
+    },
+    {
+      "name": "login owns target",
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "the login owns something in database postgres"
+        },
+        {
+          "kind": "hold",
+          "what": "admitted to template1 (PUBLIC CONNECT)"
+        }
+      ],
+      "substantive": [
+        "the login owns something in database postgres"
+      ],
+      "expected": [
+        "the login owns something in database postgres"
+      ],
+      "match": true
+    },
+    {
+      "name": "direct CREATE and TEMP",
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "on the target database: CREATE"
+        },
+        {
+          "kind": "hold",
+          "what": "on the target database: TEMPORARY"
+        },
+        {
+          "kind": "hold",
+          "what": "admitted to template1 (PUBLIC CONNECT)"
+        }
+      ],
+      "substantive": [
+        "on the target database: CREATE",
+        "on the target database: TEMPORARY"
+      ],
+      "expected": [
+        "on the target database: CREATE",
+        "on the target database: TEMPORARY"
+      ],
+      "match": true
+    },
+    {
+      "name": "CONNECT grant option",
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "on the target database: CONNECT with grant option"
+        },
+        {
+          "kind": "hold",
+          "what": "admitted to template1 (PUBLIC CONNECT)"
+        }
+      ],
+      "substantive": [
+        "on the target database: CONNECT with grant option"
+      ],
+      "expected": [
+        "on the target database: CONNECT with grant option"
+      ],
+      "match": true
+    },
+    {
+      "name": "assembler owns table",
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "the assembler owns something in postgres"
+        },
+        {
+          "kind": "hold",
+          "what": "admitted to template1 (PUBLIC CONNECT)"
+        }
+      ],
+      "substantive": [
+        "the assembler owns something in postgres"
+      ],
+      "expected": [
+        "the assembler owns something in postgres"
+      ],
+      "match": true
+    },
+    {
+      "name": "assembler BYPASSRLS drift",
+      "rows": [
+        {
+          "kind": "hold",
+          "what": "the assembler has BYPASSRLS"
+        },
+        {
+          "kind": "hold",
+          "what": "the assembler may SELECT on public.cx131_rls"
+        },
+        {
+          "kind": "hold",
+          "what": "a policy names the assembler: deny_all on public.cx131_rls"
+        }
+      ],
+      "substantive": [
+        "a policy names the assembler: deny_all on public.cx131_rls",
+        "the assembler has BYPASSRLS",
+        "the assembler may SELECT on public.cx131_rls"
+      ],
+      "expected": null,
+      "match": null
+    }
+  ],
+  "bypassRlsObserved": {
+    "current_user": "sophia_conversation_assembler",
+    "session_user": "cx131_exec",
+    "visible": 1
+  },
+  "publicCase": {
+    "name": "PUBLIC operational writer grant",
+    "expected": "Activation holds because execution identity can invoke a Sophia operational writer",
+    "holds": [],
+    "identity": {
+      "current_user": "sophia_conversation_assembler",
+      "session_user": "cx131_exec"
+    },
+    "writerReceipt": {
+      "cursor": "0",
+      "projectId": "296ef59f-0dbd-44a6-9057-74f41dd81938"
+    },
+    "actualRows": {
+      "projects": 1,
+      "creationledger": 1
+    },
+    "detected": false
+  }
+}
