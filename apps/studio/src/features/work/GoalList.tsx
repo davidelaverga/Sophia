@@ -98,7 +98,7 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
   // arrive, and each time a link is followed. A goal chosen from the rail holds until the address is followed again.
   const named = useAddressed(TASK)
   const [chosen, setChosen] = useState<{ id: string; seq: number } | null>(null)
-  // A decision named in the address chooses its goal, so its board is mounted to open it (PlanBoard's slot); the
+  // A decision named in the address chooses its goal, so its board is mounted to open it (the board's own slot); the
   // choice holds after the board lets the address go, as a goal chosen from the rail does (Codex on #245).
   const decided = useAddressed(DECISION)
   const decidedGoal = goalOfDecision(plans, decided.id)
