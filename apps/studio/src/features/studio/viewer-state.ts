@@ -73,24 +73,48 @@ export function lensInAddress(search: string): Lens | null {
   return isLens(value) ? value : null
 }
 
-/** The address's search with the lens in it: the default (Converse) is said by its absence. */
-export function withLensInAddress(search: string, lens: Lens): string {
+/**
+ * The address's search with the lens in it, Converse too: an address without one is no claim (the stored lens
+ * stands), so a link that shows Converse must say so (Codex on #242). Null takes the lens out: nothing shows one.
+ */
+export function withLensInAddress(search: string, lens: Lens | null): string {
   const params = new URLSearchParams(search)
-  if (lens === INITIAL_VIEWER_STATE.lens) params.delete('lens')
+  if (lens === null) params.delete('lens')
   else params.set('lens', lens)
   const out = params.toString()
   return out ? `?${out}` : ''
 }
 
-/** Whose lens the address carries, kept for the tab (sessionStorage): the key of the viewer whose shell wrote it. */
-export const LENS_FOR_KEY = 'sophia.lens-for.v1'
+/** Whose lens the address carries, kept for the tab (sessionStorage): the viewer's key and the address it wrote. */
+export const LENS_FOR_KEY = 'sophia.lens-for.v2'
+
+/** What the tab remembers: the key of the shell that wrote the address, and that address (path and search). */
+export interface LensWrite {
+  key: string
+  address: string
+}
+
+/** The remembered write, read defensively: anything else is none (a link opened fresh). */
+export function readLensWrite(raw: string | null): LensWrite | null {
+  const parsed = parseObject(raw)
+  if (!parsed || !('key' in parsed) || !('address' in parsed)) return null
+  const { key, address } = parsed
+  return typeof key === 'string' && typeof address === 'string' ? { key, address } : null
+}
 
 /**
- * The lens the address names, where it is this viewer's to read: a link opened fresh (nothing written in this tab) or
- * an address written for this key. Another subject at the page the last one left (the address kept their lens, the
- * tab remembers whose) reads none, and their own stored state stands (app-auth.spec, «resets for another subject»).
+ * The lens the address names, where it is this viewer's to read: a link opened fresh (nothing written in this tab),
+ * an address written for this key, or an address other than the one written (a link followed since: another
+ * project's, a pasted one; Codex on #242). Another subject at the very address the last one left reads none, and their
+ * own stored state stands (app-auth.spec, «resets for another subject»).
  */
-export function addressLensFor(key: string, search: string, wroteFor: string | null): Lens | null {
-  const named = lensInAddress(search)
-  return named && (wroteFor === null || wroteFor === key) ? named : null
+export function addressLensFor(
+  key: string,
+  here: { pathname: string; search: string },
+  wrote: LensWrite | null,
+): Lens | null {
+  const named = lensInAddress(here.search)
+  if (!named) return null
+  const left = wrote !== null && wrote.key !== key && wrote.address === `${here.pathname}${here.search}`
+  return left ? null : named
 }
