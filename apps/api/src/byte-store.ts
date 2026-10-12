@@ -11,6 +11,13 @@
 // renderer_capture_slot mint gen_random_uuid(); a retry gets a new one), and every read checks the recorded SHA-256
 // (the API's fileBytes, the Studio's download.ts).
 import { amzDates, authorization, encodeKey, presignedUrl, sha256Hex, uriEncode } from './s3-sign.ts'
+import {
+  BACKUP_OBJECT_MAX_BYTES,
+  boundedByteBackup,
+  ByteBackupError,
+  diskByteBackup,
+  type ByteBackup,
+} from './byte-backup.ts'
 
 /** A stored source's object path: one object per source, named by its project and id. */
 export const objectPath = (projectId: string, sourceId: string) => `${projectId}/${sourceId}`
@@ -82,12 +89,38 @@ export function byteStoreFromEnv(env: Record<string, string | undefined>, fetchI
     throw new Error('SOPHIA_STORAGE_URL and SOPHIA_STORAGE_KEY are retired: configure the S3 access key instead')
   }
   const values = STORAGE_SETTINGS.map(read)
-  if (values.every((v) => !v)) return null
+  if (values.every((v) => !v)) {
+    if (read('SOPHIA_STORAGE_BACKUP_ROOT')) throw new Error('report backup requires the S3 storage settings')
+    return null
+  }
   const [endpoint, region, accessKeyId, secretAccessKey, bucket] = values
   if (!endpoint || !region || !accessKeyId || !secretAccessKey || !bucket) {
     throw new Error(`${STORAGE_SETTINGS.join(', ')} are set together or not at all`)
   }
-  return s3ByteStore({ endpoint, region, accessKeyId, secretAccessKey, bucket }, fetchImpl)
+  const store = s3ByteStore({ endpoint, region, accessKeyId, secretAccessKey, bucket }, fetchImpl)
+  const backupRoot = read('SOPHIA_STORAGE_BACKUP_ROOT')
+  return backupRoot ? withByteBackup(store, diskByteBackup(backupRoot)) : store
+}
+
+/** Keep the durable copy before uploading; an uncertain claim is never refunded or retried by this wrapper. */
+export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore {
+  return {
+    async put(path, bytes, mime) {
+      if (bytes.byteLength > BACKUP_OBJECT_MAX_BYTES)
+        throw new ByteStoreError(503, 'report backup permits at most 32 MiB')
+      // Buffer.slice() aliases its input; callers include the renderer's Buffer request bodies.
+      const snapshot = Uint8Array.from(bytes)
+      try {
+        await boundedByteBackup(backup, path, snapshot)
+      } catch (error) {
+        if (error instanceof ByteBackupError) throw new ByteStoreError(error.status, error.message)
+        throw error
+      }
+      await store.put(path, snapshot, mime)
+    },
+    signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
+    get: (path) => store.get(path),
+  }
 }
 
 /** The quoted file name a download is saved as; the API's names are ASCII slugs (reportFilename), kept as they are. */
