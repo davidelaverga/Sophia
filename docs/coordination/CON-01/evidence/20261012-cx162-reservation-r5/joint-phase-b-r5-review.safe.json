@@ -1,0 +1,708 @@
+{
+  "at": "2026-10-12T07:24:58.347401+00:00",
+  "status": "BOUNDED_CONSUMER_COMPATIBILITY_ACK_EXACT_PHASE_B_R5_K1C_ONLY_NO_WRITE_GO",
+  "candidate": {
+    "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+    "tree": "895b75e25eb047a65dda83b7d6c220bb556add80",
+    "parent": "a31c023f5fe3ccd7c1731fd54aedb4877cfbc96e",
+    "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+    "sha256": "69219da474faf2c8b234542e2b273784adc228884b5dde2c9c989a6e6e82d6f7",
+    "lines": 677,
+    "completeRead": true,
+    "proposalReadChunks": [
+      "1-105",
+      "106-220",
+      "221-350",
+      "351-475",
+      "476-580",
+      "581-677"
+    ],
+    "completeParentDiffRead": true,
+    "diffReadChunks": [
+      "1-85",
+      "86-162"
+    ],
+    "diff": "Sole proposal document changed +61/-19; no executable source change."
+  },
+  "scope": "Independent complete exact-r5 proposal and parent-delta review within joint WBC02/SDD01 runtime/contract consumer remit. 63 immutable input blobs verified, 62 unchanged from r4. Static source comparisons of actual withdrawal/erasure/suppression propagation and dispatcher, frozenQ7 and ledger. No implementation test or executable body approval, retained foundation/core/other-owner acceptance, current writer appointment, integration base acceptance, window reservation or operational authority.",
+  "inputs": [
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+      "sha256": "69219da474faf2c8b234542e2b273784adc228884b5dde2c9c989a6e6e82d6f7",
+      "lines": 677,
+      "sameAsPriorReviewedBlob": false
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/coordination/CON-01/G2_RUNTIME_PLAN.md",
+      "sha256": "fc6f4ad8548dee9c423bdb38c8676da942518d4175d9f5696607201ba9261c6c",
+      "lines": 340,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/coordination/CON-01/G2_IMPACT_INVENTORY.md",
+      "sha256": "7b7e89a6a222eb9302c947745c59f0459498d7b3260123526a2195cecca4236c",
+      "lines": 128,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "lines": 427,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+      "lines": 754,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "apps/api/src/routes/runtime.ts",
+      "sha256": "2cee9da14f99ebfff047831f4f529e097d6e93350cfc3646429eaf0ee69757c0",
+      "lines": 227,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "sha256": "97f1af3c814b7715047b1c880666a4b37a5004ff12e92f460e9d0d1db1e3eeda",
+      "lines": 126,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/src/role-registry.ts",
+      "sha256": "b1c58652c90dc80dc6f7a243720d0849be0ccf92f1dabe6f3ac3d13d02b40228",
+      "lines": 109,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "7dc23203eeaef3e91e4515f36127e1f86318d7c4",
+      "path": "docs/coordination/CON-01/evidence/20261012-cx131-boundary/joint-owner-routing.r2.json",
+      "sha256": "569fe9275b0bdb7614852f31ae4d5b681fbf6a5d251c5ab333cf3433c85af341",
+      "lines": 205,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/planning/goals.json",
+      "sha256": "1cf14f4e4f49ef1a3f1c7f0202055e5117fa5c82f7b0731b25699e7fb317eff1",
+      "lines": 1003,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-02.md",
+      "sha256": "abbe4eebe3f01e9416064c838c173e1d13ee2ea3e4ddec0225b83dda87e0d54e",
+      "lines": 19,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/S1-05A.md",
+      "sha256": "10cd954dd9fc24053460ab3294b460d176956faab7f5dad9c91f507e60a2d426",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/SMC-M01.md",
+      "sha256": "b32f9b4d90dbe605271c411fc94ef1db83067a1a0bf2009820c4bcd02237cd83",
+      "lines": 5,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/persistence/src/runtime.ts",
+      "sha256": "b392a0772faf1709c2e45cbcd21b4865ece906a3eaedc20a74e36ddbc24fd8a3",
+      "lines": 82,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-runtime-wire.ts",
+      "sha256": "8b25a62bf5996327af482a514036cd065430c970b2752950b74e4f50d6b7c863",
+      "lines": 222,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-validators.ts",
+      "sha256": "1336ba1b8e61818ccba166af996d930c6db5a236a51fa1054c72e519f84e8ec6",
+      "lines": 120,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "packages/contracts/scripts/generate-types.ts",
+      "sha256": "fe57062165cb5b036237355588c36ff3ee2cb4e3a41fe8a291dfb6130f11f71b",
+      "lines": 26,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "config/runtime-unit.json",
+      "sha256": "ced15d8472d09b9cc38090f4d19b644ed250a04ef14e3afb14259cb357c0276a",
+      "lines": 257,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "package.json",
+      "sha256": "4a9013eb87c6eb791748bc412152256a4ceaa28389535911e7cf8c1548eb815a",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "lines": 55,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "lines": 495,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/contracts/amendments/A16-project-conversations.json",
+      "sha256": "c5a60040129bcf2c86821d72410a086ffcde026f74c16f01abf5c875bea34b5d",
+      "lines": 1415,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "scripts/build-artifacts.mjs",
+      "sha256": "7d27eaceca5cd53f9ad8b08f0e21bd9a8d8d2e58ba8f8506fe100e0ff0867279",
+      "lines": 65,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "scripts/lib/artifacts.mjs",
+      "sha256": "7df38a1f0a69b429973335424e33ccea8dda1cacdf1925c177684c799a5c0ba6",
+      "lines": 142,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "config/dsh/base-rows.reviewed.json",
+      "sha256": "24ccd633f607b658c8ad8a052c107688dc25eaae86bee5cd2a52af707342e772",
+      "lines": 384,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "config/dsh/profile/cordis.patch.yml",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "lines": 1,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/contracts/package.json",
+      "sha256": "5fab2a20db2bbb5d8f6c0dc3a5ed813811e5c63c187e776b7aece91c4a8889cd",
+      "lines": 21,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0012_runtime_service.sql",
+      "sha256": "0b4c973d28273ff2567f88bf95b5a513299adb3b2973e3ffa0d33dab8578a60f",
+      "lines": 845,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0041_design_lifecycle.sql",
+      "sha256": "40799b7ade10cfe061b249a720793a3c30fa265b2ec69c2d5d96db891471a935",
+      "lines": 650,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0042_source_review_coordination.sql",
+      "sha256": "9e6064b7b78bf55342cd6f23e62ccaaa96a3a28ad8c8b48136af6557c89e408b",
+      "lines": 1980,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "db/migrations/0001_core.sql",
+      "sha256": "1595ef42f05d27633010686642f0f46edfc851726eb8aeb6f85977957e9f445e",
+      "lines": 248,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/execution/2026-10-01-unified/goals/BASE.md",
+      "sha256": "d58298a699f5d6ab83a4e3d3818ace1c7b7f7d196e4b116d8fb7e612e971f043",
+      "lines": 48,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+      "path": "docs/progress/SMC-M01-contract-binding.md",
+      "sha256": "8b508a253b26636f354968c22e1e195e1df2e6fdd0eeea5d442d53684eb3004f",
+      "lines": 208,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/src/transport.ts",
+      "sha256": "c27829130cbaac40be519c268dd0b73fa567c4e4eb21bac5044923515046ffcd",
+      "lines": 348,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/research.ts",
+      "sha256": "10100ddb7bbafc125fb00f6020387a90c96f87f545324bfa1d61eb742b6e3b5a",
+      "lines": 228,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "01777c5ca32b8a92f2214db9eb91d4a039e6e60f",
+      "path": "docs/coordination/CON-01/SHARED_RUNTIME_FREEZE_20261012.r2.json",
+      "sha256": "0a24d62dd9d2df01eec9f7733011c3eb7ca6cf7f022a2828c1fd637daa90f179",
+      "lines": 272,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "lines": 430,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/coordination/CON-01/BINDING_MAP.md",
+      "sha256": "5bf638e3a1ebb30a7d72d09da62e4ffe1a2b943f8cc0e7ddf80a275ca3729b5a",
+      "lines": 1166,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/contracts/src/validate.ts",
+      "sha256": "ab7c1b6afed6a89db29d989a73d4a77a56bac44d6bc80ee802ddb5c6fa2161bd",
+      "lines": 144,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "config/roles.json",
+      "sha256": "1e6fead81e3549f332cca788775cb546ad546dab2f46cf70323bbefff84dae19",
+      "lines": 114,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/src/protocol.ts",
+      "sha256": "54f72e7b9837aeaa09dab19358178a6d86d1e3e40045160d8189807d72a744e7",
+      "lines": 67,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/src/index.ts",
+      "sha256": "9607477adfe7179a98b5e8d6f4f1630443ae1ca3d520a15354eced75688f4a62",
+      "lines": 273,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/tsconfig.json",
+      "sha256": "8fc06816a9592dde59fe000b6c9e4eabadf6e647700970c2fd171c2fb61a4dba",
+      "lines": 16,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/package.json",
+      "sha256": "a66620892548928e6a5f85dc09885aac336deecb952c924234a986e6fc3057f7",
+      "lines": 57,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "scripts/lib/profile.mjs",
+      "sha256": "cfd710cbc5d7e9d7f6e6afc1f1291763128d4c4d60d062e00d23c290c3730c00",
+      "lines": 186,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/conversation-context.ts",
+      "sha256": "1b378011b228833de591fa65e67e6e6830253eded8b53aefe714b5f3f0809739",
+      "lines": 456,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/conversation-context.test.ts",
+      "sha256": "9123b01de94f790b6277e58113e6c2c786a8b74248decfc71903ee6a6e6815e7",
+      "lines": 708,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/conversation-assembly.ts",
+      "sha256": "35f18af65275a4ebf8f6e8ec0e90eb5178f80494648e2000905e443cafd16eb7",
+      "lines": 455,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/conversation-assembly.db.test.ts",
+      "sha256": "5b5121033a54b06505030631de2b44d2f90cffe5308f6b31fef406f2a7d39996",
+      "lines": 2360,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/persistence/src/conversation-fences.db.test.ts",
+      "sha256": "fe9e536f1e1e35063b22e97683799d059527e410da6e3c6fa10559e2d5298ed3",
+      "lines": 2088,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/migrations/0028_research_revocation.sql",
+      "sha256": "45bcc29055bf501c6484b5f8023c3b9c2b30c7f90f55376d1f2417c4e9085640",
+      "lines": 265,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+      "sha256": "82ff0856fd6a5a6da96e1648f5e5bb4db755638e85f75dfc15ffa51afe87cd8a",
+      "lines": 1298,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "packages/dsh-bundle/src/control-bridge.ts",
+      "sha256": "09d8d162921806bbd4d94d56751d399928194737432b2d1ef28e3ec88fd9d37c",
+      "lines": 1498,
+      "sameAsPriorReviewedBlob": true
+    },
+    {
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "path": "db/migrations/0016_review_fences.sql",
+      "sha256": "3c83a62468223462214500a978bbd7870bd5f23723d6e4a8e4c2b96d8f52f34c",
+      "lines": 263,
+      "sameAsPriorReviewedBlob": true
+    }
+  ],
+  "priorReview": {
+    "sha256": "9a9a9832c666c83f0fbc2d213749e9dde812bfcab8becea904d3a094519e764d",
+    "status": "Original complete r4 review retained. This exact-r5 verdict disposes its one finding; does not alter its evidence or claim r4 was already acceptable."
+  },
+  "findings": [],
+  "priorFindingDispositions": [
+    {
+      "id": "PB4-CANCELLATION-CAUSE-INPUT",
+      "status": "ADDRESSED_AT_PROPOSAL_SCOPE",
+      "proposalLines": [
+        12,
+        206,
+        207,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        218,
+        219,
+        220,
+        221,
+        222,
+        223,
+        235,
+        236,
+        237,
+        239,
+        240,
+        251,
+        252,
+        253,
+        282,
+        283,
+        284,
+        285,
+        286,
+        287,
+        289,
+        290,
+        291,
+        292,
+        293,
+        314,
+        316,
+        317,
+        318,
+        319,
+        320,
+        321,
+        323,
+        345,
+        410,
+        411,
+        412,
+        413,
+        414,
+        415,
+        416
+      ],
+      "assessment": "Nine-argument internal cancel helper explicitly carries cause kind/conversation/seq/message/source. Direct S4 call passes its own p_source with source_out, under existing project/conversation/request locks before context erasure. Withdrawn_from keeps signature and binds own p_conversation/p_seq by UNIQUE(conversation_id,seq) lookup, FOR SHARE, requiring actually withdrawn message; author/admin identifies human withdrawal and source identifies immediate withdrawn answer propagation. Erasure explicitly uses conversation_erased plus conversation/seq1, no fictitious message. Caller types once then passes cause per open request locked in id order. Record written with terminal transition, real p_at, closed/text-free, first cause only, UPDATE/DELETE/TRUNCATE kept triggers, shape/caller CHECKs. No arbitrary latest message/timestamp inference. Equality restores original S4 UPDATE consistently. Multiple-input/propagation/replay/malformed/no-withdrawn-message cases across SQL and bridge declared, not executed.",
+      "actualSourceEvidence": [
+        "0048:59-79 messages retain id/seq/withdrawn_by with UNIQUE(conversation_id,seq) and project/conversation FK; body/withdrawn fields constrained.",
+        "0048:345-369 author/admin withdrawal locks exact message, sets withdrawn_at/by then calls withdrawn_from(c.project_id,c.id,m.seq,source_withdrawn); prior receipt/already withdrawn paths return first.",
+        "0048:374-395 erasure passes seq1/conversation_erased after scrubbing messages; it needs no message lookup and preserves its current caller signature.",
+        "S1:44-55 already scrubs affected Sophia messages before its cancellation UPDATE; proposed replacement retains that scrub and reads the precise triggering message, not an unrelated affected reply.",
+        "S4:438-468 inserts exact source suppression446-447, uses source variable for open-request cancellation, and answered branch459-463 withdraws exact r.answer_id with source marker and passes its returned seq into same-conversation propagation."
+      ]
+    },
+    {
+      "id": "PB3-RECOVERY-SETTLED-REPLAY",
+      "status": "STILL_ADDRESSED_AT_PROPOSAL_SCOPE",
+      "proposalLines": [
+        114,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        424,
+        425,
+        426,
+        427,
+        428,
+        429,
+        430,
+        431,
+        432,
+        433,
+        434,
+        435,
+        436,
+        437
+      ],
+      "assessment": "Reserved OR settled-identical recovery for current same runtime/strict project/resource/unit/binding/request/attempt/ordinal and capture terminal provenance retained. S2 actual364-365 returns existing receipt before counter mutations367-373. Superseded bridge40001 and uncertain/released/conflicting/wrong-scope refusals retained; no re-claim/go/reserve/release/reset/transfer. Lost answer plus later-current-C cases remain specified."
+    },
+    {
+      "id": "PB3-STOPPING-RETIRE-PRECEDENCE",
+      "status": "STILL_ADDRESSED_AT_PROPOSAL_SCOPE",
+      "proposalLines": [
+        111,
+        159,
+        247,
+        248,
+        249,
+        250,
+        264,
+        265,
+        266,
+        268,
+        276,
+        278,
+        399,
+        400,
+        401,
+        402,
+        404,
+        405,
+        406,
+        407
+      ],
+      "assessment": "Common writer guard under request/binding locks holds all create/capture/hello callers while attempt own Stop lacks checked; late receipt preserves cancelled/stopping/accounting. New checked after unknown creates first retire once; replay+0 retained. Claimed-before-go held-launcher crossing retained. Consistent with frozenQ7:709-718; no demonstrated runtime failure claimed."
+    },
+    {
+      "id": "PB3-UNDISPATCHED-CREATE-PROOF",
+      "status": "STILL_ADDRESSED_BY_EXPLICIT_A1_A2_PROPOSAL; CAUSAL_INPUT_GAP_NOW_CLOSED",
+      "proposalLines": [
+        115,
+        206,
+        207,
+        218,
+        223,
+        225,
+        230,
+        241,
+        245,
+        274,
+        335,
+        336,
+        337,
+        340,
+        345,
+        346,
+        347,
+        349,
+        350,
+        351,
+        352,
+        353,
+        354,
+        355,
+        356,
+        357,
+        358,
+        359,
+        360,
+        361,
+        362,
+        364,
+        365,
+        366,
+        368,
+        369,
+        370,
+        371,
+        373,
+        391,
+        392,
+        393,
+        394,
+        395,
+        396,
+        397,
+        410
+      ],
+      "assessment": "A1 actual immutable cancellation writer now has explicit typed immediate cause. Stop receipt still only settles binding; seven other dispatched API predicates unchanged. A2 is separate database-only retirement, not runtime authentication exception: no runtime command/receipt/create answer/claim/Stop/provider call, no home touched, no API predicate marked met. Historical cancellation disposition+final superseded/denied create state+no execution+no runtime command bound under serialized locks; in-flight dispatching/outcome_unknown defers and reached-runtime case always full acknowledged retire. A2 tests now internal-provenance-only, never fake authenticated create. Source-only design compatibility accepted; retained owners must accept addenda independently."
+    }
+  ],
+  "earlierDispositionsPreserved": {
+    "r1Four": "PB-OWNER-ROUTING, PB-SQL-MANIFEST, PB-IMPLEMENTATION-COMPANIONS, PB-GATE-ORDER remain addressed at proposal scope. Separate CON S2, foundation/core/M03/joint/#190/Luis routes; exhaustive SQL/ACL and implementation/generated/profile manifest; complete artifacts and checks between each pin retained.",
+    "r2Three": "PB2-STOP-DELIVERY and PB2-SOURCE-OUT-CANCEL corrections stand. Initial recovery lease correction plus r4 settled replay now addresses PB2-RECOVERY-SETTLE-LEASE. S4 exact UPDATE replacement and locks/before-erasure/counts/answered propagation retained; equality now restores original UPDATE. Grant-switch/asker-removal and live source-writer/Q13 wiring remain explicitly held before Ask activation.",
+    "r8": "Exact frozen7d4a76d9 bounded design consumer ACK remains valid and exact-only. This new r5 review supplies separate consumer compatibility for A1/A2; retained-owner acceptance, implementation/target qualification and writer window are not inferred."
+  },
+  "boundedConsumerDisposition": {
+    "K1c": {
+      "supplied": true,
+      "commit": "b975bbe2409cce9d3349c049e2de5569b164b648",
+      "documentSha256": "69219da474faf2c8b234542e2b273784adc228884b5dde2c9c989a6e6e82d6f7",
+      "statement": "Within joint WBC02/SDD01 runtime/contract consumer remit, this exact r5 manifest, including explicitly named A1 and A2, is compatible with the preserved mission and frozenQ7 design boundaries. This is a fresh bounded consumer ACK for r5, not a reuse or expansion of the exact-r8 ACK. Findings empty. Implementation and actual owner/foundation/integration/window/operational gates remain distinct."
+    },
+    "B1B6": "Compatible directions maintained: lease-loss table or accounting-safe pre-reject claim alternative; separate cleanup delivery rows, fixed actor/idempotency readback; own checked Stop before retire; cursor replay until checked; no second create/execution; exact current runtime settle-only recovery; truthful acknowledgement predicates.",
+    "A1": "Accepted at consumer proposal scope: cancellation transaction record is the real terminalWriter, with exact typed immediate cause and caller/time, unique immutable closed text-free row. It is not later Stop receipt and does not serve as process/future-writer proof. Dispatched cleanup retains all seven other predicates plus independent process/relay barriers. Retained runtime and CON owner acceptance still required.",
+    "A2": "Accepted at consumer proposal scope only for historical never-runtime/no-claim case. Locked cancellation disposition and permanently final undispatched create, no execution and no runtime command, with atomic dispatch insert/ack invariant retained. Local cleanup command checked denotes database-only retirement, never a fabricated runtime receipt or answered create. No bridge home deletion/API proof requested. In-flight and reached-runtime controls retain full proof. Retained core/runtime/CON owner acceptance still required.",
+    "accounting": "No S2 bytes changed. Identical settled replay returns receipt without mutating counters; uncertain stays counted and cannot be settled by recovery. Neither new cancellation provenance nor A2 creates reservation, call, attempt, execution, Ask, grant or allowance reset; no release/reconcile, both stubs held. A2 has no claim/go and hence no reservation.",
+    "ownLatestBodyInsertionBoundary": [
+      "dispatch_runtime_outbox0042:1806: reply branch before goal read/lock delegates every reply destination and returns before old goal cleanup/control.settle; preserve old dispatch transaction/epoch/lease checks and insert-runtime-command+outbox-acknowledged atomicity. Explicit null-goal refusal guards goal-only path.",
+      "capture_native_result0042:1724: reply-first by attempt conversation_reply_id before goal/job reads, null-goal refusal; preserve ordinary goal/research/design/design-review/source-review/brief, late scrubbing/publication behavior and exactly-once retire.",
+      "native_delivery_ineligible0041:149: first null-goal refusal; preserve all existing goal membership/source/epoch/status/research/design conditions. Reply cleanup uses own scoped eligibility, not ordinary grant/open/source assembly.",
+      "Whole definition preservation compares latest accepted-base bodies after named insertions removed or original replaced spans restored; owner/security/search_path/ACL unchanged. This acknowledges intended boundaries only. No executable r5 body exists yet and no actual joint Claude implementer K2d is supplied by this review."
+    ],
+    "contractPreservation": "Five additive capability-authenticated runtime paths and generated wire allowlists remain bounded; A04 discriminated work binding and retire kind move with bridge in same pin. A11 role/route and A12-A14, A15/A17 and PR190 voice schema/exports/health registration preserved. Runtime.ts read only. No role/specialist/dependency/root workspace-lock/model route change.",
+    "authorityLimit": "This ACK supplies only bounded K1c consumer compatibility. Does not speak for S1-02, S1-05A/BASE, SMC-M03, CON S2, actual joint implementer K2d, PR190 owner K3 or Luis K4; does not supply K5 reservation/GO. Original frozenQ7r8 ACK remains exact-only and is not retained-owner A1/A2 acceptance."
+  },
+  "implementationPrecisionNotes": [
+    "Immediate causal provenance for source-out answered propagation is the exact withdrawn answer, not an invented direct-source cause; direct source-out stores actual p_source. Upstream origin is not silently substituted for immediate cause.",
+    "Message lookup must keep project/conversation scope and null-safe allowed-kind/field validation so malformed causes cannot pass SQL CHECK through NULL. The declared malformed-cause refusal and shape invariants require this at implementation; no new defect found in this proposal.",
+    "Historical A2 proof is a conjunction, never final state or row absence alone. Verified atomic runtime-command insert+outbox acknowledged at0012:768-770 and latest0042:1893-1895; no current runtime_commands delete/truncate statement matched static scans of candidate/main db/migrations. This is static evidence, not proof of hosted state or arbitrary external writers.",
+    "All tests, launcher containment and per-pin artifact qualification are planned and unexecuted here. Unsupported platforms remain held/failed, never claimed passed on exit0 alone.",
+    "Proposal665 still points to older OP0002-r5/OP0001-r3 drafts; peer reports replacements OP0002-r6/OP0001-r4. This is a documentation pointer update, no engineering blocker and no operational approval; new draft contents not reviewed/accepted here."
+  ],
+  "preservationHolds": [
+    "Observed main3c40b1c6/treebd6c1022 is not accepted integration base. PR256 draft/open93e9313d and PR199 draft/opend527f385 unmerged; PR190 draft/open5c10bce3. No new main/merge-tree CI qualification.",
+    "PhaseA0053 remains reserved; prior window ended. Accepted PhaseA then G1 or exact Luis named composition, fresh census, one writer, exact paths/numbers/start/expiry/return and actual owner ACKs remain prerequisites. No K5 GO here.",
+    "SQL then additive route/types then A04+bridge then launcher/profile then qualification; each immutable pin has full ordinary checks, affected crossings, identities/profile-lock recorded before next. No applied migration edits, stale-artifact waiver or PR211 default merge.",
+    "G7 OFF; Ask off/no_grant; Q13/assembler identity/policies, Q8/D4/profile/image and Studio/Luis handback held. Full CON mission incomplete. No CON hosted, account, grant, provider, spending or deployment authority supplied."
+  ],
+  "nextSafeAction": "Consolidate this exact-r5 K1c review; obtain actual narrow K1b/K2a-K2d/K3 owner ACKs and Luis K4 accepted base. Only then seal current main+accepted PhaseA+G1 or named composition, fresh census and one writer/exact paths/numbers/start/expiry/return K5 record. No implementation begins from this consumer ACK alone.",
+  "effects": "Immutable object fetch, read-only GitHub ref/PR/comment metadata, static full proposal/diff/source/hash reads and local journal artifacts only. No shared feature write/window/reservation/merge/CI rerun/test/build/probe/harness, hosted/account/auth/grant/role/database/native/provider/model/image/spend/deployment/migration action. No CON native session inspection/message, cross-thread message, subagent/task/automation.",
+  "handback": "One complete terminal original bounded review for reviewer consolidation. PB4 closed at proposal scope, PB2/PB3 dispositions preserved, exact-r5 K1c consumer ACK including A1/A2 supplied. No whole-CON/joint mission completion; full original goal and all operational holds remain active.",
+  "sanitization": {
+    "originalSha256": "75904e556aead0be379bc2252ddd847845d2d08c324a677e2e8297cec0d70e39",
+    "omitted": "Local input/prior-review paths, local checkout metadata, duplicate GitHub metadata and unrelated joint-mission operational details. All63 immutable input commit/path/hash provenance, findings, dispositions, consumer boundaries and CON holds retained.",
+    "rootInputVerification": {
+      "verified": 63,
+      "mismatches": 0
+    }
+  }
+}
