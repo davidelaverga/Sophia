@@ -134,3 +134,12 @@ Four P2s: the decision address moved into the board slot (`useSlot` in `PlanBoar
 shut, names the decision for the focus (given by `Decisions` inside its own list) and consumes the address once (a
 handled sequence). `turnIsShown` requires a drawn turn (`getClientRects`), so a space mounted under a hidden place marks
 nothing. `work.spec.ts` presses on past the focus and re-addresses the decision with the slot shut.
+
+## Post-review, round 10 (Codex on #245)
+
+One P2: a permission need opened only the task that holds its wait, whose sheet names the wait as words; the owner
+answers the request in its resource's sheet. A15's `ref` takes `resourceId`; `atOf` gives `{ requestId, resourceId,
+taskId }` and `VIEW_OF.permission` is Resources; `openAt` writes `#request-<id>`; `ResourcePanel` (`useAddressedRequest`)
+opens the request's resource and focuses its row (`data-request`, `tabIndex=-1`). Spec, validators, `needs.test.ts`,
+home-needs.spec (the press reads `open resources … #request-action-1`) and resources.spec (the address opens the sheet
+with the request focused, then is the sheet's) with it.
