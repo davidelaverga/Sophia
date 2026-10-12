@@ -94,3 +94,23 @@ test('home · needs you: by the side’s width a row takes two lines; under 1100
     )
     .toBe(true)
 })
+
+test('home · a need with a long note stays inside its column, wide or narrow (Codex on #237)', async ({ page }) => {
+  for (const width of [1440, 1000]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.goto(`${PAGE}?needs=some`)
+    const row = list(page).getByRole('button').first()
+    await expect(row).toBeVisible()
+    // A project's title at its 180 characters, as a note.
+    await row.locator('.hw-m').evaluate((el) => {
+      el.textContent = `Expires in 20 min · ${'A project named at its full length '.repeat(6)}`
+    })
+    // The note itself, not only the row's box: a grid track can overflow its row unseen.
+    const [r, side] = await Promise.all([row.locator('.hw-m').boundingBox(), page.locator('.hw-side').boundingBox()])
+    expect((r?.x ?? 0) + (r?.width ?? 0), String(width)).toBeLessThanOrEqual((side?.x ?? 0) + (side?.width ?? 0) + 0.5)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+      String(width),
+    ).toBeLessThanOrEqual(0)
+  }
+})
