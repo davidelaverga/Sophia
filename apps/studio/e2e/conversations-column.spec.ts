@@ -47,36 +47,40 @@ test('list · one line of words at 20 and one line of boxes at 8; the «+» pres
   expect(Math.round(plus?.right ?? NaN)).toBe(Math.round(date?.right ?? NaN))
 })
 
+/** The first face of the open conversation's head, as painted: its inks, its ring, and what it stands on. */
+function readFace() {
+  const face = document.querySelector('.conv-head .conv-face:not(.sophia)')
+  const head = document.querySelector('.conv-head')
+  if (!face || !head) return null
+  const f = getComputedStyle(face)
+  // What the face stands on, as painted: the first ancestor with a colour of its own (the head and the pane are
+  // see-through; the page is not).
+  let backing = 'rgba(0, 0, 0, 0)'
+  for (let el: Element | null = face.parentElement; el && backing === 'rgba(0, 0, 0, 0)'; el = el.parentElement)
+    backing = getComputedStyle(el).backgroundColor
+  return {
+    ink: f.color,
+    disc: f.backgroundColor,
+    plane: getComputedStyle(head).backgroundColor,
+    ring: f.boxShadow,
+    backing,
+    words: face.textContent.trim(),
+  }
+}
+
 test('faces · on paper the initial reads on its disc, and the disc on the head’s plane', async ({ page }) => {
   await page.goto(`${PAGE}&theme=light`)
   await drawn(page, DRAWN.conversations)
-  const read = await page.evaluate(() => {
-    const face = document.querySelector('.conv-head .conv-face:not(.sophia)')
-    const head = document.querySelector('.conv-head')
-    if (!face || !head) return null
-    const f = getComputedStyle(face)
-    // What the face stands on, as painted: the first ancestor with a colour of its own (the head and the pane are
-    // see-through; the page is not).
-    let backing = 'rgba(0, 0, 0, 0)'
-    for (let el: Element | null = face.parentElement; el && backing === 'rgba(0, 0, 0, 0)'; el = el.parentElement)
-      backing = getComputedStyle(el).backgroundColor
-    return {
-      ink: f.color,
-      disc: f.backgroundColor,
-      plane: getComputedStyle(head).backgroundColor,
-      ring: f.boxShadow,
-      backing,
-      words: face.textContent.trim(),
-    }
-  })
-  expect(read?.words.length ?? 0).toBeGreaterThan(0)
+  const read = await page.evaluate(readFace)
+  if (!read) throw new Error('no face in the head')
+  expect(read.words.length).toBeGreaterThan(0)
   // The ring is the colour of what the face stands on: a separator, not a second disc.
-  expect(read?.ring, JSON.stringify(read)).toContain(read?.backing ?? '-')
+  expect(read.ring, JSON.stringify(read)).toContain(read.backing)
   // The initial on its disc, the disc on the head's plane over the paper.
   const paper = 'rgb(251, 248, 243)'
-  const grounds = [read?.disc ?? '', read?.plane ?? '', paper]
-  const initial = contrastOf({ words: 'initial', size: 10.5, ink: read?.ink ?? '', opacity: 1, grounds })
-  const disc = contrastOf({ words: 'disc', size: 20, ink: read?.disc ?? '', opacity: 1, grounds: grounds.slice(1) })
+  const grounds = [read.disc, read.plane, paper]
+  const initial = contrastOf({ words: 'initial', size: 10.5, ink: read.ink, opacity: 1, grounds })
+  const disc = contrastOf({ words: 'disc', size: 20, ink: read.disc, opacity: 1, grounds: grounds.slice(1) })
   expect(initial, JSON.stringify(read)).toBeGreaterThanOrEqual(3)
   expect(disc, JSON.stringify(read)).toBeGreaterThanOrEqual(1.5)
 })
