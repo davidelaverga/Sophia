@@ -1,0 +1,175 @@
+import { expect, test, type Page } from '@playwright/test'
+
+// TEMPORARY (CX-0181), never committed: conversations-context-fence.spec.ts:73's exact steps and frame counter, with
+// a stage trace. Every hook is installed after the page loaded, records performance.now() only, and neither awaits,
+// waits nor reorders anything: it can't make the fence render sooner.
+
+test.use({ timezoneId: 'UTC', locale: 'en-US' })
+
+const PAGE = '/room.html?place=conversations&demo=1'
+const list = (page: Page) => page.getByRole('region', { name: 'All conversations' })
+const context = (page: Page) => page.locator('.conv-context')
+const stillOpen = (page: Page) => context(page).locator('.conv-decisions.open')
+const FENCED = 'This project refused a read of its conversations.'
+const NOT_SHOWN = 'The project’s context isn’t shown until its conversations can be read again.'
+const PENDING = 'Map first, list second'
+
+async function enter(page: Page, url = PAGE) {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(url)
+  await expect(stillOpen(page)).toContainText(PENDING)
+}
+
+async function contextHidden(page: Page) {
+  await expect(context(page)).toContainText(NOT_SHOWN)
+  await expect(context(page).locator('.conv-mission, .conv-decisions')).toHaveCount(0)
+  await expect(context(page).getByRole('button', { name: /^(Accept|Decline)$/ })).toHaveCount(0)
+}
+
+async function listRefusedOnTryAgain(page: Page) {
+  await page.evaluate(() => window.fixture?.failConversations(true))
+  await page.evaluate(() => window.fixture?.listMore(true))
+  await expect(list(page).getByRole('button', { name: 'Try again' })).toBeVisible()
+  await page.evaluate(() => window.fixture?.failConversations(false))
+  await page.evaluate(() => window.fixture?.refuseConversations(true))
+  await list(page).getByRole('button', { name: 'Try again' }).click()
+  await expect(list(page)).toContainText(FENCED)
+}
+
+async function sampleContextFrames(page: Page, marker: string) {
+  await page.evaluate((m) => {
+    const frames = document.documentElement.dataset
+    frames.contextAfterRefusal = '0'
+    const tick = () => {
+      if ((window.fixture?.served ?? []).includes(m) && document.querySelector('.conv-mission, .conv-decisions'))
+        frames.contextAfterRefusal = String(Number(frames.contextAfterRefusal) + 1)
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, marker)
+}
+const contextFrames = (page: Page) => page.evaluate(() => Number(document.documentElement.dataset.contextAfterRefusal))
+
+/** The stage trace, armed from the refused read on and disarmed once the fence has held for a few frames. */
+async function installTrace(page: Page) {
+  await page.evaluate(
+    ({ fencedNote, notShown }) => {
+      type Row = { t: number; k: string; [x: string]: unknown }
+      const rows: Row[] = []
+      ;(window as unknown as { __cx181: Row[] }).__cx181 = rows
+      const now = () => Math.round(performance.now() * 100) / 100
+      const put = (k: string, x: Record<string, unknown> = {}) => rows.push({ t: now(), k, ...x })
+      let armed = false
+      let done = false
+      const shown = () => !!document.querySelector('.conv-mission, .conv-decisions')
+      const state = () => ({
+        context: shown(),
+        fenced: (document.querySelector('.conv-list')?.textContent ?? '').includes(fencedNote),
+        notShown: (document.querySelector('.conv-context')?.textContent ?? '').includes(notShown),
+      })
+
+      // 1. The fixture's refusal marker, as it is pushed (the original counter reads the same array).
+      const served = (window as unknown as { fixture: { served: string[] } }).fixture.served
+      const push = served.push
+      served.push = function (...items: string[]) {
+        if (!done && items.includes('conversations-refused')) {
+          if (!armed) armed = true
+          put('marker')
+        }
+        return push.apply(this, items)
+      }
+
+      // 2. The list read: its call, the Response it resolves with, and the error body's read (toError).
+      const fetch0 = window.fetch
+      window.fetch = function (input: RequestInfo | URL, init?: RequestInit) {
+        const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+        const listRead = /\/api\/v1\/projects\/[^/]+\/conversations$/.test(new URL(href, location.href).pathname)
+        const p = fetch0.call(this, input, init)
+        if (!listRead || done) return p
+        put('fetch:call', { armed })
+        return p.then((res) => {
+          put('fetch:resolved', { status: res.status })
+          if (!res.ok) {
+            const json = res.json.bind(res)
+            res.json = () => {
+              put('body:read-start')
+              return json().then(
+                (v: unknown) => (put('body:read-done'), v),
+                (e: unknown) => {
+                  put('body:read-error')
+                  throw e
+                },
+              )
+            }
+          }
+          return res
+        })
+      } as typeof window.fetch
+
+      // 3. Zero-delay timers while armed; TanStack Query's notify batch named by its creation stack.
+      let timerId = 0
+      const setTimeout0 = window.setTimeout
+      window.setTimeout = function (cb: TimerHandler, delay?: number, ...args: unknown[]) {
+        if (armed && !done && typeof cb === 'function' && !delay) {
+          const id = ++timerId
+          const query = /query-core/.test(new Error().stack ?? '')
+          put('timer0:scheduled', { id, query })
+          return setTimeout0.call(
+            this,
+            function (this: unknown, ...a: unknown[]) {
+              put('timer0:run', { id, query })
+              try {
+                return (cb as (...x: unknown[]) => unknown).apply(this, a)
+              } finally {
+                put('timer0:done', { id, query, state: state() })
+              }
+            },
+            delay,
+            ...args,
+          )
+        }
+        return setTimeout0.call(this, cb, delay, ...args)
+      } as typeof window.setTimeout
+
+      // 4. DOM commits: each change of the shown state while armed.
+      let last = ''
+      new MutationObserver(() => {
+        if (!armed || done) return
+        const s = state()
+        const key = JSON.stringify(s)
+        if (key !== last) {
+          last = key
+          put('dom', s)
+        }
+      }).observe(document.body, { subtree: true, childList: true, characterData: true })
+
+      // 5. Frames: whether the context shows, and the original counter, each frame while armed.
+      let after = 0
+      const frame = () => {
+        if (armed && !done) {
+          const s = state()
+          put('raf', { context: s.context, counter: Number(document.documentElement.dataset.contextAfterRefusal) })
+          if (!s.context && s.fenced) after += 1
+          if (after >= 4) done = true
+        }
+        if (!done) requestAnimationFrame(frame)
+      }
+      requestAnimationFrame(frame)
+    },
+    { fencedNote: FENCED, notShown: NOT_SHOWN },
+  )
+}
+
+test('cx181 trace · the list read alone refused: stage timing to the fenced commit', async ({ page }) => {
+  await enter(page)
+  await sampleContextFrames(page, 'conversations-refused')
+  await installTrace(page)
+  await listRefusedOnTryAgain(page)
+  await contextHidden(page)
+  await page.waitForTimeout(1000)
+  const frames = await contextFrames(page)
+  const rows = await page.evaluate(() => (window as unknown as { __cx181: unknown[] }).__cx181)
+  console.log(`CX181 ${JSON.stringify({ frames, rows })}`)
+  // The original assertion, recorded on this copy separately; the unmodified original runs beside it.
+  expect.soft(frames, 'original assertion (recorded on the instrumented copy)').toBeLessThanOrEqual(3)
+})
