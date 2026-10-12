@@ -11,18 +11,22 @@ import { useQueryClient } from '@tanstack/react-query'
 import { type KeyboardEvent, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react'
 import { isQuestion, NextAskHint, nextAskKey, questionKey } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
-import {
-  sendConversationMessage,
-  type ConversationSummary,
-  type MessageAsk,
-  type MessageSent,
-} from '../../api/vision.ts'
+import { sendConversationMessage, type MessageAsk, type MessageSent } from '../../api/conversations.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Mark } from '../../app/Mark.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
-import { firstWords, messagesKey, withLastMessage, withMessage, type ReadPages } from './conversation-list.ts'
+import {
+  firstWords,
+  lastSaid,
+  LISTS,
+  messagesKey,
+  withLastMessage,
+  withMessage,
+  type ReadPages,
+} from './conversation-list.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
+import { setListsData } from './list-data.ts'
 import type { Suggestion } from './next-ask.ts'
 import { useNextAsk, type NextAskSource } from './useNextAsk.ts'
 
@@ -36,10 +40,19 @@ interface Props {
   onAskSophia: (on: boolean) => void
   /** The conversation has been read: until then, nothing is sent into it (its receipt would have no page to join). */
   canSend: boolean
+  /**
+   * Sophia answers here now (the list's `capability.ask`). Where she doesn't, asking her still records the request,
+   * which says why it went unanswered; the field says so before, and offers no quick ask that could only end so.
+   */
+  answers: boolean
+  /** The saved-text notice, said above the field before the reader's first message in the project. */
+  notice: string | null
   /** Clears the draft if it still holds these words, as the view holds it now (not as this field last saw it). */
   onClearIf: (text: string) => void
   held: Held<MessageAsk> | null
   onHeld: (next: Held<MessageAsk> | null) => void
+  /** The conversation erased since, as the view knows it now: a receipt that comes late keeps nothing of it. */
+  gone: () => boolean
   /** The refusal that answered the last press here, kept by the view. */
   refused: string | null
   onRefused: (words: string | null) => void
@@ -53,7 +66,7 @@ interface Props {
 const FIELD = 'Continue this question with the team'
 
 /** What a hint's key cap says: why (its tip) and what Tab does (its description). */
-interface Hint {
+interface KeyHint {
   why: string
   description: string
 }
@@ -105,20 +118,30 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     // Undefined too for an account forgotten meanwhile: its receipt never comes back into the cache.
     const sent = await write.run({ text, askSophia: asking })
     if (!sent) return false
+    // The conversation erased while this was on its way: its receipt (its words) goes into no page and no list.
+    if (props.gone()) return false
     // The receipt's message shows at once, and stays should reading the conversation again fail; then the list moves
     // too (its order, who wrote there).
     const pages = messagesKey(conversationId, accountOf(identity))
-    queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) => withMessage(read, sent.message))
-    void queryClient.invalidateQueries({ queryKey: pages })
-    // Its row says it at once, before the list is read again (or should that read fail).
-    queryClient.setQueriesData<{ conversations: readonly ConversationSummary[] }>(
-      { queryKey: ['vision', 'conversations'] },
-      (read) => read && { ...read, conversations: withLastMessage(read.conversations, conversationId, sent.message) },
+    const now = queryClient.setQueryData<ReadPages<MessageSent['message']>>(pages, (read) =>
+      withMessage(read, sent.message),
     )
-    void queryClient.invalidateQueries({ queryKey: ['vision', 'conversations'] })
+    void queryClient.invalidateQueries({ queryKey: pages })
+    // Its row says it at once, before the list is read again (or should that read fail), but only while the thread
+    // holds it as its newest message with words: withdrawn meanwhile, a later one said since, or the thread not held
+    // here, the row says nothing from this receipt (Codex, CX-0022), and the list's own read says what is so.
+    const last = lastSaid(now)
+    if (last?.id === sent.message.id) {
+      // Its data only: a list whose reads are failing still says so (PR #199 r4237298620).
+      setListsData(queryClient, LISTS, (read) => ({
+        ...read,
+        conversations: withLastMessage(read.conversations, conversationId, last, now),
+      }))
+    }
+    void queryClient.invalidateQueries({ queryKey: LISTS })
     onSent(sent)
     // Asked of the view: this field may be gone by now, and the words written since are the view's.
-    if (fromDraft) onClearIf(sent.message.text)
+    if (fromDraft) onClearIf(sent.message.text ?? text)
     return true
   }
   const go = async () => {
@@ -131,6 +154,17 @@ function useMessageWrite(props: Props, askSophia: boolean) {
     ? `Not confirmed: “${firstWords(write.unknown.text)}”. Send sends it again; it won’t be written twice.`
     : write.refused
   return { busy: write.busy, ready, go, quick, words, held: write.unknown }
+}
+
+/** Under the field: who the message goes to (Sophia only where she answers here), and how Enter sends. */
+function Hint({ asks, answers }: { asks: boolean; answers: boolean }) {
+  const to = asks ? (answers ? 'Sophia will answer' : 'Sophia doesn’t answer here yet') : 'To the team only'
+  return (
+    <p className="conv-compose-hint">
+      <span data-asked={asks || undefined}>{to}</span>
+      <span>Enter sends · Shift+Enter, a new line</span>
+    </p>
+  )
 }
 
 /**
@@ -165,7 +199,7 @@ function useComposerNext(props: Props, held: boolean, go: () => Promise<void>) {
 }
 
 /** The key cap's words: the suggestion's at the empty field, or a question's while Sophia is not asked; else none. */
-function hintOf(shown: Suggestion | null, question: boolean): Hint | null {
+function hintOf(shown: Suggestion | null, question: boolean): KeyHint | null {
   if (shown)
     return {
       why: shown.why,
@@ -210,7 +244,8 @@ export function ConversationComposer(props: Props) {
   // With no reply, the box says what the held message asked, and stays so until it is answered.
   const asks = held?.askSophia ?? props.askSophia
   // A message on its way (sending, or held with no reply) quiets the field's suggestions (Codex on #265).
-  const next = useComposerNext(props, props.held !== null || busy, go)
+  // Nor where she doesn't answer here: the suggestions are asks of her.
+  const next = useComposerNext(props, props.held !== null || busy || !props.answers, go)
   const slow = useSlow(busy)
   const form = useRef<HTMLFormElement>(null)
   const grows = useGrowing(draft)
@@ -235,11 +270,12 @@ export function ConversationComposer(props: Props) {
         void go()
       }}
     >
+      {props.notice && <p className="conv-note conv-notice">{props.notice}</p>}
       <FieldBox draft={draft} onDraft={onDraft} grows={grows} next={next}>
         <AskSophia on={asks} held={held !== null} onChange={props.onAskSophia} />
         <SendButton ready={ready} busy={busy} />
       </FieldBox>
-      {props.canSend && (
+      {props.canSend && props.answers && (
         <QuickAsks
           asks={next.quick}
           away={draft.trim() !== '' || held !== null}
@@ -247,10 +283,7 @@ export function ConversationComposer(props: Props) {
           onAsk={(w) => void ask(w)}
         />
       )}
-      <p className="conv-compose-hint">
-        <span data-asked={asks || undefined}>{asks ? 'Sophia will answer' : 'To the team only'}</span>
-        <span>Enter sends · Shift+Enter, a new line</span>
-      </p>
+      <Hint asks={asks} answers={props.answers} />
       {(words ?? slow) && (
         <p className="conv-note" role="alert">
           {words ?? SLOW_NOTE}

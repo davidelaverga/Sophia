@@ -12,11 +12,11 @@ import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import { useCommands } from '../../app/useCommands.ts'
-import { VISION } from '../../app/vision.ts'
+import { CONVERSATIONS, VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { LobbyPanel } from '../access/LobbyPanel.tsx'
-import { canInvite, useMembership, type SheetContext } from '../access/useAccess.ts'
+import { canInvite, useProjectMembership, type SheetContext } from '../access/useAccess.ts'
 import { DocumentViewerProvider } from '../artifacts/DocumentViewer.tsx'
 import { KnowledgeReports } from '../artifacts/KnowledgeReports.tsx'
 import { CarriedIn } from '../artifacts/CarriedIn.tsx'
@@ -271,7 +271,7 @@ function useProjectKeys(
 function useProject(projectId: string, identity: Props['identity']) {
   const { snapshot, feed, connection } = useProjectFeed(projectId, identity.name, identity.token)
   const room = useProjectRoom(projectId, identity.token, snapshot.data)
-  const membership = useMembership(projectId, identity.name, identity.token).data
+  const membership = useProjectMembership(projectId, identity.name, identity.token, snapshot.dataUpdatedAt).data
   return { snapshot, feed, connection, room, membership }
 }
 
@@ -617,7 +617,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)}>
+      <main className={pageClass(work, props.plans, view === 'conversations' && CONVERSATIONS)}>
         {resources ?? <PageBody {...props} />}
         {work && pulse}
       </main>
@@ -708,7 +708,7 @@ function PageBody(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow } = props
   if (view === 'knowledge') return <Knowledge {...{ projectId, identity, membership, snapshot }} />
   if (view === 'goals' || view === 'work') return <Goals {...props} />
-  if (view === 'conversations' && VISION) {
+  if (view === 'conversations' && CONVERSATIONS) {
     return <ConversationsView {...{ projectId, identity, membership }} cursor={snapshot?.cursor} />
   }
   if (view === 'updates' && VISION) {

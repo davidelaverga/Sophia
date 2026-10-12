@@ -27,6 +27,7 @@ import { knowledgeRoutes } from './routes/knowledge.ts'
 import { MEDIA_ROUTES, mediaRoutes } from './routes/media.ts'
 import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
+import { CONVERSATION_SCHEMA, projectConversationRoutes } from './routes/project-conversations.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
 import { projectRoutes } from './routes/projects.ts'
@@ -81,6 +82,11 @@ export interface AppDeps {
    * agent later. Without one, a personal message is refused (503) before anything is kept.
    */
   companion?: Companion | null
+  /**
+   * Saved project conversations (CON-01, amendment A16): served only when on (SOPHIA_CONVERSATIONS=on). Off, no A16 route
+   * exists and /ready requires nothing of migration 0048, so this API and the previous one run on either database.
+   */
+  conversations?: boolean
 }
 
 /**
@@ -200,7 +206,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   registerCors(app, deps.corsOrigins ?? [])
   registerAuthentication(app, deps.verifyActor, deps.mediaBridgeTokenSha256 ?? null)
   app.setErrorHandler(handleError)
-  registerHealth(app, deps.pool, Boolean(deps.byteStore))
+  registerHealth(app, deps.pool, Boolean(deps.byteStore), Boolean(deps.conversations))
   const store = writeOnceStore(deps.pool, deps.byteStore)
 
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
@@ -226,6 +232,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       )
     : null
   personalRoutes(app, { pool: deps.pool, companion })
+  if (deps.conversations) projectConversationRoutes(app, { pool: deps.pool })
   return app
 }
 
@@ -346,14 +353,15 @@ function handleError(err: FastifyError | DomainError, req: FastifyRequest, reply
   return sendError(req, reply, 503, { code: 'unavailable', message: 'Unavailable', retry: 'safe_read' })
 }
 
-function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean): void {
+function registerHealth(app: FastifyInstance, pool: pg.Pool, stores: boolean, conversations: boolean): void {
   app.get('/health', () => ({ ok: true }))
   app.get('/ready', async (_req, reply) => {
     try {
       await checkRoleSafety(pool)
       const { rows } = await pool.query<{ ok: boolean }>(REQUIRED_SCHEMA)
       const store = stores ? (await pool.query<{ ok: boolean }>(STORE_SCHEMA)).rows[0]?.ok : true
-      if (!rows[0]?.ok || !store) return await reply.status(503).send({ ready: false, reason: 'schema' })
+      const talk = conversations ? (await pool.query<{ ok: boolean }>(CONVERSATION_SCHEMA)).rows[0]?.ok : true
+      if (!rows[0]?.ok || !store || !talk) return await reply.status(503).send({ ready: false, reason: 'schema' })
       return { ready: true }
     } catch {
       return reply.status(503).send({ ready: false, reason: 'database' })
