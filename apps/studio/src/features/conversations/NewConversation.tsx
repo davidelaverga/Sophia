@@ -20,6 +20,7 @@ import { firstWords } from './conversation-list.ts'
 import { contextQuery } from './decide.ts'
 import { useHeldWrite, type Held } from './held-write.ts'
 import { askOf, sameQuestion, startable, startersOf } from './new-conversation.ts'
+import { sameQuestionLine } from './same-question-view.ts'
 
 /** How long a conversation's question may be. */
 export const QUESTION_MAX = 120
@@ -155,9 +156,9 @@ function Fields(props: {
       </label>
       {props.same && (
         <p className="conv-same" role="status">
-          Already asked here:{' '}
+          {sameQuestionLine(props.same.title).lead}{' '}
           <button type="button" className="text-button" onClick={props.same.open}>
-            “{props.same.title}”
+            {sameQuestionLine(props.same.title).press}
             <Icon name="forward" size={12} />
           </button>
         </p>
