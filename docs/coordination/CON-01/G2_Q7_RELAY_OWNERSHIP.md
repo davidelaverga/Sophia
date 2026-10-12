@@ -2,6 +2,20 @@
 
 **What this is.** CON-01's answer to the open Q7 in [G2_RUNTIME_PLAN](G2_RUNTIME_PLAN.md) §0 ("Which process owns a reply child's relay"), and to §2.1's "Required" descendant-settlement mechanism. Codex asked for it in CX-0139 and mission request 6116456625. It is **one recommended design for the runtime owner (WBC-02/SDD-01) to agree or correct, as an engineering matter, before any Phase B write.**
 
+**Revision 8, after Codex's CX-0153 and the joint runtime owner's exact-r7 record** ([durable record `610b1f2d`](https://github.com/davidelaverga/Sophia/blob/610b1f2d99c473147384447e7f75dbb239440fd6/docs/coordination/CON-01/CX-0153.md); the joint record's original SHA-256 `d5bd2ac5…`, its safe copy `70ab66a0…`). The reviewed base is revision 7 (`c48b17ae`, SHA-256 `0e4e00cc…`).
+- **The joint record** is CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK. It read all 1250 lines and verified 12 dependencies.
+- **It finds revision 6's findings addressed at design level:** `home_exists`, the same-instance `check`, the two-settle test, and "verified gone".
+- **Two P2s remain,** which Codex traced independently. Neither is a demonstrated purge race, late home, provider call, duplicate claim or deletion.
+- **Unchanged:** P1-E stays withdrawn, and the hello lease-loss table stays optional with safe accounting. The immutable L0 artifacts and the route assessment (`9e752d5a`) are untouched.
+
+Revision 8 changes only these:
+
+| CX-0153 | What was wrong in revision 7 | Where it is corrected |
+|---|---|---|
+| P2: the cleanup `retire`'s delivery rows | Revision 7 allowed one `retire` but still said no row creates an outbox row. The existing schema makes every runtime command carry its own outbox row: `outbox_id` is non-null, unique per project, and a foreign key, and `command_id` is a foreign key (0012:74, 77-79). The `create`'s outbox row is already taken. CX-0151's wording behind it was too broad as well | §6, §10: **exactly one idempotent cleanup `retire` per attempt, with the delivery rows it needs:** its `commands`, `outbox` and `runtime_commands` rows, keyed to the same attempt and reply. Never a new Ask, `create` or execution, attempt, reservation, provider or model call, or allowance reset. The `stopping` row's replay creates no dispatch. The writer, its idempotency, and BINDING_MAP §8.2.1's test bullets (:297, :299) are the core owner's to align in an accepted shared window. That held binding isn't edited here, and no new queue is invented |
+| P2: an empty home in the current root | `check`'s `empty` in the current root counted for `stop` on the drain alone. The drain covers launchers admitted now. It doesn't cover this attempt's one launcher held before its shared lock or its `mkdir`, so `stop` could answer `checked` while that launcher was unreaped | §5, §6, §7, §10: **the spawn fence**, the guard `absent` already had. In the current root, an `empty` counts only while this bridge holds no unreaped launcher for the attempt. Its claim allows one spawn, so no other launcher follows. Otherwise the answer is `outcome_unknown` and the home stays pending. Revision 7's "no admission can follow a drain" now applies to renamed roots only. A renamed root's `empty` still counts on its drain |
+| Implementation notes (joint record; not defects) | — | §5: scoped live proof's lease read uses `check`'s no-link locator checks, and falls back to `check` across every root if its own root was renamed or a second home is found. §6: each fresh `check` has its own time budget, also after the original deadline has passed |
+
 **Revision 7, after Codex's terminal CX-0151 review of revision 6** ([durable record `9fe14e70`](https://github.com/davidelaverga/Sophia/blob/9fe14e70fe2d4c82b759bd68f6ff0650088ffff7/docs/coordination/CON-01/CX-0151.md), with the joint runtime owner's exact-r6 record, SHA-256 `ec28d195…`). The reviewed base is revision 6 (`09892924`, SHA-256 `ff172950…`).
 - **The joint record** is CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK. It accepts the admission, life-lock, receipt-mapping, shared-deadline and predicate directions at design level. It adds one P1.
 - **Codex's root review** adds three P2s and a precision note.
@@ -15,11 +29,11 @@ Revision 7 changes only these:
 | P1: what `home_exists` proves | Exit 71 was "settled", and `stop` and `retire` took any settled exit the live bridge saw as proof. But the launcher that exits 71 never created, opened or locked the home that already exists. An occupied home (a whole lease, a held life lock, a live recorded child) could have been retired on that exit | §5: **scoped live proof.** A settled exit proves only what that launcher could have done. It covers only the home that launcher created, whose lease's launcher record carries the nonce this bridge gave that spawn. Exit 71 proves only that the new launcher forked nothing: the existing home goes to `check` and is kept until it is verified. §6, §7 and §10 carry this to every caller, with 71 in the adverse controls |
 | P2: `stop` after an unsettled exit | `check` was allowed only for an attempt "this bridge never ran". So a same-instance replay after exit 74, a signal or no exit could never reach `checked`, even once the child had settled | §6: **a fresh, bounded `check` for any attempt without scoped live proof,** whether or not a `ReplyChild` is still held. It joins the original `t0` and deadline, signals nothing, and resets nothing. §7 and §10: unknown, then proven, then one `retire`, on the same instance and on a new one |
 | P2: the two-settle test | It let the terminal receipt go once the *first* settle answered | §10: **every** pending settle answered, or the shared deadline. One early answer with the other pending gives no receipt. Both answered is the early control |
-| P2: hello's "no command" test | It said no row creates any command, while the lease-loss rows write `retire` | §6, §10: no new `create`, Ask, outbox row, reservation or call. The one idempotent `retire` that the lease-loss rows require is the only command written. The `stopping` row replays the existing `stop` |
+| P2: hello's "no command" test | It said no row creates any command, while the lease-loss rows write `retire` | §6, §10: no new `create`, Ask, outbox row, reservation or call. The one idempotent `retire` that the lease-loss rows require is the only command written. The `stopping` row replays the existing `stop`. *(Revision 8: "outbox row" is withdrawn from this list, because the cleanup `retire` needs its own delivery rows)* |
 | Precision | "Verified" in §5's `check` table could be read as a matching live identity | §5: **verified gone.** A matching live entry is `unsettled`, never settlement |
 
 The empty-home rows change with the P1, since an empty home carries no nonce:
-- An empty home is settled by the drain of its own root, the current root included (§5).
+- An empty home is settled by the drain of its own root, the current root included (§5). *(Revision 8: in the current root, only together with the bridge's spawn fence)*
 - A zero-byte lease, or one whose launcher record is torn, is `unresolved` on every path. Revision 6's live-path exception for it is withdrawn.
 - A whole launcher record carrying the spawn's nonce is still scoped live proof's case, even when the fork intent after it is torn: that launcher forked nothing.
 
@@ -379,6 +393,8 @@ No pid is used, so none can be reused.
 **Scoped live proof (revision 7; CX-0151's P1).** A settled exit is proof for exactly one home: the one that launcher created. It needs all three:
 - **the live bridge reaped the launcher it spawned for this attempt, and the exit was settled;**
 - **the home is that launcher's.** The bridge reads the home's `lease.json` by name, at `<its own root>/<attemptId>`, with `O_NOFOLLOW`. Its launcher record must be whole and carry the nonce the bridge generated for that one spawn. Nonces are fresh and random per spawn, so a home created by any other launcher carries another nonce, or none.
+  - **The locator checks (revision 8):** the read uses `check`'s no-link checks. The root and the home must not be links, and must be owned by the uid with mode 0700.
+  - **When it falls back to `check` across every root:** if its own root was renamed, or a home for the attempt also exists in another root.
 - **all its possible writers are covered:**
   - that launcher, now reaped;
   - its one possible child, which a settled exit reaped;
@@ -419,9 +435,14 @@ Generation ids are random and never reused. Nothing ever renames a root back or 
   - **From then on:** a home that is absent stays absent, an empty home stays empty, and a lease's records are as final as their writer left them.
 
   This is the only sense in which the seal proves "no future writer", and only for those three kinds of home. **A home with a whole lease is settled by the life lock and its entries, never by the seal.**
-- **In the current root (revision 7),** a successful drain proves less, because launchers can still be admitted after it.
-  - **It still settles an empty home.** The home's creator made it while admitted and no longer is, so it has exited without a lease. Any other launcher for that path stops at `mkdir`'s `EEXIST`.
-  - **It never settles an absence there.** Only the bridge can do that (§7).
+- **In the current root (revisions 7 and 8),** a successful drain proves less, because launchers can still be admitted after it. It covers the launchers admitted now. It doesn't cover this attempt's own launcher, which the bridge may have spawned and which is held before its shared lock or its `mkdir`.
+  - **It settles an empty home only together with the bridge's spawn fence (revision 8).** The fence holds while the bridge holds no unreaped launcher for the attempt, and its claim allows only one spawn. Under both:
+    - the home's creator made it while admitted and no longer is, so it has exited without a lease;
+    - this generation spawns no other launcher for the attempt;
+    - an older generation's launcher can't reach the current root.
+
+    Without the fence, the empty home is filesystem state only, and proves nothing about the process.
+  - **It never settles an absence there,** with or without the drain. Only the bridge's spawn fence can (§7).
 - **What the seal doesn't claim:** that any process is dead. CX-0145 ran the unchanged supervisor locally, with owned stand-ins: an old dsh can outlive its supervisor, and its replacement takes the same project lease. So neither a new hello, a sweep, a rename nor an absent file is used as proof of death.
 - **If the seal fails,** that generation starts with replies off (§6). Homes in any root that wasn't renamed stay `unresolved`.
 
@@ -454,7 +475,7 @@ Generation ids are random and never reused. Nothing ever renames a root back or 
 |---|---|---|
 | absent, empty, or with a lease that isn't whole, in a root whose drain fails (for an absence, a renamed root) | a launcher of that generation is admitted | `unsettled` (`admission_open`) |
 | absent from every root, each older root renamed and drained | no older launcher can create it (the drain). Whether this generation could is the bridge's to know: it counts `absent` only while it holds no unreaped launcher for the attempt (§6, §7) | `absent` |
-| no lease, nothing else, in a root whose drain succeeds, current or renamed (revision 7) | there was never a child (step 4). Its creator made it while admitted and no longer is, so it has exited without a lease, and any other launcher for the path stops at `EEXIST` | `empty` |
+| no lease, nothing else, in a root whose drain succeeds, current or renamed (revision 7) | there was never a child (step 4). In a renamed root, its creator has exited without a lease, and nothing can add to it by name. **In the current root,** the drain doesn't cover this attempt's own launcher if it is held before its shared lock or its `mkdir`. So the bridge counts that `empty` only under its spawn fence, as it does `absent` (revision 8) | `empty` |
 | no lease, but other files | impossible by the order | `unresolved` |
 | a lease of zero bytes, or without both whole launcher records | its writer may have died mid-write, and no fork can have followed. **Never the empty case**, and kept fail-closed, as CX-0148 asks | `unresolved` |
 | a whole lease, the life lock held | the launcher, or a child that never executed, is alive | `unsettled` |
@@ -464,7 +485,10 @@ Generation ids are random and never reused. Nothing ever renames a root back or 
 
 - **The report** is content-free JSON lines: `{attemptId, root, state: gone|stopped|absent|empty|unsettled|unresolved, reason}`.
 - **`check` exits 0 only for `gone`, `absent` or `empty`.**
-- **What it reports stays true** once established: no admission can follow a drain, and no process can take back a life lock its holders let go.
+- **What it reports stays true** once established:
+  - in a renamed root, no admission can follow a drain;
+  - in the current root, an absent or empty home stays so only under the bridge's spawn fence (revision 8);
+  - no process can take back a life lock its holders let go.
 - **`sweep` and `check` never delete:** only `retire` does (§7).
 
 **The other subcommands:**
@@ -586,7 +610,7 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
   | Kind | `ReplyChildren` method | What it does |
   |---|---|---|
   | `create` | `createReply` | **1. Redelivery:** a command this instance already holds is answered from its recorded receipts (as bridge:703-704), with no claim call. **2. Before the claim, `rejected`:** validation fails, `replies` is `null` (`containment_unavailable`), or 2 children are live (`runtime_busy`). **3. The claim:** `conversationClaim({attemptId, commandId, authorityEpoch, leaseId: instanceId})`, resent until answered within a bound. Only `first` goes on. `refused` (any code), or no answer, is answered **`outcome_unknown`** and spawns nothing. **4. Spawn** (§3), and the `start` line written. **5. The run gate,** on `ready`: `conversationGo({attemptId, commandId, authorityEpoch, leaseId})`, resent with the same body until answered within `goWaitMs`. **`go`:** write the one `go` line, queue the `delivered` receipt, and resolve; the command, and with it the prompt, is released. **`refused`** (`not_pending`, `stale_epoch`, `lease_mismatch`), **or no answer:** no `go` is written. The child's stop sequence is started (the `stop` line, then `ReplyChild` runs it on §6's one clock), and the create is answered `rejected` at once, with that code or `go_unconfirmed`. **Cleanup is decoupled from the create handler (revision 5):** a later `stop` or `retire` joins the same sequence and its clock, and never restarts it |
-  | `stop` | `stopReply` | **Fence the relay,** then the `stop` line at `t0`; or join a sequence already started, keeping its `t0`. A `TERM` line at `t0 + graceMs`, a `KILL` line at `t0 + killMs`. Then wait for the launcher's exit until `t0 + killMs + exitWaitMs`, and for every settle the child sent, answered or out at the one shared settle deadline. **The answer follows the proof classifier (§5; scoped in revision 7):** `checked` needs one of two proofs. (1) **Scoped live proof** (§5): this bridge saw the settled exit of the launcher it spawned for the attempt, and the home carries that spawn's nonce. (2) **A fresh, bounded `check`** of the attempt's home across every root, which exits 0. Its `absent` counts only while this bridge holds no unreaped launcher for the attempt. The bridge runs that `check` for **any attempt without scoped live proof**, whether or not it still holds a `ReplyChild`. That covers an attempt it never ran, and one whose launcher exited unsettled (74, a signal), exited 71, or didn't exit by the bound. Without either proof the answer is `outcome_unknown`, and the home goes to verification (§7). **Every `stop` is evaluated, never answered from memory (revisions 6 and 7):** a replayed `stop` runs the classifier again, with a fresh `check` wherever scoped live proof is lacking. It joins the sequence's original `t0` and deadline without resetting them, signals nothing, and changes no allowance. What each answer writes is §8.2.1:272-273's, unchanged. `checked` writes `retire`, and the binding becomes `settled`. `outcome_unknown` leaves the binding `stopping`, the request `cancelled`, its purge pending and any open reservation `uncertain`, and the same `stop` is replayed at the next hello (the table below). **No signal is sent by the bridge** |
+  | `stop` | `stopReply` | **Fence the relay,** then the `stop` line at `t0`; or join a sequence already started, keeping its `t0`. A `TERM` line at `t0 + graceMs`, a `KILL` line at `t0 + killMs`. Then wait for the launcher's exit until `t0 + killMs + exitWaitMs`, and for every settle the child sent, answered or out at the one shared settle deadline. **The answer follows the proof classifier (§5; scoped in revision 7):** `checked` needs one of two proofs. (1) **Scoped live proof** (§5): this bridge saw the settled exit of the launcher it spawned for the attempt, and the home carries that spawn's nonce. (2) **A fresh, bounded `check`** of the attempt's home across every root, which exits 0. Its time budget is per evaluation, also when the original deadline has long passed. Its `absent`, and an `empty` in the current root, count only under the **spawn fence:** this bridge holds no unreaped launcher for the attempt, and its claim allows only one spawn (revision 8). While its one launcher is unreaped, even one held before its shared lock or its `mkdir`, the answer stays `outcome_unknown`. The bridge runs that `check` for **any attempt without scoped live proof**, whether or not it still holds a `ReplyChild`. That covers an attempt it never ran, and one whose launcher exited unsettled (74, a signal), exited 71, or didn't exit by the bound. Without either proof the answer is `outcome_unknown`, and the home goes to verification (§7). **Every `stop` is evaluated, never answered from memory (revisions 6 and 7):** a replayed `stop` runs the classifier again, with a fresh `check` wherever scoped live proof is lacking. It joins the sequence's original `t0` and deadline without resetting them, signals nothing, and changes no allowance. What each answer writes is §8.2.1:272-273's, unchanged. `checked` writes `retire`, and the binding becomes `settled`. `outcome_unknown` leaves the binding `stopping`, the request `cancelled`, its purge pending and any open reservation `uncertain`, and the same `stop` is replayed at the next hello (the table below). **No signal is sent by the bridge** |
   | `retire` | `retireReply` | §7's order; `checked`, or `failed` with a fixed code |
   | `inspect` | `inspectReply` | A content-free state: the gate, the child, the relay, counts and bytes, the ordinals and their settle state |
   | `resume`, `input`, `steer`, `hold` | — | `rejected`: a reply takes only these four |
@@ -699,7 +723,15 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
     - **If the owners drop the table,** the bridge must ask the claim before ever answering a replayed `create` `rejected`.
   - **The hello writes no runtime receipt.** Its transition is the terminal writer. The `create` command stays unanswered, so the cursor replays it to the new bridge, whose claim answers `not_pending`. That bridge answers it `outcome_unknown` (`claim_refused:not_pending`), a true answer that is recorded and moves nothing (§8.2.1, "No receipt revives a reply"). The command is then answered, the cursor moves past it, and its outbox row maps to `outcome_unknown`, which Q12's correction keeps out of the reconcile window.
   - **Whatever the new bridge answers a replayed `create` with** (`outcome_unknown` after the claim's refusal, or `rejected` before any claim, when its replies are off or it is busy), a receipt after a terminal state moves nothing (§8.2.1). The `rejected` row releases only a reservation still `reserved`, and the hello left none: it moved them to `uncertain`, or there were none.
-  - **No new logical request, model call or allowance reset.** No row creates a `create` command, an Ask, an outbox row, a reservation or a model call, and only `uncertain` changes any count. **The only command any row writes is the one idempotent `retire`** that the lease-loss rows require. The `stopping` row writes none: it replays the existing `stop` (revision 7).
+  - **No new logical request, model call or allowance reset.** No row creates an Ask, a `create` command or execution, an attempt, a reservation, or a provider or model call, and only `uncertain` changes any count.
+  - **The one exception: the cleanup `retire` (revisions 7 and 8).** It is what the lease-loss rows require:
+    - exactly one per attempt, idempotent, keyed to the same attempt and reply. A repeated hello or a replayed receipt writes none;
+    - with the delivery rows the existing schema needs for any runtime command: its `commands` row, its own `outbox` row and its `runtime_commands` row. `outbox_id` is non-null, unique per project and a foreign key to `outbox`, and `command_id` is a foreign key to `commands` (0012:74, 77-79). The `create`'s outbox row is already taken;
+    - those rows dispatch cleanup only, never an execution;
+    - **the `stopping` row** writes no command and no delivery row: it replays the existing `stop`.
+
+    Revision 7's "no outbox row", and CX-0151's wording behind it, were too broad and are withdrawn.
+  - **Owned by the core owner.** The writer and its idempotency key go in 0049, through the reviewed change that adds `retire` to `runtime_commands.kind` and the wire. BINDING_MAP §8.2.1's test bullets (:297, :299) say "no second … outbox row or runtime command" beside "one `retire`". They are aligned in the same accepted shared window. That held binding isn't edited here, and no new queue is invented.
   - **Races, all serialized by the project lock and then the request's row:**
     - a claim or go from the old bridge either committed before the hello (and the table sees it) or is refused afterwards (`40001`, or `not_pending`);
     - a `conversation_cancel` either committed first (the `cancelled` row) or follows, and finds the request terminal.
@@ -761,7 +793,7 @@ Q7 never calls anything else.
 4. **Delivery.** A `draining` relay sends its items with their text. A `fenced` one sends them reduced. Every item is acknowledged.
    - **The relay is `closed`** at end-of-file, with no item held, every item acknowledged, and fd 3's parent end destroyed.
 5. **`retireReply`, in this order:**
-   1. proof that no reply process remains, for this exact home: scoped live proof (§5), or a fresh `check` exiting 0 for it, with `absent` counted only while this bridge holds no unreaped launcher for the attempt (§5; the table below);
+   1. proof that no reply process remains, for this exact home: scoped live proof (§5), or a fresh `check` exiting 0 for it. Its `absent`, and an `empty` in the current root, count only under the spawn fence (§6, revision 8; the table below);
    2. the relay is `closed`;
    3. the journal's keys and ordinals are read from the home, under the same bound and schema;
    4. `conversationAcknowledged` confirms all eight named predicates (below), and every ordinal is `settled`, `released`, or `uncertain` with its usage recorded;
@@ -787,11 +819,14 @@ Q7 never calls anything else.
     - **It never covers a home the launcher didn't create.** Exit 71 proves only that the new launcher forked nothing.
   - **For a home with a whole lease: the life lock is free, and each valid entry is verified `gone` through a `pidfd`** (`check`). The lock covers the launcher and a child that never executed. The `pidfd` covers a child that did.
   - **The drain (§5), for these:**
-    - an empty home, in any root;
+    - an empty home in a renamed root;
     - an absence from a renamed root.
 
-    In a renamed root it proves that no admission is in flight and that none can start. In the current root it settles only an empty home (revision 7). It doesn't prove any process is dead, and it is never used for a home with a lease.
-  - **An absence from the current root** is the bridge's own knowledge. It never spawned a launcher for the attempt, or it reaped the one it spawned, and its claim refuses any other.
+    In a renamed root it proves that no admission is in flight and that none can start. In the current root it never settles anything alone (revision 8). It doesn't prove any process is dead, and it is never used for a home with a lease.
+  - **An absence from the current root, and an empty home there, also need the bridge's own knowledge: the spawn fence.**
+    - The fence holds when the bridge never spawned a launcher for the attempt, or reaped the one it spawned, and its claim refuses any other.
+    - While its one launcher is unreaped, neither counts, even if that launcher is held before its shared lock or its `mkdir` (revision 8).
+    - Separately, the relay's `closed` barrier (step 5.2) blocks any deletion while that launcher still holds fd 3. The fence makes `stop`'s answer honest too.
 
   These are not proof of settlement:
   - an unsettled exit (74, or a signal such as `SIGALRM`);
@@ -808,7 +843,9 @@ Q7 never calls anything else.
 | a home this bridge's launcher didn't create: its launcher exited 71 (`home_exists`), or the lease carries another nonce (revision 7) | nothing from that exit: the new launcher forked nothing, and never opened or locked this lease | `check` decides, by the rows below. Until the original home is verified on its own terms, `failed` (`unsettled`, `unresolved` or `lease_mismatch`), and the home is kept |
 | absent from every root; each older root renamed and drained | no older launcher can create it (the drain), and this generation can't: this bridge never spawned a launcher for it, or reaped the one it spawned (its claim refuses any other) | the barrier, then `checked`, `home_absent`. It claims no process verified |
 | absent, but an older root not renamed, or renamed and not drained | nothing: an older launcher could still create it | `failed`, `unsealed` or `admission_open`; said pending |
-| no lease, nothing else, in a root whose drain succeeds, current or renamed (revision 7) | there was never a child. Its creator has exited without a lease, and nothing can add to it: by name after a rename, and by `mkdir` never (`EEXIST`) | delete, verify, `checked`, `home_empty`. It claims no process verified |
+| no lease, nothing else, in a renamed root whose drain succeeds | there was never a child. Its creator has exited without a lease, and nothing can add to it by name | delete, verify, `checked`, `home_empty`. It claims no process verified |
+| no lease, nothing else, in the current root: the drain succeeds **and** the spawn fence holds (revision 8) | there was never a child. Its creator has exited without a lease, and this generation spawns no other launcher for the attempt | delete, verify, `checked`, `home_empty`. It claims no process verified |
+| the same in the current root, while this bridge's one launcher for the attempt is unreaped (revision 8) | nothing. The drain doesn't cover a launcher that isn't admitted yet | `failed`, `unsettled`; said pending. `stop` answers `outcome_unknown` |
 | a lease of zero bytes, or a torn launcher record | nothing: no whole record binds it to any launcher (fail-closed, on every path; revision 7) | `failed`, `unresolved`; said pending |
 | a whole lease, the life lock free, no child entry or a torn one, the launcher's entry verified gone | the launcher exited. Any forked child exited without executing (it held the lock until its exit), with every descriptor it inherited closed | the barrier; delete, verify; `checked`, `home_deleted` |
 | a whole lease, the life lock free, both entries verified gone, no journal or a journal with no observation | the run ended before `go`: the journal holds at most its command record | the journal read under its bound and schema; the barrier; delete, verify; `checked`, `home_deleted` |
@@ -1055,7 +1092,7 @@ Every process these tests signal is one they started themselves. None attempts p
   - an unrelated owned process of the same uid, named by a rewritten lease, survives: `unresolved`;
   - a matching one is killed through its `pidfd`;
   - one that exits between the check and the signal gives `ESRCH`, and nothing else is signalled;
-  - **the drain in the current root (revision 7):** an empty home is `empty` only when the drain succeeds. With another launcher admitted it is `admission_open`. An absence there is never settled by `check` alone;
+  - **the drain in the current root (revisions 7 and 8):** an empty home is `empty` only when the drain succeeds. With another launcher admitted it is `admission_open`. Neither an absence nor an empty home there is settled by `check` alone: the caller applies its spawn fence;
   - **verified means verified gone:** a matching live entry is `unsettled`, and a start-time mismatch `unresolved`, never `gone`;
   - neither ever deletes.
 - **`tests/integration/supervisor.test.mjs`** (extended):
@@ -1107,7 +1144,7 @@ Every process these tests signal is one they started themselves. None attempts p
       - empty (`home_empty`);
       - a zero-byte lease or a torn launcher record: `unresolved`, on every path, the live one included (revision 7);
       - the home this bridge's own launcher created, with its nonce, after that launcher's settled exit (`home_deleted`);
-      - an empty home in the current root, drained (`home_empty`) and not drained (`admission_open`);
+      - an empty home in the current root, in three cases: drained with the spawn fence holding (`home_empty`); not drained (`admission_open`); drained but with this bridge's own launcher unreaped (`failed`, `unsettled`; revision 8);
       - a whole lease with the life lock free and no child entry (`home_deleted`);
       - the life lock held (`unsettled`);
       - both entries proven gone with a pre-`go` journal (`home_deleted`);
@@ -1122,6 +1159,15 @@ Every process these tests signal is one they started themselves. None attempts p
       - Each ends by `t0 + killMs + exitWaitMs + settleWaitMs`, however many settles are pending (one shared deadline).
       - **The answer by the classifier:** `checked` for scoped live proof (a settled exit, and the home carrying that spawn's nonce). `outcome_unknown` for exit 74, a signal exit, an overrun, or exit 71 against an occupied home, until a fresh `check` proves the home. A replayed `stop` is evaluated again, never answered from memory;
     - **withdrawal by the classifier (revisions 6 and 7):** a withdrawal after `go` gives `outcome_unknown`, never `checked`, when the launcher exits 74, exits by a signal, or doesn't exit by the bound, until a fresh `check` proves the home. With scoped live proof it gives `checked`;
+    - **the current-root empty guard (revision 8):**
+      - **The setup:** the supported leftover fixture pre-seeds an empty home in the current root. This bridge's one claim gives `first`, and it spawns. A test hook holds its launcher in three cases:
+        - before it opens `.admit`;
+        - between that open and its shared lock;
+        - after its shared lock and before `mkdir`, where the drain itself fails (`admission_open`);
+      - **while it is held:** the create times out, with its decoupled cleanup, and `stop`'s bound passes. `check` may report `empty` as filesystem state. But `stop` answers `outcome_unknown`, and the binding stays `stopping`. `retire` stays pending: the spawn fence fails, and the relay isn't `closed` while the held launcher keeps fd 3;
+      - **then the launcher is let go.** It exits on its queued cancellation, or with 71 if it reaches `mkdir` with the home there, and is reaped. The replayed `stop`'s fresh `check` gives `checked`. Then exactly one cleanup `retire`, and one deletion of that exact home behind the full barrier;
+      - **the control:** the same empty home in a renamed, drained root counts at once, with no fence needed;
+      - **in every case:** `t0`, the deadline and the allowance are unchanged, and nothing is signalled;
     - **same-instance reverification (revision 7):** after exit 74, a signal exit, and no exit by the bound, the bridge keeps its `ReplyChild` and answers `outcome_unknown`. The child is then let go (the stub child exits), and the same instance replays the same `stop`:
       - before the fresh `check` proves the home: `outcome_unknown`, binding `stopping`;
       - after it: `checked`, and one `retire`;
@@ -1197,9 +1243,10 @@ Every process these tests signal is one they started themselves. None attempts p
       - a `stop` answered `outcome_unknown` is replayed at the next hello, by the same instance and by a new one, until a `checked` answer;
       - that `checked` writes `retire` once;
       - a second `outcome_unknown` is recorded once and moves nothing;
-    - **no row creates a new `create` command, Ask, outbox row, reservation or model call** (revision 7):
-      - the lease-loss rows write exactly the one idempotent `retire` the table requires, once;
-      - the `stopping` row writes no command: it replays the existing `stop`, and that replay is not a new dispatch;
+    - **no row creates a new Ask, `create` command or execution, attempt, reservation, or provider or model call** (revisions 7 and 8):
+      - **the lease-loss rows:** exactly one cleanup `retire`, with its own `commands`, `outbox` and `runtime_commands` rows, keyed to the same attempt and reply. Counted: one cleanup command and one delivery after the hello. Still one after a repeated hello and after a replayed receipt;
+      - **the `stopping` row:** no command and no delivery row. It replays the existing `stop`, and that replay is not a new dispatch;
+      - **the accounting:** no second `create` outbox row for execution, no new attempt or reservation, and the uncertain amounts unchanged;
     - the replayed `create`'s `outcome_unknown` receipt moves nothing;
     - **races:**
       - a claim, go, reserve, settle or receipt from the superseded instance after the hello gets `40001`;
@@ -1244,7 +1291,8 @@ Every process these tests signal is one they started themselves. None attempts p
    - every claim refusal is `outcome_unknown`;
    - settles before terminal receipts, under one shared settle deadline;
    - `stop` by the classifier at every caller, with §8.2.1:272-273's mapping (revision 6);
-   - a fresh, bounded `check` for any attempt without scoped live proof, on the same instance too (revision 7).
+   - a fresh, bounded `check` for any attempt without scoped live proof, on the same instance too (revision 7). Its `absent`, and a current-root `empty`, count only under the spawn fence (revision 8);
+   - **exactly one idempotent cleanup `retire` per attempt,** with its own command and delivery rows under the existing schema. No new Ask, execution, attempt, reservation, call or allowance reset (revision 8). The core owner binds its writer and aligns BINDING_MAP §8.2.1's test bullets in an accepted shared window.
 10. **§7's recovery table,** and `conversation_reconcile`'s proof source as the operator's separately authorized path, with no automatic release, retry or reset.
 
 Once agreed, the plan's §5 order stands. Each step is its own pin, with a fail-before and the full gates, on the accepted base, after Q12's correction.
