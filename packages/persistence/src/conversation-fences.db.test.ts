@@ -2035,8 +2035,8 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
   describe('a source’s dependencies are found by an index, not a scan (G2_CON_ONLY_PLAN Step A)', () => {
     it('plans source_out’s own dependency query on conversation_reply_sources_by_source, custom and generic, in few buffers', async () => {
       // Another database, so its fixture rows reach no other test. S1 to N4 are applied in one transaction, rolled back
-      // at the end: S3 adopts the cluster's assembler role only as it leaves it, so this file's test login's membership
-      // is revoked inside that transaction and so restored by the rollback, as N2's role-graph tests do.
+      // at the end. Q13 forbids adopting the role's authority from another database: a temporary name parks this
+      // database's installed role and a fresh bare role is created for the isolated candidate, all rolled back.
       const other = await createTestDatabase()
       const projectId = (await seedProject(other.ownerUrl, { admin: A })).projectId
       const elsewhere = (await seedProject(other.ownerUrl, { admin: A })).projectId
@@ -2052,7 +2052,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
         await withClusterMigrationLock(async () => {
           await c.query('BEGIN')
           try {
-            await c.query(`REVOKE ${ROLE} FROM ${loginRole}`)
+            await c.query(`ALTER ROLE ${ROLE} RENAME TO con01_fences_installed`)
             for (const name of [...BEFORE_N4, N4]) await c.query(candidate(name))
             const { read, unread } = await sourceKeyFixture(c, projectId, elsewhere)
             await explainNested(c)

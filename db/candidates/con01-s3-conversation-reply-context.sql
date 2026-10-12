@@ -4,7 +4,9 @@
 -- migration and the S1 and S2 candidates.
 -- * Dormant. The role made here logs in as nobody and has no member; nothing calls these functions; no row is inserted.
 --   Every table is closed (row security on, no policy, no grant). Only the five entry points are executable, by that
---   role alone. The role is cluster-global, and its membership in sophia_api lends it that role's functions (CX49).
+--   role alone. The cluster-global role is a member of no role. Only this database grants its claim-bound read surface
+--   below; a second installation is refused. Actual login admission and effective PUBLIC authority require the separate
+--   read-only activation check and fresh connection proofs before any use (Q13, D-8).
 -- * Attempts are counted durably: at most 3 claims per reply, each a committed row before anything is assembled. The
 --   claim reconciles first: a recorded context is used again only while it still passes, else it is superseded.
 -- * Locks, in one order everywhere, each function a prefix of it: the project (FOR SHARE), its conversation (FOR SHARE),
@@ -29,30 +31,20 @@ BEGIN
     AND (rolsuper OR rolbypassrls OR rolcanlogin OR rolcreatedb OR rolcreaterole OR rolreplication)) THEN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with unsafe attributes' USING ERRCODE='42501';
  END IF;
- -- A role found is adopted only as this file leaves it (PR #211 review): a member of sophia_api alone, inheriting it,
- -- without the admin option (this file's own grant, made in another database of the cluster), and with no member of
- -- its own, so it inherits nothing else and lends the entry points to no one. An edge that does not inherit
- -- (inherit_option, not the role's own INHERIT) is refused here, not changed by the GRANT below. The SET option is not
- -- used either way. Anything else is refused; nothing is revoked.
+-- A role found is adopted only bare (Q13, D-8): a member of no role and with no member, so it inherits and assumes
+ -- nothing and lends the entry points to no one. Anything else is refused; nothing is revoked.
  SELECT oid INTO STRICT a FROM pg_roles WHERE rolname='sophia_conversation_assembler';
- IF EXISTS(SELECT FROM pg_auth_members m WHERE m.member=a
-     AND (m.roleid<>'sophia_api'::regrole OR m.admin_option OR NOT m.inherit_option))
-   OR EXISTS(SELECT FROM pg_auth_members m WHERE m.roleid=a) THEN
+ IF EXISTS(SELECT FROM pg_auth_members m WHERE m.member=a OR m.roleid=a) THEN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with unexpected memberships' USING ERRCODE='42501';
  END IF;
- -- Nor anything of its own in this database or on a shared object (PR #211 review r4242793043): a login added at
- -- activation would inherit it beside the five entry points. pg_shdepend names the role for every object it owns and
- -- every privilege granted to it, default privileges included. What this file grants it in another database is that
- -- database's. Nothing is revoked.
- IF EXISTS(SELECT FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass AND d.refobjid=a
-     AND d.dbid IN (0,(SELECT oid FROM pg_database WHERE datname=current_database()))) THEN
+ -- Nor anything of its own anywhere in the cluster (Q13; PR #211 r4242793043, r4242913900): pg_shdepend names the role
+ -- for every object it owns, every privilege granted to it (default privileges included) and every policy naming it,
+ -- in every database. So the role holds what this file grants in one database alone, and a second installation in the
+ -- same cluster is refused.
+ IF EXISTS(SELECT FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass AND d.refobjid=a) THEN
   RAISE EXCEPTION 'sophia_conversation_assembler exists with privileges or objects of its own' USING ERRCODE='42501';
  END IF;
 END $$;
--- For the row policies of the tables the compiler reads, as the asker. INHERIT TRUE whatever the role's own INHERIT, which
--- sets only a new grant's default: a found NOINHERIT role with no edge would otherwise get one it can't read through
--- (PR #211 review). An edge found already inherits (else refused above), so no existing edge's options change.
-GRANT sophia_api TO sophia_conversation_assembler WITH INHERIT TRUE;
 
 -- One claimed attempt at a reply's context, by its lease token. Begin writes what it found in its own transaction.
 CREATE TABLE sophia.conversation_assembly_claims (
@@ -752,3 +744,139 @@ GRANT EXECUTE ON FUNCTION sophia.conversation_assembly_claim(uuid,integer),
  sophia.conversation_assembly_begin(uuid,integer,uuid), sophia.conversation_assembly_close(uuid,integer,uuid,text),
  sophia.conversation_assembly_fail(uuid,integer,uuid,text), sophia.conversation_record_context(uuid,integer,uuid,jsonb)
  TO sophia_conversation_assembler;
+
+
+-- (Q13, D-8) The one project the assembler may read, and only as its asker: the project of the claim this transaction
+-- began (begun_xid), still unsettled and inside its lease, whose reply the current actor asked. NULL otherwise, and with
+-- more than one such claim, so the read policies (below) admit no row.
+CREATE FUNCTION sophia.conversation_assembly_project() RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path=pg_catalog,sophia AS $$
+ SELECT CASE WHEN count(*)=1 THEN (array_agg(k.project_id))[1] END
+   FROM sophia.conversation_assembly_claims k
+   JOIN sophia.conversation_replies r ON r.project_id=k.project_id AND r.id=k.reply_id
+  WHERE k.begun_xid=pg_current_xact_id_if_assigned() AND k.outcome IS NULL AND k.lease_expires_at>clock_timestamp()
+    AND r.asked_by=sophia.actor_id() $$;
+REVOKE ALL ON FUNCTION sophia.conversation_assembly_project() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.conversation_assembly_project() TO sophia_conversation_assembler;
+
+-- (Q13, D-8) What the compiler reads as the asker, and nothing else: the relations readMissionContext and the window
+-- read, native_task_view's base tables, the relations their SELECT policies read, the functions those policies and that
+-- view call. Refused, before anything here changes, unless every one is still exactly what Q13 was reviewed against.
+DO $$
+DECLARE was text:=current_setting('search_path');
+ rels text[]:=ARRAY['commands','contributions','conversation_messages','conversations','decisions','execution_bindings',
+  'goals','jobs','mission_confirmation_targets','mission_entries','mission_note_consents','mission_note_policies',
+  'project_members','project_revisions','projects','source_dependencies','source_objects','source_texts','work_attempts'];
+ member text:='c6b5d3e81ef41aae94b11f678470fa70'; none text:='d41d8cd98f00b204e9800998ecf8427e';
+BEGIN
+ PERFORM set_config('search_path','pg_catalog',true);
+ IF current_setting('server_version_num')::int/10000 NOT IN (16,17) THEN
+  RAISE EXCEPTION 'the Q13 read identities are reviewed for PostgreSQL 16 and 17 only' USING ERRCODE='55000';
+ END IF;
+ IF (SELECT array_agg(s.v ORDER BY s.v COLLATE "C") FROM (
+      SELECT c.relname||'.'||p.polname||' '||p.polcmd::text||' '||p.polpermissive::text||' '||
+       (SELECT string_agg(x::regrole::text,',' ORDER BY x::regrole::text COLLATE "C") FROM unnest(p.polroles) x)||' '||
+       md5(coalesce(pg_get_expr(p.polqual,p.polrelid),''))||' '||md5(coalesce(pg_get_expr(p.polwithcheck,p.polrelid),''))
+       AS v
+       FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+      WHERE c.relnamespace='sophia'::regnamespace AND c.relname=ANY(rels) AND p.polcmd IN ('r','*')) s)
+   IS DISTINCT FROM ARRAY[
+   'commands.members_read r true sophia_api '||member||' '||none,
+   'contributions.members_read r true sophia_api '||member||' '||none,
+   'conversation_messages.members_read r true sophia_api e76fc23de87f4b338688e22f5ab4d6b1 '||none,
+   'conversations.members_read r true sophia_api 8c39e31aa575d8d6bb545db05993ba6b '||none,
+   'decisions.members_read r true sophia_api '||member||' '||none,
+   'execution_bindings.members_read r true sophia_api '||member||' '||none,
+   'goals.members_read r true sophia_api '||member||' '||none,
+   'jobs.members_read r true sophia_api '||member||' '||none,
+   'mission_confirmation_targets.members_read r true sophia_api '||member||' '||none,
+   'mission_entries.members_read r true sophia_api '||member||' '||none,
+   'mission_note_consents.members_read r true sophia_api '||member||' '||none,
+   'mission_note_policies.members_read r true sophia_api '||member||' '||none,
+   'project_members.members_read r true sophia_api '||member||' '||none,
+   'project_revisions.members_read r true sophia_api '||member||' '||none,
+   'projects.members_read r true sophia_api 2755e13246aa841a78d079f595642542 '||none,
+   'source_dependencies.members_read r true sophia_api '||member||' '||none,
+   'source_objects.eligible_sources_read r true sophia_api aafc1899b46eebed028871abe57807d2 '||none,
+   'source_texts.readable_source r true sophia_api 088c91c8879bb4247da7f13658543709 '||none,
+   'work_attempts.members_read r true sophia_api '||member||' '||none]
+ OR (SELECT md5(pg_get_viewdef(c.oid))||' '||array_to_string(c.reloptions,',') FROM pg_class c
+      WHERE c.oid='sophia.native_task_view'::regclass)
+   IS DISTINCT FROM 'c0d03ea473637eab9be98b68e0216d65 security_barrier=true,security_invoker=true'
+ OR (SELECT array_agg(p.oid::regprocedure::text||' '||md5(pg_get_functiondef(p.oid)) ORDER BY p.oid::regprocedure::text COLLATE "C")
+      FROM pg_proc p WHERE p.oid IN ('sophia.actor_id()'::regprocedure,'sophia.is_member(uuid)'::regprocedure,
+       'sophia.is_task_kind(text)'::regprocedure,'sophia.mission_capture_default()'::regprocedure))
+   IS DISTINCT FROM ARRAY['sophia.actor_id() 27098852bf55bc01c3c6b938a646491c',
+    'sophia.is_member(uuid) 73e40f4a2d8d6af95f8d414c6c2ee784','sophia.is_task_kind(text) ab5390873bf78035cc94d99466f49d12',
+    'sophia.mission_capture_default() d3212aa604efc9363d7d30e4ee0777a5'] THEN
+  RAISE EXCEPTION 'the read policies, view or functions are not the ones Q13 was reviewed against' USING ERRCODE='55000';
+ END IF;
+ PERFORM set_config('search_path',was,true);
+END $$;
+GRANT USAGE ON SCHEMA sophia TO sophia_conversation_assembler;
+GRANT SELECT ON sophia.commands, sophia.contributions, sophia.conversation_messages, sophia.conversations,
+ sophia.decisions, sophia.execution_bindings, sophia.goals, sophia.jobs, sophia.mission_confirmation_targets,
+ sophia.mission_entries, sophia.mission_note_consents, sophia.mission_note_policies, sophia.native_task_view,
+ sophia.project_members, sophia.project_revisions, sophia.projects, sophia.source_dependencies, sophia.source_objects,
+ sophia.source_texts, sophia.work_attempts TO sophia_conversation_assembler;
+GRANT EXECUTE ON FUNCTION sophia.actor_id(), sophia.is_member(uuid), sophia.is_task_kind(text),
+ sophia.mission_capture_default() TO sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.commands TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.contributions TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.conversation_messages TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.conversations TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.decisions TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.execution_bindings TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.goals TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.jobs TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.mission_confirmation_targets TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.mission_entries TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.mission_note_consents TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.mission_note_policies TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.project_members TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.project_revisions TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.projects TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.source_dependencies TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY eligible_sources_read ON sophia.source_objects TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY readable_source ON sophia.source_texts TO sophia_api, sophia_conversation_assembler;
+ALTER POLICY members_read ON sophia.work_attempts TO sophia_api, sophia_conversation_assembler;
+-- The assembler's reads, bound to its own begun claim: restrictive, so they narrow the shared policies above for the
+-- assembler alone; sophia_api is not named and reads as before.
+CREATE POLICY con01_assembly_bound ON sophia.commands AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.contributions AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.conversation_messages AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.conversations AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.decisions AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.execution_bindings AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.goals AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.jobs AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.mission_confirmation_targets AS RESTRICTIVE FOR SELECT
+ TO sophia_conversation_assembler USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.mission_entries AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.mission_note_consents AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.mission_note_policies AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.project_members AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.project_revisions AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.projects AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.source_dependencies AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.source_objects AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.source_texts AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));
+CREATE POLICY con01_assembly_bound ON sophia.work_attempts AS RESTRICTIVE FOR SELECT TO sophia_conversation_assembler
+ USING (project_id=(SELECT sophia.conversation_assembly_project()));

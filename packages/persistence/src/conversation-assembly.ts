@@ -15,7 +15,8 @@
 //   - a lease no shorter than three deadlines (claim, assembly, fail) nor than that server bound, so a claim outlives
 //     any lock its failed attempt could still hold.
 // * The assembly reads as the asker its reply row names, never as the caller: SET LOCAL ROLE to the assembler role, then
-//   the actor set transaction-locally. The mission context is readMissionContext's, unchanged, under row security.
+//   the actor set transaction-locally. The role is a member of no other role; reads are bound to the claim this
+//   transaction began. The mission context is readMissionContext's, unchanged, under row security.
 import pg from 'pg'
 import { safeInt } from './bigint.ts'
 import {

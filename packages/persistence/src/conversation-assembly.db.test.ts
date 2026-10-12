@@ -70,6 +70,7 @@ const ADDED_FUNCTIONS = [
   'sophia.conversation_assembly_fail(uuid,integer,uuid,text)',
   'sophia.conversation_assembly_locked(uuid,boolean)',
   'sophia.conversation_assembly_privacy(sophia.conversation_replies)',
+  'sophia.conversation_assembly_project()',
   'sophia.conversation_context_current(sophia.conversation_reply_contexts)',
   'sophia.conversation_context_decision(sophia.projects,text,text)',
   'sophia.conversation_context_fields(jsonb)',
@@ -93,6 +94,39 @@ const ENTRY_POINTS = [
   'sophia.conversation_assembly_fail(uuid,integer,uuid,text)',
   'sophia.conversation_record_context(uuid,integer,uuid,jsonb)',
 ]
+const READ_RELATIONS = [
+  'commands',
+  'contributions',
+  'conversation_messages',
+  'conversations',
+  'decisions',
+  'execution_bindings',
+  'goals',
+  'jobs',
+  'mission_confirmation_targets',
+  'mission_entries',
+  'mission_note_consents',
+  'mission_note_policies',
+  'native_task_view',
+  'project_members',
+  'project_revisions',
+  'projects',
+  'source_dependencies',
+  'source_objects',
+  'source_texts',
+  'work_attempts',
+]
+const READ_HELPERS = [
+  'sophia.actor_id()',
+  'sophia.conversation_assembly_project()',
+  'sophia.is_member(uuid)',
+  'sophia.is_task_kind(text)',
+  'sophia.mission_capture_default()',
+]
+const ALLOWED_FUNCTIONS = [...ENTRY_POINTS, ...READ_HELPERS].toSorted()
+const BOUND_POLICIES = READ_RELATIONS.filter((r) => r !== 'native_task_view').map(
+  (r) => `con01_assembly_bound on sophia.${r}`,
+)
 const ADDED_TABLES = [
   'conversation_assembly_claims',
   'conversation_reply_contexts',
@@ -540,6 +574,73 @@ const record = (s: pg.PoolClient, replyId: string, k: Pick<Verdict, 'attempt' | 
     ])
     .then((r) => r.rows[0]?.v as Verdict)
 
+/** Every case rolls back its temporary role name and installation; the installed role's authority is never adopted. */
+async function candidateCases(cases: [string, string, string][]): Promise<void> {
+  const other = await createTestDatabase()
+  const c = new pg.Client({ connectionString: other.ownerUrl })
+  await c.connect()
+  try {
+    for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
+    for (const [label, setup, expected] of cases) {
+      await c.query('BEGIN')
+      try {
+        await c.query(`ALTER ROLE ${ROLE} RENAME TO con01_assembler_installed`)
+        await c.query(`CREATE ROLE ${ROLE} NOLOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE`)
+        await c.query(setup.replace('CURRENT_DB', new URL(other.ownerUrl).pathname.slice(1)))
+        const result = await refusal(c.query(candidate(CANDIDATES[2] ?? '')))
+        assert.equal(result === 'resolved' ? 'applied' : result, expected, label)
+      } finally {
+        await c.query('ROLLBACK')
+      }
+    }
+  } finally {
+    await c.end()
+    await other.drop()
+  }
+}
+
+/** A real login's complete read surface, optionally narrowed to one project. */
+async function readSurface(c: pg.PoolClient, projectId: string | null = null): Promise<unknown[]> {
+  const results: unknown[] = []
+  for (const table of READ_RELATIONS) {
+    const key = table === 'projects' ? 'id' : 'project_id'
+    const where = projectId === null ? '' : `WHERE t.${key}=$1`
+    const { rows } = await c.query(
+      `SELECT to_jsonb(t) AS row FROM sophia.${table} t ${where} ORDER BY to_jsonb(t)::text COLLATE "C"`,
+      projectId === null ? [] : [projectId],
+    )
+    results.push(rows)
+  }
+  return results
+}
+
+/** Digest all synthetic table contents, not only row counts: a denied writer may change neither. */
+async function operationalDigest(): Promise<string> {
+  const tables = await owner<{ r: string }>(
+    "SELECT relname AS r FROM pg_class WHERE relnamespace='sophia'::regnamespace AND relkind='r' ORDER BY relname COLLATE \"C\"",
+  )
+  const hash = createHash('sha256')
+  for (const { r } of tables) {
+    hash.update(r)
+    hash.update(
+      JSON.stringify(
+        await owner(`SELECT to_jsonb(t) AS row FROM sophia.${r} t ORDER BY to_jsonb(t)::text COLLATE "C"`),
+      ),
+    )
+  }
+  return hash.digest('hex')
+}
+
+/** Permission must fail before a writer is entered; its transaction is always rolled back. */
+async function deniedAsAssembler(c: pg.PoolClient, sql: string): Promise<void> {
+  await c.query(`BEGIN; ${AS_ASSEMBLER}`)
+  try {
+    assert.equal(await refusal(c.query(sql)), '42501', sql)
+  } finally {
+    await c.query('ROLLBACK')
+  }
+}
+
 // --- The catalog, before and after the candidate ----------------------------------------------------------------------
 
 interface Catalog {
@@ -584,6 +685,7 @@ async function catalog(): Promise<Catalog> {
 
 const without = <T>(xs: T[], key: (x: T) => string, names: string[]) => xs.filter((x) => !names.includes(key(x)))
 const added = (b: string[], a: string[]) => a.filter((x) => !b.includes(x))
+const withoutAssemblerGrant = (acl: string) => acl.replaceAll(new RegExp(`,?${ROLE}=[^,}]+`, 'g'), '')
 
 // --- A rendered payload, taken apart for the forgeries ------------------------------------------------------------------
 
@@ -696,7 +798,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
   })
 
   describe('its footprint and its role', () => {
-    it('adds exactly its four tables, their indexes, its functions and triggers; changes nothing else, inserts no row', () => {
+    it('adds only the declared context objects and claim-bound read grants; shared predicates and rows stay unchanged', () => {
       assert.deepEqual(
         added(
           pre.functions.map((f) => f.sig),
@@ -719,19 +821,39 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
         ADDED_TRIGGERS,
       )
       assert.deepEqual(
-        without(post.functions, (f) => f.sig, ADDED_FUNCTIONS),
+        without(post.functions, (f) => f.sig, ADDED_FUNCTIONS).map((f) => ({
+          ...f,
+          acl: READ_HELPERS.includes(f.sig) ? withoutAssemblerGrant(f.acl) : f.acl,
+        })),
         pre.functions,
         'no function changed',
       )
       assert.deepEqual(
-        without(post.relations, (r) => r.name, [...ADDED_TABLES, ...ADDED_INDEXES]),
-        pre.relations,
+        without(post.relations, (r) => r.name, [...ADDED_TABLES, ...ADDED_INDEXES]).map((r) => ({
+          ...r,
+          acl: READ_RELATIONS.includes(r.name) ? withoutAssemblerGrant(r.acl) : r.acl,
+        })),
+        pre.relations.map((r) => ({
+          ...r,
+          acl: READ_RELATIONS.includes(r.name) ? withoutAssemblerGrant(r.acl) : r.acl,
+        })),
       )
       assert.deepEqual(
         without(post.triggers, (t) => t.name, ADDED_TRIGGERS),
         pre.triggers,
       )
-      assert.deepEqual(post.policies, pre.policies, 'no policy added or changed')
+      assert.deepEqual(
+        without(post.policies, (p) => p.name, BOUND_POLICIES),
+        pre.policies,
+        'shared predicates unchanged',
+      )
+      assert.deepEqual(
+        added(
+          pre.policies.map((p) => p.name),
+          post.policies.map((p) => p.name),
+        ),
+        BOUND_POLICIES.toSorted(),
+      )
       assert.deepEqual(
         without(post.rows, (r) => r.relname, ADDED_TABLES),
         pre.rows,
@@ -743,7 +865,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       }
     })
 
-    it('makes a dormant, cluster-global role: no login, no bypass, sophia_api its only role, nothing owned, no member but the test login', async () => {
+    it('makes a dormant, cluster-global role: no login, no bypass, no parent role, nothing owned, no member but the test login', async () => {
       const [r] = await owner<Record<string, unknown>>(
         `SELECT r.rolsuper, r.rolinherit, r.rolcanlogin, r.rolbypassrls, r.rolcreatedb, r.rolcreaterole, r.rolreplication,
                 ARRAY(SELECT b.rolname FROM pg_auth_members m JOIN pg_roles b ON b.oid = m.roleid WHERE m.member = r.oid)::text[] AS member_of,
@@ -760,194 +882,75 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
         rolcreatedb: false,
         rolcreaterole: false,
         rolreplication: false,
-        member_of: ['sophia_api'],
+        member_of: [],
         members: [loginRole],
         owns: 0,
       })
     })
 
-    it('adopts an existing role only as it leaves it: sophia_api its one parent, no admin option, no member (PR #211 review)', async () => {
-      const graph = async () =>
-        (
-          await onAdmin<{ g: string }>(
-            `SELECT coalesce(string_agg(format('%s>%s admin=%s', b.rolname, u.rolname, m.admin_option), ', '
-                      ORDER BY b.rolname COLLATE "C", u.rolname COLLATE "C"), '') AS g
-               FROM pg_auth_members m JOIN pg_roles b ON b.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
-              WHERE b.rolname = '${ROLE}' OR u.rolname = '${ROLE}'`,
-          )
-        )[0]?.g
-      const was = await graph()
-      // Another database to apply S3 to: the role graph is the cluster's, so each case runs in a transaction rolled back.
+    it('refuses a second database installation, even after removing its only member', async () => {
       const other = await createTestDatabase()
       const c = new pg.Client({ connectionString: other.ownerUrl })
       await c.connect()
-      const apply = async (setup: string) => {
-        await c.query('BEGIN')
-        try {
-          await c.query(setup)
-          await c.query(candidate(CANDIDATES[2] ?? ''))
-          return 'applied'
-        } catch (err) {
-          return err instanceof Error ? err.message : String(err)
-        } finally {
-          await c.query('ROLLBACK')
-        }
-      }
-      const unexpected = 'sophia_conversation_assembler exists with unexpected memberships'
-      const alone = `REVOKE ${ROLE} FROM ${loginRole}`
       try {
-        await withClusterMigrationLock(async () => {
-          for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
-          // As found now: sophia_api its parent, and this file's test login its member. The member alone refuses.
-          assert.equal(await apply('SELECT 1'), unexpected, 'a member')
-          // Without that member, exactly as the file leaves it: adopted.
-          assert.equal(await apply(alone), 'applied', 'sophia_api its one parent')
-          assert.equal(await apply(`${alone}; GRANT sophia_worker TO ${ROLE}`), unexpected, 'another parent')
-          assert.equal(
-            await apply(`${alone}; GRANT sophia_api TO ${ROLE} WITH ADMIN OPTION`),
-            unexpected,
-            'admin option',
-          )
-        })
-      } finally {
-        await c.end()
-        await other.drop()
-      }
-      assert.equal(await graph(), was, 'nothing revoked, granted or normalized')
-    })
-
-    it('adopts its sophia_api membership only when the edge inherits, and leaves one that does: INHERIT FALSE refused in either form, SET either way (PR #211 review)', async () => {
-      // The edge's own options, and the role's INHERIT apart: that only sets the default for a grant made later. `usage`:
-      // the role holds sophia_api's privileges, by inheritance, which is what the compiler reads with.
-      const edge = `SELECT (SELECT coalesce(string_agg(format('inherit=%s set=%s admin=%s', m.inherit_option::text, m.set_option::text,
-                      m.admin_option::text), ', '), 'no edge') FROM pg_auth_members m
-                      WHERE m.member = '${ROLE}'::regrole AND m.roleid = 'sophia_api'::regrole)
-                    || ' rolinherit=' || (SELECT rolinherit FROM pg_roles WHERE rolname = '${ROLE}')
-                    || ' usage=' || pg_has_role('${ROLE}', 'sophia_api', 'USAGE') AS s`
-      const was = (await onAdmin<{ s: string }>(edge))[0]?.s
-      assert.equal(was, 'inherit=true set=true admin=false rolinherit=true usage=true', 'as this file left it')
-      const other = await createTestDatabase()
-      const c = new pg.Client({ connectionString: other.ownerUrl })
-      await c.connect()
-      // Each case: the edge its setup left, as S3 then finds it, and what S3 did; once applied, the edge S3 leaves.
-      const apply = async (setup: string) => {
         await c.query('BEGIN')
-        try {
-          await c.query(setup)
-          const found = (await c.query<{ s: string }>(edge)).rows[0]?.s
-          try {
-            await c.query(candidate(CANDIDATES[2] ?? ''))
-            return `${found}: applied -> ${(await c.query<{ s: string }>(edge)).rows[0]?.s}`
-          } catch (err) {
-            return `${found}: ${err instanceof Error ? err.message : String(err)}`
-          }
-        } finally {
-          await c.query('ROLLBACK')
-        }
-      }
-      const unexpected = 'sophia_conversation_assembler exists with unexpected memberships'
-      const alone = `REVOKE ${ROLE} FROM ${loginRole}`
-      try {
-        await withClusterMigrationLock(async () => {
-          for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
-          // Every case runs, and all are compared at once.
-          const cases: [string, string][] = [
-            ['the edge granted WITH INHERIT FALSE', `GRANT sophia_api TO ${ROLE} WITH INHERIT FALSE`],
-            [
-              'the edge granted while the role was NOINHERIT',
-              `REVOKE sophia_api FROM ${ROLE}; ALTER ROLE ${ROLE} NOINHERIT; GRANT sophia_api TO ${ROLE}`,
-            ],
-            ['INHERIT TRUE, SET FALSE', `GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE, SET FALSE`],
-            ['INHERIT TRUE, SET TRUE', `GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE, SET TRUE`],
-            ['the role NOINHERIT, its edge inheriting', `ALTER ROLE ${ROLE} NOINHERIT`],
-            [
-              'the role NOINHERIT, its edge granted WITH INHERIT TRUE',
-              `REVOKE sophia_api FROM ${ROLE}; ALTER ROLE ${ROLE} NOINHERIT; GRANT sophia_api TO ${ROLE} WITH INHERIT TRUE`,
-            ],
-            ['the role NOINHERIT, no edge', `REVOKE sophia_api FROM ${ROLE}; ALTER ROLE ${ROLE} NOINHERIT`],
-            ['the role, no edge', `REVOKE sophia_api FROM ${ROLE}`],
-          ]
-          const outcomes: string[] = []
-          for (const [name, setup] of cases) outcomes.push(`${name} | ${await apply(`${alone}; ${setup}`)}`)
-          const t = 'inherit=true set=true admin=false'
-          assert.deepEqual(outcomes, [
-            `the edge granted WITH INHERIT FALSE | inherit=false set=true admin=false rolinherit=true usage=false: ${unexpected}`,
-            `the edge granted while the role was NOINHERIT | inherit=false set=true admin=false rolinherit=false usage=false: ${unexpected}`,
-            'INHERIT TRUE, SET FALSE | inherit=true set=false admin=false rolinherit=true usage=true: applied -> inherit=true set=false admin=false rolinherit=true usage=true',
-            `INHERIT TRUE, SET TRUE | ${t} rolinherit=true usage=true: applied -> ${t} rolinherit=true usage=true`,
-            `the role NOINHERIT, its edge inheriting | ${t} rolinherit=false usage=true: applied -> ${t} rolinherit=false usage=true`,
-            `the role NOINHERIT, its edge granted WITH INHERIT TRUE | ${t} rolinherit=false usage=true: applied -> ${t} rolinherit=false usage=true`,
-            `the role NOINHERIT, no edge | no edge rolinherit=false usage=false: applied -> ${t} rolinherit=false usage=true`,
-            `the role, no edge | no edge rolinherit=true usage=false: applied -> ${t} rolinherit=true usage=true`,
-          ])
-        })
-      } finally {
-        await c.end()
-        await other.drop()
-      }
-      assert.equal((await onAdmin<{ s: string }>(edge))[0]?.s, was, 'nothing revoked, granted or normalized')
-    })
-
-    it('adopts a found role only with nothing of its own here: a grant, an object or a default privilege is refused (PR #211 review r4242793043)', async () => {
-      // A login added at activation would inherit whatever the role holds in the database or on a shared object, beside
-      // the five entry points. The grants S3 made in this suite's own database are that database's, not the other's.
-      const other = await createTestDatabase()
-      const c = new pg.Client({ connectionString: other.ownerUrl })
-      await c.connect()
-      const apply = async (setup: string) => {
-        await c.query('BEGIN')
-        try {
-          await c.query(setup)
-          await c.query(candidate(CANDIDATES[2] ?? ''))
-          return 'applied'
-        } catch (err) {
-          return err instanceof Error ? err.message : String(err)
-        } finally {
-          await c.query('ROLLBACK')
-        }
-      }
-      const alone = `REVOKE ${ROLE} FROM ${loginRole}`
-      const own = 'sophia_conversation_assembler exists with privileges or objects of its own'
-      try {
-        await withClusterMigrationLock(async () => {
-          for (const name of CANDIDATES.slice(0, 2)) await c.query(candidate(name))
-          // Every case runs, and all are compared at once.
-          const cases: [string, string][] = [
-            ['nothing of its own here', 'SELECT 1'],
-            ['a table privilege', `GRANT SELECT ON sophia.projects TO ${ROLE}`],
-            ['a column privilege', `GRANT SELECT (id) ON sophia.projects TO ${ROLE}`],
-            ['a function privilege', `GRANT EXECUTE ON FUNCTION sophia.reconcile_runtime_outbox(integer) TO ${ROLE}`],
-            ['a schema privilege', `GRANT CREATE ON SCHEMA sophia TO ${ROLE}`],
-            [
-              'an object it owns',
-              `CREATE TABLE public.con01_owned (); ALTER TABLE public.con01_owned OWNER TO ${ROLE}`,
-            ],
-            ['a default privilege', `ALTER DEFAULT PRIVILEGES IN SCHEMA sophia GRANT SELECT ON TABLES TO ${ROLE}`],
-            [
-              'a privilege on the database',
-              `DO $$ BEGIN EXECUTE format('GRANT TEMPORARY ON DATABASE %I TO ${ROLE}', current_database()); END $$`,
-            ],
-          ]
-          const outcomes: string[] = []
-          for (const [name, setup] of cases) outcomes.push(`${name}: ${await apply(`${alone}; ${setup}`)}`)
-          assert.deepEqual(outcomes, [
-            'nothing of its own here: applied',
-            `a table privilege: ${own}`,
-            `a column privilege: ${own}`,
-            `a function privilege: ${own}`,
-            `a schema privilege: ${own}`,
-            `an object it owns: ${own}`,
-            `a default privilege: ${own}`,
-            `a privilege on the database: ${own}`,
-          ])
-        })
+        await c.query(`REVOKE ${ROLE} FROM ${loginRole}`)
+        assert.equal(await refusal(c.query(candidate(CANDIDATES[2] ?? ''))), '42501')
+        await c.query('ROLLBACK')
+        assert.equal((await c.query("SELECT to_regclass('sophia.conversation_assembly_claims') AS r")).rows[0]?.r, null)
       } finally {
         await c.end()
         await other.drop()
       }
     })
 
-    it('lets only the assembler execute the five entry points, and nobody read or write its tables', async () => {
+    it('adopts only a bare role and refuses every membership option, privilege, ownership and identity drift', async () => {
+      const cases: [string, string, string][] = [
+        ['bare role', 'SELECT 1', 'applied'],
+        ['bare NOINHERIT role', `ALTER ROLE ${ROLE} NOINHERIT`, 'applied'],
+        ['API inheritance', `GRANT sophia_api TO ${ROLE}`, '42501'],
+        ['API without inheritance', `GRANT sophia_api TO ${ROLE} WITH INHERIT FALSE`, '42501'],
+        ['API without SET', `GRANT sophia_api TO ${ROLE} WITH SET FALSE`, '42501'],
+        ['API admin', `GRANT sophia_api TO ${ROLE} WITH ADMIN OPTION`, '42501'],
+        ['worker parent', `GRANT sophia_worker TO ${ROLE}`, '42501'],
+        ['member', `GRANT ${ROLE} TO ${loginRole}`, '42501'],
+        ['table privilege', `GRANT SELECT ON sophia.projects TO ${ROLE}`, '42501'],
+        ['column privilege', `GRANT SELECT (id) ON sophia.projects TO ${ROLE}`, '42501'],
+        [
+          'function privilege',
+          `GRANT EXECUTE ON FUNCTION sophia.reconcile_runtime_outbox(integer) TO ${ROLE}`,
+          '42501',
+        ],
+        ['schema privilege', `GRANT CREATE ON SCHEMA sophia TO ${ROLE}`, '42501'],
+        [
+          'owned object',
+          `CREATE TABLE public.con01_owned (); ALTER TABLE public.con01_owned OWNER TO ${ROLE}`,
+          '42501',
+        ],
+        ['default privilege', `ALTER DEFAULT PRIVILEGES IN SCHEMA sophia GRANT SELECT ON TABLES TO ${ROLE}`, '42501'],
+        ['database privilege', `GRANT TEMPORARY ON DATABASE CURRENT_DB TO ${ROLE}`, '42501'],
+        ['predicate drift', 'ALTER POLICY members_read ON sophia.goals USING (true)', '55000'],
+        [
+          'function drift',
+          "CREATE OR REPLACE FUNCTION sophia.is_task_kind(p_kind text) RETURNS boolean LANGUAGE sql IMMUTABLE AS 'SELECT false'",
+          '55000',
+        ],
+        ['view drift', 'ALTER VIEW sophia.native_task_view SET (security_invoker=false)', '55000'],
+        [
+          'extra read policy',
+          'CREATE POLICY unexpected_read ON sophia.goals FOR SELECT TO sophia_api USING (true)',
+          '55000',
+        ],
+        [
+          'existing restrictive policy',
+          'CREATE POLICY con01_assembly_bound ON sophia.goals AS RESTRICTIVE FOR SELECT TO sophia_api USING (true)',
+          '55000',
+        ],
+      ]
+      await candidateCases(cases)
+    })
+
+    it('lets only the assembler execute its six added functions, and nobody read or write its tables', async () => {
       const grants = await owner<{ role: string; fn: string }>(
         `SELECT g.role, p.oid::regprocedure::text AS fn FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace,
                 unnest(ARRAY['public', 'sophia_api', 'sophia_worker', $1]) g(role)
@@ -959,7 +962,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       )
       assert.deepEqual(
         grants.map((g) => `${g.role} ${g.fn}`),
-        ENTRY_POINTS.map((f) => `${ROLE} ${f}`),
+        [...ENTRY_POINTS, 'sophia.conversation_assembly_project()'].toSorted().map((f) => `${ROLE} ${f}`),
       )
       const tables = await owner<{ role: string; t: string }>(
         `SELECT g.role, t FROM unnest($2::text[]) t, unnest(ARRAY['public', 'sophia_api', 'sophia_worker', $1]) g(role)
@@ -988,32 +991,231 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
         await c.query(`BEGIN; ${AS_ASSEMBLER}`)
         assert.equal((await c.query('SELECT 1 FROM sophia.conversation_messages')).rowCount, 0, 'no actor, no row')
         await c.query(`SELECT set_config('sophia.actor_id', $1, true)`, [E])
-        assert.ok(((await c.query('SELECT 1 FROM sophia.conversation_messages')).rowCount ?? 0) > 0, 'as a member')
+        assert.equal(
+          (await c.query('SELECT 1 FROM sophia.conversation_messages')).rowCount,
+          0,
+          'a member without a begun claim reads nothing',
+        )
         await c.query('ROLLBACK')
       } finally {
         c.release(true)
       }
     })
 
-    it('records what the role inherits from sophia_api (CX49): every API function, and the five of its own beside them', async (t) => {
-      const [r] = await owner<{ own: string[]; inherited: number; api: number; definers: number }>(
-        `WITH f AS (SELECT p.oid, p.oid::regprocedure::text AS sig, p.prosecdef FROM pg_proc p
-                      JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'sophia')
-         SELECT ARRAY(SELECT sig FROM f WHERE has_function_privilege($1, oid, 'EXECUTE')
-                        AND NOT has_function_privilege('sophia_api', oid, 'EXECUTE') ORDER BY sig COLLATE "C")::text[] AS own,
-                (SELECT count(*) FROM f WHERE has_function_privilege($1, oid, 'EXECUTE')
-                   AND has_function_privilege('sophia_api', oid, 'EXECUTE'))::int AS inherited,
-                (SELECT count(*) FROM f WHERE has_function_privilege('sophia_api', oid, 'EXECUTE'))::int AS api,
-                (SELECT count(*) FROM f WHERE has_function_privilege('sophia_api', oid, 'EXECUTE') AND prosecdef)::int AS definers`,
+    it('has exactly the ten assembly/read functions and twenty SELECT grants, no operational authority', async () => {
+      const functions = await owner<{ f: string }>(
+        `SELECT p.oid::regprocedure::text AS f FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+          WHERE n.nspname='sophia' AND has_function_privilege($1,p.oid,'EXECUTE') ORDER BY p.oid::regprocedure::text COLLATE "C"`,
         [ROLE],
       )
-      assert.ok(r)
-      assert.deepEqual(r.own, ENTRY_POINTS)
-      assert.equal(r.inherited, r.api, 'everything sophia_api may execute, the assembler may too')
-      t.diagnostic(
-        `inherited from sophia_api: ${String(r.api)} functions, ${String(r.definers)} SECURITY DEFINER; ` +
-          'kept dormant (no login member, no caller) until a least-privilege execution proof',
+      assert.deepEqual(
+        functions.map((f) => f.f),
+        ALLOWED_FUNCTIONS,
       )
+      const reads = await owner<{ r: string }>(
+        `SELECT c.relname AS r FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='sophia' AND c.relkind IN ('r','p','v','m') AND has_table_privilege($1,c.oid,'SELECT') ORDER BY c.relname COLLATE "C"`,
+        [ROLE],
+      )
+      assert.deepEqual(
+        reads.map((r) => r.r),
+        READ_RELATIONS,
+      )
+      const policies = await owner<{ r: string; roles: string[]; restrictive: boolean }>(
+        `SELECT c.relname AS r, ARRAY(SELECT x::regrole::text FROM unnest(p.polroles) x) AS roles,
+          NOT p.polpermissive AS restrictive FROM pg_policy p JOIN pg_class c ON c.oid=p.polrelid
+          WHERE p.polname='con01_assembly_bound' ORDER BY c.relname COLLATE "C"`,
+      )
+      assert.deepEqual(
+        policies,
+        READ_RELATIONS.filter((r) => r !== 'native_task_view').map((r) => ({ r, roles: [ROLE], restrictive: true })),
+      )
+    })
+  })
+
+  describe('Q13: actual claim-bound and least-privilege execution crossings', () => {
+    it('reads nothing without its begun claim, reads exactly the API surface inside it, and fences another actor/project or settled claim', async () => {
+      const target = await scene()
+      const other = await scene()
+      const apiSurface = await withActor(api, E, 'read', (c) => readSurface(c, target.projectId))
+      const apiContext = await withActor(api, E, 'read', (c) =>
+        readMissionContext(c, target.projectId, { actorId: E, channel: 'studio' }),
+      )
+      const k = await claimAs(target.replyId, 8000)
+      const b = await begin(target.replyId, k)
+      assert.equal((await b.begun).verdict, 'begun')
+      try {
+        assert.deepEqual(
+          await readSurface(b.s),
+          READ_RELATIONS.map(() => []),
+          'no actor',
+        )
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+        assert.deepEqual(await readSurface(b.s, target.projectId), apiSurface)
+        assert.deepEqual(await readMissionContext(b.s, target.projectId, { actorId: E, channel: 'studio' }), apiContext)
+        assert.deepEqual(
+          await readSurface(b.s, other.projectId),
+          READ_RELATIONS.map(() => []),
+          'wrong project',
+        )
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [B])
+        assert.deepEqual(
+          await readSurface(b.s),
+          READ_RELATIONS.map(() => []),
+          'another current member',
+        )
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+        assert.equal(
+          (await record(b.s, target.replyId, k, recordPayload(await renderBound(b.s, bindingOf(await b.begun)))))
+            .verdict,
+          'recorded',
+        )
+        assert.deepEqual(
+          await readSurface(b.s),
+          READ_RELATIONS.map(() => []),
+          'settled claim',
+        )
+        await b.s.query('ROLLBACK')
+        await b.s.query(`BEGIN; ${AS_ASSEMBLER}`)
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+        assert.deepEqual(
+          await readSurface(b.s),
+          READ_RELATIONS.map(() => []),
+          'claim begun in another transaction',
+        )
+        assert.equal(await readMissionContext(b.s, target.projectId, { actorId: E, channel: 'studio' }), null)
+      } finally {
+        await b.s.query('ROLLBACK')
+        b.s.release(true)
+      }
+    })
+
+    it('expires a begun read surface without a fresh claim or allowance', async () => {
+      const target = await scene()
+      const k = await claimAs(target.replyId, 1000)
+      const b = await begin(target.replyId, k)
+      assert.equal((await b.begun).verdict, 'begun')
+      try {
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+        assert.ok((await b.s.query('SELECT 1 FROM sophia.projects')).rowCount)
+        await sleep(1100)
+        assert.deepEqual(
+          await readSurface(b.s),
+          READ_RELATIONS.map(() => []),
+        )
+      } finally {
+        await b.s.query('ROLLBACK')
+        b.s.release(true)
+      }
+      assert.equal((await claims(target.replyId)).length, 1)
+    })
+
+    it('cannot assume any cluster role except itself and the assembler, and cannot inherit any API authority', async () => {
+      const roles = await roleNames()
+      const { s: c } = await session()
+      try {
+        for (const role of roles.filter((r) => r !== ROLE && r !== loginRole)) {
+          const [result] = await owner<{ allowed: boolean }>("SELECT pg_has_role($1,$2,'SET') AS allowed", [
+            loginRole,
+            role,
+          ])
+          assert.equal(result?.allowed, false, role)
+          await deniedAsAssembler(c, `SET ROLE "${role.replaceAll('"', '""')}"`)
+        }
+        const [r] = await owner<{ api: boolean; worker: boolean }>(
+          "SELECT pg_has_role($1,'sophia_api','USAGE') AS api, pg_has_role($1,'sophia_worker','USAGE') AS worker",
+          [loginRole],
+        )
+        assert.deepEqual(r, { api: false, worker: false })
+      } finally {
+        c.release(true)
+      }
+    })
+
+    it('keeps concurrent identities separate and a revoked identity creates no new claim', async () => {
+      const peerRole = `con01_q13_peer_${randomBytes(6).toString('hex')}`
+      const password = randomBytes(12).toString('hex')
+      await owner(`CREATE ROLE ${peerRole} LOGIN NOINHERIT PASSWORD '${password}'; GRANT ${ROLE} TO ${peerRole}`)
+      const database = new URL(db.ownerUrl).pathname.slice(1)
+      await owner(`GRANT CONNECT ON DATABASE ${database} TO ${peerRole}`)
+      const peerUrl = new URL(loginUrl)
+      peerUrl.username = peerRole
+      peerUrl.password = password
+      const c = new pg.Client({ connectionString: peerUrl.href })
+      try {
+        await c.connect()
+        await c.query(`BEGIN; ${AS_ASSEMBLER}`)
+        assert.equal(await refusal(c.query(`SET ROLE ${loginRole}`)), '42501')
+        await c.query('ROLLBACK')
+        const { s: primary } = await session()
+        await deniedAsAssembler(primary, `SET ROLE ${peerRole}`)
+        primary.release(true)
+        await c.end()
+        const first = await scene()
+        const second = await scene()
+        const third = await scene()
+        const results = await Promise.all([
+          assembleReply(loginUrl, first.replyId, LIMITS),
+          assembleReply(peerUrl.href, second.replyId, LIMITS),
+        ])
+        assert.deepEqual(
+          results.map((r) => r.outcome),
+          ['recorded', 'recorded'],
+        )
+        await waitFor(
+          'both identities’ own connections to end',
+          async () =>
+            (await owner('SELECT 1 FROM pg_stat_activity WHERE usename=ANY($1::text[])', [[loginRole, peerRole]]))
+              .length === 0,
+        )
+        await owner(`REVOKE ${ROLE} FROM ${peerRole}`)
+        const refused = await assembleReply(peerUrl.href, third.replyId, LIMITS)
+        assert.equal(refused.outcome, 'retry')
+        assert.deepEqual(await claims(third.replyId), [])
+      } finally {
+        await c.end()
+        await owner(`DROP OWNED BY ${peerRole}; DROP ROLE ${peerRole}`)
+      }
+    })
+
+    it('denies every catalogued API/worker writer, direct table write and sequence through the actual login without changing operational rows', async () => {
+      const countsBefore = await operationalDigest()
+      const calls = await owner<{ sql: string }>(
+        `SELECT format('SELECT %I.%I(%s)',n.nspname,p.proname,
+        (SELECT string_agg(CASE WHEN p.provariadic<>0 AND o=p.pronargs THEN 'VARIADIC ' ELSE '' END || 'NULL::'||format_type(x,NULL),', ' ORDER BY o) FROM unnest(p.proargtypes::oid[]) WITH ORDINALITY z(x,o))) AS sql
+        FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='sophia' AND p.prokind='f'
+        AND p.prorettype NOT IN ('trigger'::regtype,'event_trigger'::regtype)
+        AND (has_function_privilege('sophia_api',p.oid,'EXECUTE') OR has_function_privilege('sophia_worker',p.oid,'EXECUTE'))
+        AND NOT (p.oid::regprocedure::text=ANY($1::text[]))`,
+        [ALLOWED_FUNCTIONS],
+      )
+      assert.ok(calls.length > 30)
+      const tables = await owner<{ r: string; col: string }>(
+        "SELECT c.relname AS r, (SELECT quote_ident(attname) FROM pg_attribute WHERE attrelid=c.oid AND attnum>0 AND NOT attisdropped AND attgenerated='' ORDER BY attnum LIMIT 1) AS col FROM pg_class c WHERE c.relnamespace='sophia'::regnamespace AND c.relkind IN ('r','p')",
+      )
+      const sequences = await owner<{ sql: string }>(
+        "SELECT format('SELECT nextval(%L::regclass)',oid::regclass::text) AS sql FROM pg_class WHERE relnamespace='sophia'::regnamespace AND relkind='S'",
+      )
+      const { s: c } = await session()
+      try {
+        await deniedAsAssembler(c, 'SELECT sophia.create_project(NULL::text,NULL::text)')
+        for (const call of [...calls, ...sequences]) await deniedAsAssembler(c, call.sql)
+        for (const { r, col } of tables)
+          for (const sql of [
+            `INSERT INTO sophia.${r} DEFAULT VALUES`,
+            `UPDATE sophia.${r} SET ${col}=${col} WHERE false`,
+            `DELETE FROM sophia.${r} WHERE false`,
+            `TRUNCATE sophia.${r}`,
+          ]) {
+            await deniedAsAssembler(c, sql)
+          }
+        for (const table of ['outbox', 'runtime_commands', 'research_allowances'])
+          await deniedAsAssembler(c, `SELECT * FROM sophia.${table}`)
+      } finally {
+        c.release(true)
+      }
+      const countsAfter = await operationalDigest()
+      assert.deepEqual(countsAfter, countsBefore)
     })
   })
 
