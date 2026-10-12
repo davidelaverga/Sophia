@@ -149,15 +149,16 @@ test('widths · at 1920 the composer’s hint keeps the column of its field and 
   expect(Math.abs((await left('.conv-compose-hint')) - field)).toBeLessThan(1)
 })
 
-for (const [name, url] of [
-  ['Updates', '/room.html?demo=1&place=updates'],
-  ['Conversations', '/room.html?demo=1&conversations=1&place=conversations'],
+for (const [name, url, parts] of [
+  ['Updates', '/room.html?demo=1&place=updates', DRAWN.updates],
+  ['Conversations', '/room.html?demo=1&conversations=1&place=conversations', DRAWN.conversations],
 ] as const) {
   test(`widths · at 1280 the seven views stand whole in the nav on ${name}, the room idle`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await page.goto(url)
-    await expect(page.locator('.view-nav a').first()).toBeVisible()
-    // Measured once the app's fonts are in (a fallback face is narrower) and the nav has read its own overflow.
+    // Measured with the header whole (its actions come with the snapshot and take width from the nav), the app's
+    // fonts in (a fallback face is narrower), and the nav's own overflow read.
+    await drawn(page, parts)
     await page.evaluate(() => document.fonts.ready)
     const read = () =>
       page.evaluate(() => {
@@ -177,3 +178,20 @@ for (const [name, url] of [
     await expect.poll(read).toEqual({ fits: true, moreStart: false, moreEnd: false, whole: true })
   })
 }
+
+test('widths @phone · the nav’s first word starts at the page gutter, as the header’s mark does', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/room.html?demo=1&place=updates')
+  await drawn(page, DRAWN.updates)
+  await page.evaluate(() => document.fonts.ready)
+  const read = await page.evaluate(() => {
+    const topbar = document.querySelector('.topbar')
+    const first = document.querySelector('.view-nav a')
+    if (!topbar || !first) return null
+    const range = document.createRange()
+    range.selectNodeContents(first)
+    return { gutter: parseFloat(getComputedStyle(topbar).paddingLeft), word: range.getBoundingClientRect().left }
+  })
+  expect(read?.gutter).toBeGreaterThan(0)
+  expect(Math.abs((read?.word ?? NaN) - (read?.gutter ?? 0))).toBeLessThanOrEqual(0.5)
+})

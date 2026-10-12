@@ -25,3 +25,10 @@ at 1280 × 800, the room idle (headless Chromium; `evaluacion-2026-10-12/updates
 ## Left
 
 - Under 1280 the row still scrolls with its fades, as designed (#233); the current view keeps clear of them.
+
+## After the review (Codex on #259)
+
+- Under 760 px the nav's side padding subtracts the links' 8 px, not the former 10, so the first word starts at the page
+  gutter again; widths.spec @phone reads the first word's left against the header's padding.
+- The 1280 px test waits for the view to be drawn (the header's actions come with the snapshot and take width from the
+  nav), then for the fonts, then polls.
