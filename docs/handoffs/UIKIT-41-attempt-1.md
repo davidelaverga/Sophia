@@ -12,9 +12,9 @@ Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright t
 2 workers); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
 commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
-Ending commit/tree: `6baf0487` (6 files: `new-conversation.ts` + test, `NewConversation.tsx`,
-`ConversationsView.tsx`, `conversations.css`, `e2e/same-question.spec.ts`) and `docs/plans/same-question.md`; the commit
-after it adds only this handoff. A squash on merge gives the work an id this file cannot know.
+Ending commit/tree: `f415168e2f22` (tree `e8c66545c0a0`), the last commit of `ui/same-question`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`ui/question-asks` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/ConversationsView.tsx`, `src/features/conversations/NewConversation.tsx`, `src/features/conversations/conversations.css`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-41-attempt-1.md`, `docs/plans/same-question.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
