@@ -1,14 +1,13 @@
 // The account, one control in every bar (the places' and a project's): the avatar opens a menu with who is signed in,
 // "Your data" and how privacy works, passkeys, and signing out. From a project the first two open at home, where the
-// personal space's own sheets are. Locally the dev identity is chosen in its head. It closes like any popover
-// (usePopover): Escape returns to the avatar, a press anywhere else closes it.
+// personal space's own sheets are. Locally the dev identity is chosen in its head. It is the kit's menu, and closes
+// like any popover (usePopover): Escape returns to the avatar, a press anywhere else closes it.
 import { useState } from 'react'
-import { Tip } from '@sophia/ui'
+import { Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { PasskeySheet } from './PasskeySheet.tsx'
-import { usePopover } from './usePopover.ts'
 
 export interface AccountActions {
   data: () => void
@@ -46,14 +45,14 @@ function DevChoice({ identity, onChoose }: { identity: Identity; onChoose: (i: I
 
 function Head({ identity, onChoose }: { identity: Identity; onChoose: (i: Identity | null) => void }) {
   return (
-    <div className="menu-head">
+    <MenuHead>
       {identity.displayName ?? identity.name}
       {authMode === 'dev' ? (
         <DevChoice identity={identity} onChoose={onChoose} />
       ) : (
         identity.displayName && <span>{identity.name}</span>
       )}
-    </div>
+    </MenuHead>
   )
 }
 
@@ -89,25 +88,19 @@ export function AccountMenu({ identity, where, actions }: Props) {
         <Tip label="Account" side="bottom" align="end" />
       </button>
       {open && (
-        <div ref={menu.panel} className="account-menu" role="menu" aria-label="Account" onKeyDown={menu.onKeyDown}>
+        <Menu popover={menu} label="Account" className="account-menu">
           <Head identity={identity} onChoose={actions.chooseDev} />
-          <button role="menuitem" type="button" tabIndex={-1} className="has-tip" onClick={pick(actions.data)}>
+          <MenuItem className="has-tip" onClick={pick(actions.data)}>
             Your data
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
-          </button>
-          <button role="menuitem" type="button" tabIndex={-1} onClick={pick(actions.privacy)}>
-            How privacy works
-          </button>
-          <span className="menu-sep" aria-hidden />
+          </MenuItem>
+          <MenuItem onClick={pick(actions.privacy)}>How privacy works</MenuItem>
+          <MenuSep />
           {passkeysOffered && authMode !== 'dev' && (
-            <button role="menuitem" type="button" tabIndex={-1} onClick={pick(() => setPasskeys(true))}>
-              Passkeys
-            </button>
+            <MenuItem onClick={pick(() => setPasskeys(true))}>Passkeys</MenuItem>
           )}
-          <button role="menuitem" type="button" tabIndex={-1} onClick={pick(actions.signOut)}>
-            Sign out
-          </button>
-        </div>
+          <MenuItem onClick={pick(actions.signOut)}>Sign out</MenuItem>
+        </Menu>
       )}
       {passkeys && <PasskeySheet onClose={() => setPasskeys(false)} />}
     </div>

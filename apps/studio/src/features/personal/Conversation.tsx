@@ -3,9 +3,8 @@
 // words, "Copy" on hers, Sophia's suggested note (keep it or let it go), and the wait for her reply.
 import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
-import { Icon } from '@sophia/ui'
+import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { onScreen } from '../../app/shortcuts.ts'
-import { usePopover } from '../../app/usePopover.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
 import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
@@ -428,16 +427,9 @@ function useFocusAfterMore(panel: RefObject<HTMLDivElement | null>, open: boolea
 /** The days' menu's first item: earlier days read back, or, while they are, "Reading…" and a press that waits. */
 function MoreDays({ reading, onMore }: { reading: boolean; onMore: () => void }) {
   return (
-    <button
-      role="menuitem"
-      type="button"
-      aria-disabled={reading || undefined}
-      onClick={() => {
-        if (!reading) onMore()
-      }}
-    >
-      <span>{reading ? 'Reading…' : 'Show earlier days'}</span>
-    </button>
+    <MenuItem disabled={reading} onClick={onMore}>
+      {reading ? 'Reading…' : 'Show earlier days'}
+    </MenuItem>
   )
 }
 
@@ -472,29 +464,21 @@ function Earlier(props: {
         </button>
       )}
       {open && (
-        <div
-          ref={menu.panel}
-          className="popover menu-list"
-          role="menu"
-          aria-label="Earlier days"
-          onKeyDown={menu.onKeyDown}
-        >
+        <Menu popover={menu} label="Earlier days" align="center">
           {more && <MoreDays reading={reading} onMore={onMore} />}
           {daysOf(rows).map((d) => (
-            <button
+            <MenuItem
               key={d.key}
-              role="menuitem"
-              type="button"
+              detail={d.topics}
               onClick={() => {
                 setOpen(false)
                 goToDay(d.key)
               }}
             >
-              <span>{d.label}</span>
-              <span className="muted">{d.topics}</span>
-            </button>
+              {d.label}
+            </MenuItem>
           ))}
-        </div>
+        </Menu>
       )}
     </div>
   )
