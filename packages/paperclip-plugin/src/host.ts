@@ -8,7 +8,10 @@
  *   server/src/services/plugin-host-services.ts. `list` filters originKind and originId by exact equality within
  *   the company (server/src/services/issues.ts); a plugin may only use origin kinds under `plugin:<its key>`.
  *   `create`, `update` and `requestWakeup` reject with UnansweredHostCall when the host never answered them.
- * - reviewerAgent: `ctx.agents.managed.reconcile(agentKey, companyId)` (PluginManagedAgentResolution.agentId).
+ * - boundReviewerAgent: `ctx.agents.managed.get(agentKey, companyId)`, read only (PluginManagedAgentResolution.agentId).
+ * - reviewerAgent: `ctx.agents.managed.reconcile(agentKey, companyId)` (PluginManagedAgentResolution.agentId). It rejects
+ *   with UnansweredHostCall when the host never answered it. The pin's reconcile is not atomic, so the plugin calls it
+ *   for a company only under that company's provisioning claim (coordination.ts, provisionedReviewer).
  * - query/execute: PluginDatabaseClient on the host-derived namespace (SELECT; namespace INSERT/UPDATE/DELETE).
  * - config: PluginConfigClient.get(companyId).
  * @module @sophia/paperclip-plugin/host
@@ -62,7 +65,13 @@ export interface CoordinationHost {
       options: { reason: string; contextSource: string; idempotencyKey: string },
     ): Promise<{ queued: boolean }>
   }
-  /** The plugin-managed source-reviewer agent of a company (the dsh adapter's agent), or null when it cannot be resolved. */
+  /** The source-reviewer agent the host has bound for a company now, read only: it never creates or relinks one. */
+  boundReviewerAgent(companyId: string): Promise<string | null>
+  /**
+   * The plugin-managed source-reviewer agent of a company (the dsh adapter's agent), reconciled by the host: found,
+   * relinked or created; null when it cannot be resolved. Not atomic at the pin: called only under the company's
+   * provisioning claim.
+   */
   reviewerAgent(companyId: string): Promise<string | null>
   /** The plugin's database namespace (schema name). */
   readonly namespace: string
