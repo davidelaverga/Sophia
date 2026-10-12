@@ -8,6 +8,7 @@ import { ShortcutScope } from '../../../app/shortcuts.ts'
 import { createPortal } from 'react-dom'
 import { Chip, Icon, Tip } from '@sophia/ui'
 import { Sheet } from '../../../app/Sheet.tsx'
+import { isTopDialog } from '../../../app/useDialog.ts'
 import { Avatar } from '../../../app/Avatar.tsx'
 import { ToolLogo } from '../../resources/ToolLogo.tsx'
 import { observedAgo, type Resource } from '../../resources/resource.ts'
@@ -182,7 +183,10 @@ function useSteps(onStep: Props['onStep']) {
       // Caps Lock or Shift gives «H» and «S»: the same keys (Codex on #241).
       const act = KEYS[e.key.toLowerCase()]
       const sheet = document.querySelector<HTMLElement>('.task-sheet')
-      if (!act || !sheet) return
+      // Only the sheet on top: covered by another (the meeting's recap after a call left), its keys are not the
+      // person's to press (Codex P1 on #241).
+      const panel = sheet?.closest('[role="dialog"]')
+      if (!act || !sheet || !panel || !isTopDialog(panel)) return
       e.preventDefault()
       act(sheet, onStep)
     }
