@@ -7,9 +7,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/light-mark` from `ui/section-heads` at
 `06233b26` (stacked on PR #248 → #247 → … → #220; the base retargets as each merges)
-Ending commit/tree: `694e44df` (tree `cef402770ecf`): 3 files: `theme.css` (tokens `--mark-you` / `--mark-sophia` in the room and on paper; the mark and the
-threshold take them; the paper mark's glow at rest and live; her light's core on paper), `e2e/light-mark.spec.ts` (new,
-5), `docs/plans/light-paper-mark.md`. The commit after it adds only this handoff.
+Ending commit/tree: `35f0123d2e60` (tree `4781af2cbbcc`), the last commit of `ui/light-mark`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`ui/section-heads` at that commit: `e2e/light-mark.spec.ts`, `public/entry.js`, `public/favicon-dark.svg`, `public/favicon-light.svg`, `src/app/theme.css`, `src/app/theme.ts`, `docs/handoffs/UIKIT-27-attempt-1.md`, `docs/plans/light-paper-mark.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 

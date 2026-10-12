@@ -12,9 +12,9 @@ Writable scope: `apps/studio/src/app/SignIn.tsx`, `apps/studio/src/app/auth-word
 Runtime unit: the Studio (`apps/studio`) on its fixture pages; no API, database, worker or deployment touched.
 Existing authority: Luis's instructions in this session («Procede», quoted in the plan); merge on green CI with no Codex
 P1, through Luis's merge loop; no deploy, no production data, no comment on Davide's PRs.
-Ending commit/tree: the branch's head as merged (`ui/sign-in-lede`); the first delivery was `f5a6cb3b` (tree
-`78aab7cacafd`, 3 files), then `72d8c8bf` (the words owned by `auth-words.ts`), `8fa956b8` (her attention follows the
-field when the fonts arrive) and the post-review commits below (Codex on #247: the record names the state delivered).
+Ending commit/tree: `f48eb0475dca` (tree `252f84b07fa5`), the last commit of `ui/sign-in-lede`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 7 files changed against
+`ui/view-titles` at that commit: `e2e/signin-lede.spec.ts`, `src/app/SignIn.tsx`, `src/app/auth-words.test.ts`, `src/app/auth-words.ts`, `src/features/light/SophiaLight.tsx`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/plans/sign-in-lede.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -68,3 +68,8 @@ literal, so a change of words is caught twice. Format, lint, typecheck, `auth-wo
 - `signin-lede.spec` (+3, and one line asserted at both widths): the 48 px between the title and the providers with the
   title unmoved; the late font, held by the test and released after the lede reflows, with her attention on the
   field; at the boundary height, the rest lifted by the fallback and back down when the font arrives.
+
+## Post-review, round 3 (Codex on #247)
+
+- The sentence shortened to «Where your team and Sophia think together.» so it holds one line at 320 px (281 of 288
+  px); `auth-words.ts` owns it, its node test and signin-lede.spec (now at 1280, 375 and 320) read it.
