@@ -77,7 +77,7 @@
   "classification": "Progress: real proposed full SQL composition and actual unchanged compiler/assembler qualified in scoped private PG17 tests",
   "previous_turn": "progress: immutable activation recheck and actual Luis reconciliation",
   "owner_decisions": "OWNER_DECISIONS_20261012.md retained, no new low-level product question",
-  "next_bounded_action": "Owner-approved canonical candidate/Studio handback and affected independent review; CI cause diagnosis; then separate exact effect batches",
+  "next_bounded_action": "Existing Personal owner actual search correction/qualified deterministic fixture; Luis source handback and canonical Q13 review. Preserve concurrent joint test; refresh preflight after cleanup. Separate operations still unapproved.",
   "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
   "evidence": "evidence/20261012-cx134-q13-composition/manifest.json",
   "source_pins": {
@@ -120,7 +120,9 @@
     "new_accounts_projects_hosted": 0,
     "owned_synthetic_projects": 4,
     "no_pending_local_effect": true,
-    "owned_synthetic_conversations": 6
+    "owned_synthetic_conversations": 6,
+    "owned_fixture_servers": 1,
+    "owned_fixture_cleanup": true
   },
   "UI": "New refs carry unrelated main/UI-stack work but relevant dock/context source unchanged from803d. No new browser re-run justified; reproducedP2 retained. Luis exact writer/order/handback ACK pending; no source GO.",
   "ci256": {
@@ -201,5 +203,14 @@
     "id": 6115961845,
     "exactReadback": true,
     "CONnativeDelivery": "helper verified exact URL/title and visible message before foreground later changed to joint owner"
+  },
+  "CI_diagnosis_independent": {
+    "CC0163": 6115983631,
+    "authorPRComment": 6115958328,
+    "evidence": "evidence/20261012-cx134-personal-clock/manifest.json",
+    "midnightMechanismReproduced": true,
+    "noonOnlySearchFixAccepted": false,
+    "classification": "Baseline fixture short-list assumption plus actual Personal search visibility failure; existing owner correction required",
+    "cleanup": "server0/PIDabsent/portclosed/tabclosed/viewportreset/harnessunchanged"
   }
 }

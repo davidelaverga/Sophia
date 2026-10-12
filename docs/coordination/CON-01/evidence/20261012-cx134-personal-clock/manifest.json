@@ -1,0 +1,71 @@
+{
+  "at": "2026-10-12T01:19:38.332656+00:00",
+  "browser": "Built-in IAB, actual tab12,1280x800, existing at fixture parameter only; no Date override, source patch or network route injection",
+  "sourceHarness": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+  "sourceComparedTo": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "unchangedPaths": [
+    "apps/studio/fixtures/personal.tsx",
+    "apps/studio/src/features/personal",
+    "apps/studio/src/app/theme.css"
+  ],
+  "sourceComparison": "git diff --name-only93e7d8 on named paths empty",
+  "at00_02": {
+    "beforeFind": {
+      "scrollHeight": 666,
+      "clientHeight": 622,
+      "scrollTop": 44,
+      "startersHeight": 132,
+      "days": [
+        "Saturday \u00b7 Where you began",
+        "Yesterday"
+      ]
+    },
+    "search": "clicked Find; filled keep; 1 of5",
+    "currentMark": {
+      "top": 139,
+      "bottom": 158.5
+    },
+    "list": {
+      "top": 173,
+      "bottom": 733,
+      "clientHeight": 560,
+      "scrollTop": 106
+    },
+    "currentIntersectsVisibleList": false,
+    "persists": "Same bounds on later separate screenshot/read before cleanup"
+  },
+  "at12_00": {
+    "beforeFind": {
+      "scrollHeight": 622,
+      "clientHeight": 622,
+      "scrollTop": 0,
+      "startersCount": 0,
+      "days": [
+        "Yesterday \u00b7 Where you began",
+        "Today"
+      ]
+    },
+    "search": "clicked Find; filled keep; 1 of5",
+    "currentMark": {
+      "top": 289.015625,
+      "bottom": 308.515625
+    },
+    "list": {
+      "top": 173,
+      "bottom": 733,
+      "clientHeight": 560,
+      "scrollTop": 0
+    },
+    "currentIntersectsVisibleList": true
+  },
+  "scope": "L1 existing fixture/real product component behavior; not actual account/provider/app acceptance or CI rerun",
+  "finding": "Clock-dependent fixture violates short-list assumption of presence test. Separately actual Personal Find current match remains hidden in legitimate midnight/overflow state, against personal-moments.md45; selecting noon alone would not fix search behavior. Baseline problem reproduced on93e, not attributed to CON source.",
+  "sourceHypothesis": "Find.tsx219 scrollIntoView versus PersonalSpace.tsx395-399 resize-at-end observer; interaction source confirmed, exact race not instrumented/proven",
+  "cleanup": "Owned server stopped0/PIDabsent/portclosed; tab12closed/viewportreset; harness source unchanged",
+  "files": {
+    "midnight.jpg": "d50633a8c52fa5abb1f96b81c4a7e34f4b7ab495a4af1680c348317068f9c2f2",
+    "noon.jpg": "c11379c89788f5cc4d919ffdcd3ee4e69fa5347dfc93697ab2117abe7bb4e211",
+    "serve-owned.py": "041bd8cee2286b9ed6c1a534ee45d0d928e50f38d03f8fe5a98707d3fcfc1bd4",
+    "server-receipt.json": "cff9e589c9e2aa91f9827543e260e43481e080b7ca79e9587eef9589d2023107"
+  }
+}
