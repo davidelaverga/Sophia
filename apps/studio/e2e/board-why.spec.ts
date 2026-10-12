@@ -86,3 +86,16 @@ test('why · a blocked goal’s chip keeps its marks inside it (Codex on #244)',
   await expect(tab.locator('.plan-tab-blocked')).toBeVisible()
   expect(await tab.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0)
 })
+
+test('why · the focus on the last blocker’s press, the blocker done: the focus goes to its tile (Codex on #244)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  const press = lane(page, 'Blocked')
+    .locator('.lane-why')
+    .getByRole('button', { name: 'Implement the PDF retry', exact: true })
+  await press.focus()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  await expect(page.locator('.lane-why')).toHaveCount(0)
+  await expect(page.locator('.board [data-task="work-1"]').first()).toBeFocused()
+})
