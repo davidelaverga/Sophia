@@ -1,0 +1,21 @@
+{
+  "checkpoint": "CON-01-CX-0148",
+  "candidate": "971793db34d9f3f323448394f2096a5e959453c4",
+  "platform": "darwin",
+  "node": "v24.21.0",
+  "evidence": "L1 owned filesystem mechanics only",
+  "oldRootAbsent": true,
+  "freshByNameOpen": "ENOENT",
+  "preexistingDescriptorWriteAfterRename": true,
+  "fsyncAfterRename": true,
+  "inferredQ7RetireFailure": false,
+  "runtimeLauncherOrChildExecuted": false,
+  "providerOrNetworkOrCredentials": false,
+  "limit": "Confirms rename is not descriptor revocation and the proposed lease-durability interval needs accounting. Does not execute the proposed check/retire or force an in-flight mkdir race.",
+  "cleanup": {
+    "ownedDescriptorsClosed": true,
+    "scratchRemoved": true,
+    "processesStarted": 0
+  },
+  "elapsedMs": 6.91
+}
