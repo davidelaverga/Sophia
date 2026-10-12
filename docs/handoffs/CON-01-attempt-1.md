@@ -27,9 +27,55 @@ Ending commit/tree and changed files:
 - 93 files differ from `main`: `db/migrations/0048_project_conversations.sql`, A16, the persistence and API conversation routes, the Studio's `features/conversations/`, its fixtures and specs, and the coordination records under [docs/coordination/CON-01](../coordination/CON-01/README.md).
 - Draft PR [#199](https://github.com/davidelaverga/Sophia/pull/199); coordination issue [#198](https://github.com/davidelaverga/Sophia/issues/198).
 
+## G2 Phase B reservation request: reviewed at revision 10 (2026-10-12, CX-0169)
+
+This section and the next are current at 2026-10-12. The sections after them still describe 2026-10-10. This section records review outcomes only. The request's bytes are not changed by it, and no revision 11 is made for bookkeeping.
+
+**The reviewed pin:** [`G2_SHARED_RESERVATION_REQUEST.md`](../coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md), revision 10.
+- Commit `91110fdda17dab26b8b7b1a6f1026060d888fa7c`, tree `f2dd38e07fe672592b59987dd8dabfa68c97955b`.
+- Document SHA-256 `90ea5a52a1a292deb847d55d329d4fcd131538d4a0125507837b96d0f84973df`, 953 lines.
+- Its receipt is CC-0187 (#198 comment 6121167710).
+
+**Accepted, each within its own scope** (Codex's [CX-0169](https://github.com/davidelaverga/Sophia/blob/247de63ef6b9d9a0b9111fdae1883491e8cd4778/docs/coordination/CON-01/CX-0169.md) at reviewer `247de63e`; #198 comment 6119717658, rewritten as the consolidated CX-0169 packet):
+- **Root review:** PB9-A3-FALLBACK-TERMINAL-WRITER is addressed at proposal scope, and there is no new blocking finding.
+  - Raw bytes unchanged from revision 9: A-1/A-2 (`8195bd82…`, by Codex's boundary), §3.1(b) (`43d026b4…`) and §3.2/§3.3 (`66362753…`).
+  - It is not an executable-source, SQL, process, provider or product acceptance.
+- **K-1c, supplied for exact revision 10 only:** `BOUNDED_AFFECTED_CONSUMER_COMPATIBILITY_ACK_EXACT_PHASE_B_R10_K1C_ONLY_NO_WRITE_GO`, with no findings and no qualification gaps.
+  - The joint consumer's turn was `01a12f5f-e587-7d22-9fb8-01d04f489ae1`.
+  - Original record SHA-256 `2b993015c112a030…`. The safe record [`joint-r10-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/247de63ef6b9d9a0b9111fdae1883491e8cd4778/docs/coordination/CON-01/evidence/20261012-cx169-r10/joint-r10-review.safe.json) has SHA-256 `91bc40cc1bb6d0af…`, re-hashed here.
+  - Codex verified 67/67 Git inputs, 67/67 extracted copies and 5/5 supporting evidence hashes.
+  - It is a consumer compatibility ACK. It is not K-1b, and not a write GO. The exact-revision-9 changes-required record stays as history.
+- **K-2d, supplied for exact revision 10 within the owner's remit:** [#198 comment 6121233960](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6121233960), from the retained WBC-02/SDD-01 owner `session_0155SjcXhv87RErnWEBWxfBM`, with no new condition.
+  - The owner's safe record is `actual-owner-r10.safe.json` at `247de63e` (SHA-256 `90b7a816…`, computed here).
+  - The remit is the owner's three bodies (`dispatch_runtime_outbox`, `capture_native_result`, `native_delivery_ineligible`), the helpers and dispatch.
+  - D1 to D5, C1 to C4 and N1 stand, as §3.1 writes them, to be proved by §3.1(b)'s preservation test.
+  - The owner excludes A-3's own-state conditions, the choice to refuse, and the `55000` name. Those are CON's, K-1b's and S1-05A/BASE's.
+  - The owner attests no source write in flight and an unchanged freeze, and appoints no substitute. The owner's revision 9 disposition is 6121108035.
+- **K-3:** not extended. §3.2 and §3.3 are byte-identical to revision 5's, and K-3 still covers only the overlap and the order.
+
+**Optional notes, not conditions.** None is acted on, and none starts a new revision:
+- **The retry wording.** Revision 10 says "D1's lease-expiry step, then 0053's reconcile". On observed `main`, the step that moves a refused row is the worker's own pass:
+  - the worker counts the raise as `lost` and never resends that row (`apps/worker/src/runtime-dispatch.ts:53-57`);
+  - its per-pass `expire_dispatch_leases` (`:42`; 0004:19-23) moves the row to `outcome_unknown`;
+  - reconcile then maps the row by its runtime-command evidence. With no command for that row, it returns to `pending` and is claimed again, and the dispatch refuses again: one refused dispatch per lease period, with `attempts` growing and no other row changed. A seeded case with a command for that row need not return to A-3 at all.
+  - **No automatic retry, liveness, repair or cleanup is claimed.**
+- **The owner's revision 9 P3 notes** stay optional.
+
+**The outstanding boundary.** Nothing in Phase B is written until each of these is recorded:
+1. **K-1b:** the retained core and runtime owners, for §2's B-1 to B-6 and addenda A-1, A-2 and A-3. That includes A-3's own-state conditions, its refusal and its error name (S1-05A/BASE).
+2. **K-2a, K-2b and K-2c:**
+   - S1-02 (Luis): §3.1(a), and B-2's `commands` and `outbox` rows and keys;
+   - S1-05A/BASE (Davide/Luis): the 0012-foundation rows, the five entry points and their ACL, the settle recovery, `runtime_commands.kind`, B-3's cursor, A04 and the route registration;
+   - the current SMC-M03 implementer: `runtime_hello` and `runtime_record_observations`.
+3. **K-4:** Luis's accepted base, an exact commit and tree including the accepted Phase A (#256, a draft at `93e9313d`) and G1, or a named composition.
+4. **Luis's Studio handback:** the seven shared paths and the contracts (next section). His prepared `d96626ac` is evidence, not a transfer.
+5. **K-5, Codex's:** the fresh census, the atomic number and path reservation, and the sole writer, start, expiry and return.
+
+Until then: no executable Phase B source, SQL or test, no shared window, and no new source or owner authority is inferred. No merge, deployment, hosted migration or configuration, account, grant, provider call, authentication change or spend. Ask stays off, and OP-0002-r6 and OP-0001-r4 stay unapproved drafts.
+
 ## Studio reconciliation at Luis's `d96626ac` (2026-10-12, CX-0165)
 
-This section is current at 2026-10-12. The sections after it still describe 2026-10-10. G2's state since then is in the [Phase B reservation request](../coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md), revision 8 (`960f262f`). That request's affected review is separate and incomplete, and nothing here widens an earlier acknowledgement.
+This section is current at 2026-10-12. The sections after it still describe 2026-10-10. G2's state since then is in the section above. Nothing here widens an earlier acknowledgement.
 
 These facts are source-only. Their sources:
 - Codex's [CX-0165](https://github.com/davidelaverga/Sophia/blob/f95c32d0fe19f28112a02c183656f12e82fbc3c3/docs/coordination/CON-01/CX-0165.md), at reviewer `f95c32d0fe19f28112a02c183656f12e82fbc3c3`;
