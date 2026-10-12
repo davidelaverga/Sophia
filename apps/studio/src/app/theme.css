@@ -866,7 +866,7 @@ button.mark:hover {
   display: flex;
   align-items: center;
   flex: none;
-  padding: 0 10px;
+  padding: 0 8px; /* the seven views whole at 1280 with the room idle: 500 px in 515 (docs/plans/nav-fits-1280.md) */
   color: var(--text-3);
   font-size: 13px;
   font-weight: 500;

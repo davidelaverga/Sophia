@@ -148,3 +148,29 @@ test('widths · at 1920 the composer’s hint keeps the column of its field and 
   expect(Math.abs((await left('.conv-quick')) - field)).toBeLessThan(1)
   expect(Math.abs((await left('.conv-compose-hint')) - field)).toBeLessThan(1)
 })
+
+for (const [name, url] of [
+  ['Updates', '/room.html?demo=1&place=updates'],
+  ['Conversations', '/room.html?demo=1&conversations=1&place=conversations'],
+] as const) {
+  test(`widths · at 1280 the seven views stand whole in the nav on ${name}, the room idle`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto(url)
+    await expect(page.locator('.view-nav a').first()).toBeVisible()
+    const read = await page.evaluate(() => {
+      const nav = document.querySelector('.view-nav')
+      if (!nav) return null
+      const links = [...nav.querySelectorAll('a')]
+      const box = nav.getBoundingClientRect()
+      const first = links[0]?.getBoundingClientRect()
+      const last = links.at(-1)?.getBoundingClientRect()
+      return {
+        fits: nav.scrollWidth <= nav.clientWidth,
+        moreStart: nav.hasAttribute('data-more-start'),
+        moreEnd: nav.hasAttribute('data-more-end'),
+        whole: !!first && !!last && first.left >= box.left - 0.5 && last.right <= box.right + 0.5,
+      }
+    })
+    expect(read).toEqual({ fits: true, moreStart: false, moreEnd: false, whole: true })
+  })
+}
