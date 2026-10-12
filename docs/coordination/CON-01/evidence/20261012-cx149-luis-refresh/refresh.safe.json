@@ -1,0 +1,128 @@
+{
+  "checkpoint": "CON-01-CX-0149",
+  "source": {
+    "prepared": "0822c87bacd9881e83d5110eb6bf54b002c96663",
+    "tree": "4ba45a70bbd6835130e2ac1ce74917f2f93c9a78",
+    "parent_prepared": "fa10f7fae24d286d4472d07e60b821b078e4dcb2",
+    "main": "5ed752bde219d38df388d0fc71490cac0a6f2107",
+    "pr245": "2c4b03646f38771a0b142bd47b8d0c9d5770bcd8",
+    "pr199": "d527f3854222020abb6ba723bf0ea7480c76bb82"
+  },
+  "delta": {
+    "paths": 16,
+    "insertions": 178,
+    "deletions": 40,
+    "openapiSchemaChanges": [
+      "Need"
+    ],
+    "openapiPathChanges": [],
+    "A16AmendmentIdentical": true,
+    "conversationComponentsAPIAndRuntimeIdentical": true
+  },
+  "checks": {
+    "toolchain": {
+      "node": "24.21.0",
+      "pnpm": "11.7.0",
+      "exit": 0
+    },
+    "contractsCheck": {
+      "exit": 0,
+      "openapi": true,
+      "types": true,
+      "validators": true,
+      "runtimeWire": true,
+      "specialists": true
+    },
+    "needsUnit": {
+      "passed": 4,
+      "failed": 0,
+      "exit": 0
+    },
+    "conversationOpeningAndValidateUnit": {
+      "passed": 10,
+      "failed": 0,
+      "exit": 0
+    }
+  },
+  "browser": {
+    "tool": "Codex in-app browser through cua_repl",
+    "classification": "L1 labelled resources fixture; no real account/tool/host read",
+    "vite": "8.3.1",
+    "target": "http://127.0.0.1:49832/resources.html",
+    "desktop": {
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "request": "action-1",
+      "dialog": "Davide · Claude Code",
+      "focusedRequest": "action-1",
+      "requestVisible": true,
+      "hash": "#resource-davide-claude"
+    },
+    "phone": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "dialog": "Davide · Claude Code",
+      "focusedRequest": "action-1",
+      "requestRect": {
+        "x": 32,
+        "y": 248.40625,
+        "width": 320,
+        "height": 100
+      },
+      "hash": "#resource-davide-claude"
+    },
+    "unknownRequest": {
+      "request": "nobody",
+      "dialogs": 0,
+      "hash": "#request-nobody",
+      "simulatedBanner": true
+    },
+    "close": {
+      "dialogs": 0,
+      "hash": ""
+    },
+    "noOperationalButtonPressed": true
+  },
+  "newAutomaticReview": {
+    "pr": 245,
+    "reviewed": "2c4b03646f38771a0b142bd47b8d0c9d5770bcd8",
+    "comment": 4244644754,
+    "severity": "P2",
+    "title": "Require the reply to intersect the visible conversation",
+    "independentSourceCheck": "turn-shown.ts:8-10 uses nonempty getClientRects, with no scrollport intersection or scrolling; Home fixture personal callback resolves true. Present in prepared0822; no independent full seen-POST reproduction claimed",
+    "status": "unresolved; existing Personal/Needs writer, not CON feature fix"
+  },
+  "cleanup": {
+    "serverSession": 19203,
+    "exit": 0,
+    "port49832": "closed",
+    "fixtureTab": "closed",
+    "viewport": "reset",
+    "harnessRestored": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "harnessTrackedClean": true
+  },
+  "native": {
+    "session": "session_01KUDtFK9gWthsXSrepcLQz3",
+    "state": "Running; streaming Reading binding stop mapping and lifecycle lines",
+    "response": "Read CX0148 and exact joint-owner record; preparing revision6",
+    "lastPublishedQ7": "971793db34d9f3f323448394f2096a5e959453c4",
+    "duplicatePrompt": false,
+    "stop": false
+  },
+  "authority": {
+    "LuisExactIntegrationHandback": false,
+    "sharedWriteWindow": false,
+    "merge": false,
+    "hostedEffects": false,
+    "providerExecution": false,
+    "spend": false,
+    "AskEnabled": false,
+    "appVerified": false,
+    "ownerAccepted": false
+  },
+  "next": "Luis owns PR245 correction and exact accepted integration handback; Claude owns Q7 revision6 and, after Studio handback, bounded CON corrections; Codex independently rechecks exact candidates"
+}
