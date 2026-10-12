@@ -1,4 +1,4 @@
-# G2 Q13: the reply assembler's least-privilege identity (proposal for early review, r4)
+# G2 Q13: the reply assembler's least-privilege identity (proposal for early review, r5)
 
 **Status: a proposal.** Nothing in it is installed or published as source.
 - **The shared read step (§3.3)** changes and adds objects other missions own. It stays held until those owners acknowledge it (CX-0128; owners and routing in §8).
@@ -6,7 +6,18 @@
 - **The deployment remedy for admission (§3.5)** runs only under a separately approved, exact deployment configuration. Nothing here approves one.
 - **No live effect** of any kind: no role, grant, policy, `pg_hba` or session change on any shared or hosted database.
 
-**r4 corrects r3** (`fc3976ec`), after Codex's PG17 evidence and its new P2 (CX-0131, `07b0ea44`):
+**r5 corrects r4** (`9211a35e`), after Codex's new P2 (CX-0132, packet `da6a4df5`):
+- **The check reads effective authority, not only grants that name the assembler (§3.4, T11 (p)–(z′)).** r4's ACL checks matched `grantee = assembler`, so a grant to `PUBLIC` was invisible to them. Codex's reproducer: `GRANT EXECUTE ON FUNCTION sophia.create_project(text,text) TO PUBLIC`. r4's check returned **no row**, and the bare login, under the assembler, created a project and its creation record. r5 asks the server what the login and the assembler may actually do (`has_*_privilege`), so `PUBLIC`, default ACLs and memberships all count. It holds on:
+  - outside `pg_catalog` and `information_schema`: any relation privilege other than `SELECT` on the 20, column privileges included; `EXECUTE` on anything outside the 10, except trigger and event-trigger functions, which cannot be called; any sequence privilege; `CREATE` on any schema;
+  - `CREATE` or `TEMPORARY` on the target database. A temporary table can shadow a relation that a function names without its schema;
+  - any large object, foreign-data wrapper, server or parameter either may use, and `lo_compat_privileges`;
+  - in PostgreSQL's own schemas, which keep their defaults: a function PostgreSQL withholds from `PUBLIC` made executable by `PUBLIC`; `PUBLIC` writing a system relation other than `pg_settings`; `PUBLIC` reading one of the 14 relations PostgreSQL 16 keeps from it.
+- **Kept, as PostgreSQL's required access:** `USAGE` on a schema, a type or a trusted language, which grants nothing by itself, and `PUBLIC`'s defaults in the system schemas.
+- **A schema's `USAGE` does not discount an effective grant.** A `security_invoker` view lets the login read a `PUBLIC` table in a schema `PUBLIC` may not use (T11 (u)). So r5 holds on both objects.
+- **It must run again after any change in the target,** not only to the two roles: `PUBLIC`'s authority changes with every object and grant (§3.4).
+- **On the target it returns more rows.** Codex's inventory found `PUBLIC` function grants behind schemas without `PUBLIC` `USAGE`. Each is now a hold, as is `PUBLIC` `TEMPORARY` on `postgres` if its ACL has it (§4). Activation was already held.
+
+**r4 corrected r3** (`fc3976ec`), after Codex's PG17 evidence and its new P2 (CX-0131, `07b0ea44`):
 - **The assembler's own authority is checked, fail-closed (§3.4, T11 (g)–(o)).** r3 checked the login's authority and the assembler's ownership, but not what the assembler itself may do. Codex's reproducer: a clean login, other admission denied, then `ALTER ROLE sophia_conversation_assembler BYPASSRLS`. r3's check returned **no row**, and the login read a synthetic `FORCE ROW LEVEL SECURITY` deny-all row. The check now holds on:
   - any role attribute on the assembler;
   - any relation privilege other than `SELECT` on the 20, and any column grant;
@@ -262,6 +273,7 @@ CREATE POLICY con01_assembly_bound ON sophia.work_attempts AS RESTRICTIVE FOR SE
 Proposed as `db/candidates/con01-s3-assembler-activation-check.sql`, a new CON file.
 - **Where and how:** run in the target database by the owner, with `-v login=<the execution login>`, after the login is created and granted the assembler, and before it is used.
 - **Every row it returns holds activation.** Zero rows are required. There is no row an owner accepts.
+- **What it reads (r5).** The rows before the `effective:` block read grants that name the login or the assembler. The `effective:` rows ask the server what either may actually do, so a grant to `PUBLIC`, a default ACL or a membership counts too. One grant can show twice: as itself, and as the effective authority it gives.
 ```sql
 -- Fails closed: a missing login or assembler is a hold, and every membership check compares against the assembler's oid
 -- as a scalar, so an absent assembler (NULL) makes every membership of the login a hold rather than hiding them.
@@ -285,7 +297,49 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
      dep AS (SELECT d.*, CASE WHEN d.classid='pg_database'::regclass
                THEN 'database '||coalesce((SELECT datname FROM pg_database WHERE oid=d.objid),'?')
                ELSE coalesce((SELECT datname FROM pg_database WHERE oid=d.dbid),'(shared)') END AS place
-               FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass)
+               FROM pg_shdepend d WHERE d.refclassid='pg_authid'::regclass),
+     -- Who acts: the login, and the assembler it may SET ROLE to. Where: every schema but PostgreSQL's own.
+     w(oid, who) AS (SELECT oid, 'the login' FROM l UNION ALL SELECT oid, 'the assembler' FROM a),
+     ns AS (SELECT oid, nspname FROM pg_namespace WHERE nspname NOT IN ('pg_catalog','information_schema')
+              AND nspname !~ '^pg_(toast|temp_|toast_temp_)'),
+     -- What each may actually do there, as the server computes it (a grant to PUBLIC, a default ACL and a membership
+     -- all count), and whether PUBLIC alone may. Each privilege is asked only where it exists (MAINTAIN from 17).
+     eff(who, what, pub) AS (
+      SELECT w.who, x.p||' on '||n.nspname||'.'||c.relname,
+             CASE WHEN x.p IN ('SELECT','INSERT','UPDATE','REFERENCES') THEN has_any_column_privilege('public', c.oid, x.p)
+                  ELSE has_table_privilege('public', c.oid, x.p) END
+        FROM pg_class c JOIN ns n ON n.oid=c.relnamespace CROSS JOIN w
+        CROSS JOIN LATERAL unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']
+          ||CASE WHEN current_setting('server_version_num')::int>=170000 THEN ARRAY['MAINTAIN'] ELSE '{}' END) x(p)
+       WHERE c.relkind IN ('r','p','v','m','f')
+         AND CASE WHEN x.p IN ('SELECT','INSERT','UPDATE','REFERENCES') THEN has_any_column_privilege(w.oid, c.oid, x.p)
+                  ELSE has_table_privilege(w.oid, c.oid, x.p) END
+         AND NOT (n.nspname='sophia' AND c.relname IN (SELECT r FROM rels) AND x.p='SELECT')
+      UNION ALL SELECT w.who, x.p||' on sequence '||n.nspname||'.'||c.relname, has_sequence_privilege('public', c.oid, x.p)
+        FROM pg_class c JOIN ns n ON n.oid=c.relnamespace CROSS JOIN w CROSS JOIN unnest(ARRAY['USAGE','SELECT','UPDATE']) x(p)
+       WHERE c.relkind='S' AND has_sequence_privilege(w.oid, c.oid, x.p)
+      -- A trigger or event trigger function cannot be called, so EXECUTE on one is no authority.
+      UNION ALL SELECT w.who, 'EXECUTE '||n.nspname||'.'||p.proname||'('||oidvectortypes(p.proargtypes)||')',
+             has_function_privilege('public', p.oid, 'EXECUTE')
+        FROM pg_proc p JOIN ns n ON n.oid=p.pronamespace CROSS JOIN w
+       WHERE p.prorettype NOT IN ('trigger'::regtype, 'event_trigger'::regtype) AND has_function_privilege(w.oid, p.oid, 'EXECUTE')
+         AND NOT (n.nspname='sophia' AND p.proname||'('||oidvectortypes(p.proargtypes)||')' IN (SELECT f FROM fns))
+      UNION ALL SELECT w.who, 'CREATE on schema '||n.nspname, has_schema_privilege('public', n.oid, 'CREATE')
+        FROM pg_namespace n CROSS JOIN w WHERE has_schema_privilege(w.oid, n.oid, 'CREATE')
+      -- TEMPORARY too: a temporary table can shadow a relation a function names without its schema.
+      UNION ALL SELECT w.who, x.p||' on the target database', has_database_privilege('public', t.oid, x.p)
+        FROM t CROSS JOIN w CROSS JOIN unnest(ARRAY['CREATE','TEMPORARY']) x(p) WHERE has_database_privilege(w.oid, t.oid, x.p)
+      UNION ALL SELECT w.who, x.privilege_type||' on large object '||m.oid, x.grantee=0
+        FROM pg_largeobject_metadata m CROSS JOIN LATERAL aclexplode(coalesce(m.lomacl, acldefault('L', m.lomowner))) x
+        CROSS JOIN w WHERE x.grantee IN (0, w.oid)
+      UNION ALL SELECT w.who, 'read and write every large object (lo_compat_privileges)', true
+        FROM w WHERE current_setting('lo_compat_privileges')::boolean
+      UNION ALL SELECT w.who, 'USAGE on foreign-data wrapper '||f.fdwname, has_foreign_data_wrapper_privilege('public', f.oid, 'USAGE')
+        FROM pg_foreign_data_wrapper f CROSS JOIN w WHERE has_foreign_data_wrapper_privilege(w.oid, f.oid, 'USAGE')
+      UNION ALL SELECT w.who, 'USAGE on server '||s.srvname, has_server_privilege('public', s.oid, 'USAGE')
+        FROM pg_foreign_server s CROSS JOIN w WHERE has_server_privilege(w.oid, s.oid, 'USAGE')
+      UNION ALL SELECT w.who, x.privilege_type||' on parameter '||g.parname, x.grantee=0
+        FROM pg_parameter_acl g CROSS JOIN LATERAL aclexplode(g.paracl) x CROSS JOIN w WHERE x.grantee IN (0, w.oid))
 SELECT 'hold' AS kind, 'no such login' AS what WHERE NOT EXISTS(SELECT FROM l)
 UNION ALL SELECT 'hold', 'no assembler role' WHERE NOT EXISTS(SELECT FROM a)
 UNION ALL SELECT 'hold', 'attribute' FROM l
@@ -339,6 +393,26 @@ UNION ALL SELECT 'hold', 'a policy names the assembler: '||p.polname||' on '||n.
 UNION ALL SELECT 'hold', 'the assembler holds something of another kind in '||dep.place
  FROM dep, a WHERE dep.refobjid=a.oid AND dep.classid NOT IN ('pg_class'::regclass, 'pg_namespace'::regclass,
    'pg_proc'::regclass, 'pg_policy'::regclass)
+-- Effective authority (CX-0132: PUBLIC EXECUTE on sophia.create_project passed r4, whose checks named the assembler
+-- alone): nothing beyond the allowlist, however it is held. USAGE on a schema, a type or a trusted language grants
+-- nothing by itself and stays, as do PostgreSQL's own defaults in pg_catalog and information_schema.
+UNION ALL SELECT 'hold', 'effective: '||string_agg(who, ' and ' ORDER BY who DESC)||' may '||what
+   ||CASE WHEN bool_or(pub) THEN ' (PUBLIC)' ELSE '' END
+ FROM eff GROUP BY what
+-- Those defaults are kept, not widened: a function PostgreSQL withholds from PUBLIC executable by PUBLIC, PUBLIC
+-- writing a system relation (pg_settings aside), or reading one PostgreSQL keeps from PUBLIC (as on 16).
+UNION ALL SELECT 'hold', 'PUBLIC may EXECUTE '||n.nspname||'.'||p.proname||'('||oidvectortypes(p.proargtypes)||')'
+ FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname IN ('pg_catalog','information_schema') AND p.proacl IS NOT NULL
+   AND has_function_privilege('public', p.oid, 'EXECUTE')
+UNION ALL SELECT 'hold', 'PUBLIC may '||x.privilege_type||' on '||n.nspname||'.'||c.relname
+ FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace CROSS JOIN LATERAL aclexplode(c.relacl) x
+ WHERE n.nspname IN ('pg_catalog','information_schema') AND x.grantee=0
+   AND (x.privilege_type NOT IN ('SELECT','UPDATE') OR (x.privilege_type='UPDATE' AND c.relname<>'pg_settings')
+     OR (x.privilege_type='SELECT' AND n.nspname='pg_catalog' AND c.relname IN ('pg_authid','pg_backend_memory_contexts',
+       'pg_config','pg_file_settings','pg_hba_file_rules','pg_ident_file_mappings','pg_largeobject',
+       'pg_replication_origin_status','pg_shadow','pg_shmem_allocations','pg_statistic','pg_statistic_ext_data',
+       'pg_subscription','pg_user_mapping')))
 -- Every identity that can act as the assembler, not only this login: each member must be a bare login.
 UNION ALL SELECT 'hold', 'a member of the assembler is not a bare login: '||r.rolname
  FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member, a
@@ -357,7 +431,8 @@ UNION ALL SELECT 'hold', 'admitted to '||d.datname||CASE WHEN has_database_privi
 
 **When it must run again:**
 - a changed admission configuration or a new database means re-running the check and the attempts before use;
-- so does any change to a role, grant, policy or membership that touches the login or the assembler.
+- so does any change to a role, grant, policy or membership that touches the login or the assembler;
+- and, since r5, any migration, object or grant in the target, whoever it names: `PUBLIC`'s effective authority changes with each one.
 
 The check binds the authority it reads at the moment it runs. Drift after that is caught only by running it again.
 
@@ -393,7 +468,11 @@ Supabase's own troubleshooting page ("custom role inherits privileges that were 
 ```sql
 GRANT CONNECT ON DATABASE D TO each_login_the_inventory_shows_needs_D;   -- one GRANT per such login, named
 REVOKE CONNECT ON DATABASE D FROM PUBLIC;
+-- On the target itself (r5), where discovery shows PUBLIC holds TEMPORARY there:
+GRANT TEMPORARY ON DATABASE target TO each_login_the_inventory_shows_needs_it;   -- named, as above
+REVOKE TEMPORARY ON DATABASE target FROM PUBLIC;
 ```
+- **An `effective:` row on an object** is its owner's to remedy, under the same approved batch: revoke from `PUBLIC`, and grant to the named roles that need it. Nothing here proposes one.
 - **Qualification after it** (§5 T7, on the actual target):
   - a fresh connection by the execution login to every such `D` is refused;
   - it is admitted to the target;
@@ -428,6 +507,7 @@ Supabase's own page says `postgres` cannot revoke `template1`'s `CONNECT`. So th
 - **What `PUBLIC` holds in `template1` is not established.** Codex did not connect to `template1` or read its catalog.
 - Codex's catalog-only inventory (CX-0131) was of the **target database `postgres`**. It found, among the non-system schemas, only `USAGE` on `public`; no `pg_net`, `http` or `pg_cron`, and no network relations or functions; and other `PUBLIC` function grants behind schemas without `PUBLIC` `USAGE`.
 - So no network-execution failure is claimed in either database. The installed identity's actual negative qualification on the target is still owed.
+- **Under r5, those `PUBLIC` function grants are holds too.** Each returns an `effective:` row, whatever its schema's `USAGE`, because a stored reference can reach an object without looking up its name (T11 (u)). So does `PUBLIC` `TEMPORARY` on `postgres`, if its ACL has it; discovery's `acl` column shows that. Like `template1`, these objects are the platform's or other owners', not CON's.
 - **What would change it** is outside CON:
   - the template's owner revoking `PUBLIC` `CONNECT` on `template1`;
   - a supported admission path for the login, once established and qualified;
@@ -477,7 +557,19 @@ The assembler's own authority (CX-0131), each with every other database's admiss
 - **(l)** a policy outside the 38 naming it: `a policy names the assembler: …`;
 - **(m)** a default privilege granted to it: `the assembler holds something of another kind …`;
 - **(n)** a group role, or a login with another membership, made a member of the assembler: `a member of the assembler is not a bare login: …`;
-- **(o)** the full installed candidate with its login, set up as required: no row beyond `admitted to` (the allowlist equals what §3.2 and §3.3 grant).
+- **(o)** the full installed candidate with its login, set up as required: no row beyond `admitted to` and, under r5, `PUBLIC` `TEMPORARY` on the target (the allowlist equals what §3.2 and §3.3 grant).
+
+Effective authority (CX-0132). The control also revokes `PUBLIC` `TEMPORARY` on the target, so it again returns no row. r4 returns no row for (p)–(z), and r5 must hold on each:
+- **(p)** a `sophia` function left at its default ACL (`PUBLIC` `EXECUTE`), called by the login. **(p′)** On the full install, Codex's reproducer: `PUBLIC` `EXECUTE` on `sophia.create_project(text,text)`, and the login creating a project through it;
+- **(q)** `PUBLIC` `SELECT` on a table outside the 20, and `PUBLIC` `UPDATE` on a column of one of the 20;
+- **(r)** `PUBLIC` `USAGE` on a sequence;
+- **(s)** `PUBLIC` `CREATE` on a schema;
+- **(t)** `PUBLIC` `CREATE` and `TEMPORARY` on the target;
+- **(u)** a `PUBLIC` table in a schema `PUBLIC` may not use, read by the login through a `security_invoker` view that `PUBLIC` may read;
+- **(v)** a large object, **(w)** a foreign-data wrapper and a server, **(x)** a parameter, each granted to `PUBLIC`;
+- **(y)** a system function PostgreSQL withholds from `PUBLIC`, granted to it;
+- **(z)** `PUBLIC` reading `pg_authid`, and `PUBLIC` writing a system relation;
+- **(z′)** the assembler made an inheriting member of a role that may read a table outside the 20. r4 already holds the membership; r5 adds the effective row.
 
 Each must return its rows; at `7d8f` the check does not exist |
 | Concurrent identities and restart | **T10**: two logins, each a member of the assembler; neither can `SET ROLE` the other. Each `assembleReply` call opens and destroys its own connections: no backend pid is reused across calls, and `current_user` after each transaction is the login. A revoked login's next call fails at connect or `SET LOCAL ROLE`, and its claim count is unchanged: no fresh attempt is created by the failure |
@@ -492,6 +584,11 @@ Each must return its rows; at `7d8f` the check does not exist |
   - A later change to a shared predicate, the view or a function fails T2 in the shared suite the moment it lands, until Q13's identities are re-reviewed.
   - The installed restrictive policies keep the assembler inside its claim whatever the shared predicates become.
 - **Another PostgreSQL major version** is refused at install until its identities are reviewed (§3.3). The target's major is found by §3.5's discovery.
+- **What r5 does not compare in PostgreSQL's own schemas:**
+  - `PUBLIC` `SELECT` on a system relation outside the 14 that 16 keeps from `PUBLIC`;
+  - anything 17 withholds beyond 16's list.
+
+  Only a superuser can change either; on the target, that is the platform. `MAINTAIN` exists only on 17, so r5 asks for it only there: Codex's 17 recheck covers it, and my 16 runs do not.
 - **Native execution isolation, provider eligibility, useful answers and app acceptance** are not touched by this database proof.
 
 ## 7. Owned-local evidence so far (clusters 55436 and a throwaway). Not qualification
@@ -572,6 +669,40 @@ My runs on owned 55436 (PG 16.15) use r4's check (`bec619e1…`, doc block 5, ve
 | Cleanup | | dropped; census baseline; `postgres` and `template1` ACLs as before (`(default)` and `{=c/postgres,postgres=CTc/postgres}`) |
 
 These run on a disposable PG 16 database: not the installed candidate on 17.6, and not a qualification. Codex rechecks independently.
+
+**r5.** Codex's CX-0132 packet (`da6a4df5`, owned 17): r4's six controls and its `BYPASSRLS` hold passed. **The new P2:** with `PUBLIC` `EXECUTE` granted on the real `sophia.create_project(text,text)`, r4's exact check returned no row, and the bare login, under the assembler, wrote a project and its creation record, then rolled back.
+
+Only §3.4's check (`70e232cc…`, doc block 5, verbatim) and §3.5's remedy template changed. §3.1–§3.3 and the discovery block are byte-identical to r4. My runs are on owned 55436 (PG 16.15), with r4's check (`bec619e1…`) as the fail-before.
+
+**Run A** (`q13-validate-r5.sh`, `17fc7ea8…`, driving `q13-validate-r2.ts` unchanged; `q13-r5a.jsonl` `255ae116…`, `q13-r5a-check.out` `f99ecba5…`). The TS took the doc's 7 blocks verbatim; the check it wrote hashes `70e232cc…`.
+- **The drift, install, T3, T1, T4, T5 and T6 results** are as in r2 and r4. T8 is again refused by the membership check.
+- **The full installed candidate (T11 (o)):** r5 returns the `session` row while the owned session is open, then only `effective: the login and the assembler may TEMPORARY on the target database (PUBLIC)` and the `admitted to` rows. So nothing §3.2 and §3.3 grant is held, and `PUBLIC`'s default `TEMPORARY` is.
+- **T11 (p′), CX-0132's reproducer, in one rolled-back transaction:**
+  - every other database's `PUBLIC` `CONNECT` and the target's `PUBLIC` `TEMPORARY` are revoked; then r4 and r5 both return no row;
+  - after `GRANT EXECUTE ON FUNCTION sophia.create_project(text,text) TO PUBLIC`, **r4 returns no row**, and r5 returns `effective: the login and the assembler may EXECUTE sophia.create_project(text, text) (PUBLIC)`;
+  - the login, under the assembler (`current_user` the assembler, `session_user` the login), then created a project. The transaction inserted 1 row each into `project_creations`, `project_members`, `project_revisions`, `projects` and `room_state`;
+  - after the rollback: 2 projects (the seeded ones), 0 creations; `create_project`'s ACL is back to `{postgres=X/postgres,sophia_api=X/postgres}`, and every database ACL is as before.
+- **Void, kept:** run 1 (`q13-r5a-run1-void.*`). My script waited on the harness's job instead of the session's, so the target was dropped before the second check; only the first check ran. That was my script's error.
+
+**Run B** (`q13-r5-t11.sh`, `382387fb…`; `q13-r5-t11.out`, `08bc6194…`). A synthetic target: the assembler made with §3.1's attributes (`INHERIT`), with `USAGE` on `sophia` and `SELECT` on `sophia.goals`, and a bare login. Each case ran in one rolled-back transaction, with other admission and the target's `PUBLIC` `TEMPORARY` revoked:
+
+| Case | r4 (fail-before) | r5 (after) |
+|---|---|---|
+| control | none | none |
+| (g)–(n) | as in r4's run | the same rows; where a direct grant gives authority, also its `effective:` row ((g) `SELECT on public.cx131_rls`, (h) `INSERT on sophia.goals` and `SELECT on sophia.outbox`, (i) `SELECT on sophia.outbox`, (j), (k)) |
+| (p) a `sophia` function at its default ACL; the login called it, and `sophia.outbox` went from 1 row to 2 | **none** | `effective: the login and the assembler may EXECUTE sophia.q13_write() (PUBLIC)` |
+| (q) `PUBLIC` `SELECT` on `sophia.outbox` (the login read 1 row); `PUBLIC` `UPDATE (id)` on `sophia.goals` | none | `… may SELECT on sophia.outbox (PUBLIC)`; `… may UPDATE on sophia.goals (PUBLIC)` |
+| (r) `PUBLIC` `USAGE` on a sequence | none | `… may USAGE on sequence sophia.q13_seq (PUBLIC)` |
+| (s) `PUBLIC` `CREATE` on schema `public` | none | `… may CREATE on schema public (PUBLIC)` |
+| (t) `PUBLIC` `CREATE` and `TEMPORARY` on the target | none | one row each |
+| (u) a `PUBLIC` table in `q13_hidden`, a schema the login may not use, and a `PUBLIC` `security_invoker` view over it in `public` | none (the login: `usage on q13_hidden false`, `visible through the view 1`) | `… may SELECT on public.q13_peek (PUBLIC)`; `… may SELECT on q13_hidden.t (PUBLIC)` |
+| (v) a large object, (w) a wrapper and a server, (x) `SET` on `log_statement`, each granted to `PUBLIC` | none | one row each |
+| (y) `EXECUTE` on `pg_catalog.pg_stat_reset()` to `PUBLIC` | none | `PUBLIC may EXECUTE pg_catalog.pg_stat_reset()` |
+| (z) `SELECT` on `pg_authid` and `DELETE` on `pg_description` to `PUBLIC` | none | `PUBLIC may SELECT on pg_catalog.pg_authid`; `PUBLIC may DELETE on pg_catalog.pg_description` |
+| (z′) the assembler an inheriting member of a role that may read `sophia.outbox` | `the assembler is a member of q13e_src` | that row, and `effective: the assembler may SELECT on sophia.outbox` |
+| Cleanup | | dropped; census baseline, 0 clients; `postgres` and `template1` ACLs as before; `pg_parameter_acl` empty; `pg_authid` and `pg_stat_reset()` ACLs at their defaults |
+
+Not run on 16: `MAINTAIN`, which exists only on 17. Not claimed: the installed candidate on 17.6, or any qualification.
 
 ## 8. Affected shared objects and the acknowledgements they need (expanded in r2)
 
