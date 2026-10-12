@@ -75,7 +75,7 @@ Only `db/candidates/con01-*.sql`, `packages/persistence/src/conversation-*.ts` a
 **B-1 needs (held):**
 - **Option C** (§8.2 and G2_IMPACT_INVENTORY): `goal_id` nullable, plus a `conversation_reply_id`, on the shared tables.
 - **The binding** becomes a `oneOf` of a goal binding or `{conversationReplyId}`, regenerating the wire and the contracts (§2 of the binding map: whoever lands second).
-- **`runtime_hello`** gets a `UNION ALL` of reply bindings, each `active` only while its request is `pending` or `running`.
+- **`runtime_hello`** preserves the original goal SELECT and appends a separate CON aggregate, each active only while pending/running, otherwise stopped. The [r12 research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md) proposes a durable two-CON-binding admission cap and both hello.bindings/ready.unrecovered limits502, with complete reports and compatible readers before admission. Old H4=500 is not implicitly accepted; exact foundation/research/joint/K3 rechecks remain pending.
 - **`dispatch_runtime_outbox`** gets a reply branch that assembles through N2.
 - **`conversation_cancel`**, which doesn't exist today: it raises the epoch to 2 and writes `stop`. It is CON's function, but it writes shared rows, so it is held too.
 

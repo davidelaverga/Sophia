@@ -16,7 +16,7 @@ candidate and level, not promoted to deployed-app acceptance.
 |---|---|
 | Coordination | [docs/coordination/CON-01](../coordination/CON-01/README.md), its [binding map](../coordination/CON-01/BINDING_MAP.md) |
 | Coordination issue | [#198](https://github.com/davidelaverga/Sophia/issues/198) |
-| Branch / PR | Retained feature `claude/con01-project-conversations` / [199](https://github.com/davidelaverga/Sophia/pull/199), draft/unmerged atd527f385. Codex UI `codex/con01-takeover-prep` / [269](https://github.com/davidelaverga/Sophia/pull/269), exact6e7e64d0. Codex docs `codex/con01-owner-incorporation-r11` / [271](https://github.com/davidelaverga/Sophia/pull/271); exact identities/reviews in the [publication receipt](../coordination/CON-01/receipts/codex-owner-incorporation-r11-publication.md) |
+| Branch / PR | Retained feature `claude/con01-project-conversations` / [199](https://github.com/davidelaverga/Sophia/pull/199), draft/unmerged atd527f385. Codex UI `codex/con01-takeover-prep` / [269](https://github.com/davidelaverga/Sophia/pull/269), exact6e7e64d0. Codex docs `codex/con01-owner-incorporation-r11` / [271](https://github.com/davidelaverga/Sophia/pull/271); current r12 identities/reviews in the [publication receipt](../coordination/CON-01/receipts/codex-research-r12-publication.md); r11 endingf9180c73 remains reviewed at its original pin |
 | Base | Main observed83d9e33b6ce86cef5c75839ef9936f96e1ed5334/tree9bda4080eb9980a24ca020a1e508d1d17e8ce8f0; not an accepted combined base. Luis's integration/Studio handback remains required. Historical initial base4f7470c and subsequent author merges below remain evidence only |
 | Implementer / operator / independent review | Codex session01a1224a-32b4-7222-a017-50a277572d95 is sole CON feature implementer and operator. Repository-required independent pre-push reviewer plus exact-head automatic review validate Codex-authored changes. Luis retains integration/shared Studio ownership; Davide final product authority |
 | Reservations | Historical A16/0048–0050/runtime-unit entries in the binding map do not open a current window or create a runtime installation. Phase B requires fresh accepted-base census, path/number reservation and finite sole-writer K5 GO after all current acknowledgements; dispatcher PR256 acceptance/landing is a prerequisite |
@@ -26,10 +26,10 @@ candidate and level, not promoted to deployed-app acceptance.
 
 | Gate | Current fact | Remaining boundary |
 |---|---|---|
-| G0 | Settled design/policy choices above; r11 incorporates actual conditional retained-owner handbacks | Exact-r11 K1a and affected owner/joint/K3/base records pending; no source GO |
+| G0 | Settled design/policy choices above; r12 proposes research aggregation/capacity/helper compatibility after the conditional handbacks | Exact-r12 K1a and affected owner/joint/K3/base records pending; no source GO |
 | G1 |32/32 actual local PG/API cases pass at56182a22, including success/denial/lost-reply idempotency and human-only zero operational rows ([receipt](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6130575940)) | Not Q13/native/provider or two-account deployed-app qualification |
-| G2 | Docs-only r11; foundation14/6131109861 and research31/6130961758 are conditional exact-r10 handbacks | Research aggregation/capacity/non-raising helpers, K2e existing/new runtime-source handback, core/shared base/window, Q13 and subscription topology/quota/native cleanup remain unqualified; no executable Phase B write |
-| G3 |2696e7e64d0: safe confirmation/coverage/cohort-notice patch; five corrected withdrawal-helper crossings pass; automatic result6131441696 no major issues | Original phone late-erasure focus and privacy frame criterion remain open; runtime-unit CI has the base-reproduced GoalList fixture-boundary failure, browser CI still running at checkpoint. No whole-suite or combined gate pass |
+| G2 | Docs-only r12 [research amendment](../coordination/CON-01/G2_RESEARCH_COMPATIBILITY_AMENDMENT.md); foundation14/6131109861 and research31/6130961758 remain conditional exact-r10 | Exact new H4=502 hello/ready and helper/preservation owner reviews, K2e existing/new runtime-source handback, core/shared base/window, Q13 and subscription topology/quota/native cleanup remain unqualified; no executable Phase B write |
+| G3 |2696e7e64d0: safe confirmation/coverage/cohort-notice patch; five corrected withdrawal-helper crossings pass; automatic result6131441696 no major issues | Original phone late-erasure focus and privacy frame criterion remain open; runtime-unit CI has the base-reproduced GoalList fixture-boundary failure, browser job114977376275 finished failure:1537pass/4fail (eyebrows Conversations, work-space pointer, Resources arrow focus, task Stop keys); other job114977403325 still running at the current checkpoint. Failures not waived or assigned to this patch without reproduction. No whole-suite or combined gate pass |
 | G4 | Current main/preparation/feature identities recovered | No accepted combined tree/artifacts; previous main merge-tree conflicts in conversations.css, personal.css, home-needs.spec.ts; no integration or merge performed |
 | G5 operations/app | Existing signed-in hosted browser tab accessible read-only; no Conversations navigation visible | No approved setup/Ask batch, designated two immutable subjects/project/cohort or verified serving app/API/runtime tuple; actual two-account/provider episode not run |
 
@@ -185,12 +185,12 @@ Run in this session with each exit code written by the shell, never through a pi
 
 ## Next action
 
-Codex recovers the [publication receipt](../coordination/CON-01/receipts/codex-owner-incorporation-r11-publication.md)
-and checks the actual final automatic review before further source work. Do not
+Codex recovers the [r12 publication receipt](../coordination/CON-01/receipts/codex-research-r12-publication.md)
+and checks the exact pushed head's automatic review before further source work. Do not
 restart the former CON Claude coding session or rerun old full suites/batches.
-Prepare the bounded research compatibility amendment and obtain affected-owner
-rechecks, precise K2e existing/new runtime-source handback and Luis's accepted
-combined-base/held-focus-function handback. Record exact-r11 K1a only against its
+Review/publish the bounded r12 research compatibility amendment, then obtain
+exact affected-owner rechecks, precise K2e existing/new runtime-source handback and Luis's accepted
+combined-base/held-focus-function handback. Record exact-r12 K1a only against its
 reviewed immutable commit/document hash; proposal authorship is not that ACK.
 PR256 acceptance/landing and fresh finite K5 GO precede all executable shared
 writes. Independent review and affected integration checks follow each source pin.
