@@ -5103,3 +5103,10 @@ button.contribution-quote:hover {
 .task-row .task-said:empty {
   height: 0;
 }
+/* Updates' kind strip: on a narrow phone, five kinds with their counts outgrow the column; the strip scrolls in it, the
+   page does not (Codex on #239). */
+.updates-narrow .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
