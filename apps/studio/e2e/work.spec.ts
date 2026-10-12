@@ -3595,3 +3595,25 @@ test('the sheet’s H works with Caps Lock or Shift, and its controls say H and 
   await page.keyboard.press('Shift+H')
   await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
 })
+
+test('a decision named in the address chooses the goal that holds it, another goal shown (Codex on #245)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&review=material&goals=6`)
+  await settled(page)
+  const theirs = board(page).locator('[data-decision]').first()
+  await expect(theirs).toBeVisible()
+  const id = (await theirs.getAttribute('data-decision')) ?? ''
+  const first = page.getByRole('tab', { name: /Reports export to PDF reliably/ })
+  // Another goal chosen from the rail: the decision's board is no longer mounted.
+  await page.getByRole('tab', { name: /Exports keep the report’s fonts/ }).click()
+  await expect(first).toHaveAttribute('aria-selected', 'false')
+  await page.evaluate(
+    (hash) => {
+      window.location.hash = hash
+    },
+    `#decision-${encodeURIComponent(id)}`,
+  )
+  await expect(first).toHaveAttribute('aria-selected', 'true')
+  await expect(board(page).locator(`[data-decision="${id}"] .plan-choice:not(:disabled)`).first()).toBeFocused()
+})
