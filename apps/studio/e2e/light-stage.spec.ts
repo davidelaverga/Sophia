@@ -49,3 +49,43 @@ test('the room in a call: no field under the stage, the floor’s role the warm 
   expect(read.field).toBe('none')
   expect(read.role).toBe('rgba(241, 220, 199, 0.85)')
 })
+
+test('light · the warm vignette reaches the stage’s edges, as drawn (Codex on #252)', async ({ page }) => {
+  await page.goto(`${CALL}&theme=light`)
+  await drawn(page, DRAWN.room.slice(0, 1))
+  // The vignette alone: the stage's parts hidden, the field's first layer (the halo's) taken off.
+  await page.evaluate(() => {
+    const stage = document.querySelector<HTMLElement>('.room-stage')
+    if (!stage) return
+    const layers = getComputedStyle(stage, '::before').backgroundImage
+    const vignette = layers.slice(layers.indexOf('radial-gradient', 1))
+    const style = document.createElement('style')
+    style.textContent = `.room-stage > * { visibility: hidden !important } .room-stage::before { background: ${vignette} !important }`
+    document.head.append(style)
+  })
+  const stage = page.locator('.room-stage')
+  const png = (await stage.screenshot()).toString('base64')
+  const read = await page.evaluate(async (data) => {
+    const img = new Image()
+    img.src = `data:image/png;base64,${data}`
+    await img.decode()
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(img, 0, 0)
+    const at = (x: number, y: number) =>
+      Array.from(ctx.getImageData(Math.round(x), Math.round(y), 1, 1).data.slice(0, 3))
+    return {
+      centre: at(img.naturalWidth / 2, img.naturalHeight / 2),
+      edge: at(1, img.naturalHeight / 2),
+      top: at(img.naturalWidth / 2, 1),
+    }
+  }, png)
+  expect(read).not.toBeNull()
+  // The warm darkens and warms the paper at an edge's midpoint (blue falls most); the centre is untouched.
+  const warmer = (px: number[]) => (read?.centre[2] ?? 0) - (px[2] ?? 0)
+  expect(warmer(read?.edge ?? [])).toBeGreaterThanOrEqual(4)
+  expect(warmer(read?.top ?? [])).toBeGreaterThanOrEqual(4)
+})

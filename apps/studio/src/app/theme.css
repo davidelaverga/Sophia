@@ -1512,7 +1512,9 @@ img.avatar {
       rgb(var(--halo-rgb) / 0.025) 60%,
       transparent 100%
     ),
-    radial-gradient(ellipse 100% 100% at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
+    /* closest-side: each edge's midpoint is the ramp's end, so the warm reaches the edges, the corners past it (Codex
+       on #252: at 100% 100% an edge stood at half the radius, inside the clear 55 %). */
+    radial-gradient(ellipse closest-side at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
   pointer-events: none;
 }
 :root[data-theme='light'] .room-stage > .light {
