@@ -106,3 +106,13 @@ for (const [system, chosen] of [
     expect(svg).toContain(chosen === 'light' ? 'fill="#8468EE"' : 'fill="#F4F0FF"')
   })
 }
+
+test('light · a stored value the app does not read is the room at first paint too, on a light system (Codex on #249)', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'light' })
+  await page.addInitScript(() => localStorage.setItem('sophia.theme', 'sepia'))
+  await page.goto('/opening.html')
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', /favicon(-dark)?\.svg$/)
+})
