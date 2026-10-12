@@ -343,14 +343,16 @@
    second beige disc (Codex on #257). In the room's fixed dark disc the initial did not read
    (docs/plans/conversations-polish.md). */
 :root[data-theme='light'] .conv-face {
-  background: rgb(var(--warm-rgb) / 0.32); /* a disc the eye sees (1.6:1 on paper): the bubble's 8.5 % would vanish */
+  /* A disc the eye sees (1.6:1 on paper; the bubble's 8.5 % would vanish): the warm at 32 % over the paper, mixed once
+     and opaque, so two faces that overlap keep their colour (a tint over a tint drew a darker crescent: Codex on #257). */
+  background: #dbc3b2;
   color: var(--warm);
   box-shadow: 0 0 0 2px var(--void);
 }
 /* Sophia's disc in the core's tint, at the warm's 32 %: 1.7:1 on paper, a disc the eye sees (12 % was 1.2:1: Codex on
    #257). */
 :root[data-theme='light'] .conv-face.sophia {
-  background: rgb(var(--core-rgb) / 0.32);
+  background: #c6bfe0; /* the core at 32 % over the paper, opaque (Codex on #257) */
 }
 .conv-face .umbral {
   width: 11px;
@@ -832,8 +834,13 @@
     bottom: 0;
     right: -12px;
   }
-  .conv-msg:is([data-pressed], :focus-within) .conv-turn {
-    padding-bottom: 44px;
+  /* Pressed, the row comes into the turn's flow under the bubble: whatever a copy or a proposal says (a line of its own,
+     wrapping) takes its room below, never over the words (Codex on #240: a fixed 44 px left a second line to rise over
+     the bubble). */
+  .conv-msg:is([data-pressed], :focus-within) .conv-acts {
+    position: relative;
+    bottom: auto;
+    margin-top: 4px;
   }
   /* Another's message sits at the pane's left: three 40 px presses anchored to the row's right would stand far from a
      short bubble under a thumb, so on a touch screen they start at the bubble's left and run right. */
@@ -1131,6 +1138,10 @@
 .conv-ask:has(input:checked) {
   background: rgb(var(--halo-rgb) / 0.14);
   color: var(--text);
+}
+/* On, it answers the pointer too: a step deeper (measured on its label, what the eye sees: Codex on #232). */
+.conv-ask:has(input:checked):hover {
+  background: rgba(156, 130, 245, 0.2);
 }
 .conv-ask:has(input:checked) .umbral {
   opacity: 1;
