@@ -12,6 +12,10 @@
  * claimed, and a create whose outcome Sophia did not see is answered by the same issue. While another create of the key
  * may still land, the answer is 503: Sophia treats it as unknown and reconciles, never as a refusal. A claim ends only
  * when the host answered its create, or once an operator fenced it; never by time (Codex on #107).
+ *
+ * Provisioning the source reviewer is serialized per company the same way (provisionedReviewer): the pinned host's
+ * managed-agent reconcile is not atomic, so it is asked for only under the company's claim in the namespace, and a
+ * request that finds the claim held answers 503, which Sophia also takes as unknown, never as a refusal.
  * @module @sophia/paperclip-plugin/coordination
  */
 import { createPublicKey, randomUUID, type KeyObject } from 'node:crypto'
@@ -400,6 +404,66 @@ async function wakeCommission(host: CoordinationHost, c: Commission, issue: Host
   )
 }
 
+/**
+ * The company's source reviewer, provisioned by one request at a time (root's local reproduction on the pin: two first
+ * commissions of one company at once left two live managed reviewers). The pinned host's reconcile reads the binding,
+ * then creates an agent and writes the binding with no lock between (plugin-managed-agents.ts at 5edf55d7), and its work
+ * goes on when the request that asked for it is gone. So:
+ * - a reviewer the host has bound is read (`get`) and used, with nothing written;
+ * - otherwise the request claims the company's provisioning in the namespace, recorded with a token and the host process
+ *   that serves it, and only then asks the host to reconcile. A request that finds the claim held answers 503
+ *   `reviewer_provisioning`: Sophia's worker takes it as unknown and reconciles by lookup, never as a refusal;
+ * - the claim ends when the host answered the reconcile, with the agent or an error (it answers once it finished with
+ *   it); from then the next request reads the bound reviewer, or claims again and reconciles, which relinks an agent an
+ *   earlier reconcile created but never bound. One the host never answered (UnansweredHostCall) may still land, however
+ *   late: the claim stays until an operator fences it (deploy/paperclip/fence-previous-instance.sql). Requests meanwhile
+ *   read the reviewer it bound, if it landed. Time alone never ends a claim.
+ */
+async function provisionedReviewer(host: CoordinationHost, companyId: string): Promise<string | null> {
+  const bound = await host.boundReviewerAgent(companyId)
+  if (bound !== null) return bound
+  const token = randomUUID()
+  if (!(await claimProvisioning(host, companyId, token)))
+    refuse(503, 'reviewer_provisioning', 'The source reviewer of this company is being provisioned; ask again later')
+  let agent: string | null
+  try {
+    agent = await host.reviewerAgent(companyId)
+  } catch (err: unknown) {
+    if (!(err instanceof UnansweredHostCall)) await endProvisioning(host, companyId, token, null)
+    throw err
+  }
+  await endProvisioning(host, companyId, token, agent)
+  return agent
+}
+
+/** Claim a company's provisioning: a new row, or one whose reconcile ended (the host answered it) or was fenced. */
+async function claimProvisioning(host: CoordinationHost, companyId: string, token: string): Promise<boolean> {
+  const at = [host.hostProcess?.namespace ?? null, host.hostProcess?.process ?? null]
+  const fresh = await host.execute(
+    `INSERT INTO ${host.namespace}.reviewer_provisioning (company_id, claim_token, host_namespace, host_process)
+     VALUES ($1, $2, $3, $4) ON CONFLICT (company_id) DO NOTHING`,
+    [companyId, token, ...at],
+  )
+  if (fresh.rowCount === 1) return true
+  const again = await host.execute(
+    `UPDATE ${host.namespace}.reviewer_provisioning
+        SET claim_token = $2, host_namespace = $3, host_process = $4, started_at = now(), ended_at = NULL, agent_id = NULL,
+            fenced_at = NULL, fence = NULL
+      WHERE company_id = $1 AND (ended_at IS NOT NULL OR fenced_at IS NOT NULL)`,
+    [companyId, token, ...at],
+  )
+  return again.rowCount === 1
+}
+
+/** The host answered this claim's reconcile: the claim ends (only this claim's, never one taken since). */
+async function endProvisioning(host: CoordinationHost, companyId: string, token: string, agentId: string | null) {
+  await host.execute(
+    `UPDATE ${host.namespace}.reviewer_provisioning SET ended_at = now(), agent_id = $3
+      WHERE company_id = $1 AND claim_token = $2 AND ended_at IS NULL`,
+    [companyId, token, agentId],
+  )
+}
+
 export async function handleCommission(host: CoordinationHost, input: ApiRequest): Promise<CommissionReply> {
   const body = input.body
   if (!isCommissionRequest(body)) refuse(422, 'invalid_request', 'Not a commission request')
@@ -421,7 +485,7 @@ export async function handleCommission(host: CoordinationHost, input: ApiRequest
     stillMapped(existing, c.paperclipProjectId)
     return existingCommission(host, c, bound, existing)
   }
-  const agent = await host.reviewerAgent(input.companyId)
+  const agent = await provisionedReviewer(host, input.companyId)
   if (agent === null) refuse(409, 'reviewer_missing', 'The source-reviewer agent is not provisioned in this company')
   if (!(await claim(host, input.companyId, c)))
     refuse(503, 'commission_in_progress', 'Another request is creating this commission; reconcile by its key')
