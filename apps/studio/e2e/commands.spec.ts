@@ -158,6 +158,21 @@ test('commands · in a call the palette keeps its height: the call’s row first
   expect(read?.scrolls).toBe(true)
 })
 
+test('commands · behind a shut door the palette offers no view to go to: Home and Your projects stay', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  const words = await options(page).locator('.palette-words').allInnerTexts()
+  expect(words.some((w) => w.startsWith('Go to '))).toBe(false)
+  expect(words).toContain('Home')
+  expect(words).toContain('Your projects')
+})
+
 test('commands · in a call, Enter on the call’s own switch is the switch’s, not the palette’s (Codex on #238)', async ({
   page,
 }) => {

@@ -1,0 +1,73 @@
+// The lens in the address, and the background's work one press away (docs/plans/studio-lens-address.md), on the room
+// fixture.
+import { expect, test, type Page } from '@playwright/test'
+import { DRAWN, drawn } from './drawn.ts'
+
+const PAGE = '/room.html?demo=1'
+const lens = (page: Page, name: string) => page.getByRole('tab', { name: new RegExp(`^${name}`) })
+const search = (page: Page) => page.evaluate(() => window.location.search)
+
+test('lens · the address names the lens: named at load it wins; chosen, it is written, Converse too', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&lens=explore`)
+  await drawn(page, DRAWN.room)
+  await expect(lens(page, 'Explore')).toHaveAttribute('aria-selected', 'true')
+  await lens(page, 'Build').click()
+  await expect(lens(page, 'Build')).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(() => search(page)).toBe('?demo=1&lens=build')
+  await lens(page, 'Converse').click()
+  // Converse is said: an address without a lens is no claim, and the stored lens would stand (Codex on #242).
+  await expect.poll(() => search(page)).toBe('?demo=1&lens=converse')
+  // Kept as Converse; a link naming Build still shows Build.
+  await page.goto(`${PAGE}&lens=build`)
+  await drawn(page, DRAWN.room)
+  await expect(lens(page, 'Build')).toHaveAttribute('aria-selected', 'true')
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await expect(lens(page, 'Build')).toHaveAttribute('aria-selected', 'true') // the last chosen, stored
+  await lens(page, 'Converse').click()
+})
+
+test('lens · «Working on … in the background» is a press: Tasks, with the task named when one is working', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  const note = page.getByRole('button', { name: /^Working on \d+ tasks? in the background$/ })
+  await expect(note).toBeVisible()
+  await note.click()
+  await expect(page.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page')
+})
+
+test('lens · the door shut under the Studio view: the notice stands and the address names no lens', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&lens=explore`)
+  await drawn(page, DRAWN.room)
+  await expect(page.locator('#lens-explore[aria-selected="true"]')).toBeVisible()
+  expect(new URL(page.url()).searchParams.get('lens')).toBe('explore')
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  // The address keeps the rest of itself and drops the lens nothing shows.
+  await expect.poll(() => new URL(page.url()).searchParams.get('lens')).toBeNull()
+  expect(new URL(page.url()).searchParams.get('demo')).toBe('1')
+})
+
+test('lens · a link to Converse shows Converse to one who stored Build (Codex on #242)', async ({ page }) => {
+  await page.goto(`${PAGE}&lens=build`)
+  await drawn(page, DRAWN.room)
+  await expect(lens(page, 'Build')).toHaveAttribute('aria-selected', 'true')
+  await page.goto(`${PAGE}&lens=converse`)
+  await drawn(page, DRAWN.room)
+  await expect(lens(page, 'Converse')).toHaveAttribute('aria-selected', 'true')
+})
+
+test('lens · the Studio view pressed again keeps the lens in the address (Codex on #242)', async ({ page }) => {
+  await page.goto(`${PAGE}&lens=explore`)
+  await drawn(page, DRAWN.room)
+  await expect(lens(page, 'Explore')).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('link', { name: 'Studio' }).click()
+  await expect(lens(page, 'Explore')).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(() => new URL(page.url()).searchParams.get('lens')).toBe('explore')
+})

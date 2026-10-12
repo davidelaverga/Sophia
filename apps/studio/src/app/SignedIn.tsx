@@ -194,6 +194,7 @@ function ProjectShells(props: ShellsProps) {
               onWork={() => goTo('work')}
               onSignOut={onSignOut}
               background={id !== onScreen}
+              routed={id === route.projectId}
               onCall={(next, note) => onCall(id, next, note)}
               joinOnOpen={joining === id}
               onJoinHandled={onJoinHandled}

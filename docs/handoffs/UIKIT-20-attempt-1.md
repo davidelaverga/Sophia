@@ -1,0 +1,60 @@
+# Implementation-session handoff
+
+Goal and attempt: UIKIT-20 (the Studio's lens in the address; the background's work one press away), attempt 1
+Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-kit`
+Native session: unknown
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/lens-address` from `ui/task-keys` at
+`49bc1e95` (stacked on PR #241 → #240 → … → #220; the base retargets as each merges)
+Ending commit/tree: `b124c142c59a` (tree `c74dd7486d42`), the last commit of `ui/lens-address`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 19 files changed against
+`ui/task-keys` at that commit: `e2e/commands.spec.ts`, `e2e/studio-lens-address.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/app/SignedIn.tsx`, `src/app/route.test.ts`, `src/app/route.ts`, `src/app/useProjectRoute.ts`, `src/features/studio/ProjectShell.tsx`, `src/features/studio/StudioShell.tsx`, `src/features/studio/project-go.tsx`, `src/features/studio/useViewerState.ts`, `src/features/studio/viewer-state.test.ts`, `src/features/studio/viewer-state.ts`, `src/features/voice/RoomStage.tsx`, `src/features/voice/room-view.test.ts`, `src/features/voice/room-view.ts`, `docs/handoffs/UIKIT-20-attempt-1.md`, `docs/plans/studio-lens-address.md`. The review notes below name the commit of each later change.
+
+## Outcome
+
+- `viewer-state.ts`: `lensInAddress(search)` and `withLensInAddress(search, lens)` (pure, 8 assertions);
+  `useViewerState` reads the lens the address names at load (it wins over the stored one) and writes a chosen lens
+  to the address with `replaceState`, Converse by its absence.
+- `room-view.ts`: a `RoomLine` whose note is the work's says so (`goes: 'work'`); `workingTaskIds(snapshot)`.
+  `RoomStage`: that note is a `text-button` that goes to Tasks through `project-go`, naming the one task working in
+  the address when there is exactly one (`Arrival` for Tasks takes an optional task).
+- Not taken: hiding the lenses without content (a product call: Davide's three lenses, the viewer-state contract, two
+  checks seed and press them), said in the note.
+- `e2e/studio-lens-address.spec.ts` (2): the lens named at load, written when chosen, Converse by absence, a link
+  winning over the stored lens; the work's note as a press to Tasks.
+- Unverified here: the Playwright run (the local guard); CI is the run on record.
+
+## Evidence
+
+- `pnpm format`, `pnpm lint` (type-aware), `pnpm typecheck`: clean; studio + room-view unit tests 56 pass.
+- Measured in the page (the pane at 1280×800, `room.html?demo=1&lens=explore`): Explore selected at load; Build
+  pressed → `?demo=1&lens=build`; Converse pressed → `?demo=1`; the note «Working on 1 task in the background» is a
+  press; pressed → Tasks current (the demo's work is a goal's, not a task's, so no task is named in the address).
+- A trap met: after switching branches under the dev server, the pane kept a module graph that said `RoomStage.tsx`
+  had no `RoomStage` export; `touch` on the stage's modules and a fresh load set it right.
+
+## Decisions and changes
+
+- The address carries the lens only while the Studio view shows it: the route's own moves carry the report's
+  parameters alone, and the Studio view regains the lens from storage. A link to the Studio view says what it shows.
+- One task working names itself; several go to Tasks as a whole: naming one of many would be a guess.
+- After the review (Codex on #242, 2026-10-11): the door shut under the Studio view (AccessNotice, no route move) left
+  `?lens=` in the address; an unmount effect drops it, the rest kept. The fixture's `shutDoor()`; studio-lens-address.spec.
+- Another subject at the same page (app-auth.spec's «resets for another subject», red in CI): the address kept the
+  last one's lens; the tab remembers whose (`sessionStorage`), and a lens written for another key is not read as this
+  viewer's (`addressLensFor`, unit-tested). History state was not enough: the route's own `pushState` drops it.
+
+## Remaining obligations
+
+- Watch CI for `studio-lens-address.spec.ts` and `app-auth.spec.ts`'s lens restore; the independent review (Codex)
+  with no P1/P2 before merge. The base is `ui/task-keys` until #241 merges.
+
+## Next bounded action
+
+UIKIT-21: Places onto `useCommands` with the host in the places' bar, `Shift+L` for the theme; then UIKIT-22 (the
+board: «why blocked» on the lane's head, the blocked count on the goal's chip).
+
+## Post-review (Codex on #242, later rounds)
+
+See docs/plans/studio-lens-address.md, «Post-review»: Converse said in the address, the tab's write remembered with its
+address, the address owned by the routed project only, a current-view press writing the lens again, the copied link
+carrying the lens, and the work note keyed once. viewer-state.test and studio-lens-address.spec cover them.

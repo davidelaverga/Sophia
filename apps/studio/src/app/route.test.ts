@@ -5,6 +5,7 @@ import {
   joinStands,
   opensJoinPage,
   parseRoute,
+  pathIsFor,
   PLACES,
   projectOnScreen,
   routePath,
@@ -72,5 +73,14 @@ describe('viewsShown', () => {
     assert.ok(viewsShown(true).includes('conversations'))
     assert.ok(!viewsShown(false).includes('conversations'))
     assert.equal(viewsShown(false).length, VIEWS.length - 1)
+  })
+})
+
+describe('whose address it is (Codex on #242)', () => {
+  it('is a project’s when its path names it, or names no project (a fixture page); another project’s is not', () => {
+    assert.equal(pathIsFor(`/p/${P}/studio`, P), true)
+    assert.equal(pathIsFor(`/p/${P.toUpperCase()}/work`, P), true)
+    assert.equal(pathIsFor('/room.html', P), true)
+    assert.equal(pathIsFor('/p/00000000-0000-4000-8000-0000000000ff/studio', P), false)
   })
 })
