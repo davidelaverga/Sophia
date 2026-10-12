@@ -235,7 +235,7 @@ async function withdrawOwn(page: Page, query = '') {
   const press = message.getByRole('button', { name: 'Withdraw message' })
   await press.click()
   const confirm = page.getByRole('group', { name: 'Withdraw this message' })
-  await expect(confirm.getByRole('button', { name: 'Withdraw' })).toBeFocused()
+  await expect(confirm.getByRole('button', { name: 'Keep it' })).toBeFocused()
   return { message, press, confirm }
 }
 
