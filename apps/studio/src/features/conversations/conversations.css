@@ -978,7 +978,7 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin: 0;
+  margin: 0 auto; /* in the composer's column with the field and the quick asks (Luis, 2026-10-12) */
   padding: 0 4px;
   color: var(--text-2);
   font: var(--type-small) / var(--lh-small) var(--sans);
