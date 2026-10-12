@@ -702,6 +702,12 @@ Only §3.4's check (`70e232cc…`, doc block 5, verbatim) and §3.5's remedy tem
 | (z′) the assembler an inheriting member of a role that may read `sophia.outbox` | `the assembler is a member of q13e_src` | that row, and `effective: the assembler may SELECT on sophia.outbox` |
 | Cleanup | | dropped; census baseline, 0 clients; `postgres` and `template1` ACLs as before; `pg_parameter_acl` empty; `pg_authid` and `pg_stat_reset()` ACLs at their defaults |
 
+**Not kept, and not counted:**
+- Two earlier Run B invocations, on the same check text: their output was overwritten by the run above.
+  - The first ran the control and every case without a probe under `set -u` with an unbound `$3`, so they never reached `psql` (my script's error).
+  - The second ran every case with the synthetic assembler `NOINHERIT` and (z′) without `INHERIT TRUE`. It differed from the run above only in (z′): r5 returned the membership row without an effective row.
+- The exploratory probe before the doc carried r5 (`q13-r5probe.out`, the same check hash). It showed the reproducer and the clean install as Run A does, and is not evidence.
+
 Not run on 16: `MAINTAIN`, which exists only on 17. Not claimed: the installed candidate on 17.6, or any qualification.
 
 ## 8. Affected shared objects and the acknowledgements they need (expanded in r2)
