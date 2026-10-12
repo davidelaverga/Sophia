@@ -5,6 +5,7 @@
 **What it is not:**
 - Nothing here is written to any held file.
 - No runtime, dsh, provider, credential or live effect was used. The only things run were L0 checks of Node and the kernel in CON's scratch (§9).
+- It consumes Codex's CX-0140 copied-profile probe (Darwin only), as Codex asked, in §5, §6 and §9.
 - It doesn't change option C, B-1's isolated home per reply, the one pinned harness, or the request's cumulative allowance (§8). It doesn't ask Davide anything.
 - The source freeze, the Luis, core and ledger ACKs, and the exact accepted-A base still apply. So do Q6, Q8–Q12 and D-4.
 
@@ -141,7 +142,7 @@ Once D-4 binds a route, the launcher's environment also gets that route's creden
 3. **The home:** `<root>` must be a directory owned by the effective uid, mode 0700, and not a link. Then `mkdir(<root>/<attemptId>, 0700)`, which may not already exist: `EEXIST` is the leftover case, `home_exists`, exit 71. Then `home/`, `home/tmp/`, `dsh-home/profiles/`, `work/` and `diag/`, each 0700.
 4. **fds 1 and 2** are opened onto `diag/stdout` and `diag/stderr` and `dup2`'d into place.
 5. **The lease,** `lease.json`, created with `O_EXCL`, with the file and its directory fsynced. It records §8.5's five fields: the pid (its own, which is dsh's after the `exec`); `/proc/self/stat` field 22; the boot id; the executable (the realpath of `--node`, what `/proc/<pid>/exe` names after the `exec`); and the nonce.
-6. **The profile:** it is copied from `--profile-dir` (read-only) into `dsh-home/profiles/<name>`. A symlink or special file is refused. The copy's `sophia-tree-v2` digest must equal `--profile-digest` (the scheme is `config/runtime-unit.json:32`), else `profile_mismatch`, exit 70.
+6. **The profile:** it is copied from `--profile-dir` (read-only) into `dsh-home/profiles/<name>`. A symlink or special file is refused. The copy's `sophia-tree-v2` digest must equal `--profile-digest` (the scheme is `config/runtime-unit.json:32`), else `profile_mismatch`, exit 70. CX-0140 saw a copy of a pristine offline install show no drift and boot offline, on Darwin only (§9). Linux, and the reply profile, are P1 and P7.
 7. **Containment:**
    - `RLIMIT_CORE` 0 (`landlock-launch.py:99`).
    - **Landlock:** ABI ≥ 4 (:96-98), and every filesystem right that ABI defines is handled. Read and write beneath `<root>/<attemptId>`. Read and execute on the runtime directory, the pinned Node, and the system libraries and certificates (`/usr/lib`, `/lib*`, `/etc/ld.so.cache`, `/etc/ssl`, `/etc/resolv.conf`, `/etc/hosts`, `/etc/nsswitch.conf`), plus `/proc/self`, `/dev/null` and `/dev/urandom`. Nothing else; P7's trace fixes the exact read list. Then `no_new_privs` (:139) and `restrict_self` (:141).
@@ -177,7 +178,7 @@ The report is content-free JSON lines: `{attemptId, state: gone|stopped|unresolv
 - `clone` without `CLONE_THREAD`: `EPERM`;
 - `clone3`: `ENOSYS`, so the C library falls back to `clone`, whose flags a filter can read.
 
-It is x86_64 only, and refuses x32 and every other architecture (the renderer's arch prologue, `landlock-launch.py:179-186`). An arm64 host, which the runtime unit also pins a Node for (`config/runtime-unit.json:49`), is therefore `containment_unavailable` until the owner names its filter.
+It is x86_64 only, and refuses x32 and every other architecture (the renderer's arch prologue, `landlock-launch.py:179-186`). An arm64 host, which the runtime unit also pins a Node for (`config/runtime-unit.json:49`), is therefore `containment_unavailable` until the owner names its filter. So is Darwin, where CX-0140 ran: it has neither Landlock nor this filter. The deploy host is the Linux execution VM.
 
 **The reply's dsh can start no process, so "every descendant a reply child started" is the empty set by construction.** Settling the reply is settling one process, through the handle its own parent holds:
 - `SIGTERM` and then `SIGKILL` through the bridge's handle;
@@ -265,7 +266,7 @@ No PID namespace, numeric signal, process group or uid-wide selection is involve
 4. **A `session/event` observer** projects each event (§8.5's five types) and journals it: the file fsynced, and the directory fsynced at creation. It then writes the `obs` line, awaiting `drain` before the next.
 5. **Exit:**
    - **After a `turn/end`,** once its last line is written, it exits 0.
-   - **On `stop` or end-of-file,** it cancels the agent and exits. dsh's own `SIGTERM` path also exits 0 (`interrupt(0)`, dsh `lib/profile-boot-BZ2ZjNWi.js:249-250`). That is why `draining` requires the completed `turn/end` read, not exit 0 alone (§8.5).
+   - **On `stop` or end-of-file,** it cancels the agent and exits. dsh's own `SIGTERM` path also exits 0 (`interrupt(0)`, dsh `lib/profile-boot-BZ2ZjNWi.js:249-250`). CX-0140 saw status 0 after its bounded stop, on Darwin. That is why `draining` requires the completed `turn/end` read, not exit 0 alone (§8.5).
 
 **Transport** (`transport.ts`, and their routes, held):
 - **`conversationClaim(body, signal)`:** `POST /v1/runtime/conversation/claim`. It answers `{result: 'first'}` or `{result: 'refused', code: 'already_claimed' | 'not_pending' | 'stale_epoch'}`.
@@ -364,8 +365,11 @@ A late line, live or recovered, is stored scrubbed with its usage. A later `crea
 
 **One void run, not kept.** The probe's first run had a broken worker check: its eval body called a bare `postMessage`, which failed the same way filtered and unfiltered. The check was corrected to `parentPort.postMessage` and the whole probe re-run; `noproc-run.out` is that re-run.
 
-**Not established**, each a probe on the pinned runtime with a loopback stub route, offline, labelled as such, or on the host. None has run:
-- **P1–P6:** the plan's §4.1, unchanged.
+**Not established**, each a probe on the pinned runtime with a loopback stub route, offline, labelled as such, or on the host. None has run as stated here; only P1 has partial evidence, from Codex:
+- **P1–P6:** the plan's §4.1. **P1 has partial evidence, Darwin only:** Codex's CX-0140 ([`ebd87c1d`](https://github.com/davidelaverga/Sophia/blob/ebd87c1dd20212c5447db43eb6e32f211662a4dc/docs/coordination/CON-01/CX-0140.md), `CX-0140.md` SHA-256 `00fc4f0c385cc635`).
+  - **The setup:** all network denied by `sandbox-exec`, no credentials, Node 24.21.0, and the existing artifact matching `7d8f`'s recorded Darwin runtime (tree-v2 `e24cb887…`, 28,427 entries) and bundle.
+  - **What it saw:** a frozen offline install took 376 ms. A copy of that pristine install into a second empty home gave `profileDrift` `[]`. An 8-second bounded boot loaded the bridge, reported `not_ready` (no service binding), was never ready, printed no startup diagnostic, and ended with status 0 after the bounded stop.
+  - **What it doesn't show,** in Codex's words: not "a useful reply, complete file-write/canary accounting, absence of other host copies, pidfd/namespace/Landlock, descendant settlement, crash/orphan recovery, withdrawal or durable delivery", nor Linux. It also used the runtime profile, not a reply profile.
 - **P7:** dsh `0.2.0-rc.2` boots the reply profile from a copied profile under the launcher (Landlock, the filter, four fds, fd 3 opened by `sophia-reply-child`), and completes one stub reply. Every model call is reserved over fd 3, the journal is written before each emit, and no process is created. Plus `strace -f` of `fork`/`clone`/`execve` from boot to exit.
 - **P8:** the deploy host's execution-host container. Landlock ABI ≥ 4 and `seccomp` are available to an unprivileged process there, under its runtime's own seccomp profile; `pidfd_open` works; it is x86_64; and the image has `python3` ≥ 3.9 (`os.pidfd_open`, `signal.pidfd_send_signal`). The image doesn't exist yet: `imageDigest` is null (`docs/pack/ops/deployment-units.json`, unit `execution_host`).
 - **Not covered by Q7, and named so:** a reply child can still signal other processes of the same uid. Landlock's signal scoping is ABI 6; ABI 4 doesn't restrict it. Whether to deny `kill` and its relatives in the filter is the owner's call.
