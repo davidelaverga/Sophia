@@ -54,6 +54,14 @@
   reports it; `.card.live:hover` removed, the live checks find the edge still in `--line`.
 - `pnpm check` clean.
 
+## After CI (2026-10-12)
+
+- The resources' sort menu stood 5 px under its field, not 6: `.menu` takes `top: calc(100% + 6px)` of its box, and in
+  a field that box is the field's padding box, 1 px inside the edge the eye sees. menu-scale.spec had passed on other
+  branches only when its poll caught the arrival (3 px, easing to rest) passing through 6; on this branch the poll
+  landed at rest twice. `.field > .menu { top: calc(100% + 7px) }`, and the spec reads the place only once the arrival's
+  transform is over (`settled`).
+
 ## Left
 
 - The goals' list, home's rows and the conversation rows keep their rules: rows, not cards. The stage's `.tile` is
