@@ -39,7 +39,7 @@ test('origins · each project source says where it came from; a file in words, a
   // Every word reads, and on the app's sizes.
   expect(await lowContrast(page, '.sources')).toEqual([])
   const sizes = await typeSizes(page, '.sources')
-  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
+  for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
 })
 
 test('origins · a conversation’s press shows it open in Conversations, the report still beside it', async ({
