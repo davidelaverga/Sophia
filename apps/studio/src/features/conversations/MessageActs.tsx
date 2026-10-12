@@ -50,26 +50,43 @@ async function toClipboard(text: string): Promise<boolean> {
   }
 }
 
-/** One clipboard for the page: writes go one after another, and the presses count across every message (Codex on #240). */
+/** One clipboard for the page: the presses count across every message, and the latest press's words are what it should
+ * hold (Codex on #240). */
 let presses = 0
-let writes: Promise<unknown> = Promise.resolve()
-/** How long a write may take before it is given up as not copied, so one stuck browser operation frees the queue. */
+let latest = ''
+/** How long a write may take before it is given up as not copied (a permission request left pending in a webview never
+ * settles). */
 export const COPY_WAIT_MS = 4000
 
-/** The write, or false once it has taken too long (a permission request left pending in a webview never settles). */
+/** The write, or false once it has taken too long. */
 const bounded = (write: Promise<boolean>) =>
   Promise.race([write, new Promise<boolean>((resolve) => setTimeout(() => resolve(false), COPY_WAIT_MS))])
 
+/** An earlier write that went through after a later press: the latest words go back (and again, should a press come
+ * meanwhile). */
+function restore(): void {
+  const text = latest
+  void toClipboard(text).then((ok) => {
+    if (ok && text !== latest) restore()
+  })
+}
+
 export function MessageActs({ message, who, now, onQuote, propose }: Props) {
   const { said, say } = useSaid()
-  // Only the latest press's outcome is said, on any message: an earlier write that settles late (slow, then refused)
-  // changes nothing, and the writes queue so the clipboard holds what the last press put there.
-  const copy = async () => {
+  // Each write starts in its own press (Safari grants the clipboard to the gesture, not to a promise after it). Only the
+  // latest press's outcome is said, on any message; an earlier write that goes through late, even one given up, is
+  // written over with the latest words, so the clipboard holds what the last press put there.
+  const copy = () => {
     const press = ++presses
-    const write = writes.then(() => bounded(toClipboard(clipOf(message, who, now))))
-    writes = write
-    const ok = await write
-    if (press === presses) say(ok ? 'copied' : 'failed')
+    const text = clipOf(message, who, now)
+    latest = text
+    const write = toClipboard(text)
+    void write.then((ok) => {
+      if (ok && text !== latest) restore()
+    })
+    void bounded(write).then((ok) => {
+      if (press === presses) say(ok ? 'copied' : 'failed')
+    })
   }
   return (
     <span className="conv-acts" onClick={own}>
@@ -78,7 +95,7 @@ export function MessageActs({ message, who, now, onQuote, propose }: Props) {
           {WORDS[said.kind]}
         </span>
       )}
-      <button type="button" className="conv-act has-tip" aria-label="Copy" onClick={() => void copy()}>
+      <button type="button" className="conv-act has-tip" aria-label="Copy" onClick={copy}>
         <Icon name="copy" />
         <Tip label="Copy" side="top" align="end" />
       </button>

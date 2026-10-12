@@ -332,7 +332,9 @@ function headerDock(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: (
 }
 
 /** A dock control's name, the same in both places the dock is mounted: its label, else its words. */
-const dockName = (el: Element) => el.getAttribute('aria-label') ?? el.textContent.trim()
+/** What names a dock control across its move: its key (the words of a pill change with the room's state), else its label. */
+const dockKey = (el: Element) =>
+  el.getAttribute('data-dock-key') ?? el.getAttribute('aria-label') ?? el.textContent.trim()
 
 /** The views that have the room's dock: not the Studio (the room is the view), not behind a shut door. */
 const dockShown = (view: View, blocked: Blocked | null) => view !== 'studio' && !blocked
@@ -347,7 +349,7 @@ function useDockFocus(wide: boolean) {
   useEffect(() => {
     const onFocus = (e: FocusEvent) => {
       const el = e.target instanceof HTMLElement ? e.target : null
-      named.current = el?.closest('.mini-dock') ? dockName(el) : null
+      named.current = el?.closest('.mini-dock') ? dockKey(el) : null
     }
     document.addEventListener('focusin', onFocus)
     return () => document.removeEventListener('focusin', onFocus)
@@ -355,7 +357,7 @@ function useDockFocus(wide: boolean) {
   useLayoutEffect(() => {
     const name = named.current
     if (!name || document.activeElement !== document.body) return
-    const again = [...document.querySelectorAll<HTMLElement>('.mini-dock button')].find((b) => dockName(b) === name)
+    const again = [...document.querySelectorAll<HTMLElement>('.mini-dock button')].find((b) => dockKey(b) === name)
     again?.focus({ preventScroll: true })
   }, [wide])
 }
