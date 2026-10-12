@@ -1,0 +1,23 @@
+{
+  "id": "PB9-A3-FALLBACK-TERMINAL-WRITER",
+  "severity": "P2 proposal / qualification gap",
+  "candidate": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+  "path": "docs/coordination/CON-01/G2_SHARED_RESERVATION_REQUEST.md",
+  "lines": [
+    528,
+    532,
+    539,
+    541,
+    546,
+    577
+  ],
+  "expected": "A fallback that requires full retirement must have a truthful supported terminalWriter and preserve execution/usage/reservation/cleanup barriers, without fabricated receipt or allowance reset.",
+  "observed": "A3 steps1-3 survive when runtime_commands or conversation_executions evidence exists: request becomes failed/not_dispatched, but B6 recognizes receipt/capture/hello terminalWriter, or A1 cancellation. A3 creates none; it says these predicates are never reached while simultaneously requiring full retirement in fallback. A later receipt does not itself become the writer that previously terminalized the request.",
+  "reproducer": "Proposed local qualification explicitly seeds a runtime_commands row for the binding before dispatch while request remains pending. Invoke denial caseB; step2 terminalizes; local retirement guard fails; full retire must call acknowledged; no supported record for terminalWriter. Also examine seeded execution evidence and uncertain reservations. This is a source/proposal trace, not executed SQL or a demonstrated hosted defect.",
+  "sources": [
+    "Q7 frozen7d4a76d9 G2_Q7_RELAY_OWNERSHIP.md:860-870",
+    "r9 G2_SHARED_RESERVATION_REQUEST.md:532-546",
+    "r9 planned seeded fallback check:577"
+  ],
+  "bounded_correction": "Require contradictory evidence to fail closed without inventing not_dispatched/local settlement, or explicitly bind a truthful durable terminal writer and accounting-safe full-retirement route. Claude proposes smallest correction and tests; root/consumer/actual owner recheck exact pin. Keep A1/A2, cleanup/privacy/budget barriers and prior corrected helper/preflight forms."
+}
