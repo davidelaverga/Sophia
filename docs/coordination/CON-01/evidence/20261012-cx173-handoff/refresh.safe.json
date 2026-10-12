@@ -1,0 +1,265 @@
+{
+  "mission": "CON-01",
+  "checkpoint": "CX-0173",
+  "at": "2026-10-12T09:31:01Z",
+  "starting_reviewer_head": "8fba4fe09628bd08896d0dc7068db8e33ebcf907",
+  "refs": {
+    "request_ref": "57972a0e80fc1f9a296061057e8ddf852a5ec202",
+    "reviewed_request": "91110fdda17dab26b8b7b1a6f1026060d888fa7c",
+    "main": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+    "studio_prepared": "d96626acdc514eabbdf20667725e28a2279dfeba",
+    "pr199": "d527f3854222020abb6ba723bf0ea7480c76bb82"
+  },
+  "inventories": {
+    "issue198": 402,
+    "pr199": 334
+  },
+  "luis_comment_ids": [
+    6115115786,
+    6115106416,
+    6118092274,
+    6120119263
+  ],
+  "new_luis_handback": false,
+  "own_pr199_comment": 6116157885,
+  "exact_readback": true,
+  "acceptance_ledger_sha256": "10e51aaee8185e4bbf90c6320c080490ed8cd76422b6bf61753ae184c7155fd3",
+  "cases": [
+    {
+      "id": "CON-01-T01",
+      "name": "Separate conversations",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T02",
+      "name": "Correct authorship",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T03",
+      "name": "Retention boundary",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T04",
+      "name": "Current eligibility",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON-01-T05",
+      "name": "Account isolation",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A01",
+      "name": "Atomic start",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A02",
+      "name": "Lost create reply",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A03",
+      "name": "Lost send reply",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A04",
+      "name": "Changed payload same key",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A05",
+      "name": "Current membership",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A06",
+      "name": "Forged author",
+      "status": "passed_L1"
+    },
+    {
+      "id": "CON01-A07",
+      "name": "Ordering and pagination",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A08",
+      "name": "No implicit invocation",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A09",
+      "name": "Exact response correlation",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A10",
+      "name": "Runtime unavailable",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A11",
+      "name": "Original destination",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A12",
+      "name": "Restart after admission",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A13",
+      "name": "Uncertain inference",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A14",
+      "name": "Current mission",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A15",
+      "name": "Real quick answers",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A16",
+      "name": "No mutation from conversation answer",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A17",
+      "name": "Summary coverage",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A18",
+      "name": "Projection race",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A19",
+      "name": "Source injection",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A20",
+      "name": "Decision actions retained",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A21",
+      "name": "Output identity",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A22",
+      "name": "Draft and held write",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A23",
+      "name": "Read errors independently",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A24",
+      "name": "Mobile and accessibility",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A25",
+      "name": "Privacy during read/stream",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A26",
+      "name": "Partial and cancelled replies",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A27",
+      "name": "No collateral regression",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A28",
+      "name": "Bounded context and spending",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A29",
+      "name": "Rollback and erasure continuity",
+      "status": "partial_L1"
+    },
+    {
+      "id": "CON01-A30",
+      "name": "Actual app non-fixture proof",
+      "status": "not_run"
+    },
+    {
+      "id": "CON01-A31",
+      "name": "Parallel ownership",
+      "status": "not_run"
+    }
+  ],
+  "operation_drafts": [
+    {
+      "file": "CON-01-OP-0002-r6.json",
+      "sha256": "4ea475e83a44410c541f5e1f346545480faabc503c8c06d6b295672f44779206",
+      "status": "draft_not_authorized",
+      "approval_ready": false,
+      "approval_ref": null,
+      "candidate_sha": null
+    },
+    {
+      "file": "CON-01-OP-0001-r4.json",
+      "sha256": "661b196bb87f23bd52a683ad34921a3030010d6f9763a8d666b0d431bd3abdbf",
+      "status": "draft_not_authorized",
+      "approval_ready": false,
+      "approval_ref": null,
+      "candidate_sha": null
+    }
+  ],
+  "effects": {
+    "hosted": [],
+    "uncertain": [],
+    "sophia_provider_calls": 0,
+    "additional_sophia_spend": 0,
+    "coding_agent_usage": "unmeasured/private",
+    "shared_record_update": "existing own PR199 comment only"
+  },
+  "no_progress_audit": {
+    "at": "2026-10-12T09:31:01Z",
+    "mission": "CON-01",
+    "last_progress_checkpoint": "CX-0170 (author handoff verified and exact missing-owner request posted/read back)",
+    "current_turn": "no_progress",
+    "consecutive_no_progress_turns": 3,
+    "condition": "No new actual retained-owner/base/Studio handback or source-window authority; operational batches unapproved and unbound. Exact primary session terminal; no current process whose progress can unblock the work.",
+    "evidence": {
+      "issue198_comments": 402,
+      "latest_issue198": 6121348601,
+      "pr199_comments": 334,
+      "latest_luis_pr199": 6120119263,
+      "pr256_comments": 4,
+      "latest_pr256": 6116716003,
+      "primary": "session_01KUDtFK9gWthsXSrepcLQz3 emptyPrompt509/disabledSend510, no Stop",
+      "refs": {
+        "request_ref": "57972a0e80fc1f9a296061057e8ddf852a5ec202",
+        "reviewed_request": "91110fdda17dab26b8b7b1a6f1026060d888fa7c",
+        "main": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+        "studio_prepared": "d96626acdc514eabbdf20667725e28a2279dfeba",
+        "pr199": "d527f3854222020abb6ba723bf0ea7480c76bb82"
+      }
+    },
+    "safe_actions_exhausted": "Relevant unchanged proposal source independently reviewed, actual terminal feedback loop closed, current named owners asked concrete scope/base/handback. No new correction candidate, permission, source window or approved live batch. Repeated unchanged tests/comments/recording are not product progress.",
+    "approval": "No deployment/hosted migration/config/account/grant/provider/native Ask/spend authorized; finalized concrete batches required.",
+    "effects": [],
+    "next_bounded_action": "Actual retained owner/base/Studio handback response, then independent review and eligible writer reservation; exact operational approval before hosted effects.",
+    "goal_status": "blocked threshold met; status update required"
+  },
+  "next": "Actual owner/base/Studio handbacks to existing mission request; independent exact review before eligible writer window. Fully bound effect batches require actual approval."
+}
