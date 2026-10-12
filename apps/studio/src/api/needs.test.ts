@@ -14,7 +14,7 @@ const wire = (over: Partial<Need> = {}): Need => ({
   expiresAt: '2026-10-11T10:20:00Z',
   detail: null,
   at: '2026-10-11T09:00:00Z',
-  ref: { kind: 'work_decision', id: 'd1', within: null },
+  ref: { kind: 'work_decision', id: 'd1', within: null, resourceId: null },
   ...over,
 })
 
@@ -31,29 +31,39 @@ describe('what needs the person, from the wire', () => {
       },
     ])
   })
-  it('lives where its kind says: Tasks, Knowledge, the room; a reply, or anything without a project, in the personal space', () => {
+  it('lives where its kind says: Tasks, Resources, the room; a reply, or anything without a project, in the personal space', () => {
     assert.deepEqual(whereOf(wire()), { projectId: P, view: 'work', at: { decisionId: 'd1' } })
-    assert.deepEqual(whereOf(wire({ kind: 'permission', ref: { kind: 'work_wait', id: 'wait-1', within: 'w1' } })), {
+    // A permission at its request in Resources (Codex on #245, round 10): the task's sheet only names the wait.
+    const wait = { kind: 'work_wait', id: 'action-1', within: 'w1', resourceId: 'davide-claude' } as const
+    assert.deepEqual(whereOf(wire({ kind: 'permission', ref: wait })), {
       projectId: P,
-      view: 'work',
-      at: { taskId: 'w1' },
+      view: 'resources',
+      at: { requestId: 'action-1', resourceId: 'davide-claude', taskId: 'w1' },
     })
-    assert.deepEqual(whereOf(wire({ kind: 'guest', ref: { kind: 'lobby_entry', id: 'g1', within: null } })), {
-      projectId: P,
-      view: 'studio',
-      at: {},
-    })
+    assert.deepEqual(
+      whereOf(wire({ kind: 'guest', ref: { kind: 'lobby_entry', id: 'g1', within: null, resourceId: null } })),
+      {
+        projectId: P,
+        view: 'studio',
+        at: {},
+      },
+    )
     assert.deepEqual(whereOf(wire({ kind: 'reply', projectId: null, projectTitle: null })), { place: 'personal' })
     assert.deepEqual(whereOf(wire({ projectId: null })), { place: 'personal' })
   })
-  it('opens the record its ref names when the Studio has an address for it: a wait at its task, a decision at its own choice', () => {
-    assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: 'w1' }), { taskId: 'w1' })
-    assert.deepEqual(atOf({ kind: 'work_wait', id: 'wait-1', within: null }), {})
+  it('opens the record its ref names when the Studio has an address for it: a wait at its request, a decision at its own choice', () => {
+    // A wait is addressed by its request (A13's reference), with its resource and its task along for the record.
+    assert.deepEqual(atOf({ kind: 'work_wait', id: 'req-1', within: 'w1', resourceId: 'r1' }), {
+      requestId: 'req-1',
+      resourceId: 'r1',
+      taskId: 'w1',
+    })
+    assert.deepEqual(atOf({ kind: 'work_wait', id: 'req-1', within: null, resourceId: null }), { requestId: 'req-1' })
     // A decision is its own address on the board (its choice stands there, not in its task's sheet), with or without
     // the task that holds it (Codex on #245, round 8).
-    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: null }), { decisionId: 'd1' })
-    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: 'w3' }), { decisionId: 'd1' })
-    assert.deepEqual(atOf({ kind: 'personal_turn', id: 't9', within: null }), {})
+    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: null, resourceId: null }), { decisionId: 'd1' })
+    assert.deepEqual(atOf({ kind: 'work_decision', id: 'd1', within: 'w3', resourceId: null }), { decisionId: 'd1' })
+    assert.deepEqual(atOf({ kind: 'personal_turn', id: 't9', within: null, resourceId: null }), {})
   })
   it('keeps the service’s clock: the skew from readAt and when the answer arrived; nothing from an unreadable readAt', () => {
     const received = Date.parse('2026-10-11T09:00:00Z')
