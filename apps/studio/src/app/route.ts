@@ -75,3 +75,6 @@ export const joinStands = (joining: string | null, onScreen: string | null): str
  */
 export const projectOnScreen = (asked: string | null, calling: string | null): string | null =>
   asked !== null && calling !== null && asked !== calling ? calling : asked
+
+/** Said on the window after the app moves the address itself (`useProjectRoute.go`): what mirrors it writes again. */
+export const ADDRESS_MOVED = 'sophia:address-moved'

@@ -231,12 +231,17 @@ function useListening(field: React.RefObject<HTMLInputElement | null>, email: st
     input.addEventListener('blur', blur)
     window.addEventListener('resize', aim)
     // The field moves without the window changing: the font arriving reflows the lede above it (two lines to one) and
-    // the centred body with it. Her attention follows the field, not where it stood.
-    void document.fonts.ready.then(aim)
+    // the centred body with it. Her attention follows the field, not where it stood; once the form is gone (the email
+    // sent while the font loads), the detached field measures nothing (Codex on #247).
+    let live = true
+    void document.fonts.ready.then(() => {
+      if (live && input.isConnected) aim()
+    })
     const moved = new ResizeObserver(aim)
     const body = input.closest('.screen-body')
     if (body) moved.observe(body)
     return () => {
+      live = false
       moved.disconnect()
       input.removeEventListener('focus', focus)
       input.removeEventListener('blur', blur)

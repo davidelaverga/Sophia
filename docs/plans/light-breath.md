@@ -26,8 +26,8 @@
   `109 91 208` at 0.22, the thread runs from the warm `150 83 40` to the violet `85 70 184`, and its head is a violet
   glow composited `source-over`. The engine takes `setPaper(paper)`; `SophiaLight` follows the root's `data-theme`
   (`usePaper`, a `MutationObserver` on the root, so the account menu's change reaches a running light).
-- **Home's light on paper blends `multiply`**: ink laid on the page, so the halo around the formed mark darkens the
-  paper the way the room's halo lightens the void. The white heart multiplies to nothing, as it should behind the mark.
+- **Home's and Talk's light on paper is laid unblended** (`normal`; round 4 below): the halo's own paper inks make it
+  read as ink; the room's `screen` stays the room's.
 
 ## Checks
 
@@ -35,7 +35,7 @@
   `drawWorkLine` strokes with the inks it is given.
 - `e2e/light-breath.spec.ts`: on sign-in and the room in light, `.light` carries one running animation on its
   pseudo-element and none under reduced motion; the halo (now on `::after`) starts white at the centre; the trace
-  canvas is above it; on Home in light the light blends `multiply`; in the room `.light` carries no CSS animation (the
+  canvas is above it; on Home and Talk in light the light is unblended and the formed mark's pixels are the brand's violet; in the room `.light` carries no CSS animation (the
   canvas breathes instead).
 - `light-mark.spec` reads the halo from the pseudo-element. `pnpm format`, `lint`, `typecheck`; measured in the pane.
 
@@ -76,3 +76,11 @@ was.
 Left: the mark outside the light's group (a sibling of `.light` in SophiaLight, positioned by the same box), for the
 day the blend is made to reach the paper (a paper backing on the column, or the light outside it): then the mark would
 be tinted, and this is the clean way out. Across the four places the light stands, with their specs.
+
+## After the review, round 4 (Codex on #251)
+
+Home without what needs you puts the light straight under `.hw`, outside the side column's stacking context, and there
+the group's `multiply` did reach the paper: the formed mark drew as `#8265e3` (a control run with the multiply restored
+reads no `#8468ee` pixel in the mark). The blend is dropped on paper, for Home and Talk: the halo carries its own paper
+inks, so it reads as ink unblended, and the mark draws as the brand's ink wherever the light stands. light-breath.spec
+reads the mark's pixels in the three places.

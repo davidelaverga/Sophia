@@ -65,13 +65,13 @@ test('light · under reduced motion the light on paper stands still', async ({ p
   expect(read?.halo).toMatch(/^radial-gradient/)
 })
 
-test('light · on Home her light blends as ink on the page, and the formed mark stands over the halo', async ({
+test('light · on Home her light is laid on the page unblended, and the formed mark stands over the halo', async ({
   page,
 }) => {
   await page.goto('/home.html?demo=1&theme=light')
   await drawn(page, DRAWN.home)
   const read = await lightRead(page)
-  expect(read?.blend).toBe('multiply')
+  expect(read?.blend).toBe('normal')
   expect(read?.haloZ).toBe('-1')
   // The mark is a positioned child of the light, which isolates its stacking: with the halo at -1 the mark paints over
   // it (a hit test cannot say so: the light takes no pointer events).
@@ -91,4 +91,56 @@ test('the room: the light carries no CSS animation (its canvas breathes), and no
   const read = await lightRead(page)
   expect(read?.animations).toBe(0)
   expect(read?.halo).toBe('none')
+})
+
+/** The mark's pixels as drawn: how many are exactly the brand's violet, and how many its paper-multiplied shade. */
+async function markPixels(page: Page) {
+  const mark = page.locator('.light > svg.threshold')
+  await expect(mark).toBeVisible()
+  const png = (await mark.screenshot({ animations: 'disabled' })).toString('base64')
+  return page.evaluate(async (data) => {
+    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${data}`)).blob())
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return { brand: 0, tinted: 0 }
+    ctx.drawImage(bitmap, 0, 0)
+    const px = ctx.getImageData(0, 0, bitmap.width, bitmap.height).data
+    let brand = 0
+    let tinted = 0
+    for (let i = 0; i < px.length; i += 4) {
+      const hex = [px[i], px[i + 1], px[i + 2]].map((v) => (v ?? 0).toString(16).padStart(2, '0')).join('')
+      if (hex === '8468ee') brand += 1
+      if (hex === '8265e3') tinted += 1
+    }
+    return { brand, tinted }
+  }, png)
+}
+
+for (const [name, url] of [
+  ['without needs', '/home.html?theme=light'],
+  ['with needs', '/home.html?demo=1&theme=light'],
+] as const) {
+  test(`light · on Home ${name} the formed mark draws in the brand's violet, not tinted by the paper (Codex on #251)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto(url)
+    const read = await markPixels(page)
+    expect(read.brand).toBeGreaterThan(20)
+    expect(read.tinted).toBe(0)
+  })
+}
+
+test('light · Talk on paper: no screen blend on the light, the formed mark in the brand’s violet (Codex on #251)', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.goto('/personal.html?voice=1&step=150&theme=light')
+  await page.getByRole('button', { name: 'Talk with her' }).click()
+  const light = page.getByRole('dialog', { name: 'Talking with Sophia' }).locator('.c3-talk-light .light')
+  await expect(light).toHaveAttribute('data-mark', /\d+ \d+ \d+/)
+  await expect(light).toHaveCSS('mix-blend-mode', 'normal')
+  const read = await markPixels(page)
+  expect(read.brand).toBeGreaterThan(20)
+  expect(read.tinted).toBe(0)
 })

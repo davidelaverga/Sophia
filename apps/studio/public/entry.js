@@ -9,8 +9,17 @@ if (new URLSearchParams(location.search).has('code') && !location.pathname.start
 // so a light page never flashes the void; «system» asks the system. The app's own boot then agrees with it.
 try {
   const theme = localStorage.getItem('sophia.theme')
-  if (theme === 'light' || (theme === 'system' && matchMedia('(prefers-color-scheme: light)').matches)) {
+  const light = theme === 'light' || (theme !== 'dark' && matchMedia('(prefers-color-scheme: light)').matches)
+  if (light && theme !== null) {
     document.documentElement.dataset.theme = 'light'
+    // The browser's chrome with it, from the first paint (theme.ts keeps it after).
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#fbf8f3')
+  }
+  // The tab's mark in the appearance shown, a choice made against the system included (theme.ts keeps it after).
+  if (theme !== null) {
+    document
+      .querySelector('link[rel="icon"][type="image/svg+xml"]')
+      ?.setAttribute('href', light ? '/favicon-light.svg' : '/favicon-dark.svg')
   }
 } catch {
   // Storage refused (a private window): the room, as the app's boot will say.
