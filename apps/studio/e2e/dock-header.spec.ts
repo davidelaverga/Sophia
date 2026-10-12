@@ -169,7 +169,8 @@ test('dock · with the context open, the dock’s control focused loses the head
   const join = () => dock(page).getByRole('button', { name: /^Join the room/ })
   await join().focus()
   await expect(join()).toBeFocused()
-  // Narrower, the dock floats under the panel: covered, its control cannot keep the focus; the panel has it.
+  // Narrower, the dock floats under the panel (and the thread's screen shows no idle dock at all): its control cannot
+  // keep the focus; the panel has it, not the page.
   await page.setViewportSize({ width: 700, height: 800 })
   await expect.poll(() => page.locator('.mini-dock').evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
   await expect
