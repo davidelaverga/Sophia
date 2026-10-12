@@ -31,7 +31,8 @@ export interface NextUp {
   words: string
 }
 
-function quoted(words: string): string {
+/** Words cut at a word, with an ellipsis, when long: for the quotes of the line and the palette's «For you». */
+export function quoted(words: string): string {
   const text = words.trim()
   if (text.length <= QUOTED) return text
   const cut = text.slice(0, QUOTED - 1)

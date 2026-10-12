@@ -3,16 +3,21 @@
 // never lists a key the page does not take, and the palette never offers what the page cannot do now.
 import { keyLabel } from './shortcuts.ts'
 
-export type CommandGroup = 'go' | 'view' | 'room' | 'do'
+export type CommandGroup = 'you' | 'go' | 'view' | 'room' | 'do'
 
 /** A group's word, in the palette's rows and over the index's lists. */
 export const GROUP_WORDS: Readonly<Record<CommandGroup, string>> = {
+  you: 'For you',
   go: 'Go',
   view: 'This view',
   room: 'The room',
   do: 'Do',
 }
-const GROUP_ORDER: readonly CommandGroup[] = ['go', 'view', 'room', 'do']
+/** «For you» first: what waits on the viewer, offered by the part that shows it (docs/plans/palette-knows.md). */
+const GROUP_ORDER: readonly CommandGroup[] = ['you', 'go', 'view', 'room', 'do']
+
+/** How many commands run last lead the palette with nothing typed. */
+const RECENT_SHOWN = 3
 
 export interface Command {
   id: string
@@ -106,6 +111,31 @@ export function matchCommands(query: string, commands: readonly Offered[]): Offe
     .filter((s) => s.score > 0)
     .toSorted((a, b) => b.score - a.score || a.at - b.at)
     .map((s) => s.command)
+}
+
+/** A palette row: the command and the word before it (its group's, or «Recent»). */
+export interface PaletteRow {
+  command: Offered
+  label: string
+}
+
+/**
+ * The palette's rows (docs/plans/palette-knows.md). Typed: the commands the words name, best first, each with its
+ * group. Nothing typed: «For you» first, then the last commands run that are offered now (`recent`, newest first, three
+ * at most, labelled «Recent»), then the rest in the groups' order without them.
+ */
+export function paletteRows(query: string, commands: readonly Offered[], recent: readonly string[]): PaletteRow[] {
+  const withGroup = (command: Offered) => ({ command, label: GROUP_WORDS[command.group] })
+  // Anything typed is a query, punctuation alone too (it matches nothing, so Enter searches): only a blank field shows
+  // «For you» and Recent (Codex on #264).
+  if (query.trim() !== '') return matchCommands(query, commands).map(withGroup)
+  const yours = commands.filter((c) => c.group === 'you')
+  const last = recent
+    .map((id) => commands.find((c) => c.id === id && c.group !== 'you'))
+    .filter((c): c is Offered => c !== undefined)
+    .slice(0, RECENT_SHOWN)
+  const rest = matchCommands('', commands).filter((c) => c.group !== 'you' && !last.includes(c))
+  return [...yours.map(withGroup), ...last.map((command) => ({ command, label: 'Recent' })), ...rest.map(withGroup)]
 }
 
 export interface KeyRow {

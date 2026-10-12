@@ -52,7 +52,8 @@ import {
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
-import { answeredKey, nextUp } from './next-up.ts'
+import { answeredKey, nextUp, quoted } from './next-up.ts'
+import { useCommands } from '../../../app/useCommands.ts'
 import { NextUp } from './NextUp.tsx'
 import { Folded } from './PlanNotes.tsx'
 import type { Challenge } from './challenges.ts'
@@ -769,9 +770,27 @@ function useNextUp(
   const [answered, setAnswered] = useState<readonly string[]>([])
   const [shown, setShown] = useState(false)
   const review = slot.review !== null && !slot.reviewShown
-  const next = shown
-    ? nextUp({ answered, decisions: slot.asks.mine, waiting: waitingFor(rows, viewerId), review })
-    : null
+  const waiting = waitingFor(rows, viewerId)
+  const next = shown ? nextUp({ answered, decisions: slot.asks.mine, waiting, review }) : null
+  // The same, offered to the palette as «For you» (docs/plans/palette-knows.md). A decision only where the board can
+  // take an answer: a read-only proposal or an unavailable board offers none (Codex on #264).
+  useCommands([
+    // Those answered in this visit are not offered again while the board's next read catches up (Codex on #264).
+    ...(onDecide ? slot.asks.mine : [])
+      .filter((d) => !answered.includes(answeredKey(d.decision_id, d.revision)))
+      .map((d) => ({
+        id: `you-decide-${d.decision_id}`,
+        words: `Decide “${quoted(d.question)}”`,
+        group: 'you' as const,
+        run: () => slot.openDecisions(d.decision_id),
+      })),
+    ...waiting.map((t) => ({
+      id: `you-task-${t.id}`,
+      words: `“${quoted(t.name)}” waits for you`,
+      group: 'you' as const,
+      run: () => onOpenTask(t.id),
+    })),
+  ])
   // The line moves on once the answer is recorded: conflict, denied, expired or unknown keep the decision the one to
   // answer, and the line says nothing yet (Codex on #263).
   const decide =

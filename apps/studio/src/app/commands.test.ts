@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { commandsNow, indexGroups, matchCommands, registerCommands, type Offered } from './commands.ts'
+import { commandsNow, indexGroups, matchCommands, paletteRows, registerCommands, type Offered } from './commands.ts'
 
 const noop = () => undefined
 const cmd = (id: string, words: string, over: Partial<Offered> = {}): Offered => ({
@@ -84,6 +84,49 @@ describe('the index', () => {
   })
   it('leaves out a group with no keys', () => {
     assert.deepEqual(indexGroups([cmd('tasks', 'Go to Tasks')], false), [])
+  })
+})
+
+describe('the palette’s rows', () => {
+  const YOU = [
+    cmd('you-decide-d1', 'Decide “Ship the retry?”', { group: 'you' }),
+    cmd('you-task-t1', '“Implement the PDF retry” waits for you', { group: 'you' }),
+  ]
+  const all = [...ROOM, ...YOU]
+  const rows = (query: string, recent: readonly string[]) =>
+    paletteRows(query, all, recent).map((r) => `${r.label} · ${r.command.words}`)
+  it('nothing typed: «For you» first, then the recent ones offered now, newest first, then the rest by group without them', () => {
+    assert.deepEqual(rows('', ['knowledge', 'gone', 'mic', 'brief', 'tasks']), [
+      'For you · Decide “Ship the retry?”',
+      'For you · “Implement the PDF retry” waits for you',
+      'Recent · Go to Knowledge',
+      'Recent · Microphone on',
+      'Recent · Open the brief',
+      'Go · Home',
+      'Go · Your projects',
+      'Go · Go to Tasks',
+      'Do · Commands',
+    ])
+  })
+  it('punctuation alone is a query that matches nothing, not the blank layout (Codex on #264)', () => {
+    assert.deepEqual(rows('?!', ['knowledge']), [])
+    assert.deepEqual(rows('🙂', []), [])
+    assert.equal(rows('   ', [])[0], 'For you · Decide “Ship the retry?”')
+  })
+  it('nothing used yet, nothing for you: the groups’ order, as before', () => {
+    assert.deepEqual(
+      paletteRows('', ROOM, []).map((r) => r.command.id),
+      matchCommands('', ROOM).map((c) => c.id),
+    )
+    assert.equal(paletteRows('', ROOM, [])[0]?.label, 'Go')
+  })
+  it('typed: ranked by the words as before, each row with its own group; what was used last does not outrank', () => {
+    assert.deepEqual(rows('go', ['knowledge']), [
+      'Go · Go to Tasks',
+      'Go · Go to Knowledge',
+      'Go · Home',
+      'Go · Your projects',
+    ])
   })
 })
 
