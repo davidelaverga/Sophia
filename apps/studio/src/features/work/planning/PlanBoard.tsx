@@ -149,7 +149,13 @@ function LaneWhy({
     <p className="lane-why">
       <span className="lane-why-word">Waiting on</span>
       {shown.map((b) => (
-        <button key={b.item.id} type="button" className="text-button" onClick={() => onOpen(b.item.id)}>
+        <button
+          key={b.item.id}
+          type="button"
+          className="text-button"
+          data-blocker={b.item.id}
+          onClick={() => onOpen(b.item.id)}
+        >
           {b.item.purpose}
         </button>
       ))}
@@ -532,8 +538,12 @@ function useTileFocus(rows: readonly PlanRow[]) {
   const held = useRef<string | null>(null)
   useEffect(() => {
     const into = (e: FocusEvent) => {
-      const tile = e.target instanceof Element ? e.target.closest<HTMLElement>('.board [data-task]') : null
-      held.current = tile?.dataset['task'] ?? null
+      const at = e.target instanceof Element ? e.target : null
+      // A blocker's press stands for its task: gone with the Blocked lane (the blocker done), the focus goes to the
+      // blocker's own tile (Codex on #244).
+      const why = at?.closest<HTMLElement>('.board [data-blocker]')
+      const tile = at?.closest<HTMLElement>('.board [data-task]')
+      held.current = why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
     }
     // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
     // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
@@ -557,7 +567,15 @@ function useTileFocus(rows: readonly PlanRow[]) {
     const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
       (el) => el.dataset['task'] === id,
     )
-    tile?.focus({ preventScroll: true })
+    if (tile) {
+      tile.focus({ preventScroll: true })
+      return
+    }
+    // Moved into a lane past the tiles it shows (five, the rest one press away): the focus goes to that press, so the
+    // keyboard can reveal it; never to the page (Codex on #236).
+    const row = rows.find((r) => r.item.id === id)
+    const lane = row ? document.querySelector(`.board .lane[data-lane="${laneOf(row, rows)}"]`) : null
+    lane?.querySelector<HTMLElement>('.lane-more')?.focus({ preventScroll: true })
   }, [rows])
 }
 

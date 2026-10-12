@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { typeSizes } from './type-sizes.ts'
 
 const PAGE = '/signin.html'
-const LEDE = 'A room where your team and Sophia think together.'
+const LEDE = 'Where your team and Sophia think together.'
 
 /** The line as drawn: its size and ink, where it sits against the heading and the column, and the page's overflow. */
 const ledeRead = (page: Page) =>
@@ -31,9 +31,12 @@ const ledeRead = (page: Page) =>
     }
   })
 
-for (const phone of [false, true]) {
-  test(`sign-in${phone ? ' @phone' : ''} · one line under the title says what opens`, async ({ page }) => {
-    if (phone) await page.setViewportSize({ width: 375, height: 812 })
+// At 1440, at 375, and at 320, the narrowest phone the Studio is checked at (Codex on #247).
+for (const width of [0, 375, 320]) {
+  test(`sign-in${width ? ` @phone ${String(width)}` : ''} · one line under the title says what opens`, async ({
+    page,
+  }) => {
+    if (width) await page.setViewportSize({ width, height: 812 })
     await page.goto(PAGE)
     await expect(page.getByRole('heading', { name: 'Sign in to Sophia' })).toBeVisible()
     await expect(page.getByText(LEDE)).toBeVisible()
