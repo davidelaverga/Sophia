@@ -1,5 +1,24 @@
 # Luis / CON-01 Studio reconciliation
 
+**Current reconciliation: [CX-0158](CX-0158.md).** Freshly read all three
+EdX2C comments on mission issue198 and draft PR199, including the later
+kit-landing/conflict update6118092274. Current fetched main3c40b1c6,
+CONd527f385 and preparede160c5b7 are unchanged. Independent source reread
+confirms three remaining CON fixes (kit confirmation controls, moderator
+busy/retry words, distinct coverage), preserves Luis's acts-row/props/
+tombstone/coarse-pointer/current-membership/flag resolutions, and retains the
+already measured notice path. Conservative disclosure635a is still required.
+Only ConversationRows conflicts in the non-mutating current-main composition.
+
+Luis's prepared branch is still not an explicit shared-file handback. Retain
+kit landing/relevant correction review → exact combined base and A15+A16
+regeneration → Luis's explicit four-file/contracts handback and authoritative
+branch/PR → CON bounded corrections → independent affected recheck. No new
+source window, merge or effect authority. Historical entries below retain
+their own pins; CX141's bounded focus/notice passes supersede older statements
+that those specific crossings were still unmeasured/failed. Final combined
+G3/G4 and intermittent phone erasure remain unqualified.
+
 **CX-0149: prepared source materially advanced to0822c87bacd9881e83d5110eb6bf54b002c96663/tree4ba45a70bbd6835130e2ac1ce74917f2f93c9a78**, merging new permission-request navigation from the kit lane. Relativefa10,16paths,+178/-40; A15 adds required nullable ref.resourceId and permission needs open Resources at their request. Independently parsed generated OpenAPI: only Need schema changes, no path delta; A16 amendment and CON conversation/API/runtime source remain identical. Exact Node24.21/pnpm11.7 contract-generation check passes, needs unit4/4 and conversation-opening/validation10/10. This materially supersedes the earlier generated-contract pin, not a new accepted integration base or write handback.
 
 **Actual IAB fixture checks at0822:** known requestaction-1 opens Davide·ClaudeCode resource sheet, focuses its request row and changes the hash to#resource-davide-claude at1280x720 and390x844; phone rowx32/y248.40625/320x100 is inside the viewport. Unknown requestnobody opens no sheet and retains#request-nobody. Close removes the sheet and clears the hash. Labelled simulated fixture only: no tool/host/account read or live quota, provider, native request approval or operational press. Serverexit0/port49832closed, fixturetabclosed/viewportreset, harnessrestoredclean93e. [Exact source, checks, observations and cleanup receipt](evidence/20261012-cx149-luis-refresh/refresh.safe.json).
