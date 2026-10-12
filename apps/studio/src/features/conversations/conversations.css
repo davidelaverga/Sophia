@@ -480,7 +480,7 @@
   margin: 10px 0 16px;
   color: var(--text-2);
   font: var(--type-small) / var(--lh-small) var(--mono);
-  letter-spacing: 0.09em;
+  letter-spacing: 0.06em; /* the token's (docs/plans/eyebrows.md) */
   text-transform: uppercase;
 }
 .conv-msg-by {
