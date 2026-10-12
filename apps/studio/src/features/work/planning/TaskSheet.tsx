@@ -137,10 +137,16 @@ function Waits({ waits, viewerId }: { waits: readonly WaitRow[]; viewerId: strin
 }
 
 /** The press in «Act on it» whose words (its name, which carries its tip, else its text) say `is`, if offered now. */
+/** A press's own words: its label, else its text without its tip's (a tip repeats the words and adds the key). */
+const wordsOf = (b: HTMLElement) =>
+  b.getAttribute('aria-label') ??
+  [...b.childNodes]
+    .filter((n) => !(n instanceof Element && n.classList.contains('tip')))
+    .map((n) => n.textContent ?? '')
+    .join('')
+
 const pressOf = (sheet: HTMLElement, is: (words: string) => boolean) =>
-  [...sheet.querySelectorAll<HTMLButtonElement>('.task-actions button')].find((b) =>
-    is((b.getAttribute('aria-label') ?? b.textContent).trim()),
-  )
+  [...sheet.querySelectorAll<HTMLButtonElement>('.task-actions button')].find((b) => is(wordsOf(b).trim()))
 
 /**
  * The sheet's keys (docs/plans/task-keys-micro-type.md): J and K turn to the next task or the one before; H presses
