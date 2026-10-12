@@ -20,7 +20,7 @@ CON-01 completes saved project conversations. Two or more named text conversatio
 | Parallel lanes | PR #190 (SDD-01 G7 voice, A15, 0046–0047); WBC-02 and SDD-01's combined runtime. The shared-file order is in the [binding map](BINDING_MAP.md) §2 |
 | Progress | [docs/progress/CON-01.md](../../progress/CON-01.md) |
 
-A comment wakes nobody. Davide resumes either agent with one line, for example: `CON-01: read <the latest CON-01-CC message> on <the coordination issue>, recover the exact candidate, and act only within its scope.` No message here is an approval. A merge, a release, a hosted read or write, a migration and a paid call each need Davide's own scoped approval.
+A comment wakes nobody. Under the 12 October takeover, resume Codex only for CON implementation, for example: `CON-01: recover the latest publication receipt and progress record, check the exact-head automatic review, and continue only within the recorded scope.` Do not resume the former CON Claude feature session or delegate its coding/gates back to it. Retained owners supply only specifically authorized handbacks in their own lanes. No message here is an approval; exact shared-write and operation approvals remain separate. Read-only discovery already authorized by Davide may continue. [Publication identities and review receipts](receipts/codex-owner-incorporation-r11-publication.md).
 
 ## Messages
 

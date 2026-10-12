@@ -7,8 +7,20 @@ Starting proposal commit91110fdda17dab26b8b7b1a6f1026060d888fa7c,
 treef2dd38e07fe672592b59987dd8dabfa68c97955b. Existing owned candidate worktree
 was clean/detached3b1a7ea6; a new branch codex/con01-owner-incorporation-r11
 was created from the actual proposal pin without resetting any author branch.
-Only this handoff, the coordination README and reservation request change.
-Actual ending commit/tree/document hash are recorded in the publication receipt.
+The proposal-content checkpoint ended at actual commit
+`a5f462104286943f723af1a3ed60b10e2c994b6c`, tree
+`0d6987ed677263c7b195c08db03d0c7ae22de996`, reservation SHA256
+`51eb36d46a412142ec5347221d4251bc995a53f296b2afd9e89df6564a809d01`.
+That checkpoint changes this handoff, the coordination README and reservation
+request only. Its automatic review found stale canonical progress/resume guidance
+and the missing committed publication pointer, both accepted for this metadata
+follow-up: the canonical progress record, its unchanged retained acceptance
+ledger copy and
+[publication receipt](../coordination/CON-01/receipts/codex-owner-incorporation-r11-publication.md)
+join the changed files. Reservation content and executable scope are unchanged.
+The receipt records immutable prior commits/trees and links the stable public
+ending-identity record for this enclosing metadata commit; its own hash is not
+invented or embedded recursively in its contents.
 
 ## Outcome and owner evidence
 
