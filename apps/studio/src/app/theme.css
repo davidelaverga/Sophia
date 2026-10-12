@@ -649,6 +649,13 @@ select {
 .has-tip {
   position: relative;
 }
+/* The next ask's key cap (docs/plans/next-ask.md): in the field, at the line's middle, beside what it proposes; its tip
+   says why. */
+.next-ask {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+}
 .tip {
   position: absolute;
   left: 50%;

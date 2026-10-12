@@ -11,6 +11,7 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
+import { useAskSophia } from '../studio/project-go.tsx'
 import { useKnownNames } from '../studio/useKnownNames.ts'
 import { DATE_WORDS } from '../updates/UpdatesView.tsx'
 import { RecapSheet } from '../voice/MeetingRecap.tsx'
@@ -75,6 +76,14 @@ export function ProjectSearch(props: Props) {
   const running = useRunning(projectId, identity.token, meeting)
   const names = useKnownNames(room)
   const viewer = useDocumentViewer()
+  const askSophia = useAskSophia()
+  // Nothing found: the words to Sophia instead, in a new conversation (docs/plans/ask-instead.md).
+  const askInstead =
+    askSophia &&
+    ((q: string) => {
+      onClose()
+      askSophia(q)
+    })
   const go = (hit: SearchHit) => {
     // What a hit opens gives the focus back to Search when it closes: the hit pressed goes with the sheet.
     searchAnchor()?.focus()
@@ -87,7 +96,9 @@ export function ProjectSearch(props: Props) {
   }
   return (
     <>
-      {open && <SearchSheet projectId={projectId} identity={identity} onClose={onClose} onHit={go} />}
+      {open && (
+        <SearchSheet projectId={projectId} identity={identity} onClose={onClose} onHit={go} onAsk={askInstead} />
+      )}
       {meeting && snapshot && (
         <RecapSheet
           projectId={projectId}
@@ -126,9 +137,11 @@ interface SheetProps {
   identity: Identity
   onClose: () => void
   onHit: (hit: SearchHit) => void
+  /** Nothing found: the words to Sophia instead; null where she can't be asked. */
+  onAsk: ((q: string) => void) | null
 }
 
-function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
+function SearchSheet({ projectId, identity, onClose, onHit, onAsk }: SheetProps) {
   const [text, setText] = useState('')
   const q = useSettled(text.trim())
   const search = useSearch(projectId, identity.token, q)
@@ -150,7 +163,7 @@ function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      {asked && <SearchOutcome search={search} q={q} hits={hits.length} typing={text.trim() !== q} />}
+      {asked && <SearchOutcome search={search} q={q} hits={hits.length} typing={text.trim() !== q} onAsk={onAsk} />}
       <ul className="search-hits" aria-label="Results">
         {/* The last query's hits are no answer to the next: none is offered under it until its own come. */}
         {asked &&
@@ -164,7 +177,13 @@ function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
 }
 
 /** What the search says about itself: under way, failed, or found nothing. */
-function SearchOutcome(props: { search: ReturnType<typeof useSearch>; q: string; hits: number; typing: boolean }) {
+function SearchOutcome(props: {
+  search: ReturnType<typeof useSearch>
+  q: string
+  hits: number
+  typing: boolean
+  onAsk: ((q: string) => void) | null
+}) {
   const { search, q, hits } = props
   // While the words settle, the last query's count is no answer either.
   const settled = search.isSuccess && !search.isPlaceholderData && !props.typing
@@ -184,7 +203,18 @@ function SearchOutcome(props: { search: ReturnType<typeof useSearch>; q: string;
       <p className={settled && hits === 0 ? 'sheet-lead' : 'sr-only'} role="status">
         {settled && (hits === 0 ? `Nothing in this project matches “${q}”.` : `${String(hits)} found.`)}
       </p>
+      {settled && hits === 0 && <AskInstead q={q} onAsk={props.onAsk} />}
     </>
+  )
+}
+
+/** Nothing found: the words to Sophia instead, where she can be asked (docs/plans/ask-instead.md). */
+function AskInstead({ q, onAsk }: { q: string; onAsk: ((q: string) => void) | null }) {
+  if (!onAsk) return null
+  return (
+    <button type="button" className="text-button search-ask" onClick={() => onAsk(q)}>
+      Ask Sophia about “{q}”
+    </button>
   )
 }
 

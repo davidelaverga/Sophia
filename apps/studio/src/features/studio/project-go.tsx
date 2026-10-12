@@ -4,10 +4,13 @@
 // open; the view takes it once, so Back or a later visit opens nothing by itself.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { View } from '../../app/route.ts'
+import { VISION } from '../../app/vision.ts'
 import { showInAddress, TASK } from '../resources/link.ts'
 
 export type Arrival =
   | { view: 'conversations'; conversationId: string }
+  /** A new conversation, its question these words and Sophia asked (docs/plans/ask-instead.md). */
+  | { view: 'conversations'; ask: string }
   | { view: 'updates'; meetingId: string }
   | { view: 'studio'; brief: true }
   | { view: 'work'; taskId?: string | undefined }
@@ -22,6 +25,16 @@ const ProjectGo = createContext<Go | null>(null)
 
 /** Goes to a view with something open in it; null outside a project's shell. */
 export const useProjectGo = (): ((to: Arrival) => void) | null => useContext(ProjectGo)?.go ?? null
+
+/**
+ * Asks Sophia in a new conversation, its question the words given (docs/plans/ask-instead.md): only inside a project's
+ * shell with Conversations among its views (the vision flag); null elsewhere, so nothing is offered that leads nowhere.
+ */
+export function useAskSophia(): ((question: string) => void) | null {
+  const go = useProjectGo()
+  if (!go || !VISION) return null
+  return (question) => go({ view: 'conversations', ask: question })
+}
 
 export function ProjectGoProvider({ onShow, children }: { onShow: (view: View) => void; children: ReactNode }) {
   const [arrival, setArrival] = useState<Arrival | null>(null)
@@ -40,14 +53,17 @@ export function ProjectGoProvider({ onShow, children }: { onShow: (view: View) =
   return <ProjectGo.Provider value={value}>{children}</ProjectGo.Provider>
 }
 
-/** What this view was asked to open, given to `open` once and then forgotten. */
-export function useArrival<V extends Arrival['view']>(view: V, open: (to: Extract<Arrival, { view: V }>) => void) {
+/**
+ * What this view was asked to open, given to `open` once and then forgotten. `open` answering `false` keeps it for a
+ * later render (what it needs is still being read).
+ */
+export function useArrival<V extends Arrival['view']>(view: V, open: (to: Extract<Arrival, { view: V }>) => unknown) {
   const shell = useContext(ProjectGo)
   const to = shell?.arrival
   useEffect(() => {
     if (!shell || !to || to.view !== view) return
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by its view just above
-    open(to as Extract<Arrival, { view: V }>)
+    if (open(to as Extract<Arrival, { view: V }>) === false) return
     shell.arrived()
   }, [shell, to, view, open])
 }

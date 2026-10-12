@@ -55,7 +55,18 @@ import { landed, newestRead, putStarted, releasable, setListsData, shownList, st
 import { keepWithdrawnPurged, listReadSetsOut, orderNow, type ListRead } from './withdrawn-purge.ts'
 import { Probes } from './probes.ts'
 import { useArrival } from '../studio/project-go.tsx'
+import { fitQuestion } from './new-conversation.ts'
 import './conversations.css'
+
+/**
+ * The new conversation's form on a question, Sophia asked; a form whose words are on their way keeps them. Words longer
+ * than a question may be are cut at a word to fit, with an ellipsis (Codex on #267).
+ */
+function beginOn(talk: ReturnType<typeof useTalk>, question: string) {
+  if (talk.kept.start.held) return
+  const title = fitQuestion(question)
+  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title, text: '', askSophia: true } } }))
+}
 
 /** Newest activity first, sorted once per answer, with what the reader may do there. */
 const sorted = (answer: ListRead) => ({
@@ -175,17 +186,35 @@ function useShown(
 /** No conversation shown (fenced). */
 const NONE: readonly ConversationSummary[] = []
 
+/** What another view asked Conversations to open (project-go.tsx): a conversation, or words to ask Sophia. */
+function useArrivals(
+  ask: (id: string) => void,
+  writer: boolean | undefined,
+  talk: ReturnType<typeof useTalk>,
+  start: ReturnType<typeof useStart>,
+  show: () => void,
+) {
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
+  // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
+  useArrival('conversations', (to) => {
+    // Words to ask wait for the membership: a member gets the form, a confirmed viewer the list (Codex on #267).
+    if ('ask' in to && writer === undefined) return false
+    if (!('ask' in to)) ask(to.conversationId)
+    else if (writer) {
+      beginOn(talk, to.ask)
+      if (!start.starting) start.toggle()
+    }
+    show()
+    return undefined
+  })
+}
+
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const reader = useReader(projectId, identity, membership, cursor)
   const { talk, all, fenced } = useShown(projectId, identity, reader)
   const { list, capability, notice, settled, me, writer } = reader
   const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
-  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
-  useArrival('conversations', (to) => {
-    ask(to.conversationId)
-    panes.show()
-  })
   const erased = useErased(talk, panes, { ...reader, seen: list.isSuccess, projectId }, identity)
   const feedAt = useLatest(cursor)
   const start = useStart(projectId, identity, feedAt, talk, (id) => {
@@ -194,8 +223,17 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     panes.show()
   })
   useStanding(projectId, identity, talk, reader, start.land)
+  useArrivals(ask, writer, talk, start, panes.show)
   // The one open, unless the form for a new one is in its place; neither while fenced (its fields kept meanwhile).
   const shown = start.starting ? undefined : open
+  // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
+  const openOne = (id: string, fromForm = false) => {
+    start.close()
+    erased.clear()
+    choose(id)
+    panes.show()
+    if (fromForm) start.arrive(id)
+  }
   return (
     <section
       ref={panes.view}
@@ -214,17 +252,13 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         start={writer && !fenced ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
-        onOpen={(id) => {
-          start.close()
-          erased.clear()
-          choose(id)
-          panes.show()
-        }}
+        onOpen={openOne}
       />
       <Middle
         shown={shown}
         {...{ projectId, identity, cursor, reader, talk, start, panes, fenced }}
         settle={erased.gone}
+        existing={{ all, open: (id) => openOne(id, true) }}
       />
       <ProjectContext
         {...{ projectId, identity, cursor, notice, ...useContextFence(projectId, identity, talk, panes, fenced) }}
@@ -251,11 +285,21 @@ function Middle(props: {
   settle: (id: string) => void
   /** Fenced: no conversation, and no form for a new one, until a list read since answers (r4239350130). */
   fenced: boolean
+  /** The conversations shown, and the way to one, for the form's «Already asked here» (docs/plans/same-question.md). */
+  existing: { all: readonly ConversationSummary[]; open: (id: string) => void }
 }) {
-  const { shown, projectId, identity, cursor, reader, talk, start, panes, settle } = props
+  const { shown, projectId, identity, cursor, reader, talk, start, panes, settle, existing } = props
   if (props.fenced) return null
   if (start.starting) {
-    return <NewConversation projectId={projectId} identity={identity} notice={reader.firstNotice} {...start.form} />
+    return (
+      <NewConversation
+        {...{ projectId, identity }}
+        notice={reader.firstNotice}
+        {...start.form}
+        conversations={existing.all}
+        onOpenExisting={existing.open}
+      />
+    )
   }
   if (!shown) return null
   return (
@@ -963,6 +1007,8 @@ function useStart(
     starting,
     arrived,
     clearArrived,
+    /** The conversation opened from the form takes the focus on its title, as a started one does. */
+    arrive: setArrived,
     button,
     toggle: () => (starting ? cancel() : setForm(true)),
     close: () => setForm(false),

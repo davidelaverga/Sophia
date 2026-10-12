@@ -195,6 +195,7 @@ export function OpenConversation(props: Props) {
             follow.sent()
             if (sent.reply) props.onAsked(sent.reply)
           }}
+          next={{ projectId: props.projectId, me, read: read.data, openQuestions: c.openQuestions }}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
