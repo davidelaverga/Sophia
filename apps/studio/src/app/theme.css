@@ -150,15 +150,49 @@
 :root[data-theme='light'] .light-gl {
   display: none;
 }
+/* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
+   it breathes, as the canvas does (docs/plans/light-breath.md). The light isolates its stacking, and the halo sits at
+   the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
 :root[data-theme='light'] .light {
-  /* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it. */
+  isolation: isolate;
+  /* Without WebGL the engine marks a fallback and the room paints its radial on the element; on paper the halo is the
+     pseudo-element's alone (Codex on #251). */
+  background: none;
+}
+:root[data-theme='light'] .light::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* A soft heart and a deeper ring (Luis, 2026-10-11: the halo lost itself against the white): the heart fades to
+     the deep violet at the rim, then the halo thins to nothing by 48 %. */
   background: radial-gradient(
     circle at 50% 42%,
-    rgb(255 255 255 / 0.95) 0,
-    rgb(var(--halo-rgb) / 0.34) 8%,
-    rgb(var(--halo-rgb) / 0.12) 22%,
-    transparent 46%
+    rgb(255 255 255 / 0.96) 0,
+    rgb(255 255 255 / 0.86) 4%,
+    rgb(85 70 184 / 0.4) 8.5%,
+    rgb(var(--halo-rgb) / 0.44) 11.5%,
+    rgb(var(--halo-rgb) / 0.24) 18%,
+    rgb(var(--halo-rgb) / 0.1) 28%,
+    transparent 48%
   );
+  transform-origin: 50% 42%;
+  animation: paper-breathe 6s ease-in-out infinite alternate;
+}
+@keyframes paper-breathe {
+  from {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  to {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='light'] .light::after {
+    animation: none;
+  }
 }
 /* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
    the bar's mark (`.umbral`): the threshold keeps its breathing halo, and its still one under reduced motion (Codex on #249). */

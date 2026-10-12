@@ -76,10 +76,11 @@ test('light · her light on paper has a white heart; in the room the mark keeps 
   await drawn(page, DRAWN.signin)
   const light = await page.evaluate(() => {
     const el = document.querySelector('.light')
-    return el ? getComputedStyle(el).backgroundImage : ''
+    // The halo on paper is the light's `::after`, which breathes (docs/plans/light-breath.md).
+    return el ? getComputedStyle(el, '::after').backgroundImage : ''
   })
   expect(light).toMatch(
-    /^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.95\) 0px, rgba\(109, 91, 208, 0\.34\) 8%/,
+    /^radial-gradient\(circle at 50% 42%, rgba\(255, 255, 255, 0\.96\) 0px, rgba\(255, 255, 255, 0\.86\) 4%, rgba\(85, 70, 184, 0\.4\) 8\.5%/,
   )
   await page.goto('/signin.html')
   await drawn(page, DRAWN.signin)

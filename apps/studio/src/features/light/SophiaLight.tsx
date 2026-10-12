@@ -1,6 +1,7 @@
 // SophiaLight: the light as a React component. React says what the room is (mode, where she sits,
 // whom she attends to, whether work runs); the engine draws it outside React's render cycle.
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react'
+import { usePaper } from '../../app/theme.ts'
 import { defaultTarget, LightEngine, type LightInput, type LightTarget } from './engine.ts'
 import type { Point } from './motion.ts'
 import { highRest, restsHigh, sameRest } from './screen-rest.ts'
@@ -115,6 +116,8 @@ export function SophiaLight({
   const size = useShapingSize(box, shaping)
   // Where the light rests once through, for the mark to form there: the same numbers the engine is given.
   const [restsAt, setRestsAt] = useState<LightTarget | null>(null)
+  // On paper the trace writes in the paper's inks (trace.ts); the root's theme is followed as it changes.
+  const paper = usePaper()
   const markAt = formed && restsAt ? { x: restsAt.x, y: restsAt.y, size: markSize(restsAt.radius) } : null
 
   useEffect(() => {
@@ -126,6 +129,10 @@ export function SophiaLight({
       engine.current = null
     }
   }, [])
+
+  useEffect(() => {
+    engine.current?.setPaper(paper)
+  }, [paper])
 
   useEffect(() => {
     const placed = target ?? rest
