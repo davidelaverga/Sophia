@@ -127,6 +127,16 @@ async function until(what: string, check: () => boolean) {
 /** A request's answer if it came within a moment; 'pending' while it waits (on the old plugin, at the host's gate). */
 const soon = (answer: Promise<ApiResponse>) => Promise.race([answer, sleep(400).then(() => 'pending' as const)])
 
+async function answered(answer: Promise<ApiResponse>): Promise<ApiResponse> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const response = await Promise.race([
+    answer,
+    new Promise<'pending'>((resolve) => (timer = setTimeout(() => resolve('pending'), 10_000))),
+  ]).finally(() => clearTimeout(timer))
+  if (response === 'pending') assert.fail('the commission answers before the sentinel')
+  return response
+}
+
 const codeOf = (res: ApiResponse | 'pending') =>
   res === 'pending'
     ? 'pending'
@@ -223,11 +233,67 @@ describe('the managed source reviewer, provisioned once per company', () => {
       { host_process: 'host-1:100', ended: true, agent_id: old, fenced: false },
       'the claim the first work ended, taken again for the replacement',
     )
-    assert.equal(m.asked.length, 2, 'one reconcile for the first reviewer, one for its replacement')
+    // A contender may read missing before the winner binds, but claim only after the winner ends. Its warm reconcile
+    // returns that replacement. Count created agents, not harmless reconciles (push CI38301624527).
+    assert.equal(m.agents.size, 2, 'only the terminated reviewer and its one replacement were created')
     assert.deepEqual(await claimOf(COMPANY), {
       host_process: 'host-1:100',
       ended: true,
       agent_id: live[0] ?? null,
+      fenced: false,
+    })
+  })
+
+  it('a stale missing read claims after replacement settled: warm reconcile returns it without creating another', async () => {
+    const m = managedAgents()
+    const fast = paperclip(m)
+    assert.equal((await answered(fast.request(delivery(commissionOf())))).status, 200)
+    const old = m.get(COMPANY)
+    const terminated = old === null ? undefined : m.agents.get(old)
+    assert.ok(terminated)
+    terminated.status = 'terminated'
+    const slow = paperclip(m)
+    const hold = gate()
+    let waiting = false
+    const execute = slow.host.execute.bind(slow.host)
+    slow.host.execute = async (sql, params) => {
+      if (sql.startsWith(`INSERT INTO ${NAMESPACE}.reviewer_provisioning`)) {
+        waiting = true
+        await hold.shut
+      }
+      return execute(sql, params)
+    }
+    const [first, second] = [commissionOf(), commissionOf()]
+    // Observe rejection immediately, and drain the gated request before another test can truncate its tables.
+    const delayed = answered(slow.request(delivery(first))).then(
+      (response) => ({ response }),
+      (error: unknown) => ({ error }),
+    )
+    try {
+      await until('the stale missing read to reach its claim', () => waiting)
+      assert.equal((await answered(fast.request(delivery(second)))).status, 200)
+      assert.equal(m.asked.length, 2, 'the replacement is bound and its claim ended before the stale claimant proceeds')
+    } finally {
+      hold.open()
+      await delayed
+    }
+    const settled = await delayed
+    if ('error' in settled) throw settled.error
+    assert.equal(settled.response.status, 200)
+    const replacement = m.get(COMPANY)
+    assert.ok(replacement && replacement !== old)
+    assert.equal(m.asked.length, 3, 'the deterministic late claimant uses one additional warm reconcile')
+    assert.equal(m.agents.size, 2, 'warm reconcile creates no additional agent')
+    assert.deepEqual(
+      m.live(COMPANY).map((agent) => agent.id),
+      [replacement],
+    )
+    assert.equal([...slow.issues.values()].find((issue) => issue.originId === first.key)?.assigneeAgentId, replacement)
+    assert.equal([...fast.issues.values()].find((issue) => issue.originId === second.key)?.assigneeAgentId, replacement)
+    assert.deepEqual(await claimOf(COMPANY), {
+      host_process: 'host-1:100',
+      ended: true,
+      agent_id: replacement,
       fenced: false,
     })
   })
