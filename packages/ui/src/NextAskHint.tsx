@@ -17,8 +17,10 @@ export function NextAskHint({ id, words, why }: NextAskHintProps) {
     <span className="next-ask has-tip">
       <kbd aria-hidden>Tab</kbd>
       <Tip label={why} align="end" />
+      {/* Why, too: the tip is the pointer's; the field's description is the keyboard's and the screen reader's (Codex on
+          #262). */}
       <span id={id} className="sr-only">
-        Suggested: {words}. Tab puts it in the field; Escape puts it away.
+        Suggested: {words}. {why}. Tab puts it in the field; Escape puts it away.
       </span>
     </span>
   )

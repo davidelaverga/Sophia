@@ -204,3 +204,35 @@ test('commands · behind a shut door the palette offers no view to go to: Home a
   expect(words).toContain('Home')
   expect(words).toContain('Your projects')
 })
+
+test('commands · in a call, Enter on the call’s own switch is the switch’s, not the palette’s (Codex on #238)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&call=on&people=2&floor=1&sophia=listening&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  const mic = palette(page).getByRole('group', { name: 'Your call' }).getByRole('button').first()
+  const before = await mic.getAttribute('aria-pressed')
+  await mic.focus()
+  await page.keyboard.press('Enter')
+  // The palette stays: Enter pressed the switch, not the first command.
+  await expect(palette(page)).toBeVisible()
+  await expect(mic).not.toHaveAttribute('aria-pressed', before ?? '')
+})
+
+test('commands · nothing matching keeps the list the field controls, and says so in a status (Codex on #238)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await page.keyboard.type('zzqx')
+  const box = palette(page).getByRole('combobox')
+  const controls = (await box.getAttribute('aria-controls')) ?? ''
+  expect(await page.locator(`[id="${controls}"]`).count()).toBe(1)
+  await expect(palette(page).getByRole('status')).toContainText('Nothing does that.')
+  // The palette's own command is not one of its rows.
+  await box.fill('commands')
+  await expect(palette(page).getByRole('option', { name: /^Do\s*Commands/ })).toHaveCount(0)
+})

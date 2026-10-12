@@ -88,3 +88,22 @@ test('light · her light on paper has a white heart; in the room the mark keeps 
   expect(m?.you).toBe('rgb(241, 220, 199)')
   expect(m?.her).toBe('rgb(244, 240, 255)')
 })
+
+for (const [system, chosen] of [
+  ['dark', 'light'],
+  ['light', 'dark'],
+] as const) {
+  test(`light · ${chosen} chosen on a ${system} system: the tab's mark is the ${chosen} one (Codex on #249)`, async ({
+    page,
+    request,
+  }) => {
+    await page.emulateMedia({ colorScheme: system })
+    await page.addInitScript((theme) => localStorage.setItem('sophia.theme', theme), chosen)
+    await page.goto('/opening.html') // the Studio's own index.html, as it ships
+    const icon = page.locator('link[rel="icon"][type="image/svg+xml"]')
+    await expect(icon).toHaveAttribute('href', `/favicon-${chosen}.svg`)
+    const svg = await (await request.get(`/favicon-${chosen}.svg`)).text()
+    expect(svg).toContain(chosen === 'light' ? 'fill="#16151B"' : 'fill="#F1DCC7"')
+    expect(svg).toContain(chosen === 'light' ? 'fill="#8468EE"' : 'fill="#F4F0FF"')
+  })
+}

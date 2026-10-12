@@ -168,8 +168,13 @@ writing a new one, and keep the rule when you change the code around it.
   between the mark and the name goes back to the projects (W).
 - **A task that takes the whole attention is a sheet** (`app/Sheet.tsx`: the
   Studio's side panel, modal through `useDialog`, closed with Esc, Close or
-  the veil). There are no centered dialogs. One sheet at a time: a sheet that
-  needs another (your data asking to unlock) closes and comes back after.
+  the veil). There are no centered dialogs, with one exception: the command
+  palette (⌘K, `app/Palette.tsx`) is a launcher, not a task. It opens in the
+  middle of the screen over the same veil, modal through the same `useDialog`
+  and closed the same way, because what is typed into it is the point and the
+  eye is already there; it holds no form and nothing to read. One sheet at a
+  time: a sheet that needs another (your data asking to unlock) closes and
+  comes back after.
 - **A menu or a popover closes itself** (`usePopover`): a press anywhere
   outside it, or Esc inside it, which gives the focus back to its control.
   It listens for `pointerdown`, so the click that opened it from elsewhere

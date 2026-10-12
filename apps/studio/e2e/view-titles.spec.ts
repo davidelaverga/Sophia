@@ -44,3 +44,14 @@ for (const [name, url, parts] of VIEWS) {
     })
   }
 }
+
+test('view title · Tasks without plans: the pulse’s head ends on the view head’s rule (Codex on #246)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=work') // no plans: the page splits, the pulse beside the work
+  await expect(page.locator('.page.split')).toBeVisible()
+  const pulse = page.locator('.pulse-head')
+  await expect(pulse).toBeVisible()
+  const [view, side] = await Promise.all([page.locator('.view-head').first().boundingBox(), pulse.boundingBox()])
+  expect(Math.round((side?.y ?? 0) + (side?.height ?? 0))).toBe(Math.round((view?.y ?? 0) + (view?.height ?? 0)))
+})

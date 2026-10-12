@@ -16,10 +16,11 @@ words from `time-words.ts`; `home-needs.spec.ts` measures them. That is the comp
 
 - `needs-you.ts` (pure): `Need`, `NEED_WORDS`, `needsOrder`, `untilWords`, `needNote`, `needsLabel`; 4 unit tests.
 - `NeedsYou.tsx`: the projects' index rows (`hw-index` / `hw-row`) with the kind's glyph where the number is, the
-  title, the note, the arrow; ↑ and ↓ (`index-keys.ts`, shared with the projects' index); one press →
-  `actions.need(need)`; none → «Nothing needs you right now».
-- `Welcome`: `needs?: readonly Need[]`; undefined, Home is as it was (her light alone, 480 px); given, `aside.hw-side`
-  with her light at 220 px (the mark 48 px) over the list. `actions.need?`.
+  title, the note, the arrow; ↑ and ↓ (`index-keys.ts`, shared with the projects' index); one press → `needs.open(need)`;
+  none → «Nothing needs you right now».
+- `Welcome`: `needs?: { items: readonly Need[]; open: (need: Need) => void }` (the list and its opener together, as
+  reviewed in `75c2dd1b`); undefined, Home is as it was (her light alone, 480 px); given, `aside.hw-side` with her light
+  at 220 px and the mark at 96 px at the column's head, over the list.
 - `fixtures/home.tsx`: `needs=some` (five, one per kind, given out of order) · `none` · absent (the Studio's own Home);
   the demo shows `some`; `pressed` records «need <id>». Under `VISION` only.
 - `e2e/home-needs.spec.ts`: the order, the notes and tones, the row's action name, the press; the keys; the light at
@@ -31,7 +32,7 @@ words from `time-words.ts`; `home-needs.spec.ts` measures them. That is the comp
 
 - `pnpm format`, `pnpm lint` (type-aware), `pnpm typecheck`: clean. `needs-you.test.ts`: 4 pass.
 - Measured in the page (the pane at 1440×900, `home.html?needs=some`): the left column 560 px at 144; the side column
-  542 px at 744; her light 220×220 at (700, 107), the mark 48 px; the label «Needs you» at y 333, the list at 355
+  542 px at 744; her light 220×220 at (700, 107), the mark 96 px (as reviewed; 48 px in the first delivery); the label «Needs you» at y 333, the list at 355
   (under the light); the rows in order decision (soon, «Product launch · expires in 20 min») · permission (quiet,
   «Launch plan · expires in 2 h») · review («Research notes · Davide asks») · guest («Design review · Waiting 2 min») ·
   reply («Yesterday»); no title overflows; the first press recorded «need d1».
@@ -60,3 +61,8 @@ words from `time-words.ts`; `home-needs.spec.ts` measures them. That is the comp
 
 The re-evaluation Luis asked for: what is still missing in features, polish, detail and quality of life, for power
 users with the least friction between actions.
+
+## Post-review (Codex on #237, later round)
+
+- Under a minute a need «expires in a moment», as `inTime` says it, never a clamped «1 min» (`untilWords`, a boundary test).
+- The Outcome describes the reviewed state: `needs` is `{ items, open }`, the mark 96 px at the column's head.
