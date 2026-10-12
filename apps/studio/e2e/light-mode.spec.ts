@@ -277,3 +277,13 @@ test('light @phone · held sideways, the account menu stays inside the screen, i
   await last.scrollIntoViewIfNeeded()
   await expect(last).toBeInViewport()
 })
+
+test('light · Home’s light on paper is not screened into the page (Codex on #234)', async ({ page }) => {
+  await page.goto('/home.html?demo=1&theme=light')
+  await drawn(page, DRAWN.home)
+  await expect(page.locator('.hw-light .light')).toHaveCSS('mix-blend-mode', 'normal')
+  // In the room the light still adds itself to the void.
+  await page.goto('/home.html?demo=1')
+  await drawn(page, DRAWN.home)
+  await expect(page.locator('.hw-light .light')).toHaveCSS('mix-blend-mode', 'screen')
+})
