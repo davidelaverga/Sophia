@@ -3625,6 +3625,21 @@ test('a focused task whose blocker completes moves up next with the focus on it 
   await expect(page.locator(`[data-task="${id}"]`)).toBeFocused()
 })
 
+test('a focused task moving into a lane past its five tiles gives the focus to the lane’s «Show more» (Codex on #236)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&many=1`)
+  const held = lane(page, 'Blocked')
+  await held.getByRole('button', { name: /^Show \d+ more$/ }).click()
+  const last = held.locator('[data-task]').last()
+  const id = (await last.getAttribute('data-task')) ?? ''
+  await last.focus()
+  await page.evaluate(() => window.workFixture?.complete?.('work-1'))
+  // Up next shows five; the task moved past them: its lane's press takes the focus.
+  await expect(lane(page, 'Up next').locator(`[data-task="${id}"]`)).toHaveCount(0)
+  await expect(lane(page, 'Up next').getByRole('button', { name: /^Show \d+ more$/ })).toBeFocused()
+})
+
 test('with a report beside Tasks the lanes follow the narrower board, not the window (Codex on #236)', async ({
   page,
 }) => {
@@ -3651,6 +3666,10 @@ test('the sheet’s H works with Caps Lock or Shift, and its controls say H and 
   await sheet.focus()
   await page.keyboard.press('Shift+H')
   await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+  // S asks Stop's question, its tip («Stop · S») not mistaken for its words (Codex on #241).
+  await sheet.focus()
+  await page.keyboard.press('s')
+  await expect(sheet.getByRole('group', { name: 'Stop' })).toBeVisible()
 })
 
 test('a decision named in the address chooses the goal that holds it, another goal shown (Codex on #245)', async ({

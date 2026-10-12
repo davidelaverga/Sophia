@@ -53,26 +53,31 @@ function listPresses({ selector, scope }: { selector: string; scope: string }) {
       }
       return false
     })()
-    const seen =
+    const seen = (() =>
       r.width > 0 &&
       r.height > 0 &&
       cs.visibility !== 'hidden' &&
       r.top >= 0 &&
       r.bottom <= innerHeight &&
       r.left >= 0 &&
-      !clipped
-    const live =
-      !el.closest('.fixture-label') && !el.matches(':disabled') && el.getAttribute('aria-disabled') !== 'true'
-    if (!seen || !live) return []
+      !clipped)()
+    const live = (() =>
+      !el.closest('.fixture-label') && !el.matches(':disabled') && el.getAttribute('aria-disabled') !== 'true')()
+    // A point of the press the pointer reaches: its centre, else another of its points; one covered all over (a dock or
+    // a sticky bar over it at this width) is not a press a person can point at here (CI's layout differs from a desk's).
+    const reached = (() =>
+      [0.5, 0.25, 0.75]
+        .flatMap((f) => [
+          { x: r.left + r.width * f, y: r.top + r.height / 2 },
+          { x: r.left + r.width / 2, y: r.top + r.height * f },
+        ])
+        .find((p) => {
+          const top = document.elementFromPoint(p.x, p.y)
+          return top !== null && el.contains(top)
+        }))()
+    if (!seen || !live || !reached) return []
     const name = (el.getAttribute('aria-label') ?? el.textContent).trim().slice(0, 28)
-    return [
-      {
-        i,
-        name: `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]} «${name}»`,
-        x: r.left + r.width / 2,
-        y: r.top + r.height / 2,
-      },
-    ]
+    return [{ i, name: `${el.tagName.toLowerCase()}.${el.className.split(' ')[0]} «${name}»`, ...reached }]
   })
 }
 
@@ -97,7 +102,14 @@ function lookOf(args: { selector: string; scope: string; i: number }) {
     const cs = getComputedStyle(e)
     return keys.map((k) => cs[k]).join('|')
   }
-  return [el, ...el.querySelectorAll('*')].map(read).join('\n')
+  // A press drawn by its label (a transparent full-chip checkbox, as «Ask Sophia»): the label is what the eye sees, so
+  // it is what answers; the invisible input itself does not count (Codex on #232).
+  const hidden = getComputedStyle(el).opacity === '0'
+  const root = hidden ? (el.closest('label') ?? el) : el
+  return [root, ...root.querySelectorAll('*')]
+    .filter((e) => !(hidden && e === el))
+    .map(read)
+    .join('\n')
 }
 
 /** The presses on the page (inside `scope`: a sheet, a group, a form) that do not answer the pointer, said. */

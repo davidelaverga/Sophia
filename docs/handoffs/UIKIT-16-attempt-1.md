@@ -5,14 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/commands` from `ui/home-needs` at `14aed820`
 (stacked on PR #237 → #236 → … → #220; the base retargets as each merges)
-Ending commit/tree: `279a64fd` (tree `0427a3be89e8`): 13 files, 8 new (`app/commands.ts`, `app/commands.test.ts`,
-`app/useCommands.ts`, `app/Palette.tsx`, `app/ShortcutIndex.tsx`, `app/CommandsHost.tsx`, `e2e/commands.spec.ts`,
-`docs/plans/commands.md`); `ProjectShell.tsx`, `StudioShell.tsx`, `ViewNav.tsx`, `RoomStage.tsx`, `theme.css`. The
-commit after it adds only this handoff.
-After the review (Codex on #238, four P2): `14ed8284` makes every binding inside a project a command (Resources' and
-Tasks' `/`, a report's `F`, a staged report's `O`), gives the index a visible control («Keyboard shortcuts» in the
-account menu, `askCommands`), shows a live call's switches in the palette (`SheetCall`), scrolls the chosen row into
-view with ids of the list's own; `commands.spec.ts` gains three checks. That is the completed code state of this PR.
+Ending commit/tree: `b0d6bd62ea22` (tree `02dfcaba9907`), the last commit of `ui/commands`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 20 files changed against
+`ui/home-needs` at that commit: `CONTRIBUTING.md`, `e2e/commands.spec.ts`, `src/app/AccountMenu.tsx`, `src/app/CommandsHost.tsx`, `src/app/Palette.tsx`, `src/app/ShortcutIndex.tsx`, `src/app/commands.test.ts`, `src/app/commands.ts`, `src/app/theme.css`, `src/app/useCommands.ts`, `src/features/artifacts/DocumentPane.tsx`, `src/features/resources/ResourcePanel.tsx`, `src/features/studio/ProjectShell.tsx`, `src/features/studio/StudioShell.tsx`, `src/features/studio/ViewNav.tsx`, `src/features/voice/RoomStage.tsx`, `src/features/voice/StageMade.tsx`, `src/features/work/TaskSearch.tsx`, `docs/handoffs/UIKIT-16-attempt-1.md`, `docs/plans/commands.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
