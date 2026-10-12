@@ -141,7 +141,7 @@ test('find · the filters and the quick asks read at 4.5:1, on the app’s type 
   for (const where of ['.conv-show', '.conv-quick']) {
     expect(await lowContrast(page, where)).toEqual([])
     const sizes = await typeSizes(page, where)
-    for (const s of sizes) expect(['10.5px', '12px', '13px', '14px', '15px'], sizes.join(' ')).toContain(s)
+    for (const s of sizes) expect(['10.5px', '12px', '13px', '14px'], sizes.join(' ')).toContain(s)
   }
 })
 

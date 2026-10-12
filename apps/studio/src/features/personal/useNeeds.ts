@@ -4,6 +4,7 @@
 // failed: Home is then as it was, her light alone.
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Need as WireNeed } from '@sophia/contracts'
+import { ApiError } from '../../api/client.ts'
 import { clockSkew, listNeeds, markNeedSeen, needsOf, whereOf, type NeedAt } from '../../api/needs.ts'
 import type { View } from '../../app/route.ts'
 import { VISION } from '../../app/vision.ts'
@@ -30,6 +31,10 @@ export interface NeedsOptions {
   /** The personal padlock: shut, nothing is read and nothing read is shown. */
   locked?: boolean
 }
+
+/** A read the service refused for who is asking (401, 403), not one that failed on the way. */
+export const refusedBy = (error: unknown): boolean =>
+  error instanceof ApiError && (error.status === 401 || error.status === 403)
 
 /** Opens a need where it lives; for a reply, resolves once its turn is shown (or false when it is not). */
 export function openNeed(wire: readonly WireNeed[], go: NeedsGo, need: Need): Promise<boolean> {
@@ -70,7 +75,9 @@ export function useNeeds(token: string, go: NeedsGo, options: NeedsOptions = {})
           retry: () => void read.refetch(),
         }
       : null
-  if (!got || locked) return { seen: undefined, read: note }
+  // A refusal (401, 403: A15's «Not permitted») is not a passing failure: what was read before is no longer the person's
+  // to see, so the cached rows go with it; only a transient failure keeps them (Codex on #245).
+  if (!got || locked || refusedBy(read.error)) return { seen: undefined, read: note }
   const wire = got.list.needs
   // A reply has no answer of its own: opening it is its seen mark (A15), and the list is read again once it is kept.
   // A write that fails is read again too: the row stays where it was, which is the truth, and the next press writes

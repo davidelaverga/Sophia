@@ -43,6 +43,7 @@ import { Connections } from '../connections/Connections.tsx'
 import { ConversationsView } from '../conversations/ConversationsView.tsx'
 import { blockedBy, isStale, readsServedBoard, shownConnection, type Blocked } from './project-door.ts'
 import { PanelCallSwitches, StudioShell, useRoomPanel, type RoomPanel } from './StudioShell.tsx'
+import { lensInAddress } from './viewer-state.ts'
 import { useProjectFeed, type Connection } from './useProjectFeed.ts'
 import { ViewNav } from './ViewNav.tsx'
 import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
@@ -147,6 +148,8 @@ interface Props {
   onSignOut: () => void
   /** Out of sight while its call goes on: nothing here is on screen or takes a key. */
   background?: boolean
+  /** The project the address names (false: a call's project kept on screen while another opens; Codex on #242). */
+  routed?: boolean
   /**
    * The call started or changed (what is being sent), or ended (null): with why (call-end.ts) when this person didn't
    * leave it, so wherever they are it can be said.
@@ -300,6 +303,13 @@ function CallKeptInReach({
   return <CallInReach.Provider value={call}>{children}</CallInReach.Provider>
 }
 
+/** Gives the focus to what a selector names once it is on the page (a view mounting): a few frames at most. */
+function focusWhenThere(selector: string, frames = 10) {
+  const el = document.querySelector<HTMLElement>(selector)
+  if (el) el.focus({ preventScroll: true })
+  else if (frames > 0) requestAnimationFrame(() => focusWhenThere(selector, frames - 1))
+}
+
 /** Tasks' plans: the page's own (a fixture), else the work board Sophia serves for the project, and its pilot entry (WBC-02). */
 function useTasksWork(
   props: Props,
@@ -331,7 +341,6 @@ function headerDock(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen: (
   return <MiniDock room={room} looking={lookingText(snapshot?.room.sophia, (id) => nameIn(room, id))} onOpen={onOpen} />
 }
 
-/** A dock control's name, the same in both places the dock is mounted: its label, else its words. */
 /** What names a dock control across its move: its key (the words of a pill change with the room's state), else its label. */
 const dockKey = (el: Element) =>
   el.getAttribute('data-dock-key') ?? el.getAttribute('aria-label') ?? el.textContent.trim()
@@ -381,8 +390,7 @@ export function ProjectShell(props: Props) {
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
   const work = useTasksWork(props, feed, membership, blocked)
   useBeyondTheView(props, snapshot.data, room, blocked)
-  const mayInvite = !!shown && canInvite(membership)
-  const at = { view, inviting, mayInvite, shown: !!shown, blocked: !!blocked }
+  const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
   return (
     <CallKeptInReach room={room} background={!!props.background}>
@@ -423,6 +431,7 @@ export function ProjectShell(props: Props) {
             onShow={onShow}
             onInvite={invite}
             background={!!props.background}
+            routed={props.routed !== false}
             resources={props.resources}
             floating={dockAt.floating}
             {...work}
@@ -529,6 +538,8 @@ interface BodyProps {
   onInvite: () => void
   /** Kept out of sight for its call (the person is in the places): nothing in it is in view. */
   background: boolean
+  /** The project the address names: only then does the Studio read and write its lens there. */
+  routed: boolean
   resources: React.ReactNode
   plans: Readonly<Record<string, GoalPlan>> | undefined
   /** The source-review pilot's entry under each goal in Tasks (WBC-02), where Sophia offers it. */
@@ -588,6 +599,7 @@ function ProjectBody(props: BodyProps) {
           made={made}
           catchUp={catchUp.card}
           background={background}
+          routed={props.routed}
         />
       </>,
     )
@@ -617,6 +629,8 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
   // From Updates, a line that lives in the brief: the Studio view with the brief open (project-go.tsx).
   useArrival('studio', () => {
     if (panel.panel !== 'brief') panel.toggle('brief')
+    // Already open, it opens nothing: the focus is given to its tab as the view mounts (Codex on #239).
+    else focusWhenThere('#side-tab-brief')
   })
   if (!VISION) return null
   return (
@@ -749,12 +763,17 @@ function nameIn(room: ProjectRoom, identity: string): string {
   return p.local ? 'you' : shortName(p.name)
 }
 
-/** Copies the Studio link, not the current view: the other person opens the shared room. */
+/**
+ * Copies the Studio link, not the current view: the other person opens the shared room, in the lens shown when the
+ * Studio view names one in the address (Codex on #242).
+ */
 function CopyLinkButton({ projectId }: { projectId: string }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}${routePath({ projectId, view: 'studio' })}`)
+      const lens = lensInAddress(window.location.search)
+      const link = `${window.location.origin}${routePath({ projectId, view: 'studio' })}${lens ? `?lens=${lens}` : ''}`
+      await navigator.clipboard.writeText(link)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {

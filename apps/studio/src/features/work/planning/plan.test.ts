@@ -686,4 +686,14 @@ describe('what the Blocked lane waits on', () => {
       ['a'],
     )
   })
+  it('names blockers in the plan’s order, whatever order a dependent lists them in (Codex on #244)', () => {
+    const rows = rowsOf(
+      goal(plan([item('a'), item('b'), item('c', { blocked_by: ['b', 'a'] })]), [view('a'), view('b'), view('c')]),
+    )
+    const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
+    assert.deepEqual(
+      blockersOf(held, rows).map((r) => r.item.id),
+      ['a', 'b'],
+    )
+  })
 })
