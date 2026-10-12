@@ -72,3 +72,17 @@ describe('the same question, already asked here', () => {
     assert.equal(sameQuestion('Should briefs be short or long?', two)?.id, 'new')
   })
 })
+
+describe('the same question, its turning words (Codex on #266)', () => {
+  const here = [
+    asked('a', 'Should we enable dark mode?', '2026-10-01T00:00:00Z'),
+    asked('b', 'Ship the export before the review?', '2026-10-01T00:00:00Z'),
+  ]
+  it('is not the same when one negates and the other does not, or says after where the other says before', () => {
+    assert.equal(sameQuestion('Should we not enable dark mode?', here), null)
+    assert.equal(sameQuestion('Shouldn\u2019t we enable dark mode?', here), null)
+    assert.equal(sameQuestion('Ship the export after the review?', here), null)
+    assert.equal(sameQuestion('Should we enable the dark mode?', here)?.id, 'a')
+    assert.equal(sameQuestion('Ship export before review?', here)?.id, 'b')
+  })
+})
