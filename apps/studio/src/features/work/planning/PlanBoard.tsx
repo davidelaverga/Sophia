@@ -37,6 +37,7 @@ import {
   actionable,
   boardOf,
   decidedFor,
+  blockersOf,
   laneOf,
   latestDecisions,
   outsideOf,
@@ -123,8 +124,59 @@ const SHOWN = 5
 interface LaneProps extends Omit<TileProps, 'row' | 'index' | 'flags'> {
   lane: LaneView
   rows: PlanRow[]
+  /** Every row of the plan: what a blocked lane's rows wait on is among them. */
+  all: readonly PlanRow[]
   flags: (row: PlanRow) => TileFlags
 }
+
+/** Under the Blocked lane's head: what its rows wait on, each a press that opens the blocker's sheet. */
+function LaneWhy({
+  rows,
+  all,
+  onOpen,
+}: {
+  rows: readonly PlanRow[]
+  all: readonly PlanRow[]
+  onOpen: (id: string) => void
+}) {
+  const blockers = blockersOf(rows, all)
+  const [every, setEvery] = useState(false)
+  if (blockers.length === 0) return null
+  // The first few, named; the rest one press away, as a lane keeps its tiles (a plan may have many: Codex on #244).
+  const shown = every ? blockers : blockers.slice(0, WHY_SHOWN)
+  const kept = blockers.length - WHY_SHOWN
+  return (
+    <p className="lane-why">
+      <span className="lane-why-word">Waiting on</span>
+      {shown.map((b) => (
+        <button
+          key={b.item.id}
+          type="button"
+          className="text-button"
+          data-blocker={b.item.id}
+          onClick={() => onOpen(b.item.id)}
+        >
+          {b.item.purpose}
+        </button>
+      ))}
+      {/* The press stays where it was, said the other way, as the lane's own «Show fewer»: the focus is never dropped
+          (Codex on #244). */}
+      {kept > 0 && (
+        <button
+          type="button"
+          className="text-button lane-why-more"
+          aria-expanded={every}
+          onClick={() => setEvery(!every)}
+        >
+          {every ? 'fewer' : `and ${String(kept)} more`}
+        </button>
+      )}
+    </p>
+  )
+}
+
+/** How many blockers a lane names before «and N more». */
+const WHY_SHOWN = 3
 
 /** A lane: its head and count, its first tiles, and the rest one press away. */
 function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
@@ -138,6 +190,7 @@ function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
         <span className="field-label">{lane.label}</span>
         <span className="count">{rows.length}</span>
       </h4>
+      {lane.key === 'blocked' && <LaneWhy rows={rows} all={tile.all} onOpen={tile.onOpen} />}
       {rows.length === 0 ? (
         <EmptyState slot className="lane-empty">
           {lane.empty}
@@ -472,8 +525,12 @@ function useTileFocus(rows: readonly PlanRow[]) {
   const held = useRef<string | null>(null)
   useEffect(() => {
     const into = (e: FocusEvent) => {
-      const tile = e.target instanceof Element ? e.target.closest<HTMLElement>('.board [data-task]') : null
-      held.current = tile?.dataset['task'] ?? null
+      const at = e.target instanceof Element ? e.target : null
+      // A blocker's press stands for its task: gone with the Blocked lane (the blocker done), the focus goes to the
+      // blocker's own tile (Codex on #244).
+      const why = at?.closest<HTMLElement>('.board [data-blocker]')
+      const tile = at?.closest<HTMLElement>('.board [data-task]')
+      held.current = why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
     }
     // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
     // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
@@ -517,7 +574,7 @@ function Lanes({
 }: {
   rows: PlanRow[]
   board: ReturnType<typeof useBoard>
-  tile: Omit<LaneProps, 'lane' | 'rows'>
+  tile: Omit<LaneProps, 'lane' | 'rows' | 'all'>
 }) {
   const lanes = useRef<HTMLDivElement>(null)
   const shown = shownLanes(rows)
@@ -534,7 +591,7 @@ function Lanes({
       }}
     >
       {shown.map((lane) => (
-        <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} />
+        <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} all={rows} />
       ))}
       <Threads box={lanes} to={board.lit} from={board.waited} lanes={shown.length} />
     </div>

@@ -267,6 +267,15 @@ function Closed({ row }: { row: PlanRow }) {
   )
 }
 
+/**
+ * Where the focus goes when what opened the sheet is gone (a blocker's press, its blocker completed meanwhile, so the
+ * Blocked lane went): the task's own tile, else the board's first (Codex on #244).
+ */
+function backTo(id: string): HTMLElement | null {
+  const tiles = [...document.querySelectorAll<HTMLElement>('.board [data-task]')]
+  return tiles.find((el) => el.dataset['task'] === id) ?? tiles[0] ?? null
+}
+
 export function TaskSheet(props: Props) {
   const { row, rows, plan, onOpen, onStep, onClose, now, viewerId, onOpenResource } = props
   useSteps(onStep)
@@ -276,7 +285,7 @@ export function TaskSheet(props: Props) {
   const next = props.next?.item_id === item.id
   // Over the whole page, not inside the board: a moving ancestor would hold a fixed sheet inside itself.
   return createPortal(
-    <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose}>
+    <Sheet id={`task-${item.id}`} title={item.purpose} onClose={onClose} returnTo={() => backTo(item.id)}>
       <div className="task-sheet">
         <Who row={row} viewerId={viewerId} onOpenResource={onOpenResource} />
         <Detail row={row} />
