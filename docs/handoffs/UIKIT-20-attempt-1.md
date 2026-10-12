@@ -5,12 +5,9 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/lens-address` from `ui/task-keys` at
 `49bc1e95` (stacked on PR #241 → #240 → … → #220; the base retargets as each merges)
-Ending commit/tree: `02649e97` (tree `0f1c83358d6c`): 8 files, 2 new (`e2e/studio-lens-address.spec.ts`,
-`docs/plans/studio-lens-address.md`); `viewer-state.ts` (+ its test), `useViewerState.ts`, `project-go.tsx`,
-`room-view.ts`, `RoomStage.tsx`. The commit after it adds only this handoff.
-After the review (Codex on #242, two P2): `fc3a8390` keeps the address to the Studio view shown (`useViewerState(…,
-inAddress)`, false for a shell kept out of sight) and names a task only when it is the whole count
-(`soleWorkingTask`, unit-tested). That is the completed code state of this PR.
+Ending commit/tree: `b124c142c59a` (tree `c74dd7486d42`), the last commit of `ui/lens-address`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 19 files changed against
+`ui/task-keys` at that commit: `e2e/commands.spec.ts`, `e2e/studio-lens-address.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/app/SignedIn.tsx`, `src/app/route.test.ts`, `src/app/route.ts`, `src/app/useProjectRoute.ts`, `src/features/studio/ProjectShell.tsx`, `src/features/studio/StudioShell.tsx`, `src/features/studio/project-go.tsx`, `src/features/studio/useViewerState.ts`, `src/features/studio/viewer-state.test.ts`, `src/features/studio/viewer-state.ts`, `src/features/voice/RoomStage.tsx`, `src/features/voice/room-view.test.ts`, `src/features/voice/room-view.ts`, `docs/handoffs/UIKIT-20-attempt-1.md`, `docs/plans/studio-lens-address.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
