@@ -143,3 +143,9 @@ taskId }` and `VIEW_OF.permission` is Resources; `openAt` writes `#request-<id>`
 opens the request's resource and focuses its row (`data-request`, `tabIndex=-1`). Spec, validators, `needs.test.ts`,
 home-needs.spec (the press reads `open resources … #request-action-1`) and resources.spec (the address opens the sheet
 with the request focused, then is the sheet's) with it.
+
+## Post-review, round 11 (Codex on #245)
+
+One P2: a drawn turn is not a seen one. `turnIsShown` requires the turn to meet its scrollport and the window, scrolling
+it into sight first (instant). Home's fixture renders a log (`turns=log|hidden`) and hands the real `turnShown` the
+turn; home-needs.spec reads the seen mark after the log scrolled, and none when the log is hidden.

@@ -6,6 +6,12 @@ Human owner / executor resource: Luis (merge) / Claude Code session in worktree 
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/light-stage` from `ui/light-breath` at
 `c24411b6` (stacked on PR #251 → #250 → … → #220; the base retargets as each merges)
+Writable scope: this worktree only (`apps/studio`, `packages/ui`, `docs/plans`, `docs/handoffs`; a contract amendment
+only where its note says so), on branch `ui/light-stage`; no service code, no deploy.
+Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright through
+`.claude-guards/safe-run.ps1`, 2 workers); CI (GitHub Actions) as the run on record.
+Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
+commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
 Ending commit/tree: `b809b55b` (tree `a4d10595a866`): 3 files: `theme.css` (`.room-stage::before` on paper, the light above it, the floor's role at the
 warm's full ink on paper), `e2e/light-stage.spec.ts` (new, 2), `docs/plans/light-stage.md`. The commit after it adds
 only this handoff.
