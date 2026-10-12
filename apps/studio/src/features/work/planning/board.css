@@ -151,8 +151,10 @@
 }
 .plan-tab {
   display: flex;
+  flex-wrap: wrap; /* faces, count, «blocked» and «for you» in a 208 px chip: a second row, never an overflow (Codex on #244) */
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
+  min-width: 0;
   color: var(--text-3);
   font-size: var(--type-small);
 }
@@ -276,6 +278,11 @@
 }
 .lane-why .text-button {
   font-size: var(--type-small);
+  /* A purpose may hold a long unbroken token (a URL, an id): it wraps inside the lane (Codex on #244). */
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: start;
 }
 /* On a coarse pointer each press's target reaches 7 px above and below its words (theme.css): rows of blockers keep
    14 px between them, so no two targets meet (Codex on #244). */

@@ -140,11 +140,11 @@ function LaneWhy({
   onOpen: (id: string) => void
 }) {
   const blockers = blockersOf(rows, all)
-  const [all5, setAll] = useState(false)
+  const [every, setEvery] = useState(false)
   if (blockers.length === 0) return null
   // The first few, named; the rest one press away, as a lane keeps its tiles (a plan may have many: Codex on #244).
-  const shown = all5 ? blockers : blockers.slice(0, WHY_SHOWN)
-  const kept = blockers.length - shown.length
+  const shown = every ? blockers : blockers.slice(0, WHY_SHOWN)
+  const kept = blockers.length - WHY_SHOWN
   return (
     <p className="lane-why">
       <span className="lane-why-word">Waiting on</span>
@@ -153,9 +153,16 @@ function LaneWhy({
           {b.item.purpose}
         </button>
       ))}
+      {/* The press stays where it was, said the other way, as the lane's own «Show fewer»: the focus is never dropped
+          (Codex on #244). */}
       {kept > 0 && (
-        <button type="button" className="text-button lane-why-more" onClick={() => setAll(true)}>
-          and {kept} more
+        <button
+          type="button"
+          className="text-button lane-why-more"
+          aria-expanded={every}
+          onClick={() => setEvery(!every)}
+        >
+          {every ? 'fewer' : `and ${String(kept)} more`}
         </button>
       )}
     </p>
