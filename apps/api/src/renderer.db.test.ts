@@ -55,6 +55,7 @@ const written: string[] = []
 let barrier: { want: number; held: (() => void)[] } | null = null
 /** For each key written, whether its claim was already committed, seen from another connection, when its bytes came. */
 const claimedFirst = new Map<string, boolean>()
+const chargedJob = new Map<string, string | undefined>()
 /** While set, the next put refuses its key as the S3 adapter's HEAD does when it finds an object there. */
 let refuseNext = false
 /**
@@ -63,7 +64,7 @@ let refuseNext = false
  */
 const store: ByteStore & { objects: Map<string, Uint8Array> } = {
   ...memory,
-  async put(path, bytes) {
+  async put(path, bytes, _mime, context) {
     const seen = await owner.query(`SELECT 1 FROM sophia.object_writes WHERE storage_key = $1`, [path])
     claimedFirst.set(path, seen.rowCount === 1)
     if (refuseNext) {
@@ -71,6 +72,7 @@ const store: ByteStore & { objects: Map<string, Uint8Array> } = {
       throw new ByteStoreError(409, `store put: ${path} exists`)
     }
     written.push(path)
+    chargedJob.set(path, context?.rendererJobId)
     memory.objects.set(path, bytes)
     const held = barrier
     if (!held) return
@@ -322,6 +324,7 @@ describe('render runner endpoints (A11, 0030)', () => {
     const keys = written.slice(from)
     assert.equal(keys.length, 2, 'both uploads reached the store')
     assert.notEqual(keys[0], keys[1], 'each to its own fresh key')
+    for (const key of keys) assert.equal(chargedJob.get(key), jobId, 'fresh PDF keys charge the validated lease job')
     const won = both.find((r) => r.status === 200)?.json as typeof recorded
     recorded = won
     const kept = store.objects.get(objectPath(projectId, won.sourceId))

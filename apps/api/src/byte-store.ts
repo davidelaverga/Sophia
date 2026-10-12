@@ -17,6 +17,7 @@ import {
   ByteBackupError,
   diskByteBackup,
   type ByteBackup,
+  type ByteWriteContext,
 } from './byte-backup.ts'
 
 /** A stored source's object path: one object per source, named by its project and id. */
@@ -30,7 +31,7 @@ export interface ByteStore {
    * Store new bytes at `path`. A path written before is refused (409) and its object stays as written: writeOnce keeps
    * that for every store the API is given, whose own refusals (s3ByteStore's HEAD and If-None-Match) are a second line.
    */
-  put(path: string, bytes: Uint8Array, mime: string): Promise<void>
+  put(path: string, bytes: Uint8Array, mime: string, context?: ByteWriteContext): Promise<void>
   /** A URL that reads `path` until it expires; with a file name, opening it saves the file under that name. */
   signedUrl(path: string, expiresInSeconds: number, downloadAs: string | null): Promise<string>
   /** The bytes at `path`, read by the API itself (a render package's image for the render runner). */
@@ -105,18 +106,18 @@ export function byteStoreFromEnv(env: Record<string, string | undefined>, fetchI
 /** Keep the durable copy before uploading; an uncertain claim is never refunded or retried by this wrapper. */
 export function withByteBackup(store: ByteStore, backup: ByteBackup): ByteStore {
   return {
-    async put(path, bytes, mime) {
+    async put(path, bytes, mime, context) {
       if (bytes.byteLength > BACKUP_OBJECT_MAX_BYTES)
         throw new ByteStoreError(503, 'report backup permits at most 32 MiB')
       // Buffer.slice() aliases its input; callers include the renderer's Buffer request bodies.
       const snapshot = Uint8Array.from(bytes)
       try {
-        await boundedByteBackup(backup, path, snapshot)
+        await boundedByteBackup(backup, path, snapshot, context)
       } catch (error) {
         if (error instanceof ByteBackupError) throw new ByteStoreError(error.status, error.message)
         throw error
       }
-      await store.put(path, snapshot, mime)
+      await store.put(path, snapshot, mime, context)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),
@@ -203,7 +204,7 @@ export type WriteClaim = (path: string, sha256: string, byteLength: number) => P
  */
 export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
   return {
-    async put(path, bytes, mime) {
+    async put(path, bytes, mime, context) {
       let claimed: boolean
       try {
         claimed = await claim(path, sha256Hex(bytes), bytes.byteLength)
@@ -211,7 +212,7 @@ export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
         throw new WriteClaimError(`store claim: ${path}: the claim was not made`, { cause: error })
       }
       if (!claimed) throw new ByteStoreError(409, `store put: ${path} was already written`)
-      await store.put(path, bytes, mime)
+      await store.put(path, bytes, mime, context)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),

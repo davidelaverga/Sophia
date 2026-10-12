@@ -57,6 +57,7 @@ let worker: pg.Pool
 let bytes: ReturnType<typeof memoryByteStore>
 let app: FastifyInstance
 let base: string
+const chargedJob = new Map<string, string | undefined>()
 
 // oxlint-disable-next-line typescript/no-explicit-any -- test helper over heterogeneous response bodies
 type Body = any
@@ -97,7 +98,14 @@ before(async () => {
   const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
   const mediaBridgeTokenSha256 = createHash('sha256').update(MEDIA_TOKEN, 'utf8').digest()
   bytes = memoryByteStore()
-  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, byteStore: bytes })
+  const store = {
+    ...bytes,
+    put: (path: string, data: Uint8Array, mime: string, context?: { rendererJobId: string }) => {
+      chargedJob.set(path.split('/')[1] ?? '', context?.rendererJobId)
+      return bytes.put(path, data, mime)
+    },
+  }
+  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, byteStore: store })
   await app.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
   const admin = new pg.Client({ connectionString: db.ownerUrl })
@@ -308,6 +316,11 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
       headers: lease,
     })
     assert.equal(put.status, 200, JSON.stringify(put.json))
+    assert.equal(
+      chargedJob.get(String(put.json.sourceId)),
+      job.jobId,
+      'every fresh PNG key charges the validated lease job',
+    )
   }
   const receipt = {
     schema: 'sophia.html-capture-receipt.v1',

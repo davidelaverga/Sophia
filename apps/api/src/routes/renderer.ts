@@ -142,7 +142,9 @@ async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: st
   const lease = leaseOf(req)
   const slot = await withService(deps.pool, (c) => rendererOutputSlot(c, token, req.params.jobId, lease))
   try {
-    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'application/pdf')
+    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'application/pdf', {
+      rendererJobId: req.params.jobId,
+    })
   } catch (err) {
     throw storeFailure(err)
   }
@@ -165,7 +167,7 @@ async function storeCapture(
   const { jobId, name } = req.params
   const slot = await withService(deps.pool, (c) => rendererCaptureSlot(c, token, jobId, lease, name))
   try {
-    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'image/png')
+    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'image/png', { rendererJobId: jobId })
   } catch (err) {
     throw storeFailure(err)
   }

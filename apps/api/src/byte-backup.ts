@@ -6,6 +6,7 @@ import { constants, lstatSync, mkdirSync, readFileSync, realpathSync, type Stats
 import { link, lstat, mkdir, open, unlink } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { isAbsolute, join, resolve } from 'node:path'
+import { BACKUP_LIMITS, reserveBackupBytes, type BackupLimits } from './byte-backup-quota.ts'
 
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const OBJECT_KEY = new RegExp(`^(${UUID})/(${UUID})$`, 'u')
@@ -23,7 +24,11 @@ export class ByteBackupError extends Error {
   }
 }
 
-export type ByteBackup = (key: string, bytes: Uint8Array) => Promise<void>
+export interface ByteWriteContext {
+  /** Only the API's validated renderer lease routes provide this stable job identity. */
+  rendererJobId: string
+}
+export type ByteBackup = (key: string, bytes: Uint8Array, context?: ByteWriteContext) => Promise<void>
 
 /** Mount presence is a misconfiguration guard; the provider volume identity and restart persistence remain live checks. */
 export function hasDedicatedDiskMount(root: string, mountInfo: string): boolean {
@@ -115,6 +120,7 @@ async function commitCopy(directory: string, name: string, bytes: Uint8Array): P
 export function diskByteBackup(
   root: string,
   mountInfo: string = readFileSync('/proc/self/mountinfo', 'utf8'),
+  limits: BackupLimits = BACKUP_LIMITS,
 ): ByteBackup {
   if (!hasDedicatedDiskMount(root, mountInfo)) {
     throw new ByteBackupError(503, 'report backup root is not a dedicated disk mount')
@@ -128,7 +134,7 @@ export function diskByteBackup(
   }
   const objects = join(root, 'objects')
   privateDirectory(objects)
-  return async (key, bytes) => {
+  return async (key, bytes, context) => {
     const match = OBJECT_KEY.exec(key)
     const project = match?.[1]
     const source = match?.[2]
@@ -136,6 +142,20 @@ export function diskByteBackup(
       throw new ByteBackupError(503, 'report backup requires a canonical source key and at most 32 MiB')
     }
     await privateDirectoryAsync(objects)
+    const status = await reserveBackupBytes({
+      root,
+      key,
+      project,
+      job: context?.rendererJobId ?? null,
+      bytes: bytes.byteLength,
+      limits,
+    })
+    if (status !== 200) {
+      throw new ByteBackupError(
+        status,
+        status === 409 ? 'report backup already reserved' : 'report backup capacity unavailable',
+      )
+    }
     const directory = join(objects, project)
     await privateDirectoryAsync(directory)
     // Persist new directory entries as well as the file: a source is never published on an unflushed copy.
@@ -146,13 +166,20 @@ export function diskByteBackup(
 }
 
 /** A late filesystem completion may leave a private orphan, but can never continue to the remote upload. */
-export async function boundedByteBackup(backup: ByteBackup, key: string, bytes: Uint8Array): Promise<void> {
+export async function boundedByteBackup(
+  backup: ByteBackup,
+  key: string,
+  bytes: Uint8Array,
+  context?: ByteWriteContext,
+): Promise<void> {
+  const deadline = performance.now() + BACKUP_WRITE_MS
   let timer: ReturnType<typeof setTimeout> | undefined
   const expired = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => reject(new ByteBackupError(503, 'report backup timed out')), BACKUP_WRITE_MS)
   })
   try {
-    await Promise.race([backup(key, bytes), expired])
+    await Promise.race([backup(key, bytes, context), expired])
+    if (performance.now() >= deadline) throw new ByteBackupError(503, 'report backup timed out')
   } catch (error) {
     if (error instanceof ByteBackupError) throw error
     throw new ByteBackupError(503, 'report backup unavailable')

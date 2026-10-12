@@ -71,7 +71,9 @@ describe('private immutable report-byte copies', () => {
     ])
     assert.equal(writes.filter((r) => r.status === 'fulfilled').length, 1)
     const rejected = writes.find((r) => r.status === 'rejected')
-    assert.ok(rejected?.status === 'rejected' && conflict(rejected.reason))
+    assert.ok(rejected?.status === 'rejected' && (conflict(rejected.reason) || unavailable(rejected.reason)))
+    // Separate quota workers may meet a busy or initializing journal: fail closed, then recognize the durable key.
+    await assert.rejects(store.put(KEY, new Uint8Array([3]), MIME), conflict)
     assert.deepEqual(readFileSync(join(root, 'objects', PROJECT, SOURCE)), Buffer.from(await remote.get(KEY)))
   })
 
