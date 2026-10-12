@@ -2,7 +2,7 @@
 // project while the page lives; how many show when narrowed; nothing left says so, with Clear. Each row opens its
 // conversation.
 import { useId, useRef, useState } from 'react'
-import { Button } from '@sophia/ui'
+import { Button, Search } from '@sophia/ui'
 import type { ConversationSummary } from '../../api/vision.ts'
 import { clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { pageMemory, useMemory } from '../work/planning/page-memory.ts'
@@ -38,9 +38,8 @@ export function Rows(props: {
   }
   return (
     <>
-      <input
+      <Search
         ref={search}
-        type="search"
         className="conv-filter"
         aria-label="Filter conversations"
         placeholder="Filter by title"

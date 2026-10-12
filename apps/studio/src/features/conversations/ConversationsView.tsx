@@ -213,7 +213,7 @@ function usePanes() {
     // After the list shows again: the row of the conversation left, else the filter (that row may be filtered out).
     requestAnimationFrame(() => {
       const at = view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')
-      ;(at ?? view.current?.querySelector<HTMLElement>('.conv-filter, .conv-start'))?.focus()
+      ;(at ?? view.current?.querySelector<HTMLElement>('.conv-filter input, .conv-start'))?.focus()
     })
   }
   return {

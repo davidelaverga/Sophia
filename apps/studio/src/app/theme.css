@@ -1036,7 +1036,8 @@ img.avatar {
   display: flex;
   gap: 4px;
   width: 100%;
-  padding: 4px;
+  min-height: 36px;
+  padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--glass);
@@ -1048,7 +1049,7 @@ img.avatar {
 /* The input takes the row's height: on touch it grows with the 40px button beside it, so their words share a line. */
 .field input {
   height: auto;
-  min-height: 32px;
+  min-height: 28px;
   border: 0;
   background: transparent;
   padding: 0 8px;
@@ -1058,6 +1059,8 @@ img.avatar {
   box-shadow: none;
 }
 .field select {
+  height: 28px;
+  padding: 0 8px;
   border: 0;
   background: transparent;
 }
@@ -1068,6 +1071,36 @@ img.avatar {
 .field.quiet {
   background: transparent;
   border-color: var(--line);
+}
+/* A field stands on two heights (docs/plans/field-scale.md): 36 px (its press 28), or 44 as a hero field (`.lg`:
+   the sign-in address and code, the door's name; its press 36). The sizes come from the field, never from the press. */
+.field > .pill {
+  height: 28px;
+  padding: 0 10px;
+}
+.field.lg {
+  min-height: 44px;
+}
+.field.lg input {
+  min-height: 36px;
+  padding: 0 10px;
+}
+.field.lg > .pill {
+  height: 36px;
+  padding: 0 14px;
+}
+/* A search (`Search` in @sophia/ui): the magnifier in the glass, the words inset past it; 36 px as any field. */
+.search {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.search > input {
+  width: 100%;
+  padding-left: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='rgba(236,235,241,0.46)' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='rgba(236,235,241,0.46)' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 11px center;
 }
 .identity-grid {
   display: grid;

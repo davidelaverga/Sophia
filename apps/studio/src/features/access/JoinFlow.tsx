@@ -3,6 +3,7 @@
 // them to the project. The token stays in the fragment and reaches the API only in request bodies.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { Field } from '@sophia/ui'
 import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { acceptInvitation, getLobbyEntry, knockRoom, previewInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
@@ -238,7 +239,7 @@ interface KnockProps {
 function KnockForm({ name, onName, busy, error, onKnock }: KnockProps) {
   return (
     <>
-      <form className="field" onSubmit={onKnock}>
+      <Field as="form" size="lg" onSubmit={onKnock}>
         <label htmlFor="guest-name" className="sr-only">
           Your name
         </label>
@@ -254,7 +255,7 @@ function KnockForm({ name, onName, busy, error, onKnock }: KnockProps) {
         <button type="submit" className="pill primary" disabled={busy || !name.trim()}>
           {busy ? 'Knocking…' : 'Ask to come in'}
         </button>
-      </form>
+      </Field>
       {error && (
         <p className="form-error" role="alert">
           {error}

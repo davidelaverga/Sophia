@@ -1,6 +1,7 @@
 // Sign-in screens: Supabase magic link, dev identities, or a configuration hint. Each is a quiet room
 // with Sophia's light at rest above the words.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Field } from '@sophia/ui'
 import { WRITE_TIMEOUT_MS } from '../api/timeouts.ts'
 import type { LightMode } from '../features/light/engine.ts'
 import type { Point } from '../features/light/motion.ts'
@@ -296,7 +297,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
         </p>
       )}
       <ProviderButtons />
-      <form className="field" noValidate onSubmit={(e) => void address.submit(e)}>
+      <Field as="form" size="lg" noValidate onSubmit={(e) => void address.submit(e)}>
         <label htmlFor="email" className="sr-only">
           Email
         </label>
@@ -315,7 +316,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
         <button type="submit" className="pill primary" disabled={state.step === 'sending'}>
           {state.step === 'sending' ? 'Sending…' : 'Email me a link'}
         </button>
-      </form>
+      </Field>
       {state.step === 'sending' && <SlowNote />}
       {state.step === 'error' && (
         <p id="email-error" className="form-error" role="alert">

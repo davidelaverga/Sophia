@@ -3,7 +3,7 @@
 // where everything else is. It goes in ProjectShell's `resources`. Its owner's acts (guidance, Hold, Stop) and effort
 // requests go out through `onAct` and `onEffort`, to whoever the host passes; nothing here calls a tool.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Tip, useSlidingThumb } from '@sophia/ui'
+import { Search as SearchField, useSlidingThumb } from '@sophia/ui'
 import { nextInRow } from '../../app/roving.ts'
 import { useShortcuts } from '../../app/shortcuts.ts'
 import { useClock } from './clock.ts'
@@ -189,19 +189,17 @@ function Search({ query, onChange }: SearchProps) {
     else input.current?.blur()
   }
   return (
-    <div className="field quiet resource-search has-tip">
-      <input
-        ref={input}
-        type="search"
-        aria-label="Search resources"
-        aria-keyshortcuts="/"
-        placeholder="Search tools, owners, work…"
-        value={query}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      <Tip label="Search" keys="/" side="bottom" />
-    </div>
+    <SearchField
+      ref={input}
+      className="resource-search"
+      aria-label="Search resources"
+      aria-keyshortcuts="/"
+      placeholder="Search tools, owners, work…"
+      value={query}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      tip={{ label: 'Search', keys: '/', side: 'bottom' }}
+    />
   )
 }
 
