@@ -1,0 +1,42 @@
+{
+  "evidenceClass": "L1 actual supervisor with owned stand-in, Darwin; no dsh/provider/hosted execution",
+  "node": "v24.21.0",
+  "platform": "darwin",
+  "sourceCommit": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "sourceSha256": "a3c3b88f9ba874d173faa5ccb4e7e31ce0325df6b71fcdd187e3f63b5207f87a",
+  "limits": {
+    "wrapperExitMs": 5000,
+    "readyMs": 3000,
+    "httpMs": 1500,
+    "childFallbackMs": 20000,
+    "overallMs": 30000
+  },
+  "observations": {
+    "oldSupervisorExited": {
+      "code": 0,
+      "signal": null
+    },
+    "oldChildStillAliveAfterSupervisorExit": true,
+    "replacementAcquiredSameProjectLease": true,
+    "bothStandinsAlive": true,
+    "noReplyHomeBeforeResume": true,
+    "oldStandinCreatedLateSyntheticHomeAfterReplacement": true
+  },
+  "cleanup": {
+    "replacementStop": {
+      "code": 0,
+      "signal": null
+    },
+    "ownedPortsClosed": true,
+    "supervisorLeaseAbsent": true,
+    "rootRemoved": true,
+    "noProviderNoCredentialNoHostedEffects": true,
+    "ownedStandinCommandMatchesAfterExit": 0
+  },
+  "verdict": "PASS: same-supervisor exit ordering is not proof of no surviving old-generation writer after supervisor replacement",
+  "elapsedMs": 230,
+  "wrapperWallMsReportedByExec": 5045,
+  "timingNote": "elapsedMs measures the probe body; the losing wrapper-timeout promise kept Node alive until its 5-second timer expired. The tool command completed exit0. No acceptance timing inferred.",
+  "executedProbeSha256": "22b128652119cd7f5b7fb9c122f2a3822079efc99fd5b9e4f32ddb6873af0e7b",
+  "limitsOfVerdict": "Actual unchanged supervisor plus owned HTTP stand-ins on Darwin. No real claim/hello/go/retire/launcher/dsh/Render/API/provider was executed. Proves surviving old child and late synthetic home write after replacement locally, not a production failure or the full proposed Q7 crossing."
+}

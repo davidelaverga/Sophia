@@ -1,0 +1,112 @@
+{
+  "at": "2026-10-12T03:43:43.825920+00:00",
+  "status": "JOINT_RUNTIME_OWNER_SOURCE_REVIEW_CHANGES_REQUIRED_NOT_FULL_ENGINEERING_ACK",
+  "proposal": {
+    "commit": "5969756faaf6827026ede11f7b76ead6a34fa2c7",
+    "tree": "e8bed1ebf4aaf005cafc393ac08a2e075ea342b9",
+    "parent": "1e5f9469d09fff94bfbd9bd5b415c1687f8794d5",
+    "path": "docs/coordination/CON-01/G2_Q7_RELAY_OWNERSHIP.md",
+    "sha256": "55d743ddf2f8a663c260f24862244eb24eff4d1068336c0a492d6e05539470c2",
+    "lines": 802,
+    "readComplete": true,
+    "scope": "one docs-only file +147/-19; no implementation changed"
+  },
+  "ownership": "Independent WBC02/SDD01 consumer engineering review only. Core/ledger/historical research ownership, Luis integration, accepted main/source window and Q13 are not conferred by this record.",
+  "acceptedImprovements": [
+    "Exec-status wait218-223 now polls control/status/pidfd/deadline instead of blocking before control loop: normal-path cancellation design materially improved.",
+    "Copybetween-file controls190 and named setup/exec defaults clarify some timing. They do not prove bounds for every setup syscall, pidfd-failure wait or exceptional reaping.",
+    "Recovery now explicitly distinguishes unclaimedpending/currentinstance/foreignclaim, cursorreplay, terminalreceipt and no/partialhome. Atomichello table is an optional engineering design, requiring core/ledger agreement and exactsource tests.",
+    "Newroute runtime_lease/project-instance-request order, no numericreplysignalling, sameordinal recovery, uncertain accounting/noreset, fd3 relay and conditional filter/template direction remain reasonable within own consumerscope.",
+    "Darwin0links/profile-only limitations are now explicit at291/640-650. Linux template and pinned dsh/fullfilter/actualRender unit remain unqualified."
+  ],
+  "changesRequired": [
+    {
+      "id": "R3-STOP-BOUND",
+      "classification": "DESIGN_CONTRACT_CORRECTION",
+      "lines": [
+        184,
+        190,
+        218,
+        364,
+        375,
+        397
+      ],
+      "evidence": "375 still claims queuedstop runs at mostgoWaitMs later. Create364 first awaits claim bound, launcher spawn/setup/ready, then go; deadline397 starts atspawn, leaving pre-spawnclaim outside it. After go refusal it also waits stopReply. These are not all goWaitMs.",
+      "required": "State exact total admission/claim/setup/exec/ready/go/cancel/settle bounds and their starting clocks; either cancellable create across phases or honest totalqueue bound including all sequential phases. Separate fence latency, stop initiation, process settlement and receipt completion. Do not invent a user UX commitment from unspecifiedtimeouts.",
+      "expectedCoverage": "Queuedstop during claim, copying, leasefsync, pre-gate/status/ready andgo refusal; fakeclock/stub verifies phase-specific clocks and total bound without accepting checked before actualsettlement."
+    },
+    {
+      "id": "R3-STARTUP-SETTLEMENT",
+      "classification": "REQUIRED_GUARDIAN_ERROR_AND_CLEANUP_CONTRACT",
+      "lines": [
+        99,
+        102,
+        190,
+        195,
+        197,
+        199,
+        210,
+        211,
+        237,
+        238,
+        239,
+        245,
+        246,
+        249,
+        257,
+        259,
+        365,
+        519,
+        536,
+        537,
+        548
+      ],
+      "evidence": "No-pidfd branch210 closes gate then reaps by numeric wait. Child performs parentbinding/Landlock/filter before gate199, so gateEOF does not prove prompt settlement while one earlierstep is stalled. A heldpidfd error/leasefsync failure211 still needs universal cleanup path.239 alarm ends launcher rather than reaping its child;365/519 allow launcherexit as stop/retire premise,257/259 treat nolease as safecheck0. Polling between files190/246 cannot bound one blocked filecopy/hash/open/fsync. The doc overstates at249 that every child wait is bounded and all exits reflectreap.",
+      "required": "Make all prefork/postfork setup, lease, fork, pidfd-open, gate/status and exec error paths explicit. Distinguish successful launcher-owned reap from alarm/PDEATHSIG/failure-triggered shutdown; record unresolved until stable identity and actual child termination are verified. Preserve no numeric signal fallback. With no pidfd, bound own-child waiting or failclosed through an explicit identity-safe fallback design with no fabricatedsettlement. Ensure SIGCHLD default/noSA_NOCLDWAIT/no-other-reaper premises. Treat blockingIO/deadline expiry as an observation/failure bound where hard settlement cannot be guaranteed, never proof ofdeath.",
+      "noLeaseRule": "No durable lease proves exec gate was not released under intendedordering, not necessarily absence of a live pre-exec child or launcher. Noexec/noprovider alone does not satisfy nowriter cleanup. A nolease/absenthome may be retired only with a valid no-live/no-future-writer proof; otherwise preserve unresolved/purgepending.",
+      "expectedCoverage": "Ownedstand-ins: failedpidfd while childstalled beforegate, leaseopen/partialwrite/fsync failures, interruptedsinglecopy/hash/fsync, alarms before/afterfork and afterpidfd, child earlyexit, statusEOF/controlEOF races; verify actual childgone/reap or honest unresolved. Decoy untouched, no numericsignals, no falsechecked/deleted."
+    },
+    {
+      "id": "R3-RESTART-WRITER-PROOF",
+      "classification": "SOURCE_DESIGN_INVARIANT_INCONSISTENCY",
+      "lines": [
+        364,
+        435,
+        443,
+        449,
+        451,
+        536,
+        537,
+        542,
+        548,
+        565,
+        566
+      ],
+      "evidence": "435 explicitly admits an older bridge can outlive its replacement when a supervisor dies.443 instead says newinstance means previousinstance exited, and548 assumes sweep+PDEATHSIG proves nonealive. Actual supervisorlease101-120 checks supervisorpid, and spawn183 launches dsh directly; same-supervisor generationexit216-221 does not by itself prove an orphanedoldbridge exited after supervisorreplacement.",
+      "conditionalCrossing": "Under the older-alive case already admitted by435: L1 receives firstclaim then pauses before spawn; replacement sweep sees no replyhome; L2hello terminalizesforeignclaim and canretire absenthome; L1resumes and spawns/createshome before reaching its next go/API40001. DBleasefences laterprovider/API activity, but is not itself a filesystemwriter barrier at spawn364. This is a proposed-state crossing/invariant gap, not executedproduction failure.",
+      "required": "Name the actual generation/supervisor-replacement proof or fencing mechanism that prevents an old admitted create/launcher from starting or writing after sweep/retire. Do not use changedbridgeinstance or one absenthomecheck as deathproof. If selected host lifecycle proves alloldprocessesgone, bind that actualqualification; otherwise keep cleanup unresolved until proof and reject/reap staleadmission via identity-safe mechanism. Preserve original goalpath ownership; no unapproved broadsupervisor rewrite.",
+      "expectedCoverage": "Ownedstub/integration schedule pauses L1afterclaim/beforemkdir, replaces supervisor or bridge, sweeps/hello/retires then resumesoldL1. Prove no newlatehomewriter and honestpurge status, no oldprovider/APIeffects, no unrelatedmission processes affected."
+    }
+  ],
+  "recoveryAndBarrierOwnerReview": {
+    "P1ECorrection": "R3lines6/13/775/797 and authorreceipt still imply mandatoryP1repair and pendingforever. Correct to withdrawnseverity/recoverydocumentation+qualification gap. Isolatedhello SQL row remainingpending is not a valid end-to-end permanentstranding fail-before oracle; include actualcursor/poll/claimrefusal/terminalreceipt path.",
+    "atomicHello": "Foreignpending/running atomicterminalization is possible design; jointconsumer conditionalcompatibility only, not core/ledgerACK or demandtoimplement. Need exact project-instance-request lockorder/withdrawal/idempotence/terminalprecedence/sameinstance/replay tests and goalpreservation.",
+    "barrierAmendment": "R3:545 substitutes committedhello for terminalreceipt and captureresult when no turnend/receipt exists. Originalbinding572-580 requires actualAPI confirmation of sevenconditions plus relayclosed. A named new durable terminalwriter proof may be a coordinated amendment, but cannot literally assert a nonexistent receipt is recorded or bypass all otherconditions. Core/ledger/runtime owners must explicitly bind acknowledged-response semantics/keys and test eachwithheldcondition; terminalDBstate never substitutes for processnowriterproof.",
+    "lateUsage": "Retain scrubbedlateobservations and usageordinals; uncertain stayscounted, no automaticreconcile/release/reset/providerretry. Newlease routing must preserve recordedusage replay through L2 and no latepublication."
+  },
+  "evidenceLimits": {
+    "L0": "Authorreported Linuxownedstandin tests only, short hashes in doc. Root did not run/recover their source/output or independently validate L0. Four successfulreported scenarios do not establish failedpidfd, blockingIO, alarmsettlement or oldsurvivor crossing. No dsh was used by authorL0.",
+    "P1P7P8": "All remain unrun as designed. Target actual selectedRender execution unit/literalimage/kernel/arch and failclosedunsupportedcapability. Historical LinuxVM and nullimageDigest309/664 do not grant a newVM, renderer/worker repurpose or hostedprobe.",
+    "currentMain": "No freshmainpoll this boundedreview. Last observed5ed752bd/sourceequality record remainshistory. No oldE/fullmainCI or currentproduction qualification implied."
+  },
+  "baseWindowOrderHandback": {
+    "base": "Exact5969756f over1e5f9469 reviewed as docs-onlycandidate against actual unchanged7d8-deriveddependencies. No accepted integration/mainbase or sharedsourcewindow granted.",
+    "window": "PhaseAwritewindowended/0053reserved; PhaseB/Q13/Studio holds remain. Previousownscope PhaseA93e consumercompatibility is not Luis integrationacceptance or mergeGO.",
+    "order": "Correct boundedstartup/totalstop/no-future-writer proof and withdrawnP1E narrative; publish immutablepin. Actualcore/ledger/historicalowners and Luis must agree acceptedbase/window/order. When authorized preserve G2plan5: acceptedPhaseAprerequisite then additiveSQL, wire/contracts, bridge, supervisor/launcher/profile, qualification; distinctcandidates/fail-before/fullgates and combinedartifactidentity.",
+    "affectedFunctions": "SupervisorOptions.replies/environment/sweepReplies and start/recover/stop sequencing; reply-launch run/probe/digest/check/sweep; ReplyChildren createReply/stopReply/retireReply/reconcileReply/dispose, ReplyChild deadlines/state, ReplyRelay/fromJournal; runtime-host/profile and reply-plugin. Core-owned0049/runtime_hello/conversation_claim/go/cancel/applyreceipt/capture/observations/acknowledged/usageproofsource and generatedcontracts/routes require namedowners. No appliedmigration edits or Q13grantrepair.",
+    "handback": "Local immutable sharedengineering record; no CONnative read/control, cross-threadreply, sharedwrites, newtask or monitor. Conditional architecture agreement retained; no full lifecycleACK/PhaseB/write/merge/operationalGO."
+  },
+  "effects": "Read published exactsource/authorcomment; fetchGitobjects withoutcheckout/edit; localjournal only. No build/test/stub/runtime/hostedSQL/provider/model/image/credentials/spending/permission/migration/deployment/publish.",
+  "sourceRecordSha256": "15ae009a6d136d0175a51f250f0d10b0e5f86cbf34911cda568e6370cd7da525",
+  "origin": "Joint WBC02/SDD01 consumer source review; separate from root execution and core/ledger/Luis acknowledgement."
+}
