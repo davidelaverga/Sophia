@@ -29,30 +29,42 @@ export const needsOf = (list: Pick<NeedList, 'needs'>): Need[] =>
     detail: n.detail,
   }))
 
-/** The view a need lives in, by its kind: a decision or a permission in Tasks, a guest at the room (a reply lives in the personal space). */
+/** The view a need lives in, by its kind: a decision in Tasks, a permission in Resources (its request, where the owner answers it in the tool), a guest at the room (a reply lives in the personal space). */
 const VIEW_OF: Readonly<Record<WireNeed['kind'], View>> = {
   decision: 'work',
-  permission: 'work',
+  permission: 'resources',
   guest: 'studio',
   reply: 'work',
 }
 
-/** The record a need names, when the Studio has an address for it: a task in Tasks' fragment, or a decision's own choice. */
+/**
+ * The record a need names, when the Studio has an address for it: a decision's own choice; a native request on its
+ * resource (and the task that holds its wait, for the record); a task in Tasks' fragment.
+ */
 export interface NeedAt {
   taskId?: string
   decisionId?: string
+  requestId?: string
+  resourceId?: string
 }
 
 export type Where = { place: 'personal' } | { projectId: string; view: View; at: NeedAt }
 
 /**
- * The address a ref gives (Codex on #245): a wait is named through the work item that holds it in Tasks' fragment
- * (`#task-`, the sheet); a decision by its own id (`#decision-`): its choice stands on the board, not in the sheet, so
- * the board scrolls to it and gives it the focus. A lobby entry and a personal turn have no address of their own.
+ * The address a ref gives (Codex on #245): a decision by its own id (`#decision-`): its choice stands on the board, not
+ * in the sheet, so the board scrolls to it and gives it the focus. A wait by its request (`#request-`, A13's
+ * reference): the request stands in its resource's sheet, where the owner is told how to answer it in the tool and
+ * given the tool's own link; the task's sheet only names it. The resource and the task come along for the record. A
+ * lobby entry and a personal turn have no address of their own.
  */
 export function atOf(ref: WireNeed['ref']): NeedAt {
   if (ref.kind === 'work_decision') return { decisionId: ref.id }
-  if (ref.kind === 'work_wait' && ref.within) return { taskId: ref.within }
+  if (ref.kind === 'work_wait')
+    return {
+      requestId: ref.id,
+      ...(ref.resourceId ? { resourceId: ref.resourceId } : {}),
+      ...(ref.within ? { taskId: ref.within } : {}),
+    }
   return {}
 }
 

@@ -2,7 +2,7 @@
 // Back and Forward.
 import { useEffect, useState } from 'react'
 import { reportSearch, withReportLink, type ReportLink } from '../features/artifacts/report-link.ts'
-import { DECISION, TASK, showInAddress } from '../features/resources/link.ts'
+import { DECISION, REQUEST, TASK, showInAddress } from '../features/resources/link.ts'
 import { HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
 
 const current = (): Route => parseRoute(window.location.pathname)
@@ -38,9 +38,14 @@ export function useProjectRoute() {
      * A project at one of its views, at the record a need names when the Studio has an address for it: a task in Tasks'
      * fragment, a report's version in the viewer (api/needs.ts, `atOf`).
      */
-    openAt: (projectId: string, view: View, at: { taskId?: string; decisionId?: string; report?: ReportLink } = {}) => {
+    openAt: (
+      projectId: string,
+      view: View,
+      at: { taskId?: string; decisionId?: string; requestId?: string; report?: ReportLink } = {},
+    ) => {
       go({ projectId, view, place: 'work' }, false, at.report ? withReportLink('', at.report) : undefined)
-      if (at.decisionId) showInAddress(at.decisionId, DECISION)
+      if (at.requestId) showInAddress(at.requestId, REQUEST)
+      else if (at.decisionId) showInAddress(at.decisionId, DECISION)
       else if (at.taskId) showInAddress(at.taskId, TASK)
     },
     show: (view: View) => go({ ...route, view }),
