@@ -24,6 +24,7 @@ import { DEMO, DEMO_LABEL } from './demo.ts'
 import { companionReply } from './personal-replies.ts'
 import '../src/app/theme.css'
 import '../src/features/personal/personal.css'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -43,6 +44,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const sent: string[] = []
 const pressed: string[] = []
 const carried: string[] = []

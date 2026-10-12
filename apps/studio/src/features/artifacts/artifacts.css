@@ -90,7 +90,7 @@
   text-align: left;
 }
 .output-open:hover:not(:disabled) {
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .output-open .report-tile {
   grid-row: span 2;
@@ -166,7 +166,7 @@
   --measure: 34rem;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
-  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.35);
+  box-shadow: -24px 0 48px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
   animation: rp-slide var(--base) var(--ease);
 }
 .report-pane[data-size='full'] {
@@ -211,7 +211,7 @@
   background: transparent;
 }
 .report-pane-head .round:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* The call's switches, a row of their own under the head, only where the pane covers the dock or the mini dock (the
    full page, and a phone below): a live microphone, camera or shared screen stays in sight with its off switch, as
@@ -408,7 +408,7 @@
 .md code {
   padding: 1px 4px;
   border-radius: var(--r-1);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   font: var(--type-body) var(--mono);
 }
 .md pre {
@@ -570,7 +570,7 @@
   border-radius: var(--r-3);
 }
 .source[data-focused] {
-  background: rgba(156, 130, 245, 0.08);
+  background: rgb(var(--halo-rgb) / 0.08);
 }
 .source-n {
   color: var(--text-2);
@@ -799,7 +799,7 @@
   overflow: hidden;
   border-radius: var(--r-2) var(--r-2) 0 0;
   background: #f8f6f1;
-  box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -1px 12px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
 }
 /* Its words run on past the cover's foot, as a page does: they fade into the paper, never cut through a line. */
 .report-cover-page::after {
@@ -836,7 +836,7 @@
   place-items: center;
 }
 .report-cover[data-cover='waiting'] {
-  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.03), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--ink-rgb) / 0.03), transparent);
 }
 .report-cover-mark {
   display: grid;
@@ -885,6 +885,12 @@
   background: var(--amber);
   font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
+}
+/* The title is a press of its own over the card: it answers under the pointer with its underline. */
+.report-card-title:hover {
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--ink-rgb) / 0.4);
+  text-underline-offset: 3px;
 }
 .report-card-title {
   display: -webkit-box;
@@ -979,7 +985,7 @@
     max-width: none;
     margin: 0;
     width: calc(100% - var(--report-w));
-    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - 1040px) / 2 + var(--gutter)));
+    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - var(--content)) / 2 + var(--gutter)));
   }
   /* Work's pulse column goes under the goals: two columns beside the pane leave neither room to read. */
   .shell:has(> .report-pane[data-size='side']) > main.page.split {
@@ -1218,7 +1224,7 @@
 }
 .pdf-rail button[aria-current='page'] {
   border-color: var(--line-2);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   color: var(--text);
 }
 @media (pointer: coarse) {
@@ -1267,7 +1273,7 @@
   display: contents;
 }
 .pdf-page .textLayer ::selection {
-  background: rgba(156, 130, 245, 0.35);
+  background: rgb(var(--halo-rgb) / 0.35);
 }
 .pdf-page .textLayer br::selection {
   background: transparent;
@@ -1300,8 +1306,8 @@
 }
 .knowledge-filters .segmented button[aria-pressed='true'] {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08);
 }
 .knowledge-filters .count {
   margin-left: 6px;
@@ -1338,7 +1344,7 @@
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
     var(--lift),
-    0 12px 32px rgba(0, 0, 0, 0.45);
+    0 12px 32px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   animation: rise var(--fast) var(--ease) both;
 }
 .passage-bar button {
@@ -1356,7 +1362,7 @@
   color: var(--halo-text);
 }
 .passage-bar button:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .passage-bar button:focus-visible {
   outline: 2px solid var(--halo);
@@ -1393,7 +1399,7 @@
   display: inline-block;
   margin-left: 8px;
   padding: 1px 6px;
-  border: 1px solid rgba(156, 130, 245, 0.35);
+  border: 1px solid rgb(var(--halo-rgb) / 0.35);
   border-radius: var(--r-1);
   color: var(--halo-text);
   font: 500 var(--type-label) / 1.4 var(--sans);
@@ -1421,7 +1427,7 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   color: var(--text);
   font: 500 12px/1.35 var(--sans);
   text-align: left;
@@ -1452,7 +1458,7 @@
 /* A passage a link names (usePassageArrival, docs/plans/room-passage-link.md): its words lit warm, apart from Sophia's
    lavender, and its block marked at its edge; and the note when the version doesn't hold it. */
 ::highlight(report-passage) {
-  background-color: rgba(239, 191, 134, 0.26);
+  background-color: rgb(var(--amber-rgb) / 0.26);
   color: var(--text);
 }
 .md [data-linked] {

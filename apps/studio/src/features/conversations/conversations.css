@@ -15,13 +15,15 @@
 }
 /* Clipped: the context panel waiting off its edge never makes the page scroll. */
 .conversations {
-  --raise: rgba(236, 235, 241, 0.045);
-  --raise-2: rgba(236, 235, 241, 0.075);
-  --warm-raise: rgba(241, 220, 199, 0.085);
+  --raise: rgb(var(--ink-rgb) / 0.045);
+  --raise-2: rgb(var(--ink-rgb) / 0.075);
+  --warm-raise: rgb(var(--warm-rgb) / 0.085);
   position: relative;
   overflow: clip;
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 300px;
+  /* The context takes half of what is left beyond the list, a 760 px thread with its 28 px sides and its own 300,
+     up to 360 (docs/plans/widths.md): 300 at 1416 and under, 312 at 1440, 360 from 1536. */
+  grid-template-columns: 300px minmax(0, 1fr) clamp(300px, 300px + (100cqi - 1416px) / 2, 360px);
   height: 100%;
   min-height: 0;
 }
@@ -40,7 +42,7 @@
 .conversations .icon-button[aria-pressed='true'],
 .conversations .icon-button[aria-expanded='true'] {
   border-color: transparent;
-  background: rgba(156, 130, 245, 0.14);
+  background: rgb(var(--halo-rgb) / 0.14);
   color: var(--text);
 }
 .conv-who,
@@ -69,7 +71,7 @@
   position: absolute;
   inset: -12px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(156, 130, 245, 0.32), transparent 65%);
+  background: radial-gradient(circle, rgb(var(--halo-rgb) / 0.32), transparent 65%);
 }
 .conv-glyph .umbral {
   position: relative;
@@ -197,6 +199,10 @@
 .conv-row[aria-pressed='true'] {
   background: var(--raise-2);
 }
+/* The open one answers too: its edge lights, as a card's does. */
+.conv-row[aria-pressed='true']:hover {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
 .conv-title {
   min-width: 0;
   overflow: hidden;
@@ -262,7 +268,7 @@
   inset: 0 0 auto;
   height: 240px;
   pointer-events: none;
-  background: radial-gradient(ellipse 60% 100% at 50% -30%, rgba(156, 130, 245, 0.08), transparent 70%);
+  background: radial-gradient(ellipse 60% 100% at 50% -30%, rgb(var(--halo-rgb) / 0.08), transparent 70%);
 }
 .conv-head {
   position: relative;
@@ -361,7 +367,7 @@
   padding: 4px 3px;
   border-radius: var(--r-1);
   background: #fbf8f3;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
 }
 .conv-output-page i {
   display: block;
@@ -710,16 +716,45 @@
 .conv-msg-body {
   position: relative;
 }
-.conv-propose {
+/* A message's acts at its corner (docs/plans/conversation-acts.md): copy, quote, propose, and what a copy or a
+   proposal said. */
+.conv-acts {
   position: absolute;
-  top: -12px;
+  bottom: calc(100% + 4px); /* whole above the bubble, never over its words (Luis, 2026-10-12) */
   right: -12px;
   z-index: 1;
   display: flex;
   align-items: center;
+  gap: 6px;
+}
+/* A message's turn: its bubble, its acts and its clock, the thread's width from the bubble's top line (the name stays
+   before it). It is the acts' box, so they stand at its right edge, on the bubble's top line: one's own at its bubble's
+   corner, another's across the row from its bubble in the same column, never past the pane whatever the bubble's
+   width; on a touch screen, anchored at the bubble's left, they stand where the bubble's corner is, not on the name. */
+.conv-turn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: inherit;
+  align-self: stretch;
+  min-width: 0;
+}
+.conv-msg.sophia .conv-turn {
+  flex: 1;
+  align-items: flex-start;
+}
+/* Her words keep the measure they had of the whole row (84 % of it, 620 px at most): the turn stands beside her glyph,
+   36 px narrower, so its share is a step larger. */
+.conv-msg.sophia .conv-turn .conv-msg-body {
+  max-width: min(89%, 620px);
+}
+.conv-propose {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.conv-propose-press {
+.conv-propose-press,
+.conv-act {
   display: grid;
   place-items: center;
   width: 28px;
@@ -729,40 +764,95 @@
   background: var(--plane-2);
   color: var(--text-2);
 }
-.conv-propose-press:hover {
+.conv-propose-press:hover,
+.conv-act:hover {
   color: var(--text);
 }
-.conv-proposed {
+.conv-act svg {
+  width: 14px;
+  height: 14px;
+}
+.conv-copied[data-kind='failed'] {
+  color: var(--rose);
+  white-space: normal;
+}
+.conv-proposed,
+.conv-copied {
   color: var(--teal);
   font-size: var(--type-small);
   white-space: nowrap;
 }
 @media (hover: hover) {
-  .conv-msg:not(:hover, :focus-within) .conv-propose-press {
+  .conv-msg:not(:hover, :focus-within) :is(.conv-propose-press, .conv-act) {
     opacity: 0;
   }
 }
 /* On a touch screen it shows on the message pressed, or when the keyboard reaches it: out of sight, it stays in reach of
    a keyboard and a screen reader, taking no tap meant for the message. */
 @media (hover: none) {
-  .conv-msg:not([data-pressed], :focus-within) .conv-propose,
-  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+  .conv-msg:not([data-pressed], :focus-within) .conv-acts,
+  .conv-msg:not([data-pressed], :focus-within) :is(.conv-propose-press, .conv-act) {
     pointer-events: none;
   }
-  .conv-msg:not([data-pressed], :focus-within) .conv-propose-press {
+  .conv-msg:not([data-pressed], :focus-within) :is(.conv-propose-press, .conv-act) {
     opacity: 0;
   }
 }
 /* A finger's target: 40 px, as every icon control on a touch screen. */
 @media (pointer: coarse) {
-  /* Within the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
-  .conv-propose {
-    top: -20px;
+  /* Under a thumb the row stands below the bubble, in room the pressed message keeps for it (44 px: the 40 px presses
+     and 4 px clear): above the bubble it covered the name, and the bubble before it in a run (Codex on #240). Within
+     the thread's 14 px gutter on a phone: nothing past it to scroll sideways to. */
+  .conv-acts {
+    top: auto;
+    bottom: 0;
     right: -12px;
   }
-  .conv-propose-press {
+  /* Pressed, the row comes into the turn's flow under the bubble: whatever a copy or a proposal says (a line of its own,
+     wrapping) takes its room below, never over the words (Codex on #240: a fixed 44 px left a second line to rise over
+     the bubble). */
+  .conv-msg:is([data-pressed], :focus-within) .conv-acts {
+    position: relative;
+    bottom: auto;
+    margin-top: 4px;
+  }
+  /* Another's message sits at the pane's left: three 40 px presses anchored to the row's right would stand far from a
+     short bubble under a thumb, so on a touch screen they start at the bubble's left and run right. */
+  .conv-msg:not(.mine) .conv-acts {
+    right: auto;
+    left: -12px;
+  }
+  .conv-propose-press,
+  .conv-act {
     width: 40px;
     height: 40px;
+  }
+  /* What a copy or a proposal says takes its own line above the presses and wraps, so the three 40 px presses stay
+     inside the pane whatever it says (Codex on #240). */
+  .conv-acts {
+    flex-wrap: wrap;
+    max-width: calc(100% + 24px);
+  }
+  .conv-acts > [role='status'] {
+    flex-basis: 100%;
+    white-space: normal;
+  }
+}
+/* A member's message continuing a run, under a pointer: its acts beside the bubble at its middle (the bubble its box),
+   so the row never lies over the bubble above it (Codex on #240): left of one's own, right of another's. */
+@media (hover: hover) {
+  .conv-msg-body > .conv-acts.side {
+    top: 50%;
+    bottom: auto;
+    translate: 0 -50%;
+  }
+  .conv-msg.mine .conv-msg-body > .conv-acts.side {
+    right: calc(100% + 8px);
+    left: auto;
+  }
+  .conv-msg:not(.mine) .conv-msg-body > .conv-acts.side {
+    left: calc(100% + 8px);
+    right: auto;
   }
 }
 /* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals
@@ -836,6 +926,10 @@
   font-size: var(--type-small);
   cursor: pointer;
 }
+/* The same tie as the mission's disclosure (theme.css): its hover said here. */
+.conv-help summary:hover {
+  color: var(--text);
+}
 .conv-help p {
   max-width: 62ch;
   margin: 6px 0 0;
@@ -865,14 +959,14 @@
   background: var(--plane-2);
   box-shadow:
     0 0 0 1px var(--line-2),
-    0 18px 50px rgba(0, 0, 0, 0.55);
+    0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
   transition: box-shadow var(--fast) var(--ease);
 }
 .conv-field-box:focus-within {
   box-shadow:
-    0 0 0 1px rgba(156, 130, 245, 0.45),
-    0 18px 50px rgba(0, 0, 0, 0.55),
-    0 0 30px rgba(156, 130, 245, 0.08);
+    0 0 0 1px rgb(var(--halo-rgb) / 0.45),
+    0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k))),
+    0 0 30px rgb(var(--halo-rgb) / 0.08);
 }
 .conv-compose textarea {
   flex: 1;
@@ -908,7 +1002,7 @@
 }
 .conv-send[data-ready] {
   background: var(--core);
-  color: #0c0a16;
+  color: var(--on-core);
 }
 /* While it sends: the arrow gives way to a turning arc, in the light's ink. */
 .conv-send[data-busy] {
@@ -926,7 +1020,7 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin: 0;
+  margin: 0 auto; /* in the composer's column with the field and the quick asks (Luis, 2026-10-12) */
   padding: 0 4px;
   color: var(--text-2);
   font: var(--type-small) / var(--lh-small) var(--sans);
@@ -1016,12 +1110,16 @@
   border-radius: 50%;
 }
 .conv-ask:has(input:checked) {
-  background: rgba(156, 130, 245, 0.14);
+  background: rgb(var(--halo-rgb) / 0.14);
   color: var(--text);
+}
+/* On, it answers the pointer too: a step deeper (measured on its label, what the eye sees: Codex on #232). */
+.conv-ask:has(input:checked):hover {
+  background: rgba(156, 130, 245, 0.2);
 }
 .conv-ask:has(input:checked) .umbral {
   opacity: 1;
-  filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.8));
+  filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.8));
 }
 .conv-ask:has(input:checked) .conv-ask-box {
   border-color: var(--halo);
@@ -1096,7 +1194,7 @@
     transition:
       transform var(--base) var(--ease),
       visibility 0s var(--base);
-    box-shadow: -30px 0 80px rgba(0, 0, 0, 0.6);
+    box-shadow: -30px 0 80px rgb(var(--shadow-rgb) / calc(0.6 * var(--shadow-k)));
   }
   .conversations[data-context] .conv-context {
     visibility: visible;
@@ -1108,7 +1206,7 @@
     z-index: 18;
     inset: 0;
     display: block;
-    background: rgba(5, 4, 8, 0.55);
+    background: rgb(var(--void-rgb) / 0.55);
   }
   /* The room's dock floats over the conversation's foot: the field leaves room under it. */
   .conv-compose {

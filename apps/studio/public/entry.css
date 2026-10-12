@@ -9,6 +9,44 @@ body {
   margin: 0;
   background: #050408;
 }
+/* A light page (entry.js read the choice): paper from the first paint, the opening's ground and wipe with it. */
+html[data-theme='light'],
+html[data-theme='light'] body,
+html[data-theme='light'] .entry-ground {
+  background: #fbf8f3;
+}
+html[data-theme='light'] .entry-wipe {
+  background: linear-gradient(90deg, rgba(251, 248, 243, 0), #fbf8f3 24px);
+}
+/* On paper the lockup takes the brand's paper inks (your half #16151b, hers #8468ee, the word in the ink), the line and
+   the rim give way, and the words read on paper (Codex on #234). CSS sets the gradients' stops over index.html's. */
+html[data-theme='light'] #entry-you-ink stop,
+html[data-theme='light'] #entry-word-ink stop {
+  stop-color: #16151b;
+}
+html[data-theme='light'] #entry-her-ink stop,
+html[data-theme='light'] #entry-line-ink stop {
+  stop-color: #8468ee;
+}
+html[data-theme='light'] #entry-rim-ink stop,
+html[data-theme='light'] #entry-glint-ink stop {
+  stop-opacity: 0;
+}
+html[data-theme='light'] .entry-bar {
+  background: rgba(22, 21, 27, 0.08);
+}
+html[data-theme='light'] .entry-fill {
+  background: linear-gradient(90deg, #965328, #5546b8);
+}
+html[data-theme='light'] .entry-step {
+  color: rgba(22, 21, 27, 0.7);
+}
+html[data-theme='light'] .entry-slow {
+  color: rgba(22, 21, 27, 0.72);
+}
+html[data-theme='light'] .entry-again {
+  color: #5546b8;
+}
 #entry {
   --h: 64px;
   --u: calc(var(--h) / 60);

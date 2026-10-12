@@ -13,7 +13,8 @@ import {
 } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import type { Command } from '../../app/commands.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { reachesSophia } from '../conversation/chat-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
@@ -34,6 +35,8 @@ import {
 import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+
+type Participant = ProjectRoom['participants'][number]
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -142,16 +145,49 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
  * With the command key (room-keys.ts): J joins; in the room, D, E and Shift+E toggle the microphone, the camera and
  * the screen (the dock's tips show them). A stray letter never starts sending.
  */
+const onOff = (on: boolean | undefined) => (on ? 'off' : 'on')
+/** A command's action while the room allows it; none otherwise, so it is not offered. */
+const when = (ok: boolean, run: () => void) => (ok ? run : undefined)
+
+/** The stage's commands (docs/plans/commands.md): join; in the room the microphone, the camera and the screen. */
+function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: boolean, joins: boolean): Command[] {
+  return [
+    {
+      id: 'join',
+      words: 'Join the room',
+      group: 'room',
+      key: ROOM_KEYS.join,
+      run: when(joins, () => void room.join()),
+    },
+    {
+      id: 'microphone',
+      words: `Microphone ${onOff(me?.micOn)}`,
+      group: 'room',
+      key: ROOM_KEYS.microphone,
+      run: when(speaks, () => void room.setMicrophone(!me?.micOn)),
+    },
+    {
+      id: 'camera',
+      words: `Camera ${onOff(me?.cameraOn)}`,
+      group: 'room',
+      key: ROOM_KEYS.camera,
+      run: when(speaks, () => void room.setCamera(!me?.cameraOn)),
+    },
+    {
+      id: 'screen',
+      words: me?.screenOn ? 'Stop sharing the screen' : 'Share the screen',
+      group: 'room',
+      key: ROOM_KEYS.screen,
+      run: when(speaks && canShareScreen, () => void room.setScreenShare(!me?.screenOn)),
+    },
+  ]
+}
+
 function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
   const joins = room.ready && (room.status === 'idle' || room.status === 'failed')
-  useShortcuts({
-    [ROOM_KEYS.join]: joins ? () => void room.join() : undefined,
-    [ROOM_KEYS.microphone]: speaks ? () => void room.setMicrophone(!me?.micOn) : undefined,
-    [ROOM_KEYS.camera]: speaks ? () => void room.setCamera(!me?.cameraOn) : undefined,
-    [ROOM_KEYS.screen]: speaks && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
-  })
+  useCommands(roomCommands(room, me, speaks, joins))
 }
 
 /** Sophia as observed (sophia-view.ts): the light's mode and her line come from this, never from `live`. */

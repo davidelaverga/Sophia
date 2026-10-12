@@ -464,15 +464,24 @@ test('arrow keys move across the tiles; Tab leaves the grid in one step', async 
     .getByRole('button')
     .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label') ?? ''))
   const at = (i: number) => tile(page, names[i] ?? '')
+  // How many tiles stand in a row at this width: the grid says (the page's column is 1280 at 1280 and up).
+  const perRow = await grid(page)
+    .getByRole('button')
+    .evaluateAll((ts) => {
+      const top = ts[0]?.getBoundingClientRect().top
+      return ts.filter((t) => Math.abs(t.getBoundingClientRect().top - (top ?? 0)) < 2).length
+    })
+  const last = names.length - 1
   await at(0).focus()
   await page.keyboard.press('ArrowRight')
   await expect(at(1)).toBeFocused()
-  await page.keyboard.press('ArrowDown') // three tiles to a row at this width
-  await expect(at(4)).toBeFocused()
+  // One row down when a tile stands there; when the row below is shorter the focus stays (nothing is below).
+  await page.keyboard.press('ArrowDown')
+  await expect(at(1 + perRow <= last ? 1 + perRow : 1)).toBeFocused()
   await page.keyboard.press('Home')
   await expect(at(0)).toBeFocused()
   await page.keyboard.press('End')
-  await expect(at(4)).toBeFocused()
+  await expect(at(last)).toBeFocused()
   await page.keyboard.press('ArrowRight') // the last stays the last
   await expect(at(4)).toBeFocused()
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)

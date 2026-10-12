@@ -17,6 +17,7 @@ import { Mark } from '../src/app/Mark.tsx'
 import { OpeningPrepares } from '../src/app/opening-prepares.ts'
 import { useOpening } from '../src/app/useOpening.ts'
 import '../src/app/theme.css'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -30,6 +31,7 @@ window.openingFixture = seen
 window.addEventListener('keydown', (event) => seen.keys.push(event.key))
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 const READS_MS = Number(query.get('reads') ?? 300)
 const identity: Identity = { name: 'fixture@sophia.test', role: 'member', token: 'fixture-token' }
 const client = new QueryClient()

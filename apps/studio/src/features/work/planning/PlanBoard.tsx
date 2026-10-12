@@ -15,7 +15,7 @@
 // - a review of the lead's that proposes a change: a pill in the bar, its card in the decisions' slot, one or the
 //   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EmptyState, Icon } from '@sophia/ui'
 import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
@@ -106,11 +106,16 @@ type LaneView = { key: Exclude<Lane, 'closed'>; label: string; mark: Mark; empty
 const LANES: LaneView[] = [
   { key: 'active', label: 'Active', mark: 'working', empty: 'Nothing active' },
   { key: 'next', label: 'Up next', mark: 'later', empty: 'Nothing waiting to start' },
+  { key: 'blocked', label: 'Blocked', mark: 'held', empty: 'Nothing blocked' },
   { key: 'unassigned', label: 'Unassigned', mark: 'free', empty: 'Nothing unassigned' },
   { key: 'complete', label: 'Complete', mark: 'complete', empty: 'Nothing complete yet' },
 ]
 
-const inLane = (rows: readonly PlanRow[], lane: Lane) => rows.filter((r) => laneOf(r) === lane)
+const inLane = (rows: readonly PlanRow[], lane: Lane) => rows.filter((r) => laneOf(r, rows) === lane)
+
+/** The lanes the board shows: Blocked only while something is. */
+const shownLanes = (rows: readonly PlanRow[]) =>
+  LANES.filter((l) => l.key !== 'blocked' || inLane(rows, 'blocked').length > 0)
 
 /** How many tiles a lane shows before it keeps the rest one press away. */
 const SHOWN = 5
@@ -458,7 +463,53 @@ function useBoard(rows: readonly PlanRow[], viewerId: string | null, changed: Re
   return { lit, setLit, open, setOpen, lens, setLens, waited, flags, step }
 }
 
-/** The four lanes side by side, moved through by the arrows, with the threads drawn over them. */
+/**
+ * A tile with the focus that moves lanes (its blocker complete, in a live update) is mounted anew in the other lane:
+ * the focus follows it there, by its task, instead of falling to the page (Codex on #236). A focus moved elsewhere, or
+ * a tile left on purpose, is not followed.
+ */
+function useTileFocus(rows: readonly PlanRow[]) {
+  const held = useRef<string | null>(null)
+  useEffect(() => {
+    const into = (e: FocusEvent) => {
+      const tile = e.target instanceof Element ? e.target.closest<HTMLElement>('.board [data-task]') : null
+      held.current = tile?.dataset['task'] ?? null
+    }
+    // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
+    // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
+    const out = (e: FocusEvent) => {
+      const left = e.target
+      if (!(left instanceof Element) || e.relatedTarget) return
+      queueMicrotask(() => {
+        if (left.isConnected && document.activeElement === document.body) held.current = null
+      })
+    }
+    document.addEventListener('focusin', into)
+    document.addEventListener('focusout', out)
+    return () => {
+      document.removeEventListener('focusin', into)
+      document.removeEventListener('focusout', out)
+    }
+  }, [])
+  useLayoutEffect(() => {
+    const id = held.current
+    if (id === null || document.activeElement !== document.body) return
+    const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
+      (el) => el.dataset['task'] === id,
+    )
+    if (tile) {
+      tile.focus({ preventScroll: true })
+      return
+    }
+    // Moved into a lane past the tiles it shows (five, the rest one press away): the focus goes to that press, so the
+    // keyboard can reveal it; never to the page (Codex on #236).
+    const row = rows.find((r) => r.item.id === id)
+    const lane = row ? document.querySelector(`.board .lane[data-lane="${laneOf(row, rows)}"]`) : null
+    lane?.querySelector<HTMLElement>('.lane-more')?.focus({ preventScroll: true })
+  }, [rows])
+}
+
+/** The lanes side by side (four; five while something is blocked), moved through by the arrows, with the threads drawn over them. */
 function Lanes({
   rows,
   board,
@@ -469,19 +520,23 @@ function Lanes({
   tile: Omit<LaneProps, 'lane' | 'rows'>
 }) {
   const lanes = useRef<HTMLDivElement>(null)
+  const shown = shownLanes(rows)
+  useTileFocus(rows)
   return (
     <div
       ref={lanes}
       className="board-lanes"
+      style={{ '--lanes': shown.length }}
+      data-lanes={shown.length}
       data-threading={board.waited.length > 0 || undefined}
       onKeyDown={(e) => {
         if (lanes.current && moveOnBoard(lanes.current, e.key)) e.preventDefault()
       }}
     >
-      {LANES.map((lane) => (
+      {shown.map((lane) => (
         <LaneSection key={lane.key} lane={lane} rows={inLane(rows, lane.key)} {...tile} />
       ))}
-      <Threads box={lanes} to={board.lit} from={board.waited} />
+      <Threads box={lanes} to={board.lit} from={board.waited} lanes={shown.length} />
     </div>
   )
 }
