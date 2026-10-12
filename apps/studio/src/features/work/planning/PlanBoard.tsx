@@ -350,7 +350,6 @@ function Decisions({
   ...rest
 }: DecisionsProps) {
   const list = useRef<HTMLDivElement>(null)
-  useAddressedDecision(decisions)
   // Opened on one (from a review that waits on it), the focus goes to its first choice. Found by comparing ids, never
   // by putting one in a selector: a decision's id is any string.
   useEffect(() => {
@@ -394,6 +393,19 @@ function useSlot({ decisions, reviewed, viewerId, now, answerable, decider }: Sl
   // The decisions shown take the slot: a decision of the viewer's arriving while the card is open takes its place.
   const decisionsShown = asks.shown && asks.open.length > 0
   const reviewShown = review !== null && openId === review.review_id && !decisionsShown
+  // A decision named in the address (`#decision-`, from Home's «needs you»): the slot opens on it and names it for the
+  // focus (Decisions gives it to the first choice of that decision, in this board's own list), once per address (the
+  // sequence is kept: replaceState fires no hashchange), then the address lets it go (Codex on #245).
+  const named = useAddressed(DECISION)
+  const handled = useRef(-1)
+  useEffect(() => {
+    if (handled.current === named.seq || !named.id || !asks.open.some((d) => d.decision_id === named.id)) return
+    handled.current = named.seq
+    setOpenId(null)
+    setFocus(named.id)
+    if (!asks.shown) asks.toggle()
+    showInAddress(null, DECISION)
+  }, [named, asks])
   // A card closed by a later review takes the focus with it: it goes back to the pill, as Escape and Close do.
   const wasShown = useRef(reviewShown)
   useEffect(() => {
@@ -477,28 +489,6 @@ function useOpenTask(rows: readonly PlanRow[]) {
     }
   }, [open])
   return { open, setOpen: (id: string | null) => setPressed({ id, seq: named.seq }) }
-}
-
-/**
- * A decision named in the address (`#decision-`, from Home's «needs you»): the board scrolls to its choice and gives
- * the focus to its first option (or to the decision itself where the viewer is not its decider), then lets the
- * address go. The sheet of the task that holds it is not opened: the choice is here, not there (Codex on #245).
- */
-function useAddressedDecision(decisions: readonly { decision_id: string }[]) {
-  const named = useAddressed(DECISION)
-  useEffect(() => {
-    if (!named.id || !decisions.some((d) => d.decision_id === named.id)) return
-    const section = document.querySelector<HTMLElement>(`[data-decision="${CSS.escape(named.id)}"]`)
-    if (!section) return
-    section.scrollIntoView({ block: 'center' })
-    const choice = section.querySelector<HTMLElement>('.plan-choice:not(:disabled)')
-    if (choice) choice.focus({ preventScroll: true })
-    else {
-      section.tabIndex = -1
-      section.focus({ preventScroll: true })
-    }
-    showInAddress(null, DECISION)
-  }, [named, decisions])
 }
 
 /** The board's moment-to-moment state: the hovered task and what it waits on, the open task, the lens. */
