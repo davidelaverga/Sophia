@@ -363,7 +363,7 @@ select option {
 /* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
 .ghost:active:not(:disabled, [aria-disabled='true']),
 .round:active:not(:disabled, [aria-disabled='true']),
-.text-button:active:not([aria-disabled='true']) {
+.text-button:active:not([aria-disabled='true'], :disabled) {
   transform: translateY(0.5px);
 }
 /* Icon controls: squares with a small radius (the class name predates the shape). */
@@ -414,7 +414,7 @@ select option {
   transition: text-decoration-color var(--fast) var(--ease);
 }
 /* Under the pointer the underline wakes from a third of its ink to the ink. */
-.text-button:hover:not([aria-disabled='true']) {
+.text-button:hover:not([aria-disabled='true'], :disabled) {
   text-decoration-color: var(--halo-text);
 }
 /* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
@@ -484,6 +484,15 @@ select {
   background: rgba(236, 235, 241, 0.03);
   color: var(--text-2);
   font-size: 13px;
+}
+/* A select is a press too: under the pointer its words and its edge wake (Codex on #232). */
+select:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+input[type='checkbox']:hover:not(:disabled) {
+  filter: brightness(1.2);
 }
 .form-error {
   color: var(--rose);
