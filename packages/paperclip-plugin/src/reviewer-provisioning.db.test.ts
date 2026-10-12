@@ -128,13 +128,22 @@ async function until(what: string, check: () => boolean) {
 const soon = (answer: Promise<ApiResponse>) => Promise.race([answer, sleep(400).then(() => 'pending' as const)])
 
 async function answered(answer: Promise<ApiResponse>): Promise<ApiResponse> {
+  // A timeout reports failure, not cancellation. Observe and drain the original before another test truncates SQL.
+  const settled = answer.then(
+    (response) => ({ response }),
+    (error: unknown) => ({ error }),
+  )
   let timer: ReturnType<typeof setTimeout> | undefined
-  const response = await Promise.race([
-    answer,
+  const outcome = await Promise.race([
+    settled,
     new Promise<'pending'>((resolve) => (timer = setTimeout(() => resolve('pending'), 10_000))),
   ]).finally(() => clearTimeout(timer))
-  if (response === 'pending') assert.fail('the commission answers before the sentinel')
-  return response
+  if (outcome === 'pending') {
+    await settled
+    assert.fail('the commission answers before the sentinel')
+  }
+  if ('error' in outcome) throw outcome.error
+  return outcome.response
 }
 
 const codeOf = (res: ApiResponse | 'pending') =>
@@ -265,7 +274,12 @@ describe('the managed source reviewer, provisioned once per company', () => {
     }
     const [first, second] = [commissionOf(), commissionOf()]
     // Observe rejection immediately, and drain the gated request before another test can truncate its tables.
-    const delayed = answered(slow.request(delivery(first))).then(
+    const original = slow.request(delivery(first))
+    const drained = original.then(
+      (response) => ({ response }),
+      (error: unknown) => ({ error }),
+    )
+    const delayed = answered(original).then(
       (response) => ({ response }),
       (error: unknown) => ({ error }),
     )
@@ -275,7 +289,7 @@ describe('the managed source reviewer, provisioned once per company', () => {
       assert.equal(m.asked.length, 2, 'the replacement is bound and its claim ended before the stale claimant proceeds')
     } finally {
       hold.open()
-      await delayed
+      await drained
     }
     const settled = await delayed
     if ('error' in settled) throw settled.error
