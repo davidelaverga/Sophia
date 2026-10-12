@@ -965,6 +965,10 @@
   font-size: var(--type-small);
   cursor: pointer;
 }
+/* The same tie as the mission's disclosure (theme.css): its hover said here. */
+.conv-help summary:hover {
+  color: var(--text);
+}
 .conv-help p {
   max-width: 62ch;
   margin: 6px 0 0;
