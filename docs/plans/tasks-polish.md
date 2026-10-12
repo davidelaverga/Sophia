@@ -13,15 +13,16 @@ Chromium (`evaluacion-2026-10-12/tasks-dark-1280.png`).
 
 ## What changes
 
-- The meta row wraps, with a 4 px row gap: the name keeps at least seven characters (`min-width: 7ch`) and takes the
-  room there is; when the chip no longer fits beside that, it drops under the name whole. Nothing changes where both
-  fit.
+- The meta row wraps, with a 4 px row gap: the line is laid out with the name and the chip at their own size, so
+  the chip drops under the name whole when the two do not fit, and the name is cut only when alone it is longer than
+  the line. Nothing changes where both fit («Luis · Ready for review» stays one line); a `min-width` on the name was
+  tried and dropped: it widened a short name past its words and made its chip drop for nothing.
 - The blocker's press is left-aligned: its second line starts where its first does, under «Waiting on».
 
 ## Checks (written first)
 
-- `work.spec.ts`: on the tile whose chip is «Waiting on a permission», the name's box is at least seven characters wide
-  and its words are not cut to one; the blocker press's computed `text-align` is `left`, and when it wraps, its line
+- `work.spec.ts`: on the tile whose chip is «Waiting on a permission», the name's box holds its words whole (its
+  width is its words' width) and the chip stands under it; on a tile with a short name the two share a line; the blocker press's computed `text-align` is `left`, and when it wraps, its line
   boxes share a left edge.
 
 ## Left

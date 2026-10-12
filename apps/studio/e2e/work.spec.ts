@@ -416,7 +416,7 @@ test('a decision named in the address (#decision-, from Home) is scrolled to and
   await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('')
 })
 
-test('a tile’s doer keeps at least seven letters beside a state chip; a wrapping blocker keeps its left edge', async ({
+test('a tile’s doer keeps its name whole, beside a short chip or above a long one; a wrapping blocker keeps its left edge', async ({
   page,
 }) => {
   await page.goto(PAGE)
@@ -429,17 +429,23 @@ test('a tile’s doer keeps at least seven letters beside a state chip; a wrappi
     const name = el.querySelector<HTMLElement>('.task-tile-name')
     const chip = el.querySelector<HTMLElement>('.task-tile-meta .tag')
     if (!name || !chip) return null
-    const ch = parseFloat(getComputedStyle(name).fontSize) * 0.5 // a character's width, about half the size
     return {
       width: name.getBoundingClientRect().width,
-      seven: 7 * ch,
-      words: name.textContent,
-      chipTop: chip.getBoundingClientRect().top,
-      nameTop: name.getBoundingClientRect().top,
+      words: name.scrollWidth, // what its words need
+      under: chip.getBoundingClientRect().top > name.getBoundingClientRect().bottom - 1,
     }
   })
-  expect(read?.width ?? 0).toBeGreaterThanOrEqual(read?.seven ?? Infinity)
-  expect((read?.words ?? '').length).toBeGreaterThan(1)
+  // The name holds its words whole (not cut to a letter), and the long chip stands under it.
+  expect(read?.width ?? 0).toBeGreaterThanOrEqual((read?.words ?? Infinity) - 1)
+  expect(read?.under).toBe(true)
+  // A short name keeps its chip beside it: «Luis · Ready for review» is one line.
+  const short = board(page).locator('.task-tile', { hasText: 'Ready for review' }).first()
+  const beside = await short.evaluate((el) => {
+    const name = el.querySelector('.task-tile-name')
+    const chip = el.querySelector('.task-tile-meta .tag')
+    return !!name && !!chip && Math.abs(name.getBoundingClientRect().top - chip.getBoundingClientRect().top) < 4
+  })
+  expect(beside).toBe(true)
   // The blocker's press: left-aligned, its lines (when it wraps) on one left edge.
   const why = board(page).locator('.lane-why .text-button').first()
   await expect(why).toHaveCSS('text-align', 'left')
