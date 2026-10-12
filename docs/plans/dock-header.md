@@ -47,8 +47,10 @@
 
 ## After the review (Codex on #254, later round)
 
-- The panel takes the focus before the dock under it is made inert: a control of the dock restored after the move (the
-  width crossing 720 px with the context open) would otherwise lose it to the page. `cover()` in ConversationsView.
+- The panel takes the focus the dock's control had before the move (the width crossing 720 px with the context open):
+  restored to the dock, it would be lost once the dock is inert; lost with the dock already (the thread's screen at
+  720 px shows no idle dock), it would stay on the page. `cover(moved)` in ConversationsView, measured: at 718 px the
+  idle dock is `display: none` under the thread, and the focus went to `body`.
 - A dock control is named across its move by a stable key (`data-dock-key`: `room`, `text`, `leave`; the switches by
   their label, which does not change), not by the words of its pill, which change with the room's state («Join the
   room», «Joining…», «Try again», «In the room · 2»).
