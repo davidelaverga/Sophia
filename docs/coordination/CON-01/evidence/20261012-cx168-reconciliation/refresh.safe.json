@@ -1,0 +1,547 @@
+{
+  "record": "CON-01-CX-0168",
+  "observed_at": "2026-10-12T08:57:15Z",
+  "reviewer_start": "e398e44e994baf1236edba0aff61edd4bcba88e2",
+  "main": {
+    "commit": "3c40b1c64eadaef56537a9e9123e71557cfd2a7b",
+    "tree": "bd6c1022ffe5db6574fb8e6bd324da0235542393"
+  },
+  "prepared": {
+    "commit": "d96626acdc514eabbdf20667725e28a2279dfeba",
+    "tree": "ee484c024b79e952e3d6f44ec979102fda0ee3f8",
+    "accepted_combined_base": false
+  },
+  "pr199": {
+    "commit": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "draft": true,
+    "mergeable": false,
+    "metadata_base_sha": "b69a6a0bf19630b5f6e08a37b02e0b5a234dbbb9",
+    "metadata_base_note": "GitHub connector metadata differs from fetched main; source comparison uses actual fetched main."
+  },
+  "comments": [
+    {
+      "id": 6115115786,
+      "url": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6115115786",
+      "body": "**Studio design lane (Luis): shared-surface note for G3, no CON-01 source written here.**\n\n- The kit stack (#220–#254, Luis's UI work on the Studio) and #199 meet in four files: `features/conversations/ConversationRows.tsx`, `OpenConversation.tsx`, `conversations.css`, `features/studio/ProjectShell.tsx`, plus the generated contracts (A15 in the stack, A16 here). Whichever lands second resolves; the resolutions are prepared and pushed at `ui/kit-with-con01` (`574766cd` = #199 `d527f385` over #254 `27f310f2`), with the contracts regenerated from both amendments. Lint, typecheck and `contracts:check` clean; 135 of 136 Conversations and kit specs green locally.\n- The UI of #199 read against the kit, with measures, is on the PR: https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6115106416 (legacy `.button` at 26 px in the two confirmations; one word for withdraw/remove; the duplicated coverage line; the withdraw press as an acts-row item; the saved-text notice not reachable in the demo fixture).\n- Per 05_COORDINATION_AND_OWNERSHIP, edits to those four files and to the contracts stay single-writer: the kit stack will not touch them again until #199's landing order is decided. Tell us which lands first and we take the merge on our side.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "login": "EdX2C"
+    },
+    {
+      "id": 6115106416,
+      "url": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6115106416",
+      "body": "**Studio design coordination (Luis's lane): the UI of this PR measured against the kit, and the merge with the kit stack prepared.**\n\nRead on the head `d527f385` merged over the kit stack's head (#254, `27f310f2`) at `ui/kit-with-con01` (`574766cd`): headless Chromium at 1280×800 and 390×844, `pointer: fine`. Captures and `measures.json` are in Luis's evaluation folder; the numbers below are from them. Nothing here blocks G3; the first two are the kind of thing `control-heights.spec` would name if the confirmations were open when it reads.\n\n1. **The two confirmations use the legacy `.button`, off the controls' grid.** `WithdrawHere.tsx:181` and `EraseHere.tsx:127` render `className=\"button\"`: measured 26 px tall, grey fill, square radius, beside «Keep it» as a `.text-button` (24). In the same context pane the kit's «Accept» is a `.pill` at 28. The kit's rule (CONTRIBUTING, `control-heights.spec`): every single-line press stands on 24, 28, 32 or 36. The kit has `Button` from `@sophia/ui` (`kind`, `size`) and `ConfirmButton` for a question asked in place (Stop on a goal uses it: a `warning`, a `confirm` word, a `keep` word). Suggest `ConfirmButton` for both, or `Button` with the destructive kind if one is added; the words stay.\n\n2. **The press and its form name the act differently for a moderator.** `WithdrawHere.tsx:85` labels the press «Remove message» when the message is another's and «Withdraw message» when it is one's own; the form's group is labelled accordingly (`:166`), but the visible question reads «Withdraw this message? …» in both cases (measured text of the group). One word for one act, in the press, the group and the sentence.\n\n3. **«Covers messages 1–9.» twice in the context pane.** The summary's coverage and the open questions' coverage are two lines with the same words, one under «This conversation», one under «1 open question»; read together they look like a repeat. Either one coverage line for the pane, or words that say what each covers («The questions cover 1–9.»).\n\n4. **The withdraw press is an absolutely positioned span; in the kit it is a row item.** The kit's Conversations (#240) put Copy, Quote and Propose in one acts row (`.conv-acts`, 28 px presses on `--r-2`, hidden until hover/press) mounted in the message's turn. `WithdrawHere` renders `<span class=\"conv-withdraw\">` with `position: absolute; right: 22px` to sit beside `.conv-propose`. In the merge I render `away.press` inside the row and add `.conv-acts .conv-withdraw { position: static }`; it lands as the fourth press (measured: four 28×28 presses, the row 130 px, at the turn's right edge at both widths). If #199 lands first, the kit's merge brings that; if the kit lands first, `WithdrawHere` can drop its own positioning.\n\n5. **The saved-text notice did not render in the demo fixture** (`room.html?demo=1&conversations=1`: the reader has already written), so it is not measured here. Point me at a fixture state that shows it and I will measure it against the five sizes and the third ink.\n\n**Merge preparation.** `ui/kit-with-con01` holds this PR merged over the kit stack's head with the conflicts resolved: `ConversationRows.tsx` (one import), `OpenConversation.tsx` (both `onQuote` and `withdraw` thread through the list; a withdrawn message, `text === null`, shows no acts; `MessageLead` + `MessageBy` + `useArrivalFocus` keep the two functions under the repository's 60 lines), `conversations.css` (the touch rules unioned), `ProjectShell.tsx` (the kit's shell with this PR's `CONVERSATIONS` flag and `useProjectMembership(…, snapshot.dataUpdatedAt)`), and the generated contracts regenerated from A15 and A16 together (`contracts:check` clean). Lint and typecheck clean; locally 135 of 136 Conversations and kit specs green, the one left being `conversations-removal @phone` «an erasure's late reply…», which passes one run in two here (timing). Whichever lands second can take these resolutions.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+      "login": "EdX2C"
+    },
+    {
+      "id": 6118092274,
+      "url": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6118092274",
+      "body": "Shared-surface note (Luis's lane): since #220 and #221 merged into main (the kit's Button and Field, 2026-10-12), this PR conflicts with main in one file, `apps/studio/src/features/conversations/ConversationRows.tsx` (GitHub reports CONFLICTING since 05:01Z). The kit's remaining PRs (#228 → #254, then #257 → #260) land into main one by one over the day; each touches the conversations files a little more (#240 the message acts, #257 the list's column).\n\n`ui/kit-with-con01` (now `21239c8e`) is this PR's head merged over the kit's head with every conflict resolved and the contracts regenerated from A15 + A16: the resolutions are there to take (`git merge` of main once the stack is in, then the same choices), and the branch is kept current with each kit change. The choices made in it: the `OpenConversation` props (`onQuote` + `withdraw`), the `away.press` inside the acts row with `.conv-acts .conv-withdraw { position: static }`, `ProjectShell`'s CONVERSATIONS flag with `useProjectMembership(…, snapshot.dataUpdatedAt)`, and the coarse-pointer acts under the bubble beside the withdraw rule. No CON-01 code of its own.",
+      "login": "EdX2C"
+    },
+    {
+      "id": 6120119263,
+      "url": "https://github.com/davidelaverga/Sophia/pull/199#issuecomment-6120119263",
+      "body": "Shared-surface note (Luis's lane), update: `ui/kit-with-con01` is now `d96626ac`, this PR's head merged over the whole kit stack including the intelligence PRs (#262–#268: the next ask in the composer, «Next» on the board, the palette's «For you», a question asking Sophia, «Already asked here», ask-instead, Home's next ask). Three files needed real resolutions against this PR's newer conversations code; the choices, so they can be taken as they are:\n\n- `ConversationComposer.tsx`: your notice and your «Sophia doesn't answer here yet» line stay; the field becomes the next-ask `FieldBox`; the key cap's type is renamed `KeyHint` (your `Hint` is the line under the field); the suggestions and the question shortcut are quiet where Sophia doesn't answer here (`!props.answers`), and the quick asks show only where she does, as before.\n- `ConversationsView.tsx`: your reader, fence, erased note and `Middle` pane stay; arrivals are handled after the start (`useArrivals`: a conversation, or words to ask her, which wait for the membership); `openOne` clears the erased note as your `onOpen` did; `Middle` hands the form the shown conversations for «Already asked here».\n- `NewConversation.tsx`: your `api/conversations.ts` and notice stay beside the same-question props. `next-ask.ts` reads `ConversationMessage` from `api/conversations.ts` and skips withdrawn messages (null text).\n\nTypecheck, type-aware lint and `contracts:check` are clean on it; the node tests pass except `browser-imports.test.ts`, which builds `D:\\D:\\…` on a Windows checkout (a path join in that test, not this merge; CI on Linux is unaffected).",
+      "login": "EdX2C"
+    }
+  ],
+  "inventories": {
+    "issue198": 398,
+    "pr199": 334,
+    "intelligence": [
+      {
+        "pr": 262,
+        "comments": [
+          {
+            "id": 6118872732,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#issuecomment-6118872732",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:44:30.419454Z\">2026-10-12T07:44:30.419454Z</relative-time> | `c01859f` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245177559,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245177559",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Keep dismissed asks out of the quick actions**\n\nWhen the suggested ask is one of the three quick asks, pressing Escape records it in `putAway` and sets `suggestion` to null, but this call then immediately adds the same words back to the quick-action row because `quickAsks` receives neither the dismissed words nor the pre-dismissal suggestion. For example, with one open question and no pending proposal, dismissing “What’s still open?” makes an identical button appear below the field, so the ask was not actually put away for the lifetime of the conversation.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/useNextAsk.ts",
+            "line": 56,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245177568,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245177568",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Base recency on six viewer messages**\n\nThe initial transcript request contains only one page—the fixture contract makes that the newest six messages total—and earlier pages are loaded only when the user presses “Earlier messages.” Filtering that loaded slice for the current actor can therefore yield fewer than the intended six viewer messages; in an alternating conversation it sees only three, so an ask made four viewer turns ago is proposed again until older history happens to be opened. The recency input needs enough viewer-authored history rather than only the currently loaded page set.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/next-ask.ts",
+            "line": 106,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487128185,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#pullrequestreview-5487128185",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `046ae7b267`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245697636,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245697636",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Make the suggestion reason keyboard-accessible**\n\nFor keyboard-only and screen-reader users, focusing the composer cannot expose `why`: the wrapper is not focusable, `Tip` is `aria-hidden`, and the `aria-describedby` text includes only the suggested words and key actions. This makes the newly added rationale pointer-only; include `why` in the described text or otherwise associate it with a focusable control, as required by the Studio UI tip convention.\n\nAGENTS.md reference: [AGENTS.md:L61-L61](https://github.com/davidelaverga/Sophia/blob/c01859f9f310a9a576d97c7c39de44c6a0239a5c/AGENTS.md#L61-L61)\n\nUseful? React with 👍 / 👎.",
+            "path": "packages/ui/src/NextAskHint.tsx",
+            "line": 19,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245697647,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#discussion_r4245697647",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Scope dismissed suggestions to the signed-in account**\n\nWhen two accounts use the Studio without reloading and both can access the same conversation, a suggestion dismissed by the first account remains dismissed for the second because these module-level maps are keyed only by `conversationId` and survive sign-out or identity switching. The existing conversation state is explicitly account-scoped and cleared by `forgetUnderWay`, so these keys should likewise include the account or be cleared when identity changes.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/useNextAsk.ts",
+            "line": 24,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487786851,
+            "url": "https://github.com/davidelaverga/Sophia/pull/262#pullrequestreview-5487786851",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `c01859f9f3`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          }
+        ]
+      },
+      {
+        "pr": 263,
+        "comments": [
+          {
+            "id": 6119231811,
+            "url": "https://github.com/davidelaverga/Sophia/pull/263#issuecomment-6119231811",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:44:27.822878Z\">2026-10-12T07:44:27.822878Z</relative-time> | `6cca074` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487327894,
+            "url": "https://github.com/davidelaverga/Sophia/pull/263#pullrequestreview-5487327894",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `19cf508864`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245345778,
+            "url": "https://github.com/davidelaverga/Sophia/pull/263#discussion_r4245345778",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Advance only after the answer is recorded**\n\nWhen the answer API returns `conflict`, `denied`, `expired`, or `unknown`, this wrapper has already marked the decision as answered and displayed/focused the next-up line. The still-unanswered decision is therefore omitted and the viewer can be directed to another task—or told nothing else waits—while the decision's own status says nothing was chosen; update the progression from the returned disposition, retaining the current decision for every result except `recorded`.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/work/planning/PlanBoard.tsx",
+            "line": 693,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245345787,
+            "url": "https://github.com/davidelaverga/Sophia/pull/263#discussion_r4245345787",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Distinguish revised decisions in the answered set**\n\nWhen a decision answered earlier in the visit is later proposed at a new revision, `useDecisions` correctly treats that revision as a new actionable decision, but this ID-only comparison continues excluding it. The next-up line consequently skips the revised choice and can point to a task, review, or “nothing” instead; track the answered `(decision_id, revision)` pair, matching the revision-aware identity already used by the decision UI.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/work/planning/next-up.ts",
+            "line": 37,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245697381,
+            "url": "https://github.com/davidelaverga/Sophia/pull/263#discussion_r4245697381",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Include pending requests on non-waiting tasks**\n\nA task can have a pending request for the viewer while its lifecycle is `planned`, `queued`, `unknown`, or otherwise not rendered with the `waiting` mark; `startsWhen`, `forViewer`, and `forYou` already treat such `row.waits` entries as work requiring that viewer. Requiring `status.mark === 'waiting'` therefore drops those tasks from Next up, which can incorrectly advance to a review or say nothing else waits. Select rows by a pending wait whose `respondent_id` is the viewer, as the existing viewer-attention predicates do.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/work/planning/PlanBoard.tsx",
+            "line": 668,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487786516,
+            "url": "https://github.com/davidelaverga/Sophia/pull/263#pullrequestreview-5487786516",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `6cca0745f0`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          }
+        ]
+      },
+      {
+        "pr": 264,
+        "comments": [
+          {
+            "id": 6119436402,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#issuecomment-6119436402",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:43:08.798989Z\">2026-10-12T07:43:08.798989Z</relative-time> | `4eff412` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487495389,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#pullrequestreview-5487495389",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `c52bb8fc86`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245480922,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#discussion_r4245480922",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Remove answered decisions from the For you commands**\n\nAfter the viewer chooses an answer, `setAnswered` updates immediately, but the decision normally remains in `slot.asks.mine` until a newer board snapshot arrives. During that interval, reopening the palette still offers the same `Decide …` command and opens a decision whose choice is already sending or recorded, instead of leading with the next outstanding item. Filter this list using the same `answered` state already passed to `nextUp`.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/work/planning/PlanBoard.tsx",
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245663496,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#discussion_r4245663496",
+            "body": "Fixed in `4eff4122`: «For you» leaves out the decisions answered in this visit, the same `answered` list the next-up line reads (`slot.asks.mine.filter((d) => !answered.includes(d.decision_id))`), so while the board's next read catches up the palette leads with the next outstanding item, not the decision whose choice is on its way. Lint (type-aware) and typecheck clean, the node tests pass (51); the browser specs could not be run locally (the machine guard refuses Playwright beside a heavy app), so CI is the run on record.",
+            "path": "apps/studio/src/features/work/planning/PlanBoard.tsx",
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487740797,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#pullrequestreview-5487740797",
+            "body": "",
+            "path": null,
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 4245688220,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#discussion_r4245688220",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Hide decisions that cannot be answered**\n\nWhen the board is a read-only proposal or its coverage is `unavailable`, `portsOf` removes `onDecide`, but `slot.asks.mine` still contains the viewer’s active decisions, so this registers a `Decide …` command anyway. Selecting it only opens a read-only decision card with no enabled choices, making the palette advertise an action the current board explicitly cannot perform; only register these decision commands when the decision port is available.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/work/planning/PlanBoard.tsx",
+            "line": 695,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487774949,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#pullrequestreview-5487774949",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `4eff41222a`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487775724,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#pullrequestreview-5487775724",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `4eff41222a`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245688783,
+            "url": "https://github.com/davidelaverga/Sophia/pull/264#discussion_r4245688783",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Remove the duplicate command host from the fixture**\n\nWith `palette=1`, this mounts a second `CommandsHost` even though the fixture's `ProjectShell` already mounts one in `ProjectShell.tsx`. Both hosts register `commands`, `keys`, and `theme` in the global command registry, so the palette used by this acceptance case contains duplicate rows and two competing shortcut/modal owners. The test therefore exercises a UI state production never creates; use the existing host instead.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/fixtures/work.tsx",
+            "line": 966,
+            "login": "chatgpt-codex-connector[bot]"
+          }
+        ]
+      },
+      {
+        "pr": 265,
+        "comments": [
+          {
+            "id": 6119520483,
+            "url": "https://github.com/davidelaverga/Sophia/pull/265#issuecomment-6119520483",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:42:31.663317Z\">2026-10-12T07:42:31.663317Z</relative-time> | `b554d4b` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245506097,
+            "url": "https://github.com/davidelaverga/Sophia/pull/265#discussion_r4245506097",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Suppress the question shortcut while a send is held**\n\nWhen a question is sent with Ask Sophia off and the request remains pending, `held` here is false because the caller passes `write.unknown`, which excludes `props.held.sending`. The question hint therefore remains visible and Tab changes the persisted Ask Sophia state even though the already-issued request has `askSophia: false`; the UI then says “Sophia will answer” for a message that did not ask her. Treat any pending `props.held`/busy state as held before offering this shortcut.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/ConversationComposer.tsx",
+            "line": 149,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487529002,
+            "url": "https://github.com/davidelaverga/Sophia/pull/265#pullrequestreview-5487529002",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `f42c7ec18b`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245663716,
+            "url": "https://github.com/davidelaverga/Sophia/pull/265#discussion_r4245663716",
+            "body": "Fixed in `c01859f9` (on #262's branch, where the flag is set, and merged forward): the field's suggestions, the next ask and the question shortcut alike, are quiet while a message is on its way, `props.held !== null || busy`, not only while it is held unconfirmed (`write.unknown`). A Tab during a send no longer changes «Ask Sophia» for a message already sent without her, and «Sophia will answer» cannot show for it. Lint (type-aware) and typecheck clean, the node tests pass (51); the browser specs could not be run locally (the machine guard refuses Playwright beside a heavy app), so CI is the run on record.",
+            "path": "apps/studio/src/features/conversations/ConversationComposer.tsx",
+            "line": 149,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487741059,
+            "url": "https://github.com/davidelaverga/Sophia/pull/265#pullrequestreview-5487741059",
+            "body": "",
+            "path": null,
+            "line": null,
+            "login": "EdX2C"
+          }
+        ]
+      },
+      {
+        "pr": 266,
+        "comments": [
+          {
+            "id": 6119579989,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#issuecomment-6119579989",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:43:50.255961Z\">2026-10-12T07:43:50.255961Z</relative-time> | `f4962f9` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245528270,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#discussion_r4245528270",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Restore focus after opening the matched conversation**\n\nWhen a keyboard user activates this button, `openOne` closes the form and unmounts the focused element, but this path never focuses the opened thread as the `arrived` path does. On a phone, the screen therefore switches to the conversation with focus left on `document.body`, so the next Tab starts from page order and a screen reader receives no focused destination. Move focus to the opened conversation heading or another appropriate control after rendering.\n\nAGENTS.md reference: [AGENTS.md:L61-L61](https://github.com/davidelaverga/Sophia/blob/2aa67e5dea584ef67a0f051bbfaca9c1b9568af1/AGENTS.md#L61-L61)\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/NewConversation.tsx",
+            "line": 159,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487558516,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#pullrequestreview-5487558516",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `2aa67e5dea`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245663907,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#discussion_r4245663907",
+            "body": "Fixed in `f4962f9a`: the conversation opened from the form takes the focus on its title through the started conversation's own path (`start.arrive(id)`, which `OpenConversation` reads as `arrived` and focuses its heading once). A headless probe pressed the line's button from the keyboard: the active element is the opened conversation's `H3` «Short or long briefs?», not `body`; same-question.spec now presses it with Enter and reads the focus there. Lint (type-aware) and typecheck clean, the node tests pass (51); the browser specs could not be run locally (the machine guard refuses Playwright beside a heavy app), so CI is the run on record.",
+            "path": "apps/studio/src/features/conversations/NewConversation.tsx",
+            "line": 159,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487741281,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#pullrequestreview-5487741281",
+            "body": "",
+            "path": null,
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487781393,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#pullrequestreview-5487781393",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `f4962f9a34`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245693025,
+            "url": "https://github.com/davidelaverga/Sophia/pull/266#discussion_r4245693025",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Allow long matched titles to wrap inside the form**\n\nWhen a matching conversation title contains a long unbroken token, such as a URL or identifier, this `inline-flex` button keeps that token’s min-content width. On a phone it can exceed the form width, and the enclosing `.conversations` element clips the overflow, making part of the title and potentially the forward icon unreachable; constrain the button and allow its title to wrap or break. Studio changes require browser verification, including the phone layout.\n\nAGENTS.md reference: [AGENTS.md:L61-L61](https://github.com/davidelaverga/Sophia/blob/f4962f9a340a0b1709cdc32bd3a5cd2edb5f7dd8/AGENTS.md#L61-L61)\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/conversations.css",
+            "line": 866,
+            "login": "chatgpt-codex-connector[bot]"
+          }
+        ]
+      },
+      {
+        "pr": 267,
+        "comments": [
+          {
+            "id": 6119641224,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#issuecomment-6119641224",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:43:41.285256Z\">2026-10-12T07:43:41.285256Z</relative-time> | `fc5f00f` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487618023,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#pullrequestreview-5487618023",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `5c6c21d46e`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245569067,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#discussion_r4245569067",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Wait for membership before consuming ask arrivals**\n\nOn a cold project load where the membership request is slower than the reports/search request, `writer` is still `undefined` when this effect runs. The branch skips `beginOn`, but `useArrival` then unconditionally marks the arrival handled, so an editor permanently loses the requested question and lands on the conversation list. Keep the arrival pending until membership resolves, while still treating a confirmed viewer as read-only.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+            "line": 92,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245569077,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#discussion_r4245569077",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Constrain forwarded questions to the conversation limit**\n\nWhen an empty-result query is longer than 120 characters, this stores the entire query as the conversation title. Knowledge explicitly permits 200 characters and project Search is uncapped, while `NewConversation` limits titles to 120 and the conversation fixture rejects longer titles, so the prefilled form cannot successfully start until the user manually shortens it. Constrain or safely shorten the forwarded query before populating the form.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245664095,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#discussion_r4245664095",
+            "body": "Fixed in `fc5f00ff`: `useArrival`'s `open` may answer `false` to keep the arrival for a later render, and Conversations does so for an ask while the membership is still unread (`writer === undefined`); once read, a member gets the form and a confirmed viewer the list. The other arrival callers are unchanged (their return values are ignored unless `false`). Lint (type-aware) and typecheck clean, the node tests pass (51); the browser specs could not be run locally (the machine guard refuses Playwright beside a heavy app), so CI is the run on record.",
+            "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+            "line": 92,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487741506,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#pullrequestreview-5487741506",
+            "body": "",
+            "path": null,
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 4245664278,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#discussion_r4245664278",
+            "body": "Fixed in `fc5f00ff`: the words are fitted to a question's limit before they fill the form (`fitQuestion` in new-conversation.ts, 120 like the form's `maxLength`, cut at a word with an ellipsis), so a long query still starts. A headless probe sent a 210-character Knowledge query: the form's question held 113 characters ending in «…»; `new-conversation.test.ts` holds the cut. Lint (type-aware) and typecheck clean, the node tests pass (51); the browser specs could not be run locally (the machine guard refuses Playwright beside a heavy app), so CI is the run on record.",
+            "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487741712,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#pullrequestreview-5487741712",
+            "body": "",
+            "path": null,
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 4245691964,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#discussion_r4245691964",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Refocus the reused conversation form**\n\nWhen project Search is opened while the New conversation form is already visible, `start.starting` is true, so this arrival updates the question without remounting `NewConversation`; its mount-only focus effect therefore does not run. Closing the Search sheet restores focus to the header Search button, leaving keyboard users away from the newly populated Question field. Explicitly focus the existing form's question when handling this arrival.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/conversations/ConversationsView.tsx",
+            "line": 91,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487780040,
+            "url": "https://github.com/davidelaverga/Sophia/pull/267#pullrequestreview-5487780040",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `fc5f00ff1f`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          }
+        ]
+      },
+      {
+        "pr": 268,
+        "comments": [
+          {
+            "id": 6119688671,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#issuecomment-6119688671",
+            "body": "<!-- codex-pull-request-review-summary -->\n\n## Codex Review Summary\n\nThis comment shows the latest Codex review activity on this pull request.\n\n| Review | Status | Commit | Review trigger |\n| --- | --- | --- | --- |\n| 📝 **Code Review** | ✅ **Completed** <relative-time datetime=\"2026-10-12T07:43:29.733362Z\">2026-10-12T07:43:29.733362Z</relative-time> | `1d85b32` | New commits |\n\n\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\" or \"@codex security review\".\n\nCodex reacts with 👀 while any review is running, comments if it has suggestions, and reacts with 👍 once all reviews finish with no findings.\n\n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245583943,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#discussion_r4245583943",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Exclude sessions already under way from preparation asks**\n\nWhen a session has started but not ended, the project API still returns it as `nextSession` (`packages/persistence/src/project-list.ts:33-43`), and `soon()` treats its negative minute count as eligible. This selection therefore shows “Help me get ready…” with “Because it started” throughout the session; it also sorts that session ahead of another one that is genuinely about to start. Filter preparation suggestions to sessions whose `startsAt` is still in the future rather than reusing the broader join-oriented `soon()` predicate.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/personal/places-view.ts",
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487639834,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#pullrequestreview-5487639834",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `c68075c84c`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 4245664478,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#discussion_r4245664478",
+            "body": "Fixed in `1d85b327`: Home's next ask only offers sessions that start ahead of now (`soon(p, now)` and `startsAt > now`), so a session under way neither shows «Help me get ready… Because it started» nor outranks one genuinely about to start; the ask falls to the busiest room, or to nothing. places-view.test.ts holds both cases with a session five minutes in. Lint (type-aware) and typecheck clean, the node tests pass (51); the browser specs could not be run locally (the machine guard refuses Playwright beside a heavy app), so CI is the run on record.",
+            "path": "apps/studio/src/features/personal/places-view.ts",
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 5487741925,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#pullrequestreview-5487741925",
+            "body": "",
+            "path": null,
+            "line": null,
+            "login": "EdX2C"
+          },
+          {
+            "id": 4245690809,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#discussion_r4245690809",
+            "body": "**<sub><sub>![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)</sub></sub>  Reset the dismissed ask when Home is left**\n\nWhen a user presses Escape and then visits Personal or Work before returning Home, `away` remains true because `Welcome` stays mounted while its parent is merely hidden (`Places.tsx`). The suggestion therefore stays suppressed for the rest of the page lifetime rather than only for the Home visit promised by this feature. Reset this state when `hidden` becomes true so a later Home visit can offer the current ask again.\n\nUseful? React with 👍 / 👎.",
+            "path": "apps/studio/src/features/personal/Welcome.tsx",
+            "line": 294,
+            "login": "chatgpt-codex-connector[bot]"
+          },
+          {
+            "id": 5487778451,
+            "url": "https://github.com/davidelaverga/Sophia/pull/268#pullrequestreview-5487778451",
+            "body": "\n### 💡 Codex Review\n\nHere are some automated review suggestions for this pull request.\n\n**Reviewed commit:** `1d85b32741`\n    \n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+            "path": null,
+            "line": null,
+            "login": "chatgpt-codex-connector[bot]"
+          }
+        ]
+      }
+    ]
+  },
+  "runtime_r9": {
+    "commit": "1bd83eecec94d336b3b53ff2b67ec6e9a4cc1ee5",
+    "tree": "57e7752e4cbbe8d01bd82d92d449242b062afb94",
+    "parent": "7c36aa8c90d2070ee165b409910e3f39e114f171",
+    "document_sha256": "790e79c996e6024c6f2a4745d88aeca51f1206c8ff21d5746258cc5287b7f0db",
+    "lines": 916,
+    "changed_paths": 1,
+    "delta": "+147/-23 docs only",
+    "A1_A2_equal": true,
+    "A1_A2_comparison_sha256": "8195bd82d0cd5a9b9968f03805fd780d0e4d441c25cc2d091e0962dce109ef2c",
+    "A1_A2_comparison_range": "From **A-1: heading through the blank line before **Not edited: in r8, or **A-3: in r9; excludes A3.",
+    "K3_sections_equal": true,
+    "K3_sections_sha256": "66362753ab912851e0c3b00233b32416cbabfea3ee62c370b1e1b3e5f61cafbf",
+    "root_verdict": "Prior deferral/preflight/denial findings addressed at proposal scope; new A3 requires affected owner and consumer review; no source GO.",
+    "author_receipt": "https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120866358",
+    "consumer_request_delivered": true,
+    "consumer_turn": "01a12f51-968f-7b61-9de6-a2eab2730992",
+    "consumer_status": "inProgress",
+    "actual_owner_session": "session_0155SjcXhv87RErnWEBWxfBM",
+    "actual_owner_delivery": "visible message420, empty Prompt448, Stop449, exact URL verified",
+    "primary_terminal": "exact session_01KUDtFK9gWthsXSrepcLQz3, published receipt, empty Prompt638, disabled Send639"
+  },
+  "hosted_read_only": {
+    "origin": "https://studio.sophia-ei.com",
+    "tab": "5",
+    "observed_before_recovery": "CX168 initial observation, before current fresh reconciliation",
+    "visible_project_views": [
+      "Studio",
+      "Goals",
+      "Tasks",
+      "Knowledge",
+      "Resources"
+    ],
+    "conversations_visible": false,
+    "assets": [
+      "/entry.js",
+      "/assets/index-Co8mKwC4.js"
+    ],
+    "limitation": "Visible navigation only. No source SHA/API/runtime/cohort verification, no real CON app test; no mutation."
+  },
+  "new_tests_run": [],
+  "old_evidence": "CX165 at exact d966: focused unit23/23, all contract generators, next-ask/notice/normal-match IAB fixtures; bounded, not rerun.",
+  "effects": {
+    "feature_source_writes": 0,
+    "hosted_mutations": 0,
+    "provider_execution": 0,
+    "spend": 0,
+    "merges": 0,
+    "deployments": 0
+  },
+  "approval": "OP0002r6 and OP0001r4 remain draft_not_authorized/approval_ready false"
+}

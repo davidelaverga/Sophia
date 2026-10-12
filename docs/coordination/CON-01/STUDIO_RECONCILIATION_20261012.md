@@ -1,3 +1,13 @@
+**CX-0168 fresh check:** read all four actual EdX2C comments on issue198
+and PR199 again; main3c40b1c6, prepared d96626ac and draft/conflicting
+CONd527f385 are unchanged. No later exact Luis shared-file handback exists.
+Fresh PR262–268 review inventories and affected source retain the same
+owner corrections. The reconciliation below stands, without rerunning
+unchanged tests or opening concurrent writes. CON has explicitly recorded
+the expanded seven-file/contracts hold in handoff7c36aa8c and reservation
+revision9 (1bd83eec); that runtime proposal is a separate affected review.
+[Current exact checkpoint and handoff](CX-0168.md).
+
 **CX-0165 — current prepared pin d96626ac (intelligence PRs262–268).**
 Freshly read EdX2C's new PR199 comment6120119263 and the earlier #198/#199
 notes. Exact treeee484c024b79e952e3d6f44ec979102fda0ee3f8. Preserve his
