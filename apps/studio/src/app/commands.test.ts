@@ -108,6 +108,11 @@ describe('the palette’s rows', () => {
       'Do · Commands',
     ])
   })
+  it('punctuation alone is a query that matches nothing, not the blank layout (Codex on #264)', () => {
+    assert.deepEqual(rows('?!', ['knowledge']), [])
+    assert.deepEqual(rows('🙂', []), [])
+    assert.equal(rows('   ', [])[0], 'For you · Decide “Ship the retry?”')
+  })
   it('nothing used yet, nothing for you: the groups’ order, as before', () => {
     assert.deepEqual(
       paletteRows('', ROOM, []).map((r) => r.command.id),
