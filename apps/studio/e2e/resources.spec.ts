@@ -473,6 +473,14 @@ test('a request named in the address (#request-, from Home) opens its resourceâ€
   await expect(page).toHaveURL(/#request-nobody$/)
 })
 
+test('a request named with its resource opens that resourceâ€™s sheet (Codex on #245)', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#request-davide-claude/action-1`)
+  await expect(page.locator('[data-request="action-1"]')).toBeFocused()
+  // Named with another resource, it opens nothing: the request is that resource's, not the first that has the id.
+  await page.goto(`${PAGE}?viewer=davide&again=1#request-luis-gemini/action-1`) // a fresh load, not a hash change
+  await expect(page.locator('[data-request="action-1"]')).toHaveCount(0)
+})
+
 test('arrow keys move across the tiles; Tab leaves the grid in one step', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
   const names = await grid(page)
