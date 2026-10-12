@@ -405,7 +405,7 @@ button:disabled,
   min-width: 17px;
   font-size: var(--type-label);
 }
-.pill.primary:not(:disabled, [aria-disabled='true']) kbd {
+.pill.primary:not(:disabled, [aria-disabled='true']) > kbd {
   border-color: rgb(var(--void-rgb) / 0.16);
   background: rgb(var(--void-rgb) / 0.06);
   color: rgb(var(--void-rgb) / 0.55);
@@ -444,7 +444,7 @@ select option {
 /* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
 .ghost:active:not(:disabled, [aria-disabled='true']),
 .round:active:not(:disabled, [aria-disabled='true']),
-.text-button:active:not([aria-disabled='true']) {
+.text-button:active:not([aria-disabled='true'], :disabled) {
   transform: translateY(0.5px);
 }
 /* Icon controls: squares with a small radius (the class name predates the shape). */
@@ -495,7 +495,7 @@ select option {
   transition: text-decoration-color var(--fast) var(--ease);
 }
 /* Under the pointer the underline wakes from a third of its ink to the ink. */
-.text-button:hover:not([aria-disabled='true']) {
+.text-button:hover:not([aria-disabled='true'], :disabled) {
   text-decoration-color: var(--halo-text);
 }
 /* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
@@ -557,6 +557,12 @@ textarea:focus-visible {
   background: rgb(var(--ink-rgb) / 0.05);
   box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
 }
+/* On paper the focus edge is the halo's ink whole: the only sign of the keyboard's place, at 3:1 and more (Codex on
+   #234). */
+:root[data-theme='light'] :is(input, textarea):focus-visible,
+:root[data-theme='light'] .field:focus-within {
+  border-color: var(--halo-text);
+}
 select {
   height: 32px;
   padding: 0 10px;
@@ -565,6 +571,15 @@ select {
   background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text-2);
   font-size: 13px;
+}
+/* A select is a press too: under the pointer its words and its edge wake (Codex on #232). */
+select:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+input[type='checkbox']:hover:not(:disabled) {
+  filter: brightness(1.2);
 }
 .form-error {
   color: var(--rose);
@@ -916,6 +931,9 @@ button.mark:hover {
 }
 .account-menu {
   min-width: 230px;
+  /* A phone held sideways: the menu scrolls inside the screen rather than running past it (Codex on #234). */
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
 }
 .menu-head {
   display: grid;
@@ -1284,6 +1302,13 @@ img.avatar {
   position: relative;
   display: block;
   min-width: 0;
+}
+/* On paper the magnifier and the chevron take the light ink (3:1 and more on paper and white; Codex on #234). */
+:root[data-theme='light'] .search > input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='%236b6874' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='%236b6874' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+:root[data-theme='light'] select.pill {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6874' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
 }
 .search > input {
   width: 100%;
@@ -3200,7 +3225,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: var(--type-small) / var(--lh-small) var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -3220,7 +3245,7 @@ button.contribution-quote:hover {
 }
 .link-limits {
   color: var(--text-3);
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.02em;
 }
 .sheet-form {
@@ -3588,12 +3613,13 @@ button.contribution-quote:hover {
   /* With a row's own 7 px, the first event starts 18 px under the rule, as the first goal does. */
   gap: 11px;
 }
-/* Beside the work, the pulse's head is as tall as the view's head (a 24 px title line, 12 px of air, the rule), so
-   the two rules meet in one line and the small title stands on the large one's baseline. */
+/* Beside the work, the pulse's head is as tall as the view's head (its title's line, 12 px of air, the rule), so the
+   two rules meet in one line and the small title stands on the large one's baseline. The title's line is the view's
+   (--lh-view): enlarged with it (Codex on #246). */
 .pulse-head {
   display: flex;
   align-items: flex-end;
-  min-height: 37px;
+  min-height: calc(var(--lh-view) + 13px);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
@@ -5080,4 +5106,20 @@ button.contribution-quote:hover {
 }
 .task-row .task-said:empty {
   height: 0;
+}
+/* Updates' kind strip: on a narrow phone, five kinds with their counts outgrow the column; the strip scrolls in it, the
+   page does not (Codex on #239). */
+.updates-narrow .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
+   on #241). */
+.report-main-data {
+  font-size: var(--type-label);
+}
+/* A number inside a label (the review sources' «up to N»): data, on the 10.5 px scale. */
+.field-label .data {
+  font-size: var(--type-label);
 }
