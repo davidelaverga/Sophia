@@ -1,0 +1,58 @@
+{
+  "candidate": "d5dbda5815eb10d8d74772327f35082ff57864f1",
+  "dock600": {
+    "dockInert": null,
+    "dockPosition": "fixed",
+    "focusId": "conv-context",
+    "focusInContext": true,
+    "focusTag": "ASIDE",
+    "width": 600
+  },
+  "remove": {
+    "buttons": [
+      {
+        "class": "button",
+        "height": 26,
+        "text": "Remove"
+      },
+      {
+        "class": "text-button",
+        "height": 24,
+        "text": "Keep it"
+      }
+    ],
+    "focus": "Remove",
+    "text": "Remove this message? Its words leave this conversation for everyone, and so do Sophia’s answers that read it. This can’t be undone.RemoveKeep it"
+  },
+  "noticeDesktop": {
+    "box": {
+      "bottom": 114,
+      "height": 16,
+      "left": 328,
+      "right": 952,
+      "top": 98,
+      "width": 624,
+      "x": 328,
+      "y": 98
+    },
+    "color": "rgba(236, 235, 241, 0.66)",
+    "fontSize": "12px",
+    "text": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here."
+  },
+  "noticePhone": {
+    "box": {
+      "bottom": 172,
+      "height": 32,
+      "left": 14,
+      "right": 376,
+      "top": 140,
+      "width": 362,
+      "x": 14,
+      "y": 140
+    },
+    "color": "rgba(236, 235, 241, 0.66)",
+    "fontSize": "12px",
+    "text": "Messages here are saved for this project and can be read by its members. Live room audio is not saved here.",
+    "viewport": 390
+  }
+}

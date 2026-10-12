@@ -1,0 +1,33 @@
+{
+  "classification": "local L1 browser fixture, no API/native/provider",
+  "candidate": "d5dbda5815eb10d8d74772327f35082ff57864f1",
+  "tree": "e7d4b28d46a6d6ff76cd0c2b94bb4325c8c10586",
+  "mainAtDiscovery": "26237d30fa0570b711f7f71ed240fa465519d7dc",
+  "node": "24.21.0",
+  "pnpm": "11.7.0",
+  "filesSha256": {
+    "notice1280.png": "fc9627f0a4cb5780c62896d5b314da72d2c369e80b2861ae22bbea7ae12efe9e",
+    "dock600.png": "8555a67aa2c3d771d3e90182e5f64c69d07e53bca13350fddcfa845c609e60ae",
+    "cleanup.json": "e97aac8b071e4b1b13126356ba57786e62bebd48704033d7f574799005ae167a",
+    "notice390.png": "89e16f59eaf0018ce172eada5816b102607d499f8f4adbd4d7941d3c5204eaf3",
+    "measures.json": "1bb09d4630eda2c6a7ebb1e6761a52e9723662178652f8521b46e0e28d486dcd",
+    "remove1280.png": "49fe0685b69a376a620d9447c6ca66cb59a2fabc3ab58ba65a274ad384a336b2"
+  },
+  "actions": [
+    "Fresh complete EdX2C comments on issue198 and PR199 read; no later EdX2C handback",
+    "Fetch current main and kit without resetting any branch",
+    "Clean detached reviewer harness switched93e -> d5dbda; dependency manifests and lock unchanged",
+    "Sanitized-env Vite fixture, loopback49832,300-second ceiling, original vite.fixtures.config.ts",
+    "Actual IAB1000x800: Context opened, Join focused with locator.press(Shift);600x800: focusId conv-context",
+    "1280x800: open Remove, measure26px vsKeep24px; close viaKeep; no destructive action",
+    "Existing conversations=none fixture -> New conversation: notice measured1280x800 and390x844; no Start/Send",
+    "Close tab16; reset viewport; TERM exact owned process group8949; exit0/PIDabsent/portclosed; restore clean93e harness"
+  ],
+  "limitations": [
+    "No coarse-pointer/touch or Safari clipboard validation",
+    "No clearance of intermittent phone late-erasure case or full combined G3/G4",
+    "Fixture config enables proposed vision fixtures locally only, no production activation",
+    "No hosted deployment/migration/config/account/grant/provider effect; Ask disabled",
+    "Policy notice measured is existing fixture copy, not acceptance of unsettled D1/D3/Q1 policy"
+  ]
+}
