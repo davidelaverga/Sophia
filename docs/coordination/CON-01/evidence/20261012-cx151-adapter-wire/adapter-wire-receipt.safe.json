@@ -1,0 +1,155 @@
+{
+  "scope": "L0 actual installed adapter serialized-body capture, not provider or subscription qualification",
+  "runtime": "v24.21.0",
+  "platform": "darwin",
+  "installedPiAi": "0.87.1",
+  "sourceHashes": {
+    "api/openai-codex-responses.js": "6e69310d77278231cfc87d7f03ee815d4a0f2ff273e6c43fcee6835e7df2b0c7",
+    "api/openai-responses.js": "3e95145f94ac2a255d1adc0ae65cf02c2e6d479f7a2dbf5c466db21885c29ec6",
+    "utils/transcript.js": "cd63514661b4036c3bcdda11a108f6be853f790a01216bf30fa80121e4fd320f"
+  },
+  "cases": [
+    {
+      "name": "codex_16",
+      "requestedMaxTokens": 16,
+      "capturedUrl": "https://chatgpt.com/backend-api/codex/responses",
+      "captures": 1,
+      "contentEncoding": "zstd",
+      "sentMaxOutputTokens": null,
+      "store": false,
+      "stream": true,
+      "inputItems": 1,
+      "toolsAbsent": true,
+      "payloadMatchesSerializedBody": true,
+      "terminal": "local sentinel error",
+      "events": [
+        "error"
+      ],
+      "bodyKeys": [
+        "include",
+        "input",
+        "instructions",
+        "model",
+        "parallel_tool_calls",
+        "store",
+        "stream",
+        "text",
+        "tool_choice"
+      ]
+    },
+    {
+      "name": "codex_512",
+      "requestedMaxTokens": 512,
+      "capturedUrl": "https://chatgpt.com/backend-api/codex/responses",
+      "captures": 1,
+      "contentEncoding": "zstd",
+      "sentMaxOutputTokens": null,
+      "store": false,
+      "stream": true,
+      "inputItems": 1,
+      "toolsAbsent": true,
+      "payloadMatchesSerializedBody": true,
+      "terminal": "local sentinel error",
+      "events": [
+        "error"
+      ],
+      "bodyKeys": [
+        "include",
+        "input",
+        "instructions",
+        "model",
+        "parallel_tool_calls",
+        "store",
+        "stream",
+        "text",
+        "tool_choice"
+      ]
+    },
+    {
+      "name": "public_512",
+      "requestedMaxTokens": 512,
+      "capturedUrl": "https://api.openai.com/v1/responses",
+      "captures": 1,
+      "contentEncoding": null,
+      "sentMaxOutputTokens": 512,
+      "store": false,
+      "stream": true,
+      "inputItems": 2,
+      "toolsAbsent": true,
+      "payloadMatchesSerializedBody": true,
+      "terminal": "local sentinel error",
+      "events": [
+        "error"
+      ],
+      "bodyKeys": [
+        "input",
+        "max_output_tokens",
+        "model",
+        "store",
+        "stream"
+      ]
+    },
+    {
+      "name": "public_compat_off_512",
+      "requestedMaxTokens": 512,
+      "capturedUrl": "https://api.openai.com/v1/responses",
+      "captures": 1,
+      "contentEncoding": null,
+      "sentMaxOutputTokens": null,
+      "store": false,
+      "stream": true,
+      "inputItems": 2,
+      "toolsAbsent": true,
+      "payloadMatchesSerializedBody": true,
+      "terminal": "local sentinel error",
+      "events": [
+        "error"
+      ],
+      "bodyKeys": [
+        "input",
+        "model",
+        "store",
+        "stream"
+      ]
+    },
+    {
+      "name": "public_below_minimum_1",
+      "requestedMaxTokens": 1,
+      "capturedUrl": "https://api.openai.com/v1/responses",
+      "captures": 1,
+      "contentEncoding": null,
+      "sentMaxOutputTokens": 16,
+      "store": false,
+      "stream": true,
+      "inputItems": 2,
+      "toolsAbsent": true,
+      "payloadMatchesSerializedBody": true,
+      "terminal": "local sentinel error",
+      "events": [
+        "error"
+      ],
+      "bodyKeys": [
+        "input",
+        "max_output_tokens",
+        "model",
+        "store",
+        "stream"
+      ]
+    }
+  ],
+  "cleanup": {
+    "ownedServer": false,
+    "ownedChild": false,
+    "runtimeStarted": false,
+    "credentialsRead": false,
+    "providerCalls": 0,
+    "realNetworkCalls": 0,
+    "unexpectedGlobalFetchCalls": 0
+  },
+  "limits": [
+    "Synthetic model does not select a route.",
+    "400 response is injected locally, not a real provider refusal.",
+    "No OAuth/sign-in, credential lifecycle, account topology, quota telemetry or hard execution bound is qualified.",
+    "No claim that all possible supported routes or bounds are impossible."
+  ]
+}
