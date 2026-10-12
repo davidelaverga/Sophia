@@ -15,7 +15,7 @@
 // - a review of the lead's that proposes a change: a pill in the bar, its card in the decisions' slot, one or the
 //   other (ReviewResult.tsx). The review is the goal's own read, beside the view (review.ts), never part of the plan.
 // Everything the viewer did here (commands, drafts, questions, the lens) is theirs: another viewer starts afresh.
-import { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { EmptyState, Icon } from '@sophia/ui'
 import { linkedId, showInAddress, TASK } from '../../resources/link.ts'
 import { useAddressed } from '../../resources/useAddressed.ts'
@@ -463,6 +463,44 @@ function useBoard(rows: readonly PlanRow[], viewerId: string | null, changed: Re
   return { lit, setLit, open, setOpen, lens, setLens, waited, flags, step }
 }
 
+/**
+ * A tile with the focus that moves lanes (its blocker complete, in a live update) is mounted anew in the other lane:
+ * the focus follows it there, by its task, instead of falling to the page (Codex on #236). A focus moved elsewhere, or
+ * a tile left on purpose, is not followed.
+ */
+function useTileFocus(rows: readonly PlanRow[]) {
+  const held = useRef<string | null>(null)
+  useEffect(() => {
+    const into = (e: FocusEvent) => {
+      const tile = e.target instanceof Element ? e.target.closest<HTMLElement>('.board [data-task]') : null
+      held.current = tile?.dataset['task'] ?? null
+    }
+    // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
+    // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
+    const out = (e: FocusEvent) => {
+      const left = e.target
+      if (!(left instanceof Element) || e.relatedTarget) return
+      queueMicrotask(() => {
+        if (left.isConnected && document.activeElement === document.body) held.current = null
+      })
+    }
+    document.addEventListener('focusin', into)
+    document.addEventListener('focusout', out)
+    return () => {
+      document.removeEventListener('focusin', into)
+      document.removeEventListener('focusout', out)
+    }
+  }, [])
+  useLayoutEffect(() => {
+    const id = held.current
+    if (id === null || document.activeElement !== document.body) return
+    const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
+      (el) => el.dataset['task'] === id,
+    )
+    tile?.focus({ preventScroll: true })
+  }, [rows])
+}
+
 /** The lanes side by side (four; five while something is blocked), moved through by the arrows, with the threads drawn over them. */
 function Lanes({
   rows,
@@ -475,6 +513,7 @@ function Lanes({
 }) {
   const lanes = useRef<HTMLDivElement>(null)
   const shown = shownLanes(rows)
+  useTileFocus(rows)
   return (
     <div
       ref={lanes}
