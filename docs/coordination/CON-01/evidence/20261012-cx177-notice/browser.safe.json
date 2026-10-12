@@ -1,0 +1,91 @@
+{
+  "candidate": "3878328f8bd62057d5e877775da8cfa2386696c1",
+  "tree": "e7d549fdecddc5087a4cdd0d121bc761b750af99",
+  "class": "local_synthetic_fixture_only",
+  "desktopFirst": {
+    "color": "rgba(236, 235, 241, 0.66)",
+    "focus": "",
+    "fontSize": "12px",
+    "height": 72,
+    "horizontalOverflow": false,
+    "inViewport": true,
+    "lineHeight": "18px",
+    "text": "Titles and messages here are saved for this project, and its current members can read them. They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. You can withdraw your own messages; admins can remove any message or erase a conversation. Hosted backups keep their own retention, and what someone has already seen can’t be unseen. Live room audio is not saved here.",
+    "viewport": {
+      "height": 800,
+      "width": 1280
+    },
+    "width": 624,
+    "x": 328,
+    "y": 105
+  },
+  "phoneFirst": {
+    "color": "rgba(236, 235, 241, 0.66)",
+    "fontSize": "12px",
+    "height": 126,
+    "horizontalOverflow": false,
+    "inViewport": true,
+    "lineHeight": "18px",
+    "text": "Titles and messages here are saved for this project, and its current members can read them. They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. You can withdraw your own messages; admins can remove any message or erase a conversation. Hosted backups keep their own retention, and what someone has already seen can’t be unseen. Live room audio is not saved here.",
+    "viewport": {
+      "height": 844,
+      "width": 390
+    },
+    "width": 362,
+    "x": 14,
+    "y": 147
+  },
+  "phoneControls": {
+    "height": 24,
+    "inViewport": true,
+    "width": 41.03125,
+    "x": 82.40625,
+    "y": 547.09375
+  },
+  "phoneLaterHelpBeforeScroll": {
+    "color": "rgba(236, 235, 241, 0.66)",
+    "containerClientHeight": 617,
+    "containerScrollHeight": 907,
+    "fontSize": "12px",
+    "height": 144,
+    "inViewport": false,
+    "lineHeight": "18px",
+    "scrollContainer": true,
+    "text": "Titles and messages here are saved for this project, and its current members can read them. They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. You can withdraw your own messages; admins can remove any message or erase a conversation. Hosted backups keep their own retention, and what someone has already seen can’t be unseen. Live room audio is not saved here.",
+    "width": 335,
+    "x": 22,
+    "y": 966.59375
+  },
+  "phoneLaterHelpAfterNormalScroll": {
+    "contextScrollTop": 290.5,
+    "height": 144,
+    "inViewport": true,
+    "width": 335,
+    "x": 22,
+    "y": 676.09375
+  },
+  "desktopLaterHelp": {
+    "color": "rgba(236, 235, 241, 0.66)",
+    "contextClientHeight": 752,
+    "contextScrollHeight": 1033,
+    "fontSize": "12px",
+    "height": 198,
+    "inViewport": true,
+    "lineHeight": "18px",
+    "text": "Titles and messages here are saved for this project, and its current members can read them. They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. You can withdraw your own messages; admins can remove any message or erase a conversation. Hosted backups keep their own retention, and what someone has already seen can’t be unseen. Live room audio is not saved here.",
+    "width": 245,
+    "x": 1002,
+    "y": 512.2265625
+  },
+  "humanOnlySyntheticStart": true,
+  "askUncheckedBeforeStart": true,
+  "realApi": false,
+  "providerCalls": 0,
+  "hostedEffects": [],
+  "limits": [
+    "No signed-in actual app acceptance",
+    "No real durable-record or provider proof",
+    "No final combined-main/Studio-kit qualification",
+    "Author unit/browser gates not inferred from this evidence"
+  ]
+}

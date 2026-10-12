@@ -1,0 +1,82 @@
+{
+  "candidate": "3878328f8bd62057d5e877775da8cfa2386696c1",
+  "tree": "e7d549fdecddc5087a4cdd0d121bc761b750af99",
+  "parent": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+  "author_receipts": [
+    6122250455,
+    6122414782
+  ],
+  "verdict": "SCOPED_NOTICE_SOURCE_AND_LOCAL_IAB_FIXTURE_PASS; not combined release clearance",
+  "diff": {
+    "files": 2,
+    "insertions": 16,
+    "deletions": 3
+  },
+  "source_review": "Full exact diff read; literal mirrored copy; only notice/comments changed; no A16 shape/component/CSS/runtime/migration changes",
+  "checks": {
+    "toolchain": "Node24.21.0/pnpm11.7.0 exit0",
+    "prettier_two_files": "exit0",
+    "IAB": "1280x800 and390x844 first-message and later context-help paths; normal phone scrolling reaches all text",
+    "author_units": "pending, exact taskb9t2yf1ma not counted passed",
+    "author_browser": "pending; independent narrow manual checks do not substitute whole suite"
+  },
+  "cleanup": {
+    "fixture_pid": 28660,
+    "server_session": 9201,
+    "intentional_SIGTERM": true,
+    "server_exit": 143,
+    "pid_absent": true,
+    "port49832_closed": true,
+    "tab27_closed": true,
+    "viewport_reset": true,
+    "harness_restored_clean": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "hosted_tab5_retained": true,
+    "author_owned_cluster_and_temp_spec": "pending author cleanup; no reviewer claim"
+  },
+  "effects": {
+    "sophia_provider_calls": 0,
+    "hosted_mutations": [],
+    "uncertain_hosted_effects": [],
+    "new_native_Sophia_Asks": 0,
+    "synthetic_human_start": 1,
+    "additional_sophia_spend": 0,
+    "coding_agent_coordination_usage": "unmeasured/private"
+  },
+  "screenshots": [
+    {
+      "file": "desktop-after-first-help.jpg",
+      "width": 1280,
+      "height": 800,
+      "sha256": "c8f94a026abd769a71c256fc81330037c8e268743208fc22f5d5a45dad2ee811",
+      "mimeType": "image/jpeg"
+    },
+    {
+      "file": "desktop-first.jpg",
+      "width": 1280,
+      "height": 800,
+      "sha256": "f6ee444b893574bc7044a8ebb1ecd23fa529d2dde39bab095e7bd4e11c3afbe2",
+      "mimeType": "image/jpeg"
+    },
+    {
+      "file": "phone-after-first-help-scrolled.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "56b7a6f9d3eeb98f2e677fc9416593b844eb86fd1337cf4d9f9661863b776488",
+      "mimeType": "image/jpeg"
+    },
+    {
+      "file": "phone-after-first-help.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "8c637eb674bd79d855028b34103c4c104f6f4a083c67134cdd866f1d5cc3b0f0",
+      "mimeType": "image/jpeg"
+    },
+    {
+      "file": "phone-first.jpg",
+      "width": 390,
+      "height": 844,
+      "sha256": "2bbb31f90f3c3e026ebe3dfc06d897ec9188f3c504e5eb15da1b7a6613efffd2",
+      "mimeType": "image/jpeg"
+    }
+  ]
+}
