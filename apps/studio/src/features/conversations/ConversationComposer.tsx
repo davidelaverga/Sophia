@@ -9,7 +9,7 @@
 // asks drop what was just asked (docs/plans/next-ask.md).
 import { useQueryClient } from '@tanstack/react-query'
 import { type KeyboardEvent, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react'
-import { NextAskHint, nextAskKey } from '@sophia/ui'
+import { isQuestion, NextAskHint, nextAskKey, questionKey } from '@sophia/ui'
 import type { ApiError } from '../../api/client.ts'
 import {
   sendConversationMessage,
@@ -52,22 +52,27 @@ interface Props {
 /** The field's name, and its placeholder when nothing is suggested. */
 const FIELD = 'Continue this question with the team'
 
-/** The field's keys: the suggestion's (accept, put away) at the empty field, then Enter sends, Shift+Enter a line. */
+/** What a hint's key cap says: why (its tip) and what Tab does (its description). */
+interface Hint {
+  why: string
+  description: string
+}
+
+/** The field's keys: the suggestion's (accept, put away) at the empty field, Tab at a question asks Sophia too, then
+ * Enter sends, Shift+Enter a line. */
 function useFieldKeys(
   draft: string,
-  shown: Suggestion | null,
-  on: { accept: () => void; putAway: () => void; send: () => void },
+  state: { shown: Suggestion | null; asked: boolean },
+  on: { accept: () => void; putAway: () => void; ask: () => void; send: () => void },
 ) {
   return (e: KeyboardEvent<HTMLTextAreaElement>) => {
     const { key, shiftKey, altKey, ctrlKey, metaKey } = e
-    const move = nextAskKey(
-      { key, shiftKey, altKey, ctrlKey, metaKey, isComposing: e.nativeEvent.isComposing },
-      draft,
-      shown !== null,
-    )
+    const press = { key, shiftKey, altKey, ctrlKey, metaKey, isComposing: e.nativeEvent.isComposing }
+    const move = nextAskKey(press, draft, state.shown !== null) ?? questionKey(press, draft, state.asked)
     if (move) {
       e.preventDefault()
       if (move === 'accept') on.accept()
+      else if (move === 'ask') on.ask()
       else on.putAway()
       return
     }
@@ -140,16 +145,36 @@ function useComposerNext(props: Props, held: boolean, go: () => Promise<void>) {
     held || props.refused !== null || !props.canSend,
   )
   const shown = props.draft === '' ? next.suggestion : null
-  const onKey = useFieldKeys(props.draft, shown, {
-    accept: () => {
-      if (!shown) return
-      props.onDraft(shown.words)
-      props.onAskSophia(true)
+  // A question written while Sophia is not asked (and nothing held): Tab asks her too (docs/plans/question-asks.md).
+  const asked = held || props.askSophia
+  const onKey = useFieldKeys(
+    props.draft,
+    { shown, asked },
+    {
+      accept: () => {
+        if (!shown) return
+        props.onDraft(shown.words)
+        props.onAskSophia(true)
+      },
+      putAway: next.putAway,
+      ask: () => props.onAskSophia(true),
+      send: () => void go(),
     },
-    putAway: next.putAway,
-    send: () => void go(),
-  })
-  return { id: next.id, shown, quick: next.quick, onKey }
+  )
+  return { id: next.id, shown, hint: hintOf(shown, !asked && isQuestion(props.draft)), quick: next.quick, onKey }
+}
+
+/** The key cap's words: the suggestion's at the empty field, or a question's while Sophia is not asked; else none. */
+function hintOf(shown: Suggestion | null, question: boolean): Hint | null {
+  if (shown)
+    return {
+      why: shown.why,
+      // Why, too, for the keyboard and a screen reader (Codex on #262); a suggestion ending in «?» takes no full stop.
+      description: `Suggested: ${/[?.!]$/u.test(shown.words) ? shown.words : `${shown.words}.`} ${shown.why}. Tab puts it in the field; Escape puts it away.`,
+    }
+  if (question)
+    return { why: 'A question: Tab asks Sophia too', description: 'A question: Tab asks Sophia to answer it too.' }
+  return null
 }
 
 /** The field and its presses: the suggestion's key cap beside the words, «Ask Sophia», Send. */
@@ -160,20 +185,20 @@ function FieldBox(props: {
   next: ReturnType<typeof useComposerNext>
   children: ReactNode
 }) {
-  const { shown, id } = props.next
+  const { shown, hint, id } = props.next
   return (
     <div className="conv-field-box">
       <textarea
         aria-label={FIELD}
         placeholder={shown?.words ?? FIELD}
-        aria-describedby={shown ? id : undefined}
+        aria-describedby={hint ? id : undefined}
         ref={props.grows}
         rows={1}
         value={props.draft}
         onChange={(e) => props.onDraft(e.target.value)}
         onKeyDown={props.next.onKey}
       />
-      {shown && <NextAskHint id={id} words={shown.words} why={shown.why} />}
+      {hint && <NextAskHint id={id} description={hint.description} why={hint.why} />}
       {props.children}
     </div>
   )
