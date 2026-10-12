@@ -563,9 +563,16 @@ select option {
   text-underline-offset: 3px;
   transition: text-decoration-color var(--fast) var(--ease);
 }
-/* Under the pointer the underline wakes from a third of its ink to the ink. */
-.text-button:hover:not([aria-disabled='true'], :disabled) {
+/* Under the pointer the underline wakes from a third of its ink to the ink; a text button that is disabled (a command
+   sending) keeps still, as a pill does (Codex on #253). */
+.text-button:hover:not(:disabled, [aria-disabled='true']) {
   text-decoration-color: var(--halo-text);
+}
+/* A goal's text commands, waiting while another one sends: the step of a disabled pill there. Elsewhere a disabled
+   button keeps the kit's 0.45 (Codex on #253: unscoped, it lifted every text button). */
+.controls .text-button:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 /* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
    class alone (a pill 32, a ghost 28, a square 36, an inline action 24); a modifier takes it one step down or up
@@ -3567,6 +3574,18 @@ button.contribution-quote:hover {
 .controls .pill {
   height: 28px;
   padding: 0 10px;
+}
+/* The quieter acts (Hold, Stop) stand a step further from the one filled press than from each other: a goal's
+   controls only, not every row of presses (Codex on #253). */
+.controls .control-row .pill + .text-button {
+  margin-left: 6px;
+}
+/* On a coarse pointer a text press's target reaches 4 px past each side (theme.css): two text presses side by side
+   (Hold, Stop) keep 8 px between them, so the targets never meet (Codex on #253). */
+@media (pointer: coarse) {
+  .controls .control-row {
+    gap: 8px;
+  }
 }
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
