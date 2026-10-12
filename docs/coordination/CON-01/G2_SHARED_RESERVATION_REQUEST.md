@@ -1,9 +1,38 @@
-# CON-01 G2 Phase B: the shared reservation request, revision 6 (for the owners' acknowledgement; docs only)
+# CON-01 G2 Phase B: the shared reservation request, revision 7 (for the owners' acknowledgement; docs only)
 
 **What this is.** The record that BINDING_MAP §8.8 Q6 and D-10 call `G2_SHARED_RESERVATION_REQUEST.md`. It covers freeze r2's Phase B start conditions [3] and [4].
 - **What it asks:** each recorded owner's narrow acknowledgement of its own surfaces, the exact Phase B scope, and the base, number, writer, order and handback that must be recorded before any shared write.
 - **It asks; it assumes nothing.** No shared file, migration, number, contract, runtime, grant, role, route, deployment or provider effect is written or authorized here.
 - **It doesn't repeat what is already pending elsewhere.** It points to it (§6).
+
+**Revision 7, after CX-0164: K-2d's conditions incorporated, and one amendment (D4).**
+- **What arrived:** the joint WBC-02/SDD-01 implementer (session `session_0155SjcXhv87RErnWEBWxfBM`) gave **K-2d, conditional,** against exact revision 5, in #198 comment 6120057551. Codex verified the author, and that 0041's and 0042's whole bytes at the owner's cited `e0200f1a` equal current `main` `3c40b1c6`. The conditions are D1 to D5, C1 to C4 and N1.
+- **What revision 7 does:** it writes those conditions into §3.1 as the owner stated them. Each is exactly the owner's condition, and none widens what may be written:
+
+| Owner condition | Where it now stands |
+|---|---|
+| D1, D2 and D5: where the reply branch and the goal-less guard go in `dispatch_runtime_outbox`; the goal path otherwise byte-identical | §3.1(b), its row |
+| D3: what `conversation_dispatch` must do to enqueue, deny or defer | §3.1(d), "Dispatch and delivery" |
+| **D4: a `native.retire` row belongs to a reply only** | **§3.1(a): a new outbox CHECK (the one material amendment)** |
+| C1 to C4: `capture_native_result`'s reply branch: its place, its limits, its guard and its idempotence | §3.1(b), its row |
+| N1: `native_delivery_ineligible`'s one first `WHEN` | §3.1(b), its row |
+| The ACLs and the preservation proof | §3.1(b), its introduction |
+| Future tests for each | §3.1's tests |
+
+- **D4, precisely.**
+  - **The gap:** on the goal path, a non-cleanup row's runtime-command kind is `substr(o.destination, 8)` (0042:1846). Once K-2b widens `runtime_commands.kind` with `retire`, a goal-bound `native.retire` row would become a `retire` command for a goal binding. Revision 5's §3.1(a) added the exclusive goal-or-reply reference, but no constraint on the destination.
+  - **The guard:** `CHECK (destination <> 'native.retire' OR conversation_reply_id IS NOT NULL)`, under the existing S1-02 DDL scope. The goal path's `native.create` and `native.stop` rows, and every existing row, are untouched.
+  - **Why no second guard:** a goal cleanup row takes its kind from its command (`kind := c.kind`, 0042:1831). Every goal-side cleanup writer writes only `hold` or `stop` (`admit_goal_command`, 0012:285, :311-335; `research_stop_revoked`, 0028:120-123), and none is added. So no second guard is needed. If the owner wants one anyway, it would be the reply branch denying a non-reply `native.retire`; it is named here for review, and not added.
+  - **What is not added:** no live constraint, grant or migration. Like all DDL here, it runs only on a disposable test database in Phase B.
+- **Rechecks owed:** this is a material manifest amendment.
+  - It needs Codex's independent recheck, and the joint lane's consumer recheck, since K-1c was for revision 5.
+  - It needs the owner's review of D4's incorporation, under K-2d.
+- **K-3 is unresolved, and is not claimed.**
+  - #190's historical product writer (`aca33481`) can't be reached.
+  - 6120057551 supplied the engineering overlap and order, but expressly reserved the authority.
+  - A follow-up from the same retained coordinator, #198 comment 6120100817 (07:54:57Z), states an acknowledgement "in its own name, within its retained source-coordination remit", against revision 5. It answers the clarification Codex sent. It is recorded here as received, without acceptance as K-3. Whether it suffices is for Codex to verify and the owner to decide.
+  - The question is not asked again, and no actor is recreated.
+- **Everything else stays held.** K-1b, K-2a, K-2b, K-2c, Luis's K-4 base, his Studio handback, and K-5 (§5).
 
 **Revision 6, after CX-0162: the acknowledgement state, recorded; no manifest change.**
 - **Revision 5 (`b975bbe2`) has no findings.** The joint lane gave **K-1c** for that exact revision, A-1 and A-2 included, within its consumer remit (CX-0162). That is a consumer review only, not an owner ACK, an implementation qualification or a GO.
@@ -74,7 +103,9 @@ What revisions 1 and 2 got right stands: the frozen Q7 r8 design and its consume
 | Codex's root review of revision 4 | [CX-0161](https://github.com/davidelaverga/Sophia/blob/a2118b1b7adac79c39eed93c3e29a3da4731f085/docs/coordination/CON-01/CX-0161.md) at `a2118b1b`; [#198 comment 6119498696](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119498696) |
 | The joint review of revision 5 | [`joint-phase-b-r5-review.safe.json`](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/evidence/20261012-cx162-reservation-r5/joint-phase-b-r5-review.safe.json) at `2cb08a7b`, SHA-256 `86f1614cd3d98912…` (original `75904e556aead0be…`). `BOUNDED_CONSUMER_COMPATIBILITY_ACK_EXACT_PHASE_B_R5_K1C_ONLY_NO_WRITE_GO`; findings empty |
 | Codex's root review of revision 5 | [CX-0162](https://github.com/davidelaverga/Sophia/blob/2cb08a7b4a77c31808506c8ee2528393ed407fd3/docs/coordination/CON-01/CX-0162.md) at `2cb08a7b`; [#198 comment 6119717658](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6119717658) |
-| Revision 5 of this file | `b975bbe2409cce9d3349c049e2de5569b164b648`, tree `895b75e2`, SHA-256 `69219da474faf2c8…`, 677 lines. §1 to §4 here are byte-identical to it |
+| The joint implementer's K-2d, and its K-3 statement | [#198 comment 6120057551](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120057551): K-2d, conditional (D1 to D5, C1 to C4, N1), against exact revision 5; its author is verified by Codex. [#198 comment 6120100817](https://github.com/davidelaverga/Sophia/issues/198#issuecomment-6120100817): a K-3 statement in the coordinator's own remit, received and not yet verified |
+| Revision 6 of this file | `193badb41cd5919bd863429b6ac07e2ac2bc7311`, tree `6304b5be`, SHA-256 `9b04335e14f5f84c…`, 712 lines. Its §1 to §4 were byte-identical to revision 5's |
+| Revision 5 of this file | `b975bbe2409cce9d3349c049e2de5569b164b648`, tree `895b75e2`, SHA-256 `69219da474faf2c8…`, 677 lines. The revision that K-1c, K-2d and the K-3 statement each name |
 | The current operation drafts | [`CON-01-OP-0002-r6.json`](https://github.com/davidelaverga/Sophia/blob/8af725ea44a6f16b4c0f2c6f6c004bef154c1fcf/docs/coordination/CON-01/CON-01-OP-0002-r6.json) (setup and human chat; SHA-256 `4ea475e83a44410c…`) and [`CON-01-OP-0001-r4.json`](https://github.com/davidelaverga/Sophia/blob/8af725ea44a6f16b4c0f2c6f6c004bef154c1fcf/docs/coordination/CON-01/CON-01-OP-0001-r4.json) (Ask; SHA-256 `661b196bb87f23bd…`), at `8af725ea`. Both are `draft_not_authorized`, and r5 and r3 stay as history. **Pointers only: not reviewed or approved here** |
 | Revision 4 of this file | `a31c023f5fe3ccd7c1731fd54aedb4877cfbc96e`, tree `31b660ea`, SHA-256 `b300b0a223933f6c…`, 635 lines |
 | Revision 3 of this file | `34397f7e7ee461949c3048918db68759e433f3cd`, tree `d659eaa2`, SHA-256 `68c924f0e83b558b…`, 541 lines |
@@ -155,7 +186,7 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 | Table | Change |
 |---|---|
 | `sophia.work_attempts` | `goal_id` and `goal_revision` drop NOT NULL. Add `conversation_reply_id uuid`, with `FOREIGN KEY (project_id, conversation_reply_id) REFERENCES sophia.conversation_replies(project_id, id)`. Add `CHECK (num_nonnulls(goal_id, conversation_reply_id) = 1)` and `CHECK ((goal_id IS NULL) = (goal_revision IS NULL))`. Add the unique partial index `work_attempts_by_reply ON (project_id, conversation_reply_id) WHERE conversation_reply_id IS NOT NULL`: one native attempt per request |
-| `sophia.outbox` | `goal_id` drops NOT NULL. Add `conversation_reply_id uuid`, with the same foreign key, and `CHECK (num_nonnulls(goal_id, conversation_reply_id) = 1)`. Add the non-unique partial index `outbox_by_reply ON (project_id, conversation_reply_id) WHERE conversation_reply_id IS NOT NULL`. A request has its `create` row, at most one `stop` row and at most one `retire` row (§3.1(d)'s counts) |
+| `sophia.outbox` | `goal_id` drops NOT NULL. Add `conversation_reply_id uuid`, with the same foreign key, and `CHECK (num_nonnulls(goal_id, conversation_reply_id) = 1)`. Add the non-unique partial index `outbox_by_reply ON (project_id, conversation_reply_id) WHERE conversation_reply_id IS NOT NULL`. **Add `CHECK (destination <> 'native.retire' OR conversation_reply_id IS NOT NULL)`** (`outbox_retire_reply_only`; K-2d's D4): a `native.retire` row exists only for a reply. No existing row is a `native.retire`, since no `retire` kind exists today, so it holds without a backfill. A request has its `create` row, at most one `stop` row and at most one `retire` row (§3.1(d)'s counts) |
 | `sophia.execution_bindings` | Its state CHECK is replaced under its own name, found by its definition (as S1 does for 0048's). `retired` is added to `created`, `launching`, `running`, `idle`, `stopping`, `settled` and `lost` |
 | `sophia.runtime_commands` (0012:74-79) | Its kind CHECK is replaced the same way. `retire` is added to `create`, `resume`, `input`, `steer`, `hold`, `stop` and `inspect` |
 | `sophia.commands` | Not altered. `goal_id` is already nullable, and the `retire` key uses its existing unique constraint (B-2) |
@@ -165,12 +196,17 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
 - `authority_epoch` stays NOT NULL on both tables (BINDING_MAP §8.2).
 
 **(b) The seven replaced shared functions.** Each keeps its signature, owner, `SECURITY DEFINER`, `search_path` and privileges.
+- **The current privileges, as K-2d states them:**
+  - `dispatch_runtime_outbox(uuid,uuid,uuid)`: `EXECUTE` for `sophia_worker` only (0037:838-839);
+  - `capture_native_result(uuid,uuid,bigint,text)`: no grant (0012:580);
+  - `native_delivery_ineligible(outbox, goals, commands, execution_bindings, runtime_instances)`: no grant (0012:658). It stays `LANGUAGE sql STABLE`.
+- **The joint lane's three latest bodies** follow K-2d's conditions exactly, as set out in their rows. That covers placement, limits and idempotence, and nothing beyond.
 
 | Function | Latest body on observed `main` | Route (§1) | The named insertion |
 |---|---|---|---|
-| `dispatch_runtime_outbox` | 0042:1806 | Joint (WBC-02); 0012 foundation | A reply branch first: a row with `conversation_reply_id` goes to `conversation_dispatch` and returns, whatever its destination (`native.create`, `native.stop` or `native.retire`). A reply row never reaches the goal path's cleanup or `settle_native_control`. After the goal lock, `IF g.id IS NULL` denies |
-| `native_delivery_ineligible` | 0041:149 | Joint (SDD-01) | A first `WHEN g.id IS NULL` refuses |
-| `capture_native_result` | 0042:1724 | Joint (WBC-02) | A reply branch first, keyed on the attempt's `conversation_reply_id`, before any goal or job read. A `g.id IS NULL` guard |
+| `dispatch_runtime_outbox` | 0042:1806 | Joint (WBC-02); 0012 foundation | **D1, the reply branch,** goes first ahead of the goal path, not ahead of the lease. It comes after the project lock (:1812), the outbox row's `FOR UPDATE` (:1813), the lease check (:1815, 40001) and the lease-expiry step (:1816-1819, `outcome_unknown`). It comes before the goal read (:1820). So a stale or expired lease never dispatches a reply row. A row with `conversation_reply_id` goes to `conversation_dispatch` and returns, whatever its destination (`native.create`, `native.stop` or `native.retire`). **D2, the goal-less guard:** `IF g.id IS NULL` denies, immediately after the goal and command reads (:1820-1821). It comes before the `control.settle` branch (:1822, which calls `settle_native_control`) and before the binding read (:1828). **D5:** everything else is byte-identical. That covers the cleanup branch, the reviewers-only `native.steer` pass, research, design, design review, source review and brief |
+| `native_delivery_ineligible` | 0041:149 | Joint (SDD-01) | **N1:** one first `WHEN g.id IS NULL THEN '<fixed reason>'`. Every later `WHEN` is byte-identical. Its only caller is the dispatch goal path (0042:1842), which no reply row reaches under D1, so the guard defends goal-less non-reply rows |
+| `capture_native_result` | 0042:1724 | Joint (WBC-02) | It is internal, and its callers are `runtime_record_observations` (latest at 0023:46) and `capture_completed_turns` (0016:23). **C1, the reply branch:** after the binding read (:1729) and before the goal read (`FOR UPDATE OF g2`, :1730-1731). It is keyed on `work_attempts.conversation_reply_id` for `b.attempt_id`. A missing binding never matches, and the existing no-op path is kept. **C2:** the branch takes no goal or job lock, and calls none of `research_turn_end`, `design_turn_end` or `review_turn_end`. **C3, the goal-less guard:** `IF g.id IS NULL THEN RETURN`, immediately after the goal read and before the research job read (:1732). **C4, idempotence:** the same turn end can arrive twice, live and through `capture_completed_turns`' replay. So the branch is idempotent per binding and turn end (`p_turn_end_seq`), and agrees with K-2c's reply branch in `runtime_record_observations`, so a turn is handled once |
 | `runtime_hello` | 0028:74 | SMC-M03; 0012 foundation | The reply bindings as a `UNION ALL` beside the goal bindings. B-1's table, in the hello's own transaction after its project lock and instance update |
 | `apply_runtime_receipt` | 0012:464 | S1-05A | A reply branch first, before the goal and job reads (BINDING_MAP §8.2.1). For cleanup, a `checked` `stop` settles the binding and calls `conversation_retire`; any other answer leaves it `stopping`, replayed at each hello (B-3). Either way, an open reservation becomes `uncertain`. A `checked` `retire` marks the binding `retired`; any other answer leaves it, replayed at each hello. **A `create` answer for a cancelled attempt** (`rejected`, `failed` or `outcome_unknown`):<ul><li>is recorded once per stage (0016:97-102), and what it carries is scrubbed;</li><li>changes neither the `cancelled` request, nor the `stopping` binding, nor any accounting;</li><li>its `conversation_retire` call writes nothing while the attempt's own `stop` is unconfirmed (B-2's precedence)</li></ul> |
 | `runtime_record_observations` | 0023:20 | SMC-M03; 0012 foundation | A privacy-fenced reply branch, under the conversation writers' lock order (§8.2.2) |
@@ -241,6 +277,17 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
   It is the cancelled request's `terminalWriter` (B-6).
 - **The claim and go:** `conversation_execution_claim` and `conversation_execution_go` (B-5).
 - **Dispatch and delivery (PB2-STOP-DELIVERY):**
+  - **What `conversation_dispatch` must do (K-2d's D3)**, within the same call:
+    - **Enqueue atomically:**
+      - one `UPDATE runtime_instances SET command_sequence = command_sequence + 1 … RETURNING`, on the binding's active runtime;
+      - one `runtime_commands` row with `outbox_id = o.id`, `command_id`, `binding_id`, `attempt_id` and `authority_epoch = o.authority_epoch`;
+      - the outbox row set to `acknowledged`, with `lease_until` NULL.
+
+      That is the same atomic insert-and-acknowledge as the goal path's (0042:1886-1895).
+    - **Otherwise, deny or defer** only through outbox states that 0012's reconcile, and #256's 0053, already map: no command row means `pending`, and a command row means the receipt mapping. A-2's deferral uses the existing `defer_native_delivery`. A-2's local settlement uses the goal path's own cleanup outcome: the outbox row `settled`, and the command `checked` (0042:1832-1835).
+    - **Use the runtime's single `command_sequence`.** There is no separate sequence for replies, so cursor order and Hold and Stop claiming first stay valid.
+    - **Take no goal or job lock.** The order is the project, the outbox row, CON's own rows, the binding, then the runtime instance. The runtime entry points also take the project row first, so the two orders never interleave.
+    - **Never call `settle_native_control`.**
   - **`conversation_dispatch(o)`, by destination:**
     - `native.create`: the inventory's §4.2 eligibility, `conversation_reply_statement` and the payload, as a `create` runtime command at epoch 1;
     - `native.stop` and `native.retire`, the cleanup rows: a `stop` or `retire` runtime command at the row's epoch. Its payload has no text, role or route, and nothing is assembled. **A cancelled request's grant, open state and sources are never checked for cleanup,** so they can't block an authorized attempt's cleanup. **Except under addendum A-2:** a `native.retire` row whose binding has never had any runtime command is delivered to no runtime. It is settled locally if A-2's conditions hold, and deferred otherwise (§3.1(f)).
@@ -451,6 +498,25 @@ So no reply command reaches a bridge before the pin that teaches the bridge to r
     - a `released` ordinal;
     - a request that a receipt, the hello's lease-loss rows or a cancellation ended;
     - B trying to claim, go or reserve.
+- **K-2d's conditions (future cases; none has run):**
+  - **D4:**
+    - **fail-before,** on revision 5's DDL: a goal-bound `native.retire` outbox row is accepted;
+    - **after:** it is refused (23514) by `outbox_retire_reply_only`;
+    - a reply's `native.retire` row is accepted, dispatched and replayed as §3.1(d) counts it;
+    - goal `native.create` and `native.stop` rows are unchanged.
+  - **D1:** a reply row with a stale lease token gets 40001, and one with an expired lease becomes `outcome_unknown`. Neither is dispatched.
+  - **D2 and N1:** a goal-less non-reply row is denied before `control.settle` or the binding read, and `settle_native_control` is never called for it.
+  - **D3:**
+    - reply and goal commands share one runtime's `command_sequence`, in order;
+    - the `runtime_commands` insert and the outbox `acknowledged` commit together, or not at all;
+    - a denied or deferred reply row ends only in a state that 0012's reconcile and 0053 map;
+    - no goal or job row is locked.
+  - **C1 to C4:**
+    - a missing binding takes the existing no-op path;
+    - the reply branch calls no `*_turn_end` and locks no goal or job;
+    - a goal-less goal path returns before the research job read;
+    - the same turn end, live and then through `capture_completed_turns`, is handled once, in agreement with K-2c's `runtime_record_observations` branch.
+  - **D5:** the preservation test of §3.1(b), with each named insertion removed, and the owner, security, `search_path` and ACL equal.
 - **The option C and catalog cases:**
   - the two CHECKs and the unique attempt index;
   - the five entry points executable by `sophia_api` alone;
@@ -658,20 +724,20 @@ Any of these stops the writer and goes back to Codex.
 
 | # | From | Acknowledges | State |
 |---|---|---|---|
-| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 6) |
+| K-1a | CON-01 | Its own responsibility: the reply design, 0048's replaced objects, S1–S4 (S2 included, distinct from M01), `conversation_source_out`'s insertion, §3.1(d), A16, `conversation-*.ts` | **recorded** (revisions 1 to 7) |
 | K-1b | The retained core and runtime owners, through their lanes (§1) | §2's B-1 to B-6 against Q7 r8 exactly, each by the owner its "Bound by" names. This includes whether B-1 keeps the table, B-2's keys and precedence guard, and, explicitly, addenda A-1 and A-2, which the r8 design ACK does not cover | **not recorded** (evidence below) |
-| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). §1 to §4 are unchanged since. **A consumer ACK only** |
+| K-1c | The joint lane | Consumer compatibility with this exact revision, named by its commit and document hash when acknowledged. Its CX-0155 disposition already covers B-1 to B-6 as directions. **The r8 design ACK is not counted as K-1a, K-1b or K-1c** | **supplied for exact revision 5:** `b975bbe2`, document `69219da474faf2c8…`, A-1 and A-2 included, within the joint WBC-02/SDD-01 consumer remit (CX-0162; #198 comment 6119717658; safe record `86f1614c…` at `2cb08a7b`). **A consumer ACK only.** Revision 7 amends §3.1 (D4 and K-2d's conditions), so its **recheck is owed** |
 | K-2a | S1-02 (Luis) | §3.1(a), and B-2's `commands` and `outbox` rows and keys for `stop` and `retire`; names the current writer and reviewer | **not recorded** |
 | K-2b | S1-05A/BASE (Davide/Luis) | §3.1(b)'s 0012-foundation rows, §3.1(c) with its authenticated scope, its settle recovery case and its `sophia_api` ACL, `runtime_commands.kind`, B-3's cursor, §3.3's A04 change, and §3.2's registration (`runtime.ts`, `app.ts`, `index.ts`); names the current writers (BASE.md:30) | **not recorded** |
 | K-2c | The current SMC-M03 implementer | `runtime_hello` and `runtime_record_observations`, with only the named insertions; A11's runtime shapes preserved | **not recorded** |
-| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **not recorded.** The joint reviewer's K-1c and its r8 design ACK are consumer reviews, not this implementer's ACK of its own bodies |
-| K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **not recorded.** #190 is a draft at `5c10bce3`, with no activity since 2026-10-11T09:58Z |
+| K-2d | The joint WBC-02/SDD-01 implementer | The named insertions in `dispatch_runtime_outbox` (every reply destination, cleanup included), `capture_native_result` and `native_delivery_ineligible` | **conditional, against exact revision 5** (#198 comment 6120057551; its author is verified by Codex). The conditions are D1 to D5, C1 to C4 and N1, now in §3.1. **The owner's review of revision 7's D4 amendment is pending.** It is not K-1c, and not a write GO |
+| K-3 | #190's owner | §3.2's and §3.3's overlap, and the order of regeneration (Q10) | **unresolved, not claimed.** 6120057551 gave the overlap and order with authority reserved. #198 comment 6120100817 then states an acknowledgement in the coordinator's own retained remit, against revision 5. That is received, but not yet verified or accepted as K-3 by Codex and the owner |
 | K-4 | Luis's integration review | §4's base: an exact commit and tree including the accepted Phase A and G1, or a named composition | **not recorded.** #256 is a draft at `93e9313d` (mergeable). Luis's acceptance is pending in Codex's existing handoff (#256 comment 6116716003). #199 is a draft at `d527f385` (conflicting), pending Luis's Studio handback |
 | K-5 | Codex, as for Phase A | The fresh census, the atomic number and path reservation, and the GO record: the sole writer, the files, the start, the expiry and the return, source-only | **not started:** it waits on K-1b to K-4 |
 
 **Until all of them are recorded, nothing in §3 is written.** An owner that replaces a recommendation in §2 or §3 is recorded with its replacement. The affected rows are amended and acknowledged again.
 
-**The evidence for the state above** (revision 6; read on 2026-10-12, through the newest comment at 07:26:57Z):
+**The evidence for the state above.** Revision 6 searched through the newest comment at 07:26:57Z. Revision 7 adds only the two comments named in K-2d and K-3, and no new inventory was made. Revision 6's search:
 - **What was searched:** every comment created or edited from 05:00Z on (the request was first published at 05:36Z), in:
   - issue #198, all five pages;
   - PR #256: its comments, reviews and review threads;
