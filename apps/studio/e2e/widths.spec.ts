@@ -186,8 +186,12 @@ test('widths @phone · the nav’s first word starts at the page gutter, as the 
   await page.evaluate(() => document.fonts.ready)
   const read = await page.evaluate(() => {
     const topbar = document.querySelector('.topbar')
-    const first = document.querySelector('.view-nav a')
-    if (!topbar || !first) return null
+    const nav = document.querySelector<HTMLElement>('.view-nav')
+    const first = nav?.querySelector('a')
+    if (!topbar || !nav || !first) return null
+    // The row rests on the current view (scrolled to it): measured at its start, where the first word is.
+    nav.style.scrollBehavior = 'auto'
+    nav.scrollLeft = 0
     const range = document.createRange()
     range.selectNodeContents(first)
     return { gutter: parseFloat(getComputedStyle(topbar).paddingLeft), word: range.getBoundingClientRect().left }
