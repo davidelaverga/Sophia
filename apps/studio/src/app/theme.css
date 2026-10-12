@@ -3613,12 +3613,13 @@ button.contribution-quote:hover {
   /* With a row's own 7 px, the first event starts 18 px under the rule, as the first goal does. */
   gap: 11px;
 }
-/* Beside the work, the pulse's head is as tall as the view's head (a 24 px title line, 12 px of air, the rule), so
-   the two rules meet in one line and the small title stands on the large one's baseline. */
+/* Beside the work, the pulse's head is as tall as the view's head (its title's line, 12 px of air, the rule), so the
+   two rules meet in one line and the small title stands on the large one's baseline. The title's line is the view's
+   (--lh-view): enlarged with it (Codex on #246). */
 .pulse-head {
   display: flex;
   align-items: flex-end;
-  min-height: 37px;
+  min-height: calc(var(--lh-view) + 13px);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
