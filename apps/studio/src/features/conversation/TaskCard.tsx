@@ -9,7 +9,7 @@ import { ReadNote, Tag } from '@sophia/ui'
 import { getNativeTask } from '../../api/conversation.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { DesignCard } from '../artifacts/DesignCard.tsx'
-import { WorkCard } from '../artifacts/WorkCard.tsx'
+import { useNamedCard, WorkCard } from '../artifacts/WorkCard.tsx'
 import { visibleBriefBlocks, taskPhase, TASK_KIND } from './conversation-view.ts'
 
 interface Props {
@@ -21,6 +21,8 @@ interface Props {
 }
 
 export function TaskCard(props: Props) {
+  // Named in the address, whatever its kind: it takes the focus and comes into view (Codex on #239).
+  useNamedCard(props.task.id)
   if (props.task.kind === 'research') return <WorkCard {...props} />
   return props.task.kind === 'design' ? <DesignCard {...props} /> : <BriefCard {...props} />
 }
@@ -29,7 +31,7 @@ function BriefCard({ task, projectId, identity }: Props) {
   const [open, setOpen] = useState(false)
   const phase = taskPhase(task)
   return (
-    <li className="task" data-phase={task.phase}>
+    <li className="task" data-phase={task.phase} data-task={task.id} tabIndex={-1}>
       <div className="goal-meta">
         <Tag tone={phase.tone}>{phase.label}</Tag>
         <span className="muted">{TASK_KIND[task.kind]}</span>
