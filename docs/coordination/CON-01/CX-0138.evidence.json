@@ -1,0 +1,144 @@
+{
+  "checkpoint": "CON-01-CX-0138",
+  "at": "2026-10-12T02:07:24.909969+00:00",
+  "previous_goal_turn": "Progress: independent Luis phone arm, mapped corrections, actual replies and terminal CI",
+  "classification": "Progress: actual joint compatibility handback received/independently inspected, current target metadata refreshed, source-binding task routed",
+  "candidate": {
+    "main": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "G1": "d527f3854222020abb6ba723bf0ea7480c76bb82",
+    "G2": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "Luis": "2c882dc58a1170891e41f778fe2a75689778ae0a",
+    "PhaseA": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+    "map": "b353f6b754286f7dbf3de575e6a4cfcf8a31a270"
+  },
+  "joint_handback": {
+    "sourceRecordSHA256": "6d98fcceef01df805cfb3fe1174c8108a2c9343eef1ef3ce9ff06be197fa4c4e",
+    "at": "2026-10-12T01:48:41.879546+00:00",
+    "status": "JOINT_LANE_COMPATIBILITY_ACCEPTED_EXACT_PHASE_A_AS_SOURCE_PREREQUISITE_ONLY",
+    "phaseA": {
+      "head": "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9",
+      "headParent": "fec45a0e96c4679a09da02be979503910a623c5c",
+      "targetBase": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+      "qualifiedCICheckout": "40eaefcab4b970c4d97aecfcafbec28c31f5e214",
+      "tree": "640414cd70f1b487ee4684e0d54f0d900fa9dfb5",
+      "decision": "No actionable static findings; exact0053 repair/test compatible with joint0037\u20130045/API/worker/runtime. Accepted only as compatible prerequisite by this joint lane, not accepted main/merge or new source window. Core/Luis/ledger/Q13 authority not claimed."
+    },
+    "actualJointImplementerAssessment": {
+      "session": "session_0155SjcXhv87RErnWEBWxfBM",
+      "status": "RECEIVED scoped compatibility and ordering; source freeze unchanged; own lane claims no core authority",
+      "recommendation": "When source accepted, land merge/squash onE; jointly bind schema batch to0037\u20130045+0053, never deploy old branchhead; latercandidate mustcontainapplied0053;0049/50 compatibility still needs CON own review"
+    },
+    "sourceWindow": "PhaseA writewindowendedearly;0053reservationretained. PhaseB/Q13 held; LuisStudio/contracts landing order/core/ledger ACKs pending. No source writer started.",
+    "limits": "Owner compatibility assessment only; no mergeGO/acceptedmain/window/core/Luis/ledger/Q13 or operationauthority. CI log audit belongs to independent joint reviewer; CON own returnedlog truncated."
+  },
+  "independent_source_integration": {
+    "fetchedGitHubMerge": "40eaefcab4b970c4d97aecfcafbec28c31f5e214",
+    "parents": [
+      "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+      "93e9313ddb8e2cb2f64d0a1e8c64c453f3147ad9"
+    ],
+    "tree": "640414cd70f1b487ee4684e0d54f0d900fa9dfb5",
+    "ownMergeTreeMatches": true,
+    "deltaToMain": "Only43line0053+173runtime.db.test lines",
+    "currentCONSql": "0048/S1\u2013S4 no six helper mentions/redefinitions;0049/50notwritten",
+    "CI": "Fresh completedSQLjob114606722285success; returnedglobaltruncatedtailomitscheckoutline, so do not claim own fullCI-checkoutlogaudit. Joint independent auditdc4423 recordsactual40ea; separateGitobjectfetched."
+  },
+  "source_authority": "Current-mainAGENTS: Luisownsmerge/integrationreview; ordinarychecks+affectedcrossing and lastpushreview required. ExactPhaseA tests reviewedCX129 andCI/bot terminalCX137. NoLuismergehandback/acceptedmain or PhaseBwindow.",
+  "read_only_preflight": {
+    "observedAt": "2026-10-12T02:02:59.951Z",
+    "mode": "READ ONLY; metadata only",
+    "source": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+    "currentMain": "e0200f1a382379fff795f4ccb78bf6eda62c5da8",
+    "comparisonScope": "exact main migration manifest plus candidate API required-function metadata; no operational approval",
+    "credentialRef": "~/.config/sophia/smc-m01-owner-db-url",
+    "targetReferenceMatched": true,
+    "server": {
+      "version": "17.6",
+      "read_only": "on"
+    },
+    "drift": [],
+    "pending": [
+      "0037_amendment_preservation.sql",
+      "0038_design_records.sql",
+      "0039_design_runtime.sql",
+      "0040_design_flow.sql",
+      "0041_design_lifecycle.sql",
+      "0042_source_review_coordination.sql",
+      "0043_design_delivery.sql",
+      "0044_object_write_once.sql",
+      "0045_render_requeue_output.sql"
+    ],
+    "conversationTables": {
+      "conversations": false,
+      "replies": false,
+      "contexts": false
+    },
+    "truncated": false,
+    "serverObservedAt": "2026-10-12T02:03:02.732Z",
+    "rollbackConfirmed": true,
+    "connectionEnded": true,
+    "lastApplied": "0036",
+    "applied": 36,
+    "missingRequiredSignatures": [
+      "sophia.answer_work_decision(uuid,uuid,text,jsonb)",
+      "sophia.coordination_permit(bytea,jsonb)",
+      "sophia.propose_source_review(uuid,text,jsonb,jsonb)",
+      "sophia.read_work_result(uuid,uuid,uuid)",
+      "sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)",
+      "sophia.runtime_capture_issue(bytea,text,text,jsonb,text)",
+      "sophia.runtime_source_review_submit(bytea,text,text,jsonb)",
+      "sophia.source_review_proposal(uuid,text)",
+      "sophia.work_command(uuid,uuid,text,jsonb)"
+    ]
+  },
+  "hosted_browser": {
+    "tab": 5,
+    "existingProject": "32a56d1a-887e-4bcb-a119-ce9f3cc61a08",
+    "signInPromptVisible": false,
+    "studioLinkVisible": true,
+    "conversationsLinkVisible": false,
+    "appUnavailable": false,
+    "scope": "Read-onlyexistingaccount/project; noCONcohortcreation; notCONappacceptance",
+    "tabMarkedHandoff": true
+  },
+  "permitted_next_work": {
+    "missionRequest": 6116456625,
+    "exactBodyReadbackVerified": true,
+    "task": "CON-onlydocs/stubproposalresolvingQ7relayprocessownership, exactmethods/contracts/tests, durableclaim/result/uncertainty andper-attemptcleanup; runtimeownerengineeringagreementbeforewrites",
+    "sourceBasis": "Supervisor.environment/launch anddshindexControlBridge independentlyread at7d8; no replylauncher implemented",
+    "nativeDelivery": "SharedClaudeUIremainedonjointPaperclipsession; noCONmessageorinputsentthere. ExistingjointthreadaskedforstableUIhandoff; noresponseyet. Publicmissionrequestisdelivered/readbackverified, notclaimprimaryhasreadit."
+  },
+  "remaining": "LuisStudioandmergehandback,core/ledgerQ13ACKs,acceptedA-basedwindow,Q7nativeimplementation/qualification,subscriptionroute,actualD1/D3/Q1policyanswer,finalcombinedsourceandexactoperationapproval",
+  "acceptance": {
+    "total": 36,
+    "partial_L1": 18,
+    "passed_L1": 3,
+    "not_run": 15,
+    "changed": 0,
+    "sha256": "10e51aaee8185e4bbf90c6320c080490ed8cd76422b6bf61753ae184c7155fd3"
+  },
+  "operations": {
+    "setup": "OP0002r5 draft_not_authorized/notapprovalready",
+    "Ask": "OP0001r3 draft_not_authorized/notapprovalready",
+    "approval": null,
+    "hosted_writes": 0,
+    "provider_native_Ask_calls": 0,
+    "added_app_spend": 0,
+    "read_only_DB_connections": 1,
+    "DB_transaction_rolled_back": true,
+    "client_ended": true,
+    "native_coordination_cost": "Private/unmeasured; no providerexecutionproof"
+  },
+  "readiness": {
+    "source_ready": "CompleteCONcombinedsourceincomplete",
+    "locally_verified": "ScopedpriorPG/API/fixturecases",
+    "reviewed": false,
+    "PhaseA_reviewed": "Exactboundedsource/PG/diff/CIreviewonly",
+    "authorized": false,
+    "deployed": false,
+    "app_verified": false,
+    "owner_accepted": false
+  },
+  "recovery": "Nohostedeffectneedsrollback;read-onlyclientended,noownedprocess/tabcreated;existinghostedtabhandoff. Governedliverollbackstillunqualified. Preservewithdrawal/uncertainexecution/cumulativeallowance.",
+  "next": "GetQ7concreteproposal/runtimeengineeringagreementandactualLuis/core/ledgerhandbacks;acceptedA-basedcombinedsourcequalification;finalexactsetupandAskrequestsforapproval. Noothermissioncomplete."
+}

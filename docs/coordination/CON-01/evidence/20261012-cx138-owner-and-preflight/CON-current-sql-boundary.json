@@ -1,0 +1,67 @@
+{
+  "candidate": "7d8f415f45d51d3f536443060f5acbfd3bea9455",
+  "files": [
+    {
+      "file": "db/candidates/con01-s1-reply-states.sql",
+      "sha256": "bf2ce1908bf3cac25c9de094a7c74708c828f76a233ba373a84808f93f70d817",
+      "sharedFunctionMentions": {
+        "reconcile_runtime_outbox": 0,
+        "claim_runtime_outbox": 0,
+        "expire_dispatch_leases": 0,
+        "record_dispatch_result": 0,
+        "deny_native_delivery": 0,
+        "defer_native_delivery": 0
+      }
+    },
+    {
+      "file": "db/candidates/con01-s2-conversation-reply-ledger.sql",
+      "sha256": "e136626d20fdb85b4f375d54d8e27b5d4a5362e3baeab498fca0597bc92a4316",
+      "sharedFunctionMentions": {
+        "reconcile_runtime_outbox": 0,
+        "claim_runtime_outbox": 0,
+        "expire_dispatch_leases": 0,
+        "record_dispatch_result": 0,
+        "deny_native_delivery": 0,
+        "defer_native_delivery": 0
+      }
+    },
+    {
+      "file": "db/candidates/con01-s3-conversation-reply-context.sql",
+      "sha256": "d0a84820b483581b79ccc9d637d53f41bec2bccef8ff9cb158d15c4d9032f4e4",
+      "sharedFunctionMentions": {
+        "reconcile_runtime_outbox": 0,
+        "claim_runtime_outbox": 0,
+        "expire_dispatch_leases": 0,
+        "record_dispatch_result": 0,
+        "deny_native_delivery": 0,
+        "defer_native_delivery": 0
+      }
+    },
+    {
+      "file": "db/candidates/con01-s4-reply-fences.sql",
+      "sha256": "ba32e07294d0e2908b06ba2887c207d8811625a2ea5e361c62ca90c4d34e47b8",
+      "sharedFunctionMentions": {
+        "reconcile_runtime_outbox": 0,
+        "claim_runtime_outbox": 0,
+        "expire_dispatch_leases": 0,
+        "record_dispatch_result": 0,
+        "deny_native_delivery": 0,
+        "defer_native_delivery": 0
+      }
+    },
+    {
+      "file": "db/migrations/0048_project_conversations.sql",
+      "sha256": "e36843045caf07b34a0aae9470bd4c18ce50a0849a0d10cf52709089a9fdcf35",
+      "sharedFunctionMentions": {
+        "reconcile_runtime_outbox": 0,
+        "claim_runtime_outbox": 0,
+        "expire_dispatch_leases": 0,
+        "record_dispatch_result": 0,
+        "deny_native_delivery": 0,
+        "defer_native_delivery": 0
+      }
+    }
+  ],
+  "0049_0050": "No source files at G1/G2; plans only; futurecompatibilitynotqualified",
+  "plan": "G2_RUNTIME_PLANorderPhaseAfirst;G2_IMPACT_INVENTORYsaysclaim/reconcile/expiry/dispatch-resultnotedited"
+}
