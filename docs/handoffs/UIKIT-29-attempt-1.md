@@ -55,5 +55,8 @@ Informe-ui-premium §8 move 3: the room's stage as lit paper and «has the floor
 
 ## Post-review (Codex on #251, later round)
 
-The paper multiply (and the dark screen) scoped to the light's canvases, not the `.light` box, so the formed mark is
-not blended with the paper (`#8468ee` as drawn, not `#8265e3`). light-mark.spec checks no ancestor of the mark blends.
+Measured, not changed: the mark on Home draws `#8468ee` as the brand's ink (pixel read of a screenshot), because the
+light's group blends inside the side column's own stacking context (`.hw-side`, z-index 1, see-through), where there is
+no paper to blend with. The blend on the light's canvases alone was tried in `7e33fbe3` and taken back (the `::after`
+halo and its `-1` layering are the group's; light-breath.spec reads the group's blend). The mark outside the group is
+left in the design note for the day the blend reaches the paper.

@@ -60,7 +60,19 @@
 
 ## After the review (Codex on #251, later round)
 
-The multiply moved from `.light` to its canvases (`.light > canvas`, with the edge mask): the whole light's blend took
-the formed mark with it, so on paper Umbral's `#8468ee` drew as `#8265e3` and no longer matched the favicon and the
-bar. The halo still lays ink on the page; the mark beside it is the brand's ink as drawn. light-mark.spec reads that no
-element from the mark up to the page blends, and a headless pixel read holds the drawn colour.
+Codex read that the light's multiply, set on `.light` as a group, blends the formed mark with the paper too, so
+Umbral's `#8468ee` would draw as `#8265e3`. Measured as drawn (headless Chromium, the pixels of a screenshot of Home on
+paper at 1280, `scratchpad/captures/probe-mark-pixels.cjs`): the mark's pixels are `#8468ee` and `#16151b` exactly,
+none `#8265e3`. The reason is the stacking: on Home the light stands in the side column (`.hw-side`, `z-index: 1`,
+see-through), its own stacking context, and a group blends only with what is painted below it in that context, which
+there is nothing; the paper is the page's, outside it. So the mark is the brand's ink as drawn, and the multiply, for
+the same reason, does not reach the page on Home either: the breathing halo (`.light::after`) carries its own paper
+tints, which is what the eye gets.
+
+Moving the blend onto the halo's layers alone (`.light > canvas`) was tried and taken back: the `::after` halo and its
+`-1` layering belong to the light's group, and light-breath.spec reads the group's blend by design. The rule stays as it
+was.
+
+Left: the mark outside the light's group (a sibling of `.light` in SophiaLight, positioned by the same box), for the
+day the blend is made to reach the paper (a paper backing on the column, or the light outside it): then the mark would
+be tinted, and this is the clean way out. Across the four places the light stands, with their specs.
