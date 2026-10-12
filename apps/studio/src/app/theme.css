@@ -3222,7 +3222,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: var(--type-small) / var(--lh-small) var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -3242,7 +3242,7 @@ button.contribution-quote:hover {
 }
 .link-limits {
   color: var(--text-3);
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.02em;
 }
 .sheet-form {
@@ -5109,4 +5109,13 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
+}
+/* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
+   on #241). */
+.report-main-data {
+  font-size: var(--type-label);
+}
+/* A number inside a label (the review sources' «up to N»): data, on the 10.5 px scale. */
+.field-label .data {
+  font-size: var(--type-label);
 }

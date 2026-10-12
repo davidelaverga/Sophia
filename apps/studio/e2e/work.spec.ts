@@ -3547,3 +3547,16 @@ test('with a report beside Tasks the lanes follow the narrower board, not the wi
   const columns = await lanesBox.evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length)
   expect(columns).toBeLessThanOrEqual(1)
 })
+
+test('the sheet’s H works with Caps Lock or Shift, and its controls say H and S in their tips (Codex on #241)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide&settle=confirmed`)
+  const sheet = await openTask(page, 'work-2', 'Review the report pane')
+  await expect(sheet.getByRole('button', { name: /^Hold/ }).locator('.tip kbd')).toHaveText('H')
+  await expect(sheet.getByRole('button', { name: /^Stop/ }).first().locator('.tip kbd')).toHaveText('S')
+  // Shift held (or Caps Lock on) gives «H», not «h»: the sheet's key is the letter, whatever its case.
+  await sheet.focus()
+  await page.keyboard.press('Shift+H')
+  await expect(sheet.locator('.act-steps')).toContainText('Held. Work and remaining allowance are retained.')
+})
