@@ -212,3 +212,9 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
   hyphenated word stays whole («e-mail» is «email»). The 60 % word share alone could not tell them apart (one word in
   three differs), so the prefix is checked before it, as a negation is. Unit suite green, lint and typecheck clean; its
   CI: the final head's run, recorded when green.
+
+## CI on record, final head
+
+- Run 38352659038 on `07fab5cf` (the head with every change and review round through round 28's `1e430161`; only this
+  record follows it): all jobs green, the browser suites among them. Every «its CI: the final head's run, recorded when
+  green» above points here. Codex P2s that came after the rounds were frozen (Luis, 2026-10-13) are left to a follow-up.
