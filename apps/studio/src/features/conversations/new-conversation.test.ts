@@ -213,6 +213,18 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a hyphen inside a word keeps the word whole; beside a number it is a boundary (Codex round 26 on #274)', () => {
+    const email = [asked('a', 'Should we enable email alerts before launch?', at)]
+    assert.equal(sameQuestion('Should we enable e-mail alerts before launch?', email)?.id, 'a')
+    const art = [asked('a', 'Review the stateoftheart search plan', at)]
+    assert.equal(sameQuestion('Review the state-of-the-art search plan', art)?.id, 'a')
+    assert.equal(
+      sameQuestion('Compare twenty-one year revenue forecast', [asked('a', 'Compare 21 year revenue forecast', at)])
+        ?.id,
+      'a',
+    )
+  })
+
   it('a compound number’s hyphen joins it; «had» and «has» read as the clitic does (Codex round 25 on #274)', () => {
     assert.equal(
       sameQuestion('Compare twenty-one year revenue forecast', [asked('a', 'Compare 21 year revenue forecast', at)])
