@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `51b2ab91a8dc` (tree `d3a24ea742ab`), the last commit of `ui/p2-next-up`'s own that changes code (later
+Ending commit/tree: `c834bb30c0b0` (tree `07cb775324c3`), the last commit of `ui/p2-next-up`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 9 files changed against
 `origin/main` at that commit: `e2e/next-up.spec.ts`, `e2e/palette-knows.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/answers.ts`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-47-attempt-1.md`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
 
@@ -56,3 +56,7 @@ The next follow-up: the board's seen marks, plan order and focus (Codex P2s on #
 
 - Run 38333657621 on `51b2ab91` (this branch's head, every change and review round in it): all jobs green, the browser suites
   among them, the checks this PR wrote included.
+
+## Post-review, round 3 (Codex on #277)
+
+- `c834bb30`: Next up takes the focus only from the page's body or the very choice its answer went from (`submitted`, noted as the send starts), not from any disabled control: another decision's choice, disabled by its own pending answer, stays the person's. The final head's CI is pending.
