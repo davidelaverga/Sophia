@@ -62,7 +62,8 @@ test('home · needs you: her light smaller at the column’s head; none, one qui
 test('home @phone · needs you: her mark keeps the phone’s 48 px, clear of the greeting', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto(`${PAGE}?needs=some`)
-  const mark = page.locator('.hw-side .hw-light svg[data-mark="umbral"]')
+  // On a phone her light keeps the phone's place, outside the column (docs/plans/home-phone-needs.md).
+  const mark = page.locator('.hw-light svg[data-mark="umbral"]')
   await expect.poll(async () => (await mark.boundingBox())?.width).toBe(48)
   // The greeting's words stop before the mark: its padding-right keeps the mark's room (personal.css, ≤ 860).
   const hello = await page.locator('.hw-hello').boundingBox()
