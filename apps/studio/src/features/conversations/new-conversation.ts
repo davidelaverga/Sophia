@@ -71,10 +71,23 @@ const wordsOf = (title: string) =>
 function joinTensAndUnits(words: string[], w: string): string[] {
   const last = words.at(-1) ?? ''
   const scale = SCALES.get(w)
-  if (/^[2-9]0$/u.test(last) && /^[1-9]$/u.test(w)) words[words.length - 1] = String(Number(last) + Number(w))
+  if (adds(last, w)) words[words.length - 1] = String(Number(last) + Number(w))
   else if (scale !== undefined && /^[1-9]\d{0,2}$/u.test(last)) words[words.length - 1] = String(Number(last) * scale)
   else words.push(scale === undefined ? w : String(scale))
   return words
+}
+
+/**
+ * Whether a number said next adds to the one before, as spelled numbers run: a unit after a ten («twenty one»), tens or
+ * units after a scale («one hundred twenty», «one hundred twenty one»; Codex on #274). Only right after it: «100 and 20»
+ * stays two numbers.
+ */
+function adds(last: string, w: string): boolean {
+  if (!/^\d+$/u.test(last) || !/^\d+$/u.test(w)) return false
+  const [a, b] = [Number(last), Number(w)]
+  // Up to 99 after a round hundred or more; up to 9 after a round ten from twenty; nothing else adds.
+  const most = a >= 100 && a % 100 === 0 ? 99 : a >= 20 && a % 10 === 0 ? 9 : 0
+  return b >= 1 && b <= most
 }
 
 /** The scales a spelled number is said in. */
