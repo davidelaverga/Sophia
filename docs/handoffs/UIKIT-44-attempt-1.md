@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `2283e00cab59` (tree `11a942f6996c`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `e76cf7a83d37` (tree `ebfafcec98c4`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -53,3 +53,13 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
   inside a label part two titles («Q3» against «Q4») and a thousands separator is dropped first («1,000» meets «1000»);
   «shown», «hid» and «hidden» count as «show» and «hide» (`IRREGULAR`). Tests in `cacff536`, failing first; unit suite
   passing.
+
+## Post-review, round 3 (Codex on #274)
+
+- `e76cf7a8`: one reading of the turning words replaces the per-case rules (`opposed`, `aimsOf`, `ordersDisagree`,
+  `numbersOf`): of each kind (orders, actions of a pair by their plain form, numbers), the words in the order they come
+  must be the same, or none said on one side (`turnsOf`, `turnsAgree`). The same numbers in other places part two
+  titles («tier 1 … 2» from «tier 2 … 1»); a passive voice reads as its active («email be enabled and SMS disabled»
+  meets «enable email and disable SMS», actions also scored by their plain form); «before or after review» meets
+  «before review or after review». Where the order differs, nothing is named, even for a reordered twin: saying nothing
+  beats pointing to the inverse question. Tests in `64b2f260`, failing first; unit suite 1104/1104.
