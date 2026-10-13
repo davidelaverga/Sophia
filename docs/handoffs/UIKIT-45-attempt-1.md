@@ -58,3 +58,7 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 
 - Run 38331759492 on `ca06ec3f` (the head with every change and its review rounds): all jobs green, the browser suites
   among them (next-ask.spec's focus and «older asks unread» checks included).
+
+## Post-review, round 3 (Codex on #275)
+
+- `d017ad37`: the recovery check waits for the older read to fail for good (its retry spent), then moves the feed with an event (`fixture.update()`, no focus regained), so only the `readAt` effect can bring the quick asks back. Not run on this host (guard); CI is the run on record, and the CI on record above predates this check's change.
