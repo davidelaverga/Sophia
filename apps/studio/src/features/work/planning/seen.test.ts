@@ -397,3 +397,21 @@ describe('a task freed, its waits as they were (Codex on #278)', () => {
     assert.ok(all.includes('Task c can start: it no longer waits on another task'), JSON.stringify(said))
   })
 })
+
+describe('a look read defensively (Codex on #278)', () => {
+  it('a stored look whose waits are not a list of ids is not read', () => {
+    withStorage((store) => {
+      const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
+      store.set(
+        seenKey(at),
+        JSON.stringify({ items: { w: { mark: 'held', result: null, waits: 'w2' } }, decisions: {} }),
+      )
+      assert.equal(readSeen(at), null)
+      store.set(
+        seenKey(at),
+        JSON.stringify({ items: { w: { mark: 'held', result: null, waits: ['w2'] } }, decisions: {} }),
+      )
+      assert.notEqual(readSeen(at), null)
+    })
+  })
+})
