@@ -370,3 +370,30 @@ describe('a lane moved while away, said as it happened (Codex P2s on #236)', () 
     assert.ok(!all.some((p) => p.includes('what it waited on is complete')), JSON.stringify(said))
   })
 })
+
+describe('a task freed, its waits as they were (Codex on #278)', () => {
+  it('one wait completed and another dropped is not said to have had all it waited on complete', () => {
+    const done = {
+      lifecycle: 'complete' as const,
+      completion: { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e'] },
+    }
+    const both = {
+      blocked_by: ['a', 'b'],
+      activation: { kind: 'dependencies_satisfied' as const, producer_work_id: null },
+    }
+    const blocked = rowsOf([
+      ['a', done],
+      ['b', { lifecycle: 'running', assignment: assignment('b') }],
+      ['c', {}, both],
+    ])
+    // The revision accepted since drops c's wait on b, which never completed; a is still complete.
+    const freed = rowsOf([
+      ['a', done],
+      ['b', { lifecycle: 'running', assignment: assignment('b') }],
+      ['c', {}, AFTER_A],
+    ])
+    const said = whileAway(freed, [], glance(blocked, []), { viewerId: 'davide', people, now: NOW })
+    const all = [...said.phrases, ...said.rest]
+    assert.ok(all.includes('Task c can start: it no longer waits on another task'), JSON.stringify(said))
+  })
+})
