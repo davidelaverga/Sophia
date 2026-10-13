@@ -7,7 +7,7 @@ import { flushSync } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import { keyLabel, onMac } from '../../app/shortcuts.ts'
 import { useCommands } from '../../app/useCommands.ts'
-import type { Row } from './conversation-view.ts'
+import { askAbout, type Row } from './conversation-view.ts'
 import { focusConversation } from './focus.ts'
 import { useEscape } from './useEscape.ts'
 import { foundIn, pieces, type Found } from './find-view.ts'
@@ -49,9 +49,11 @@ interface BarProps {
   reading: boolean
   onMore: () => void
   onClose: () => void
+  /** Nothing matches and nothing earlier is left to read: ask Sophia instead; absent where she can't be written to. */
+  onAsk?: (() => void) | undefined
 }
 
-function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose }: BarProps) {
+function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose, onAsk }: BarProps) {
   const said = !query.trim() ? '' : count ? `${String(at + 1)} of ${String(count)}` : 'No match'
   return (
     <div className="c3-find" role="search" aria-label="Find in your conversation">
@@ -91,6 +93,11 @@ function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onC
           }}
         >
           {reading ? 'Reading…' : 'Look further back'}
+        </button>
+      )}
+      {onAsk && !more && query.trim() !== '' && count === 0 && (
+        <button className="text-button" type="button" aria-label={`Ask Sophia about “${query.trim()}”`} onClick={onAsk}>
+          Ask Sophia
         </button>
       )}
       <button className="ghost has-tip" type="button" aria-label="Close find" onClick={onClose}>
@@ -198,6 +205,8 @@ export function useFind(
   on: boolean,
   back: { more: boolean; reading: boolean; read: () => Promise<void> },
   uncover: (() => void) | null,
+  /** Sends Sophia a line as yours (actions.start); null where she can't be written to (docs/plans/find-ask-sophia.md). */
+  ask: ((words: string) => void) | null = null,
 ) {
   const [query, setQuery] = useState('')
   const [held, setHeld] = useState<Found | null>(null)
@@ -240,6 +249,15 @@ export function useFind(
         void back.read()
       }}
       onClose={close}
+      onAsk={
+        ask
+          ? () => {
+              const words = askAbout(query)
+              close()
+              ask(words)
+            }
+          : undefined
+      }
     />
   ) : null
   const lens = open && query.trim() ? { query, current } : null

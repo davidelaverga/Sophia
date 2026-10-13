@@ -87,6 +87,9 @@ export function topicOf(text: string): string {
   return words.slice(0, 3).join(' ').toLowerCase() + (words.length > 3 ? '…' : '')
 }
 
+/** What Find asks Sophia when nothing matches: the words looked for, as typed (docs/plans/find-ask-sophia.md). */
+export const askAbout = (query: string): string => `What did I tell you about ${query.trim()}?`
+
 /** Sophia's first words in a new conversation. Not a stored turn: the space's own introduction. */
 export function introText(name: string | null): string {
   return `Hi${name ? ` ${name}` : ''}, I’m Sophia. This space is just for you: nothing here reaches your projects unless you carry it. What’s on your mind?`

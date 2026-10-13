@@ -607,13 +607,16 @@ function useConversationFind(
   props: Props,
   rows: readonly Row[],
   over: boolean,
-  readEarlier: () => Promise<void>,
   covered: boolean,
+  actions: { readEarlier: () => Promise<void>; start: (words: string) => Promise<boolean> },
 ) {
   const uncover = covered ? () => props.notes.set(false) : null
+  // Asking Sophia from Find sends as the field does; not offered while the padlock is shut (no field to send from).
+  const ask = props.locked ? null : (words: string) => void actions.start(words)
   const { more, reading } = props.readBack
   // Only once the conversation is read: before, a search would say "No match" over one still loading.
-  return useFind(rows, !!props.space && !props.hidden && !over, { more, reading, read: readEarlier }, uncover)
+  const back = { more, reading, read: actions.readEarlier }
+  return useFind(rows, !!props.space && !props.hidden && !over, back, uncover, ask)
 }
 
 export function PersonalSpace(props: Props) {
@@ -631,7 +634,7 @@ export function PersonalSpace(props: Props) {
   const waiting = rows.some((r) => r.kind === 'typing')
   const said = useHeard(space, turns, waiting)
   const latest = useLatestInSight(list, grows(turns, writes.sending, waiting, props.hidden))
-  const find = useConversationFind(props, rows, talk.talking || covered, actions.readEarlier, covered)
+  const find = useConversationFind(props, rows, talk.talking || covered, covered, actions)
   const composer = props.locked ? null : (
     <Composer
       props={props}

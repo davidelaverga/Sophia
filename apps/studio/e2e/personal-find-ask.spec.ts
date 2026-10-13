@@ -1,8 +1,8 @@
 // Find in Personal (docs/plans/find-ask-sophia.md): when nothing matches, it offers to ask Sophia, and asking sends her
 // the line as yours; with a match there is nothing to offer.
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-const sent = (page: import('@playwright/test').Page) => page.evaluate(() => [...(window.personalFixture?.sent ?? [])])
+const sent = (page: Page) => page.evaluate(() => [...(window.personalFixture?.sent ?? [])])
 
 test('personal · find: no match offers to ask Sophia, and asking sends her the line', async ({ page }) => {
   await page.goto('/personal.html')
