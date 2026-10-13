@@ -1078,7 +1078,63 @@ export class ControlBridge {
     // Also completes a Resume that a restart cut short after lifting the fence.
     this.redeliverStash(attempt, agent, command.commandId)
     if (wasHeld) this.rewakePending(agent)
+    await this.recoverInterruptedResume(attempt, agent)
     return [this.record(attempt, command, 'delivered', seq, await this.settled(attempt, agent, command))]
+  }
+
+  /** Recover only an unfinished Hold-created continuation, not unrelated work. */
+  private async recoverInterruptedResume(attempt: AttemptState, agent: Agent): Promise<void> {
+    if (attempt.fence !== 'active' || attempt.stash.length || agent.inbox.nextStep.length || agent.inbox.nextTurn.length) return
+    const events = agent.session.snapshotEvents()
+    const end = foldConsumedWork(events).end
+    if (end?.data.reason.kind !== 'interrupted') return
+    const records = this.journal.read(attempt.sessionId)
+    const commands = foldLog(records, events).commands
+    const recoveries = records.filter((r) => r.type === 'sophia/resume-recovery')
+    const present = this.nativeMessageIds(agent)
+    const start = events.findLastIndex((e) => e.type === 'turn/start' && (e.data as { turn: number }).turn === end.data.turn)
+    if (start < 0) return
+    const consumed = new Set(events.slice(start).filter((e) => e.seq <= end.seq && e.type === 'user/message').map((e) => (e.data as { id: string }).id))
+    // The turn may crash after claiming its inbox, before user/message is
+    // appended. Read the native durable splices to identify that claim too.
+    const inbox: Record<DeliveryTarget, string[]> = { 'next-turn': [], 'next-step': [] }
+    for (const event of events) {
+      if (event.seq > end.seq) break
+      if (event.type !== 'agent/inbox/spliced') continue
+      const data = event.data as { target: DeliveryTarget; start: number; removedCount?: number; inserted: UserMessage[]; outcome?: string }
+      const removed = inbox[data.target].splice(data.start, data.removedCount ?? 0, ...data.inserted.map((m) => m.id))
+      if (event.seq >= events[start]!.seq && data.outcome !== 'canceled') for (const id of removed) consumed.add(id)
+    }
+    const owned = new Map<string, string>()
+    for (const [id, entry] of commands) {
+      if (entry.kind === 'resume' && entry.messageId && (entry.settled || present.has(entry.messageId))) owned.set(entry.messageId, id)
+    }
+    for (const record of records) {
+      if (record.type === 'sophia/resume-recovery') owned.set(record.data.message.messageId, record.data.commandId)
+      if (record.type === 'sophia/unstash') record.data.messages?.forEach((message, index) => {
+        const owner = owned.get(record.data.messageIds[index]!)
+        if (owner) owned.set(message.messageId, owner)
+      })
+    }
+    let commandId = [...owned].find(([id]) => consumed.has(id))?.[1]
+    // A crash between the recovery journal and delivery leaves the same
+    // interrupted ending. Reuse that pending identity, never an older one
+    // abandoned before some later completed/error/blocked turn.
+    const pending = recoveries.findLast((r) => r.data.afterNativeSeq === end.seq && !present.has(r.data.message.messageId))
+    if (!commandId && pending) commandId = pending.data.commandId
+    if (!commandId) return
+    let message: UserMessage
+    if (pending?.data.commandId === commandId) {
+      message = { ...createUserMessage({ content: [...pending.data.message.content], source: { kind: 'user' } }), id: pending.data.message.messageId as UserMessage['id'] }
+    } else {
+      message = createUserMessage({ content: [{ type: 'text', text: 'The runtime restarted while continuing the task the owner resumed. Continue that interrupted work from its retained history and current state, within the existing scope and allowance. Check completed actions and uncertain effects before acting again.' }], source: { kind: 'user' } })
+      this.journal.append(attempt.sessionId, 'sophia/resume-recovery', {
+        attemptId: attempt.attemptId, commandId, afterNativeSeq: end.seq,
+        message: { messageId: message.id, target: 'next-turn', content: [...message.content] },
+      })
+    }
+    agent.followup(message)
+    await this.ctx.sessions.flush(agent.session)
   }
 
   /**
@@ -1314,6 +1370,7 @@ export class ControlBridge {
         this.rewakePending(agent)
         await this.ctx.sessions.flush(agent.session)
       }
+      await this.recoverInterruptedResume(attempt, agent)
       this.settings.log(`reconciled ${binding.attemptId}: fence=${attempt.fence} commands=${attempt.receipts.size} unsettled=${attempt.unsettled.size} stash=${attempt.stash.length}`)
       return null
     } catch (error) {

@@ -14,9 +14,9 @@ The source repair detects that native ending through public `foldConsumedWork` a
 
 - Exact Node 24.21.0 / pnpm 11.7.0; frozen install passed.
 - The first regression failed before the repair: Resume never continued consumed work.
-- Five focused tests pass against the real pinned dsh runtime with a keyless model and fixture service: interrupted work, held restart and duplicate command, completed idle work, crash replay both before and after native delivery, and recovery of a continuation into the held stash. All 18 tests in the Resume and existing recovery suites pass.
+- Nine focused tests pass against the real pinned dsh runtime with a keyless model and fixture service: interrupted work, held restart and duplicate command, completed idle work, crash replay both before and after native delivery, and recovery of a continuation into the held stash. The nine Resume regressions and thirteen existing recovery tests pass, including repeated crashes, held/stopped bindings and later unrelated work.
 - The initial candidate `92af70d4` passed `pnpm check`: toolchain, formatting, lint, build, typecheck, contracts, 2,219 unit tests passed / 70 skipped, artifact reproduction, and 90 integration tests passed / 2 skipped. The two integration skips require disposable PostgreSQL; this run did not execute them. Platform/provider-dependent unit skips are not live qualification.
-- Bundle archive SHA-256: `5ac2862cb2cbf5ec8eaf647cb5382faa1ed9b26abd60b3785a7324982d337ffa`. Upstream pin, package dependencies and workspace lock did not change; the profile lock records the new bundle integrity.
+- Bundle archive SHA-256: `172fc6de1da2dcb38da9be8c68005409484a65d0e381bafb0e4f234dd8a8d4b2`. Upstream pin, package dependencies and workspace lock did not change; the profile lock records the new bundle integrity.
 - Source register: DSH-08–11 and new DSH-31. No new destination or schema was created.
 
 Private operator evidence retains the production observation, native ending, four command settlements, spending ledger and gate closure. Those records are not copied into Git.
@@ -24,6 +24,8 @@ Private operator evidence retains the production observation, native ending, fou
 ## Automatic review repair
 
 Codex review comment 4259782410 on PR #287 found that a crash before settlement can leave a continuation in the held stash. The regression reproduced it: the old replay delivered a replacement and left the original stashed. Replay now recovers the stash first, preserves an unsettled Resume's message identity across unstashing, and recognizes the in-flight incorporation while native delivery is between its inbox and history. The regression includes another lost settlement, restart, and later Hold/Resume, with exactly one continuation and an empty stash. The original security review completed without a finding; the revised source requires fresh reviews and ordinary checks before merge.
+
+Codex review comment 4259971277 on `99c155c` identified a second crash window: after the Resume input is consumed, another runtime crash leaves an interrupted empty turn despite its delivered receipt. A SIGKILL regression reproduced it. Recovery now correlates only Hold-created Resume input with the native interrupted turn, using native messages and durable inbox splices. A fsynced `sophia/resume-recovery` record precedes each recovered input, so repeated crashes retain its ownership and pending delivery identity. The existing native driver, role/identity checks and spending guards still execute the work. Completed/error/blocked endings are not retried; held bindings wait for explicit Resume and stopped bindings never run. No separate scheduler or new provider route is introduced. Nine Resume regressions pass, including later unrelated work; final ordinary checks and independent review are required for this revision.
 
 ## Remaining obligations
 
