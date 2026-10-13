@@ -213,6 +213,26 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('spelled numbers parsed whole, any ordinal; a double negation kept (Codex round 17 on #274)', () => {
+    const budget = [asked('a', 'Set budgets to 1005 and 100 dollars', at)]
+    assert.equal(sameQuestion('Set budget to one thousand five hundred dollars', budget), null)
+    assert.equal(
+      sameQuestion('Set budget to one thousand five hundred dollars', [asked('a', 'Set budget to 1500 dollars', at)])
+        ?.id,
+      'a',
+    )
+    const years = [asked('a', 'Compare thirteenth year revenue forecast', at)]
+    assert.equal(sameQuestion('Compare fourteenth year revenue forecast', years), null)
+    assert.equal(sameQuestion('Compare 13th year revenue forecast', years)?.id, 'a')
+    assert.equal(
+      sameQuestion('Compare twenty first year revenue forecast', [asked('a', 'Compare 21st year revenue forecast', at)])
+        ?.id,
+      'a',
+    )
+    const twice = [asked('a', 'Should we not enable email notifications?', at)]
+    assert.equal(sameQuestion('Should we not not enable email notifications?', twice), null)
+  })
+
   it('cannot and can’t are one negation; figures apart are not composed (Codex round 16 on #274)', () => {
     assert.equal(sameQuestion('We can’t enable dark mode?', [asked('a', 'We cannot enable dark mode?', at)])?.id, 'a')
     assert.equal(sameQuestion('Review release 20-1 status', [asked('a', 'Review release 21 status', at)]), null)
