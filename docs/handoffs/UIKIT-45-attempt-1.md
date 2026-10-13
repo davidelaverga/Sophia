@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `1c03d6fc8db4` (tree `2da5a0519710`), the last commit of `ui/p2-next-ask-fresh`'s own that changes code (later
+Ending commit/tree: `e6a4f5f4cf00` (tree `20723566b5da`), the last commit of `ui/p2-next-ask-fresh`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 11 files changed against
 `origin/main` at that commit: `e2e/next-ask.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/app/theme.css`, `src/features/conversations/ConversationsView.tsx`, `src/features/conversations/OpenConversation.tsx`, `src/features/conversations/next-ask.test.ts`, `src/features/conversations/next-ask.ts`, `src/features/conversations/useNextAsk.ts`, `docs/handoffs/UIKIT-45-attempt-1.md`, `docs/plans/p2-next-ask-fresh.md`. The review notes below name the commit of each later change.
 
@@ -46,3 +46,10 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
   of the visit. `e2e/next-ask.spec.ts` «older asks unread…» (`older=fail`, then another conversation moves) holds it,
   and fails without the change; the fixture gained `older=fail` and `failOlderMessages` (`794a940a`). next-ask,
   question-asks and project-conversations: 23 passed; unit 1099/1099.
+
+## Post-review, round 2 (Codex on #275)
+
+- `e6a4f5f4`: nothing is offered while the brief (`brief.isFetching`) or the conversation list (`list.isFetching`, passed
+  from `ConversationsView`) is read again, so a proposal decided or a question closed since never stands for the ask in
+  between. Unit suite 1099/1099, lint and typecheck clean. Local Playwright refused by the machine guard (free RAM 2 GB
+  with AION2 open); CI is the run on record for the browser suites.
