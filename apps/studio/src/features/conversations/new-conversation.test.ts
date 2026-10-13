@@ -213,6 +213,14 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a repeated subject keeps its later place; an ordinal is a number (Codex round 12 on #274)', () => {
+    const both = [asked('a', 'For email and SMS, should we enable email and disable SMS?', at)]
+    assert.equal(sameQuestion('For email and SMS, should we enable SMS and disable email?', both), null)
+    const years = [asked('a', 'Compare the first year revenue forecast', at)]
+    assert.equal(sameQuestion('Compare the second year revenue forecast', years), null)
+    assert.equal(sameQuestion('Compare the first year revenue forecast?', years)?.id, 'a')
+  })
+
   it('a negation’s place, a decimal and a quantity past twelve count (Codex round 11 on #274)', () => {
     const choice = [asked('a', 'Should we enable email and not disable SMS?', at)]
     assert.equal(sameQuestion('Should we not enable email and disable SMS?', choice), null)
