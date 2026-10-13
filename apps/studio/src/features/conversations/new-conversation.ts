@@ -52,6 +52,8 @@ const wordsOf = (title: string) =>
   fold(title)
     // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
     .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
+    // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
+    .replace(/n['\u2019]t\b/gu, ' not')
     .split(/[^\p{L}\p{N}]+/u)
 
 /**
@@ -149,16 +151,36 @@ function aimsOf(words: readonly string[], of: (w: string) => string | undefined)
     .flatMap((w, i) => {
       const said = of(w)
       if (said === undefined) return []
+      // A negation reaches past a verb to its thing: «not use blue» is read as «not use blue», not «not use» (Codex on
+      // #274).
+      if (said === 'not')
+        return [
+          `not ${words
+            .slice(i + 1)
+            .filter(isThing)
+            .slice(0, 2)
+            .map(plainWord)
+            .join(' ')}`,
+        ]
       const after = words.slice(i + 1).find(isThing)
       const before = words.slice(0, i).findLast(isThing)
       const base = ACTIONS.get(w)
-      const participle = base !== undefined && w !== base && (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w))
+      // A passive: a participle after a form of «be» («be enabled», «was hidden»); a past tense alone is active
+      // («admins enabled dark mode»; Codex on #274).
+      const participle =
+        base !== undefined &&
+        w !== base &&
+        (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w)) &&
+        words.slice(Math.max(0, i - 2), i).some((p) => BE.has(p))
       const thing = participle ? (before ?? after) : (after ?? before)
       return [`${said} ${thing === undefined ? '' : plainWord(thing)}`]
     })
     .toSorted()
     .join('|')
 }
+
+/** The forms of «be» a passive is made with. */
+const BE = new Set(['be', 'been', 'being', 'is', 'are', 'was', 'were'])
 
 /** How each kind's turning word is read, for its thing: an action by its plain form; an order or a number as it is. */
 const READ = {
