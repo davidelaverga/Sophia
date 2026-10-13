@@ -15,10 +15,12 @@
 
 - **While the ways to start are shown** (nothing said yet: a new space, or one erased), the conversation starts from
   the top with the page's optical centre as its first line: `align-content: start` and a top space of 22 % of the
-  view (`data-begins` on `.msgs`). At 1440×900 the introduction moves from y 577 to about y 330.
+  view (`data-begins` on `.msgs`). At 1440×900 the introduction moves from y 577 to y 361.
 - **It keeps that start for the rest of the visit**: the first message sent does not throw the thread to the bottom;
   it grows downward from there, and once it fills the view it scrolls to the latest turn as every conversation does.
   The next visit opens as a conversation in progress, at the bottom.
+- **On a wide screen only (from 861 px).** On a phone the ways to start keep resting on the field, where the thumb is:
+  personal.spec «her first greeting and the ways in sit just above where you write» pins that, and the reason holds.
 - A conversation that opens with something said (yesterday's talk, her line of the day) is unchanged.
 
 ## Checks

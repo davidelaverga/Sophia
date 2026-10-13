@@ -1,5 +1,6 @@
-// Personal's new conversation (docs/plans/personal-first-talk.md): it starts at the page's optical centre, keeps that
-// start once the first message is sent, and a conversation in progress still rests on the field.
+// Personal's new conversation on a wide screen (docs/plans/personal-first-talk.md): it starts at the page's optical
+// centre, keeps that start once the first message is sent, and a conversation in progress still rests on the field. On
+// a phone it rests on the field (personal.spec «her first greeting and the ways in sit just above where you write»).
 import { expect, test, type Page } from '@playwright/test'
 
 const intro = (page: Page) => page.locator('.msgs .msg.sophia').first()
@@ -13,6 +14,15 @@ test('personal · a new conversation starts at the optical centre, and keeps its
 }) => {
   await page.goto('/personal.html?talk=new')
   await expect(page.getByRole('button', { name: /Something’s on my mind/ })).toBeVisible()
+  // Read once her words have arrived: their entrance rises a few pixels.
+  await intro(page).evaluate((el) =>
+    Promise.all(
+      el
+        .getAnimations({ subtree: true })
+        .filter((a) => a.effect?.getTiming().iterations !== Number.POSITIVE_INFINITY)
+        .map((a) => a.finished),
+    ),
+  )
   const top = (await intro(page).boundingBox())?.y ?? 0
   expect(top).toBeGreaterThan(900 * 0.25)
   expect(top).toBeLessThan(900 * 0.45)
