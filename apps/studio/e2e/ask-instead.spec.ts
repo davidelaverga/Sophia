@@ -57,3 +57,31 @@ test('ask instead · with the form already open, Search’s words land in its qu
   await formAsks(page)
   await expect(form(page).getByRole('textbox', { name: 'Question' })).toBeFocused()
 })
+
+test('ask instead · Knowledge’s ask goes while new words settle, never offering the old ones (Codex P2s on #267)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&conversations=1&place=knowledge')
+  await drawn(page, DRAWN.knowledge)
+  const search = page.getByRole('searchbox', { name: 'Search reports' })
+  await search.fill(WORDS)
+  await expect(page.getByRole('button', { name: `Ask Sophia about “${WORDS}”` })).toBeVisible()
+  await search.fill(`${WORDS} again`)
+  // At once, before the pause that settles the words: no ask is offered with the old ones.
+  expect(
+    await page.evaluate(() =>
+      [...document.querySelectorAll('button')].some((b) => /Ask Sophia about/.test(b.textContent)),
+    ),
+  ).toBe(false)
+  await expect(page.getByRole('button', { name: `Ask Sophia about “${WORDS} again”` })).toBeVisible()
+})
+
+test('ask instead @phone · a viewer’s ask shows the list, not a conversation (Codex P2 on #267)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.goto('/room.html?demo=1&conversations=1&place=knowledge&role=viewer')
+  // A viewer has no Invite, which DRAWN.knowledge waits for: the search is the page drawn enough.
+  await page.getByRole('searchbox', { name: 'Search reports' }).fill(WORDS)
+  await page.getByRole('button', { name: `Ask Sophia about “${WORDS}”` }).click()
+  await expect(page.locator('.conversations')).toHaveAttribute('data-screen', 'list')
+  await expect(form(page)).toHaveCount(0)
+})

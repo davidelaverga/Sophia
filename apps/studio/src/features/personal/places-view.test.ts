@@ -18,6 +18,7 @@ import {
   rowNote,
   sophiaSays,
   homeNextAsk,
+  placeAt,
   projectCard,
   readState,
   roomCaption,
@@ -190,6 +191,8 @@ describe('home, as a place that knows where you’ll go', () => {
     assert.deepEqual(homeNextAsk(four, NOW), {
       words: 'Help me get ready for Pitch run in Weekly standup',
       why: 'Because it starts in 10 min',
+      // What Tab puts in the line, and so what she reads: the timing too, the tip being gone by then (Codex P2 on #268).
+      full: 'Help me get ready for Pitch run in Weekly standup. It starts in 10 min.',
     })
     const live = project({
       projectId: id(5),
@@ -361,5 +364,14 @@ describe('her light by the hour (personal-moments.md §2)', () => {
       ],
       ['night', 'morning', 'morning', 'day', 'day', 'evening', 'evening', 'night', 'night'],
     )
+  })
+})
+
+describe('the place arrived at (Codex P2 on #268)', () => {
+  it('is the last of the places on screen: the one moved to, from the first frame of the move', () => {
+    assert.equal(placeAt(['home']), 'home')
+    assert.equal(placeAt(['home', 'personal']), 'personal')
+    // Back before the move settles: the reversed move goes straight to [personal, home].
+    assert.equal(placeAt(['personal', 'home']), 'home')
   })
 })

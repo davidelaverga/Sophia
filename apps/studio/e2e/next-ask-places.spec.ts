@@ -22,7 +22,8 @@ test('next ask · Home: the line suggests getting ready for the session about to
   await line(page).focus()
   await expect(page.locator('.hw-say .next-ask kbd')).toHaveText('Tab')
   await page.keyboard.press('Tab')
-  await expect(line(page)).toHaveValue(suggested)
+  // The line takes the ask with its timing: what she reads when it is sent (Codex P2 on #268).
+  await expect(line(page)).toHaveValue(`${suggested}. It starts in 10 min.`)
   await expect(line(page)).toBeFocused()
   await expect(page.locator('.hw-say .next-ask')).toHaveCount(0)
 })
@@ -93,4 +94,25 @@ test('next ask · a task’s sheet: Escape in its empty field puts the suggestio
   // A second Escape, nothing left to put away, is the sheet's: it closes.
   await page.keyboard.press('Escape')
   await expect(page.locator('.task-sheet')).toHaveCount(0)
+})
+
+/** The words a field's description says, through its `aria-describedby`. */
+const described = (field: ReturnType<Page['getByRole']>) =>
+  field.evaluate((el) =>
+    (el.getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .map((id) => document.getElementById(id)?.textContent ?? '')
+      .join(' '),
+  )
+
+test('next ask · both fields’ descriptions say why, for a screen reader (Codex P2 on #268)', async ({ page }) => {
+  await page.goto(SOON)
+  await drawn(page, DRAWN.home)
+  await line(page).focus()
+  expect(await described(line(page))).toContain('Because it starts in 10 min')
+  await page.goto('/work.html?viewer=davide')
+  await page.locator('.task-tile').first().click()
+  const field = page.getByRole('textbox', { name: 'Ask Sophia about this task' })
+  await field.focus()
+  expect(await described(field)).toContain('The first question its state invites')
 })
