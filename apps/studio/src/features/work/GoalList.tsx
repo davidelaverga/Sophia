@@ -76,13 +76,26 @@ function listedGoals(
  * A followed address: whether its task is on a plan yet (one may arrive after the address), and whether the search
  * hides its task's goal (it then gives way, so the task opens).
  */
-function followedOf(named: { id: string | null; seq: number }, plans: Props['plans'], tabbed: readonly Goal[]) {
-  const addressed = goalOf(plans, named.id)
+function followedOf(seq: number, addressed: string | undefined, tabbed: readonly Goal[]) {
   return {
-    seq: named.seq,
+    seq,
     found: addressed !== undefined,
     hidden: Boolean(addressed && !tabbed.some((g) => g.id === addressed)),
   }
+}
+
+/**
+ * Each time an address is followed, a search hiding its goal is cleared once what it names is on a plan, which may
+ * arrive later: until then the address waits, and a search typed while it waits gives way too. One typed after is kept.
+ * The address the page opens with is followed too: none is handled yet.
+ */
+function useClearHiding(followed: ReturnType<typeof followedOf>, setQuery: (q: string) => void) {
+  const handled = useRef<number | null>(null)
+  useEffect(() => {
+    if (handled.current === followed.seq || !followed.found) return
+    handled.current = followed.seq
+    if (followed.hidden) setQuery('')
+  }, [followed.seq, followed.found, followed.hidden, setQuery])
 }
 
 /**
@@ -114,7 +127,9 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
     shown,
     listed,
     anyPlan,
-    followed: followedOf(named, plans, tabbed),
+    followed: followedOf(named.seq, goalOf(plans, named.id), tabbed),
+    // A decision named too: a search hiding its goal gives way, so its board and choices mount (Codex on #245).
+    decisionFollowed: followedOf(decided.seq, decidedGoal, tabbed),
     // The board glides from one goal's plan to the other's (View Transitions, as Resources' filters).
     choose: (id: string) => moving(() => setChosen({ id, seq: named.seq })),
   }
@@ -154,16 +169,9 @@ export function GoalList({
 }: Props) {
   const planned = (id: string) => plans?.[id]?.view
   const [query, setQuery] = useState('')
-  const { tabbed, shown, listed, anyPlan, choose, followed } = useChosenGoal(snapshot, plans, query)
-  // Each time an address is followed, a search hiding its task's goal is cleared once its task is on a plan, which may
-  // arrive later: until then the address waits, and a search typed while it waits gives way too. One typed after is kept.
-  // The address the page opens with is followed too: none is handled yet.
-  const handled = useRef<number | null>(null)
-  useEffect(() => {
-    if (handled.current === followed.seq || !followed.found) return
-    handled.current = followed.seq
-    if (followed.hidden) setQuery('')
-  }, [followed.seq, followed.found, followed.hidden])
+  const { tabbed, shown, listed, anyPlan, choose, followed, decisionFollowed } = useChosenGoal(snapshot, plans, query)
+  useClearHiding(followed, setQuery)
+  useClearHiding(decisionFollowed, setQuery)
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />

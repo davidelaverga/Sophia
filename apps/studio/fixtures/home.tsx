@@ -347,7 +347,7 @@ function Home() {
           inCallProject={inCall}
           count={workCount(projects)}
           locked={locked}
-          hidden={away}
+          {...{ hidden: away, here: !away }}
           needs={
             fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
           }

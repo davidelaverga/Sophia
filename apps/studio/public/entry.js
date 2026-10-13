@@ -17,12 +17,11 @@ try {
     // The browser's chrome with it, from the first paint (theme.ts keeps it after).
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#fbf8f3')
   }
-  // The tab's mark in the appearance shown, a choice made against the system included (theme.ts keeps it after).
-  if (chosen) {
-    document
-      .querySelector('link[rel="icon"][type="image/svg+xml"]')
-      ?.setAttribute('href', light ? '/favicon-light.svg' : '/favicon-dark.svg')
-  }
+  // The tab's mark in the appearance shown, a choice made against the system included (theme.ts keeps it after). No
+  // choice is the room, so its mark too, whatever the system: the boot would switch to it anyway (Codex P2 on #249).
+  document
+    .querySelector('link[rel="icon"][type="image/svg+xml"]')
+    ?.setAttribute('href', chosen && light ? '/favicon-light.svg' : '/favicon-dark.svg')
 } catch {
   // Storage refused (a private window): the room, as the app's boot will say.
 }

@@ -1907,7 +1907,7 @@ test('codex · F-012 · a result lost since the last look is said lost, not as t
   await expect(tile(page, 'work-1')).toBeVisible({ timeout: 15_000 })
   // The last look, as kept: the same board, but when retry-v2 was the task's one current result.
   await page.evaluate(() => {
-    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v3:'))
+    const key = Object.keys(localStorage).find((k) => k.startsWith('sophia.plan.seen.v4:'))
     if (!key) throw new Error('no look kept')
     const kept: unknown = JSON.parse(localStorage.getItem(key) ?? '{}', (field: string, value: unknown) =>
       field === 'work-1' && typeof value === 'object' && value !== null ? { ...value, result: 'retry-v2' } : value,
@@ -2956,7 +2956,7 @@ test('codex · F-034 · a look kept under the old joined key is left as it is: n
   page,
 }) => {
   const fresh =
-    'sophia.plan.seen.v3:["00000000-0000-4000-8000-0000000000aa","00000000-0000-4000-8000-0000000000b1","plan-1","davide"]'
+    'sophia.plan.seen.v4:["00000000-0000-4000-8000-0000000000aa","00000000-0000-4000-8000-0000000000b1","plan-1","davide"]'
   const old =
     'sophia.plan.seen.v2.00000000-0000-4000-8000-0000000000aa.00000000-0000-4000-8000-0000000000b1.plan-1.davide'
   // An old look for this very plan, taken before anything was: read as this one's, it would say everything arrived.

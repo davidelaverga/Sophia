@@ -99,3 +99,23 @@ test('why · the focus on the last blocker’s press, the blocker done: the focu
   await expect(page.locator('.lane-why')).toHaveCount(0)
   await expect(page.locator('.board [data-task="work-1"]').first()).toBeFocused()
 })
+
+test('why · «and N more» gone with the line shortened, the focus goes to its last blocker (Codex P2 on #244)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?waits=1`)
+  const why = lane(page, 'Blocked').locator('.lane-why')
+  const more = why.locator('.lane-why-more')
+  await expect(more).toHaveText('and 2 more')
+  const ids = await why.locator('[data-blocker]').evaluateAll((els) => els.map((el) => el.getAttribute('data-blocker')))
+  await more.focus()
+  // Two of the five complete as the page watches: three left, all named, no «more» to press.
+  await page.evaluate(
+    (done) => {
+      for (const id of done) if (id) window.workFixture?.complete?.(id)
+    },
+    ids.slice(0, 2),
+  )
+  await expect(more).toHaveCount(0)
+  await expect(why.locator('[data-blocker]').last()).toBeFocused()
+})

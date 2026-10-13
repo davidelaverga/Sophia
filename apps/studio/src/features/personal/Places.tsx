@@ -36,11 +36,12 @@ import {
   firstName,
   greeting,
   PLACE_TITLE,
+  placeAt,
   READ_FAILED,
   readState,
   sophiaSays,
-  youDoor,
   workCount,
+  youDoor,
 } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { useEscape } from './useEscape.ts'
@@ -415,6 +416,7 @@ function Home({ v }: { v: View }) {
         count={workCount(projects)}
         locked={props.lock.locked}
         hidden={!v.shown.includes('home')}
+        here={placeAt(v.shown) === 'home'}
         actions={{
           personal: () => nav.enter('personal'),
           notes: () => nav.enter('personal', () => v.layers.setNotes(true)),

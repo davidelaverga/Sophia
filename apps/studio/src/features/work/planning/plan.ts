@@ -406,12 +406,15 @@ const blockedIn = (row: PlanRow, rows: readonly PlanRow[]) =>
   })
 
 /**
- * The items of the plan that `blocked` rows wait on and that are not complete, once each, in the plan's order (not
- * the order a dependent lists them in: Codex on #244).
+ * The items of the plan that `blocked` rows wait on and that are not complete, once each, in the plan's order (`order`,
+ * its items' ids): not the order a dependent lists them in, nor the board's, sorted by mark (Codex on #244).
  */
-export function blockersOf(blocked: readonly PlanRow[], rows: readonly PlanRow[]): PlanRow[] {
+export function blockersOf(blocked: readonly PlanRow[], rows: readonly PlanRow[], order: readonly string[]): PlanRow[] {
   const ids = new Set(blocked.flatMap((r) => r.item.blocked_by))
-  return rows.filter((r) => ids.has(r.item.id) && LANE[r.status.mark] !== 'complete')
+  const place = (r: PlanRow) => order.indexOf(r.item.id)
+  return rows
+    .filter((r) => ids.has(r.item.id) && LANE[r.status.mark] !== 'complete')
+    .toSorted((a, b) => place(a) - place(b))
 }
 
 /** The lane a row sits in: its mark's; Blocked when it is up next but waits on an item of its plan not done yet. */

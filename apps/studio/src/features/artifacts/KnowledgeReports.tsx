@@ -110,10 +110,13 @@ function useFormatOffer(format: Format, cards: readonly ReportCard[], loading: b
   return now
 }
 
-/** The words searched, to ask Sophia instead (docs/plans/ask-instead.md): none without words, or where she can't be. */
-const askAbout = (askSophia: ((q: string) => void) | null, q: string) => {
+/**
+ * The words searched, to ask Sophia instead (docs/plans/ask-instead.md): none without words, or where she can't be; none
+ * while the words in the field are not yet the words searched, the ask carrying the old ones (Codex P2s on #267).
+ */
+const askAbout = (askSophia: ((q: string) => void) | null, q: string, typed: string) => {
   const words = q.trim()
-  return askSophia && words !== '' ? { words, go: () => askSophia(words) } : null
+  return askSophia && words !== '' && typed.trim() === words ? { words, go: () => askSophia(words) } : null
 }
 
 export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = null }: Props) {
@@ -150,7 +153,7 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
         identity={identity}
         filtered={f.filtered}
         onClear={f.clear}
-        ask={askAbout(askSophia, f.q)}
+        ask={askAbout(askSophia, f.q, f.typed)}
       />
       {reports.hasNextPage && <MoreReports loading={reports.isFetchingNextPage} onMore={more} />}
       {f.project === projectId && carriedIn}

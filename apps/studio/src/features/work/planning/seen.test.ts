@@ -286,7 +286,7 @@ describe('where a look is kept (Codex F-034)', () => {
   it('keeps one look per plan, whatever its revision: the key names no revision', () => {
     const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
     assert.equal(seenKey(at), seenKey({ ...at }))
-    assert.deepEqual(JSON.parse(seenKey(at).replace('sophia.plan.seen.v3:', '')), ['p', 'g', 'plan-1', 'davide'])
+    assert.deepEqual(JSON.parse(seenKey(at).replace('sophia.plan.seen.v4:', '')), ['p', 'g', 'plan-1', 'davide'])
   })
 
   it('leaves a look kept under the old joined key as it is: not read as this scope’s, not moved, not deleted', () => {
@@ -341,5 +341,77 @@ describe('a lane moved while away (Codex on #236)', () => {
       decisions: {},
     }
     assert.deepEqual([...changedSince(rows, old)], [])
+  })
+})
+
+describe('a lane moved while away, said as it happened (Codex P2s on #236)', () => {
+  it('a look kept before lanes were noted is not read: the next look notes them', () => {
+    withStorage((store) => {
+      const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
+      // The previous release's look, under its own key, with no lane on its tasks.
+      store.set(`sophia.plan.seen.v3:${JSON.stringify(['p', 'g', 'plan-1', 'davide'])}`, JSON.stringify(look('later')))
+      assert.equal(readSeen(at), null)
+    })
+  })
+
+  it('a task free because what it waited on left the plan is not said to have had it complete', () => {
+    const blocked = rowsOf([
+      ['a', { lifecycle: 'running', assignment: assignment('a') }],
+      ['b', {}, AFTER_A],
+    ])
+    // The revision accepted since drops b's wait on a: nothing completed.
+    const freed = rowsOf([
+      ['a', { lifecycle: 'running', assignment: assignment('a') }],
+      ['b', {}],
+    ])
+    const said = whileAway(freed, [], glance(blocked, []), { viewerId: 'davide', people, now: NOW })
+    const all = [...said.phrases, ...said.rest]
+    assert.ok(all.includes('Task b can start: it no longer waits on another task'), JSON.stringify(said))
+    assert.ok(!all.some((p) => p.includes('what it waited on is complete')), JSON.stringify(said))
+  })
+})
+
+describe('a task freed, its waits as they were (Codex on #278)', () => {
+  it('one wait completed and another dropped is not said to have had all it waited on complete', () => {
+    const done = {
+      lifecycle: 'complete' as const,
+      completion: { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e'] },
+    }
+    const both = {
+      blocked_by: ['a', 'b'],
+      activation: { kind: 'dependencies_satisfied' as const, producer_work_id: null },
+    }
+    const blocked = rowsOf([
+      ['a', done],
+      ['b', { lifecycle: 'running', assignment: assignment('b') }],
+      ['c', {}, both],
+    ])
+    // The revision accepted since drops c's wait on b, which never completed; a is still complete.
+    const freed = rowsOf([
+      ['a', done],
+      ['b', { lifecycle: 'running', assignment: assignment('b') }],
+      ['c', {}, AFTER_A],
+    ])
+    const said = whileAway(freed, [], glance(blocked, []), { viewerId: 'davide', people, now: NOW })
+    const all = [...said.phrases, ...said.rest]
+    assert.ok(all.includes('Task c can start: it no longer waits on another task'), JSON.stringify(said))
+  })
+})
+
+describe('a look read defensively (Codex on #278)', () => {
+  it('a stored look whose waits are not a list of ids is not read', () => {
+    withStorage((store) => {
+      const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
+      store.set(
+        seenKey(at),
+        JSON.stringify({ items: { w: { mark: 'held', result: null, waits: 'w2' } }, decisions: {} }),
+      )
+      assert.equal(readSeen(at), null)
+      store.set(
+        seenKey(at),
+        JSON.stringify({ items: { w: { mark: 'held', result: null, waits: ['w2'] } }, decisions: {} }),
+      )
+      assert.notEqual(readSeen(at), null)
+    })
   })
 })

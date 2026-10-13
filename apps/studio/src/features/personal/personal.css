@@ -438,7 +438,8 @@
   margin-top: 14px;
   padding: 0;
   border: 0;
-  border-bottom: 1px solid rgb(var(--sheen-rgb) / 0.12);
+  /* The ink's hairline, not the sheen's: white on paper drew no line at all (Codex P2 on #234). */
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.12);
   background: none;
   color: var(--text-3);
   text-align: left;
@@ -467,7 +468,7 @@
 /* Listening, it still answers: a press stops it (its own selector outranks the kit's pressed hover; Codex on #232). */
 .places .hw-mic[aria-pressed='true']:hover {
   color: var(--text);
-  background: rgba(156, 130, 245, 0.22);
+  background: rgb(var(--halo-rgb) / 0.22);
 }
 @keyframes hw-listen {
   50% {
@@ -1073,7 +1074,8 @@
   border-radius: 0;
   background: none;
   color: var(--text-sec);
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  /* The day is data: at the label size, as dates and times are (Codex P2 on #241). */
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   scroll-margin-top: 44px;
@@ -1204,7 +1206,7 @@
   gap: 10px;
   padding: 6px 0 0;
   border: 0;
-  border-top: 1px solid rgb(var(--sheen-rgb) / 0.12);
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.12);
   border-radius: 0;
   background: transparent;
   box-shadow: none;
@@ -1255,7 +1257,7 @@
 /* Listening, it still answers: a press stops it (Codex on #232). */
 .places .ps-composer .message-bar .round[aria-pressed='true']:hover {
   color: var(--text);
-  background: rgba(156, 130, 245, 0.3);
+  background: rgb(var(--halo-rgb) / 0.3);
 }
 /* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
 .places .message-bar.listening textarea {

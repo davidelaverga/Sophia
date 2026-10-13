@@ -338,3 +338,114 @@ test('@phone · acts · what a copy says takes its room under the bubble, never 
   ])
   expect(acts?.y ?? 0).toBeGreaterThanOrEqual((body?.y ?? 0) + (body?.height ?? 0) - 0.5)
 })
+
+test('acts · the latest copy refused, an earlier one landing later is said too, as an error (Codex P2s on #240)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let presses = 0
+    window.clipWrites = []
+    // The first write hangs until the page settles it (it goes through); the second is refused at once.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          window.clipWrites?.push(text)
+          return presses++ === 0
+            ? new Promise<void>((resolve) => {
+                window.settleFirstCopy = resolve
+              })
+            : Promise.reject(new Error('refused'))
+        },
+      },
+    })
+  })
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  const second = messages(page).nth(1)
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await second.hover()
+  await second.getByRole('button', { name: 'Copy' }).click()
+  await expect(second.getByRole('status')).not.toHaveText('Copied')
+  // The person may have selected the second's words by hand; the first landing now overwrites them: said so.
+  await page.evaluate(() => window.settleFirstCopy?.())
+  const status = second.getByRole('status')
+  await expect(status).toHaveText(/An earlier copy landed after this one/)
+  // An error, as a refusal is: the rose, not the teal of «Copied».
+  const [said, rose] = await status.evaluate((el) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--rose)'
+    el.append(probe)
+    const read = [getComputedStyle(el).color, getComputedStyle(probe).color]
+    probe.remove()
+    return read
+  })
+  expect(said).toBe(rose)
+})
+
+test('acts · a run’s message saying it copied keeps its row clear of the message after it (Codex on #283)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  for (const words of ['One more thing', 'and another', 'and a last one']) {
+    await field(page).fill(words)
+    await page.keyboard.press('Enter')
+    await expect(messages(page).last()).toContainText(words)
+  }
+  const middle = messages(page).nth(-2)
+  const after = messages(page).last()
+  await expect(middle).toHaveAttribute('data-run', 'on')
+  await middle.hover()
+  await middle.getByRole('button', { name: 'Copy' }).click()
+  await expect(middle.getByRole('status')).toHaveText('Copied')
+  const [row, next] = await Promise.all([
+    middle.locator('.conv-acts').boundingBox(),
+    after.locator('.conv-msg-body').boundingBox(),
+  ])
+  expect(row && next ? row.y + row.height <= next.y + 0.5 : false).toBe(true)
+})
+
+test('acts · a run’s message saying a long thing (an earlier copy landed) keeps its row clear of the next (Codex on #283)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let presses = 0
+    window.clipWrites = []
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          window.clipWrites?.push(text)
+          return presses++ === 0
+            ? new Promise<void>((resolve) => {
+                window.settleFirstCopy = resolve
+              })
+            : Promise.resolve()
+        },
+      },
+    })
+  })
+  await page.goto(PAGE)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  for (const words of ['ok', 'yes', 'and a last one']) {
+    await field(page).fill(words)
+    await page.keyboard.press('Enter')
+    await expect(messages(page).last()).toContainText(words)
+  }
+  const first = messages(page).first()
+  const middle = messages(page).nth(-2)
+  const after = messages(page).last()
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await middle.hover()
+  await middle.getByRole('button', { name: 'Copy' }).click()
+  await expect(middle.getByRole('status')).toHaveText('Copied')
+  await page.evaluate(() => window.settleFirstCopy?.())
+  await expect(middle.getByRole('status')).toHaveText(/An earlier copy landed after this one/)
+  await middle.hover()
+  const [row, next] = await Promise.all([
+    middle.locator('.conv-acts').boundingBox(),
+    after.locator('.conv-msg-body').boundingBox(),
+  ])
+  expect(row && next ? row.y + row.height <= next.y + 0.5 : false).toBe(true)
+})
