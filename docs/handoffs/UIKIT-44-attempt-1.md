@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `52a590392289` (tree `3384d8cee38e`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `103ae6abd0eb` (tree `3cb1009ab7d4`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -158,3 +158,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 20 (Codex on #274)
 
 - `52a59039`: an ordinal after a scale and «and» ends that number («one hundred and first», 101st); a figure counts in the scoring whatever its length («one» read as «1»). Tests in `5c206b40`, failing first.
+
+## Post-review, round 21 (Codex on #274)
+
+- `103ae6ab`: the ordered words keep every word but a short filler (articles, auxiliaries, prepositions, conjunctions, «before»/«after», whose order is read on its own): quantifiers, pronouns and demonstratives keep their place without lists of their own (`PRONOUNS` gone). Tests in `e8231eb3`, failing first.
