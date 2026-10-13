@@ -38,6 +38,8 @@ test('lens · «Working on … in the background» is a press: Tasks, with the t
   await expect(note).toBeVisible()
   await note.click()
   await expect(page.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page')
+  // Several tasks, none named: the focus goes to the Tasks view's own item, never to the page (Codex on #284).
+  await expect(page.getByRole('link', { name: 'Tasks' })).toBeFocused()
 })
 
 test('lens · the door shut under the Studio view: the notice stands and the address names no lens', async ({

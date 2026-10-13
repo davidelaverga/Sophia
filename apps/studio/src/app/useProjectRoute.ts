@@ -20,6 +20,9 @@ export function useProjectRoute() {
       // The report goes along, and the Studio's lens a shared link named (Codex on #242).
       const search = window.location.search
       window.history.replaceState(null, '', routePath(route) + lensKept(search, reportSearch(search)))
+      // A viewer mounted first noted whose lens the address carries under the old path: told, it notes the new one
+      // (Codex on #284).
+      window.dispatchEvent(new Event(ADDRESS_MOVED))
     }
     const onPop = () => setRoute(current())
     window.addEventListener('popstate', onPop)
