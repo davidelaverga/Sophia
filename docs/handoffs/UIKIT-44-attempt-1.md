@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `248d97ff95f9` (tree `a5e722639062`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `7c1b1603841b` (tree `99a53340c640`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -134,3 +134,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 14 (Codex on #274)
 
 - `248d97ff`: a spelled number composes with its scale («one hundred» 100, «two thousand» 2000); a spelled ordinal reads as the figure is written («first» 1st, «second» 2nd, «third» 3rd). Tests in `8a0a840e`, failing first.
+
+## Post-review, round 15 (Codex on #274)
+
+- `7c1b1603`: tens and units said right after a scale are added to it («one hundred twenty one», 121); «100 and 20» stays two numbers. Tests in `706652ce`, failing first.
