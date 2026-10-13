@@ -136,13 +136,19 @@ interface LaneProps extends Omit<TileProps, 'row' | 'index' | 'flags'> {
 function LaneWhy({
   rows,
   all,
+  plan,
   onOpen,
 }: {
   rows: readonly PlanRow[]
   all: readonly PlanRow[]
+  plan: WorkPlan
   onOpen: (id: string) => void
 }) {
-  const blockers = blockersOf(rows, all)
+  const blockers = blockersOf(
+    rows,
+    all,
+    plan.items.map((i) => i.id),
+  )
   const [every, setEvery] = useState(false)
   if (blockers.length === 0) return null
   // The first few, named; the rest one press away, as a lane keeps its tiles (a plan may have many: Codex on #244).
@@ -181,6 +187,9 @@ function LaneWhy({
 /** How many blockers a lane names before «and N more». */
 const WHY_SHOWN = 3
 
+/** What the focus held stands for when it was on «and N more»: no task's id. */
+const WHY_MORE = '\u0000why-more'
+
 /** A lane: its head and count, its first tiles, and the rest one press away. */
 function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
   const [all, setAll] = useState(false)
@@ -193,7 +202,7 @@ function LaneSection({ lane, rows, flags, ...tile }: LaneProps) {
         <span className="field-label">{lane.label}</span>
         <span className="count">{rows.length}</span>
       </h4>
-      {lane.key === 'blocked' && <LaneWhy rows={rows} all={tile.all} onOpen={tile.onOpen} />}
+      {lane.key === 'blocked' && <LaneWhy rows={rows} all={tile.all} plan={tile.plan} onOpen={tile.onOpen} />}
       {rows.length === 0 ? (
         <EmptyState slot className="lane-empty">
           {lane.empty}
@@ -565,7 +574,10 @@ function useTileFocus(rows: readonly PlanRow[]) {
       // blocker's own tile (Codex on #244).
       const why = at?.closest<HTMLElement>('.board [data-blocker]')
       const tile = at?.closest<HTMLElement>('.board [data-task]')
-      held.current = why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
+      // «and N more» stands for the line: gone with it shortened (or the lane), the focus goes to the line's last
+      // press, else the lane's first tile, never the page (Codex on #244).
+      const more = at?.closest('.board .lane-why-more') ? WHY_MORE : null
+      held.current = more ?? why?.dataset['blocker'] ?? tile?.dataset['task'] ?? null
     }
     // Left on purpose (the tile still there once the moment passes): not followed. Removed with the focus in it (the
     // browser blurs it while still connected, then removes it): followed. Read after the commit that removes it.
@@ -586,6 +598,11 @@ function useTileFocus(rows: readonly PlanRow[]) {
   useLayoutEffect(() => {
     const id = held.current
     if (id === null || document.activeElement !== document.body) return
+    if (id === WHY_MORE) {
+      const last = [...document.querySelectorAll<HTMLElement>('.board .lane-why [data-blocker]')].at(-1)
+      ;(last ?? document.querySelector<HTMLElement>('.board [data-task]'))?.focus({ preventScroll: true })
+      return
+    }
     const tile = [...document.querySelectorAll<HTMLElement>('.board [data-task]')].find(
       (el) => el.dataset['task'] === id,
     )

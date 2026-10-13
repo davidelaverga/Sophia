@@ -30,7 +30,9 @@ export interface Seen {
  * deleted, so a first visit here starts afresh.
  */
 export const seenKey = (at: SeenAt) =>
-  `sophia.plan.seen.v3:${JSON.stringify([at.project, at.goal, at.plan, at.viewer])}`
+  // v4: each task's lane noted. A v3 look has none, so a lane-only move could never be said from it: it is not read,
+  // and the next look, under this key, notes them (Codex on #236).
+  `sophia.plan.seen.v4:${JSON.stringify([at.project, at.goal, at.plan, at.viewer])}`
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -82,6 +84,17 @@ export function writeSeen(at: SeenAt, seen: Seen): Seen {
 
 /** A lane that moved: compared only when the look noted one. */
 const laneMoved = (was: Lane | undefined, now: Lane | undefined) => was !== undefined && was !== now
+
+/**
+ * A task out of Blocked, said as it happened: what it waits on in the plan is all complete, or it waits on nothing in
+ * the plan any more (a revision dropped the wait, or the task it waited on): nothing completed (Codex on #236).
+ */
+function freedSaid(row: PlanRow, rows: readonly PlanRow[]): string {
+  const waitsOn = rows.filter((r) => row.item.blocked_by.includes(r.item.id))
+  return waitsOn.length > 0
+    ? `${row.item.purpose} can start: what it waited on is complete`
+    : `${row.item.purpose} can start: it no longer waits on another task`
+}
 
 /** The tasks that moved, arrived or got a new result since `seen`; none when there is nothing to compare with. */
 export function changedSince(rows: readonly PlanRow[], seen: Seen | null): ReadonlySet<string> {
@@ -228,9 +241,7 @@ export function whileAway(
     ...marked.filter((r) => PRESSING.has(r.status.mark)).map(markSaid),
     ...blocked.map((r) => `${r.item.purpose} is blocked`),
     ...marked.filter((r) => !PRESSING.has(r.status.mark)).map(markSaid),
-    ...laned
-      .filter((r) => !blocked.includes(r))
-      .map((r) => `${r.item.purpose} can start: what it waited on is complete`),
+    ...laned.filter((r) => !blocked.includes(r)).map((r) => freedSaid(r, rows)),
   ]
   return { phrases: all.slice(0, 3), more: Math.max(0, all.length - 3), rest: all.slice(3) }
 }
