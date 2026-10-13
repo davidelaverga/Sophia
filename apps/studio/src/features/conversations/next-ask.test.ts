@@ -9,6 +9,7 @@ import {
   QUICK_ASKS,
   quickAsks,
   sameAsk,
+  settled,
   threadOf,
   type AskContext,
 } from './next-ask.ts'
@@ -174,6 +175,13 @@ describe('the next ask, only from what is known now (Codex P2s on #262)', () => 
     assert.deepEqual(asksNow(ctx, { ...known, recencyKnown: false }), { suggestion: null, quick: [] })
     // Quiet (a message on its way) or hushed: no suggestion, the quick asks as they are.
     assert.deepEqual(asksNow(ctx, { ...known, quiet: true }), { suggestion: null, quick: quickAsks([], null, []) })
+  })
+
+  it('counts a read as settled only when idle: a refresh paused offline is still on its way (Codex on #275)', () => {
+    assert.equal(settled({ fetchStatus: 'idle' }), true)
+    assert.equal(settled({ fetchStatus: 'fetching' }), false)
+    // Paused: `isFetching` is false, yet the read waits for the network and an older page pressed now would cancel it.
+    assert.equal(settled({ fetchStatus: 'paused' }), false)
   })
 
   it('takes nothing from a brief whose last read failed: it may be stale', () => {
