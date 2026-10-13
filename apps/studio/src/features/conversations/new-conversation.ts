@@ -137,6 +137,21 @@ function valueOfRun(run: readonly string[]): number {
 }
 
 /**
+ * Whether an «and» after a scale joins what follows to it, as in «one hundred and five»: only when the words after it
+ * name less than that scale; «one thousand and two thousand» is two quantities (Codex on #274).
+ */
+function remainderFollows(prev: string | undefined, after: readonly string[]): boolean {
+  const scale = SCALES.get(prev ?? '')
+  if (scale === undefined) return false
+  const next: string[] = []
+  for (const w of after) {
+    if (!UNITS.has(w) && !TENS.has(w) && !SCALES.has(w)) break
+    next.push(w)
+  }
+  return next.length > 0 && valueOfRun(next) < scale
+}
+
+/**
  * Spelled numbers read as figures, each run of number words as one value, so the words meet the figures: «one thousand
  * five hundred» is 1500, «twenty first» 21st, «fourteenth» 14th (Codex on #274). An «and» after a scale («one hundred
  * and five») is part of the run; figures are never composed, «20-1» stays two numbers.
@@ -148,7 +163,7 @@ function spelledNumbers(words: readonly string[]): string[] {
     if (run.length > 0) out.push(String(valueOfRun(run)))
     run = []
   }
-  for (const w of words) {
+  for (const [i, w] of words.entries()) {
     const cardinal = cardinalOf(w)
     if (cardinal !== undefined) {
       if (!continues(run.at(-1), cardinal)) flush()
@@ -157,7 +172,7 @@ function spelledNumbers(words: readonly string[]): string[] {
     } else if (UNITS.has(w) || TENS.has(w) || SCALES.has(w)) {
       if (!continues(run.at(-1), w)) flush()
       run.push(w)
-    } else if (!(w === 'and' && SCALES.has(run.at(-1) ?? ''))) {
+    } else if (!(w === 'and' && remainderFollows(run.at(-1), words.slice(i + 1)))) {
       flush()
       out.push(w)
     }
