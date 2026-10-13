@@ -27,6 +27,8 @@ changed against `origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.
   (MessageActs' `overtaken` status and conversation-acts.spec's three writes; signin-lede.spec's widths; the
   conversations' `--type-head` rules; the light's stacking; the merged head of #252; eyebrows.md's 0.63 px; A15's
   kinds, seen route and `last_seen_turn_seq`).
+- Source-register IDs consulted: none. Every correction was checked against this repository only (its code, its
+  specs, A15's amendment file and the merged branches), no registered upstream source.
 
 ## Remaining obligations
 
