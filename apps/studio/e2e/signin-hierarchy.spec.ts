@@ -17,6 +17,20 @@ const borderOf = (page: Page) =>
     .first()
     .evaluate((el) => getComputedStyle(el).borderTopColor)
 
+/** The field's border once its 140 ms transition has settled: read until two reads a frame apart agree. */
+const settledBorder = async (page: Page) => {
+  let last = ''
+  await expect
+    .poll(async () => {
+      const now = await borderOf(page)
+      const same = now === last
+      last = now
+      return same
+    })
+    .toBe(true)
+  return last
+}
+
 async function sent(page: Page) {
   await page.getByPlaceholder('you@company.com').fill('luis@example.com')
   await page.getByRole('button', { name: 'Email me a link' }).click()
@@ -40,24 +54,24 @@ for (const theme of ['dark', 'light']) {
     await page.getByPlaceholder('you@company.com').fill('luis')
     await page.getByRole('button', { name: 'Email me a link' }).click()
     await expect(page.getByPlaceholder('you@company.com')).toHaveAttribute('aria-invalid', 'true')
-    const rose = await borderOf(page)
+    const rose = await settledBorder(page)
     await page.getByPlaceholder('you@company.com').fill('')
     await sent(page)
     const code = page.getByRole('textbox', { name: 'Code from the email' })
-    const calm = await borderOf(page)
+    const calm = await settledBorder(page)
     await code.fill('123456')
     await page.getByRole('button', { name: 'Sign in with code' }).click()
     await expect(page.getByRole('alert')).toHaveText('That code didn’t work.')
     await expect(code).toHaveAttribute('aria-invalid', 'true')
     await expect(code).toHaveAccessibleDescription('That code didn’t work.')
-    expect(await borderOf(page)).toBe(rose)
+    await expect.poll(() => borderOf(page)).toBe(rose)
     // The digits selected, so the next ones typed replace them.
     await expect(code).toBeFocused()
     expect(await code.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, 6])
     await page.keyboard.type('6')
     await expect(code).toHaveValue('6')
     await expect(code).not.toHaveAttribute('aria-invalid', 'true')
-    expect(await borderOf(page)).toBe(calm)
+    await expect.poll(() => borderOf(page)).toBe(calm)
   })
 }
 

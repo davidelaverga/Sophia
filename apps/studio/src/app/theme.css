@@ -1230,6 +1230,12 @@ img.avatar {
 .screen-body :where(p, input, .pill, .text-button) {
   font-size: 14px;
 }
+/* Its label size: the note under a form and a status beside a press, a size under the text, so the lede, the text and
+   the fine print read as three levels, not one (docs/plans/signin-hierarchy.md). */
+.screen-body :is(p.muted, .send-again [role='status']) {
+  font-size: 12px;
+  line-height: 16px;
+}
 /* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
 .screen-body .form-error {
   color: var(--rose);
