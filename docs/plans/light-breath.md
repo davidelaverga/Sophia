@@ -20,8 +20,9 @@
 
 - **The breath on paper**: the halo moves to `.light::after` (the same radial, white heart and all), which breathes
   6 s ease-in-out, alternate: scale 1 → 1.04 about the light's centre (50 % / 42 %), opacity 0.92 → 1. Under
-  `prefers-reduced-motion: reduce`, no animation (the room's engine already stands still there). The trace canvas sits
-  above the halo (`z-index: 1`) so the floor's thread passes over the heart.
+  `prefers-reduced-motion: reduce`, no animation (the room's engine already stands still there). The trace canvas
+  paints over the halo by order (`z-index: auto`; the halo sits at `z-index: -1` inside the light's stacking, as
+  delivered), so the floor's thread passes over the heart.
 - **The trace in paper inks** (`inksFor(paper)` in `trace.ts`, pure and tested): on paper the room's edge is the halo
   `109 91 208` at 0.22, the thread runs from the warm `150 83 40` to the violet `85 70 184`, and its head is a violet
   glow composited `source-over`. The engine takes `setPaper(paper)`; `SophiaLight` follows the root's `data-theme`

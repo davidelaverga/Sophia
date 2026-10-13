@@ -21,8 +21,10 @@
 - **One token for the heads**: `--type-head: 15px`, on the 20 px leading, weight 600 as every heading. The triad on a
   view reads 28 · 15 · 13; 16 was the other candidate and is the personal space's voice size, so 15.
 - **Where**: the six selectors measured above (`.goals .goal-title`, `.goal.compact .goal-title`, `.view-subhead`,
-  `.report-card-title`, `.connections > h3`, `.resource-tile-name`, `.conv-list-head h2`). Nothing else: a task tile,
-  a message, a statement and an input keep the title step.
+  `.report-card-title`, `.connections > h3`, `.resource-tile-name`, `.conv-list-head h2`), and, after the review, the
+  open conversation's title (`.conv-head h3`, on a phone too) and the new conversation's (`.conv-new > h3`). A message,
+  a statement and an input keep the title step; a task tile and the plan's next step take the body (below), and the
+  decision's question the heads' step at 400. (Summary brought to the delivered state after merge: Codex on #248.)
 - Heights: a Knowledge tile's title keeps `min-height: 24px` and two clamped lines (20 → 40 px, as before); a goal's
   head grows by one pixel of glyph, not of line.
 - **Five sizes on Tasks** (Codex on #248): with the heads at 15 the board held six (10.5 · 12 · 13 · 14 · 15 · 28),
@@ -34,7 +36,9 @@
 ## Checks
 
 - `e2e/section-heads.spec.ts`: on Goals, Tasks, Knowledge, Resources and Conversations every head computes
-  `15px/20px 600`, and on each view a head is larger than the body (13) and smaller than the view's title (28).
+  `15px/20px 600` (the conversations' list, open and new heads among them), and on each view a head is larger than the
+  body (13) and smaller than the view's title (28); Tasks reads five sizes, 10.5 · 12 · 13 · 15 · 28, its tiles' titles
+  and next step at 13 and the decision's question at 15/400.
 - The pinned scales that hold a head: `work` (`.goals`: 14 stays for the task tiles, 15 joins), `resources`
   (`.resources`: measured after the change), the knowledge and conversations lists gain 15.
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`; measured in the pane before the push.

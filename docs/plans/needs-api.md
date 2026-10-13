@@ -40,9 +40,17 @@
 
 ## What is Davide's
 
-- The route in `apps/api` (`listNeeds`): the five sources above, owner-only, with `readAt`; `403` for a guest; the
-  tests beside the other personal routes.
-- Later, if wanted: a `seenAt` per need (marking read), which this amendment leaves out on purpose.
+- The route in `apps/api` (`listNeeds`) as the final A15 has it: four kinds (decision, permission, guest, reply; no
+  review), owner-only, with `readAt`; `403` for a guest; the tests beside the other personal routes.
+- `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204), required: for a reply it advances the person's last
+  seen personal turn, `last_seen_turn_seq` on `personal_spaces`, a new column by a migration; for any other kind it
+  changes nothing. Without it a reply never leaves the list. (Corrected after merge: Codex on #245; the review
+  appendix below has the reasons.)
+- Four more points for the route and its contract, raised by Codex on #245 and left to this side (the amendment is
+  the service's): the seen POST is the only transition of the cursor (a background read of the personal space must
+  not advance it); each need kind tied to its `ref.kind`, project and `within` in the schema (discriminated variants);
+  only the latest open revision of a decision, its expiry after `readAt`; and the cursor's start for spaces that exist
+  at rollout (none read as all unread, nor a reply present then hidden), with a migration test on a space with turns.
 
 ## Checks (written first)
 
