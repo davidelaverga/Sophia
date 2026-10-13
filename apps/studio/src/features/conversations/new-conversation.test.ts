@@ -173,6 +173,13 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Compare Q1 revenue with Q2 costs?', quarters)?.id, 'a')
   })
 
+  it('a thing kept is read as scored: a final «s» dropped (Codex round 6 on #274)', () => {
+    const both = [asked('a', 'Should we enable email and disable text?', at)]
+    assert.equal(sameQuestion('Should we enable emails and disable texts?', both)?.id, 'a')
+    const quarters = [asked('a', 'Compare Q1 revenue with Q2 cost', at)]
+    assert.equal(sameQuestion('Compare Q1 revenues with Q2 costs', quarters)?.id, 'a')
+  })
+
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)
