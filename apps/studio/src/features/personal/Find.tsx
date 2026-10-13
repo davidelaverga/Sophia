@@ -51,10 +51,13 @@ interface BarProps {
   onClose: () => void
   /** Nothing matches and nothing earlier is left to read: ask Sophia instead; absent where she can't be written to. */
   onAsk?: (() => void) | undefined
+  /** The last ask wasn't taken (she can't answer now, another message is on its way): the count says so. */
+  refused: boolean
 }
 
-function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose, onAsk }: BarProps) {
-  const said = !query.trim() ? '' : count ? `${String(at + 1)} of ${String(count)}` : 'No match'
+function FindBar({ query, count, at, more, reading, onQuery, onStep, onMore, onClose, onAsk, refused }: BarProps) {
+  const found = count ? `${String(at + 1)} of ${String(count)}` : 'No match'
+  const said = !query.trim() ? '' : refused ? 'She can’t be asked now' : found
   return (
     <div className="c3-find" role="search" aria-label="Find in your conversation">
       <div className="field quiet">
@@ -200,13 +203,31 @@ function useFindOpen(on: boolean, uncover: (() => void) | null, clear: () => voi
  * whether it is open, how to open it, its line, and the lens the turns mark by. The current match is held as itself,
  * so earlier days read in before it leave it current.
  */
+/**
+ * Asking Sophia from Find (docs/plans/find-ask-sophia.md): the line goes as the field's words do, and Find closes only
+ * once it is taken; refused (she can't answer now, another message is on its way), Find stays and says so (Codex on
+ * #294). No press at all where she can't be written to.
+ */
+function useAsk(ask: ((words: string) => Promise<boolean>) | null, query: string, close: () => void) {
+  const [refused, setRefused] = useState(false)
+  const onAsk = ask
+    ? () => {
+        void ask(askAbout(query)).then((taken) => {
+          if (taken) close()
+          else setRefused(true)
+        })
+      }
+    : undefined
+  return { refused, reset: () => setRefused(false), onAsk }
+}
+
 export function useFind(
   rows: readonly Row[],
   on: boolean,
   back: { more: boolean; reading: boolean; read: () => Promise<void> },
   uncover: (() => void) | null,
   /** Sends Sophia a line as yours (actions.start); null where she can't be written to (docs/plans/find-ask-sophia.md). */
-  ask: ((words: string) => void) | null = null,
+  ask: ((words: string) => Promise<boolean>) | null = null,
 ) {
   const [query, setQuery] = useState('')
   const [held, setHeld] = useState<Found | null>(null)
@@ -228,6 +249,7 @@ export function useFind(
   useEffect(() => {
     if (where) document.querySelector('.msgs mark.current')?.scrollIntoView({ block: 'center' })
   }, [where, steps])
+  const asking = useAsk(ask, query, close)
   const bar = open ? (
     <FindBar
       {...{ query }}
@@ -235,7 +257,9 @@ export function useFind(
       reading={back.reading}
       count={found.length}
       at={index}
+      refused={asking.refused}
       onQuery={(q) => {
+        asking.reset()
         setQuery(q)
         setHeld(null)
       }}
@@ -249,15 +273,7 @@ export function useFind(
         void back.read()
       }}
       onClose={close}
-      onAsk={
-        ask
-          ? () => {
-              const words = askAbout(query)
-              close()
-              ask(words)
-            }
-          : undefined
-      }
+      onAsk={asking.onAsk}
     />
   ) : null
   const lens = open && query.trim() ? { query, current } : null

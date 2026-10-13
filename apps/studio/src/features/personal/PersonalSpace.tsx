@@ -612,7 +612,7 @@ function useConversationFind(
 ) {
   const uncover = covered ? () => props.notes.set(false) : null
   // Asking Sophia from Find sends as the field does; not offered while the padlock is shut (no field to send from).
-  const ask = props.locked ? null : (words: string) => void actions.start(words)
+  const ask = props.locked ? null : actions.start
   const { more, reading } = props.readBack
   // Only once the conversation is read: before, a search would say "No match" over one still loading.
   const back = { more, reading, read: actions.readEarlier }
