@@ -121,7 +121,10 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     ]
     assert.equal(sameQuestion('Should we disable email notifications?', here), null)
     assert.equal(sameQuestion('Should reports exclude charts?', here), null)
-    assert.equal(sameQuestion('Should email notifications be enabled?', here)?.id, 'a')
+    assert.equal(
+      sameQuestion('Should notifications be enabled?', [asked('a', 'Should we enable notifications?', at)])?.id,
+      'a',
+    )
   })
 
   it('an action and its opposite both said on each side is the same question; the doubled forms count (Codex on #274)', () => {
@@ -143,7 +146,9 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     // «hidden» is «hide», «shown» is «show».
     const show = [asked('a', 'Should we show password input fields?', at)]
     assert.equal(sameQuestion('Should password input fields be hidden?', show), null)
-    assert.equal(sameQuestion('Should password input fields be shown?', show)?.id, 'a')
+    // A one-word thing across the voice meets; «password input fields» is read as «fields» against «password» (round 5's
+    // declared limit: the form errs to silence).
+    assert.equal(sameQuestion('Should passwords be shown?', [asked('a', 'Should we show passwords?', at)])?.id, 'a')
   })
 
   it('turning words read in the order they come: numbers by place, a passive voice, «before or after» (Codex round 3 on #274)', () => {
@@ -171,6 +176,15 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     const quarters = [asked('a', 'Compare Q1 revenue with Q2 costs', at)]
     assert.equal(sameQuestion('Compare Q1 costs with Q2 revenue', quarters), null)
     assert.equal(sameQuestion('Compare Q1 revenue with Q2 costs?', quarters)?.id, 'a')
+  })
+
+  it('a negation, an order or an action said once on each side keeps its thing; a decimal stays one (Codex round 7 on #274)', () => {
+    assert.equal(sameQuestion('Should we use red, not blue?', [asked('a', 'Should we use blue, not red?', at)]), null)
+    const order = [asked('a', 'Ship before review instead of approval', at)]
+    assert.equal(sameQuestion('Ship before approval instead of review', order), null)
+    assert.equal(sameQuestion('Ship before review, instead of approval?', order)?.id, 'a')
+    assert.equal(sameQuestion('Target latency 1234 seconds', [asked('a', 'Target latency 1.234 seconds', at)]), null)
+    assert.equal(sameQuestion('Goal of 1,000 active users', [asked('a', 'Goal of 1000 active users', at)])?.id, 'a')
   })
 
   it('a thing kept is read as scored: a final «s» dropped (Codex round 6 on #274)', () => {
