@@ -19,7 +19,8 @@ commits on the branch merge its base forward or touch only this record). 5 files
 ## Outcome
 
 - Updates' section labels («Since you last looked», «Meetings», «Decided»…) and Conversations' day label («OCT 6») take
-  the kit's tracking for small capitals, 0.06em (0.72 px at 12 px), where they had 0.09em (1.08 px): a third wider, 6 px
+  the kit's tracking for small capitals, 0.06em: 0.72 px on Updates' 12 px labels, 0.63 px on the day label, which is
+  data at the label size, 10.5 px (corrected after merge: Codex on #282); they had 0.09em (1.08 px at 12 px): a third wider, 6 px
   over «SINCE YOU LAST LOOKED», read as another family beside Knowledge's label one view away.
 - Nothing else moves: sizes, weights, inks and cases are as they were. The personal space's 0.08em labels are the
   companion's voice and stay; the context pane's sentence-case labels are C9's and stay.
