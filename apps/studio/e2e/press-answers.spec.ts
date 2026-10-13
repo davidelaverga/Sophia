@@ -124,10 +124,19 @@ async function unanswering(page: Page, scope = 'body', tips = true) {
   // and an endless one (a listening microphone's) is held still while the sweep reads (Codex P2 on #232). Holding an
   // entrance would freeze it mid-way over the hover's own look. Transitions, the hover's own, still run.
   await page.evaluate(async () => {
+    // Time-based ones only (a scroll-driven animation finishes only when scrolled), and two seconds at most.
     const entrances = document
       .getAnimations()
-      .filter((a) => !(a instanceof CSSTransition) && a.effect?.getTiming().iterations !== Number.POSITIVE_INFINITY)
-    await Promise.all(entrances.map((a) => a.finished.catch(() => undefined)))
+      .filter(
+        (a) =>
+          !(a instanceof CSSTransition) &&
+          a.timeline === document.timeline &&
+          a.effect?.getTiming().iterations !== Number.POSITIVE_INFINITY,
+      )
+    await Promise.race([
+      Promise.all(entrances.map((a) => a.finished.catch(() => undefined))),
+      new Promise((done) => setTimeout(done, 2000)),
+    ])
     for (const a of document.getAnimations())
       if (a.effect?.getTiming().iterations === Number.POSITIVE_INFINITY) a.pause()
   })
