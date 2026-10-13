@@ -883,6 +883,15 @@
   margin-left: calc(-1 * var(--gut));
   scroll-behavior: smooth;
 }
+/* On a wide screen a conversation that opened here starts at the page's optical centre and grows downward from it;
+   once it fills the view it scrolls to its latest turn like any other. On a phone it rests on the field, where the
+   thumb is (docs/plans/personal-first-talk.md). */
+@media (min-width: 861px) {
+  .places .msgs[data-begins] {
+    align-content: start;
+    padding-top: max(18px, 22vh);
+  }
+}
 .places .msg {
   position: relative;
   display: grid;

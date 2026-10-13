@@ -7,7 +7,7 @@ import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { onScreen } from '../../app/shortcuts.ts'
 import { UMBRAL } from '../light/threshold.ts'
 import type { Way } from './arrive.ts'
-import { daysOf, notePrefill, suggestionFor, type Row } from './conversation-view.ts'
+import { daysOf, notePrefill, opensHere, suggestionFor, type Row } from './conversation-view.ts'
 import type { Week } from './extras.ts'
 import { FindLens, Marked, type Lens } from './Find.tsx'
 import { useCapped } from './useCapped.ts'
@@ -521,12 +521,27 @@ interface ConversationProps {
   lens?: Lens | null
 }
 
+/**
+ * A conversation that opened here (the ways to start offered) keeps its start for the rest of the visit: the first
+ * message sent grows the thread downward from where it began, instead of throwing it to the bottom
+ * (docs/plans/personal-first-talk.md).
+ */
+function useBegins(rows: readonly Row[]) {
+  const [begins, setBegins] = useState(false)
+  const opens = opensHere(rows)
+  useEffect(() => {
+    if (opens) setBegins(true)
+  }, [opens])
+  return begins || opens
+}
+
 export function Conversation(props: ConversationProps) {
   const { rows, turns, list, earlier, setEarlier, notice, composer, actions, covered, more, reading, week, answered } =
     props
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const { day, crowded } = useDayPill(list, rows)
+  const begins = useBegins(rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (
@@ -541,7 +556,14 @@ export function Conversation(props: ConversationProps) {
           {...{ more, reading }}
           onMore={() => void actions.readEarlier()}
         />
-        <div ref={list} id="c-log" className="msgs" aria-label="Conversation with Sophia" tabIndex={-1}>
+        <div
+          ref={list}
+          id="c-log"
+          className="msgs"
+          data-begins={begins || undefined}
+          aria-label="Conversation with Sophia"
+          tabIndex={-1}
+        >
           {notice}
           {rows.map((row) => (
             <RowView
