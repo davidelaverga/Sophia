@@ -213,6 +213,16 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a separator ends a spelled number; a clitic reads as its word (Codex round 24 on #274)', () => {
+    const total = [asked('a', 'Compare 10200 user budgets', at)]
+    assert.equal(sameQuestion('Compare one hundred/two hundred user budgets', total), null)
+    assert.equal(sameQuestion('Compare one hundred\u2013two hundred user budgets', total), null)
+    const ready = [asked('a', 'Should we enable email when we are ready?', at)]
+    assert.equal(sameQuestion('Should we enable email when we\u2019re ready?', ready)?.id, 'a')
+    const settings = [asked('a', 'Should we enable admin settings?', at)]
+    assert.equal(sameQuestion('Should we enable the admin\u2019s settings?', settings)?.id, 'a')
+  })
+
   it('a thousand and a million are two quantities (Codex round 23 on #274)', () => {
     assert.equal(
       sameQuestion('Compare one thousand and one million budgets', [asked('a', 'Compare 1001000000 budgets', at)]),
