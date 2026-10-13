@@ -40,3 +40,7 @@ The next follow-up: the light mode's inks (Codex P2s on #234, #249, #257).
 - `c146dc44`: the light halo's hover is checked on all three controls the change moved: Home's listening microphone (as
   before), Conversations' «Ask Sophia» on and Personal's listening microphone (`rgba(109, 91, 208, …)` under the
   pointer). CI is the run on record (local guard).
+
+## CI, first run
+
+- Run 38333774640 on `c1a8e0bb`: 1483 passed, 2 failed, both the sweep on Tasks and the work space: two task tiles read as not answering. Holding every animation froze the tiles' entrance (`tile-in`, filled both ways) mid-way, its transform over the hover's. `06746f5c`: entrances are let finish and only endless animations are held. The CI on the new head is the run on record.
