@@ -10,7 +10,7 @@ contract.
 Runtime unit: none beyond Prettier (records only); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: filled from the branch at push.
+Ending commit/tree: records only; the branch's own commits change no code.
 
 ## Outcome
 
