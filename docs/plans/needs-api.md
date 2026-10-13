@@ -24,8 +24,8 @@
   personal space), `expiresAt` (a decision's, `WorkDecision.expires_at`; null for the rest: a wait, a guest and a reply
   have none), `detail` («Davide asks», how long a permission or a guest has waited), `at`, and `ref` (`work_decision` ·
   `work_wait` · `lobby_entry` · `personal_turn`, its id, and `within`: the work item that holds a decision or a wait,
-  null otherwise, and `resourceId`: the resource whose native tool holds a permission's request, required so it opens
-  in Resources; null otherwise), so the Studio opens that record and never guesses.
+  null otherwise, and `resourceId`: the resource whose native tool holds a permission's request, meant to be set for every
+  permission so it opens in Resources, though A15's schema still lets it be null (open, below); null otherwise), so the Studio opens that record and never guesses.
 - `readAt`: the service's clock; expiries are compared against it, not the reader's.
 - `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204): a reply leaves the list through it (the person's
   last seen personal turn, `last_seen_turn_seq` on `personal_spaces`); any other need leaves when its record is answered
@@ -54,7 +54,7 @@
   appendix below has the reasons.)
 - Four more points for the route and its contract, raised by Codex on #245 and left to this side (the amendment is
   the service's): the seen POST is the only transition of the cursor (a background read of the personal space must
-  not advance it); each need kind tied to its `ref.kind`, project and `within` in the schema (discriminated variants);
+  not advance it); each need kind tied to its `ref.kind`, project and `within` in the schema (discriminated variants, a permission's `resourceId` required non-null among them);
   only the latest open revision of a decision, its expiry after `readAt`; and the cursor's start for spaces that exist
   at rollout (none read as all unread, nor a reply present then hidden), with a migration test on a space with turns.
   Two more, raised on #282: A15's own text still lets the service advance the cursor when the personal space is read,
