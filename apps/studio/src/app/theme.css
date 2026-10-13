@@ -2973,6 +2973,20 @@ button.contribution-quote:hover {
   pointer-events: auto;
   transform: translate(-50%, 0);
 }
+/* While a sheet is open the notice stands clear of it (docs/plans/toast-over-sheet.md): centred in what the panel
+   (min(420px, 100%)) leaves on the left, and no wider; on a phone, where the sheet rises from the bottom, at the top. */
+:root:has(.sheet-backdrop) .toast {
+  left: calc((100% - 420px) / 2);
+  max-width: calc(100% - 420px - 2 * var(--gutter));
+}
+@media (max-width: 560px) {
+  :root:has(.sheet-backdrop) .toast {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    bottom: auto;
+    left: 50%;
+    max-width: calc(100% - 2 * var(--gutter));
+  }
+}
 .toast-time {
   position: absolute;
   left: 0;
