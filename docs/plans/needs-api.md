@@ -18,12 +18,14 @@
 
 - `GET /api/v1/me/needs` → `NeedList { needs: Need[], readAt }`, bearer, owner-only (as A10's personal space): built
   from the person's own memberships and space; nothing of another person is in it.
-- `Need` (as merged, after the review rounds below): `id` (`<kind>:<ref.id>`, stable), `kind` (decision · permission
+- `Need` (as merged, after the review rounds below): `id` (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`,
+  stable and unique across the person's needs: a wait's reference may repeat across projects or work items), `kind` (decision · permission
   · guest · reply; review dropped), `title` (the record's own words), `projectId` / `projectTitle` (null for the
   personal space), `expiresAt` (a decision's, `WorkDecision.expires_at`; null for the rest: a wait, a guest and a reply
   have none), `detail` («Davide asks», how long a permission or a guest has waited), `at`, and `ref` (`work_decision` ·
   `work_wait` · `lobby_entry` · `personal_turn`, its id, and `within`: the work item that holds a decision or a wait,
-  null otherwise), so the Studio opens that record and never guesses.
+  null otherwise, and `resourceId`: the resource whose native tool holds a permission's request, required so it opens
+  in Resources; null otherwise), so the Studio opens that record and never guesses.
 - `readAt`: the service's clock; expiries are compared against it, not the reader's.
 - `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204): a reply leaves the list through it (the person's
   last seen personal turn, `last_seen_turn_seq` on `personal_spaces`); any other need leaves when its record is answered
