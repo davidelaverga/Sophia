@@ -70,6 +70,10 @@ const SPELLED = new Map([
   ...'twenty thirty forty fifty sixty seventy eighty ninety'
     .split(' ')
     .map((w, i) => [w, String((i + 2) * 10)] as const),
+  // Ordinals, as numbers too: «the second year» is not «the first» (Codex on #274).
+  ...'first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth'
+    .split(' ')
+    .map((w, i) => [w, `${String(i + 1)}th`] as const),
   ['hundred', '100'],
   ['thousand', '1000'],
   ['million', '1000000'],
@@ -158,17 +162,18 @@ const turnsOf = {
 }
 
 /**
- * A title's own words in the order they first come, numbers kept (a digit is a word here), each once («before review or
- * after review» is «before or after review»): what two titles with turning words on both sides must share, word for
- * word, to be the same question.
+ * A title's own words in the order they come, numbers kept (a digit is a word here): what two titles with turning words
+ * on both sides must share, word for word, to be the same question.
  */
 const ownOrder = (words: readonly string[]) =>
-  [
-    ...new Set(
-      // A negation keeps its place: «not enable … disable» is not «enable … not disable» (Codex on #274).
-      words.filter((w) => /\p{N}/u.test(w) || NEGATIONS.has(w) || (w.length >= 3 && !COMMON.has(w))).map(plainWord),
-    ),
-  ].join(' ')
+  words
+    // A negation keeps its place: «not enable … disable» is not «enable … not disable» (Codex on #274).
+    .filter((w) => /\p{N}/u.test(w) || NEGATIONS.has(w) || (w.length >= 3 && !COMMON.has(w)))
+    .map(plainWord)
+    // A word said twice running is said once («before review or after review»); a word said again later keeps that
+    // later place, which binds it to what is said there («enable SMS and disable email»: Codex on #274).
+    .filter((w, i, all) => w !== all[i - 1])
+    .join(' ')
 
 /** Whether a title says a turning word of any kind: a negation, an order, an action of a pair, a number. */
 const turns = (words: readonly string[]) =>
