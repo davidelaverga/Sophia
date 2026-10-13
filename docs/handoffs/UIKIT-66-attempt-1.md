@@ -47,3 +47,13 @@ commits on the branch merge its base forward or touch only this record). 4 files
 ## Next bounded action
 
 PR 2: Resources mounted in the project under the flag; then Goals with progress and a link to its plan.
+
+## Post-review (Codex P1 on #299): a browser run with the flag off
+
+- P1 4263980018: the fixture pages turn the vision flag on, so a fixtures server was run with it off
+  (`vite.fixtures.config.ts` imported by a verification-only config that sets `VITE_SOPHIA_VISION=0` before Vite
+  reads it; outside the repo, port 5196). In the browser, `room.html`: the project's nav reads Studio · Goals · Tasks ·
+  Knowledge, and the command palette's «Go to» rows are Goals, Tasks and Knowledge only. Capture:
+  `evaluacion-2026-10-13/vistas/nav-without-vision.jpg` (Luis's evaluation folder). The fallback of an address to a
+  hidden view (`shownView` in `SignedIn`) is in the signed-in app, which needs the API; it stays unit-tested
+  (`route.test.ts`).
