@@ -172,6 +172,22 @@ test('dock · on a phone with Sophia in the conversation: her controls are icons
   await expect(dock(page).locator('.floor-label:visible')).toHaveCount(0)
 })
 
+test('dock · on a phone, End is her light going out, not a square beside Leave (docs/plans/dock-end-icon.md)', async ({
+  page,
+}) => {
+  await enter(page, 'people=2&exchange=open&sophia=speaking', 390)
+  const icon = (name: string) =>
+    dock(page)
+      .getByRole('button', { name, exact: true })
+      .locator('.dock-icon svg')
+      .evaluate((s) => s.innerHTML)
+  const [end, exit] = await Promise.all([icon('End'), icon('Leave the room')])
+  // Her light's point, filled, as on «Speak with Sophia»; no stop square.
+  expect(end).toMatch(/<circle[^>]*fill="currentColor"/)
+  expect(end).not.toMatch(/<rect/)
+  expect(end).not.toBe(exit)
+})
+
 test('dock · on a computer, the words as before', async ({ page }) => {
   await enter(page, 'people=2', 1280)
   const words = (await seen(page)).map((b) => b.words)
