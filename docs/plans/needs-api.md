@@ -18,14 +18,16 @@
 
 - `GET /api/v1/me/needs` → `NeedList { needs: Need[], readAt }`, bearer, owner-only (as A10's personal space): built
   from the person's own memberships and space; nothing of another person is in it.
-- `Need`: `id` (`<kind>:<ref.id>`, stable), `kind` (decision · permission · review · guest · reply), `title` (the
-  record's own words), `projectId` / `projectTitle` (null for the personal space), `expiresAt` (a decision's or a
-  permission's; null else), `detail` («Davide asks», how long a guest has waited), `at`, and `ref` (`mission_decision`
-  · `work_item` · `artifact_version` · `lobby_entry` · `personal_turn`, with its id), so the Studio opens that record
-  and never guesses.
+- `Need` (as merged, after the review rounds below): `id` (`<kind>:<ref.id>`, stable), `kind` (decision · permission
+  · guest · reply; review dropped), `title` (the record's own words), `projectId` / `projectTitle` (null for the
+  personal space), `expiresAt` (a decision's, `WorkDecision.expires_at`; null for the rest: a wait, a guest and a reply
+  have none), `detail` («Davide asks», how long a permission or a guest has waited), `at`, and `ref` (`work_decision` ·
+  `work_wait` · `lobby_entry` · `personal_turn`, its id, and `within`: the work item that holds a decision or a wait,
+  null otherwise), so the Studio opens that record and never guesses.
 - `readAt`: the service's clock; expiries are compared against it, not the reader's.
-- Not in it: marking read, dismissing; a badge is the list's length. A need leaves the list when its record is answered
-  where it lives.
+- `POST /api/v1/me/needs/{id}/seen` (owner-only, idempotent, 204): a reply leaves the list through it (the person's
+  last seen personal turn, `last_seen_turn_seq` on `personal_spaces`); any other need leaves when its record is answered
+  where it lives. No dismissing; a badge is the list's length. (Brought to the merged A15 after merge: Codex on #282.)
 
 ## What the Studio does now (behind the vision flag)
 
@@ -34,9 +36,10 @@
   kept for the way there.
 - Places reads it at Home (`useNeeds`, every 20 s as the projects are), and hands Welcome `{ items, open }`: a
   decision or a permission opens the project's Tasks, a review its Knowledge, a guest its room, a reply the personal
-  space. Without the flag nothing is read and Home is as it was.
-- The fixture's API answers the route with five needs (one of each kind); the app's own check routes it and finds the
-  column and the way to Tasks.
+  space. Without the flag nothing is read and Home is as it was. Opening a reply from Home posts its seen mark and
+  reads the list again.
+- The fixture's API answers the route with four needs, one of each kind (a decision and a permission within their work
+  item, a guest, a reply); the app's own check routes it and finds the column and the way to Tasks.
 
 ## What is Davide's
 
@@ -62,7 +65,7 @@
 
 ## Left
 
-- Marking a need read; a push or a mail when one arrives (F2's second half).
+- A push or a mail when one arrives (F2's second half). Marking a reply read is in the amendment (the seen POST).
 
 ## After the review (Codex on #245)
 
