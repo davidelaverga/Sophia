@@ -191,10 +191,17 @@ describe('the words around the conversation', () => {
       daysOf(conversationRows(input(turns))).map((d) => [d.label, d.topics]),
       [
         ['Yesterday', 'the pitch · sleep'],
-        ['Today', 'weekend plans with…'],
+        ['Today', 'Weekend plans with…'],
       ],
     )
     assert.equal(topicOf('Just talk'), 'a chat')
+  })
+
+  it('quotes your words as you wrote them, to the first sentence (docs/plans/personal-day-menu.md)', () => {
+    assert.equal(topicOf('Davide and I disagreed about the pricing tiers.'), 'Davide and I…')
+    assert.equal(topicOf('Starting over. Today I want to plan the week calmly.'), 'Starting over')
+    // A topic Sophia names stays as she names it.
+    assert.equal(topicOf('I cannot sleep'), 'sleep')
   })
 
   it('prefills a note with Sophia’s suggestion when there is one, else the words, cut short', () => {
