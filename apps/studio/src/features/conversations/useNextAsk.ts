@@ -2,7 +2,7 @@
 // the view, the brief from the same read the context pane uses (one query, shared), and what was put away here, kept
 // per conversation while the page lives.
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { getConversationMessages, type ConversationMessage } from '../../api/vision.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -52,9 +52,14 @@ function useOlderAsks(source: NextAskSource, conversationId: string, identity: I
   })
   // A failed read is tried again each time the thread is read again (the feed moved), the viewer's asks unchanged and
   // so its key the same: a passing failure does not blank the quick asks for the rest of the visit (Codex on #275).
+  // Once per read of the thread: a refetch with no data resets the query to pending, so retrying on the error itself
+  // would loop for as long as the read keeps failing (Codex P1 on #275).
   const { isError, refetch } = older
+  const triedAt = useRef(source.readAt)
   useEffect(() => {
-    if (isError) void refetch()
+    if (!isError || triedAt.current === source.readAt) return
+    triedAt.current = source.readAt
+    void refetch()
   }, [source.readAt, isError, refetch])
   return { words: older.data?.asks ?? [], known: !enabled || (older.isSuccess && older.data.complete) }
 }
