@@ -24,6 +24,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, AgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
 // Type-only: brings the `ctx.agentDefaultModel` Context augmentation into scope.
 import type {} from '@deepseek-ai/dsh-agent-default-model'
@@ -1061,8 +1062,18 @@ export class ControlBridge {
     }
     const agent = this.agentOf(attempt)
     if (attempt.fence === 'stopped') throw new ProtocolError('the attempt is stopped; a stopped native session is never resumed')
-    const seq = this.append(attempt, command, null, null)
     const wasHeld = attempt.fence === 'held'
+    // Hold can interrupt already-consumed work with no message left in the inbox.
+    // Native cancellation does not retain a wake for that work. Continue only a
+    // turn the native log says our Hold aborted; a completed/failed idle turn is
+    // not new work. The command's ordinary durable delivery handles crash replay.
+    const ended = foldConsumedWork(agent.session.snapshotEvents()).end?.data.reason
+    const empty = attempt.stash.length + agent.inbox.nextStep.length + agent.inbox.nextTurn.length === 0
+    const heldWork = wasHeld && empty && ended?.kind === 'aborted' && ended.reason.kind === 'hook' && ended.reason.reason === 'sophia-hold'
+    if (heldWork || attempt.unsettled.get(command.commandId)?.messageId) {
+      return this.deliverTo(attempt, agent, command, 'next-turn', 'The owner resumed this held task. Continue the interrupted work from its retained history and current state, within the existing task scope and allowance. Check what already completed before taking further action.')
+    }
+    const seq = this.append(attempt, command, null, null)
     if (wasHeld) this.setFence(attempt, 'active', command)
     // Also completes a Resume that a restart cut short after lifting the fence.
     this.redeliverStash(attempt, agent, command.commandId)
@@ -1128,6 +1139,10 @@ export class ControlBridge {
       if (this.nativeMessageIds(agent).has(replay.messageId)) {
         // Re-execution after a restart: dsh already holds the message. Settle; never send it twice.
         const seq = this.append(attempt, command, { id: replay.messageId, content: replay.content ?? [] }, replay.target)
+        if (command.kind === 'resume') {
+          if (attempt.fence === 'held') this.setFence(attempt, 'active', command)
+          this.rewakePending(agent)
+        }
         return [this.record(attempt, command, 'delivered', seq, await this.settled(attempt, agent, command), 'redelivered after a restart; dsh already held the message')]
       }
       attempt.pendingIncorporation.delete(replay.messageId)
@@ -1137,6 +1152,7 @@ export class ControlBridge {
     // Journal first (fsynced), then hand to the native inbox, then flush its
     // splice: the receipt says `delivered` only once both are durable.
     const seq = this.append(attempt, command, message, target)
+    if (command.kind === 'resume' && attempt.fence === 'held') this.setFence(attempt, 'active', command)
     attempt.targets.set(message.id, target)
     attempt.pendingIncorporation.set(message.id, command.commandId)
     if (target === 'next-step') agent.steer(message)
