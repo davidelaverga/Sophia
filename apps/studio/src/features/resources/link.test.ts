@@ -9,3 +9,10 @@ describe('a request’s address (Codex on #245)', () => {
     assert.deepEqual(requestOf('req-1'), { resourceId: null, requestId: 'req-1' })
   })
 })
+
+describe('a bare request id holding a slash (Codex P2 on #245)', () => {
+  it('reads back whole, never split into a resource and a request', () => {
+    assert.deepEqual(requestOf(requestAddress(null, 'requests/123')), { resourceId: null, requestId: 'requests/123' })
+    assert.deepEqual(requestOf(requestAddress('res', 'requests/123')), { resourceId: 'res', requestId: 'requests/123' })
+  })
+})

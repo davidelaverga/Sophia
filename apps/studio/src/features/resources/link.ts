@@ -18,15 +18,17 @@ export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURI
  * (an older link) still reads.
  */
 export const requestAddress = (resourceId: string | null, requestId: string) =>
-  resourceId === null ? requestId : `${encodeURIComponent(resourceId)}/${encodeURIComponent(requestId)}`
+  // A bare id leads with the separator (an empty resource), so a slash inside it is never read as one (Codex on #245).
+  `${resourceId === null ? '' : encodeURIComponent(resourceId)}/${encodeURIComponent(requestId)}`
 
 /** The resource and the request a request address names (`requestAddress`); the resource null for a bare id. */
 export function requestOf(address: string): { resourceId: string | null; requestId: string } {
   const at = address.indexOf('/')
   if (at < 0) return { resourceId: null, requestId: address }
   try {
+    const resource = decodeURIComponent(address.slice(0, at))
     return {
-      resourceId: decodeURIComponent(address.slice(0, at)),
+      resourceId: resource === '' ? null : resource,
       requestId: decodeURIComponent(address.slice(at + 1)),
     }
   } catch {

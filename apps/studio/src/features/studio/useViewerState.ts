@@ -1,10 +1,11 @@
 // React binding for viewer-state.ts. Storage is a per-device convenience: when it is unavailable
 // (private mode, blocked site data) the state still works for this page and is simply not kept.
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { ADDRESS_MOVED, pathIsFor } from '../../app/route.ts'
 import {
   LENS_FOR_KEY,
   addressLensFor,
+  lensAddress,
   readLensWrite,
   readViewerState,
   storedViewerState,
@@ -83,6 +84,16 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
   // The lens in the address, no history entry, Converse too (docs/plans/studio-lens-address.md). `moves`: the address
   // moved under a mounted shell (the view already shown, pressed again) is written again (Codex on #242).
   const moves = useAddressMoves()
+  // A shell kept mounted (a call) that takes the address again, by Back or Forward to its Studio: the lens that address
+  // names is read before this shell writes its own over it (Codex on #242).
+  const wasInAddress = useRef(inAddress)
+  useLayoutEffect(() => {
+    if (inAddress && !wasInAddress.current) {
+      const named = addressLensFor(key, window.location, wroteFor())
+      if (named) dispatch({ type: 'lens', lens: named })
+    }
+    wasInAddress.current = inAddress
+  }, [inAddress, key])
   useEffect(() => {
     if (!inAddress) return
     const { pathname, search, hash } = window.location
@@ -90,7 +101,7 @@ export function useViewerState(viewer: string, projectId: string, inAddress = tr
     if (next !== search) window.history.replaceState(window.history.state, '', `${pathname}${next}${hash}`)
     // Whose lens the address carries, and which address, so another subject at this page does not read it as theirs.
     try {
-      sessionStorage.setItem(LENS_FOR_KEY, JSON.stringify({ key, address: `${pathname}${next}` }))
+      sessionStorage.setItem(LENS_FOR_KEY, JSON.stringify({ key, address: lensAddress(pathname, next) }))
     } catch {
       /* no storage: the address's lens is read as any link's */
     }

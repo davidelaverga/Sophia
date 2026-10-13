@@ -77,6 +77,19 @@ export function lensInAddress(search: string): Lens | null {
  * The address's search with the lens in it, Converse too: an address without one is no claim (the stored lens
  * stands), so a link that shows Converse must say so (Codex on #242). Null takes the lens out: nothing shows one.
  */
+/**
+ * The lens of one address carried into another search: an address normalized (a legacy or trailing-slash path) keeps
+ * the lens a shared link named (Codex on #242).
+ */
+export const lensKept = (from: string, into: string): string => withLensInAddress(into, lensInAddress(from))
+
+/**
+ * What an address says of its lens, for whose it is: the path and the lens alone, so a report opened over it since
+ * (its own parameters, pushed by the viewer) does not make it another address (Codex on #242).
+ */
+export const lensAddress = (pathname: string, search: string): string =>
+  `${pathname}${withLensInAddress('', lensInAddress(search))}`
+
 export function withLensInAddress(search: string, lens: Lens | null): string {
   const params = new URLSearchParams(search)
   if (lens === null) params.delete('lens')
@@ -115,6 +128,6 @@ export function addressLensFor(
 ): Lens | null {
   const named = lensInAddress(here.search)
   if (!named) return null
-  const left = wrote !== null && wrote.key !== key && wrote.address === `${here.pathname}${here.search}`
+  const left = wrote !== null && wrote.key !== key && wrote.address === lensAddress(here.pathname, here.search)
   return left ? null : named
 }

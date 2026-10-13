@@ -10,12 +10,19 @@ export interface Addressed {
   seq: number
 }
 
+/** The router named a record in the fragment (openAt): a mounted view follows it as a link followed. */
+export const ADDRESS_NAMED = 'sophia:address-named'
+
 export function useAddressed(prefix: string): Addressed {
   const [named, setNamed] = useState<Addressed>(() => ({ id: linkedId(window.location.hash, prefix), seq: 0 }))
   useEffect(() => {
     const follow = () => setNamed((n) => ({ id: linkedId(window.location.hash, prefix), seq: n.seq + 1 }))
     window.addEventListener('hashchange', follow)
-    return () => window.removeEventListener('hashchange', follow)
+    window.addEventListener(ADDRESS_NAMED, follow)
+    return () => {
+      window.removeEventListener('hashchange', follow)
+      window.removeEventListener(ADDRESS_NAMED, follow)
+    }
   }, [prefix])
   return named
 }
