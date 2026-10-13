@@ -213,6 +213,16 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('any punctuation ends a spelled number; a negating prefix stays a word of its own (Codex round 27 on #274)', () => {
+    const total = [asked('a', 'Compare 10200 user budgets', at)]
+    assert.equal(sameQuestion('Compare one hundred; two hundred user budgets', total), null)
+    assert.equal(sameQuestion('Compare one hundred, two hundred user budgets', total), null)
+    assert.equal(sameQuestion('Compare (one hundred) two hundred user budgets', total), null)
+    const enabled = [asked('a', 'Should we use enabled email alerts?', at)]
+    assert.equal(sameQuestion('Should we use never-enabled email alerts?', enabled), null)
+    assert.equal(sameQuestion('Should we use non-enabled email alerts?', enabled), null)
+  })
+
   it('a hyphen inside a word keeps the word whole; beside a number it is a boundary (Codex round 26 on #274)', () => {
     const email = [asked('a', 'Should we enable email alerts before launch?', at)]
     assert.equal(sameQuestion('Should we enable e-mail alerts before launch?', email)?.id, 'a')
