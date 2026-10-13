@@ -66,7 +66,12 @@ const wordsOf = (title: string) =>
       .replace(/['\u2019](re|ve|ll|d|m)\b/gu, (_, c: string) => ` ${CLITICS[c] ?? ''}`)
       .replace(/['\u2019]s\b/gu, '')
       // A slash or a dash between words is a boundary a spelled number does not cross: «one hundred/two hundred» is two.
-      .replace(/\s*[/\u2013\u2014]\s*|(?<=\p{L})-(?=\p{L})/gu, ` ${BOUNDARY} `)
+      .replace(/\s*[/\u2013\u2014]\s*/gu, ` ${BOUNDARY} `)
+      // A hyphen is one too beside a number word («twenty-one», «one-time»); inside any other word it keeps the word
+      // whole: «e-mail» is «email» (Codex on #274).
+      .replace(/(?<=(\p{L}+))-(?=(\p{L}+))/gu, (_, a: string, b: string) =>
+        spelled(a) || spelled(b) ? ` ${BOUNDARY} ` : '',
+      )
       .split(/[^\p{L}\p{N}]+/u),
   )
 
@@ -75,6 +80,9 @@ const CLITICS: Readonly<Record<string, string>> = { re: 'are', ve: 'have', ll: '
 
 /** A word no title has, standing for a slash or a dash while spelled numbers are read, then dropped. */
 const BOUNDARY = 'qqboundaryqq'
+
+/** A number word: a unit, a ten, a scale or an ordinal. */
+const spelled = (w: string): boolean => UNITS.has(w) || TENS.has(w) || SCALES.has(w) || cardinalOf(w) !== undefined
 
 /** Spelled units and teens, tens, and scales, by their value. */
 const UNITS = new Map(
