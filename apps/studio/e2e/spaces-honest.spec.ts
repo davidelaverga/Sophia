@@ -42,7 +42,8 @@ test('spaces · Home counts the notes Personal keeps', async ({ page }) => {
   const kept = await page.locator('.c3-notes-toggle').innerText()
   expect(kept).toMatch(/^1 note/)
   await page.goto(HOME)
-  await expect(page.getByText('1 note', { exact: true })).toBeVisible()
+  // The count is the notes press in «You and Sophia»'s head (docs/plans/home-first-glance.md).
+  await expect(page.locator('.hw-you').getByRole('button', { name: '1 note', exact: true })).toBeVisible()
 })
 
 test.describe('on a touch screen', () => {
