@@ -22,7 +22,8 @@ changed against `origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.
 
 ## Evidence
 
-- Prettier clean on the changed records; each correction checked against the code or the merged branch it describes
+- `pnpm exec prettier --check` on the 10 files the branch changes (`git diff --name-only origin/main...HEAD`;
+  `pnpm format` leaves `docs/` out): «All matched files use Prettier code style!»; each correction checked against the code or the merged branch it describes
   (MessageActs' `overtaken` status and conversation-acts.spec's three writes; signin-lede.spec's widths; the
   conversations' `--type-head` rules; the light's stacking; the merged head of #252; eyebrows.md's 0.63 px; A15's
   kinds, seen route and `last_seen_turn_seq`).
