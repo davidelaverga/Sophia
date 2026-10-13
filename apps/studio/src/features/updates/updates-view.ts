@@ -102,8 +102,11 @@ export function peopleOf(
   // «Someone (2)» (Codex on #239). A label made so never takes a name someone already has («Alex (2)» a member's
   // own): every label is unique (Codex on #239, round 3).
   const real = new Set(named.map((p) => p.name))
-  const taken = new Set<string>()
+  // The filter's own labels are reserved: «Everyone», and «You», which is only ever the viewer; a member called either
+  // is told apart as any two alike are (Codex P2 on #239).
+  const taken = new Set<string>(['Everyone', 'You'])
   return named.map((p) => {
+    if (p.id === me) return p
     if (!taken.has(p.name)) {
       taken.add(p.name)
       return p

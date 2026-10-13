@@ -67,3 +67,28 @@ test('palette · one host: each command once; a board that cannot take an answer
   await openPalette(page)
   await expect(rows(page).filter({ hasText: /^For you\s*Decide/ })).toHaveCount(0)
 })
+
+test('palette · a row’s id is one an assistive technology can resolve, whatever the decision’s id holds (Codex P2 on #264)', async ({
+  page,
+}) => {
+  // `odd-id=1`: the decision's id holds quotes, brackets and a space.
+  await page.goto('/work.html?viewer=davide&odd-id=1')
+  await expect(page.locator('.board [data-decision]').first()).toBeVisible()
+  await openPalette(page)
+  const field = palette(page).getByRole('combobox', { name: 'Command' })
+  const active = (await field.getAttribute('aria-activedescendant')) ?? ''
+  expect(active).toMatch(/^\S+$/)
+  expect(await page.evaluate((id) => document.getElementById(id)?.getAttribute('role') ?? null, active)).toBe('option')
+})
+
+test('palette · arrowed past the rows in sight, the active one scrolls into view (Codex on #283)', async ({ page }) => {
+  await page.goto('/work.html?viewer=davide')
+  await expect(page.locator('.board [data-decision]').first()).toBeVisible()
+  await openPalette(page)
+  const count = await rows(page).count()
+  for (let i = 0; i < count - 1; i += 1) await page.keyboard.press('ArrowDown')
+  const active = rows(page).nth(count - 1)
+  await expect(active).toHaveAttribute('aria-selected', 'true')
+  const [box, list] = await Promise.all([active.boundingBox(), palette(page).locator('.palette-list').boundingBox()])
+  expect(box && list ? box.y >= list.y - 0.5 && box.y + box.height <= list.y + list.height + 0.5 : false).toBe(true)
+})

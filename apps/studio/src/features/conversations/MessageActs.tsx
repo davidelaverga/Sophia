@@ -1,7 +1,7 @@
 // A message's acts at its corner (docs/plans/conversation-acts.md): copy its words; quote them in the message being
 // written, where one can write here; and propose them as a decision (ProposeHere), as before. Shown under the pointer
 // or the focus; on a phone, on the message pressed (conversations.css, `.conv-acts`).
-import { type MouseEvent, type ReactNode, useEffect, useState } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { clipOf, quoteOf } from './message-acts.ts'
 
@@ -77,7 +77,7 @@ async function toClipboard(text: string): Promise<boolean> {
  * and the latest press can be told when an earlier write lands over its own (Codex on #240).
  */
 let presses = 0
-let latest = { text: '', landed: false, overtaken: () => undefined as void }
+let latest = { text: '', settled: false, overtaken: () => undefined as void }
 /** How long a write may take before it is given up as not copied (a permission request left pending in a webview never
  * settles). */
 export const COPY_WAIT_MS = 4000
@@ -92,7 +92,36 @@ const bounded = (write: Promise<boolean>) =>
  * and its own Copy, a gesture, puts its words back.
  */
 function landed(text: string): void {
-  if (text !== latest.text && latest.landed) latest.overtaken()
+  // The latest settled, through or refused (its words then perhaps selected by hand): an earlier write over it is said
+  // (Codex P2 on #240).
+  if (text !== latest.text && latest.settled) latest.overtaken()
+}
+
+/**
+ * A side row saying something (a copy's outcome, or a proposal's status through `propose`) goes under its bubble
+ * (conversations.css): its height, wrapped lines and all, is kept under the bubble (`--acts-room`), read again as the
+ * row changes size, so it never lies over the next message (Codex on #283).
+ */
+function useActsRoom(side: boolean) {
+  const row = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    const el = row.current
+    const bubble = el?.parentElement
+    if (!el || !bubble || !side) return undefined
+    const measure = () => {
+      if (el.querySelector('[role="status"]'))
+        bubble.style.setProperty('--acts-room', `${String(el.offsetHeight + 8)}px`)
+      else bubble.style.removeProperty('--acts-room')
+    }
+    measure()
+    const watch = new ResizeObserver(measure)
+    watch.observe(el)
+    return () => {
+      watch.disconnect()
+      bubble.style.removeProperty('--acts-room')
+    }
+  }, [side])
+  return row
 }
 
 export function MessageActs({ message, who, now, onQuote, propose, side = false }: Props) {
@@ -103,12 +132,11 @@ export function MessageActs({ message, who, now, onQuote, propose, side = false 
   const copy = () => {
     const press = ++presses
     const text = clipOf(message, who, now)
-    latest = { text, landed: false, overtaken: () => say('overtaken') }
+    latest = { text, settled: false, overtaken: () => say('overtaken') }
     const write = toClipboard(text)
     void write.then((ok) => {
-      if (!ok) return
-      if (press === presses) latest.landed = true
-      else landed(text)
+      if (press === presses) latest.settled = true
+      else if (ok) landed(text)
     })
     // Only this message says anything now: another's «Copied» from a moment ago goes (Codex on #240).
     clearAll()
@@ -125,8 +153,9 @@ export function MessageActs({ message, who, now, onQuote, propose, side = false 
       })
     })
   }
+  const row = useActsRoom(side)
   return (
-    <span className={side ? 'conv-acts side' : 'conv-acts'} onClick={own}>
+    <span ref={row} className={side ? 'conv-acts side' : 'conv-acts'} onClick={own}>
       {said && (
         <span key={said.n} className="conv-copied" role="status" data-kind={said.kind}>
           {WORDS[said.kind]}

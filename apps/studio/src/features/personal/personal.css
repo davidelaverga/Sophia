@@ -1074,7 +1074,8 @@
   border-radius: 0;
   background: none;
   color: var(--text-sec);
-  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  /* The day is data: at the label size, as dates and times are (Codex P2 on #241). */
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   scroll-margin-top: 44px;

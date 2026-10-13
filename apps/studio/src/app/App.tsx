@@ -8,6 +8,7 @@ import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
+import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
 import { signOutForgetting } from './sign-out.ts'
@@ -45,15 +46,29 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
  * who that is, anyone else's go, and all go once it knows nobody is; while it is still finding out, as every page load
  * starts, none go. Decided as who is in changes, never in an effect's cleanup, which also runs as a load signs in.
  */
+/**
+ * «Recent» is one person's: kept with whose it is, it is forgotten whenever another account is signed in, however the
+ * last one left (this tab, another tab, a session that expired while the Studio was closed; Codex on #283).
+ */
+function useRecentOnlyOf(signedInAs: string | null) {
+  useEffect(() => {
+    if (signedInAs !== null) recentFor(signedInAs)
+  }, [signedInAs])
+}
+
 function useProposalsOnlyOfWhoIsIn(state: AuthState) {
   const who = proposalsKeptFor(state)
   useEffect(() => proposalsOnlyOf(who), [who])
 }
 
-/** What a person had under way on this device: a project's conversations (talk-store.ts) and unanswered proposals. */
+/**
+ * What a person had under way on this device: a project's conversations (talk-store.ts), unanswered proposals, and the
+ * palette's «Recent» (palette-recent.ts).
+ */
 function forgetUnderWay() {
   forgetKept()
   forgetProposals()
+  forgetRecent()
 }
 
 /**
@@ -115,6 +130,7 @@ export function App() {
   const routing = useProjectRoute()
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
   const queryClient = useAccountCache(signedInAs)
+  useRecentOnlyOf(signedInAs)
   useProposalsOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
