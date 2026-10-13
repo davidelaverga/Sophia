@@ -53,7 +53,7 @@ import {
   type WorkPlan,
 } from './plan.ts'
 import { answeredHere, answeredKey, nextUp, quoted, waitingFor } from './next-up.ts'
-import { answerKey, answerOf } from './answers.ts'
+import { answerKey, useAnswerStates } from './answers.ts'
 import { useCommands } from '../../../app/useCommands.ts'
 import { NextUp } from './NextUp.tsx'
 import { Folded } from './PlanNotes.tsx'
@@ -764,11 +764,11 @@ function useNextUp(
   const [shown, setShown] = useState(false)
   const review = slot.review !== null && !slot.reviewShown
   const waiting = waitingFor(rows, viewerId, (r) => laneOf(r, rows), LANE_KEYS)
-  const answered = answeredHere(
-    slot.asks.mine,
-    recorded,
-    (d) => answerOf(answerKey(d.decision_id, d.revision, viewerId))?.state ?? null,
-  )
+  // Followed, not read once: an answer settling as retryable with the decisions closed re-renders the board, so Next up
+  // and «For you» offer it again (Codex on #277).
+  const keyOf = (d: { decision_id: string; revision: number }) => answerKey(d.decision_id, d.revision, viewerId)
+  const states = useAnswerStates(slot.asks.mine.map(keyOf))
+  const answered = answeredHere(slot.asks.mine, recorded, (d) => states.get(keyOf(d)) || null)
   const next = shown ? nextUp({ answered, decisions: slot.asks.mine, waiting, review }) : null
   // The same, offered to the palette as «For you» (docs/plans/palette-knows.md). A decision only where the board can
   // take an answer: a read-only proposal or an unavailable board offers none (Codex on #264).
