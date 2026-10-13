@@ -12,7 +12,7 @@ host was refused by the machine guard (free RAM under 6 GB with AION2 open).
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `a2c76b14e4ee` (tree `6df6575726b1`), the last commit of `ui/p2-small`'s own that changes code (later
+Ending commit/tree: `4f60561fa290` (tree `1bc0e8d10103`), the last commit of `ui/p2-small`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 15 files changed against
 `origin/main` at that commit: `e2e/conversation-acts.spec.ts`, `e2e/eyebrows.spec.ts`, `e2e/palette-knows.spec.ts`, `e2e/personal.spec.ts`, `src/app/App.tsx`, `src/app/Palette.tsx`, `src/app/palette-recent.test.ts`, `src/app/palette-recent.ts`, `src/features/conversations/MessageActs.tsx`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `src/features/updates/updates-narrow.test.ts`, `src/features/updates/updates-view.ts`, `docs/handoffs/UIKIT-53-attempt-1.md`, `docs/plans/p2-small.md`. The review notes below name the commit of each later change.
 
@@ -55,3 +55,4 @@ The last follow-up: the lens and the addressed needs (Codex P2s on #238, #242, #
 
 - `e89fc7d2`: the row's room is read whenever the row holds any status (a proposal's through `propose` too), again as it changes size (ResizeObserver), and given back when the row goes. No new browser case: a proposed continued message needs a proposal staged on a run, which the fixture does not offer (round 3, Codex on #283).
 - `a2c76b14`: «Recent» is kept per account (`sophia.palette.recent:<account>`); a tab reads and writes under the account signed in there (`recentFor`), so two tabs with two dev identities never cross; the bare key of before goes. palette-recent.test covers the crossing; no browser case (round 4, Codex on #283).
+- `4f60561f`: a proposal's status nested in `.conv-propose` wraps too, and `.conv-propose` wraps and may shrink, in a side row (round 5, Codex on #283). No browser case for a proposed run message (the fixture stages none).
