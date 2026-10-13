@@ -120,9 +120,15 @@ function lookOf(args: { selector: string; scope: string; i: number; tips: boolea
 async function unanswering(page: Page, scope = 'body', tips = true) {
   const presses = await page.evaluate(listPresses, { selector: PRESSES, scope })
   expect(presses.length).toBeGreaterThan(0)
-  // A running animation (a listening microphone's) changes the look by itself: held still while the sweep reads, so
-  // only the pointer can (Codex P2 on #232). Transitions, the hover's own, still run.
-  await page.addStyleTag({ content: '*, *::before, *::after { animation-play-state: paused !important; }' })
+  // A running animation changes the look by itself, so only the pointer may: an entrance (a tile arriving) is let finish,
+  // and an endless one (a listening microphone's) is held still while the sweep reads (Codex P2 on #232). Holding an
+  // entrance would freeze it mid-way over the hover's own look. Transitions, the hover's own, still run.
+  await page.evaluate(async () => {
+    const endless = (a: Animation) => a.effect?.getTiming().iterations === Number.POSITIVE_INFINITY
+    const entrances = document.getAnimations().filter((a) => !(a instanceof CSSTransition) && !endless(a))
+    await Promise.all(entrances.map((a) => a.finished.catch(() => undefined)))
+    for (const a of document.getAnimations()) if (endless(a)) a.pause()
+  })
   const mute: string[] = []
   for (const press of presses) {
     await page.mouse.move(0, 0)
