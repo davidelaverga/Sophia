@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `bfdc04443d01` (tree `4d17080f9d10`), the last commit of `ui/p2-next-ask-fresh`'s own that changes code (later
+Ending commit/tree: `db8f28243f98` (tree `a605b62a6c05`), the last commit of `ui/p2-next-ask-fresh`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 11 files changed against
 `origin/main` at that commit: `e2e/next-ask.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/app/theme.css`, `src/features/conversations/ConversationsView.tsx`, `src/features/conversations/OpenConversation.tsx`, `src/features/conversations/next-ask.test.ts`, `src/features/conversations/next-ask.ts`, `src/features/conversations/useNextAsk.ts`, `docs/handoffs/UIKIT-45-attempt-1.md`, `docs/plans/p2-next-ask-fresh.md`. The review notes below name the commit of each later change.
 
@@ -89,3 +89,7 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 ## Post-review, round 6 (Codex on #275)
 
 - `bfdc0444`: the thread is current only for the feed cursor its last read landed for (`useReadFor`): a moved cursor makes it not current from that very render, before the refetch starts, so no suggestion flashes from the old state. The final head's CI is pending (the run on record above predates this change).
+
+## Post-review, round 7 (Codex on #275)
+
+- `db8f2824`: the cursor the thread answers is stamped by the feed-triggered read alone (`useTranscript`'s `onReadFor`, on that refetch's success), not by any data update, so an older page landing meanwhile leaves it not current; «Earlier messages» is not pressed while the thread is read again (`busy`), its words unchanged. The final head's CI is pending.
