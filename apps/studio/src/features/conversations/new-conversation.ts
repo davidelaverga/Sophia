@@ -44,8 +44,14 @@ const COMMON = new Set(
  */
 const fold = (title: string) => title.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
-/** A folded title's words, split at anything not a letter or a digit. */
-const wordsOf = (title: string) => fold(title).split(/[^\p{L}\p{N}]+/u)
+/**
+ * A folded title's words, split at anything not a letter or a digit; a number's thousands separators dropped first, so
+ * «1,000» and «1000» are one number (Codex on #274).
+ */
+const wordsOf = (title: string) =>
+  fold(title)
+    .replace(/(\p{N})[,.](?=\p{N}{3}(?!\p{N}))/gu, '$1')
+    .split(/[^\p{L}\p{N}]+/u)
 
 /** A title's own words: folded, accents off, three letters or more, common words left out, a final «s» dropped. */
 function ownWords(title: string): Set<string> {
@@ -84,20 +90,51 @@ const OPPOSITES: readonly (readonly [string, string])[] = [
  * doubled too: «stopped», «stopping» (Codex on #274).
  */
 function acts(words: readonly string[], base: string): boolean {
+  return words.some((w) => formsOf(base).includes(w))
+}
+
+/** Forms no suffix makes: «shown», «hid», «hidden» (Codex on #274). */
+const IRREGULAR: Readonly<Record<string, readonly string[]>> = { show: ['shown'], hide: ['hid', 'hidden'] }
+
+/** An action's plain forms: its suffixed ones, a final consonant doubled, and the irregular ones. */
+function formsOf(base: string): string[] {
   const stem = base.replace(/e$/u, '')
   const doubled = `${base}${base.at(-1) ?? ''}`
-  const forms = [base, `${base}s`, `${base}d`, `${base}ed`, `${stem}ing`, `${doubled}ed`, `${doubled}ing`]
-  return words.some((w) => forms.includes(w))
+  return [
+    base,
+    `${base}s`,
+    `${base}d`,
+    `${base}ed`,
+    `${stem}ing`,
+    `${doubled}ed`,
+    `${doubled}ing`,
+    ...(IRREGULAR[base] ?? []),
+  ]
+}
+
+/** Each action of a pair a title says, with the thing it is said of: «enable email», «disable sms». */
+function aimsOf(words: readonly string[], pair: readonly string[]): string {
+  return words
+    .flatMap((w, i) => {
+      const base = pair.find((b) => formsOf(b).includes(w))
+      if (base === undefined) return []
+      return [`${base} ${words.slice(i + 1).find((next) => next !== '' && !COMMON.has(next)) ?? ''}`]
+    })
+    .toSorted()
+    .join('|')
 }
 
 /**
  * Whether two titles say an action against its opposite: of a pair, what one says is not what the other says. Both of
- * a pair said on each side («enable email and disable SMS», twice) is the same; one side only is not (Codex on #274).
+ * a pair said on each side is the same only when each is said of the same thing: «enable email and disable SMS» meets
+ * itself, not «disable email and enable SMS» (Codex on #274).
  */
 function opposed(x: readonly string[], y: readonly string[]): boolean {
   return OPPOSITES.some((pair) => {
     const said = (words: readonly string[]) => pair.filter((base) => acts(words, base)).join(' ')
-    return said(x) !== '' && said(y) !== '' && said(x) !== said(y)
+    if (said(x) === '' || said(y) === '') return false
+    if (said(x) !== said(y)) return true
+    return said(x) === pair.join(' ') && aimsOf(x, pair) !== aimsOf(y, pair)
   })
 }
 
@@ -113,10 +150,10 @@ function ordersOf(words: readonly string[]): string[] {
 /** The kinds of order a title names: before, after, both or neither. */
 const kindsOf = (orders: readonly string[]) => new Set(orders.map((s) => s.split(' ')[0]))
 
-/** A title's numbers, in one order: «2025», «3 2026». */
+/** A title's numbers, in one order, those inside a label too: «2025», «q4» (Codex on #274). */
 const numbersOf = (words: readonly string[]) =>
   words
-    .filter((s) => /^\p{N}+$/u.test(s))
+    .filter((s) => /\p{N}/u.test(s))
     .toSorted()
     .join(' ')
 
