@@ -36,3 +36,10 @@ commits on the branch merge its base forward or touch only this record). 6 files
 ## Next bounded action
 
 The next follow-up: the header and the dock (Codex P2s on #253, #254, #259).
+
+## CI on record
+
+- Run 38333302797 on `4fca7495` (this branch's head, every change in it): all jobs green, the browser suites among them, so
+  the three checks written first ran there: `conversations-column` (Sophia's glyph on her disc), `light-mode` (both
+  hairlines on paper) and `light-mark` (the room's favicon at first paint). This answers Codex's P1 on #280
+  (4253909689).
