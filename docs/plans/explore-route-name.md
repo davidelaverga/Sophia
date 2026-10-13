@@ -14,6 +14,9 @@
 - **On every width the foot wraps instead of cutting**: the route keeps its whole name (it no longer shrinks; an
   ellipsis stays only for a name wider than the tile) and the state's tag goes under it when both don't fit.
 
+- **A row's tiles stand as tall as its tallest**, each foot at the top of its row, so the four routes line up when one
+  foot wrapped.
+
 ## Checks
 
 - `e2e/explore.spec.ts`: at 1440, every tile's route is drawn whole (its text not wider than its box).

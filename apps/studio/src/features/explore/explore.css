@@ -33,8 +33,12 @@
 }
 .candidate-tile {
   display: grid;
+  /* A row's tiles stand as tall as its tallest (a foot that wrapped), the image on top and the foot at the bottom. */
+  grid-template-rows: auto 1fr;
+  align-content: start;
   gap: 8px;
   width: 100%;
+  height: 100%;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
@@ -53,14 +57,19 @@
   outline-offset: 2px;
 }
 /* One line, whatever the tags say: the route gives way, so every tile keeps the same height. */
+/* The foot wraps rather than cut: the route keeps its whole name and the state goes under it when both don't fit
+   (docs/plans/explore-route-name.md). */
 .candidate-foot {
   display: flex;
+  flex-wrap: wrap;
+  align-self: start;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
   min-width: 0;
 }
 .candidate-route {
-  min-width: 0;
+  flex-shrink: 0;
+  max-width: 100%;
   margin-right: auto;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -167,9 +176,6 @@
   .direction-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
-  }
-  .candidate-foot {
-    flex-wrap: wrap;
   }
   .candidate-route {
     flex-basis: 100%;
