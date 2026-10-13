@@ -3979,6 +3979,13 @@ button.contribution-quote:hover {
     flex-shrink: 100;
   }
 }
+/* Where the seven views are meant to stand whole (1241 px and up: docs/plans/nav-fits-1280.md), the nav keeps its own
+   width outright and only the title gives way; under it the row may still scroll, with its fades (Codex on #259). */
+@media (min-width: 1241px) {
+  .view-nav {
+    flex-shrink: 0;
+  }
+}
 
 @media (max-width: 900px) {
   .page.split {
