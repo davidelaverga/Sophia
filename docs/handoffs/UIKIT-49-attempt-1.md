@@ -12,7 +12,7 @@ Runtime unit: CI (GitHub Actions) as the run on record. Playwright on Luis's hos
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `382fb584fd31` (tree `8b2d33c8b833`), the last commit of `ui/p2-press`'s own that changes code (later
+Ending commit/tree: `892bef716d82` (tree `361683bf1d6d`), the last commit of `ui/p2-press`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 6 files changed against
 `origin/main` at that commit: `e2e/press-answers.spec.ts`, `src/app/theme.css`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `docs/handoffs/UIKIT-49-attempt-1.md`, `docs/plans/p2-press.md`. The review notes below name the commit of each later change.
 
@@ -44,3 +44,7 @@ The next follow-up: the light mode's inks (Codex P2s on #234, #249, #257).
 ## CI, first run
 
 - Run 38333774640 on `c1a8e0bb`: 1483 passed, 2 failed, both the sweep on Tasks and the work space: two task tiles read as not answering. Holding every animation froze the tiles' entrance (`tile-in`, filled both ways) mid-way, its transform over the hover's. `06746f5c`: entrances are let finish and only endless animations are held. The CI on the new head is the run on record.
+
+## Post-review (Codex on #279)
+
+- `892bef71` (P1 4254373298): the sweep waits only for entrances on the document's timeline (a scroll-driven one, as the mission's `mission-more`, finishes only when scrolled), and two seconds at most. The final head's CI is pending.
