@@ -157,6 +157,14 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Ship the export before review or after review?', orders)?.id, 'a')
   })
 
+  it('two actions each keep their thing: the same actions on swapped things is another question (Codex round 4 on #274)', () => {
+    const both = [asked('a', 'Should we enable email and disable SMS?', at)]
+    assert.equal(sameQuestion('Should we enable SMS and disable email?', both), null)
+    // The passive keeps them: the thing before its participle.
+    assert.equal(sameQuestion('Should email be enabled and SMS disabled?', both)?.id, 'a')
+    assert.equal(sameQuestion('Should SMS be enabled and email disabled?', both), null)
+  })
+
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)
