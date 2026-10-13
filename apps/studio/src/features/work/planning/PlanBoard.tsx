@@ -52,7 +52,7 @@ import {
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
-import { answeredHere, answeredKey, nextUp, quoted, waitingFor } from './next-up.ts'
+import { answeredHere, answeredKey, nextUp, quoted, sentFrom, waitingFor } from './next-up.ts'
 import { answerKey, useAnswerStates } from './answers.ts'
 import { useCommands } from '../../../app/useCommands.ts'
 import { NextUp } from './NextUp.tsx'
@@ -800,8 +800,7 @@ function useNextUp(
       // is next comes only once this one is recorded (Codex P2 on #263).
       setShown(false)
       // Each answer keeps the choice it went from, so two in flight never hand each other's choice to the line.
-      const went = document.activeElement
-      const said = await onDecide(answer)
+      const { said, went } = await sentFrom(onDecide, () => document.activeElement)(answer)
       if (said === 'recorded') {
         setRecorded((was) => [...was, answeredKey(answer.decision_id, answer.revision)])
         setFrom(went)

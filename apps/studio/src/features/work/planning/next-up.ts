@@ -87,6 +87,17 @@ export function waitingFor<R extends WaitingRow>(
     .map((r) => ({ id: r.item.id, name: r.item.purpose }))
 }
 
+/**
+ * A send that keeps where it went from: the place is taken as each answer is sent, never shared, so two in flight that
+ * settle out of order never hand each other's choice to the line (Codex on #277).
+ */
+export function sentFrom<A, S, P>(send: (answer: A) => Promise<S>, at: () => P) {
+  return async (answer: A): Promise<{ said: S; went: P }> => {
+    const went = at()
+    return { said: await send(answer), went }
+  }
+}
+
 export function nextUp({ answered, decisions, waiting, review }: NextUpInput): NextUp {
   const decision = decisions.find((d) => !answered.includes(answeredKey(d.decision_id, d.revision)))
   if (decision)
