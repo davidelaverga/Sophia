@@ -74,15 +74,44 @@ const wordsOf = (title: string) =>
 
 /**
  * What a hyphen between two words reads as (Codex on #274): a negating prefix stays a word of its own («never-enabled»,
- * «non-enabled» is «not enabled»); a compound number is one («twenty-one»); beside any other number word it is a
- * boundary («one-time»); inside any other word it keeps the word whole («e-mail» is «email»).
+ * «non-enabled» is «not enabled»); a compound number is one («twenty-one», «twenty-first»); beside any other number
+ * word it is a boundary («one-time»); after a prefix that bears meaning it parts the words («re-sign»); inside any other
+ * word it keeps the word whole («e-mail» is «email»).
  */
 function hyphen(a: string, b: string): string {
   if (a === 'non') return ' not '
   if (NEGATIONS.has(a) || NEGATIONS.has(b)) return ' '
-  if (TENS.has(a) && (UNITS.get(b) ?? 0) > 0 && (UNITS.get(b) ?? 10) < 10) return ' '
-  return spelled(a) || spelled(b) ? ` ${BOUNDARY} ` : ''
+  const unit = UNITS.get(cardinalOf(b) ?? b) ?? 0
+  if (TENS.has(a) && unit > 0 && unit < 10) return ' '
+  if (spelled(a) || spelled(b)) return ` ${BOUNDARY} `
+  return PREFIXES.has(a) ? `${a}${PREFIXED} ` : ''
 }
+
+/** Marks a prefix read off a hyphen («re-» of «re-sign»), so two titles must agree on it (`turnsAgree`). */
+const PREFIXED = 'qqprefixqq'
+
+/** The prefixes a title's words were read with, in order. */
+const prefixesOf = (words: readonly string[]) => words.filter((w) => w.endsWith(PREFIXED)).join(' ')
+
+/**
+ * Prefixes whose hyphen bears meaning («re-sign» is not «resign»): each stays a marked word of its own, and a title
+ * with one is never the same question as a title without it (Codex on #274).
+ */
+const PREFIXES = new Set([
+  're',
+  'pre',
+  'co',
+  'de',
+  'un',
+  'mis',
+  'over',
+  'under',
+  'out',
+  'sub',
+  'counter',
+  'anti',
+  'self',
+])
 
 /** What a clitic stands for. */
 const CLITICS: Readonly<Record<string, string>> = { re: 'are', ve: 'have', ll: 'will', d: 'would', m: 'am' }
@@ -356,7 +385,7 @@ const negates = (words: readonly string[], title: string) =>
 function turnsAgree(a: string, b: string): boolean {
   const x = wordsOf(a)
   const y = wordsOf(b)
-  if (negates(x, a) !== negates(y, b)) return false
+  if (negates(x, a) !== negates(y, b) || prefixesOf(x) !== prefixesOf(y)) return false
   const alike = Object.values(turnsOf).every((of) => {
     const [p, q] = [of(x), of(y)]
     return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
