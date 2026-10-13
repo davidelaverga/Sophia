@@ -213,6 +213,14 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('an ordinal after a scale ends its number; a short figure still counts (Codex round 20 on #274)', () => {
+    const two = [asked('a', 'Compare 100 and 1st applicant scores', at)]
+    assert.equal(sameQuestion('Compare one hundred and first applicant score', two), null)
+    const one = [asked('a', 'Compare 101st applicant score', at)]
+    assert.equal(sameQuestion('Compare one hundred and first applicant score', one)?.id, 'a')
+    assert.equal(sameQuestion('Version one?', [asked('a', 'Version one?', at)])?.id, 'a')
+  })
+
   it('an «and» between two scaled quantities keeps them two (Codex round 19 on #274)', () => {
     assert.equal(
       sameQuestion('Compare one thousand and two thousand budgets', [asked('a', 'Compare 3000 budgets', at)]),
