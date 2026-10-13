@@ -52,6 +52,8 @@ const wordsOf = (title: string) =>
   fold(title)
     // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
     .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
+    // A decimal is one number: «1.2» is not «1 and 2» (Codex on #274).
+    .replace(/(\p{N})\.(?=\p{N})/gu, '$1point')
     // A number's sign stays on it: «-5» is not «5» (Codex on #274).
     .replace(/(^|[^\p{L}\p{N}])[-\u2212](?=\p{N})/gu, '$1minus')
     // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
@@ -61,11 +63,17 @@ const wordsOf = (title: string) =>
     .map((w) => SPELLED.get(w) ?? w)
 
 /** Numbers written as words, read as their digits. */
-const SPELLED = new Map(
-  'zero one two three four five six seven eight nine ten eleven twelve'
+const SPELLED = new Map([
+  ...'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'
     .split(' ')
     .map((w, i) => [w, String(i)] as const),
-)
+  ...'twenty thirty forty fifty sixty seventy eighty ninety'
+    .split(' ')
+    .map((w, i) => [w, String((i + 2) * 10)] as const),
+  ['hundred', '100'],
+  ['thousand', '1000'],
+  ['million', '1000000'],
+])
 
 /**
  * A title's own words: folded, accents off, three letters or more, common words left out, an action as its plain form,
@@ -155,7 +163,12 @@ const turnsOf = {
  * word, to be the same question.
  */
 const ownOrder = (words: readonly string[]) =>
-  [...new Set(words.filter((w) => /\p{N}/u.test(w) || (w.length >= 3 && !COMMON.has(w))).map(plainWord))].join(' ')
+  [
+    ...new Set(
+      // A negation keeps its place: «not enable … disable» is not «enable … not disable» (Codex on #274).
+      words.filter((w) => /\p{N}/u.test(w) || NEGATIONS.has(w) || (w.length >= 3 && !COMMON.has(w))).map(plainWord),
+    ),
+  ].join(' ')
 
 /** Whether a title says a turning word of any kind: a negation, an order, an action of a pair, a number. */
 const turns = (words: readonly string[]) =>
