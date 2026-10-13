@@ -49,74 +49,56 @@ const fold = (title: string) => title.normalize('NFD').replace(/\p{M}/gu, '').to
  * «1,000» and «1000» are one number (Codex on #274).
  */
 const wordsOf = (title: string) =>
-  fold(title)
-    // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
-    .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
-    // A decimal is one number: «1.2» is not «1 and 2» (Codex on #274).
-    .replace(/(\p{N})\.(?=\p{N})/gu, '$1point')
-    // A number's sign stays on it: «-5» is not «5» (Codex on #274).
-    .replace(/(^|[^\p{L}\p{N}])[-\u2212](?=\p{N})/gu, '$1minus')
-    // «cannot», «can't» and «won't» are a «can» or a «will» and a «not», as any «n't» is (Codex on #274).
-    .replace(/\b(?:can['\u2019]t|cannot)\b/gu, 'can not')
-    .replace(/\bwon['\u2019]t\b/gu, 'will not')
-    // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
-    .replace(/n['\u2019]t\b/gu, ' not')
-    .split(/[^\p{L}\p{N}]+/u)
-    // A number spelled out is a number: «two years» is not «one year» (Codex on #274). Marked as spelled, so only words
-    // said as one number are composed: figures apart («20-1») stay apart.
-    .map((w) => (SPELLED.has(w) || SCALES.has(w) ? `${SAID}${w}` : w))
-    .reduce<string[]>(joinTensAndUnits, [])
-    .map((w) => (w.startsWith(SAID) ? valueOf(w) : w))
+  spelledNumbers(
+    fold(title)
+      // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
+      .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
+      // A decimal is one number: «1.2» is not «1 and 2» (Codex on #274).
+      .replace(/(\p{N})\.(?=\p{N})/gu, '$1point')
+      // A number's sign stays on it: «-5» is not «5» (Codex on #274).
+      .replace(/(^|[^\p{L}\p{N}])[-\u2212](?=\p{N})/gu, '$1minus')
+      // «cannot», «can't» and «won't» are a «can» or a «will» and a «not», as any «n't» is (Codex on #274).
+      .replace(/\b(?:can['\u2019]t|cannot)\b/gu, 'can not')
+      .replace(/\bwon['\u2019]t\b/gu, 'will not')
+      // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
+      .replace(/n['\u2019]t\b/gu, ' not')
+      .split(/[^\p{L}\p{N}]+/u),
+  )
 
-/**
- * Spelled numbers composed as they are said: a ten then a unit («twenty one», 21), a number then a scale («one hundred»,
- * 100; «two thousand», 2000), so the words meet the figures (Codex on #274).
- */
-function joinTensAndUnits(words: string[], w: string): string[] {
-  const last = words.at(-1) ?? ''
-  // Only two spelled words compose; a figure, or a word not a number, stands as it is.
-  if (!w.startsWith(SAID) || !last.startsWith(SAID)) {
-    words.push(w)
-    return words
-  }
-  const [a, b] = [valueOf(last), w.slice(1)]
-  const scale = SCALES.get(b)
-  if (adds(a, valueOf(w))) words[words.length - 1] = `${SAID}${String(Number(a) + Number(valueOf(w)))}`
-  else if (scale !== undefined && /^[1-9]\d{0,2}$/u.test(a))
-    words[words.length - 1] = `${SAID}${String(Number(a) * scale)}`
-  else words.push(w)
-  return words
-}
-
-/** What marks a word as a spelled number while they are composed. */
-const SAID = '\u0000'
-
-/** A marked word's value: its number as a figure (a scale's, or the composed one kept as figures). */
-const valueOf = (marked: string): string => {
-  const word = marked.slice(1)
-  const scale = SCALES.get(word)
-  return scale === undefined ? (SPELLED.get(word) ?? word) : String(scale)
-}
-
-/**
- * Whether a number said next adds to the one before, as spelled numbers run: a unit after a ten («twenty one»), tens or
- * units after a scale («one hundred twenty», «one hundred twenty one»; Codex on #274). Only right after it: «100 and 20»
- * stays two numbers.
- */
-function adds(last: string, w: string): boolean {
-  if (!/^\d+$/u.test(last) || !/^\d+$/u.test(w)) return false
-  const [a, b] = [Number(last), Number(w)]
-  // Up to 99 after a round hundred or more; up to 9 after a round ten from twenty; nothing else adds.
-  const most = a >= 100 && a % 100 === 0 ? 99 : a >= 20 && a % 10 === 0 ? 9 : 0
-  return b >= 1 && b <= most
-}
-
-/** The scales a spelled number is said in. */
+/** Spelled units and teens, tens, and scales, by their value. */
+const UNITS = new Map(
+  'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'
+    .split(' ')
+    .map((w, i) => [w, i] as const),
+)
+const TENS = new Map(
+  'twenty thirty forty fifty sixty seventy eighty ninety'.split(' ').map((w, i) => [w, (i + 2) * 10] as const),
+)
 const SCALES = new Map([
   ['hundred', 100],
   ['thousand', 1000],
   ['million', 1000000],
 ])
+
+/** Ordinals said by a word of their own; the rest are the cardinal with «th» («fourteenth», «twentieth»). */
+const ORDINAL_WORDS = new Map([
+  ['first', 'one'],
+  ['second', 'two'],
+  ['third', 'three'],
+  ['fifth', 'five'],
+  ['eighth', 'eight'],
+  ['ninth', 'nine'],
+  ['twelfth', 'twelve'],
+])
+
+/** The cardinal an ordinal word is made of («fourteenth» fourteen, «twentieth» twenty), or undefined. */
+function cardinalOf(w: string): string | undefined {
+  const own = ORDINAL_WORDS.get(w)
+  if (own !== undefined) return own
+  if (!w.endsWith('th')) return undefined
+  const base = w.endsWith('ieth') ? `${w.slice(0, -4)}y` : w.slice(0, -2)
+  return UNITS.has(base) || TENS.has(base) || SCALES.has(base) ? base : undefined
+}
 
 /** An ordinal's figure, as a figure is written: «1st», «2nd», «3rd», «4th», «11th», «12th». */
 function ordinal(n: number): string {
@@ -125,19 +107,61 @@ function ordinal(n: number): string {
   return `${String(n)}${suffix}`
 }
 
-/** Numbers written as words, read as their digits. */
-const SPELLED = new Map([
-  ...'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen'
-    .split(' ')
-    .map((w, i) => [w, String(i)] as const),
-  ...'twenty thirty forty fifty sixty seventy eighty ninety'
-    .split(' ')
-    .map((w, i) => [w, String((i + 2) * 10)] as const),
-  // Ordinals, as numbers too: «the second year» is not «the first» (Codex on #274).
-  ...'first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth'
-    .split(' ')
-    .map((w, i) => [w, ordinal(i + 1)] as const),
-])
+/**
+ * Whether a number word goes on the run before it, as a number is said: a unit after a ten («twenty one»), a ten or a
+ * unit after a scale («one hundred twenty»), a scale after any of them («five hundred»). «one two» is two numbers.
+ */
+function continues(prev: string | undefined, w: string): boolean {
+  if (prev === undefined || SCALES.has(w)) return true
+  if (SCALES.has(prev)) return true
+  return TENS.has(prev) && (UNITS.get(w) ?? 10) < 10
+}
+
+/** A run of spelled number words read as one value: «one thousand five hundred twenty one» is 1521. */
+function valueOfRun(run: readonly string[]): number {
+  let total = 0
+  let group = 0
+  for (const w of run) {
+    const scale = SCALES.get(w)
+    if (scale === undefined) group += UNITS.get(w) ?? TENS.get(w) ?? 0
+    else if (scale === 100) group = Math.max(group, 1) * 100
+    else {
+      total += Math.max(group, 1) * scale
+      group = 0
+    }
+  }
+  return total + group
+}
+
+/**
+ * Spelled numbers read as figures, each run of number words as one value, so the words meet the figures: «one thousand
+ * five hundred» is 1500, «twenty first» 21st, «fourteenth» 14th (Codex on #274). An «and» after a scale («one hundred
+ * and five») is part of the run; figures are never composed, «20-1» stays two numbers.
+ */
+function spelledNumbers(words: readonly string[]): string[] {
+  const out: string[] = []
+  let run: string[] = []
+  const flush = () => {
+    if (run.length > 0) out.push(String(valueOfRun(run)))
+    run = []
+  }
+  for (const w of words) {
+    const cardinal = cardinalOf(w)
+    if (cardinal !== undefined) {
+      if (!continues(run.at(-1), cardinal)) flush()
+      out.push(ordinal(valueOfRun([...run, cardinal])))
+      run = []
+    } else if (UNITS.has(w) || TENS.has(w) || SCALES.has(w)) {
+      if (!continues(run.at(-1), w)) flush()
+      run.push(w)
+    } else if (!(w === 'and' && SCALES.has(run.at(-1) ?? ''))) {
+      flush()
+      out.push(w)
+    }
+  }
+  flush()
+  return out
+}
 
 /**
  * A title's own words: folded, accents off, three letters or more, common words left out, an action as its plain form,
@@ -232,7 +256,8 @@ const ownOrder = (words: readonly string[]) =>
     .map(plainWord)
     // A word said twice running is said once («before review or after review»); a word said again later keeps that
     // later place, which binds it to what is said there («enable SMS and disable email»: Codex on #274).
-    .filter((w, i, all) => w !== all[i - 1])
+    // A «not» twice is kept twice: «not not enable» is not «not enable» (Codex on #274).
+    .filter((w, i, all) => w !== all[i - 1] || NEGATIONS.has(w))
     .join(' ')
 
 /** Who an action is said of when it is a person: kept in the order, «allow them and block us» (Codex on #274). */
