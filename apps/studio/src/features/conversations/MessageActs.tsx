@@ -1,7 +1,7 @@
 // A message's acts at its corner (docs/plans/conversation-acts.md): copy its words; quote them in the message being
 // written, where one can write here; and propose them as a decision (ProposeHere), as before. Shown under the pointer
 // or the focus; on a phone, on the message pressed (conversations.css, `.conv-acts`).
-import { type MouseEvent, type ReactNode, useEffect, useState } from 'react'
+import { type MouseEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon, Tip } from '@sophia/ui'
 import { clipOf, quoteOf } from './message-acts.ts'
 
@@ -97,6 +97,22 @@ function landed(text: string): void {
   if (text !== latest.text && latest.settled) latest.overtaken()
 }
 
+/**
+ * A side row saying something goes under its bubble (conversations.css): its height, wrapped lines and all, is kept
+ * under the bubble (`--acts-room`), so it never lies over the next message (Codex on #283).
+ */
+function useActsRoom(side: boolean, said: unknown) {
+  const row = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    const el = row.current
+    const bubble = el?.parentElement
+    if (!el || !bubble) return
+    if (side && said) bubble.style.setProperty('--acts-room', `${String(el.offsetHeight + 8)}px`)
+    else bubble.style.removeProperty('--acts-room')
+  }, [side, said])
+  return row
+}
+
 export function MessageActs({ message, who, now, onQuote, propose, side = false }: Props) {
   const { said, say, clearAll } = useSaid()
   // Each write starts in its own press (Safari grants the clipboard to the gesture, not to a promise after it). Only the
@@ -126,8 +142,9 @@ export function MessageActs({ message, who, now, onQuote, propose, side = false 
       })
     })
   }
+  const row = useActsRoom(side, said)
   return (
-    <span className={side ? 'conv-acts side' : 'conv-acts'} onClick={own}>
+    <span ref={row} className={side ? 'conv-acts side' : 'conv-acts'} onClick={own}>
       {said && (
         <span key={said.n} className="conv-copied" role="status" data-kind={said.kind}>
           {WORDS[said.kind]}

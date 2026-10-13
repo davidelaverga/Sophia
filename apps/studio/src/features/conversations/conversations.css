@@ -902,10 +902,10 @@
   .conv-acts.side > [role='status'] {
     white-space: normal;
   }
-  /* Its room kept under the bubble, so the row never lies over the message that follows (Codex on #283): a press's
-     height and a line of words. */
+  /* Its room kept under the bubble, so the row never lies over the message that follows: the row's own height, as
+     MessageActs measures it (--acts-room), wrapped lines and all (Codex on #283). */
   .conv-msg-body:has(> .conv-acts.side [role='status']) {
-    margin-bottom: 52px;
+    margin-bottom: var(--acts-room, 52px);
   }
 }
 /* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals

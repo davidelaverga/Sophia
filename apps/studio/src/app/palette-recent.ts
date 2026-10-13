@@ -2,6 +2,8 @@
 // browser. A per-viewer convenience: blocked or unreadable storage keeps nothing and breaks nothing.
 
 export const RECENT_KEY = 'sophia.palette.recent'
+/** Whose «Recent» is kept: the account it was run by (Codex on #283). */
+export const RECENT_OWNER_KEY = 'sophia.palette.recent.owner'
 const MOST = 5
 
 /** The ids after `id` was run: it first, once, five at most. */
@@ -27,6 +29,23 @@ export function forgetRecent(store: Pick<Storage, 'removeItem'> | null = safeSto
     store?.removeItem(RECENT_KEY)
   } catch {
     // Blocked storage: nothing was kept.
+  }
+}
+
+/**
+ * The account signed in now: a «Recent» kept for another (or for nobody noted) is forgotten, however the last one left
+ * (a switch, a sign-out, a session that expired while the Studio was closed), and this one is noted as its owner.
+ */
+export function recentFor(
+  account: string,
+  store: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null = safeStorage(),
+): void {
+  try {
+    if (store?.getItem(RECENT_OWNER_KEY) === account) return
+    store?.removeItem(RECENT_KEY)
+    store?.setItem(RECENT_OWNER_KEY, account)
+  } catch {
+    // Blocked storage: nothing kept, nothing broken.
   }
 }
 

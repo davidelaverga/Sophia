@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
@@ -8,7 +8,7 @@ import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
-import { forgetRecent } from './palette-recent.ts'
+import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
 import { signOutForgetting } from './sign-out.ts'
@@ -47,14 +47,12 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
  * starts, none go. Decided as who is in changes, never in an effect's cleanup, which also runs as a load signs in.
  */
 /**
- * «Recent» is one person's: whenever the account signed in changes, by this tab's switch or sign-out or by the session
- * another tab changed (the auth listener), it is forgotten (Codex on #283).
+ * «Recent» is one person's: kept with whose it is, it is forgotten whenever another account is signed in, however the
+ * last one left (this tab, another tab, a session that expired while the Studio was closed; Codex on #283).
  */
 function useRecentOnlyOf(signedInAs: string | null) {
-  const was = useRef(signedInAs)
   useEffect(() => {
-    if (was.current !== null && was.current !== signedInAs) forgetRecent()
-    was.current = signedInAs
+    if (signedInAs !== null) recentFor(signedInAs)
   }, [signedInAs])
 }
 
