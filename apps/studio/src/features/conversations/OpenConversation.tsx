@@ -36,11 +36,14 @@ import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
 import { MessageActs } from './MessageActs.tsx'
 import { withQuote } from './message-acts.ts'
+import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
   conversation: ConversationSummary
+  /** The list's last read failed: what it says of this conversation (its open questions) may be stale. */
+  listFailed?: boolean
   identity: Identity
   me: string
   /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
@@ -154,12 +157,25 @@ export function OpenConversation(props: Props) {
             follow.sent()
             if (sent.sophia === 'asked') props.onAsked(sent.message.at)
           }}
-          next={{ projectId: props.projectId, me, read: read.data, openQuestions: c.openQuestions }}
+          next={nextOf(props, read)}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
     </section>
   )
+}
+
+/** What the composer's next ask reads (useNextAsk.ts), with whether each part is known now (Codex P2s on #262). */
+function nextOf(props: Props, read: ReturnType<typeof useTranscript>): NextAskSource {
+  return {
+    projectId: props.projectId,
+    me: props.me,
+    read: read.data,
+    // Read and not being read again, the last read not failed: its newest message is the newest.
+    fresh: read.isSuccess && !read.isRefetching,
+    // The list's last read failed: its count of open questions may be stale.
+    openQuestions: props.listFailed === true ? null : props.conversation.openQuestions,
+  }
 }
 
 /**

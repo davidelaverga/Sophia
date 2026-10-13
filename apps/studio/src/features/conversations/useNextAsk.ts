@@ -3,20 +3,21 @@
 // per conversation while the page lives.
 import { useQuery } from '@tanstack/react-query'
 import { useId, useState } from 'react'
-import type { MissionContext } from '@sophia/contracts'
 import { getConversationMessages, type ConversationMessage } from '../../api/vision.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { acceptedOf, pendingOf } from './conversation-list.ts'
 import { contextQuery } from './decide.ts'
-import { LATELY, nextAsk, olderAsks, quickAsks, threadOf } from './next-ask.ts'
+import { asksNow, briefAsks, LATELY, olderAsks, threadOf } from './next-ask.ts'
 
 /** What the view gives the field for its suggestion. */
 export interface NextAskSource {
   projectId: string
   me: string
   read: { pages: readonly { messages: readonly ConversationMessage[]; before?: string | null }[] } | undefined
-  openQuestions: number
+  /** The transcript read, not being read again, its last read not failed (Codex P2 on #262). */
+  fresh: boolean
+  /** The conversation's open questions; null when the list's last read failed and the count may be stale. */
+  openQuestions: number | null
 }
 
 /**
@@ -30,19 +31,10 @@ const hushedAt = new Map<string, string>()
 /** The newest message's id, or null with none. */
 const newestId = (read: NextAskSource['read']) => read?.pages[0]?.messages.at(-1)?.id ?? null
 
-/** The brief's newest proposal waiting, by its words, and how many decisions it has accepted. */
-function briefOf(brief: MissionContext | undefined) {
-  if (!brief) return { pending: null, decided: 0 }
-  const accepted = acceptedOf(brief.constraints)
-  return {
-    pending: pendingOf(brief.pending).shown[0]?.statement ?? null,
-    decided: accepted.shown.length + accepted.more,
-  }
-}
-
 /**
- * The viewer's asks before the loaded pages, read only while the loaded ones hold fewer than six of theirs; `waiting`
- * while that read is on its way, so nothing is proposed that they may have asked a page back.
+ * The viewer's asks before the loaded pages, read only while the loaded ones hold fewer than six of theirs; `known`
+ * once that read is in and complete (or not needed): on its way, failed or stopped short, nothing is proposed that they
+ * may have asked a page back (Codex P2s on #262).
  */
 function useOlderAsks(source: NextAskSource, conversationId: string, identity: Identity, loaded: number) {
   const before = source.read?.pages.at(-1)?.before ?? null
@@ -56,7 +48,7 @@ function useOlderAsks(source: NextAskSource, conversationId: string, identity: I
     staleTime: Number.POSITIVE_INFINITY,
     retry: false,
   })
-  return { words: older.data ?? [], waiting: enabled && older.isPending }
+  return { words: older.data?.asks ?? [], known: !enabled || (older.isSuccess && older.data.complete) }
 }
 
 /**
@@ -72,14 +64,20 @@ export function useNextAsk(source: NextAskSource, conversationId: string, identi
   const thread = { ...loaded, asked: [...older.words, ...loaded.asked] }
   const key = `${accountOf(identity)}:${conversationId}`
   const putAway = putAwayIn.get(key) ?? []
-  const ctx = { ...thread, openQuestions: source.openQuestions, ...briefOf(brief.data), putAway }
+  const ctx = {
+    ...thread,
+    // The count unknown (the list's last read failed), nothing is said of open questions (Codex P2 on #262).
+    openQuestions: source.openQuestions ?? 0,
+    ...briefAsks(brief.data, brief.isError),
+    putAway,
+  }
   const last = newestId(source.read)
   const hushed = last !== null && hushedAt.get(key) === last
-  const suggestion = quiet || hushed || older.waiting ? null : nextAsk(ctx)
+  const { suggestion, quick } = asksNow(ctx, { fresh: source.fresh, recencyKnown: older.known, quiet, hushed })
   return {
     id,
     suggestion,
-    quick: quickAsks(thread.asked, suggestion, putAway),
+    quick,
     putAway: () => {
       if (!suggestion) return
       putAwayIn.set(key, [...putAway, suggestion.words])
