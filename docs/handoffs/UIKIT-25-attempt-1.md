@@ -18,7 +18,8 @@ commits on the branch merge its base forward or touch only this record). 7 files
 
 ## Outcome
 
-- Under «Sign in to Sophia», before the providers: «A room where your team and Sophia think together.», a `p` of the
+- Under «Sign in to Sophia», before the providers: «Where your team and Sophia think together.» (round 3's sentence,
+  shortened from «A room where…» to hold one line at 320 px), a `p` of the
   body (14 px on 20, the second ink), in the guest door's voice. Only on the sign-in step; «Check your email» and the
   offer keep their words.
 - `signin-lede.spec.ts`: the line right under the heading, 14/20, inside the column, no horizontal overflow, at 1440
@@ -33,6 +34,9 @@ commits on the branch merge its base forward or touch only this record). 7 files
 - Measured in the page (the pane at 1440×900, `signin.html`): the line `14px/20px`, colour `rgba(236,235,241,0.66)`
   equal to the muted line's; 14 px under the heading (heading bottom 563, line top 577); 328 px wide in a 416 px
   column; the column ends at 689 of 900; the body's sizes 26 · 14 · 13. On a phone (375×812): `14px/20px`, one line, 328 px in a 343 px column, the rest high, the column ends at 429 of 812, no horizontal overflow.
+  These widths were measured on the superseded «A room where…» sentence; the delivered one holds one line at 320 px
+  (281 of 288 px, round 3), and signin-lede.spec reads it at 1280, 375 and 320. (Record corrected after merge: Codex on
+  #247.)
 
 ## Decisions and changes
 

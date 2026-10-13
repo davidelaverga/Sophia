@@ -49,10 +49,13 @@ commits on the branch merge its base forward or touch only this record). 9 files
   every message), and another's acts start at the bubble's left on every pointer (the message's outer corner), so a
   short message keeps its Copy inside the pane; conversation-acts.spec reads it on a desktop.
 - After the review (Codex on #240, later round): each clipboard write starts in its own press (Safari), the latest
-  press's outcome is said, and a stale write that goes through late is written over with the latest words; on a touch
-  screen the acts stand below the bubble in room the pressed message keeps (`padding-bottom: 44px` on `.conv-turn`).
-  conversation-acts.spec: a synthetic click counts one write at once; a hung first write settled after a second
-  message's copy brings the second's words back; @phone measures the row under the bubble.
+  press's outcome is said, and a stale write that goes through late is said on the latest message, not repaired: its
+  status reads «An earlier copy landed after this one. Copy again to put these words back.» and stays until Copy is
+  pressed again, which writes the latest words (no write is made for the person, asynchronously, behind their back); on
+  a touch screen the acts stand below the bubble in room the pressed message keeps (`padding-bottom: 44px` on
+  `.conv-turn`). conversation-acts.spec: a synthetic click counts one write at once; a hung first write settled after a
+  second message's copy shows that warning, with no third write until Copy is pressed, then the second's words written
+  again; @phone measures the row under the bubble. (Record corrected after merge: Codex on #240.)
 
 ## Remaining obligations
 
