@@ -10,7 +10,7 @@ contract.
 Runtime unit: none beyond Prettier (records only); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `25252d61b87a` (tree `a55dd5298345`), the last commit of `ui/p2-records`'s own that changes code (later
+Ending commit/tree: `60549ef8485b` (tree `c999fe4ef82b`), the last commit of `ui/p2-records`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 10 files changed against
 `origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/handoffs/UIKIT-52-attempt-1.md`, `docs/plans/light-breath.md`, `docs/plans/needs-api.md`, `docs/plans/p2-records.md`, `docs/plans/section-heads.md`. The review notes below name the commit of each later change.
 
@@ -42,3 +42,5 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
 - `25252d61`: needs-api.md's other summaries brought to the merged A15 too: «The amendment» (four kinds, `work_decision` ·
   `work_wait` · `lobby_entry` · `personal_turn` with `within`, only a decision expiring, the seen POST), «What the Studio
   does now» (four needs in the fixture, the reply's seen mark) and «Left» (marking read is in the amendment).
+- `60549ef8`: the merged need identity, `<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`, and `ref.resourceId`
+  for a permission's request (round 2, Codex on #282).
