@@ -143,6 +143,16 @@ async function unanswering(page: Page, scope = 'body', tips = true) {
   const mute: string[] = []
   for (const press of presses) {
     await page.mouse.move(0, 0)
+    // The pointer left: a press it rested on (one just pressed to reach this state) eases back over 140 ms, and read at
+    // once its rest is still its hover's look (Home's microphone, listening). Its transitions end before rest is read.
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter((a) => a instanceof CSSTransition)
+          .map((a) => a.finished.catch(() => undefined)),
+      ),
+    )
     const rest = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i, tips })
     await page.mouse.move(press.x, press.y)
     // The kit's answers take 140 ms; on a loaded machine (CI) the hover can come later: read again until it answers,
