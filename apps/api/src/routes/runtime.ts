@@ -13,6 +13,11 @@ import type {
   ResearchReserveRequest,
   ResearchSettleRequest,
   ResearchSubmitRequest,
+  RuntimeConversationClaimRequest,
+  RuntimeConversationGoRequest,
+  RuntimeConversationReserveRequest,
+  RuntimeConversationSettleRequest,
+  RuntimeConversationAcknowledgedRequest,
   RuntimeHello,
   RuntimeObservationBatch,
   RuntimeReady,
@@ -23,6 +28,11 @@ import {
   recordRuntimeObservations,
   recordRuntimeReady,
   recordRuntimeReceipts,
+  runtimeConversationClaim,
+  runtimeConversationGo,
+  runtimeConversationReserve,
+  runtimeConversationSettle,
+  runtimeConversationAcknowledged,
   runtimeHello,
   runtimePoll,
   runtimeResearchCapture,
@@ -46,6 +56,12 @@ export const RUNTIME_ROUTES: ReadonlySet<string> = new Set([
   '/v1/runtime/receipts',
   '/v1/runtime/observations',
   '/v1/runtime/ready',
+  '/v1/runtime/conversation/claim',
+  '/v1/runtime/conversation/go',
+  '/v1/runtime/conversation/reserve',
+  '/v1/runtime/conversation/settle',
+  '/v1/runtime/conversation/acknowledged',
+
   '/v1/runtime/research/context',
   '/v1/runtime/research/reserve',
   '/v1/runtime/research/settle',
@@ -223,5 +239,37 @@ export function researchRoutes(app: FastifyInstance, pool: pg.Pool): void {
     '/v1/runtime/research/render-result',
     research('ResearchRenderResultRequest', 'ResearchRender'),
     async (req) => withService(pool, (c) => runtimeResearchRenderResult(c, callerOf(req), req.body)),
+  )
+}
+
+/** CON reply-only service calls; each is authenticated/fenced again by its PostgreSQL entrypoint. */
+export function conversationRuntimeRoutes(app: FastifyInstance, pool: pg.Pool): void {
+  const shape = (body: string, response: string) => ({
+    schema: { headers: runtimeHeaders, body: { $ref: `${body}#` }, response: { 200: { $ref: `${response}#` } } },
+  })
+  app.post<{ Body: RuntimeConversationClaimRequest }>(
+    '/v1/runtime/conversation/claim',
+    shape('RuntimeConversationClaimRequest', 'RuntimeConversationClaimReply'),
+    async (req) => withService(pool, (c) => runtimeConversationClaim(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: RuntimeConversationGoRequest }>(
+    '/v1/runtime/conversation/go',
+    shape('RuntimeConversationGoRequest', 'RuntimeConversationGoReply'),
+    async (req) => withService(pool, (c) => runtimeConversationGo(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: RuntimeConversationReserveRequest }>(
+    '/v1/runtime/conversation/reserve',
+    shape('RuntimeConversationReserveRequest', 'RuntimeConversationReservation'),
+    async (req) => withService(pool, (c) => runtimeConversationReserve(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: RuntimeConversationSettleRequest }>(
+    '/v1/runtime/conversation/settle',
+    shape('RuntimeConversationSettleRequest', 'RuntimeConversationSettlement'),
+    async (req) => withService(pool, (c) => runtimeConversationSettle(c, callerOf(req), req.body)),
+  )
+  app.post<{ Body: RuntimeConversationAcknowledgedRequest }>(
+    '/v1/runtime/conversation/acknowledged',
+    shape('RuntimeConversationAcknowledgedRequest', 'RuntimeConversationAcknowledgement'),
+    async (req) => withService(pool, (c) => runtimeConversationAcknowledged(c, callerOf(req), req.body)),
   )
 }

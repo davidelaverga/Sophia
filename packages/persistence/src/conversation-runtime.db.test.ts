@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { after, before, describe, it } from 'node:test'
 import pg from 'pg'
+import { DomainError } from '@sophia/domain'
 import type { MissionProposalRequest } from '@sophia/contracts'
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
@@ -23,6 +24,12 @@ import {
   sendConversationMessage,
   withdrawConversationMessage,
   withActor,
+  withService,
+  runtimeConversationClaim,
+  runtimeConversationGo,
+  runtimeConversationReserve,
+  runtimeConversationSettle,
+  runtimeConversationAcknowledged,
 } from './index.ts'
 
 let db: TestDatabase
@@ -257,10 +264,10 @@ describe('CON cancellation provenance (L1 SQL, synthetic owner state)', () => {
   }
 })
 
-async function runtimeProject() {
+async function runtimeProject(runtimeUnitId = 'sophia-runtime-test') {
   const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
   await owner.query("SELECT sophia.set_conversation_settings($1,'enabled','con01-runtime-local-test')", [projectId])
-  const rt = await registerRuntime(db.ownerUrl, { projectId, admin: A })
+  const rt = await registerRuntime(db.ownerUrl, { projectId, admin: A, runtimeUnitId })
   const runtime = { ...rt, projectId, bridge: randomUUID(), hash: createHash('sha256').update(rt.token).digest() }
   await call(runtime, 'hello', {
     protocolVersion: 1,
@@ -2802,4 +2809,81 @@ describe('CON migration preservation (real PostgreSQL)', () => {
       await baseline.drop()
     }
   })
+})
+
+/** Each closure crosses the exported wrapper under the real non-owner API login. */
+async function wrapperCalls(rt: RuntimeSetup, s: NativeScene) {
+  const body = await request(s)
+  const who = { tokenSha256: rt.hash, runtimeUnitId: rt.runtimeUnitId, bridgeInstanceId: rt.bridge }
+  return {
+    claim: () => withService(api, (c) => runtimeConversationClaim(c, who, body)),
+    go: () => withService(api, (c) => runtimeConversationGo(c, who, body)),
+    reserve: () =>
+      withService(api, (c) =>
+        runtimeConversationReserve(c, who, {
+          ...body,
+          ordinal: 1,
+          call: {
+            routeId: 'route-test',
+            credentialRef: 'synthetic-credential-ref',
+            ownerResourceRef: 'synthetic-owner-resource-ref',
+            unit: 'calls_tokens',
+            tokens: 100,
+            priceMicros: 0,
+          },
+        }),
+      ),
+    settle: () =>
+      withService(api, (c) =>
+        runtimeConversationSettle(c, who, {
+          ...body,
+          ordinal: 1,
+          used: { calls: 1, tokens: 10, priceMicros: 0 },
+        }),
+      ),
+    acknowledged: () =>
+      withService(api, (c) =>
+        runtimeConversationAcknowledged(c, who, {
+          ...body,
+          keys: { observations: [], usage: [], ordinals: [1], hasTurnEnd: false },
+        }),
+      ),
+  }
+}
+
+const wrappedDenial = (sqlstate: string) => (error: unknown) =>
+  error instanceof DomainError && error.cause instanceof pg.DatabaseError && error.cause.code === sqlstate
+
+describe('CON runtime persistence wrappers (L1 actual API login; no model)', () => {
+  it('crosses all five entry points and preserves the durable reservation receipt on replay', async () => {
+    const s = await nativeScene()
+    await dispatch(s)
+    const calls = await wrapperCalls(s.rt, s)
+    assert.deepEqual(await calls.claim(), { result: 'first' })
+    assert.deepEqual(await calls.go(), { result: 'go' })
+    const reserved = await calls.reserve()
+    assert.equal(reserved.state, 'reserved')
+    assert.deepEqual(await calls.reserve(), reserved)
+    const settled = await calls.settle()
+    assert.equal(settled.state, 'settled')
+    assert.deepEqual(await calls.settle(), settled)
+    const ack = await calls.acknowledged()
+    assert.equal(ack.predicates.reservations.met, true)
+    assert.equal(ack.predicates.terminalState.met, false)
+  })
+
+  for (const operation of ['claim', 'go', 'reserve', 'settle', 'acknowledged'] as const) {
+    it(`wrapper ${operation} denies another unit's attempt and the old lease after a newer hello`, async () => {
+      const s = await nativeScene()
+      const other = await nativeScene(await runtimeProject('con01-synthetic-other-unit'))
+      assert.notEqual(s.rt.runtimeUnitId, other.rt.runtimeUnitId)
+      await dispatch(s)
+      await dispatch(other)
+      const otherRequest = { ...other, rt: { ...other.rt, bridge: s.rt.bridge } }
+      await assert.rejects((await wrapperCalls(s.rt, otherRequest))[operation](), wrappedDenial('42501'))
+      const calls = await wrapperCalls(s.rt, s)
+      await call({ ...s.rt, bridge: randomUUID() }, 'hello', { protocolVersion: 1 })
+      await assert.rejects(calls[operation](), wrappedDenial('40001'))
+    })
+  }
 })

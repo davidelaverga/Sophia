@@ -1,22 +1,28 @@
 # CON-01 coordination
 
-**Current continuation, renewed13October source-only takeover:** [exact approved
-capture-privacy implementation, source pins and evidence](../../handoffs/CON-01-codex-source-takeover-9.md).
-Handoff6 and expiry-only renewal are approved, same r12+handoffs5/6 source scope
-through2026-10-13T18:00Z/20:00Europe-Rome. Last observed draft273 was07d296ff, actual automatic
-review clear only at that pin; latest publication identity/verdict belongs to
-the shared mission receipt; dirty Step1 runtime suite103/103 pass, affected21 fail
-before/pass after. Independent whole-delta review/103cases clear, code hold released; ordinary
-gate/DB877/877/SQL48/five/actualgoal native-mock5/5 pass. Immutable publication
-confirmation/actual automatic review before Step2. Current main9d9023f9 has8 Studio conflicts; preserved
-main/CON requirements198/6142703180, no resolution write. Prior97eae14c rehearsal
-is old-main evidence. Askoff, signed-out actual IAB, operation batches unapproved.
+**Current continuation:13October source-only Step2.** [Exact current handoff](../../handoffs/CON-01-codex-source-takeover-10.md).
+Original r12+approved handoffs5/6+narrow generator amendment198/6144168028
+through18:00Z/20:00Europe-Rome, renewal198/6142958242.
+Step1 published7461221e676f46a8645ae33ebca99b1286dbf2db/tree3100c4c9;
+actual automatic273/6143414491 clear, summary6134284110 completed10:20:49Z.
+Step2 additive ten schemas/five endpoints/wrappers/registration implemented;
+final ordinarycheck2356unitpass/70explicit skips,86integrationpass/twoexplicit
+skips, DB894/894zero skip/cancel, SQL48/five and existing-goal native LOCAL MOCK5/5
+pass; all code hashes match, author resources removed. Independent whole-source/whole-PR review found no actionable finding
+after two capacity failures; own17case PG/HTTP/wrapper run passed/cleanup checked.
+Code hold released; final exact-head/tree/docs clearance remains due. Final Step2 exact commit/tree/publication/automatic status belongs to
+step2-20261013-1025/publication.safe.json and shared marker
+CON-01-TAKEOVER10-STEP2-PUBLICATION; no local/pending state becomes a push/clearance.
+Step3 oneOf generator incompatibility reproduced; exact two-file source amendment
+APPROVED198/6144168028, no generator/test implementation yet. Current main9d9023f9 eight Studio conflicts
+held, preservation198/6142703180. Askoff, last actual IAB signed out; setup/Ask
+batches unapproved, actual serving tuple/cohort/provider answer unqualified.
 
-Codex is sole author; Claude stopped. Historical ACKs retain pins; owner/base
-replacement remains only for listed local authoring/draft publication. No unlisted
-path, active writer or merge/hosted/provider/credential/account/grant/spend waiver.
-Independent whole-diff before each push and actual exact-head automatic review
-after each push; Luis integration and Davide acceptance remain separate.
+Codex sole author, Claude stopped. Historical ACKs retain actual pins; owner/base
+replacement only for listed local source/draft publication. No active writer,
+unlisted-path, merge/hosted/provider/credential/account/grant/spend waiver.
+Independent whole-diff/exact-pin before each push; actual automatic review after
+each pushed head. Luis integration/Davide product acceptance remain separate.
 
 The [r12 reservation](G2_SHARED_RESERVATION_REQUEST.md) and [research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md) remain the reviewed source scope; their historical no-window status describes their publication, not the later explicit source-only approval. Retained conditional owner handbacks remain exact-r10 only. Base main `32854caf`; own branch `codex/con01-takeover-source-20261013`. Earlier table/history below retains original inputs and evidence at their own pins.
 
@@ -36,7 +42,7 @@ CON-01 completes saved project conversations. Two or more named text conversatio
 | Parallel lanes | PR #190 (SDD-01 G7 voice, A15, 0046–0047); WBC-02 and SDD-01's combined runtime. The shared-file order is in the [binding map](BINDING_MAP.md) §2 |
 | Progress | [docs/progress/CON-01.md](../../progress/CON-01.md) |
 
-A comment wakes nobody. Under the 12 October takeover, resume Codex only for CON implementation, for example: `CON-01: recover the latest publication receipt and progress record, check the exact-head automatic review, and continue only within the recorded scope.` Do not resume the former CON Claude feature session or delegate its coding/gates back to it. Retained owners supply only specifically authorized handbacks in their own lanes. No message here is an approval; exact shared-write and operation approvals remain separate. Read-only discovery already authorized by Davide may continue. [Current PR273 Step1 publication recovery and exact receipt locator](../../handoffs/CON-01-codex-source-takeover-9.md); [historical PR271 r12 publication](receipts/codex-research-r12-publication.md); [retained r11 publication](receipts/codex-owner-incorporation-r11-publication.md).
+A comment wakes nobody. Under the 12 October takeover, resume Codex only for CON implementation, for example: `CON-01: recover the latest publication receipt and progress record, check the exact-head automatic review, and continue only within the recorded scope.` Do not resume the former CON Claude feature session or delegate its coding/gates back to it. Retained owners supply only specifically authorized handbacks in their own lanes. No message here is an approval; exact shared-write and operation approvals remain separate. Read-only discovery already authorized by Davide may continue. [Current PR273 Step2 recovery and exact receipt locator](../../handoffs/CON-01-codex-source-takeover-10.md); [historical PR271 r12 publication](receipts/codex-research-r12-publication.md); [retained r11 publication](receipts/codex-owner-incorporation-r11-publication.md).
 
 ## Messages
 

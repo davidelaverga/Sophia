@@ -34,7 +34,7 @@ import { projectRoutes } from './routes/projects.ts'
 import { roomRoutes } from './routes/rooms.ts'
 import { designRoutes } from './routes/design.ts'
 import { RENDERER_ROUTES, rendererRoutes } from './routes/renderer.ts'
-import { RUNTIME_ROUTES, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
+import { RUNTIME_ROUTES, conversationRuntimeRoutes, researchRoutes, runtimeRoutes } from './routes/runtime.ts'
 import { sourceRoutes } from './routes/sources.ts'
 import type { LiveKitConfig } from './livekit.ts'
 import { NotificationHub } from './notification-hub.ts'
@@ -216,6 +216,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   missionRoutes(app, { pool: deps.pool })
   runtimeRoutes(app, { pool: deps.pool, hub: runtimeHub })
   researchRoutes(app, deps.pool)
+  conversationRuntimeRoutes(app, deps.pool)
   designRoutes(app, { pool: deps.pool, store })
   roomRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   exchangeRoutes(app, { pool: deps.pool, livekit: deps.livekit })

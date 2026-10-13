@@ -7,9 +7,17 @@ import type { FastifyInstance } from 'fastify'
 import { SignJWT } from 'jose'
 import type pg from 'pg'
 import assert from 'node:assert/strict'
-import { after, before, describe, it } from 'node:test'
+import { after, before, describe, it, type TestContext } from 'node:test'
 import { parseContributionReceipt, parseNativeTaskDetail, parseSnapshot } from '@sophia/contracts/validate'
-import { admitNativeTask, createPool, withActor } from '@sophia/persistence'
+import {
+  admitNativeTask,
+  createPool,
+  sendConversationMessage,
+  startConversation,
+  withdrawConversationMessage,
+  withActor,
+} from '@sophia/persistence'
+import { recordPayload, renderBound, type Binding } from '../../../packages/persistence/src/conversation-assembly.ts'
 import {
   createTestDatabase,
   registerRuntime,
@@ -220,4 +228,350 @@ describe('discussion and a draft_brief through the API (A05)', () => {
     })
     assert.equal(said.status, 403)
   })
+})
+
+// CON Step2: real HTTP/PG, synthetic admission/context only; these routes never execute a native/provider call.
+const CONVERSATION_OPERATIONS = ['claim', 'go', 'reserve', 'settle', 'acknowledged'] as const
+
+async function recordConversationContext(owner: pg.Pool, replyId: string) {
+  const claim = (
+    await owner.query<{ v: { attempt: number; token: string } }>(
+      'SELECT sophia.conversation_assembly_claim($1,8000) AS v',
+      [replyId],
+    )
+  ).rows[0]?.v
+  assert.ok(claim)
+  const c = await owner.connect()
+  try {
+    await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ')
+    const binding = (
+      await c.query<{ v: Binding }>('SELECT sophia.conversation_assembly_begin($1,$2,$3) AS v', [
+        replyId,
+        claim.attempt,
+        claim.token,
+      ])
+    ).rows[0]?.v
+    assert.ok(binding)
+    await c.query('SELECT sophia.conversation_record_context($1,$2,$3,$4::jsonb)', [
+      replyId,
+      claim.attempt,
+      claim.token,
+      recordPayload(await renderBound(c, binding)),
+    ])
+    await c.query('COMMIT')
+  } finally {
+    await c.query('ROLLBACK')
+    c.release()
+  }
+}
+
+async function conversationWorld(t: TestContext) {
+  const project = await seedProject(db.ownerUrl, { admin: A, editors: [E] })
+  const runtime = await registerRuntime(db.ownerUrl, { projectId: project.projectId, admin: A })
+  const bridge = randomUUID()
+  const owner = createPool(db.ownerUrl, { max: 3 })
+  t.after(() => owner.end())
+  const headers = bridgeHeaders(bridge, runtime.runtimeUnitId)
+  const announced = await call('/v1/runtime/hello', {
+    method: 'POST',
+    bearer: runtime.token,
+    headers,
+    body: {
+      bundle: '@sophia/dsh-bundle@test',
+      dshVersion: '0.2.0-rc.2',
+      protocolVersion: 1,
+      roles: [{ id: 'sophia-conversation-v1', route: 'route-test', presetDigest: 'synthetic' }],
+    },
+  })
+  assert.equal(announced.status, 200)
+  assert.equal(
+    (
+      await call('/v1/runtime/ready', {
+        method: 'POST',
+        bearer: runtime.token,
+        headers,
+        body: { state: 'ready', reason: null, unrecovered: [] },
+      })
+    ).status,
+    204,
+  )
+  await owner.query("SELECT sophia.set_conversation_settings($1,'enabled','con01-runtime-http-local-test')", [
+    project.projectId,
+  ])
+  await owner.query('SELECT sophia.conversation_new_lineage($1,$2::jsonb)', [
+    project.projectId,
+    {
+      unit: 'calls_tokens',
+      routeId: 'route-test',
+      credentialRef: 'synthetic-credential-ref',
+      ownerResourceRef: 'synthetic-owner-resource-ref',
+      approvalRef: 'synthetic-http-test',
+      expiresAt: new Date(Date.now() + 600_000).toISOString(),
+      maxCallsPerReply: 2,
+      totalCallCap: 10,
+      replyTokenCap: 1000,
+      totalTokenCap: 5000,
+      subjects: [E],
+    },
+  ])
+  const first = await withActor(pool, E, 'write', (c) =>
+    startConversation(
+      c,
+      project.projectId,
+      randomUUID(),
+      { title: 'Runtime HTTP test', text: 'Synthetic context', askSophia: false },
+      'E',
+    ),
+  )
+  const asked = await withActor(pool, E, 'write', (c) =>
+    sendConversationMessage(
+      c,
+      first.conversationId,
+      randomUUID(),
+      { text: 'Synthetic question', askSophia: true },
+      'E',
+    ),
+  )
+  assert.ok(asked.replyId)
+  await recordConversationContext(owner, asked.replyId)
+  await dispatchOnce(worker, { workerId: 'conversation-http-test' })
+  const command = (
+    await owner.query<{ id: string; attempt_id: string; binding_id: string }>(
+      "SELECT id,attempt_id,binding_id FROM sophia.runtime_commands WHERE project_id=$1 AND kind='create'",
+      [project.projectId],
+    )
+  ).rows[0]
+  assert.ok(command)
+  return {
+    projectId: project.projectId,
+    replyId: asked.replyId,
+    conversationId: first.conversationId,
+    firstId: first.messageId,
+    runtime,
+    bridge,
+    headers,
+    owner,
+    command,
+    request: { attemptId: command.attempt_id, commandId: command.id, authorityEpoch: 1, leaseId: bridge },
+  }
+}
+
+type ConversationWorld = Awaited<ReturnType<typeof conversationWorld>>
+
+const conversationCall = (w: ConversationWorld, operation: (typeof CONVERSATION_OPERATIONS)[number], body: unknown) =>
+  call(`/v1/runtime/conversation/${operation}`, { method: 'POST', bearer: w.runtime.token, headers: w.headers, body })
+
+const syntheticCall = {
+  routeId: 'route-test',
+  credentialRef: 'synthetic-credential-ref',
+  ownerResourceRef: 'synthetic-owner-resource-ref',
+  unit: 'calls_tokens',
+  tokens: 100,
+  priceMicros: 0,
+}
+const journalKeys = { observations: [], usage: [], ordinals: [], hasTurnEnd: false }
+const operationBody = (w: ConversationWorld, operation: (typeof CONVERSATION_OPERATIONS)[number]) => ({
+  ...w.request,
+  ...(operation === 'reserve' ? { ordinal: 1, call: syntheticCall } : {}),
+  ...(operation === 'settle' ? { ordinal: 1, used: { calls: 1, tokens: 10, priceMicros: 0 } } : {}),
+  ...(operation === 'acknowledged' ? { keys: journalKeys } : {}),
+})
+
+describe('CON runtime HTTP routes (L1, actual capability/lease/PG; no model)', () => {
+  it('claims/goes once, reserves/settles idempotently and returns all eight actual durable predicates', async (t) => {
+    const w = await conversationWorld(t)
+    assert.deepEqual(await conversationCall(w, 'claim', w.request), { status: 200, json: { result: 'first' } })
+    assert.deepEqual(await conversationCall(w, 'claim', w.request), {
+      status: 200,
+      json: { result: 'refused', code: 'already_claimed' },
+    })
+    assert.deepEqual(await conversationCall(w, 'go', w.request), { status: 200, json: { result: 'go' } })
+    const reserved = await conversationCall(w, 'reserve', operationBody(w, 'reserve'))
+    assert.equal(reserved.status, 200)
+    assert.equal(reserved.json.state, 'reserved')
+    assert.equal(reserved.json.replyId, w.replyId)
+    assert.deepEqual(await conversationCall(w, 'reserve', operationBody(w, 'reserve')), reserved)
+    const settled = await conversationCall(w, 'settle', operationBody(w, 'settle'))
+    assert.equal(settled.status, 200)
+    assert.equal(settled.json.state, 'settled')
+    assert.deepEqual(await conversationCall(w, 'settle', operationBody(w, 'settle')), settled)
+    const ack = await conversationCall(w, 'acknowledged', operationBody(w, 'acknowledged'))
+    assert.equal(ack.status, 200)
+    assert.deepEqual(Object.keys(ack.json.predicates).toSorted(), [
+      'capture',
+      'createAnswered',
+      'observations',
+      'payloadScrubbed',
+      'reservations',
+      'terminalState',
+      'terminalWriter',
+      'usage',
+    ])
+    assert.equal(ack.json.predicates.terminalState.met, false)
+    assert.equal(
+      (
+        await w.owner.query(
+          'SELECT spent_calls,reserved_calls FROM sophia.conversation_grants WHERE project_id=$1 AND current',
+          [w.projectId],
+        )
+      ).rows[0]?.spent_calls,
+      '1',
+    )
+  })
+
+  for (const operation of CONVERSATION_OPERATIONS) {
+    it(`fences ${operation}: capability, headers, actor/project fields, foreign attempt and replaced lease`, async (t) => {
+      const w = await conversationWorld(t)
+      const body = operationBody(w, operation)
+      const path = `/v1/runtime/conversation/${operation}`
+      for (const bearer of ['', await token(A)])
+        assert.equal((await call(path, { method: 'POST', bearer, headers: w.headers, body })).status, 401)
+      assert.equal((await call(path, { method: 'POST', bearer: w.runtime.token, body })).status, 422)
+      assert.equal(
+        (
+          await call(path, {
+            method: 'POST',
+            bearer: w.runtime.token,
+            headers: { ...w.headers, 'x-sophia-runtime-unit': 'foreign-unit' },
+            body,
+          })
+        ).status,
+        403,
+      )
+      for (const field of ['actorId', 'projectId'])
+        assert.equal((await conversationCall(w, operation, { ...body, [field]: randomUUID() })).status, 422)
+      assert.equal((await conversationCall(w, operation, { ...body, attemptId: randomUUID() })).status, 403)
+      assert.equal((await conversationCall(w, operation, { ...body, leaseId: randomUUID() })).status, 403)
+      assert.equal((await hello(w.runtime.token, randomUUID(), w.runtime.runtimeUnitId)).status, 200)
+      assert.equal((await conversationCall(w, operation, body)).status, 409)
+      assert.equal(
+        (
+          await w.owner.query('SELECT count(*)::int AS n FROM sophia.conversation_reservations WHERE reply_id=$1', [
+            w.replyId,
+          ])
+        ).rows[0]?.n,
+        0,
+      )
+    })
+  }
+})
+
+/** Actual intake, not a synthesized ACK response: the SQL receipt is compared with the complete HTTP body. */
+async function conversationAnswer(w: ConversationWorld) {
+  const binding = (
+    await w.owner.query<{ native_session_id: string }>(
+      'SELECT native_session_id FROM sophia.execution_bindings WHERE project_id=$1 AND id=$2',
+      [w.projectId, w.command.binding_id],
+    )
+  ).rows[0]
+  assert.ok(binding)
+  assert.equal(
+    (
+      await call('/v1/runtime/observations', {
+        method: 'POST',
+        bearer: w.runtime.token,
+        headers: w.headers,
+        body: {
+          observations: [
+            {
+              runtimeUnitId: w.runtime.runtimeUnitId,
+              attemptId: w.command.attempt_id,
+              nativeSessionId: binding.native_session_id,
+              nativeSeq: 1,
+              durable: true,
+              type: 'assistant/message',
+              data: { text: 'Synthetic native intake answer' },
+            },
+            {
+              runtimeUnitId: w.runtime.runtimeUnitId,
+              attemptId: w.command.attempt_id,
+              nativeSessionId: binding.native_session_id,
+              nativeSeq: 2,
+              durable: true,
+              type: 'turn/end',
+              data: { reason: { kind: 'completed' } },
+            },
+          ],
+        },
+      })
+    ).status,
+    204,
+  )
+}
+
+describe('CON runtime HTTP durable ACK variants (L1 actual intake, no model)', () => {
+  for (const kind of ['capture', 'receipt', 'hello', 'withdrawal', 'capture_privacy']) {
+    it(`serializes the full actual ${kind} provenance without dropping a predicate or field`, async (t) => {
+      let w = await conversationWorld(t)
+      assert.equal((await conversationCall(w, 'claim', w.request)).status, 200)
+      assert.equal((await conversationCall(w, 'go', w.request)).status, 200)
+      if (kind === 'capture' || kind === 'capture_privacy') {
+        if (kind === 'capture_privacy')
+          await w.owner.query('UPDATE sophia.projects SET audience_revision=audience_revision+1 WHERE id=$1', [
+            w.projectId,
+          ])
+        await conversationAnswer(w)
+      } else if (kind === 'receipt') {
+        const binding = (
+          await w.owner.query<{ native_session_id: string }>(
+            'SELECT native_session_id FROM sophia.execution_bindings WHERE project_id=$1 AND id=$2',
+            [w.projectId, w.command.binding_id],
+          )
+        ).rows[0]
+        assert.ok(binding)
+        assert.equal(
+          (
+            await call('/v1/runtime/receipts', {
+              method: 'POST',
+              bearer: w.runtime.token,
+              headers: w.headers,
+              body: {
+                receipts: [
+                  {
+                    commandId: w.command.id,
+                    attemptId: w.command.attempt_id,
+                    nativeSessionId: binding.native_session_id,
+                    stage: 'failed',
+                    nativeSequence: null,
+                    evidenceRefs: [],
+                    reason: null,
+                    observedAt: new Date().toISOString(),
+                  },
+                ],
+              },
+            })
+          ).status,
+          204,
+        )
+      } else if (kind === 'withdrawal') {
+        await withActor(pool, E, 'write', (c) =>
+          withdrawConversationMessage(c, w.conversationId, w.firstId, randomUUID()),
+        )
+      } else {
+        const bridge = randomUUID()
+        assert.equal((await hello(w.runtime.token, bridge, w.runtime.runtimeUnitId)).status, 200)
+        w = {
+          ...w,
+          bridge,
+          headers: bridgeHeaders(bridge, w.runtime.runtimeUnitId),
+          request: { ...w.request, leaseId: bridge },
+        }
+      }
+      const ack = await conversationCall(w, 'acknowledged', operationBody(w, 'acknowledged'))
+      assert.equal(ack.status, 200)
+      const expected = (
+        await w.owner.query<{ value: unknown }>('SELECT sophia.conversation_acknowledged($1,$2::jsonb) AS value', [
+          w.command.attempt_id,
+          journalKeys,
+        ])
+      ).rows[0]?.value
+      assert.equal(ack.json.predicates.terminalState.met, true)
+      assert.equal(ack.json.predicates.terminalWriter.met, true)
+      assert.equal(
+        ack.json.predicates.terminalWriter.key.kind,
+        kind === 'withdrawal' || kind === 'capture_privacy' ? 'cancellation' : kind,
+      )
+      assert.deepEqual(ack.json, expected)
+    })
+  }
 })

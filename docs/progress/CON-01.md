@@ -2,46 +2,60 @@
 
 The mission's one record of where things stand. Source, local tests, independent review, hosted operations and Davide's acceptance are kept apart. Evidence levels follow pack 07: **L0** source and static, **L1** local real API, PostgreSQL and pinned dsh with a labelled stub provider, **L2** authorized real provider, **L3** deployed app, **L4** Davide's acceptance. A level never promotes another.
 
-**Current continuation, renewed13October source-only window.** Handoff6 capture
-privacy amendment and expiry-only renewal are approved; source scope remains
-r12+handoffs5/6 through2026-10-13T18:00Z (**20:00 Rome today**). [Current exact
-source/authority/evidence handoff](../handoffs/CON-01-codex-source-takeover-9.md).
-Codex remains sole CON author, Claude stopped; independent whole-diff review
-before each push and actual exact-head automatic review after each push. No merge,
-hosted/credential/account/grant/provider/spending authority. Askoff.
+**Current continuation:13October source-only Step2.** Original r12 plus
+approved handoffs5/6, narrow generator amendment198/6144168028 and expiry-only
+renewal198/6142958242 remain valid through
+2026-10-13T18:00Z (**20:00 Rome today**). [Current exact handoff](../handoffs/CON-01-codex-source-takeover-10.md).
+Codex sole CON author, Claude stopped. No merge, hosted migration/configuration,
+account/membership/grant/privilege/connection/credential/provider/spending authority.
+Askoff. Independent whole-diff/exact-pin review before every push; actual automatic
+Codex review after each pushed head. Luis integration/Davide acceptance separate.
 
-Last observed published draft273 was07d296ff/tree69592cb3, automatic review
-actually checked clear at that pin; the next exact publication/automatic verdict
-is authoritative only when recorded in the shared mission receipt. Dirty0049 SQL636f0b34/test0ea13398/helper565b310c: approved
-capture_privacy with actual end provenance implemented.21/21 affected cases fail
-before and pass after; full runtime103/103 pass, zero skips/cancellations, real
-owned PostgreSQL only. Original five privacy failures now pass. Whole-delta
-independent review found no actionable finding and independently passed103/103.
-Current ordinary gate passes; parallelDB877/877, SQL48/five and actual goal
-native/mock5/5 pass. All current local gates are complete; immutable publication
-confirmation/actual automatic verdict remain due before Step2. Prior checks
-remain at their actual pins.
+Published Step1 is7461221e676f46a8645ae33ebca99b1286dbf2db/tree3100c4c9,
+actual bot273/6143414491 clear on746, summary273/6134284110 completed10:20:49Z;
+shared198/6143353343,6143428991. Step2 source now implemented: ten additive
+RuntimeConversation schemas/five endpoints/five wrappers/API registration;
+prior OpenAPI definitions and A04/other mission contracts unchanged. Actual
+capability/lease/SQL fences and full eight-predicate ACKs; no native CON execution.
+Generated bundleSHA256a56e50e1; same dsh pin/unit, recorder-only identities.
 
-Main9d9023f9/tree15ae352e adds11 Studio/UI PRs since97eae14c, no runtime/SQL delta.
-Eight mechanical UI conflicts are held; exact main freshness/viewer/controls and
-CON actual API/correlation/withdrawal/access preservation recorded198/6142703180.
-Old97eae14c local compatibility rehearsal is historical, not current integration.
-Published menu-clock browser CI failure remains unwaived. Actual IAB signed out;
-no two-account/provider app acceptance. Operation drafts remain unapproved.
+Final pnpm check exit0:2356unitpass/70explicit skips,86integrationpass/twoexplicit
+skips; normal parallelDB894/894zero skip/cancel; SQL48migrations/fivefiles;
+existing-goal actualAPI/PG/worker/pinned-dsh LOCAL MOCK5/5. Six genuine HTTP
+fail-before on missing routes,17expanded HTTP/wrapper cases pass, three new
+wire/path unit checks. All final code manifests match; owned author resources
+stopped/removed. Independent whole-source/whole-PR review completed with no actionable finding
+after two capacity failures; own17case PG/HTTP/wrapper run passed, cleanup checked.
+Code hold released; final exact-head/tree/docs clearance and push still due. Final Step2
+commit/tree, publication and actual automatic result must be read from exact
+private step2-20261013-1025/publication.safe.json and shared stable marker
+CON-01-TAKEOVER10-STEP2-PUBLICATION; local code is not a pushed candidate.
+
+Step3 exclusive oneOf reproducibly fails generic type generation. Davide APPROVED the narrow
+oneOf generator/test scope amendment198/6144168028 (requestSHA341406ab); no
+generator/test implementation yet, runtime exclusivity preserved. Existing18:00Z expiry unchanged. Current
+main9d9023f9/tree15ae352e and eight held Studio conflicts/14blocks remain;
+exactpreservation198/6142703180. Fresh fetch changes UI/CI refs only. Old97eae14c
+rehearsal and07d menu-clock CI failure remain historical/unwaived. Current746
+CI runtime/DB/auth/media/renderer success, browser running at latestcheckpoint.
 
 | Gate | Actual current evidence | Remaining boundary |
 |---|---|---|
-| G0 | Accepted optionC, throwaway home, Q13A, conservative withdrawal, cohort policy, handoffs5/6 | Supported subscription topology/adapter/credentials/quota/execution bounds unqualified |
-| G1 | Retained real-PG/API evidence; human-only no model/operational growth | Hosted records/target admission unqualified |
-| G2 | Current runtimeSQL103/103 pass; frozen/shared equality and mixed goal paths retained | Local gates/whole-delta review passed; immutable pin/publication confirmation due; later wire/native/isolated home/provider; Askoff |
-| G3 | Earlier affected/preservation fixtures retained at their pins | Newer-main8-conflict reconciliation; menu CI failure; signed-in provider episode absent |
-| G4 | Published07d automatic review checked; current Step1 independent whole review/103runtime checks passed | Complete Step1 pin/whole-diff clearance and current-main integration |
-| G5 | Read-only discovery, actual signed-out browser | Setup/Ask batches unapproved; real tuple/two actors/native answer not app_verified |
+| G0 | OptionC, throwaway home, Q13A, conservative withdrawal, cohort policy and handoffs5/6 settled | Supported subscription route/topology/adapter/account/credentials/quota/bounds unqualified |
+| G1 | Retained realPG/API and human-only no operational/model growth | Hosted records and target admission unqualified |
+| G2 | Step1 published/reviewed SQL; Step2 complete local gates/API/wrapper/ACK evidence | Step2 final exact-pin/docs clearance/publication/automatic result; Step3 implementation/native homes/Q13/provider; Askoff |
+| G3 | Retained fixture evidence at actual pins | Current-main conflicts/ownership, menu CI criterion, signed-in two-account provider episode |
+| G4 | Actual Step1 independent/automatic reviews; Step2 independent source review/17cases passed | Exact Step2 clearance and current-main integration |
+| G5 | Actual read-only browser access, last signed out | OP0002r6/OP0001r4 unapproved/not approval-ready; tuple/cohort/native answer unknown; not app_verified |
 
-Retained36-case ledger remains18partial_L1/three passed_L1/15not_run, no broader
-product/other-mission completion. Temporary resources from completed runs removed;
-private logs retained. No hosted data effect/rollback, no spending or allowance reset.
-Earlier stopped-workflow deductions remain unknown. Luis integration/Davide acceptance.
+Retained36-case ledger remains18partial_L1/three passed_L1/15not_run. Full mission
+source_ready/deployed/app_verified/owner_accepted not established. Actual product
+provider spending none this slice; review compute not metered here and earlier
+stopped-workflow deductions unknown. No reset/monitor. Source rollback omission/
+reversion only; governed data unchanged. Next bounded action: independent exact-pin
+clearance, publish Step2 and actually read automatic review; Step3 under its
+now-approved narrow generator amendment and fresh ownership check. Broader product/other missions
+remain open.
 
 ## Historical gates (retained author checkpoints, not current instructions)
 
@@ -183,14 +197,16 @@ Run in this session with each exit code written by the shell, never through a pi
 
 ## Next action
 
-Confirm the exact immutable Step1 candidate after the documentation-only final
-review correction, publish that reviewed draft candidate, and actually inspect
-its exact-head automatic Codex review. Capture privacy is approved/implemented;
-all current local gates pass. Step2 waits for that completed Step1 publication/
-review pin. Preserve current-main9d9023f9's eight Studio conflicts as held until
-ownership/scope-compatible reconciliation; no merge or app acceptance inferred.
-Stop affected writes on overlap/collision/unlisted need or renewed
-2026-10-13T18:00:00Z expiry (20:00 Rome). No new Claude workflow, monitor or old batches.
+Confirm independent clearance on the exact final Step2 commit/tree/docs, publish
+that reviewed draft candidate and actually inspect its exact-head automatic
+Codex review. Step1 is already published7461221e6 and actual automatic review
+clear; Step2's complete local gates and independent source/17cases pass. Only
+after Step2's completed publication/review pin, implement Step3 within r12 plus
+the narrow generator amendment explicitly approved198/6144168028. Preserve
+current-main9d9023f9's eight Studio conflicts as held until ownership/scope-compatible
+reconciliation; no merge or app acceptance inferred. Stop affected writes on
+active overlap/collision/unlisted need or2026-10-13T18:00Z expiry (20:00 Rome).
+No new Claude workflow, monitor or old batches.
 
 Prepare setup/human-chat and Ask batches separately with actual source/artifacts,
 targets, accounts/roles, credential references, payer, finite allowances/expiry,

@@ -13569,6 +13569,566 @@
         "x-sophia-implementation": "contract_only",
         "x-sophia-release-goal": "CON-01"
       }
+    },
+    "/v1/runtime/conversation/claim": {
+      "post": {
+        "operationId": "runtimeConversationClaim",
+        "summary": "Reply-owned claim under the registered runtime capability and current lease; no member or operational authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeConversationClaimRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConversationClaimReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Foreign reply/attempt/create command, runtime unit or mismatched lease identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Superseded bridge, closed reply, uncertain or conflicting durable outcome; never reset allowance or retry a fresh Ask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "CON-01"
+      }
+    },
+    "/v1/runtime/conversation/go": {
+      "post": {
+        "operationId": "runtimeConversationGo",
+        "summary": "Reply-owned go under the registered runtime capability and current lease; no member or operational authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeConversationGoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConversationGoReply"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Foreign reply/attempt/create command, runtime unit or mismatched lease identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Superseded bridge, closed reply, uncertain or conflicting durable outcome; never reset allowance or retry a fresh Ask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "CON-01"
+      }
+    },
+    "/v1/runtime/conversation/reserve": {
+      "post": {
+        "operationId": "runtimeConversationReserve",
+        "summary": "Reply-owned reserve under the registered runtime capability and current lease; no member or operational authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeConversationReserveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConversationReservation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Foreign reply/attempt/create command, runtime unit or mismatched lease identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Superseded bridge, closed reply, uncertain or conflicting durable outcome; never reset allowance or retry a fresh Ask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "CON-01"
+      }
+    },
+    "/v1/runtime/conversation/settle": {
+      "post": {
+        "operationId": "runtimeConversationSettle",
+        "summary": "Reply-owned settle under the registered runtime capability and current lease; no member or operational authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeConversationSettleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConversationSettlement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Foreign reply/attempt/create command, runtime unit or mismatched lease identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Superseded bridge, closed reply, uncertain or conflicting durable outcome; never reset allowance or retry a fresh Ask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "CON-01"
+      }
+    },
+    "/v1/runtime/conversation/acknowledged": {
+      "post": {
+        "operationId": "runtimeConversationAcknowledged",
+        "summary": "Reply-owned acknowledged under the registered runtime capability and current lease; no member or operational authority.",
+        "tags": [
+          "runtime"
+        ],
+        "security": [
+          {
+            "runtimeCapability": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-sophia-runtime-unit",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "x-sophia-bridge-instance",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "x-sophia-bridge-protocol",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeConversationAcknowledgedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done (or already done)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RuntimeConversationAcknowledgement"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No or unknown runtime capability"
+          },
+          "403": {
+            "description": "Foreign reply/attempt/create command, runtime unit or mismatched lease identity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Superseded bridge, closed reply, uncertain or conflicting durable outcome; never reset allowance or retry a fresh Ask",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request fails the declared schema, or names a source, target or reservation the task cannot use",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "CON-01"
+      }
     }
   },
   "components": {
@@ -30035,6 +30595,940 @@
         "required": [
           "conversationId",
           "erased"
+        ]
+      },
+      "RuntimeConversationClaimRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "commandId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "leaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "attemptId",
+          "commandId",
+          "authorityEpoch",
+          "leaseId"
+        ]
+      },
+      "RuntimeConversationClaimReply": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "const": "first"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "const": "refused"
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "stale_epoch",
+                  "not_pending",
+                  "already_claimed"
+                ]
+              }
+            },
+            "required": [
+              "result",
+              "code"
+            ]
+          }
+        ]
+      },
+      "RuntimeConversationGoRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "commandId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "leaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "attemptId",
+          "commandId",
+          "authorityEpoch",
+          "leaseId"
+        ]
+      },
+      "RuntimeConversationGoReply": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "const": "go"
+              }
+            },
+            "required": [
+              "result"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "result": {
+                "const": "refused"
+              },
+              "code": {
+                "type": "string",
+                "enum": [
+                  "stale_epoch",
+                  "not_pending",
+                  "lease_mismatch"
+                ]
+              }
+            },
+            "required": [
+              "result",
+              "code"
+            ]
+          }
+        ]
+      },
+      "RuntimeConversationReserveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "commandId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "leaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "ordinal": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "call": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "routeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "credentialRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "ownerResourceRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "unit": {
+                "type": "string",
+                "enum": [
+                  "calls_tokens",
+                  "usd"
+                ]
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "priceMicros": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "routeId",
+              "credentialRef",
+              "ownerResourceRef",
+              "unit",
+              "tokens",
+              "priceMicros"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "commandId",
+          "authorityEpoch",
+          "leaseId",
+          "ordinal",
+          "call"
+        ]
+      },
+      "RuntimeConversationReservation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "replyId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "ordinal": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "reserved",
+              "settled",
+              "released",
+              "uncertain"
+            ]
+          },
+          "lineageId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "grantRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "calls_tokens",
+              "usd"
+            ]
+          },
+          "amount": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "calls": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "priceMicros": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "calls",
+              "tokens",
+              "priceMicros"
+            ]
+          },
+          "used": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "calls": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "tokens": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "priceMicros": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "calls",
+                  "tokens",
+                  "priceMicros"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "replyId",
+          "ordinal",
+          "state",
+          "lineageId",
+          "grantRevision",
+          "unit",
+          "amount",
+          "used"
+        ]
+      },
+      "RuntimeConversationSettleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "commandId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "leaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "ordinal": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ]
+          },
+          "used": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "calls": {
+                "type": "integer",
+                "const": 1
+              },
+              "tokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "priceMicros": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "calls",
+              "tokens",
+              "priceMicros"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "commandId",
+          "authorityEpoch",
+          "leaseId",
+          "ordinal",
+          "used"
+        ]
+      },
+      "RuntimeConversationSettlement": {
+        "$ref": "#/components/schemas/RuntimeConversationReservation"
+      },
+      "RuntimeConversationAcknowledgedRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "commandId": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "authorityEpoch": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "leaseId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "keys": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "observations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                }
+              },
+              "usage": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "providerCallId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    },
+                    "ordinal": {
+                      "type": "integer",
+                      "enum": [
+                        1,
+                        2
+                      ]
+                    }
+                  },
+                  "required": [
+                    "providerCallId",
+                    "ordinal"
+                  ]
+                }
+              },
+              "ordinals": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "enum": [
+                    1,
+                    2
+                  ]
+                }
+              },
+              "hasTurnEnd": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "observations",
+              "usage",
+              "ordinals",
+              "hasTurnEnd"
+            ]
+          }
+        },
+        "required": [
+          "attemptId",
+          "commandId",
+          "authorityEpoch",
+          "leaseId",
+          "keys"
+        ]
+      },
+      "RuntimeConversationAcknowledgement": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "predicates": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "observations": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "keys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  }
+                },
+                "required": [
+                  "met",
+                  "keys"
+                ]
+              },
+              "usage": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "keys": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "providerCallId": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 512
+                        },
+                        "ordinal": {
+                          "type": "integer",
+                          "enum": [
+                            1,
+                            2
+                          ]
+                        }
+                      },
+                      "required": [
+                        "providerCallId",
+                        "ordinal"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "met",
+                  "keys"
+                ]
+              },
+              "reservations": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "states": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "ordinal": {
+                          "type": "integer",
+                          "enum": [
+                            1,
+                            2
+                          ]
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": [
+                            "reserved",
+                            "settled",
+                            "released",
+                            "uncertain"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "ordinal",
+                        "state"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "met",
+                  "states"
+                ]
+              },
+              "terminalState": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "replyId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "running",
+                      "answered",
+                      "blocked",
+                      "failed",
+                      "cancelled",
+                      "outcome_unknown"
+                    ]
+                  }
+                },
+                "required": [
+                  "met",
+                  "replyId",
+                  "state"
+                ]
+              },
+              "terminalWriter": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "key": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "capture"
+                          },
+                          "turnEndId": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                          },
+                          "turnEndSeq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "resultRef": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "published",
+                              "refused"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "turnEndId",
+                          "turnEndSeq",
+                          "resultRef",
+                          "outcome"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "receipt"
+                          },
+                          "commandId": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                          },
+                          "stage": {
+                            "type": "string",
+                            "enum": [
+                              "rejected",
+                              "failed",
+                              "outcome_unknown"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "commandId",
+                          "stage"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "hello"
+                          },
+                          "attemptId": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                          },
+                          "leaseId": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 64
+                          },
+                          "leaseEpoch": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "attemptId",
+                          "leaseId",
+                          "leaseEpoch"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "cancellation"
+                          },
+                          "replyId": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                          },
+                          "caller": {
+                            "type": "string",
+                            "enum": [
+                              "conversation_withdrawn_from",
+                              "conversation_source_out",
+                              "conversation_publish_answer",
+                              "capture_native_result"
+                            ]
+                          },
+                          "causeKind": {
+                            "type": "string",
+                            "enum": [
+                              "member_withdrawal",
+                              "source_answer_withdrawal",
+                              "conversation_erasure",
+                              "source_out",
+                              "publication_privacy",
+                              "capture_privacy"
+                            ]
+                          },
+                          "reason": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 63
+                          },
+                          "cancelledAt": {
+                            "type": "string",
+                            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "replyId",
+                          "caller",
+                          "causeKind",
+                          "reason",
+                          "cancelledAt"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "met",
+                  "key"
+                ]
+              },
+              "createAnswered": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "commandId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "stage": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "delivered",
+                          "checked",
+                          "rejected",
+                          "failed",
+                          "outcome_unknown"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "met",
+                  "commandId",
+                  "stage"
+                ]
+              },
+              "capture": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "outcome": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "published",
+                      "refused"
+                    ]
+                  },
+                  "key": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "kind": {
+                            "const": "capture"
+                          },
+                          "turnEndId": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                          },
+                          "turnEndSeq": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "resultRef": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "published",
+                              "refused"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "turnEndId",
+                          "turnEndSeq",
+                          "resultRef",
+                          "outcome"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "met",
+                  "outcome",
+                  "key"
+                ]
+              },
+              "payloadScrubbed": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "met": {
+                    "type": "boolean"
+                  },
+                  "commandId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "met",
+                  "commandId"
+                ]
+              }
+            },
+            "required": [
+              "observations",
+              "usage",
+              "reservations",
+              "terminalState",
+              "terminalWriter",
+              "createAnswered",
+              "capture",
+              "payloadScrubbed"
+            ]
+          }
+        },
+        "required": [
+          "predicates"
         ]
       }
     }
