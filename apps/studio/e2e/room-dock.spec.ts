@@ -179,13 +179,16 @@ test('dock · on a phone, End is her light going out, not a square beside Leave 
   const icon = (name: string) =>
     dock(page)
       .getByRole('button', { name, exact: true })
-      .locator('.dock-icon svg')
+      .locator('svg')
+      .first()
       .evaluate((s) => s.innerHTML)
-  const [end, exit] = await Promise.all([icon('End'), icon('Leave the room')])
-  // Her light's point, filled, as on «Speak with Sophia»; no stop square.
+  const [end, exit, pass] = await Promise.all([icon('End'), icon('Leave the room'), icon('Pass to…')])
+  // Her light's point, filled, as on «Speak with Sophia», struck through as an «off» is; no stop square.
   expect(end).toMatch(/<circle[^>]*fill="currentColor"/)
+  expect(end).toContain('M4 4l16 16')
   expect(end).not.toMatch(/<rect/)
   expect(end).not.toBe(exit)
+  expect(end).not.toBe(pass)
 })
 
 test('dock · on a computer, the words as before', async ({ page }) => {

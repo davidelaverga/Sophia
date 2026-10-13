@@ -12,13 +12,13 @@
 
 ## What changes
 
-- **End's icon is `sophiaLeave`**: her light's point on the left and an arrow going out to the right. It says «she
-  goes» in the dock's own vocabulary: her light (as in «Speak with Sophia») and the exit's arrow (as in «Leave the
-  room»), which keeps its door. Its name, tip and press are unchanged; a computer still shows the word «End».
+- **End's icon is `sophiaOff`**: her light (as on «Speak with Sophia») struck through, as the dock already strikes
+  the camera and the speaker when they are off. A first try, her point with the exit's arrow, read like «Pass to…» (a
+  ring with an arrow) one square away, so it was dropped. Its diagonal rays are left out: under a slash they read as one more ray, so only the four straight ones stay and the stroke reads clean. Its name, tip and press are unchanged; a computer still shows the word «End».
 
 ## Checks
 
 - `e2e/room-dock.spec.ts`: on a phone with Sophia in the conversation, End's icon is drawn from her light (a filled
-  point) and differs from Leave's.
+  point), struck through, and differs from Leave's and Pass's.
 - `pnpm exec prettier --check .`, `pnpm exec oxlint --type-aware .`, `tsc --noEmit -p apps/studio`; the dock specs
   through the guard.

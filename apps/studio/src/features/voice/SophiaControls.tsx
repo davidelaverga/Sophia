@@ -133,7 +133,7 @@ function Conversation({ view, snapshot, identity, me, exchangeId, busy, run }: C
         </button>
       )}
       <button type="button" className="pill has-tip" disabled={busy} onClick={control('end')}>
-        <DockWord icon="stop">End</DockWord>
+        <DockWord icon="sophiaOff">End</DockWord>
         <Tip label="Sophia leaves the conversation; her work carries on" />
       </button>
     </>
