@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `c2e8e99269a9` (tree `fea81b3a9a12`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `54c2b8963811` (tree `2673c2b7e826`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -188,3 +188,10 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 25 (Codex on #274)
 
 - `c2e8e992`: a hyphen inside a compound number joins it («twenty-one», 21; `joins`); «had», «has», «have» and «am» are filler, as their clitics read («we'd enabled» meets «we had enabled»). Tests in `296209fc`, failing first.
+
+## Post-review, round 26 (Codex on #274)
+
+- `54c2b896`: a hyphen is a boundary only beside a number word (`spelled`: a unit, a ten, a scale or an ordinal), so
+  «twenty-one» still joins and «one-time» still ends its number; inside any other word it keeps the word whole
+  («e-mail» is «email», «state-of-the-art» one word). Slashes and dashes stay boundaries. Unit suite green, lint and
+  typecheck clean; its CI: the final head's run, recorded when green.
