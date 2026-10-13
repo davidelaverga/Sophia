@@ -62,8 +62,19 @@ const wordsOf = (title: string) =>
       .replace(/\bwon['\u2019]t\b/gu, 'will not')
       // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
       .replace(/n['\u2019]t\b/gu, ' not')
+      // Other clitics read as their words, a possessive's «s» dropped: «we're» is «we are», «admin's» «admin» (Codex on #274).
+      .replace(/['\u2019](re|ve|ll|d|m)\b/gu, (_, c: string) => ` ${CLITICS[c] ?? ''}`)
+      .replace(/['\u2019]s\b/gu, '')
+      // A slash or a dash between words is a boundary a spelled number does not cross: «one hundred/two hundred» is two.
+      .replace(/\s*[/\u2013\u2014]\s*|(?<=\p{L})-(?=\p{L})/gu, ` ${BOUNDARY} `)
       .split(/[^\p{L}\p{N}]+/u),
   )
+
+/** What a clitic stands for. */
+const CLITICS: Readonly<Record<string, string>> = { re: 'are', ve: 'have', ll: 'will', d: 'would', m: 'am' }
+
+/** A word no title has, standing for a slash or a dash while spelled numbers are read, then dropped. */
+const BOUNDARY = 'qqboundaryqq'
 
 /** Spelled units and teens, tens, and scales, by their value. */
 const UNITS = new Map(
@@ -190,7 +201,7 @@ function spelledNumbers(words: readonly string[]): string[] {
     }
   }
   flush()
-  return out
+  return out.filter((w) => w !== BOUNDARY)
 }
 
 /**
