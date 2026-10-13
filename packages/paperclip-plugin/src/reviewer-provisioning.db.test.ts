@@ -5,8 +5,9 @@
 // its read of the binding and its create (managedAgents). Nothing here is the pinned host itself.
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import assert from 'node:assert/strict'
-import { after, before, beforeEach, describe, it } from 'node:test'
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test'
 import pg from 'pg'
+import { setImmediate as nextTurn } from 'node:timers/promises'
 import { signEnvelope } from '@sophia/coordination/envelope'
 import type { Commission } from '@sophia/coordination/plugin-wire'
 import { createEmptyDatabase, type EmptyDatabase } from '@sophia/test-support'
@@ -36,7 +37,7 @@ let pool: pg.Pool
 
 before(async () => {
   db = await createEmptyDatabase('sophia_pcrev')
-  pool = new pg.Pool({ connectionString: db.ownerUrl, max: 8 })
+  pool = new pg.Pool({ connectionString: db.ownerUrl, max: 8, statement_timeout: 5_000 })
   await installNamespace(pool)
 })
 after(async () => {
@@ -55,10 +56,13 @@ after(async () => {
   await db.drop()
 })
 beforeEach(async () => {
+  requireDrainedAnswers()
   await pool.query(
     `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, ${NAMESPACE}.reviewer_provisioning, public.heartbeat_runs`,
   )
 })
+
+afterEach(drainAnswers)
 
 const config = {
   signingPublicKey: sophia.publicKey.export({ type: 'spki', format: 'pem' }).toString(),
@@ -127,6 +131,41 @@ async function until(what: string, check: () => boolean) {
 /** A request's answer if it came within a moment; 'pending' while it waits (on the old plugin, at the host's gate). */
 const soon = (answer: Promise<ApiResponse>) => Promise.race([answer, sleep(400).then(() => 'pending' as const)])
 
+const pendingAnswers = new Set<Promise<void>>()
+
+function requireDrainedAnswers(): void {
+  assert.equal(pendingAnswers.size, 0, 'no SQL reset while an earlier answered request is unresolved')
+}
+
+async function drainAnswers(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const outcome = await Promise.race([
+    Promise.all(pendingAnswers).then(() => 'drained' as const),
+    new Promise<'pending'>((resolve) => (timer = setTimeout(() => resolve('pending'), 2_000))),
+  ]).finally(() => clearTimeout(timer))
+  assert.equal(outcome, 'drained', 'original requests drain before any next SQL reset')
+}
+
+async function answered(answer: Promise<ApiResponse>): Promise<ApiResponse> {
+  // Observe originals independently of the answer deadline. Failed cleanup blocks every subsequent SQL reset.
+  const drained: Promise<void> = answer.then(
+    () => {
+      pendingAnswers.delete(drained)
+    },
+    () => {
+      pendingAnswers.delete(drained)
+    },
+  )
+  pendingAnswers.add(drained)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const response = await Promise.race([
+    answer,
+    new Promise<'pending'>((resolve) => (timer = setTimeout(() => resolve('pending'), 10_000))),
+  ]).finally(() => clearTimeout(timer))
+  if (response === 'pending') assert.fail('the commission answers before the sentinel')
+  return response
+}
+
 const codeOf = (res: ApiResponse | 'pending') =>
   res === 'pending'
     ? 'pending'
@@ -168,6 +207,25 @@ async function resentOn503(p: ReturnType<typeof paperclip>, c: Commission): Prom
 }
 
 describe('the managed source reviewer, provisioned once per company', () => {
+  it('reports a stalled request promptly, retains it through failed cleanup and refuses the next SQL reset', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] })
+    const { promise, resolve } = Promise.withResolvers<ApiResponse>()
+    try {
+      const failed = assert.rejects(answered(promise), assert.AssertionError)
+      t.mock.timers.tick(10_000)
+      assert.equal(await Promise.race([failed.then(() => 'failed'), nextTurn('sentinel')]), 'failed')
+      assert.equal(pendingAnswers.size, 1, 'timing out is not original settlement')
+      const cleanup = assert.rejects(drainAnswers(), assert.AssertionError)
+      t.mock.timers.tick(2_000)
+      assert.equal(await Promise.race([cleanup.then(() => 'failed'), nextTurn('sentinel')]), 'failed')
+      assert.throws(requireDrainedAnswers, assert.AssertionError, 'the guard stops every subsequent SQL reset')
+    } finally {
+      resolve({ status: 200, body: {} })
+      await drainAnswers()
+    }
+    requireDrainedAnswers()
+  })
+
   it('two cold works of one company, each resent on 503 (synthetic): one live reviewer, both assigned to it', async () => {
     const hold = gate()
     const m = managedAgents({ between: () => hold.shut })
@@ -223,11 +281,73 @@ describe('the managed source reviewer, provisioned once per company', () => {
       { host_process: 'host-1:100', ended: true, agent_id: old, fenced: false },
       'the claim the first work ended, taken again for the replacement',
     )
-    assert.equal(m.asked.length, 2, 'one reconcile for the first reviewer, one for its replacement')
+    // A contender may read missing before the winner binds, but claim only after the winner ends. Its warm reconcile
+    // returns that replacement. Count created agents, not harmless reconciles (push CI38301624527).
+    assert.equal(m.agents.size, 2, 'only the terminated reviewer and its one replacement were created')
     assert.deepEqual(await claimOf(COMPANY), {
       host_process: 'host-1:100',
       ended: true,
       agent_id: live[0] ?? null,
+      fenced: false,
+    })
+  })
+
+  it('a stale missing read claims after replacement settled: warm reconcile returns it without creating another', async () => {
+    const m = managedAgents()
+    const fast = paperclip(m)
+    assert.equal((await answered(fast.request(delivery(commissionOf())))).status, 200)
+    const old = m.get(COMPANY)
+    const terminated = old === null ? undefined : m.agents.get(old)
+    assert.ok(terminated)
+    terminated.status = 'terminated'
+    const slow = paperclip(m)
+    const hold = gate()
+    let waiting = false
+    const execute = slow.host.execute.bind(slow.host)
+    slow.host.execute = async (sql, params) => {
+      if (sql.startsWith(`INSERT INTO ${NAMESPACE}.reviewer_provisioning`)) {
+        waiting = true
+        await hold.shut
+      }
+      return execute(sql, params)
+    }
+    const [first, second] = [commissionOf(), commissionOf()]
+    // Observe rejection immediately, and drain the gated request before another test can truncate its tables.
+    const original = slow.request(delivery(first))
+    const originalOutcome = original.then(
+      (response) => ({ response }),
+      (error: unknown) => ({ error }),
+    )
+    const delayed = answered(original).then(
+      (response) => ({ response }),
+      (error: unknown) => ({ error }),
+    )
+    try {
+      await until('the stale missing read to reach its claim', () => waiting)
+      assert.equal((await answered(fast.request(delivery(second)))).status, 200)
+      assert.equal(m.asked.length, 2, 'the replacement is bound and its claim ended before the stale claimant proceeds')
+    } finally {
+      hold.open()
+      await drainAnswers()
+    }
+    await originalOutcome
+    const settled = await delayed
+    if ('error' in settled) throw settled.error
+    assert.equal(settled.response.status, 200)
+    const replacement = m.get(COMPANY)
+    assert.ok(replacement && replacement !== old)
+    assert.equal(m.asked.length, 3, 'the deterministic late claimant uses one additional warm reconcile')
+    assert.equal(m.agents.size, 2, 'warm reconcile creates no additional agent')
+    assert.deepEqual(
+      m.live(COMPANY).map((agent) => agent.id),
+      [replacement],
+    )
+    assert.equal([...slow.issues.values()].find((issue) => issue.originId === first.key)?.assigneeAgentId, replacement)
+    assert.equal([...fast.issues.values()].find((issue) => issue.originId === second.key)?.assigneeAgentId, replacement)
+    assert.deepEqual(await claimOf(COMPANY), {
+      host_process: 'host-1:100',
+      ended: true,
+      agent_id: replacement,
       fenced: false,
     })
   })

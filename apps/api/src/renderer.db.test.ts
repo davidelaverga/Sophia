@@ -6,6 +6,7 @@
 // stays as written because the API claims each key once in the database before it writes (0044, writeOnce), never
 // because the store refuses.
 import { createHash, randomUUID } from 'node:crypto'
+import { request } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
 import pg from 'pg'
@@ -25,6 +26,7 @@ import {
 } from '@sophia/persistence'
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { buildApp } from './app.ts'
+import { probeUploadDeadline } from './renderer-deadline.testing.ts'
 import { createActorVerifier } from './auth.ts'
 import {
   ByteStoreError,
@@ -55,6 +57,7 @@ const written: string[] = []
 let barrier: { want: number; held: (() => void)[] } | null = null
 /** For each key written, whether its claim was already committed, seen from another connection, when its bytes came. */
 const claimedFirst = new Map<string, boolean>()
+const chargedJob = new Map<string, string | undefined>()
 /** While set, the next put refuses its key as the S3 adapter's HEAD does when it finds an object there. */
 let refuseNext = false
 /**
@@ -63,7 +66,7 @@ let refuseNext = false
  */
 const store: ByteStore & { objects: Map<string, Uint8Array> } = {
   ...memory,
-  async put(path, bytes) {
+  async put(path, bytes, _mime, context) {
     const seen = await owner.query(`SELECT 1 FROM sophia.object_writes WHERE storage_key = $1`, [path])
     claimedFirst.set(path, seen.rowCount === 1)
     if (refuseNext) {
@@ -71,6 +74,7 @@ const store: ByteStore & { objects: Map<string, Uint8Array> } = {
       throw new ByteStoreError(409, `store put: ${path} exists`)
     }
     written.push(path)
+    chargedJob.set(path, context?.rendererJobId)
     memory.objects.set(path, bytes)
     const held = barrier
     if (!held) return
@@ -246,6 +250,55 @@ describe('render runner endpoints (A11, 0030)', () => {
     assert.deepEqual((await call('/v1/renderer/claim')).json, { job: null }, 'nothing else to claim')
   })
 
+  it('refuses bogus partial PDF and PNG uploads before parsing or consuming shared body admission', async () => {
+    const from = written.length
+    const rejected = async (suffix: string, mime: string) => {
+      const req = request(`${base}/v1/renderer/jobs/${jobId}/${suffix}`, {
+        method: 'PUT',
+        headers: {
+          authorization: 'Bearer bogus-renderer-capability-0123456789',
+          'x-sophia-render-lease': lease,
+          'content-type': mime,
+          'content-length': '100',
+        },
+      })
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const answer = new Promise<number>((resolve, reject) => {
+        req.once('error', reject)
+        req.once('response', (res) => {
+          res.resume()
+          resolve(res.statusCode ?? 0)
+        })
+      })
+      req.write(mime === 'image/png' ? PNG.subarray(0, 4) : PDF.subarray(0, 5))
+      try {
+        const code = await Promise.race([
+          answer,
+          new Promise<number>((resolve) => {
+            timer = setTimeout(() => resolve(-1), 2000)
+          }),
+        ])
+        assert.equal(code, 401, 'unauthorized partial body answered before parser/sentinel')
+      } finally {
+        clearTimeout(timer)
+        req.destroy()
+        await answer.catch(() => 0)
+      }
+    }
+    await Promise.all([
+      rejected('output', 'application/pdf'),
+      rejected('output', 'application/pdf'),
+      rejected('captures/probe.png', 'image/png'),
+    ])
+    assert.equal(written.length, from, 'invalid capabilities caused no stored writes')
+    const valid = await call(`/v1/renderer/jobs/${jobId}/output`, {
+      method: 'PUT',
+      lease,
+      pdf: Buffer.from('invalid PDF'),
+    })
+    assert.equal(valid.status, 422, 'real runner/lease still reaches body validation after bogus requests')
+  })
+
   it('serves each file as bytes under the lease, checked against the package', async () => {
     const file = (path: string, l = lease) =>
       call(`/v1/renderer/jobs/${jobId}/file?path=${encodeURIComponent(path)}`, { method: 'GET', lease: l })
@@ -274,7 +327,7 @@ describe('render runner endpoints (A11, 0030)', () => {
     assert.deepEqual([beat.status, (beat.json as { state: string }).state], [200, 'continue'])
   })
 
-  it('says why an upload was not stored: the write claim not made (nothing sent), or a key the store refuses', async () => {
+  it('says why an upload was not stored: the write claim unconfirmed (nothing sent), or a key the store refuses', async () => {
     const put = () => call(`/v1/renderer/jobs/${jobId}/output`, { method: 'PUT', lease, pdf: PDF })
     const from = written.length
     await owner.query(`REVOKE EXECUTE ON FUNCTION sophia.claim_object_write(text,text,bigint) FROM sophia_api`)
@@ -282,7 +335,7 @@ describe('render runner endpoints (A11, 0030)', () => {
       const unclaimed = await put()
       assert.deepEqual(
         [unclaimed.status, (unclaimed.json as { code: string; message: string }).message],
-        [503, 'The write claim was not made'],
+        [503, 'The write claim was not confirmed'],
       )
     } finally {
       await owner.query(`GRANT EXECUTE ON FUNCTION sophia.claim_object_write(text,text,bigint) TO sophia_api`)
@@ -293,6 +346,17 @@ describe('render runner endpoints (A11, 0030)', () => {
     assert.deepEqual([refused.status, (refused.json as { code: string; message: string }).code], [409, 'invalid_state'])
     assert.equal(written.length, from)
   })
+
+  for (const [name, invocation] of [
+    ['renderer_output_slot', 2],
+    ['claim_object_write', 1],
+    ['renderer_record_output', 1],
+  ] as const) {
+    it(`bounds real PDF ${name} SQL through the HTTP deadline`, async () => {
+      const upload = () => call(`/v1/renderer/jobs/${jobId}/output`, { method: 'PUT', lease, pdf: PDF })
+      await probeUploadDeadline(owner, name, invocation, upload)
+    })
+  }
 
   it('stores one PDF as the job output, refusing anything else and a second upload', async () => {
     const put = (pdf: Buffer) => call(`/v1/renderer/jobs/${jobId}/output`, { method: 'PUT', lease, pdf })
@@ -322,6 +386,7 @@ describe('render runner endpoints (A11, 0030)', () => {
     const keys = written.slice(from)
     assert.equal(keys.length, 2, 'both uploads reached the store')
     assert.notEqual(keys[0], keys[1], 'each to its own fresh key')
+    for (const key of keys) assert.equal(chargedJob.get(key), jobId, 'fresh PDF keys charge the validated lease job')
     const won = both.find((r) => r.status === 200)?.json as typeof recorded
     recorded = won
     const kept = store.objects.get(objectPath(projectId, won.sourceId))
@@ -388,7 +453,7 @@ describe('render runner endpoints (A11, 0030)', () => {
     const down = writeOnce(store, () => Promise.reject(new Error('the database did not answer')))
     await assert.rejects(
       down.put(lost, PDF, 'application/pdf'),
-      (e: unknown) => e instanceof WriteClaimError && /the claim was not made/u.test(e.message),
+      (e: unknown) => e instanceof WriteClaimError && /the claim was not confirmed/u.test(e.message),
     )
     assert.equal(store.objects.has(lost), false)
   })

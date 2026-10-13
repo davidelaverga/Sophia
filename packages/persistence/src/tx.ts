@@ -1,15 +1,21 @@
 import pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import { classifyDbError } from './errors.ts'
+import { checkServiceControl, controlledQueryTimedOut, serviceClient, type ServiceControl } from './service-control.ts'
 
 export interface PoolOptions {
   max?: number
   /** An idle client whose connection dropped (restart, failover, pooler reset). The pool replaces it. */
   onIdleError?: (err: Error) => void
+  /** Bound actual pool acquisition, including queued waits. Omitted preserves the caller's existing default. */
+  connectionTimeoutMillis?: number
 }
 
-export function createPool(connectionString: string, { max = 10, onIdleError }: PoolOptions = {}): pg.Pool {
-  const pool = new pg.Pool({ connectionString, max, application_name: 'sophia-api' })
+export function createPool(
+  connectionString: string,
+  { max = 10, onIdleError, connectionTimeoutMillis }: PoolOptions = {},
+): pg.Pool {
+  const pool = new pg.Pool({ connectionString, max, connectionTimeoutMillis, application_name: 'sophia-api' })
   // Without a listener, pg.Pool's 'error' event is an uncaught exception and the process exits.
   pool.on('error', onIdleError ?? ((err) => console.error(`idle database client failed: ${err.message}`)))
   return pool
@@ -51,30 +57,61 @@ interface TxOptions {
   actorId: string | null
 }
 
+function acquiredClient(client: pg.PoolClient, control?: ServiceControl): pg.PoolClient {
+  try {
+    checkServiceControl(control)
+    return client
+  } catch (err) {
+    // No SQL has been sent: an expired pool waiter must not destroy a healthy connection.
+    client.release()
+    throw err
+  }
+}
+
 /**
  * One connection, one transaction. Reads use REPEATABLE READ READ ONLY so a snapshot and its cursor are
  * consistent. A failure while committing a write leaves its outcome unknown: the client must retry with
  * the same Idempotency-Key, never a new one.
  */
-async function transaction<T>(pool: pg.Pool, opts: TxOptions, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
-  const client = await pool.connect().catch((err: unknown) => {
-    throw new DomainError('unavailable', 'Database unavailable', { cause: err })
-  })
+async function transaction<T>(
+  pool: pg.Pool,
+  opts: TxOptions,
+  fn: (c: pg.PoolClient) => Promise<T>,
+  control?: ServiceControl,
+): Promise<T> {
+  checkServiceControl(control)
+  const client = acquiredClient(
+    await pool.connect().catch((err: unknown) => {
+      throw new DomainError('unavailable', 'Database unavailable', { cause: err })
+    }),
+    control,
+  )
+  const lease = serviceClient(client, control)
   let committing = false
   try {
     await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')
     if (opts.actorId !== null) await client.query("SELECT set_config('sophia.actor_id', $1, true)", [opts.actorId])
+    lease.check()
+    if (control) {
+      // Closing pg's socket alone need not stop server-side SQL. Bound it on the server as well as the client.
+      await client.query("SELECT set_config('statement_timeout', $1, true)", [
+        String(Math.max(1, Math.floor(control.deadline - performance.now()))),
+      ])
+      lease.check()
+    }
     const result = await fn(client)
+    lease.check()
     committing = true
     await client.query('COMMIT')
     return result
   } catch (err) {
-    if (!committing) await client.query('ROLLBACK').catch(() => undefined)
+    if (controlledQueryTimedOut(err, control)) lease.retire()
+    if (!committing && !lease.retired()) await client.query('ROLLBACK').catch(() => undefined)
     if (committing && opts.mode === 'write')
       throw new DomainError('outcome_unknown', 'Commit outcome unknown', { cause: err })
     throw err instanceof DomainError ? err : classifyDbError(err)
   } finally {
-    client.release()
+    lease.finish()
   }
 }
 
@@ -90,8 +127,12 @@ export function withoutActor<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise
  * A write with no member actor, for a service principal that the called sophia.* function authenticates
  * itself (a runtime capability, A04). Those functions refuse a call that carries a member identity.
  */
-export function withService<T>(pool: pg.Pool, fn: (c: pg.PoolClient) => Promise<T>): Promise<T> {
-  return transaction(pool, { mode: 'write', actorId: null }, fn)
+export function withService<T>(
+  pool: pg.Pool,
+  fn: (c: pg.PoolClient) => Promise<T>,
+  control?: ServiceControl,
+): Promise<T> {
+  return transaction(pool, { mode: 'write', actorId: null }, fn, control)
 }
 
 /**
