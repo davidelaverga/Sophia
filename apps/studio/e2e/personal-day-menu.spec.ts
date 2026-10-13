@@ -35,3 +35,14 @@ test('@phone · personal · the day menu keeps each date on one line', async ({ 
   )
   for (const lines of heights) expect(lines).toBe(1)
 })
+
+test('@phone · menus · another menu’s rows still wrap: only the day menu keeps its dates on one line (Codex on #291)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 350, height: 760 })
+  await page.goto('/room.html?demo=1')
+  await page.getByRole('button', { name: 'Account' }).first().click()
+  const row = page.getByRole('menu').getByRole('menuitem').first()
+  await expect(row).toBeVisible()
+  expect(await row.evaluate((r) => getComputedStyle(r).whiteSpace)).toBe('normal')
+})

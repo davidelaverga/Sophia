@@ -214,6 +214,16 @@ describe('the words around the conversation', () => {
     assert.equal(topicOf('Starting over. Today I want to plan the week calmly.'), 'Starting over')
     // A topic Sophia names stays as she names it.
     assert.equal(topicOf('I cannot sleep'), 'sleep')
+    // A colon or a semicolon goes on with the sentence (Codex on #291).
+    assert.equal(topicOf('Today: plan the week calmly'), 'Today plan the…')
+  })
+
+  it('lists a day’s topic once, whatever its case (Codex on #291)', () => {
+    const turns = [turn('person', 'Roadmap timing', at(0, 9)), turn('person', 'roadmap timing', at(0, 10))]
+    assert.deepEqual(
+      daysOf(conversationRows(input(turns))).map((d) => d.topics),
+      ['Roadmap timing'],
+    )
   })
 
   it('prefills a note with Sophia’s suggestion when there is one, else the words, cut short', () => {
