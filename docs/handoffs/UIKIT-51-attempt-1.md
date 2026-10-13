@@ -12,7 +12,7 @@ Runtime unit: CI (GitHub Actions) as the run on record. Playwright on Luis's hos
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `5b93dba85cb9` (tree `380667b75545`), the last commit of `ui/p2-header`'s own that changes code (later
+Ending commit/tree: `49cae8b36ea5` (tree `035fc2af27fe`), the last commit of `ui/p2-header`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 9 files changed against
 `origin/main` at that commit: `e2e/widths.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/studio/ProjectShell.tsx`, `src/features/work/WorkControls.tsx`, `docs/handoffs/UIKIT-51-attempt-1.md`, `docs/plans/p2-header.md`, `packages/ui/src/ConfirmButton.tsx`. The review notes below name the commit of each later change.
 
@@ -52,3 +52,5 @@ The next follow-up: the lens and the addressed needs (Codex P2s on #238, #242, #
 ## CI, a run
 
 - Run on `101d8922`: 1482 passed, 1 failed, the long-title check at 1280 (`fits` false): the title's `flex-shrink` alone did not keep the nav whole. `5b93dba8`: from 1241 px the nav does not shrink at all (`flex-shrink: 0`), the title alone gives way. The new head's CI is pending.
+
+- `49cae8b3`: the lobby and the wait note over an open report start under the dock's notes too (`--dock-notes-h` added to their `top`, both rules), as the report itself does (round 3, Codex on #281). The new head's CI is pending.
