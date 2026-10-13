@@ -12,9 +12,9 @@ host was refused by the machine guard (free RAM under 5 GB with AION2 open).
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `8689d4dea956` (tree `98fb3fa188a1`), the last commit of `ui/p2-board`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 9 files changed against
-`origin/main` at that commit: `e2e/app-auth.spec.ts`, `e2e/board-why.spec.ts`, `e2e/work.spec.ts`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `src/features/work/planning/seen.test.ts`, `src/features/work/planning/seen.ts`, `docs/plans/p2-board.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `7ac230c394e6` (tree `edd710b49368`), the last commit of `ui/p2-board`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `e2e/app-auth.spec.ts`, `e2e/board-why.spec.ts`, `e2e/work.spec.ts`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `src/features/work/planning/seen.test.ts`, `src/features/work/planning/seen.ts`, `docs/handoffs/UIKIT-48-attempt-1.md`, `docs/plans/p2-board.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -36,3 +36,9 @@ commits on the branch merge its base forward or touch only this record). 9 files
 ## Next bounded action
 
 The next follow-up: hover and press states (Codex P2s on #232 and #234).
+
+## Post-review (Codex on #278)
+
+- `7ac230c3`: a look keeps each task's waits by id (`waits`, in the v4 look); a task freed is said «what it waited on is
+  complete» only if it still lists every wait it had and each is complete; a wait dropped (some or all) says «it no
+  longer waits on another task». Test in `ecf8e52c`, failing first; unit suite 1100/1100.
