@@ -213,6 +213,12 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('every word but the filler keeps its place: quantifiers too (Codex round 21 on #274)', () => {
+    const scope = [asked('a', 'Should we enable all alerts and disable some notices?', at)]
+    assert.equal(sameQuestion('Should we enable some alerts and disable all notices?', scope), null)
+    assert.equal(sameQuestion('Should we enable all the alerts and disable some notices?', scope)?.id, 'a')
+  })
+
   it('an ordinal after a scale ends its number; a short figure still counts (Codex round 20 on #274)', () => {
     const two = [asked('a', 'Compare 100 and 1st applicant scores', at)]
     assert.equal(sameQuestion('Compare one hundred and first applicant score', two), null)
