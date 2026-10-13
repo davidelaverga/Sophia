@@ -58,12 +58,20 @@ const wordsOf = (title: string) =>
  * a final «s» dropped.
  */
 function ownWords(title: string): Set<string> {
-  const words = wordsOf(title)
-    .filter((w) => w.length >= 3 && !COMMON.has(w))
-    // An action in any of its forms is one word: «enabled» shares «enable» (Codex on #274).
-    .map((w) => ACTIONS.get(w) ?? w)
-    .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
-  return new Set(words)
+  return new Set(
+    wordsOf(title)
+      .filter((w) => w.length >= 3 && !COMMON.has(w))
+      .map(plainWord),
+  )
+}
+
+/**
+ * A word as it is compared: an action in any of its forms is one word («enabled» shares «enable»), a final «s»
+ * dropped; the same for the scoring and for the thing a turning word keeps (Codex on #274).
+ */
+function plainWord(w: string): string {
+  const word = ACTIONS.get(w) ?? w
+  return word.length > 3 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word
 }
 
 /**
@@ -144,7 +152,8 @@ function aimsOf(words: readonly string[], of: (w: string) => string | undefined)
       const before = words.slice(0, i).findLast(isThing)
       const base = ACTIONS.get(w)
       const participle = base !== undefined && w !== base && (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w))
-      return [`${said} ${(participle ? (before ?? after) : (after ?? before)) ?? ''}`]
+      const thing = participle ? (before ?? after) : (after ?? before)
+      return [`${said} ${thing === undefined ? '' : plainWord(thing)}`]
     })
     .toSorted()
     .join('|')
