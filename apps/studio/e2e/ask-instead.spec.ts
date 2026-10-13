@@ -85,3 +85,19 @@ test('ask instead @phone · a viewer’s ask shows the list, not a conversation 
   await expect(page.locator('.conversations')).toHaveAttribute('data-screen', 'list')
   await expect(form(page)).toHaveCount(0)
 })
+
+test('ask instead @phone · a viewer reading a conversation, asked from Search, is taken back to the list (Codex on #276)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 })
+  await page.goto('/room.html?demo=1&conversations=1&place=conversations&role=viewer')
+  const view = page.locator('.conversations')
+  await page.locator('.conv-row').first().click()
+  await expect(view).toHaveAttribute('data-screen', 'thread')
+  await page.getByRole('button', { name: 'Search', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'Search this project' })
+  await sheet.getByRole('searchbox', { name: 'Search this project' }).fill(WORDS)
+  await sheet.getByRole('button', { name: `Ask Sophia about “${WORDS}”` }).click()
+  await expect(sheet).toHaveCount(0)
+  await expect(view).toHaveAttribute('data-screen', 'list')
+})
