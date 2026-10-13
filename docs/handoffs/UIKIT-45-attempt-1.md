@@ -62,3 +62,7 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 ## Post-review, round 3 (Codex on #275)
 
 - `d017ad37`: the recovery check waits for the older read to fail for good (its retry spent), then moves the feed with an event (`fixture.update()`, no focus regained), so only the `readAt` effect can bring the quick asks back. Not run on this host (guard); CI is the run on record, and the CI on record above predates this check's change.
+
+## Post-review, round 4 (Codex on #275)
+
+- `056daf95`: the transcript, the list and the brief count as current only when their `fetchStatus` is `idle`: a refresh paused offline (its old data kept, `isFetching` false) is not. The CI on record above predates this change; the new head's CI is the run on record.
