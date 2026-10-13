@@ -25,3 +25,16 @@ test('personal · find: with a match there is no offer to ask', async ({ page })
   await expect(page.locator('.c3-find-count')).toContainText(' of ')
   await expect(page.getByRole('button', { name: /Ask Sophia about/ })).toHaveCount(0)
 })
+
+test('personal · find: when Sophia can’t be asked now, Find stays open and says so (Codex on #294)', async ({
+  page,
+}) => {
+  await page.goto('/personal.html?unavailable=1')
+  await page.getByRole('button', { name: 'Find', exact: true }).click()
+  const field = page.getByRole('searchbox', { name: 'Find in your conversation' })
+  await field.fill('vacation')
+  await page.getByRole('button', { name: 'Ask Sophia about “vacation”' }).click()
+  await expect(page.locator('.c3-find-count')).toHaveText('She can’t be asked now')
+  await expect(field).toHaveValue('vacation')
+  expect(await sent(page)).not.toContain('What did I tell you about vacation?')
+})
