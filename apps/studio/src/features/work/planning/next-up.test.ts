@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answeredKey, NOTHING_NEXT, nextUp, type NextUpInput } from './next-up.ts'
+import { answeredHere, answeredKey, NOTHING_NEXT, nextUp, waitingFor, type NextUpInput } from './next-up.ts'
 
 const input = (over: Partial<NextUpInput> = {}): NextUpInput => ({
   answered: [answeredKey('d1', 1)],
@@ -58,5 +58,51 @@ describe('what is next, a decision revised (Codex on #263)', () => {
     const decisions = [{ decision_id: 'd1', revision: 2, question: 'Ship the retry before the review is done?' }]
     assert.equal(nextUp(input({ decisions, answered: [answeredKey('d1', 1)] })).id, 'd1')
     assert.equal(nextUp(input({ decisions, answered: [answeredKey('d1', 2)] })).kind, 'none')
+  })
+})
+
+/** A decision of the viewer's, by its id. */
+const d = (id: string, revision = 1) => ({ decision_id: id, revision, question: id })
+
+/** A board row in a lane, with a request pending for someone, or none. */
+const row = (id: string, lane: string, pendingFor: string | null) => ({
+  item: { id, purpose: id },
+  lane,
+  waits: pendingFor === null ? [] : [{ wait: { state: 'pending', respondent_id: pendingFor } }],
+})
+
+describe('what is next, as the page knows it (Codex P2s on #263)', () => {
+  it('leaves out a decision answered on this page, or on its way, though the board was drawn anew', () => {
+    const states: Record<string, string> = { b: 'recorded', c: 'sending', e: 'unknown', f: 'conflict' }
+    const here = answeredHere(
+      [d('a'), d('b'), d('c'), d('e'), d('f')],
+      [answeredKey('a', 1)],
+      (x) => states[x.decision_id] ?? null,
+    )
+    assert.deepEqual(here.toSorted(), [answeredKey('a', 1), answeredKey('b', 1), answeredKey('c', 1)].toSorted())
+    // Not confirmed or refused: still the one to answer.
+    assert.equal(here.includes(answeredKey('e', 1)), false)
+    assert.equal(
+      nextUp({ answered: here, decisions: [d('a'), d('b'), d('c'), d('e')], waiting: [], review: false }).id,
+      'e',
+    )
+  })
+
+  it('counts a task with the viewer’s request pending in any lane, closed ones after the board’s', () => {
+    const rows = [
+      row('closed', 'closed', 'me'),
+      row('next', 'next', 'me'),
+      row('mine-not', 'now', 'them'),
+      row('now', 'now', 'me'),
+    ]
+    const lanes = ['now', 'next', 'blocked', 'done']
+    assert.deepEqual(
+      waitingFor(rows, 'me', (r) => r.lane, lanes).map((t) => t.id),
+      ['now', 'next', 'closed'],
+    )
+    assert.deepEqual(
+      waitingFor(rows, null, (r) => r.lane, lanes),
+      [],
+    )
   })
 })
