@@ -53,3 +53,8 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
   from `ConversationsView`) is read again, so a proposal decided or a question closed since never stands for the ask in
   between. Unit suite 1099/1099, lint and typecheck clean. Local Playwright refused by the machine guard (free RAM 2 GB
   with AION2 open); CI is the run on record for the browser suites.
+
+## CI on record
+
+- Run 38331759492 on `ca06ec3f` (the head with every change and its review rounds): all jobs green, the browser suites
+  among them (next-ask.spec's focus and «older asks unread» checks included).
