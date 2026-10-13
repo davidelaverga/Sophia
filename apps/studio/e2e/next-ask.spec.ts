@@ -146,9 +146,12 @@ test('next ask · older asks unread, the quick asks wait; read again with the th
   await expect(messages(page).first()).toBeVisible()
   // The page before the loaded one unread: what was asked there is not known, so no quick ask is offered.
   await expect(quick(page)).toHaveCount(0)
+  // The older read given up for good: its own retry (one, a second on) spent, and the read on its error done.
+  await page.waitForTimeout(2500)
+  await expect(quick(page)).toHaveCount(0)
   await page.evaluate(() => window.fixture?.failOlderMessages(false))
-  // Another conversation moves: the feed's cursor moves, the open thread is read again, and the older asks with it
-  // (the viewer's own asks unchanged, so nothing else would ask for them again).
-  await page.evaluate(() => window.fixture?.conversationMoves())
+  // The feed moves (an event on the project's stream, no focus regained): the open thread is read again, and the older
+  // asks with it, the viewer's own asks unchanged, so nothing else would ask for them again (Codex on #275).
+  await page.evaluate(() => window.fixture?.update())
   await expect(quick(page).first()).toBeVisible({ timeout: 15_000 })
 })
