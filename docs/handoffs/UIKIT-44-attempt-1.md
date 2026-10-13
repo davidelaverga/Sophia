@@ -11,9 +11,9 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `076eab925ac7` (tree `04bb0ef0ecde`), the last commit of `ui/p2-same-question`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 3 files changed against
-`origin/main` at that commit: `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `d55b5659437e` (tree `daff37dba093`), the last commit of `ui/p2-same-question`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 5 files changed against
+`origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -24,9 +24,12 @@ commits on the branch merge its base forward or touch only this record). 3 files
 
 ## Evidence
 
-- `new-conversation.test.ts`: 15 pass, 5 new (written first; all five failed before the change: `cannot`, opposite
-  actions, numbers, both orders, a Turkish locale standing in). The whole Studio unit suite, lint (type-aware) and
-  typecheck: see the PR.
+- `new-conversation.test.ts`: 16 pass, 6 new (written first; each failed before its change: `cannot`, opposite
+  actions, numbers, both orders, a Turkish locale standing in; round 2's two-sided pair and doubled forms). Whole Studio
+  unit suite 1102/1102; lint (type-aware), typecheck and Prettier clean.
+- `e2e/same-question.spec.ts` (4) with `conversations-start.spec.ts`: 7 passed (Playwright through
+  `.claude-guards/safe-run.ps1`, gentle, one worker). The new browser check (a `cannot` question names nothing, the
+  plain one is named) fails with `main`'s matcher in place.
 
 ## Remaining obligations
 
@@ -35,3 +38,10 @@ commits on the branch merge its base forward or touch only this record). 3 files
 ## Next bounded action
 
 The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest in `p2-abiertos-pila-kit.md`'s groups.
+
+## Post-review (Codex on #274)
+
+- P1 4253612023: the line is exercised in the browser (same-question.spec, «a question that turns the one asked here
+  shows no line»; it fails with `main`'s matcher) and recorded above.
+- `d55b5659`: an action pair said alike on both sides («enable email and disable SMS», twice) meets; one side only parts
+  them (`opposed`). The doubled forms count: «stopped», «stopping» (`acts`). Tests in `fc383586`.
