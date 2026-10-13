@@ -302,10 +302,13 @@ function useLineNext(
 ) {
   const [away, setAway] = useState(false)
   // Put away for this visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask
-  // again (Codex on #268). Left is another place arrived at, from the move's first frame: a move reversed before it
-  // settles never hides Home, and still ends the visit (Codex P2 on #268).
+  // again (Codex on #268). A visit begins when Home is arrived at again, from the move's first frame: a move reversed
+  // before it settles still begins one (Codex P2 on #268), and Home fading out as it is left never shows the ask again
+  // (Codex on #276).
+  const wasHere = useRef(here)
   useEffect(() => {
-    if (!here) setAway(false)
+    if (here && !wasHere.current) setAway(false)
+    wasHere.current = here
   }, [here])
   const [focused, setFocused] = useState(false)
   const id = useId()
