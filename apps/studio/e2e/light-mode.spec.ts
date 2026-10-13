@@ -289,3 +289,21 @@ test('light · Home’s light on paper is not screened into the page (Codex on #
   await drawn(page, DRAWN.home)
   await expect(page.locator('.hw-light .light')).toHaveCSS('mix-blend-mode', 'screen')
 })
+
+test('light · the line to Sophia and the personal composer draw their hairline on paper (Codex P2 on #234)', async ({
+  page,
+}) => {
+  const paper = 'rgb(251, 248, 243)'
+  for (const [url, selector, side] of [
+    ['/home.html?demo=1&theme=light', '.places .hw-say', 'borderBottomColor'],
+    ['/personal.html?demo=1&theme=light', '.places .ps-composer .message-bar', 'borderTopColor'],
+  ] as const) {
+    await page.goto(url)
+    const line = page.locator(selector).first()
+    await expect(line).toBeVisible()
+    const ink = await line.evaluate((el, s) => getComputedStyle(el)[s], side)
+    // White over paper was 1.01:1, no line at all; the ink's hairline is one the eye finds.
+    const contrast = contrastOf({ words: 'hairline', size: 1, ink, opacity: 1, grounds: [paper] })
+    expect(contrast, `${url} ${ink}`).toBeGreaterThanOrEqual(1.1)
+  }
+})

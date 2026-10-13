@@ -359,6 +359,10 @@
 :root[data-theme='light'] .conv-face.sophia {
   background: #c6bfe0; /* the core at 32 % over the paper, opaque (Codex on #257) */
 }
+/* Her half of the mark on that disc in the core itself: 4:1, where the paper mark's violet was 2.3:1 (Codex P2 on #257). */
+:root[data-theme='light'] .conv-face.sophia .umbral-sophia {
+  fill: var(--core);
+}
 .conv-face .umbral {
   width: 11px;
   height: 11px;
