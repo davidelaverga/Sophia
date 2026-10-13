@@ -8,6 +8,7 @@ import { forgetProposals, proposalsKeptFor, proposalsOnlyOf } from '../features/
 import { setSignedIn } from './signed-in.ts'
 import { useAuth, type AuthState } from './auth.ts'
 import type { Identity } from './dev-identity.ts'
+import { forgetRecent } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
 import { signOutForgetting } from './sign-out.ts'
@@ -50,10 +51,14 @@ function useProposalsOnlyOfWhoIsIn(state: AuthState) {
   useEffect(() => proposalsOnlyOf(who), [who])
 }
 
-/** What a person had under way on this device: a project's conversations (talk-store.ts) and unanswered proposals. */
+/**
+ * What a person had under way on this device: a project's conversations (talk-store.ts), unanswered proposals, and the
+ * palette's «Recent» (palette-recent.ts).
+ */
 function forgetUnderWay() {
   forgetKept()
   forgetProposals()
+  forgetRecent()
 }
 
 /**

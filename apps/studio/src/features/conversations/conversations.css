@@ -798,7 +798,10 @@
   width: 14px;
   height: 14px;
 }
-.conv-copied[data-kind='failed'] {
+/* A refusal, and an earlier copy landing over this one: both ask for another press, so both read as errors (Codex P2 on
+   #240). */
+.conv-copied[data-kind='failed'],
+.conv-copied[data-kind='overtaken'] {
   color: var(--rose);
   white-space: normal;
 }
@@ -879,6 +882,25 @@
   .conv-msg:not(.mine) .conv-msg-body > .conv-acts.side {
     left: calc(100% + 8px);
     right: auto;
+  }
+  /* Saying something (a copy's outcome, «Proposed…»), the row goes under the bubble, at its own edge, and wraps: beside
+     it, the words would push the presses past the pane (Codex P2 on #240). */
+  .conv-msg-body > .conv-acts.side:has([role='status']) {
+    top: calc(100% + 4px);
+    translate: none;
+    flex-wrap: wrap;
+    max-width: 100%;
+  }
+  .conv-msg.mine .conv-msg-body > .conv-acts.side:has([role='status']) {
+    right: 0;
+    left: auto;
+  }
+  .conv-msg:not(.mine) .conv-msg-body > .conv-acts.side:has([role='status']) {
+    left: 0;
+    right: auto;
+  }
+  .conv-acts.side > [role='status'] {
+    white-space: normal;
   }
 }
 /* Starting a conversation (C8): the labels in the app's sans, sentence case; the question set larger; the proposals

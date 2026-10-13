@@ -18,6 +18,18 @@ export function readRecent(store: Pick<Storage, 'getItem'> | null = safeStorage(
   }
 }
 
+/**
+ * Forgets what was run here: another person signing in on this browser, or the person signing out, starts with no
+ * «Recent» of someone else's (Codex P2 on #264).
+ */
+export function forgetRecent(store: Pick<Storage, 'removeItem'> | null = safeStorage()): void {
+  try {
+    store?.removeItem(RECENT_KEY)
+  } catch {
+    // Blocked storage: nothing was kept.
+  }
+}
+
 /** Notes a command run from the palette. */
 export function noteRun(id: string): void {
   try {

@@ -77,7 +77,7 @@ async function toClipboard(text: string): Promise<boolean> {
  * and the latest press can be told when an earlier write lands over its own (Codex on #240).
  */
 let presses = 0
-let latest = { text: '', landed: false, overtaken: () => undefined as void }
+let latest = { text: '', settled: false, overtaken: () => undefined as void }
 /** How long a write may take before it is given up as not copied (a permission request left pending in a webview never
  * settles). */
 export const COPY_WAIT_MS = 4000
@@ -92,7 +92,9 @@ const bounded = (write: Promise<boolean>) =>
  * and its own Copy, a gesture, puts its words back.
  */
 function landed(text: string): void {
-  if (text !== latest.text && latest.landed) latest.overtaken()
+  // The latest settled, through or refused (its words then perhaps selected by hand): an earlier write over it is said
+  // (Codex P2 on #240).
+  if (text !== latest.text && latest.settled) latest.overtaken()
 }
 
 export function MessageActs({ message, who, now, onQuote, propose, side = false }: Props) {
@@ -103,12 +105,11 @@ export function MessageActs({ message, who, now, onQuote, propose, side = false 
   const copy = () => {
     const press = ++presses
     const text = clipOf(message, who, now)
-    latest = { text, landed: false, overtaken: () => say('overtaken') }
+    latest = { text, settled: false, overtaken: () => say('overtaken') }
     const write = toClipboard(text)
     void write.then((ok) => {
-      if (!ok) return
-      if (press === presses) latest.landed = true
-      else landed(text)
+      if (press === presses) latest.settled = true
+      else if (ok) landed(text)
     })
     // Only this message says anything now: another's «Copied» from a moment ago goes (Codex on #240).
     clearAll()

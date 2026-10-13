@@ -102,7 +102,9 @@ function List({ id, p }: { id: string; p: ReturnType<typeof usePalette> }) {
       {p.rows.map((row, i) => (
         <Row
           key={row.command.id}
-          id={`${id}-${row.command.id}`}
+          // By its place, not the command's id: an id from the service may hold spaces, which an element's id may not
+          // (Codex P2 on #264).
+          id={`${id}-${String(i)}`}
           row={row}
           active={row.command === p.active}
           onPick={() => p.pick(row.command)}
@@ -149,7 +151,9 @@ export function Palette(props: Props) {
           aria-label="Command"
           aria-expanded="true"
           aria-controls={listId}
-          aria-activedescendant={p.active ? `${listId}-${p.active.id}` : undefined}
+          aria-activedescendant={
+            p.active ? `${listId}-${String(p.rows.findIndex((r) => r.command === p.active))}` : undefined
+          }
           autoComplete="off"
           placeholder="Type a command or a view…"
           value={p.query}
