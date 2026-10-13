@@ -19,7 +19,7 @@
 
 ## Checks
 
-- `e2e/personal-day-pill.spec.ts` (1440×900, the fixture's yesterday and today): the «Today» divider placed 20 px
+- `e2e/personal-day-pill.spec.ts` (1440×440, short enough for the fixture's yesterday and today to scroll past the pill): the «Today» divider placed 20 px
   under the list's top hides the pill; placed above the top, the pill is back and says «Today».
 - `pnpm exec prettier --check .`, `pnpm exec oxlint --type-aware .`, `tsc --noEmit -p apps/studio`; the Personal
   specs through the guard when it allows, CI otherwise.

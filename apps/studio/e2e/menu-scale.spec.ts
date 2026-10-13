@@ -136,9 +136,12 @@ test('menu · the personal space’s days: the same plane 6 px under the day pil
   await page.setViewportSize({ width: 1280, height: 480 })
   await page.goto('/personal.html?demo=1&earlier=1&readSlow=1')
   await drawn(page, DRAWN.personal)
+  // Scrolled until today's divider sits 120 px under the top, yesterday's above it: the pill names yesterday, with no
+  // divider right under it to step aside for (docs/plans/personal-day-pill.md).
   await page.locator('.msgs').evaluate((l) => {
     l.style.scrollBehavior = 'auto'
-    l.scrollTop = 200
+    const today = [...l.querySelectorAll<HTMLElement>('.c3-day')].at(-1)
+    if (today) l.scrollTop += today.getBoundingClientRect().top - l.getBoundingClientRect().top - 120
   })
   const pill = page.locator('.c3-daypill')
   await expect(pill).toBeVisible()

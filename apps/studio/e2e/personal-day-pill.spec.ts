@@ -16,7 +16,8 @@ const placeToday = (page: Page, offset: number) =>
 test('personal · the day pill steps aside for the divider under it, and comes back once it has gone above', async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1440, height: 600 })
+  // Short enough that the fixture's two days scroll past the pill.
+  await page.setViewportSize({ width: 1440, height: 440 })
   await page.goto('/personal.html')
   const pill = page.locator('.c3-daypill')
   await placeToday(page, 20)

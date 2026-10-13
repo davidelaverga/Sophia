@@ -387,8 +387,12 @@ function TurnWithForm(props: Omit<RowProps, 'row' | 'onDays'> & { row: Extract<R
 }
 
 /** The pill names the day at the top of what you're reading, once its divider has scrolled away. */
+/** The band under the pill where the list fades while scrolled (personal.css, the mask's 68 px). */
+const PILL_BAND = 68
+
 function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]) {
   const [day, setDay] = useState<string | null>(null)
+  const [crowded, setCrowded] = useState(false)
   useEffect(() => {
     const box = list.current
     if (!box) return undefined
@@ -398,12 +402,16 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
       const above = days.filter((d) => d.getBoundingClientRect().top < top).at(-1)
       // The day alone, as the days' menu names it: not the moment it carries.
       setDay(days.length >= 2 && above ? (above.dataset['day'] ?? null) : null)
+      // The next day's divider right under the pill names its day: the pill steps aside rather than say another one a
+      // line above it (docs/plans/personal-day-pill.md).
+      const next = days.find((d) => d.getBoundingClientRect().top >= top)
+      setCrowded(next !== undefined && next.getBoundingClientRect().top - top < PILL_BAND)
     }
     update()
     box.addEventListener('scroll', update, { passive: true })
     return () => box.removeEventListener('scroll', update)
   }, [list, rows])
-  return day
+  return { day, crowded }
 }
 
 /** The day chosen from the days' menu: in sight, with the focus, so Tab and the keys go on from there. */
@@ -438,6 +446,8 @@ function Earlier(props: {
   rows: readonly Row[]
   open: boolean
   day: string | null
+  /** The next day's divider is right under the pill: it steps aside (useDayPill). */
+  crowded: boolean
   setOpen: (open: boolean) => void
   /** Earlier days than those shown exist: the first item reads them back. */
   more: boolean
@@ -445,7 +455,7 @@ function Earlier(props: {
   reading: boolean
   onMore: () => void
 }) {
-  const { rows, open, day, setOpen, more, reading, onMore } = props
+  const { rows, open, day, crowded, setOpen, more, reading, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
   useFocusAfterMore(menu.panel, open, more)
   return (
@@ -454,6 +464,8 @@ function Earlier(props: {
         <button
           ref={menu.opener}
           className="c3-daypill"
+          data-crowded={(crowded && !open) || undefined}
+          tabIndex={crowded && !open ? -1 : undefined}
           type="button"
           aria-haspopup="menu"
           aria-expanded={open}
@@ -514,7 +526,7 @@ export function Conversation(props: ConversationProps) {
     props
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
-  const day = useDayPill(list, rows)
+  const { day, crowded } = useDayPill(list, rows)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (
@@ -524,6 +536,7 @@ export function Conversation(props: ConversationProps) {
           rows={rows}
           open={earlier}
           day={day}
+          crowded={crowded}
           setOpen={setEarlier}
           {...{ more, reading }}
           onMore={() => void actions.readEarlier()}
