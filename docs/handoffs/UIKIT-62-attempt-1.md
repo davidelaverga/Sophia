@@ -44,3 +44,7 @@ commits on the branch merge its base forward or touch only this record). 3 files
 ## Next bounded action
 
 Finding 2: Find's «No match» offers to ask Sophia.
+
+## Local run, after the guard allowed it
+
+- Through the guard, 2 workers: toast-over-sheet and menu-scale on this branch: 8 passed (the two sheet cases now pass).
