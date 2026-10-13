@@ -64,9 +64,10 @@ The next follow-up: the board's seen marks, plan order and focus (Codex P2s on #
 
 ## CI on record
 
-- Run 38348260454 on `f72ab7d8` (this branch's head, every change and review round in it, round 4's `94d732f0`
-  included): all jobs green, the browser suites among them, the checks this PR wrote included. The earlier run
-  38333657621 on `51b2ab91` predates round 4.
+- Run 38355049573 on `b825d671` (this branch's head: every change and review round, round 5's `b1f7ffb0` included, merged
+  with `main` after #276–#284 landed; only this record follows it): all jobs green, the browser suites among them, the
+  checks this PR wrote included. The earlier runs, 38333657621 on `51b2ab91` and 38348260454 on `f72ab7d8`, predate
+  rounds 4–5 and the merge.
 
 ## Post-review, round 3 (Codex on #277)
 
