@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { reportSearch, withReportLink, type ReportLink } from '../features/artifacts/report-link.ts'
 import { DECISION, REQUEST, requestAddress, TASK, showInAddress } from '../features/resources/link.ts'
+import { lensKept } from '../features/studio/viewer-state.ts'
+import { ADDRESS_NAMED } from '../features/resources/useAddressed.ts'
 import { ADDRESS_MOVED, HOME, isJoinPath, parseRoute, routePath, type Place, type Route, type View } from './route.ts'
 
 const current = (): Route => parseRoute(window.location.pathname)
@@ -15,7 +17,9 @@ export function useProjectRoute() {
     // (/join#token) is left exactly as it came.
     const path = window.location.pathname
     if (!isJoinPath(path) && path !== routePath(route)) {
-      window.history.replaceState(null, '', routePath(route) + reportSearch(window.location.search))
+      // The report goes along, and the Studio's lens a shared link named (Codex on #242).
+      const search = window.location.search
+      window.history.replaceState(null, '', routePath(route) + lensKept(search, reportSearch(search)))
     }
     const onPop = () => setRoute(current())
     window.addEventListener('popstate', onPop)
@@ -50,6 +54,9 @@ export function useProjectRoute() {
       if (at.requestId) showInAddress(requestAddress(at.resourceId ?? null, at.requestId), REQUEST)
       else if (at.decisionId) showInAddress(at.decisionId, DECISION)
       else if (at.taskId) showInAddress(at.taskId, TASK)
+      // A shell kept mounted (Home shown during a call) heard the route move before the record was named: it is told
+      // again once the fragment is in (useAddressed; Codex on #245).
+      if (at.requestId || at.decisionId || at.taskId) window.dispatchEvent(new Event(ADDRESS_NAMED))
     },
     show: (view: View) => go({ ...route, view }),
     /** Out of the project, back to the two doors. */

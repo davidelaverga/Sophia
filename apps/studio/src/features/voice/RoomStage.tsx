@@ -130,7 +130,14 @@ function useWorkGo(snapshot: Snapshot | undefined): (() => void) | null {
   const go = useProjectGo()
   if (!go) return null
   const only = soleWorkingTask(snapshot)
-  return () => go(only === null ? { view: 'work' } : { view: 'work', taskId: only })
+  return () => {
+    go(only === null ? { view: 'work' } : { view: 'work', taskId: only })
+    // No task named, no card to take the focus: the view's own item in the nav does, never the page (Codex on #242).
+    if (only === null)
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('.view-nav a[aria-current]')?.focus()),
+      )
+  }
 }
 
 function SophiaLine({

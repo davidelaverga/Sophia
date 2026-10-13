@@ -11,7 +11,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { projectTitle, useDocumentTitle } from '../../app/document-title.ts'
 import { routePath, type View, viewsShown } from '../../app/route.ts'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
-import { useCommands } from '../../app/useCommands.ts'
+import { useCommands, useOffered } from '../../app/useCommands.ts'
 import { VISION } from '../../app/vision.ts'
 import { ProjectGoProvider, useArrival } from './project-go.tsx'
 import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
@@ -247,6 +247,8 @@ function useProjectKeys(
   go: { onLeave: () => void; onWork: () => void; invite: () => void; search: () => void; show: (view: View) => void },
   at: { view: View; inviting: boolean; mayInvite: boolean; shown: boolean; blocked: boolean },
 ) {
+  // `/` taken by a view's own search, where one is mounted: Tasks with plans (TaskSearch), Resources (ResourcePanel).
+  const slashTaken = useOffered().some((c) => c.key === '/' && c.id !== 'search')
   useCommands(
     [
       { id: 'home', words: 'Home', group: 'go', key: 'h', run: go.onLeave },
@@ -258,8 +260,9 @@ function useProjectKeys(
         id: 'search',
         words: 'Search this project',
         group: 'do',
-        // Tasks and Resources have a search of their own on `/`: there the project's keeps its words, not the key.
-        key: at.view === 'work' || at.view === 'resources' ? undefined : '/',
+        // A view's own search on `/` (Tasks with plans, Resources): there the project's keeps its words, not the key; a
+        // Tasks view with no plans has none, and `/` stays the project's (Codex on #238).
+        key: slashTaken ? undefined : '/',
         run: VISION && at.shown ? go.search : undefined,
       },
     ],
