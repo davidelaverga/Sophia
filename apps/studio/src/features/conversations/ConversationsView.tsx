@@ -347,7 +347,7 @@ function Open(props: {
   projectId: string
   conversation: ConversationSummary
   /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
-  list: { isError: boolean; isFetching: boolean }
+  list: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   cursor: string | undefined

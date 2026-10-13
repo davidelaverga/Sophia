@@ -43,7 +43,7 @@ interface Props {
   projectId: string
   conversation: ConversationSummary
   /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
-  list?: { isError: boolean; isFetching: boolean }
+  list?: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
@@ -173,7 +173,8 @@ function nextOf(props: Props, read: ReturnType<typeof useTranscript>): NextAskSo
     read: read.data,
     // Read and not being read again, the last read not failed: its newest message is the newest; and the list not being
     // read again, its open questions the count now (Codex on #275).
-    fresh: read.isSuccess && !read.isRefetching && props.list?.isFetching !== true,
+    // Idle only: a read paused offline keeps its old data and is not current either (Codex on #275).
+    fresh: read.isSuccess && read.fetchStatus === 'idle' && (props.list?.fetchStatus ?? 'idle') === 'idle',
     readAt: read.dataUpdatedAt,
     // The list's last read failed: its count of open questions may be stale.
     openQuestions: props.list?.isError === true ? null : props.conversation.openQuestions,
