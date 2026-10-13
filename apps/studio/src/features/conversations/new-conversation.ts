@@ -128,25 +128,33 @@ const turnsOf = {
 }
 
 /** A word that says what a question is about, as `ownWords` keeps it: an action excluded. */
-const isThing = (w: string) => w.length >= 3 && !COMMON.has(w) && !ACTIONS.has(w)
+const isThing = (w: string) => w.length >= 3 && !COMMON.has(w) && !ACTIONS.has(w) && !/\p{N}/u.test(w)
 
 /**
- * Each action a title says, with the thing it is said of: the word after it, or for a participle («enabled»,
- * «hidden») the word before it, as a passive puts it: «enable email» either way.
+ * Each turning word of a kind a title says, with the thing it is said of: the word after it («enable email», «before
+ * review», «q1 revenue»), or for a participle («enabled», «hidden») the word before it, as a passive puts it. A thing
+ * of more than one word across a change of voice is read as another question: the form errs to silence.
  */
-function aimsOf(words: readonly string[]): string {
+function aimsOf(words: readonly string[], of: (w: string) => string | undefined): string {
   return words
     .flatMap((w, i) => {
-      const base = ACTIONS.get(w)
-      if (base === undefined) return []
+      const said = of(w)
+      if (said === undefined) return []
       const after = words.slice(i + 1).find(isThing)
       const before = words.slice(0, i).findLast(isThing)
-      const participle = w !== base && (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w))
-      const thing = participle ? (before ?? after) : (after ?? before)
-      return [`${base} ${thing ?? ''}`]
+      const base = ACTIONS.get(w)
+      const participle = base !== undefined && w !== base && (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w))
+      return [`${said} ${(participle ? (before ?? after) : (after ?? before)) ?? ''}`]
     })
     .toSorted()
     .join('|')
+}
+
+/** How each kind's turning word is read, for its thing: an action by its plain form; an order or a number as it is. */
+const READ = {
+  orders: (w: string) => (w === 'before' || w === 'after' ? w : undefined),
+  actions: (w: string) => ACTIONS.get(w),
+  numbers: (w: string) => (/\p{N}/u.test(w) ? w : undefined),
 }
 
 /** Whether a title negates: a negating word, or a «n't». */
@@ -166,10 +174,14 @@ function turnsAgree(a: string, b: string): boolean {
     const [p, q] = [of(x), of(y)]
     return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
   })
-  // Two actions or more on each side: each must keep its thing, «enable SMS and disable email» being the inverse of
-  // «enable email and disable SMS» (Codex on #274). One alone has no other to swap with.
-  const two = turnsOf.actions(x).length > 1 && turnsOf.actions(y).length > 1
-  return alike && (!two || aimsOf(x) === aimsOf(y))
+  // Two of a kind or more on each side (actions, orders, numbers): each must keep its thing, «enable SMS and disable
+  // email» being the inverse of «enable email and disable SMS», «Q1 costs … Q2 revenue» of «Q1 revenue … Q2 costs»
+  // (Codex on #274). One alone has no other to swap with.
+  const kept = (['orders', 'actions', 'numbers'] as const).every((kind) => {
+    const two = turnsOf[kind](x).length > 1 && turnsOf[kind](y).length > 1
+    return !two || aimsOf(x, READ[kind]) === aimsOf(y, READ[kind])
+  })
+  return alike && kept
 }
 
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
