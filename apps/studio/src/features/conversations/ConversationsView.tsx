@@ -99,7 +99,9 @@ function useArrivals(
       // the sheet that asked has given its own back (Codex on #267).
       else focusQuestion()
     }
-    show()
+    // A viewer's words to ask: the list, as promised; shown, a phone would take them into the newest conversation
+    // (Codex P2 on #267).
+    if (!('ask' in to) || writer) show()
     return undefined
   })
 }

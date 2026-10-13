@@ -239,7 +239,7 @@ function Asking({ row, viewerId, onAsk }: { row: PlanRow; viewerId: string | nul
           <NextAskHint
             id={next.id}
             why="The first question its state invites"
-            description={`Suggested: ${next.cap}. Tab puts it in the field; Escape puts it away.`}
+            description={`Suggested: ${next.cap}. The first question its state invites. Tab puts it in the field; Escape puts it away.`}
           />
         )}
         <button type="submit" className="pill" disabled={!question.trim()}>

@@ -63,6 +63,8 @@ interface Props {
   locked: boolean
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
+  /** Home is the place arrived at (not only on screen while a move runs): a visit ends when it is not. */
+  here: boolean
   /**
    * What needs you (needs-you.ts) and what opens one: undefined until an API serves it, and the right half is her
    * light alone. The opener comes with the items, so no row is ever offered that leads nowhere.
@@ -282,8 +284,9 @@ interface LineProps {
   onTalk: (t: Talk) => void
   line: RefObject<HTMLElement | null>
   hidden: boolean
-  /** The next ask the line suggests (docs/plans/next-ask-places.md); null with none. */
-  next: { words: string; why: string } | null
+  here: boolean
+  /** The next ask the line suggests (docs/plans/next-ask-places.md), and what Tab puts in; null with none. */
+  next: { words: string; why: string; full: string } | null
 }
 
 /**
@@ -295,14 +298,15 @@ function useLineNext(
   text: string,
   listening: boolean,
   setText: (words: string) => void,
-  hidden: boolean,
+  here: boolean,
 ) {
   const [away, setAway] = useState(false)
   // Put away for this visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask
-  // again (Codex on #268).
+  // again (Codex on #268). Left is another place arrived at, from the move's first frame: a move reversed before it
+  // settles never hides Home, and still ends the visit (Codex P2 on #268).
   useEffect(() => {
-    if (hidden) setAway(false)
-  }, [hidden])
+    if (!here) setAway(false)
+  }, [here])
   const [focused, setFocused] = useState(false)
   const id = useId()
   const shown = !away && !listening && text === '' ? next : null
@@ -312,18 +316,18 @@ function useLineNext(
     const move = nextAskKey(press, text, shown !== null)
     if (!move || !shown) return
     e.preventDefault()
-    if (move === 'accept') setText(shown.words)
+    if (move === 'accept') setText(shown.full)
     else setAway(true)
   }
   return { id, shown, cap: focused ? shown : null, onKey, setFocused }
 }
 
 /** One line to write to Sophia, no box, or to speak to her. */
-function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
+function SayLine({ actions, onTalk, line, hidden, here, next }: LineProps) {
   const s = useSay(actions.say, hidden)
   useSlashReaches(s.field)
   const listening = s.voice.listening
-  const ask = useLineNext(next, s.text, listening, s.setText, hidden)
+  const ask = useLineNext(next, s.text, listening, s.setText, here)
   // She listens while you speak, and until you leave the line; a dictation that heard nothing lets her rest.
   useEffect(() => {
     onTalk({ writing: listening || document.activeElement === s.field.current })
@@ -364,7 +368,7 @@ function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
         <NextAskHint
           id={ask.id}
           why={ask.cap.why}
-          description={`Suggested: ${ask.cap.words}. Tab puts it in the line; Escape puts it away.`}
+          description={`Suggested: ${ask.cap.words}. ${ask.cap.why}. Tab puts it in the line; Escape puts it away.`}
         />
       ) : (
         <kbd aria-hidden>{s.text ? '↵' : '/'}</kbd>
@@ -374,7 +378,7 @@ function SayLine({ actions, onTalk, line, hidden, next }: LineProps) {
 }
 
 /** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
-function You({ you, locked, actions, onTalk, line, hidden, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
+function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
       <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
@@ -407,7 +411,7 @@ function You({ you, locked, actions, onTalk, line, hidden, next }: Pick<Props, '
           )}
         </ol>
       )}
-      {!locked && <SayLine actions={actions} onTalk={onTalk} line={line} hidden={hidden} next={next} />}
+      {!locked && <SayLine {...{ actions, onTalk, line, hidden, here, next }} />}
     </section>
   )
 }
@@ -509,6 +513,7 @@ export function Welcome(props: Props) {
           onTalk={setTalk}
           line={line}
           hidden={props.hidden}
+          here={props.here}
           next={homeNextAsk(props.projects, props.now)}
         />
         {(props.projects || props.loadingProjects) && (
