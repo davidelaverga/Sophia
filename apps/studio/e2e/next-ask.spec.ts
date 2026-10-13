@@ -123,3 +123,18 @@ test('next ask · the field’s description says why too, for the keyboard and a
   })
   expect(described).toContain('Because it is proposed and not decided')
 })
+
+test('next ask · focus in the field shows why, as a pointer on the cap does (Codex P2 on #262)', async ({ page }) => {
+  await page.goto(PAGE)
+  await askAndWait(page, 'Sum it up')
+  await expect(field(page)).toHaveAttribute('placeholder', PROPOSAL_ASK)
+  const tip = hint(page).locator('.tip')
+  // Nothing focused yet: the quick ask pressed may have kept the focus.
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+  })
+  await expect(tip).toHaveCSS('opacity', '0')
+  await field(page).focus()
+  await expect(tip).toHaveCSS('opacity', '1')
+  await expect(tip).toContainText('Because it is proposed and not decided')
+})

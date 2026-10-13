@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ConversationMessage } from '../../api/vision.ts'
-import { nextAsk, olderAsks, QUICK_ASKS, quickAsks, sameAsk, threadOf, type AskContext } from './next-ask.ts'
+import {
+  asksNow,
+  briefAsks,
+  nextAsk,
+  olderAsks,
+  QUICK_ASKS,
+  quickAsks,
+  sameAsk,
+  threadOf,
+  type AskContext,
+} from './next-ask.ts'
 
 const at = (over: Partial<AskContext> = {}): AskContext => ({
   newest: 'sophia',
@@ -128,9 +138,51 @@ describe('the next ask, after the review (Codex on #262)', () => {
       read.push(before)
       return Promise.resolve(pages[before] ?? { messages: [], before: null })
     }
-    assert.deepEqual(await olderAsks(fetch, '6', 'me', 2), ['b', 'c'])
+    assert.deepEqual((await olderAsks(fetch, '6', 'me', 2)).asks, ['b', 'c'])
     assert.deepEqual(read, ['6'])
-    assert.deepEqual(await olderAsks(fetch, '6', 'me', 3), ['a', 'b', 'c'])
-    assert.deepEqual(await olderAsks(fetch, null, 'me', 3), [])
+    assert.deepEqual((await olderAsks(fetch, '6', 'me', 3)).asks, ['a', 'b', 'c'])
+    assert.deepEqual((await olderAsks(fetch, null, 'me', 3)).asks, [])
+  })
+})
+
+describe('the next ask, only from what is known now (Codex P2s on #262)', () => {
+  it('reads older pages until six asks are in or the thread begins; stopped short of both, says so', async () => {
+    // Each page: one ask of the viewer's among the team's, and a page before it, down to the first.
+    const page = (n: number) => ({
+      messages: [msg(`m${String(n)}`, 'member', 'me', `ask ${String(n)}`), msg(`t${String(n)}`, 'member', 'them', 't')],
+      before: n > 1 ? String(n - 1) : null,
+    })
+    const fetch = (before: string) => Promise.resolve(page(Number(before)))
+    // Ten pages back, six wanted: six pages read, all six found.
+    assert.deepEqual(await olderAsks(fetch, '10', 'me', 6), {
+      asks: ['ask 5', 'ask 6', 'ask 7', 'ask 8', 'ask 9', 'ask 10'],
+      complete: true,
+    })
+    // Three pages in all: the thread begins before six; complete, with the three there are.
+    assert.deepEqual(await olderAsks(fetch, '3', 'me', 6), { asks: ['ask 1', 'ask 2', 'ask 3'], complete: true })
+    // A page limit reached with asks still wanted and pages left: not complete.
+    assert.equal((await olderAsks(fetch, '10', 'me', 6, 2)).complete, false)
+  })
+
+  it('proposes nothing, and no quick asks, while the thread or what was asked before it is not known', () => {
+    const ctx = at({ openQuestions: 1 })
+    const known = { fresh: true, recencyKnown: true, quiet: false, hushed: false }
+    assert.deepEqual(asksNow(ctx, known), { suggestion: nextAsk(ctx), quick: quickAsks([], nextAsk(ctx), []) })
+    // The transcript being read again, or its last read failed: its newest message may not be hers.
+    assert.deepEqual(asksNow(ctx, { ...known, fresh: false }), { suggestion: null, quick: [] })
+    // The older asks not read (on their way, or the read failed): one asked a page back may be offered again.
+    assert.deepEqual(asksNow(ctx, { ...known, recencyKnown: false }), { suggestion: null, quick: [] })
+    // Quiet (a message on its way) or hushed: no suggestion, the quick asks as they are.
+    assert.deepEqual(asksNow(ctx, { ...known, quiet: true }), { suggestion: null, quick: quickAsks([], null, []) })
+  })
+
+  it('takes nothing from a brief whose last read failed: it may be stale', () => {
+    const brief = {
+      constraints: [],
+      pending: [{ statement: 'Map first, list second', state: 'proposed', createdAt: '2026-10-01T09:00:00.000Z' }],
+    } as unknown as Parameters<typeof briefAsks>[0]
+    assert.equal(briefAsks(brief, false).pending, 'Map first, list second')
+    assert.deepEqual(briefAsks(brief, true), { pending: null, decided: 0 })
+    assert.deepEqual(briefAsks(undefined, false), { pending: null, decided: 0 })
   })
 })
