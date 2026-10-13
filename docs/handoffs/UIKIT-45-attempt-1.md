@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `056daf952ff8` (tree `073aee4a5511`), the last commit of `ui/p2-next-ask-fresh`'s own that changes code (later
+Ending commit/tree: `4a2fc8e9eafa` (tree `65d6be6ad62f`), the last commit of `ui/p2-next-ask-fresh`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 11 files changed against
 `origin/main` at that commit: `e2e/next-ask.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/app/theme.css`, `src/features/conversations/ConversationsView.tsx`, `src/features/conversations/OpenConversation.tsx`, `src/features/conversations/next-ask.test.ts`, `src/features/conversations/next-ask.ts`, `src/features/conversations/useNextAsk.ts`, `docs/handoffs/UIKIT-45-attempt-1.md`, `docs/plans/p2-next-ask-fresh.md`. The review notes below name the commit of each later change.
 
@@ -66,3 +66,7 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 ## Post-review, round 4 (Codex on #275)
 
 - `056daf95`: the transcript, the list and the brief count as current only when their `fetchStatus` is `idle`: a refresh paused offline (its old data kept, `isFetching` false) is not. The CI on record above predates this change; the new head's CI is pending, and recorded here when it lands.
+
+## Post-review, round 5 (Codex on #275)
+
+- `4a2fc8e9` (P1 4254365139): a failed older read is retried once per read of the thread (`triedAt`, the `readAt` it last retried at), never on the error itself, which looped (a refetch with no data resets the query to pending). The final head's CI is pending.
