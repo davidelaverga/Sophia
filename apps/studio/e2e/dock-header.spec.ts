@@ -320,3 +320,17 @@ test('dock · the report pane’s microphone focused at 720, widened past the br
   await page.setViewportSize({ width: 1280, height: 800 })
   await expect(page.locator('.topbar .mini-dock').getByRole('button', { name: 'Microphone' })).toBeFocused()
 })
+
+test('dock · from 721 to 760 px the header dock’s tips open under both header rows (Codex P2 on #254)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 740, height: 800 })
+  await page.goto('/room.html?demo=1&place=updates&call=on&people=2')
+  const control = page.locator('.topbar .mini-dock .has-tip').first()
+  await expect(control).toBeVisible()
+  const [tipTop, navBottom] = await Promise.all([
+    control.locator('.tip').evaluate((el) => el.getBoundingClientRect().top),
+    page.locator('.view-nav').evaluate((el) => el.getBoundingClientRect().bottom),
+  ])
+  expect(tipTop).toBeGreaterThanOrEqual(navBottom)
+})
