@@ -4,10 +4,12 @@ import { expect, test } from '@playwright/test'
 test('@phone · personal · the day menu keeps each date on one line', async ({ page }) => {
   await page.setViewportSize({ width: 350, height: 760 })
   await page.goto('/personal.html')
-  // Scrolled up past today's first day, the pill names the day in sight and opens the days.
+  // Scrolled until today's divider sits 120 px under the top, yesterday's above it: the pill names yesterday (and has
+  // no divider right under it to step aside for) and opens the days.
   await page.locator('.msgs').evaluate((m) => {
     m.style.scrollBehavior = 'auto'
-    m.scrollTop = 0
+    const today = [...m.querySelectorAll<HTMLElement>('.c3-day')].at(-1)
+    if (today) m.scrollTop += today.getBoundingClientRect().top - m.getBoundingClientRect().top - 120
   })
   const pill = page.locator('.c3-daypill')
   await expect(pill).toBeVisible()
