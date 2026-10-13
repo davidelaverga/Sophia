@@ -10,7 +10,9 @@ contract.
 Runtime unit: none beyond Prettier (records only); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: records only; the branch's own commits change no code.
+Ending commit/tree: `25252d61b87a` (tree `a55dd5298345`), the last commit of `ui/p2-records`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/handoffs/UIKIT-52-attempt-1.md`, `docs/plans/light-breath.md`, `docs/plans/needs-api.md`, `docs/plans/p2-records.md`, `docs/plans/section-heads.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -33,3 +35,10 @@ Ending commit/tree: records only; the branch's own commits change no code.
 
 The remaining follow-ups: the lens and the addressed needs; the small ones (Updates' filter, the clipboard, the day
 label, Recent per viewer, DOM-safe ids, the tracking check).
+
+## Post-review (Codex on #282)
+
+- The ending commit, tree and files recorded from the branch (P1 4253988982), as every handoff records them.
+- `25252d61`: needs-api.md's other summaries brought to the merged A15 too: «The amendment» (four kinds, `work_decision` ·
+  `work_wait` · `lobby_entry` · `personal_turn` with `within`, only a decision expiring, the seen POST), «What the Studio
+  does now» (four needs in the fixture, the reply's seen mark) and «Left» (marking read is in the amendment).
