@@ -268,7 +268,7 @@ const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
 export function homeNextAsk(
   projects: readonly ProjectSummary[] | undefined,
   now: Date,
-): { words: string; why: string } | null {
+): { words: string; why: string; full: string } | null {
   if (!projects || projects.length === 0) return null
   // About to start, not under way: a session that started is to join, not to get ready for (Codex on #268).
   const ahead = (p: ProjectSummary) =>
@@ -276,10 +276,15 @@ export function homeNextAsk(
   const starting = workOrder(projects, now).find(ahead)
   const when = starting ? sessionWhen(starting, now) : null
   if (!starting?.nextSession || !when) return null
-  return {
-    words: `Help me get ready for ${starting.nextSession.title} in ${starting.title}`,
-    why: `Because it ${when}`,
-  }
+  const words = `Help me get ready for ${starting.nextSession.title} in ${starting.title}`
+  // What Tab puts in the line carries the timing: she reads only the words sent, and the tip saying why is gone by then
+  // (Codex P2 on #268). The placeholder stays short.
+  return { words, why: `Because it ${when}`, full: `${words}. ${when.startsWith('starts') ? 'It' : 'It’s'} ${when}.` }
+}
+
+/** The place arrived at: the last of the places on screen, the one moved to from the first frame of the move. */
+export function placeAt<P>(shown: readonly P[]): P | undefined {
+  return shown.at(-1)
 }
 
 /** Projects with a session about to start come first, the soonest first; then the rest as listed. */

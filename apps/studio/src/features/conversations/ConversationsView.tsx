@@ -84,7 +84,7 @@ function useArrivals(
   writer: boolean | undefined,
   talk: ReturnType<typeof useTalk>,
   start: ReturnType<typeof useStart>,
-  show: () => void,
+  screen: { show: () => void; back: () => void },
 ) {
   // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
   // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
@@ -99,7 +99,10 @@ function useArrivals(
       // the sheet that asked has given its own back (Codex on #267).
       else focusQuestion()
     }
-    show()
+    // A viewer's words to ask: the list, as promised, on a phone too, from a conversation already open there (Codex
+    // on #267 and #276); shown, a phone would take them into the newest conversation.
+    if (!('ask' in to) || writer) screen.show()
+    else screen.back()
     return undefined
   })
 }
@@ -114,7 +117,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
     choose(id)
     panes.show()
   })
-  useArrivals(ask, writer, talk, start, panes.show)
+  useArrivals(ask, writer, talk, start, panes)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
   // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
