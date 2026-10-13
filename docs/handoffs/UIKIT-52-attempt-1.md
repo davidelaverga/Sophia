@@ -47,3 +47,8 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
 - `98189613`: «What the Studio does now» routes as `VIEW_OF` does, no review (round 3, Codex on #282).
 - `b0c04d3c`: two more points for the service in needs-api.md (the cursor's read-based transition still in A15's text; the need id's injective encoding), and section-heads.md's checks said as they assert (round 4, Codex on #282).
 - `a9c1d444`: a permission opens its task until Resources is served (round 5, Codex on #282).
+
+## CI on record
+
+- Run 38338054881 on `69dbfafb` (this branch's head, every change and review round in it): all jobs green, the browser suites
+  among them.
