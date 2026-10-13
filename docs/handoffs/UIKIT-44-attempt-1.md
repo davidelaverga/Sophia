@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `8822e4965938` (tree `fc1ab94867a6`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `db232dad33ee` (tree `fd1def2ecf7c`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -146,3 +146,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 17 (Codex on #274)
 
 - `8822e496`: spelled numbers are parsed as they are said (`spelledNumbers`, `valueOfRun`): runs of units, tens and scales, nested scales included («one thousand five hundred» 1500), «and» only after a scale, words that do not continue a number starting a new one («one two»); any ordinal made of a cardinal («fourteenth» 14th, «twentieth» 20th, «twenty first» 21st). A «not» said twice running is kept twice. Replaces rounds 13 to 16's composers. Tests in `8b242d05`, failing first.
+
+## Post-review, round 18 (Codex on #274)
+
+- `db232dad`: demonstratives (this, that, these, those) keep their place in the ordered words; a larger scale after a smaller takes in all said before («one thousand million», 10⁹). Tests in `e6f7e7d4`, failing first.
