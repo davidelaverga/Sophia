@@ -12,9 +12,9 @@ Runtime unit: CI (GitHub Actions) as the run on record. Playwright on Luis's hos
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `caf523cc1323` (tree `2ff062ebf3e1`), the last commit of `ui/p2-light-inks`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 6 files changed against
-`origin/main` at that commit: `e2e/conversations-column.spec.ts`, `e2e/light-mark.spec.ts`, `e2e/light-mode.spec.ts`, `public/entry.js`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`. The review notes below name the commit of each later change.
+Ending commit/tree: `4fca7495eede` (tree `52f0dc052442`), the last commit of `ui/p2-light-inks`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`origin/main` at that commit: `e2e/conversations-column.spec.ts`, `e2e/light-mark.spec.ts`, `e2e/light-mode.spec.ts`, `public/entry.js`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `docs/handoffs/UIKIT-50-attempt-1.md`, `docs/plans/p2-light-inks.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
