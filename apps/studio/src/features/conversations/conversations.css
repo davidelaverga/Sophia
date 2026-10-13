@@ -45,6 +45,11 @@
   background: rgb(var(--halo-rgb) / 0.14);
   color: var(--text);
 }
+/* On, it answers the pointer too: a step deeper (Codex P2 on #232). */
+.conversations .icon-button[aria-pressed='true']:hover,
+.conversations .icon-button[aria-expanded='true']:hover {
+  background: rgb(var(--halo-rgb) / 0.22);
+}
 .conv-who,
 .conv-state,
 .conv-note {
@@ -1165,7 +1170,7 @@
 }
 /* On, it answers the pointer too: a step deeper (measured on its label, what the eye sees: Codex on #232). */
 .conv-ask:has(input:checked):hover {
-  background: rgba(156, 130, 245, 0.2);
+  background: rgb(var(--halo-rgb) / 0.2);
 }
 .conv-ask:has(input:checked) .umbral {
   opacity: 1;

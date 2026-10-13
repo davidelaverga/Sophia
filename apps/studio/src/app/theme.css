@@ -976,6 +976,10 @@ button.mark:hover {
 .account-btn[aria-expanded='true'] .avatar {
   border-color: var(--warm);
 }
+/* Open, under the pointer that comes back to close it: the warm edge rings out (Codex P2 on #232). */
+.account-btn[aria-expanded='true']:hover .avatar {
+  box-shadow: 0 0 0 2px rgb(var(--warm-rgb) / 0.35);
+}
 /* A menu (docs/plans/menu-scale.md): the plane a control opens, 6 px from it, aligned to its end, its start or its
    middle, under it or (`menu-top`) over it. The account's is 230 wide. */
 .menu {
