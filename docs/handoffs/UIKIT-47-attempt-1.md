@@ -12,9 +12,9 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `2926a1ad4300` (tree `d169c1bdb955`), the last commit of `ui/p2-next-up`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 6 files changed against
-`origin/main` at that commit: `e2e/next-up.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `ae293fb92b7a` (tree `b78ebdb7f061`), the last commit of `ui/p2-next-up`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`origin/main` at that commit: `e2e/next-up.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/answers.ts`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-47-attempt-1.md`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -37,3 +37,10 @@ commits on the branch merge its base forward or touch only this record). 6 files
 ## Next bounded action
 
 The next follow-up: the board's seen marks, plan order and focus (Codex P2s on #236 and #244).
+
+## Post-review (Codex on #277)
+
+- `ae293fb9`: the board follows the page's answer memory (`useAnswerStates`, a `useSyncExternalStore` over the viewer's
+  decisions' keys) instead of reading it once, so an answer that settles as conflict, denied, expired or not confirmed
+  with the decisions closed re-renders the board: Next up and «For you» offer it again. Unit suite 1098/1098, lint and
+  typecheck clean; the browser suites are CI's (local guard: free RAM about 5 GB with AION2 open).
