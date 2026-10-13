@@ -39,8 +39,9 @@
 - Places reads it at Home (`useNeeds`, every 20 s as the projects are), and hands Welcome `{ items, open }`: a
   decision opens the project's Tasks at its choice, a permission its task in Tasks until Resources is served (`withoutResources` in SignedIn; then its Resources with
   the request focused), a guest
-  its room, a reply the personal space (`VIEW_OF` in `api/needs.ts`; no review: A15 dropped it). Without the flag nothing is read and Home is as it was. Opening a reply from Home posts its seen mark and
-  reads the list again.
+  its room, a reply the personal space (`VIEW_OF` in `api/needs.ts`; no review: A15 dropped it). Without the flag nothing is read and Home is as it was. Opening a reply from Home posts its seen mark only once
+  the reply is shown in the personal space (`turnShown`, read again); a reply not shown, or a failed read, posts
+  nothing and the need stays (`useNeeds`, home-needs.spec). Then the list is read again.
 - The fixture's API answers the route with four needs, one of each kind (a decision and a permission within their work
   item, a guest, a reply); the app's own check routes it and finds the column and the way to Tasks.
 
