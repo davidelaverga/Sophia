@@ -252,10 +252,19 @@ test('widths · at 1280 a viewer’s «Copy project link», folded to its icon, 
   await page.goto('/room.html?demo=1&place=updates&role=viewer')
   const copy = page.locator('.copy-link')
   await expect(copy).toBeVisible()
-  const look = () => copy.evaluate((el) => `${getComputedStyle(el).color}|${getComputedStyle(el).borderTopColor}`)
-  const before = await look()
   await copy.click()
   await expect(copy).toHaveAttribute('aria-label', 'Link copied')
-  // Seen, not only said: the folded press changes as the copy lands.
-  await expect.poll(look).not.toBe(before)
+  // Seen, not only said: the folded press turns the teal of done; read with the pointer away, so no hover answers for it
+  // (Codex on #281).
+  await page.mouse.move(0, 0)
+  const look = () =>
+    copy.evaluate((el) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--teal)'
+      document.body.append(probe)
+      const teal = getComputedStyle(probe).color
+      probe.remove()
+      return getComputedStyle(el).color === teal && getComputedStyle(el).borderTopColor === teal
+    })
+  await expect.poll(look).toBe(true)
 })
