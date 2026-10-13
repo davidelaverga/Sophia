@@ -29,6 +29,16 @@ commits on the branch merge its base forward or touch only this record). 8 files
 - Three browser checks written first (`conversations-column`, `light-mode`, `light-mark`); not run on this host
   (guard). CI is the run on record.
 
+## Decisions and changes
+
+- Changed: light mode's hairlines, Sophia's glyph on her disc and the tab's first mark. Preserved: the dark room's inks (the hairline's ink is the same weight there). The design note names each change; the post-review notes below name the commit of each later
+  one.
+- Instruction applied: Luis, 2026-10-12, «atiende los P2 en PRs pequeñas» (the kit stack's open Codex P2s, one concern a
+  PR), under his standing instructions for the kit (push to `ui/*`, answer each thread with its fix commit; merges are
+  his, with no open P1).
+- Authority: not widened. Studio code, its checks and records only; no service code, no contract, no deploy. Points that
+  belong to the service (A15's contract, a single-task read) are recorded for that side, not changed here.
+
 ## Remaining obligations
 
 - CI on the PR; the independent review (Codex) with no open P1 before merge.
