@@ -6,7 +6,7 @@ import { TaskCard } from '../conversation/TaskCard.tsx'
 import { workHeading } from '../conversation/conversation-view.ts'
 import { GoalTabs } from './GoalTabs.tsx'
 import { GoalCard } from './GoalCard.tsx'
-import { DECISION, TASK } from '../resources/link.ts'
+import { DECISION, GOAL, TASK } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import { moving } from '../resources/motion.ts'
 import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
@@ -25,6 +25,8 @@ export interface GoalPlan {
   decisions?: readonly string[]
   /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
   attention?: boolean
+  /** How far it has gone: its tasks done of those counted (`progressOf`), said on Goals (goals-progress.md). */
+  progress?: { done: number; total: number }
 }
 
 interface Props {
@@ -41,6 +43,9 @@ interface Props {
   plans?: Readonly<Record<string, GoalPlan>> | undefined
   /** Tasks: what Sophia offers to start under a goal (the source-review pilot, WBC-02), under its plan. */
   entry?: ((goal: Goal) => React.ReactNode) | undefined
+  /** Goals: each plan read for its progress only, its board left to Tasks, where `onOpenGoal` takes the goal. */
+  summary?: boolean
+  onOpenGoal?: ((goalId: string) => void) | undefined
 }
 
 /** The goal whose plan has a task, by its id; undefined when none has. */
@@ -102,6 +107,26 @@ function useClearHiding(followed: ReturnType<typeof followedOf>, setQuery: (q: s
  * Several goals with plans: one at a time, chosen from the rail, so a project with many goals stays calm. A search
  * narrows the rail to the goals whose title, outcome or tasks answer it.
  */
+/** A goal named in the address (Goals' «Open in Tasks») chooses it, as a task or a decision does (goals-progress.md). */
+function useGoalAddressed(plans: Props['plans'], choose: (id: string) => void, seq: number) {
+  const addressed = useAddressed(GOAL)
+  const named = addressed.id !== null && plans?.[addressed.id] ? addressed.id : null
+  const latest = useRef(choose)
+  latest.current = choose
+  useEffect(() => {
+    if (named) latest.current(named)
+  }, [named, addressed.seq, seq])
+}
+
+/** Goals reads each plan for its progress and a press to it; only Tasks draws the boards, the rail and their search. */
+function useSummary(summary: boolean | undefined, given: Props['plans'], onOpenGoal: Props['onOpenGoal']) {
+  return {
+    plans: summary ? undefined : given,
+    progress: (id: string) => (summary ? given?.[id]?.progress : undefined),
+    opener: (id: string) => (summary && given?.[id] && onOpenGoal ? () => onOpenGoal(id) : undefined),
+  }
+}
+
 function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], query: string) {
   const tabbed = (snapshot?.goals ?? []).filter((g) => {
     const plan = plans?.[g.id]
@@ -118,6 +143,7 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
   useEffect(() => {
     if (decidedGoal) setChosen({ id: decidedGoal, seq: named.seq })
   }, [decidedGoal, decided.seq, named.seq])
+  useGoalAddressed(plans, (id) => setChosen({ id, seq: named.seq }), named.seq)
   const goal = (chosen?.seq === named.seq ? chosen.id : null) ?? goalOf(plans, named.id)
   const shown = tabbed.length > 1 ? (tabbed.find((g) => g.id === goal) ?? tabbed[0]) : null
   const anyPlan = Object.keys(plans ?? {}).length > 0
@@ -164,9 +190,12 @@ export function GoalList({
   canAct,
   onOpenStudio,
   onInvite,
-  plans,
+  plans: given,
   entry,
+  summary,
+  onOpenGoal,
 }: Props) {
+  const { plans, progress, opener } = useSummary(summary, given, onOpenGoal)
   const planned = (id: string) => plans?.[id]?.view
   const [query, setQuery] = useState('')
   const { tabbed, shown, listed, anyPlan, choose, followed, decisionFollowed } = useChosenGoal(snapshot, plans, query)
@@ -193,6 +222,8 @@ export function GoalList({
               controls={controls && canAct}
               compact={plans?.[g.id] !== undefined}
               next={plans?.[g.id]?.next}
+              progress={progress(g.id)}
+              onOpen={opener(g.id)}
             >
               {planned(g.id)}
               {entry?.(g)}

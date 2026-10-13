@@ -418,6 +418,12 @@ export function blockersOf(blocked: readonly PlanRow[], rows: readonly PlanRow[]
 }
 
 /** The lane a row sits in: its mark's; Blocked when it is up next but waits on an item of its plan not done yet. */
+/** A goal's progress from its board's lanes: done is Complete; closed work is out of the count (goals-progress.md). */
+export function progressOf(lanes: readonly Lane[]): { done: number; total: number } {
+  const counted = lanes.filter((l) => l !== 'closed')
+  return { done: counted.filter((l) => l === 'complete').length, total: counted.length }
+}
+
 export const laneOf = (row: PlanRow, rows: readonly PlanRow[]): Lane => {
   const lane = LANE[row.status.mark]
   return lane === 'next' && blockedIn(row, rows) ? 'blocked' : lane

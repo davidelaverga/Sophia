@@ -37,6 +37,8 @@ import { useMedia, WIDE } from '../../app/useMedia.ts'
 import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
+import { GOAL, showInAddress } from '../resources/link.ts'
+import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
 import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
 import { Connections } from '../connections/Connections.tsx'
@@ -738,7 +740,14 @@ function Goals(props: BodyProps) {
       identity={identity}
       controls={work}
       canAct={canInvite(membership)}
-      plans={work ? plans : undefined}
+      plans={plans}
+      summary={!work}
+      onOpenGoal={(id) => {
+        // Tasks, with the goal named in the address: its plan is the one on the board (goals-progress.md).
+        onShow('work')
+        showInAddress(id, GOAL)
+        window.dispatchEvent(new Event(ADDRESS_NAMED))
+      }}
       entry={work ? entry : undefined}
       onOpenStudio={() => onShow('studio')}
       onInvite={onInvite}

@@ -7,6 +7,8 @@ export const RESOURCE = '#resource-'
 export const TASK = '#task-'
 /** A decision on the board, by its own id: the board scrolls to its choice and gives it the focus (needs-api.md). */
 export const DECISION = '#decision-'
+/** A goal in Tasks: the address chooses it, so its plan is the one on the board (docs/plans/goals-progress.md). */
+export const GOAL = '#goal-'
 /** A native request on a resource, by its id: its resource's sheet opens and the request takes the focus (needs-api.md). */
 export const REQUEST = '#request-'
 

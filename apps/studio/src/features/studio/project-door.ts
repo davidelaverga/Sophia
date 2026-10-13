@@ -41,9 +41,10 @@ export function staleRetry(error: Error | null, loaded: boolean): number | false
 }
 
 /**
- * Whether Tasks reads the work board Sophia serves (WBC-02): only while Tasks is in view and the project can be shown,
- * and never where the page brings its own plans (a fixture). No other view shows the board, so none reads it.
+ * Whether the work board Sophia serves is read (WBC-02): while Tasks (its boards) or Goals (each plan's progress,
+ * docs/plans/goals-progress.md) is in view and the project can be shown, and never where the page brings its own plans
+ * (a fixture). No other view reads it.
  */
 export function readsServedBoard(view: View, blocked: Blocked | null, ownPlans: boolean): boolean {
-  return view === 'work' && !blocked && !ownPlans
+  return (view === 'work' || view === 'goals') && !blocked && !ownPlans
 }

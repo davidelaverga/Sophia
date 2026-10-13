@@ -5385,3 +5385,16 @@ button.contribution-quote:hover {
 .field-label .data {
   font-size: var(--type-label);
 }
+/* Goals: a goal's progress beside the way to its plan (docs/plans/goals-progress.md). */
+.goal-plan-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 10px;
+}
+.goal-progress {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
