@@ -11,8 +11,9 @@ import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 import { after, afterEach, before, describe, it } from 'node:test'
 import pg from 'pg'
+import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
 import type { MissionProposalRequest } from '@sophia/contracts'
-import { createTestDatabase, seedProject, withClusterMigrationLock, type TestDatabase } from '@sophia/test-support'
+import { seedProject, withClusterMigrationLock, type TestDatabase } from '@sophia/test-support'
 import {
   assembleReply,
   checkedLimits,
@@ -576,7 +577,7 @@ const record = (s: pg.PoolClient, replyId: string, k: Pick<Verdict, 'attempt' | 
 
 /** Every case rolls back its temporary role name and installation; the installed role's authority is never adopted. */
 async function candidateCases(cases: [string, string, string][]): Promise<void> {
-  const other = await createTestDatabase()
+  const other = await createConversationCandidateDatabase()
   const c = new pg.Client({ connectionString: other.ownerUrl })
   await c.connect()
   try {
@@ -724,7 +725,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
     await roleLock.query(`SELECT pg_advisory_lock(${ROLE_LOCK})`)
     rolesBefore = await roleNames()
     assemblerExisted = rolesBefore.includes(ROLE)
-    db = await createTestDatabase()
+    db = await createConversationCandidateDatabase()
     ownerPool = tracked(new pg.Pool({ connectionString: db.ownerUrl, max: 6 }))
     api = tracked(createPool(db.apiUrl, { max: 8 }))
     await withClusterMigrationLock(async () => {
@@ -889,7 +890,7 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
     })
 
     it('refuses a second database installation, even after removing its only member', async () => {
-      const other = await createTestDatabase()
+      const other = await createConversationCandidateDatabase()
       const c = new pg.Client({ connectionString: other.ownerUrl })
       await c.connect()
       try {

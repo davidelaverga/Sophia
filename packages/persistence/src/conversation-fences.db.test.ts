@@ -10,8 +10,9 @@ import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { after, afterEach, before, describe, it } from 'node:test'
 import pg from 'pg'
+import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
 import type { MissionProposalRequest } from '@sophia/contracts'
-import { createTestDatabase, seedProject, withClusterMigrationLock, type TestDatabase } from '@sophia/test-support'
+import { seedProject, withClusterMigrationLock, type TestDatabase } from '@sophia/test-support'
 import { assembleReply, type AssemblyLimits } from './conversation-assembly.ts'
 import {
   createPool,
@@ -701,7 +702,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
     await roleLock.query(`SELECT pg_advisory_lock(${ROLE_LOCK})`)
     rolesBefore = await roleNames()
     assemblerExisted = rolesBefore.includes(ROLE)
-    db = await createTestDatabase()
+    db = await createConversationCandidateDatabase()
     ownerPool = tracked(new pg.Pool({ connectionString: db.ownerUrl, max: 8 }))
     api = tracked(createPool(db.apiUrl, { max: 8 }))
     await withClusterMigrationLock(async () => {
@@ -2037,7 +2038,7 @@ describe('CON-01 N4: a reply’s answer under its fences, and a source’s withd
       // Another database, so its fixture rows reach no other test. S1 to N4 are applied in one transaction, rolled back
       // at the end. Q13 forbids adopting the role's authority from another database: a temporary name parks this
       // database's installed role and a fresh bare role is created for the isolated candidate, all rolled back.
-      const other = await createTestDatabase()
+      const other = await createConversationCandidateDatabase()
       const projectId = (await seedProject(other.ownerUrl, { admin: A })).projectId
       const elsewhere = (await seedProject(other.ownerUrl, { admin: A })).projectId
       const c = new pg.Client({ connectionString: other.ownerUrl })

@@ -7,7 +7,8 @@ import { readFileSync, statSync } from 'node:fs'
 import { basename, dirname } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import pg from 'pg'
-import { createTestDatabase, type TestDatabase } from '@sophia/test-support'
+import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
+import { type TestDatabase } from '@sophia/test-support'
 
 const adminUrl = process.env.SOPHIA_DISPOSABLE_DATABASE_URL ?? ''
 const enabled = process.env.SOPHIA_Q13_OWNED_CLUSTER === 'con01-q13-exclusive-v1'
@@ -86,7 +87,7 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
   before(async () => {
     admin = await connect('postgres', 'postgres')
     await requireOwned()
-    db = await createTestDatabase()
+    db = await createConversationCandidateDatabase()
     database = new URL(db.ownerUrl).pathname.slice(1)
     target = await connect('postgres', database)
     await target.query('SET search_path=pg_catalog')

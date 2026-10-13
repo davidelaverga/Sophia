@@ -1,8 +1,22 @@
 # CON-01 coordination
 
-**Current continuation, 13 October source-only takeover:** [Step1 boundary and narrow amendment proposed](../../handoffs/CON-01-codex-source-takeover-5.md), after [composition/authority](../../handoffs/CON-01-codex-source-takeover-2.md), [Q13 qualification](../../handoffs/CON-01-codex-source-takeover-3.md) and [automatic-review ACL corrections](../../handoffs/CON-01-codex-source-takeover-4.md). Draft [#273](https://github.com/davidelaverga/Sophia/pull/273) exact `8dcbf268` automatic review was actually checked complete without major issues; its executable `1d8ac750` has independent clearance, 181 owned PostgreSQL passes and the complete ordinary gate. Step1's two publication-privacy cases reproduced on real PostgreSQL expose missing cancellation provenance in the frozen promotion contract. Affected writes stopped; unfinished DDL/test/type changes parked privately and removed from the migration runner, never pushed. Approval of the two named source-scope additions is pending. This publication changes documentation only; its own exact-head review is recorded separately. Ask stays disabled.
+**Current continuation, renewed13October source-only takeover:** [exact approved
+capture-privacy implementation, source pins and evidence](../../handoffs/CON-01-codex-source-takeover-9.md).
+Handoff6 and expiry-only renewal are approved, same r12+handoffs5/6 source scope
+through2026-10-13T18:00Z/20:00Europe-Rome. Last observed draft273 was07d296ff, actual automatic
+review clear only at that pin; latest publication identity/verdict belongs to
+the shared mission receipt; dirty Step1 runtime suite103/103 pass, affected21 fail
+before/pass after. Independent whole-delta review/103cases clear, code hold released; ordinary
+gate/DB877/877/SQL48/five/actualgoal native-mock5/5 pass. Immutable publication
+confirmation/actual automatic review before Step2. Current main9d9023f9 has8 Studio conflicts; preserved
+main/CON requirements198/6142703180, no resolution write. Prior97eae14c rehearsal
+is old-main evidence. Askoff, signed-out actual IAB, operation batches unapproved.
 
-Davide's approval replaces missing owner-ACK/accepted-base holds only for local source writes and draft publication until 2026-10-13T08:00Z. It does not invent owner ACKs or authorize merge/hosted/provider effects. Codex is sole feature author; independent whole-diff review before each push and automatic exact-head review after each push remain required. Luis integration/merge review and Davide product acceptance remain separate.
+Codex is sole author; Claude stopped. Historical ACKs retain pins; owner/base
+replacement remains only for listed local authoring/draft publication. No unlisted
+path, active writer or merge/hosted/provider/credential/account/grant/spend waiver.
+Independent whole-diff before each push and actual exact-head automatic review
+after each push; Luis integration and Davide acceptance remain separate.
 
 The [r12 reservation](G2_SHARED_RESERVATION_REQUEST.md) and [research amendment](G2_RESEARCH_COMPATIBILITY_AMENDMENT.md) remain the reviewed source scope; their historical no-window status describes their publication, not the later explicit source-only approval. Retained conditional owner handbacks remain exact-r10 only. Base main `32854caf`; own branch `codex/con01-takeover-source-20261013`. Earlier table/history below retains original inputs and evidence at their own pins.
 
@@ -22,7 +36,7 @@ CON-01 completes saved project conversations. Two or more named text conversatio
 | Parallel lanes | PR #190 (SDD-01 G7 voice, A15, 0046–0047); WBC-02 and SDD-01's combined runtime. The shared-file order is in the [binding map](BINDING_MAP.md) §2 |
 | Progress | [docs/progress/CON-01.md](../../progress/CON-01.md) |
 
-A comment wakes nobody. Under the 12 October takeover, resume Codex only for CON implementation, for example: `CON-01: recover the latest publication receipt and progress record, check the exact-head automatic review, and continue only within the recorded scope.` Do not resume the former CON Claude feature session or delegate its coding/gates back to it. Retained owners supply only specifically authorized handbacks in their own lanes. No message here is an approval; exact shared-write and operation approvals remain separate. Read-only discovery already authorized by Davide may continue. [Current PR273 ending-publication recovery](../../handoffs/CON-01-codex-source-takeover-5.md); [historical PR271 r12 publication](receipts/codex-research-r12-publication.md); [retained r11 publication](receipts/codex-owner-incorporation-r11-publication.md).
+A comment wakes nobody. Under the 12 October takeover, resume Codex only for CON implementation, for example: `CON-01: recover the latest publication receipt and progress record, check the exact-head automatic review, and continue only within the recorded scope.` Do not resume the former CON Claude feature session or delegate its coding/gates back to it. Retained owners supply only specifically authorized handbacks in their own lanes. No message here is an approval; exact shared-write and operation approvals remain separate. Read-only discovery already authorized by Davide may continue. [Current PR273 Step1 publication recovery and exact receipt locator](../../handoffs/CON-01-codex-source-takeover-9.md); [historical PR271 r12 publication](receipts/codex-research-r12-publication.md); [retained r11 publication](receipts/codex-owner-incorporation-r11-publication.md).
 
 ## Messages
 

@@ -9,6 +9,7 @@ import pg from 'pg'
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
+import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
 import {
   createPool,
   eraseConversation,
@@ -221,223 +222,226 @@ async function takes(
   }
 }
 
-describe('CON-01 N3: a reply request’s terminal set, in SQL', () => {
-  let db: TestDatabase
-  let pool: pg.Pool
-  let pre: Identities
-  let post: Identities
+for (const migrated of [false, true]) {
+  describe(`CON-01 N3: terminal states (${migrated ? 'full migration' : 'sealed S1 candidate'})`, () => {
+    let db: TestDatabase
+    let pool: pg.Pool
+    let pre: Identities
+    let post: Identities
 
-  before(async () => {
-    db = await createTestDatabase()
-    pool = createPool(db.apiUrl, { max: 4 })
-    pre = await identities(db.ownerUrl)
-    await query(db.ownerUrl, CANDIDATE)
-    post = await identities(db.ownerUrl)
-  })
-  after(async () => {
-    await pool.end()
-    await db.drop()
-  })
-
-  describe('its footprint, recorded before and after it', () => {
-    it('replaces only the settled-time CHECK, under the same name; every other constraint is 0048’s', (t) => {
-      assert.deepEqual(
-        settledCheck(pre).map((c) => c.def),
-        [SETTLED_BEFORE],
-      )
-      assert.deepEqual(
-        settledCheck(post).map((c) => c.def),
-        [SETTLED_AFTER],
-      )
-      assert.deepEqual(
-        settledCheck(post).map((c) => c.conname),
-        settledCheck(pre).map((c) => c.conname),
-      )
-      assert.deepEqual(otherConstraints(post), otherConstraints(pre))
-      t.diagnostic(`settled CHECK ${settledCheck(pre)[0]?.conname ?? ''}: ${SETTLED_BEFORE} -> ${SETTLED_AFTER}`)
+    before(async () => {
+      db = migrated ? await createTestDatabase() : await createConversationCandidateDatabase()
+      pool = createPool(db.apiUrl, { max: 4 })
+      pre = await identities(db.ownerUrl)
+      if (!migrated) await query(db.ownerUrl, CANDIDATE)
+      post = await identities(db.ownerUrl)
+    })
+    after(async () => {
+      await pool.end()
+      await db.drop()
     })
 
-    it('keeps the open index plain (not unique) under its name and columns, its predicate pending and running only', (t) => {
-      assert.deepEqual(openIndex(pre), { name: OPEN_INDEX, def: INDEX_BEFORE, unique: false })
-      assert.deepEqual(openIndex(post), { name: OPEN_INDEX, def: INDEX_AFTER, unique: false })
-      assert.deepEqual(otherIndexes(post), otherIndexes(pre))
-      // The by-id and per-message uniqueness stay as 0048 made them.
+    if (!migrated)
+      describe('its footprint, recorded before and after it', () => {
+        it('replaces only the settled-time CHECK, under the same name; every other constraint is 0048’s', (t) => {
+          assert.deepEqual(
+            settledCheck(pre).map((c) => c.def),
+            [SETTLED_BEFORE],
+          )
+          assert.deepEqual(
+            settledCheck(post).map((c) => c.def),
+            [SETTLED_AFTER],
+          )
+          assert.deepEqual(
+            settledCheck(post).map((c) => c.conname),
+            settledCheck(pre).map((c) => c.conname),
+          )
+          assert.deepEqual(otherConstraints(post), otherConstraints(pre))
+          t.diagnostic(`settled CHECK ${settledCheck(pre)[0]?.conname ?? ''}: ${SETTLED_BEFORE} -> ${SETTLED_AFTER}`)
+        })
+
+        it('keeps the open index plain (not unique) under its name and columns, its predicate pending and running only', (t) => {
+          assert.deepEqual(openIndex(pre), { name: OPEN_INDEX, def: INDEX_BEFORE, unique: false })
+          assert.deepEqual(openIndex(post), { name: OPEN_INDEX, def: INDEX_AFTER, unique: false })
+          assert.deepEqual(otherIndexes(post), otherIndexes(pre))
+          // The by-id and per-message uniqueness stay as 0048 made them.
+          assert.deepEqual(
+            otherIndexes(post).map((i) => [i.name, i.unique]),
+            [
+              ['sophia.conversation_replies_by_id', true],
+              ['sophia.conversation_replies_pkey', true],
+              ['sophia.conversation_replies_project_id_message_id_key', true],
+            ],
+          )
+          t.diagnostic(`open index: ${INDEX_BEFORE} -> ${INDEX_AFTER}`)
+        })
+
+        it('changes conversation_withdrawn_from in its open set only; owner, SECURITY DEFINER, search_path and privileges stay', (t) => {
+          assert.equal(pre.withdrawnFrom.src.split(OPEN_BEFORE).length, 2, '0048’s body names the open set once')
+          assert.equal(post.withdrawnFrom.src, pre.withdrawnFrom.src.replace(OPEN_BEFORE, OPEN_AFTER))
+          assert.deepEqual(
+            { ...post.withdrawnFrom, src: '' },
+            { ...pre.withdrawnFrom, src: '' },
+            'owner, SECURITY DEFINER, search_path and ACL unchanged',
+          )
+          assert.equal(post.withdrawnFrom.secdef, true)
+          assert.equal(post.withdrawnFrom.config, 'search_path=pg_catalog, sophia')
+          t.diagnostic(
+            `conversation_withdrawn_from acl ${post.withdrawnFrom.acl ?? 'null'}, owner ${post.withdrawnFrom.owner}`,
+          )
+        })
+
+        it('adds or changes nothing else: functions, relations, triggers, policies, grants and every table’s rows', () => {
+          assert.deepEqual(
+            post.functions.map((f) => f.sig),
+            pre.functions.map((f) => f.sig),
+            'no function added or removed',
+          )
+          assert.deepEqual(otherFunctions(post), otherFunctions(pre), 'no other function changed')
+          assert.deepEqual(post.relations, pre.relations)
+          assert.deepEqual(post.triggers, pre.triggers)
+          assert.deepEqual(post.policies, pre.policies)
+          assert.deepEqual(post.grants, pre.grants)
+          assert.deepEqual(post.rows, pre.rows, 'no row inserted, changed away or removed')
+          for (const table of OPERATIONAL) {
+            assert.equal(post.rows.find((r) => r.relname === table)?.n, '0', `no ${table} row`)
+          }
+        })
+
+        it('lets none of PUBLIC, sophia_api and sophia_worker execute the replaced helper, as before', async () => {
+          for (const role of ['public', 'sophia_api', 'sophia_worker']) {
+            const [row] = await query<{ can: boolean }>(
+              db.ownerUrl,
+              `SELECT has_function_privilege($1, '${WITHDRAWN_FROM}'::regprocedure, 'EXECUTE') AS can`,
+              [role],
+            )
+            assert.equal(row?.can, false, `${role} cannot execute it`)
+          }
+          const args = [randomUUID(), randomUUID(), 1, 'source_withdrawn']
+          const call = `SELECT sophia.conversation_withdrawn_from($1, $2, $3, $4)`
+          assert.equal(await codeOf(query(db.apiUrl, call, args)), '42501')
+          assert.equal(await codeOf(query(db.workerUrl, call, args)), '42501')
+        })
+      })
+
+    it('gives every terminal state its settled time and an open one none: all fourteen pairs', async () => {
+      const { projectId, replies, messages } = await conversationWithAsks(db, pool, 1)
+      const [reply] = replies
+      const c = new pg.Client({ connectionString: db.ownerUrl })
+      await c.connect()
+      const accepted: Record<string, boolean> = {}
+      try {
+        await c.query('BEGIN')
+        for (const state of STATES) {
+          for (const settled of [false, true]) {
+            const answer = state === 'answered' ? (messages[0] ?? null) : null
+            accepted[`${state}/${settled ? 'settled' : 'open'}`] = await takes(c, {
+              projectId,
+              reply,
+              state,
+              settled,
+              answer,
+            })
+          }
+        }
+        await c.query('ROLLBACK')
+      } finally {
+        await c.end()
+      }
+      const expected: Record<string, boolean> = {}
+      for (const state of STATES) {
+        const ended = ENDED.includes(state)
+        expected[`${state}/open`] = !ended
+        expected[`${state}/settled`] = ended
+      }
+      assert.deepEqual(accepted, expected)
+    })
+
+    it('a withdrawal cancels pending and running; every ended request, outcome_unknown included, stays as it ended', async () => {
+      const { projectId, conversationId, messages, replies } = await conversationWithAsks(db, pool, 7)
+      const [blocked, pending, running, uncertain, answered, failed, cancelled] = replies as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+      ]
+      await put(db.ownerUrl, pending, 'pending', null)
+      await put(db.ownerUrl, running, 'running', null)
+      await assert.doesNotReject(
+        put(db.ownerUrl, uncertain, 'outcome_unknown', 'runtime_failed'),
+        'an outcome_unknown request is written with its settled time',
+      )
+      const [answer] = await query<{ id: string }>(
+        db.ownerUrl,
+        `SELECT (sophia.conversation_append($1, $2, 'sophia', NULL, NULL, 'SYNTHETIC-ANSWER', $3)).id AS id`,
+        [projectId, conversationId, answered],
+      )
+      await put(db.ownerUrl, answered, 'answered', null, answer?.id ?? null)
+      await put(db.ownerUrl, failed, 'failed', 'turn_error')
+      await put(db.ownerUrl, cancelled, 'cancelled', 'grant_disabled')
+      const was = await repliesOf(db.ownerUrl, replies)
+
+      // The first asking message withdrawn by its author: every request read from it on.
+      await withActor(pool, E, 'write', (c) =>
+        withdrawConversationMessage(c, conversationId, messages[0] ?? '', randomUUID()),
+      )
+      const once = await repliesOf(db.ownerUrl, replies)
+      for (const id of [pending, running]) {
+        assert.equal(once.get(id)?.state, 'cancelled')
+        assert.equal(once.get(id)?.reason, 'source_withdrawn')
+        assert.ok(once.get(id)?.settled_at)
+      }
+      for (const id of [blocked, uncertain, answered, failed, cancelled]) {
+        assert.deepEqual(once.get(id), was.get(id), 'an ended request is not moved, revived or re-settled')
+      }
+      // What it scrubs is unchanged: the withdrawn member's text, and Sophia's answer whose context reached it.
+      const bodies = await bodiesOf(db.ownerUrl, conversationId)
       assert.deepEqual(
-        otherIndexes(post).map((i) => [i.name, i.unique]),
+        bodies.map((m) => [m.seq, m.author, m.body, m.withdrawn_by]),
         [
-          ['sophia.conversation_replies_by_id', true],
-          ['sophia.conversation_replies_pkey', true],
-          ['sophia.conversation_replies_project_id_message_id_key', true],
+          ['1', 'member', null, 'author'],
+          ...[2, 3, 4, 5, 6, 7].map((n) => [String(n), 'member', `SYNTHETIC-ASK-${String(n)}`, null]),
+          ['8', 'sophia', null, 'source'],
         ],
       )
-      t.diagnostic(`open index: ${INDEX_BEFORE} -> ${INDEX_AFTER}`)
-    })
 
-    it('changes conversation_withdrawn_from in its open set only; owner, SECURITY DEFINER, search_path and privileges stay', (t) => {
-      assert.equal(pre.withdrawnFrom.src.split(OPEN_BEFORE).length, 2, '0048’s body names the open set once')
-      assert.equal(post.withdrawnFrom.src, pre.withdrawnFrom.src.replace(OPEN_BEFORE, OPEN_AFTER))
-      assert.deepEqual(
-        { ...post.withdrawnFrom, src: '' },
-        { ...pre.withdrawnFrom, src: '' },
-        'owner, SECURITY DEFINER, search_path and ACL unchanged',
+      // A second withdrawal reaches none of them again: what ended, and what the first cancelled, stays.
+      await withActor(pool, E, 'write', (c) =>
+        withdrawConversationMessage(c, conversationId, messages[2] ?? '', randomUUID()),
       )
-      assert.equal(post.withdrawnFrom.secdef, true)
-      assert.equal(post.withdrawnFrom.config, 'search_path=pg_catalog, sophia')
-      t.diagnostic(
-        `conversation_withdrawn_from acl ${post.withdrawnFrom.acl ?? 'null'}, owner ${post.withdrawnFrom.owner}`,
-      )
+      assert.deepEqual(await repliesOf(db.ownerUrl, replies), once)
     })
 
-    it('adds or changes nothing else: functions, relations, triggers, policies, grants and every table’s rows', () => {
-      assert.deepEqual(
-        post.functions.map((f) => f.sig),
-        pre.functions.map((f) => f.sig),
-        'no function added or removed',
-      )
-      assert.deepEqual(otherFunctions(post), otherFunctions(pre), 'no other function changed')
-      assert.deepEqual(post.relations, pre.relations)
-      assert.deepEqual(post.triggers, pre.triggers)
-      assert.deepEqual(post.policies, pre.policies)
-      assert.deepEqual(post.grants, pre.grants)
-      assert.deepEqual(post.rows, pre.rows, 'no row inserted, changed away or removed')
-      for (const table of OPERATIONAL) {
-        assert.equal(post.rows.find((r) => r.relname === table)?.n, '0', `no ${table} row`)
+    it('an erasure cancels only what is open, and every member’s text goes', async () => {
+      const { conversationId, replies } = await conversationWithAsks(db, pool, 4)
+      const [pending, running, uncertain, failed] = replies as [string, string, string, string]
+      await put(db.ownerUrl, pending, 'pending', null)
+      await put(db.ownerUrl, running, 'running', null)
+      await assert.doesNotReject(put(db.ownerUrl, uncertain, 'outcome_unknown', 'runtime_failed'))
+      await put(db.ownerUrl, failed, 'failed', 'turn_error')
+      const was = await repliesOf(db.ownerUrl, replies)
+      await withActor(pool, A, 'write', (c) => eraseConversation(c, conversationId, randomUUID()))
+      const now = await repliesOf(db.ownerUrl, replies)
+      for (const id of [pending, running]) {
+        assert.equal(now.get(id)?.state, 'cancelled')
+        assert.equal(now.get(id)?.reason, 'conversation_erased')
       }
+      assert.deepEqual(now.get(uncertain), was.get(uncertain))
+      assert.deepEqual(now.get(failed), was.get(failed))
+      const bodies = await bodiesOf(db.ownerUrl, conversationId)
+      assert.equal(bodies.length, 4)
+      assert.ok(bodies.every((m) => m.body === null && m.withdrawn_by === 'admin'))
     })
 
-    it('lets none of PUBLIC, sophia_api and sophia_worker execute the replaced helper, as before', async () => {
-      for (const role of ['public', 'sophia_api', 'sophia_worker']) {
-        const [row] = await query<{ can: boolean }>(
-          db.ownerUrl,
-          `SELECT has_function_privilege($1, '${WITHDRAWN_FROM}'::regprocedure, 'EXECUTE') AS can`,
-          [role],
-        )
-        assert.equal(row?.can, false, `${role} cannot execute it`)
-      }
-      const args = [randomUUID(), randomUUID(), 1, 'source_withdrawn']
-      const call = `SELECT sophia.conversation_withdrawn_from($1, $2, $3, $4)`
-      assert.equal(await codeOf(query(db.apiUrl, call, args)), '42501')
-      assert.equal(await codeOf(query(db.workerUrl, call, args)), '42501')
+    it('wrote no row of the runtime or the model', async () => {
+      const rows = (await identities(db.ownerUrl)).rows
+      for (const table of OPERATIONAL) assert.equal(rows.find((r) => r.relname === table)?.n, '0', `no ${table} row`)
     })
   })
-
-  it('gives every terminal state its settled time and an open one none: all fourteen pairs', async () => {
-    const { projectId, replies, messages } = await conversationWithAsks(db, pool, 1)
-    const [reply] = replies
-    const c = new pg.Client({ connectionString: db.ownerUrl })
-    await c.connect()
-    const accepted: Record<string, boolean> = {}
-    try {
-      await c.query('BEGIN')
-      for (const state of STATES) {
-        for (const settled of [false, true]) {
-          const answer = state === 'answered' ? (messages[0] ?? null) : null
-          accepted[`${state}/${settled ? 'settled' : 'open'}`] = await takes(c, {
-            projectId,
-            reply,
-            state,
-            settled,
-            answer,
-          })
-        }
-      }
-      await c.query('ROLLBACK')
-    } finally {
-      await c.end()
-    }
-    const expected: Record<string, boolean> = {}
-    for (const state of STATES) {
-      const ended = ENDED.includes(state)
-      expected[`${state}/open`] = !ended
-      expected[`${state}/settled`] = ended
-    }
-    assert.deepEqual(accepted, expected)
-  })
-
-  it('a withdrawal cancels pending and running; every ended request, outcome_unknown included, stays as it ended', async () => {
-    const { projectId, conversationId, messages, replies } = await conversationWithAsks(db, pool, 7)
-    const [blocked, pending, running, uncertain, answered, failed, cancelled] = replies as [
-      string,
-      string,
-      string,
-      string,
-      string,
-      string,
-      string,
-    ]
-    await put(db.ownerUrl, pending, 'pending', null)
-    await put(db.ownerUrl, running, 'running', null)
-    await assert.doesNotReject(
-      put(db.ownerUrl, uncertain, 'outcome_unknown', 'runtime_failed'),
-      'an outcome_unknown request is written with its settled time',
-    )
-    const [answer] = await query<{ id: string }>(
-      db.ownerUrl,
-      `SELECT (sophia.conversation_append($1, $2, 'sophia', NULL, NULL, 'SYNTHETIC-ANSWER', $3)).id AS id`,
-      [projectId, conversationId, answered],
-    )
-    await put(db.ownerUrl, answered, 'answered', null, answer?.id ?? null)
-    await put(db.ownerUrl, failed, 'failed', 'turn_error')
-    await put(db.ownerUrl, cancelled, 'cancelled', 'grant_disabled')
-    const was = await repliesOf(db.ownerUrl, replies)
-
-    // The first asking message withdrawn by its author: every request read from it on.
-    await withActor(pool, E, 'write', (c) =>
-      withdrawConversationMessage(c, conversationId, messages[0] ?? '', randomUUID()),
-    )
-    const once = await repliesOf(db.ownerUrl, replies)
-    for (const id of [pending, running]) {
-      assert.equal(once.get(id)?.state, 'cancelled')
-      assert.equal(once.get(id)?.reason, 'source_withdrawn')
-      assert.ok(once.get(id)?.settled_at)
-    }
-    for (const id of [blocked, uncertain, answered, failed, cancelled]) {
-      assert.deepEqual(once.get(id), was.get(id), 'an ended request is not moved, revived or re-settled')
-    }
-    // What it scrubs is unchanged: the withdrawn member's text, and Sophia's answer whose context reached it.
-    const bodies = await bodiesOf(db.ownerUrl, conversationId)
-    assert.deepEqual(
-      bodies.map((m) => [m.seq, m.author, m.body, m.withdrawn_by]),
-      [
-        ['1', 'member', null, 'author'],
-        ...[2, 3, 4, 5, 6, 7].map((n) => [String(n), 'member', `SYNTHETIC-ASK-${String(n)}`, null]),
-        ['8', 'sophia', null, 'source'],
-      ],
-    )
-
-    // A second withdrawal reaches none of them again: what ended, and what the first cancelled, stays.
-    await withActor(pool, E, 'write', (c) =>
-      withdrawConversationMessage(c, conversationId, messages[2] ?? '', randomUUID()),
-    )
-    assert.deepEqual(await repliesOf(db.ownerUrl, replies), once)
-  })
-
-  it('an erasure cancels only what is open, and every member’s text goes', async () => {
-    const { conversationId, replies } = await conversationWithAsks(db, pool, 4)
-    const [pending, running, uncertain, failed] = replies as [string, string, string, string]
-    await put(db.ownerUrl, pending, 'pending', null)
-    await put(db.ownerUrl, running, 'running', null)
-    await assert.doesNotReject(put(db.ownerUrl, uncertain, 'outcome_unknown', 'runtime_failed'))
-    await put(db.ownerUrl, failed, 'failed', 'turn_error')
-    const was = await repliesOf(db.ownerUrl, replies)
-    await withActor(pool, A, 'write', (c) => eraseConversation(c, conversationId, randomUUID()))
-    const now = await repliesOf(db.ownerUrl, replies)
-    for (const id of [pending, running]) {
-      assert.equal(now.get(id)?.state, 'cancelled')
-      assert.equal(now.get(id)?.reason, 'conversation_erased')
-    }
-    assert.deepEqual(now.get(uncertain), was.get(uncertain))
-    assert.deepEqual(now.get(failed), was.get(failed))
-    const bodies = await bodiesOf(db.ownerUrl, conversationId)
-    assert.equal(bodies.length, 4)
-    assert.ok(bodies.every((m) => m.body === null && m.withdrawn_by === 'admin'))
-  })
-
-  it('wrote no row of the runtime or the model', async () => {
-    const rows = (await identities(db.ownerUrl)).rows
-    for (const table of OPERATIONAL) assert.equal(rows.find((r) => r.relname === table)?.n, '0', `no ${table} row`)
-  })
-})
+}
 
 describe('CON-01 N3: over rows written before it, and taken back', () => {
   let db: TestDatabase
@@ -448,7 +452,7 @@ describe('CON-01 N3: over rows written before it, and taken back', () => {
     query<{ r: unknown }>(db.ownerUrl, `SELECT to_jsonb(r) AS r FROM sophia.conversation_replies r ORDER BY id`)
 
   before(async () => {
-    db = await createTestDatabase()
+    db = await createConversationCandidateDatabase()
     pool = createPool(db.apiUrl, { max: 4 })
     // Before the candidate: a request in each state 0048 allows with its settled time (G1 itself writes only blocked).
     const { projectId, conversationId, messages, replies } = await conversationWithAsks(db, pool, 6)

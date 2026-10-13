@@ -2,26 +2,46 @@
 
 The mission's one record of where things stand. Source, local tests, independent review, hosted operations and Davide's acceptance are kept apart. Evidence levels follow pack 07: **L0** source and static, **L1** local real API, PostgreSQL and pinned dsh with a labelled stub provider, **L2** authorized real provider, **L3** deployed app, **L4** Davide's acceptance. A level never promotes another.
 
-**Current continuation, 13 October source-only takeover.** Davide approved local
-source authoring and draft publication through2026-10-13T08:00:00Z, replacing
-missing owner-ACK/accepted-base prerequisites for that scope only. The
-[approval/GO and exact composed source handoff](../handoffs/CON-01-codex-source-takeover-2.md)
-are the current continuation. Historical owner ACKs retain their actual pins;
-Luis integration/merge review and Davide acceptance remain separate. Codex alone
-implements CON; no former Claude feature/review workflow or monitor.
+**Current continuation, renewed13October source-only window.** Handoff6 capture
+privacy amendment and expiry-only renewal are approved; source scope remains
+r12+handoffs5/6 through2026-10-13T18:00Z (**20:00 Rome today**). [Current exact
+source/authority/evidence handoff](../handoffs/CON-01-codex-source-takeover-9.md).
+Codex remains sole CON author, Claude stopped; independent whole-diff review
+before each push and actual exact-head automatic review after each push. No merge,
+hosted/credential/account/grant/provider/spending authority. Askoff.
 
-Own branch `codex/con01-takeover-source-20261013`, base `32854caf`. Draft [#273](https://github.com/davidelaverga/Sophia/pull/273): automatic review cleared `d06f98a1`, found two activation ACL gaps at `9aad383c`, then actually cleared corrected documentation head `8dcbf268` at2026-10-12T23:44:11Z. Executable `1d8ac750` / tree `cce32c16` retains 181 PostgreSQL passes, 47 migrations/five SQL files, the ordinary gate and independent source review. [Current handoff and proposed narrow source amendment](../handoffs/CON-01-codex-source-takeover-5.md): Step1 privacy cancellations reproduce, but its frozen publication branch cannot supply the required cancellation row/epoch/stop under r12. Affected implementation stopped; partial DDL/test/type changes retained privately and removed from source, not pushed or accepted. Publication-privacy provenance and one sealed candidate-test helper need the explicit source-scope amendment. Hosted/provider operations remain unapproved. This delta is documentation only; its own final head and automatic review are recorded separately.
+Last observed published draft273 was07d296ff/tree69592cb3, automatic review
+actually checked clear at that pin; the next exact publication/automatic verdict
+is authoritative only when recorded in the shared mission receipt. Dirty0049 SQL636f0b34/test0ea13398/helper565b310c: approved
+capture_privacy with actual end provenance implemented.21/21 affected cases fail
+before and pass after; full runtime103/103 pass, zero skips/cancellations, real
+owned PostgreSQL only. Original five privacy failures now pass. Whole-delta
+independent review found no actionable finding and independently passed103/103.
+Current ordinary gate passes; parallelDB877/877, SQL48/five and actual goal
+native/mock5/5 pass. All current local gates are complete; immutable publication
+confirmation/actual automatic verdict remain due before Step2. Prior checks
+remain at their actual pins.
+
+Main9d9023f9/tree15ae352e adds11 Studio/UI PRs since97eae14c, no runtime/SQL delta.
+Eight mechanical UI conflicts are held; exact main freshness/viewer/controls and
+CON actual API/correlation/withdrawal/access preservation recorded198/6142703180.
+Old97eae14c local compatibility rehearsal is historical, not current integration.
+Published menu-clock browser CI failure remains unwaived. Actual IAB signed out;
+no two-account/provider app acceptance. Operation drafts remain unapproved.
 
 | Gate | Actual current evidence | Remaining boundary |
 |---|---|---|
-| G0 | Accepted option C, throwaway home, Q13A, conservative withdrawal and conversation-text-v1 test cohort | Subscription route/credentials/quota/execution unqualified |
-| G1 | Real owned PG17.6/API; 172/172 prior, now 181/181 with Q13 crossings; 47 migrations/five SQL files passed | Hosted records and target admission unqualified |
-| G2 | Dormant S1–S4; bare assembler and claim-bound reads locally qualified, semantic/trigger/complete ACL drift regressions; no runtime imports/admission | Implement request/runtime/cleanup/correlation and mixed research preservation; native/provider/host-copy qualification; Ask disabled |
-| G3 | 73/73 affected browser fixtures, 119/119 main preservation fixtures; controlled focus fail-before; actual local desktop/question shortcut/phone draft return | Full Studio suite and signed-in real-provider episode unqualified; earlier failures retained |
-| G4 | Corrected Q13 source passed ordinary gate and independent source review; two second-push automatic findings reproduced and corrected | Final publication/automatic review, integration/merge review pending |
-| G5 | Read-only hosted discovery retained | Setup/Ask batches unapproved; serving tuple/two actual actors/native answer not app_verified |
+| G0 | Accepted optionC, throwaway home, Q13A, conservative withdrawal, cohort policy, handoffs5/6 | Supported subscription topology/adapter/credentials/quota/execution bounds unqualified |
+| G1 | Retained real-PG/API evidence; human-only no model/operational growth | Hosted records/target admission unqualified |
+| G2 | Current runtimeSQL103/103 pass; frozen/shared equality and mixed goal paths retained | Local gates/whole-delta review passed; immutable pin/publication confirmation due; later wire/native/isolated home/provider; Askoff |
+| G3 | Earlier affected/preservation fixtures retained at their pins | Newer-main8-conflict reconciliation; menu CI failure; signed-in provider episode absent |
+| G4 | Published07d automatic review checked; current Step1 independent whole review/103runtime checks passed | Complete Step1 pin/whole-diff clearance and current-main integration |
+| G5 | Read-only discovery, actual signed-out browser | Setup/Ask batches unapproved; real tuple/two actors/native answer not app_verified |
 
-Readiness is scoped to exact source/checks. Source authorization is not hosted authorization. No merge/deploy/account/grant/credential/provider/spend effect. OP-0002r6 / OP-0001r4 remain draft_not_authorized. Retained [36-case ledger](../coordination/CON-01/receipts/codex-takeover-retained-acceptance.json) remains 18 partial_L1 / three passed_L1 / 15 not_run. No product/other-mission completion. All owned PG clusters stopped/removed; private logs retained. Earlier stopped-workflow subscription deduction remains unknown.
+Retained36-case ledger remains18partial_L1/three passed_L1/15not_run, no broader
+product/other-mission completion. Temporary resources from completed runs removed;
+private logs retained. No hosted data effect/rollback, no spending or allowance reset.
+Earlier stopped-workflow deductions remain unknown. Luis integration/Davide acceptance.
 
 ## Historical gates (retained author checkpoints, not current instructions)
 
@@ -163,12 +183,14 @@ Run in this session with each exit code written by the shell, never through a pi
 
 ## Next action
 
-Finish terminal checks and independent whole-diff review of this exact combined
-candidate, publish a reviewable draft, and check the automatic Codex review for
-every pushed exact head. Then implement the separate Q13A/dormant G2 slices in
-r12 dependency order within the approved source window. Stop affected writes on
-active owner overlap/collision or expiry, and hand back immutable source/tree/
-artifact identities and actual results. No new Claude workflow or old batches.
+Confirm the exact immutable Step1 candidate after the documentation-only final
+review correction, publish that reviewed draft candidate, and actually inspect
+its exact-head automatic Codex review. Capture privacy is approved/implemented;
+all current local gates pass. Step2 waits for that completed Step1 publication/
+review pin. Preserve current-main9d9023f9's eight Studio conflicts as held until
+ownership/scope-compatible reconciliation; no merge or app acceptance inferred.
+Stop affected writes on overlap/collision/unlisted need or renewed
+2026-10-13T18:00:00Z expiry (20:00 Rome). No new Claude workflow, monitor or old batches.
 
 Prepare setup/human-chat and Ask batches separately with actual source/artifacts,
 targets, accounts/roles, credential references, payer, finite allowances/expiry,

@@ -230,7 +230,7 @@ describe('starting and continuing', () => {
     const m = await message(V, r.messageId)
     assert.equal(m.ask?.id, r.replyId)
     assert.equal(m.ask?.state, 'blocked')
-    assert.equal(m.ask?.reason, 'replies_not_enabled')
+    assert.equal(m.ask?.reason, 'no_grant')
     assert.ok(m.ask?.settledAt)
     const s = await send(F, r.conversationId, 'And Luis thinks the list first', { ask: true })
     assert.equal(s.sophia, 'asked')

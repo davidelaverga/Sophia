@@ -1,9 +1,8 @@
-// CON-01 G2-S2, the reply ledger: a review-only candidate (db/candidates/con01-s2-conversation-reply-ledger.sql,
-// BINDING_MAP §8.7.1), applied here after every migration to a disposable database. Level: sql-run. Its number waits
-// for the final census; nothing calls it and nothing is granted. A reply is put `running` by the owner here because no
+// CON-01 G2-S2, the reply ledger: frozen candidate promoted into 0049 (source remains in db/candidates),
+// BINDING_MAP §8.7.1), read here from the complete migrated disposable database. Level: sql-run. No role or provider executes.
+// A reply is put `running` by the owner here because this suite isolates accounting; no
 // dispatch exists yet; that is this test's setup, not a path the candidate offers.
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import { setTimeout as delay } from 'node:timers/promises'
 import pg from 'pg'
 import assert from 'node:assert/strict'
@@ -11,7 +10,6 @@ import { after, before, describe, it } from 'node:test'
 import { createTestDatabase, seedProject, type TestDatabase } from '@sophia/test-support'
 import { createPool, startConversation, withActor } from './index.ts'
 
-const CANDIDATE = new URL('../../../db/candidates/con01-s2-conversation-reply-ledger.sql', import.meta.url)
 const TABLES = [
   'conversation_grants',
   'conversation_grant_approvals',
@@ -29,7 +27,6 @@ let pool: pg.Pool
 before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl, { max: 6 })
-  await owner(readFileSync(CANDIDATE, 'utf8'))
 })
 after(async () => {
   await pool.end()
@@ -150,7 +147,7 @@ const counted = (o: Partial<Counters>): Counters => ({
   ...o,
 })
 
-describe('the S2 candidate as installed', () => {
+describe('S2 promoted by the complete migration', () => {
   it('inserts no row and is closed to every login: no table or function grant, row security on', async () => {
     for (const t of TABLES) {
       assert.deepEqual(await owner(`SELECT count(*)::int AS n FROM sophia.${t}`), [{ n: 0 }], t)
