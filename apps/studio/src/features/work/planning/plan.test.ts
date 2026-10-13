@@ -13,6 +13,7 @@ import {
   blockersOf,
   LANE,
   laneOf,
+  progressOf,
   latestDecisions,
   outsideOf,
   relation,
@@ -610,6 +611,14 @@ describe('decisions and a session’s last report', () => {
     assert.equal(freshness('2026-10-02T12:00:00Z', now), 1)
     assert.equal(freshness('2026-10-02T11:59:00Z', now), 0.5)
     assert.equal(freshness('2026-10-02T11:50:00Z', now), 0)
+  })
+})
+
+describe('a goal’s progress (docs/plans/goals-progress.md)', () => {
+  it('counts Complete as done and leaves closed work out of the count', () => {
+    assert.deepEqual(progressOf(['active', 'next', 'complete', 'blocked']), { done: 1, total: 4 })
+    assert.deepEqual(progressOf(['complete', 'closed', 'complete']), { done: 2, total: 2 })
+    assert.deepEqual(progressOf([]), { done: 0, total: 0 })
   })
 })
 
