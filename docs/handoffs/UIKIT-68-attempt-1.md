@@ -41,3 +41,7 @@ commits on the branch merge its base forward or touch only this record). 3 files
 ## Next bounded action
 
 The project views' small things (`informe-vistas-20.md` findings 4–6).
+
+## Local run (Luis: «Corre el playwright y valida»)
+
+- Through the guard, 2 workers: demo-resources, resources, view-titles, dock-header: 131 passed; widths (which opens the demo on Resources): 15 passed.
