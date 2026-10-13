@@ -67,10 +67,13 @@ test('ask instead · Knowledge’s ask goes while new words settle, never offeri
   await search.fill(WORDS)
   await expect(page.getByRole('button', { name: `Ask Sophia about “${WORDS}”` })).toBeVisible()
   await search.fill(`${WORDS} again`)
-  // At once, before the pause that settles the words: no ask is offered with the old ones.
+  // At once: no ask carries the old words. Read by its exact words, so the new words' ask, if a slow worker has already
+  // settled them, is not mistaken for it (Codex on #276).
+  const old = `Ask Sophia about “${WORDS}”`
   expect(
-    await page.evaluate(() =>
-      [...document.querySelectorAll('button')].some((b) => /Ask Sophia about/.test(b.textContent)),
+    await page.evaluate(
+      (words) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === words),
+      old,
     ),
   ).toBe(false)
   await expect(page.getByRole('button', { name: `Ask Sophia about “${WORDS} again”` })).toBeVisible()
