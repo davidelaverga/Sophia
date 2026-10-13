@@ -899,8 +899,13 @@
     left: 0;
     right: auto;
   }
-  .conv-acts.side > [role='status'] {
+  /* Its words wrap, a proposal's nested status too (`.conv-propose`; Codex on #283), so the presses stay in the pane. */
+  .conv-acts.side [role='status'] {
     white-space: normal;
+  }
+  .conv-acts.side .conv-propose {
+    flex-wrap: wrap;
+    min-width: 0;
   }
   /* Its room kept under the bubble, so the row never lies over the message that follows: the row's own height, as
      MessageActs measures it (--acts-room), wrapped lines and all (Codex on #283). */
