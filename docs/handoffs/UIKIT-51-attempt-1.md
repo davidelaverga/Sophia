@@ -12,9 +12,9 @@ Runtime unit: CI (GitHub Actions) as the run on record. Playwright on Luis's hos
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `475b71c6e657` (tree `f1ebf3368248`), the last commit of `ui/p2-header`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 8 files changed against
-`origin/main` at that commit: `e2e/dock-header.spec.ts`, `e2e/widths.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/studio/ProjectShell.tsx`, `src/features/work/WorkControls.tsx`, `packages/ui/src/ConfirmButton.tsx`. The review notes below name the commit of each later change.
+Ending commit/tree: `3701c4615941` (tree `95b925e10bcb`), the last commit of `ui/p2-header`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `e2e/dock-header.spec.ts`, `e2e/widths.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/studio/ProjectShell.tsx`, `src/features/work/WorkControls.tsx`, `docs/handoffs/UIKIT-51-attempt-1.md`, `docs/plans/p2-header.md`, `packages/ui/src/ConfirmButton.tsx`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -37,3 +37,8 @@ commits on the branch merge its base forward or touch only this record). 8 files
 ## Next bounded action
 
 The next follow-up: the lens and the addressed needs (Codex P2s on #238, #242, #245).
+
+## Post-review (Codex on #281)
+
+- `3701c461`: the notes' offset is in the two rules that set the report pane's `inset` over its `top` too: enlarged
+  (`data-size='full'`) and up to 760 px. CI is the run on record (local guard).
