@@ -65,15 +65,24 @@ const wordsOf = (title: string) =>
       // Other clitics read as their words, a possessive's «s» dropped: «we're» is «we are», «admin's» «admin» (Codex on #274).
       .replace(/['\u2019](re|ve|ll|d|m)\b/gu, (_, c: string) => ` ${CLITICS[c] ?? ''}`)
       .replace(/['\u2019]s\b/gu, '')
-      // A slash or a dash between words is a boundary a spelled number does not cross: «one hundred/two hundred» is two.
-      .replace(/\s*[/\u2013\u2014]\s*/gu, ` ${BOUNDARY} `)
-      // A hyphen is one too beside a number word («twenty-one», «one-time»); inside any other word it keeps the word
-      // whole: «e-mail» is «email» (Codex on #274).
-      .replace(/(?<=(\p{L}+))-(?=(\p{L}+))/gu, (_, a: string, b: string) =>
-        spelled(a) || spelled(b) ? ` ${BOUNDARY} ` : '',
-      )
+      .replace(/(?<=(\p{L}+))-(?=(\p{L}+))/gu, (_, a: string, b: string) => hyphen(a, b))
+      // Any other mark between words (a slash, a dash, a comma, a semicolon, a bracket) is a boundary a spelled number
+      // does not cross: «one hundred; two hundred» is two (Codex on #274).
+      .replace(/[^\p{L}\p{N}\s]+/gu, ` ${BOUNDARY} `)
       .split(/[^\p{L}\p{N}]+/u),
   )
+
+/**
+ * What a hyphen between two words reads as (Codex on #274): a negating prefix stays a word of its own («never-enabled»,
+ * «non-enabled» is «not enabled»); a compound number is one («twenty-one»); beside any other number word it is a
+ * boundary («one-time»); inside any other word it keeps the word whole («e-mail» is «email»).
+ */
+function hyphen(a: string, b: string): string {
+  if (a === 'non') return ' not '
+  if (NEGATIONS.has(a) || NEGATIONS.has(b)) return ' '
+  if (TENS.has(a) && (UNITS.get(b) ?? 0) > 0 && (UNITS.get(b) ?? 10) < 10) return ' '
+  return spelled(a) || spelled(b) ? ` ${BOUNDARY} ` : ''
+}
 
 /** What a clitic stands for. */
 const CLITICS: Readonly<Record<string, string>> = { re: 'are', ve: 'have', ll: 'will', d: 'would', m: 'am' }
@@ -187,7 +196,6 @@ function remainderFollows(prev: string | undefined, after: readonly string[]): b
  * a remainder («one hundred and five») (Codex on #274).
  */
 function joins(w: string, prev: string | undefined, after: readonly string[]): boolean {
-  if (w === BOUNDARY) return TENS.has(prev ?? '') && (UNITS.get(after[0] ?? '') ?? 10) < 10
   return w === 'and' && remainderFollows(prev, after)
 }
 
