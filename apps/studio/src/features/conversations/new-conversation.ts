@@ -50,7 +50,8 @@ const fold = (title: string) => title.normalize('NFD').replace(/\p{M}/gu, '').to
  */
 const wordsOf = (title: string) =>
   fold(title)
-    .replace(/(\p{N})[,.](?=\p{N}{3}(?!\p{N}))/gu, '$1')
+    // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
+    .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
     .split(/[^\p{L}\p{N}]+/u)
 
 /**
@@ -161,6 +162,7 @@ function aimsOf(words: readonly string[], of: (w: string) => string | undefined)
 
 /** How each kind's turning word is read, for its thing: an action by its plain form; an order or a number as it is. */
 const READ = {
+  negations: (w: string) => (NEGATIONS.has(w) ? 'not' : undefined),
   orders: (w: string) => (w === 'before' || w === 'after' ? w : undefined),
   actions: (w: string) => ACTIONS.get(w),
   numbers: (w: string) => (/\p{N}/u.test(w) ? w : undefined),
@@ -183,12 +185,13 @@ function turnsAgree(a: string, b: string): boolean {
     const [p, q] = [of(x), of(y)]
     return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
   })
-  // Two of a kind or more on each side (actions, orders, numbers): each must keep its thing, «enable SMS and disable
-  // email» being the inverse of «enable email and disable SMS», «Q1 costs … Q2 revenue» of «Q1 revenue … Q2 costs»
-  // (Codex on #274). One alone has no other to swap with.
-  const kept = (['orders', 'actions', 'numbers'] as const).every((kind) => {
-    const two = turnsOf[kind](x).length > 1 && turnsOf[kind](y).length > 1
-    return !two || aimsOf(x, READ[kind]) === aimsOf(y, READ[kind])
+  // A negation, an order or an action said on each side keeps its thing, once said too: «not red» against «not blue»,
+  // «before approval» against «before review», «enable SMS and disable email» against «enable email and disable SMS».
+  // Numbers, two or more on each side («Q1 costs … Q2 revenue»): one number has no other to swap with (Codex on #274).
+  const kept = (['negations', 'orders', 'actions', 'numbers'] as const).every((kind) => {
+    const least = kind === 'numbers' ? 2 : 1
+    const said = (words: readonly string[]) => words.filter((w) => READ[kind](w) !== undefined).length >= least
+    return !(said(x) && said(y)) || aimsOf(x, READ[kind]) === aimsOf(y, READ[kind])
   })
   return alike && kept
 }
