@@ -169,8 +169,8 @@ export const STORE_SCHEMA = `SELECT to_regprocedure('sophia.claim_object_write(t
  */
 export const writeOnceStore = (pool: pg.Pool, store: ByteStore | null | undefined): ByteStore | null =>
   store
-    ? writeOnce(store, (path, sha256, byteLength) =>
-        withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength)),
+    ? writeOnce(store, (path, sha256, byteLength, control) =>
+        withService(pool, (c) => claimObjectWrite(c, path, sha256, byteLength), control),
       )
     : null
 

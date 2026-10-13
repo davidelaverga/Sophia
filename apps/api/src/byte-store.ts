@@ -60,7 +60,7 @@ export class ByteStoreError extends Error {
   }
 }
 
-/** A write's claim was not made (the database refused it or did not answer): nothing was sent to the store. */
+/** A write's claim was not confirmed; interrupted COMMIT may have claimed it. No store I/O was started. */
 export class WriteClaimError extends ByteStoreError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(503, message)
@@ -288,24 +288,31 @@ export function s3ByteStore(
 }
 
 /** Claims a key's one write: true the first time, false for a key already claimed (claimObjectWrite, 0044). */
-export type WriteClaim = (path: string, sha256: string, byteLength: number) => Promise<boolean>
+export type WriteClaim = (
+  path: string,
+  sha256: string,
+  byteLength: number,
+  control?: ByteWriteControl,
+) => Promise<boolean>
 
 /**
  * The store, written once per key whatever the store itself does with a second write: each put first claims its key
  * (committed before any byte is sent) and is refused with 409 for a key already claimed, the same bytes included. A
- * claim that cannot be made refuses the write with WriteClaimError: nothing reaches the store unclaimed.
+ * claim that cannot be made refuses the write with WriteClaimError: nothing reaches the store unclaimed. An interrupted COMMIT may leave a consumed claim.
  * Reads are the store's own.
  */
 export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
   return {
     async put(path, bytes, mime, context, control) {
+      if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
       let claimed: boolean
       try {
-        claimed = await claim(path, sha256Hex(bytes), bytes.byteLength)
+        claimed = await claim(path, sha256Hex(bytes), bytes.byteLength, control)
       } catch (error) {
-        throw new WriteClaimError(`store claim: ${path}: the claim was not made`, { cause: error })
+        throw new WriteClaimError(`store claim: ${path}: the claim was not confirmed`, { cause: error })
       }
       if (!claimed) throw new ByteStoreError(409, `store put: ${path} was already written`)
+      if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
       await store.put(path, bytes, mime, context, control)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),

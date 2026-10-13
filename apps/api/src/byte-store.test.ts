@@ -10,6 +10,7 @@ import {
   s3ByteStore,
   storedKey,
   withByteBackup,
+  writeOnce,
 } from './byte-store.ts'
 import { authorization, presignedUrl } from './s3-sign.ts'
 import { reportFilename } from './routes/sources.ts'
@@ -327,4 +328,25 @@ it('retains backup-off write admission after timeout until an ignoring HEAD sett
   assert.deepEqual(methods, ['HEAD'], 'late HEAD cannot start a PUT')
   const fast = recording(new Response(null, { status: 404 }), new Response(null, { status: 200 }))
   await assert.doesNotReject(configuredStore(fast.fetch).put('other', new Uint8Array(32 * 1024 * 1024), 'image/png'))
+})
+
+it('fences expired and late write claims before provider work without refunding the claim', async (t) => {
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  const controller = new AbortController()
+  const control = { signal: controller.signal, deadline: 10 }
+  const store = memoryByteStore()
+  let claims = 0
+  const once = writeOnce(store, (_key, _hash, _length, received) => {
+    assert.equal(received, control, 'claim receives the original database control')
+    claims += 1
+    now = 11
+    return Promise.resolve(true)
+  })
+  const path = objectPath(P, S)
+  await assert.rejects(once.put(path, Buffer.from('pdf'), 'application/pdf', undefined, control), { status: 503 })
+  assert.equal(claims, 1, 'the successful claim remains consumed')
+  assert.equal(store.objects.size, 0, 'late claim cannot start provider I/O')
+  await assert.rejects(once.put(path, Buffer.from('pdf'), 'application/pdf', undefined, control), { status: 503 })
+  assert.equal(claims, 1, 'an expired request starts no new claim')
 })

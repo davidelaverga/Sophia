@@ -18,7 +18,14 @@ import {
   rendererSettle,
   withService,
 } from '@sophia/persistence'
-import { ByteStoreError, objectPath, storedKey, WriteClaimError, type ByteStore } from '../byte-store.ts'
+import {
+  ByteStoreError,
+  objectPath,
+  storedKey,
+  WriteClaimError,
+  type ByteStore,
+  type ByteWriteControl,
+} from '../byte-store.ts'
 import { sha256Hex } from '../s3-sign.ts'
 import { rendererUploadHooks, withRendererUpload } from '../renderer-upload-admission.ts'
 import { captureSourceId } from '../capture-source.ts'
@@ -97,7 +104,7 @@ interface Deps {
 /** Validate a real active capability/lease before shared body admission; slots create no source/write claim.
  * The handler revalidates after parsing, so revocation/lease loss during body receipt still refuses storage.
  */
-async function authorizeUpload(deps: Deps, req: FastifyRequest): Promise<void> {
+async function authorizeUpload(deps: Deps, req: FastifyRequest, control: ByteWriteControl): Promise<void> {
   const params = req.params
   if (typeof params !== 'object' || params === null || !('jobId' in params) || typeof params.jobId !== 'string') {
     throw new DomainError('invalid_request', 'A render upload names its job')
@@ -112,8 +119,8 @@ async function authorizeUpload(deps: Deps, req: FastifyRequest): Promise<void> {
     if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9.-]{0,150}\.png$/u.test(name)) {
       throw new DomainError('invalid_request', 'A capture names its PNG')
     }
-    await withService(deps.pool, (c) => rendererCaptureSlot(c, tokenOf(req), job, lease, name))
-  } else await withService(deps.pool, (c) => rendererOutputSlot(c, tokenOf(req), job, lease))
+    await withService(deps.pool, (c) => rendererCaptureSlot(c, tokenOf(req), job, lease, name), control)
+  } else await withService(deps.pool, (c) => rendererOutputSlot(c, tokenOf(req), job, lease), control)
 }
 
 /** One file's bytes: inline text, or the byte store's object, checked against the hash the package recorded. */
@@ -147,7 +154,7 @@ async function fileBytes(
  */
 function storeFailure(err: unknown): DomainError {
   if (err instanceof WriteClaimError) {
-    return new DomainError('unavailable', 'The write claim was not made', { cause: err })
+    return new DomainError('unavailable', 'The write claim was not confirmed', { cause: err })
   }
   if (err instanceof ByteStoreError && err.status === 409) {
     return new DomainError('invalid_state', 'This output was already written', { cause: err })
@@ -156,7 +163,11 @@ function storeFailure(err: unknown): DomainError {
 }
 
 /** Store an uploaded PDF once under a new source of the job's project, then record it as the job's output. */
-async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: string }; Body: unknown }>) {
+async function storeOutput(
+  deps: Deps,
+  req: FastifyRequest<{ Params: { jobId: string }; Body: unknown }>,
+  control: ByteWriteControl,
+) {
   const bytes = req.body
   if (!Buffer.isBuffer(bytes) || bytes.byteLength < 5 || bytes.subarray(0, 5).toString('latin1') !== '%PDF-') {
     throw new DomainError('invalid_request', 'A render output is a PDF')
@@ -164,22 +175,27 @@ async function storeOutput(deps: Deps, req: FastifyRequest<{ Params: { jobId: st
   if (!deps.store) throw new DomainError('unavailable', 'The report store is not set up')
   const token = tokenOf(req)
   const lease = leaseOf(req)
-  const slot = await withService(deps.pool, (c) => rendererOutputSlot(c, token, req.params.jobId, lease))
+  const slot = await withService(deps.pool, (c) => rendererOutputSlot(c, token, req.params.jobId, lease), control)
   try {
-    await deps.store.put(objectPath(slot.projectId, slot.sourceId), bytes, 'application/pdf', {
-      rendererJobId: req.params.jobId,
-    })
+    await deps.store.put(
+      objectPath(slot.projectId, slot.sourceId),
+      bytes,
+      'application/pdf',
+      { rendererJobId: req.params.jobId },
+      control,
+    )
   } catch (err) {
     throw storeFailure(err)
   }
   const output = { sourceId: slot.sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
-  return withService(deps.pool, (c) => rendererRecordOutput(c, token, req.params.jobId, lease, output))
+  return withService(deps.pool, (c) => rendererRecordOutput(c, token, req.params.jobId, lease, output), control)
 }
 
 /** A capture name has one source per validated lease; writeOnce refuses replays before backup or remote I/O. */
 async function storeCapture(
   deps: Deps,
   req: FastifyRequest<{ Params: { jobId: string; name: string }; Body: unknown }>,
+  control: ByteWriteControl,
 ) {
   const bytes = req.body
   if (!Buffer.isBuffer(bytes) || bytes.byteLength < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
@@ -189,15 +205,15 @@ async function storeCapture(
   const token = tokenOf(req)
   const lease = leaseOf(req)
   const { jobId, name } = req.params
-  const slot = await withService(deps.pool, (c) => rendererCaptureSlot(c, token, jobId, lease, name))
+  const slot = await withService(deps.pool, (c) => rendererCaptureSlot(c, token, jobId, lease, name), control)
   const sourceId = captureSourceId(slot.projectId, jobId, lease, name)
   try {
-    await deps.store.put(objectPath(slot.projectId, sourceId), bytes, 'image/png', { rendererJobId: jobId })
+    await deps.store.put(objectPath(slot.projectId, sourceId), bytes, 'image/png', { rendererJobId: jobId }, control)
   } catch (err) {
     throw storeFailure(err)
   }
   const capture = { name, sourceId, sha256: sha256Hex(bytes), byteLength: bytes.byteLength }
-  return withService(deps.pool, (c) => rendererRecordCapture(c, token, jobId, lease, capture))
+  return withService(deps.pool, (c) => rendererRecordCapture(c, token, jobId, lease, capture), control)
 }
 
 /** The claim and the capture uploads (A12): a runner names its formats, and a capture job uploads PNGs by name. */
@@ -216,11 +232,11 @@ function captureRoutes(app: FastifyInstance, deps: Deps): void {
   app.put<{ Params: { jobId: string; name: string }; Body: unknown }>(
     '/v1/renderer/jobs/:jobId/captures/:name',
     {
-      ...rendererUploadHooks(CAPTURE_OUTPUT_LIMIT, (req) => authorizeUpload(deps, req)),
+      ...rendererUploadHooks(CAPTURE_OUTPUT_LIMIT, (req, control) => authorizeUpload(deps, req, control)),
       bodyLimit: CAPTURE_OUTPUT_LIMIT,
       schema: { params: captureParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderCaptureOutput#' } } },
     },
-    async (req) => withRendererUpload(req, () => storeCapture(deps, req)),
+    async (req) => withRendererUpload(req, (control) => storeCapture(deps, req, control)),
   )
 }
 
@@ -254,11 +270,11 @@ export function rendererRoutes(app: FastifyInstance, deps: Deps): void {
   app.put<{ Params: { jobId: string }; Body: unknown }>(
     '/v1/renderer/jobs/:jobId/output',
     {
-      ...rendererUploadHooks(RENDER_OUTPUT_LIMIT, (req) => authorizeUpload(deps, req)),
+      ...rendererUploadHooks(RENDER_OUTPUT_LIMIT, (req, control) => authorizeUpload(deps, req, control)),
       bodyLimit: RENDER_OUTPUT_LIMIT,
       schema: { params: jobParams, headers: leaseHeaders, response: { 200: { $ref: 'RenderOutput#' } } },
     },
-    async (req) => withRendererUpload(req, () => storeOutput(deps, req)),
+    async (req) => withRendererUpload(req, (control) => storeOutput(deps, req, control)),
   )
   app.post<{ Params: { jobId: string }; Body: RenderSettleRequest }>(
     '/v1/renderer/jobs/:jobId/settle',

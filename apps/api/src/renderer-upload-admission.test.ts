@@ -4,6 +4,7 @@ import { clearTimeout as clearWallTimer, setTimeout as wallTimer } from 'node:ti
 import { setImmediate as nextTurn } from 'node:timers/promises'
 import { it } from 'node:test'
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify'
+import type { ByteWriteControl } from './byte-store.ts'
 import {
   rendererUploadHooks,
   RENDER_AUTHORIZATIONS,
@@ -40,7 +41,7 @@ async function beforeSentinel<T>(promise: Promise<T>): Promise<T> {
 function appFor(
   bytes: number,
   gate: ReturnType<typeof deferred>,
-  entered: () => void,
+  entered: (control: ByteWriteControl) => void,
   authorize: (req: FastifyRequest) => Promise<void> = () => Promise.resolve(),
 ): FastifyInstance {
   const app = Fastify()
@@ -58,8 +59,8 @@ function appFor(
       },
     },
     (req) =>
-      withRendererUpload(req, async () => {
-        entered()
+      withRendererUpload(req, async (control) => {
+        entered(control)
         await gate.promise
         return { ok: true }
       }),
@@ -174,7 +175,11 @@ it('bounds request count and releases parsing/schema errors without leaking admi
 it('keeps a disconnected handling request admitted and clears its body only after settlement', async () => {
   const gate = deferred()
   const arrived = deferred()
-  const app = appFor(64 * MIB, gate, arrived.finish)
+  let control: ByteWriteControl | undefined
+  const app = appFor(64 * MIB, gate, (active) => {
+    control = active
+    arrived.finish()
+  })
   await app.listen({ host: '127.0.0.1', port: 0 })
   const address = app.server.address()
   assert.ok(address && typeof address === 'object')
@@ -189,8 +194,12 @@ it('keeps a disconnected handling request admitted and clears its body only afte
   req.end('%PDF-body')
   try {
     await beforeSentinel(arrived.promise)
+    assert.ok(control)
+    const aborted = new Promise<void>((resolve) =>
+      control?.signal.addEventListener('abort', () => resolve(), { once: true }),
+    )
     req.destroy()
-    await nextTurn()
+    await beforeSentinel(aborted)
     assert.equal((await beforeSentinel(upload(app))).statusCode, 503)
   } finally {
     gate.finish()
@@ -533,5 +542,123 @@ it('delivers early refusal responses and retains the original deadline for unfin
     }
     await beforeSentinel(holding)
     await Promise.all(apps.map((app) => app.close()))
+  }
+})
+
+it('keeps the absolute deadline after parsing and retains the body until a timed-out handler settles', async (t) => {
+  const held = deferred()
+  const entered = deferred()
+  const app = Fastify()
+  let body: FastifyRequest | undefined
+  let signal: AbortSignal | undefined
+  app.addContentTypeParser('application/pdf', { parseAs: 'buffer' }, (_req, bytes, done) => done(null, bytes))
+  app.put('/upload', { ...rendererUploadHooks(64 * MIB, () => Promise.resolve()) }, (req) =>
+    withRendererUpload(req, async (control) => {
+      body = req
+      signal = control.signal
+      entered.finish()
+      await held.promise
+      return { ok: true }
+    }),
+  )
+  const gate = deferred()
+  gate.finish()
+  const other = appFor(64 * MIB, gate, noop)
+  await app.ready()
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const pending = Promise.resolve(
+    app.inject({ method: 'PUT', url: '/upload', headers: { 'content-type': 'application/pdf' }, payload: '%PDF-body' }),
+  )
+  try {
+    await beforeSentinel(entered.promise)
+    t.mock.timers.tick(RENDER_BODY_MS)
+    t.mock.timers.reset()
+    assert.equal((await beforeSentinel(pending)).statusCode, 503, 'parsed handler deadline beats the sentinel')
+    assert.equal(signal?.aborted, true)
+    assert.ok(Buffer.isBuffer(body?.body), 'original pipeline still owns the body')
+    assert.equal((await beforeSentinel(upload(other))).statusCode, 503, 'public timeout refunds no live body')
+    held.finish()
+    await nextTurn()
+    assert.equal(body?.body, undefined)
+    assert.equal((await beforeSentinel(upload(other))).statusCode, 200)
+  } finally {
+    t.mock.timers.reset()
+    held.finish()
+    await beforeSentinel(pending)
+    await Promise.all([app.close(), other.close()])
+  }
+})
+
+it('normal complete-body close preserves a slow healthy HTTP handler and its control', async () => {
+  const held = deferred()
+  const parsed = deferred()
+  const app = Fastify()
+  app.addHook('onRequest', (req, _reply, done) => {
+    req.raw.once('close', parsed.finish)
+    done()
+  })
+  let signal: AbortSignal | undefined
+  app.addContentTypeParser('application/pdf', { parseAs: 'buffer' }, (_req, body, done) => done(null, body))
+  app.put('/upload', { ...rendererUploadHooks(64 * MIB, () => Promise.resolve()) }, (req) =>
+    withRendererUpload(req, async (control) => {
+      signal = control.signal
+      await held.promise
+      assert.equal(control.signal.aborted, false)
+      return { ok: true }
+    }),
+  )
+  await app.listen({ host: '127.0.0.1', port: 0 })
+  const address = app.server.address()
+  assert.ok(address && typeof address === 'object')
+  const req = request({
+    hostname: '127.0.0.1',
+    port: address.port,
+    method: 'PUT',
+    path: '/upload',
+    headers: { 'content-type': 'application/pdf' },
+  })
+  req.on('error', noop)
+  const response = new Promise<number>((resolve) =>
+    req.once('response', (res) => {
+      res.resume()
+      res.once('end', () => resolve(res.statusCode ?? 0))
+    }),
+  )
+  req.end('%PDF-body')
+  try {
+    await beforeSentinel(parsed.promise)
+    assert.equal(signal?.aborted, false, 'normal parsed request close is not client disconnect')
+    held.finish()
+    assert.equal(await beforeSentinel(response), 200)
+  } finally {
+    held.finish()
+    req.destroy()
+    await app.close()
+  }
+})
+
+it('refuses a completed handler past the absolute deadline even before a delayed timer runs', async (t) => {
+  let now = 0
+  t.mock.method(performance, 'now', () => now)
+  const app = Fastify()
+  app.addContentTypeParser('application/pdf', { parseAs: 'buffer' }, (_req, body, done) => done(null, body))
+  app.put('/upload', { ...rendererUploadHooks(64 * MIB, () => Promise.resolve()) }, (req) =>
+    withRendererUpload(req, () => {
+      now = RENDER_BODY_MS + 1
+      return Promise.resolve({ ok: true })
+    }),
+  )
+  try {
+    const response = await beforeSentinel(
+      app.inject({
+        method: 'PUT',
+        url: '/upload',
+        headers: { 'content-type': 'application/pdf' },
+        payload: '%PDF-body',
+      }),
+    )
+    assert.equal(response.statusCode, 503, 'late fulfilled handler cannot clear the deadline and answer200')
+  } finally {
+    await app.close()
   }
 })

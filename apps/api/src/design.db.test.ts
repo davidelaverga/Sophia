@@ -28,6 +28,7 @@ import {
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { dispatchOnce } from '@sophia/worker'
 import { buildApp } from './app.ts'
+import { probeUploadDeadline } from './renderer-deadline.testing.ts'
 import { createActorVerifier } from './auth.ts'
 import { ByteStoreError, memoryByteStore, withByteBackup, type ByteStore } from './byte-store.ts'
 import { diskByteBackup, type ByteBackup } from './byte-backup.ts'
@@ -1153,6 +1154,28 @@ describe('Hold, Resume and Stop of a design (B-20, 0041)', () => {
     const resumed = await w.runtime('/v1/runtime/commands?after=0&waitMs=0')
     assert.equal(reviewCreates(resumed).length, 1, 'the review is queued at Resume and sent')
   })
+})
+
+describe('capture upload handler database deadlines', () => {
+  for (const [name, invocation] of [
+    ['renderer_capture_slot', 2],
+    ['claim_object_write', 1],
+    ['renderer_record_capture', 1],
+  ] as const) {
+    it(`bounds real PNG ${name} SQL through the HTTP deadline`, async () => {
+      const { w, at } = await designing()
+      await drafted(w, at, { capture: false })
+      const job = await claimCapture()
+      const upload = () =>
+        runner(`/v1/renderer/jobs/${String(job.jobId)}/captures/deadline.png`, {
+          method: 'PUT',
+          raw: PNG,
+          type: 'image/png',
+          headers: { 'x-sophia-render-lease': job.leaseToken },
+        })
+      await owner((c) => probeUploadDeadline(c, name, invocation, upload))
+    })
+  }
 })
 
 describe('a capture render queued again after its lease ran out (0045)', () => {
