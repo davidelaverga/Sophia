@@ -213,6 +213,19 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a demonstrative keeps its place; a larger scale takes in what came before (Codex round 18 on #274)', () => {
+    assert.equal(
+      sameQuestion('Should we allow that and block this?', [asked('a', 'Should we allow this and block that?', at)]),
+      null,
+    )
+    const budget = [asked('a', 'Set budget to 1000000000 dollars', at)]
+    assert.equal(sameQuestion('Set budget to one thousand million dollars', budget)?.id, 'a')
+    assert.equal(
+      sameQuestion('Set budget to one thousand million dollars', [asked('a', 'Set budget to 1001000 dollars', at)]),
+      null,
+    )
+  })
+
   it('spelled numbers parsed whole, any ordinal; a double negation kept (Codex round 17 on #274)', () => {
     const budget = [asked('a', 'Set budgets to 1005 and 100 dollars', at)]
     assert.equal(sameQuestion('Set budget to one thousand five hundred dollars', budget), null)
