@@ -51,3 +51,8 @@ The next follow-up: the board's seen marks, plan order and focus (Codex P2s on #
   `conflict=1`, closes the decisions while the answer is on its way, and reads «Decide “…”» under «For you» once it
   settles: with the one-off read it stays left out (nothing re-renders the board). Not run on this host (guard); CI is
   the run on record.
+
+## CI on record
+
+- Run 38333657621 on `51b2ab91` (this branch's head, every change and review round in it): all jobs green, the browser suites
+  among them, the checks this PR wrote included.
