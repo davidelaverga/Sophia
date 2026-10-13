@@ -248,7 +248,7 @@
 /* Someone at the door is let in from over the full page, under its top: Close, the switches and the tabs stay in
    reach. So is a project's note that it is slow to open, which floats where the lobby would. */
 .shell:has(> .report-pane[data-size='full']) :is(.lobby, .wait-note) {
-  top: calc(var(--topbar) + var(--report-top-h, 0px) + 8px);
+  top: calc(var(--topbar) + var(--dock-notes-h, 0px) + var(--report-top-h, 0px) + 8px);
 }
 .report-pane-name {
   flex: 1;
@@ -1033,7 +1033,7 @@
   }
   /* And the door is under its top, over the pane, as over the side panel. */
   .shell:has(> .report-pane:not([hidden])) :is(.lobby, .wait-note) {
-    top: calc(var(--topbar) + var(--report-top-h, 0px) + 8px);
+    top: calc(var(--topbar) + var(--dock-notes-h, 0px) + var(--report-top-h, 0px) + 8px);
     left: var(--gutter);
     right: var(--gutter);
     width: auto;
