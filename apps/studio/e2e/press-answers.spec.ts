@@ -29,6 +29,8 @@ const PRESSES = [
   'summary', // a native disclosure (the mission's «Settings and history») is a press too (Codex on #232)
   'select', // a select (the Invite sheet's Length) and a checkbox (the carry package's) are presses too (Codex on #232)
   'input[type="checkbox"]',
+  'input[type="date"]', // Calendar's native pickers are presses too (Codex P2 on #232)
+  'input[type="time"]',
   'button:not([aria-checked="true"]):not([aria-selected="true"]):not(.segmented [aria-pressed="true"])',
   'a[href]:not([aria-current])',
   '[role="button"]',
@@ -82,7 +84,7 @@ function listPresses({ selector, scope }: { selector: string; scope: string }) {
 }
 
 /** In the page: what the pointer can change on a press and what it holds, as one string. */
-function lookOf(args: { selector: string; scope: string; i: number }) {
+function lookOf(args: { selector: string; scope: string; i: number; tips: boolean }) {
   const within = document.querySelector(args.scope) ?? document.body
   const el = within.querySelectorAll<HTMLElement>(args.selector)[args.i]
   if (!el) return ''
@@ -106,27 +108,32 @@ function lookOf(args: { selector: string; scope: string; i: number }) {
   // it is what answers; the invisible input itself does not count (Codex on #232).
   const hidden = getComputedStyle(el).opacity === '0'
   const root = hidden ? (el.closest('label') ?? el) : el
+  // Without tips: a tip shows under any pointer that rests, so it can't say the press itself answers (Codex on #232).
   return [root, ...root.querySelectorAll('*')]
     .filter((e) => !(hidden && e === el))
+    .filter((e) => args.tips || e.closest('.tip') === null)
     .map(read)
     .join('\n')
 }
 
 /** The presses on the page (inside `scope`: a sheet, a group, a form) that do not answer the pointer, said. */
-async function unanswering(page: Page, scope = 'body') {
+async function unanswering(page: Page, scope = 'body', tips = true) {
   const presses = await page.evaluate(listPresses, { selector: PRESSES, scope })
   expect(presses.length).toBeGreaterThan(0)
+  // A running animation (a listening microphone's) changes the look by itself: held still while the sweep reads, so
+  // only the pointer can (Codex P2 on #232). Transitions, the hover's own, still run.
+  await page.addStyleTag({ content: '*, *::before, *::after { animation-play-state: paused !important; }' })
   const mute: string[] = []
   for (const press of presses) {
     await page.mouse.move(0, 0)
-    const rest = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
+    const rest = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i, tips })
     await page.mouse.move(press.x, press.y)
     // The kit's answers take 140 ms; on a loaded machine (CI) the hover can come later: read again until it answers,
     // a second at most, rather than once after a fixed wait.
     let over = rest
     for (let tries = 0; tries < 8 && over === rest; tries += 1) {
       await page.waitForTimeout(130)
-      over = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i })
+      over = await page.evaluate(lookOf, { selector: PRESSES, scope, i: press.i, tips })
     }
     if (over === rest) mute.push(press.name)
   }
@@ -156,8 +163,34 @@ for (const [name, url, parts] of PAGES) {
   })
 }
 
-/** States a page reaches by a press, each swept inside what it opens (Codex on #232). */
-const REACHED: readonly [string, string, (page: Page) => Promise<void>, string][] = [
+/**
+ * States a page reaches by a press, each swept inside what it opens (Codex on #232); the last field, when false, reads
+ * the presses without their tips (a control on, whose own look must answer).
+ */
+const REACHED: readonly [string, string, (page: Page) => Promise<void>, string, boolean?][] = [
+  [
+    'Conversations, the new conversation’s form open (its press on)',
+    '/room.html?place=conversations&conversations=1',
+    async (page) => {
+      const start = page.getByRole('button', { name: 'New conversation' }).first()
+      await start.click()
+      await expect(start).toHaveAttribute('aria-pressed', 'true')
+    },
+    '.conv-list-head',
+    false,
+  ],
+  [
+    'the account menu open (its press on)',
+    '/room.html?demo=1',
+    async (page) => {
+      await drawn(page, DRAWN.room)
+      const account = page.getByRole('button', { name: 'Account' })
+      await account.click()
+      await expect(account).toHaveAttribute('aria-expanded', 'true')
+    },
+    '.account',
+    false,
+  ],
   [
     'Personal, the carry package open (its checkboxes)',
     '/personal.html?notes=open&ready=1&many=1',
@@ -203,12 +236,12 @@ const REACHED: readonly [string, string, (page: Page) => Promise<void>, string][
   ],
 ]
 
-for (const [name, url, reach, scope] of REACHED) {
+for (const [name, url, reach, scope, tips = true] of REACHED) {
   test(`answers · ${name}: every press in it changes under the pointer`, async ({ page }) => {
     test.slow()
     await page.goto(url)
     await reach(page)
-    expect(await unanswering(page, scope)).toEqual([])
+    expect(await unanswering(page, scope, tips)).toEqual([])
   })
 }
 
@@ -241,4 +274,17 @@ test('answers · pressed, the kit’s four kinds sink half a pixel: a pill, a gh
     await expect(page.getByRole('menu')).toHaveCount(0)
     await expect(backdrop).toHaveCount(0)
   }
+})
+
+test('answers · in light mode, an «Ask Sophia» on and a listening microphone deepen in the light halo (Codex P2 on #234)', async ({
+  page,
+}) => {
+  await page.goto('/home.html?demo=1&theme=light')
+  await drawn(page, DRAWN.home)
+  const mic = page.getByRole('button', { name: 'Speak instead' })
+  await mic.click()
+  await expect(mic).toHaveAttribute('aria-pressed', 'true')
+  await mic.hover()
+  // The light theme's halo channel (109 91 208), not the dark one's fixed violet (156 130 245).
+  await expect.poll(() => mic.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^rgba\(109, 91, 208,/)
 })
