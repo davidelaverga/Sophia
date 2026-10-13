@@ -133,6 +133,19 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Stopping email notifications?', start), null)
   })
 
+  it('the actions said of other things, numbers in labels, and irregular forms (Codex round 2 on #274)', () => {
+    // Both actions said on each side, each of the other thing: the inverse question.
+    const both = [asked('a', 'Should we enable email and disable SMS?', at)]
+    assert.equal(sameQuestion('Should we disable email and enable SMS?', both), null)
+    // A number inside a label («Q4») parts it from another («Q3»); the same number written with a separator meets.
+    assert.equal(sameQuestion('Q3 revenue forecast', [asked('a', 'Q4 revenue forecast', at)]), null)
+    assert.equal(sameQuestion('Goal of 1,000 active users', [asked('a', 'Goal of 1000 active users', at)])?.id, 'a')
+    // «hidden» is «hide», «shown» is «show».
+    const show = [asked('a', 'Should we show password input fields?', at)]
+    assert.equal(sameQuestion('Should password input fields be hidden?', show), null)
+    assert.equal(sameQuestion('Should password input fields be shown?', show)?.id, 'a')
+  })
+
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)
