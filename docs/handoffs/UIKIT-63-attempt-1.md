@@ -11,9 +11,9 @@ Runtime unit: Luis's Windows host (node's test runner; Playwright through `.clau
 CI as the run on record.
 Existing authority: Luis's standing instructions for the kit (push to `ui/*`; after the 2026-10-13 freeze, later P2s
 go to a follow-up list); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `82b7c8b211b2` (tree `844ee441b3fe`), the last commit of `ui/find-ask-sophia`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 6 files changed against
-`origin/main` at that commit: `e2e/personal-find-ask.spec.ts`, `src/features/personal/Find.tsx`, `src/features/personal/PersonalSpace.tsx`, `src/features/personal/conversation-view.test.ts`, `src/features/personal/conversation-view.ts`, `docs/plans/find-ask-sophia.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `1abf84b04e16` (tree `cb2ded0845ca`), the last commit of `ui/find-ask-sophia`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 7 files changed against
+`origin/main` at that commit: `e2e/personal-find-ask.spec.ts`, `src/features/personal/Find.tsx`, `src/features/personal/PersonalSpace.tsx`, `src/features/personal/conversation-view.test.ts`, `src/features/personal/conversation-view.ts`, `docs/handoffs/UIKIT-63-attempt-1.md`, `docs/plans/find-ask-sophia.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -49,3 +49,10 @@ commits on the branch merge its base forward or touch only this record). 6 files
 
 Findings 1 and 6 of `informe-personal-real.md` (a «New topic», clearing the conversation alone) are product calls
 with an API: a proposal for Davide, on Luis's word.
+
+## Post-review (Codex on #294), the one round
+
+- `1abf84b0`: Find closes only once `actions.start` takes the ask (`useAsk`); refused (Sophia can't answer now, another
+  message on its way, another tab holding the send), Find stays open with the words looked for and its count says
+  «She can’t be asked now»; typing again clears it. Tests first (the «(failing)» commit, `unavailable=1`). Local:
+  personal-find-ask and personal.spec, 102 passed. `useAsk` keeps `useFind` under the 60-line limit.
