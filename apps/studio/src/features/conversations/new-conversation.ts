@@ -157,7 +157,10 @@ function remainderFollows(prev: string | undefined, after: readonly string[]): b
   }
   // Less than the scale (a remainder), or a larger scale ahead that takes in all before it: «one hundred and twenty
   // thousand» is 120000 (Codex on #274).
-  return next.length > 0 && (valueOfRun(next) < scale || next.some((w) => (SCALES.get(w) ?? 0) > scale))
+  // Only a hundred's coefficient goes on into a larger scale («one hundred and twenty thousand»); after a thousand or
+  // more, a larger scale is another quantity («one thousand and one million»: Codex on #274).
+  const larger = scale === 100 && next.some((w) => (SCALES.get(w) ?? 0) > scale)
+  return next.length > 0 && (valueOfRun(next) < scale || larger)
 }
 
 /**
