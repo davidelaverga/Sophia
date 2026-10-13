@@ -3148,6 +3148,8 @@ button.contribution-quote:hover {
   justify-content: flex-end;
 }
 .lobby-decline {
+  /* As tall as Let in beside it: a target of 24 px at least (docs/plans/room-phone-floor.md). */
+  height: 28px;
   padding: 0 8px;
   color: var(--text-2);
   font-size: var(--type-small);
@@ -4138,6 +4140,11 @@ button.contribution-quote:hover {
   .presence .role,
   .presence .meter {
     display: none;
+  }
+  /* Who holds the floor keeps their role under their name: the phone's dock leaves saying it to the room
+     (docs/plans/phone-dock.md, docs/plans/room-phone-floor.md). */
+  .presence[data-floor] .role {
+    display: block;
   }
   .dock {
     flex-wrap: wrap;
