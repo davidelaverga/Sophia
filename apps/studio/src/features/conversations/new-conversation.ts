@@ -128,7 +128,8 @@ function valueOfRun(run: readonly string[]): number {
     else if (scale === 100) group = Math.max(group, 1) * 100
     else {
       // A larger scale after a smaller one takes in all said so far: «one thousand million» is 10⁹ (Codex on #274).
-      total = scale > last ? (total + group) * scale : total + Math.max(group, 1) * scale
+      // A scale said again multiplies too: «one thousand thousand» is a million (Codex on #274).
+      total = scale >= last ? (total + group) * scale : total + Math.max(group, 1) * scale
       group = 0
       last = scale
     }
@@ -154,7 +155,9 @@ function remainderFollows(prev: string | undefined, after: readonly string[]): b
     if (!UNITS.has(w) && !TENS.has(w) && !SCALES.has(w)) break
     next.push(w)
   }
-  return next.length > 0 && valueOfRun(next) < scale
+  // Less than the scale (a remainder), or a larger scale ahead that takes in all before it: «one hundred and twenty
+  // thousand» is 120000 (Codex on #274).
+  return next.length > 0 && (valueOfRun(next) < scale || next.some((w) => (SCALES.get(w) ?? 0) > scale))
 }
 
 /**
