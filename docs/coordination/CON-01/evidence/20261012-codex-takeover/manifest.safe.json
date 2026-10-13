@@ -1,0 +1,49 @@
+{
+  "source_base": "0112445e71d38c3f70dae92659390b60257e6093",
+  "source_scope": "Uncommitted CON-owned patch subsequently committed with these artifacts; exact final tuple in PR receipt",
+  "evidence_level": "L1 synthetic local browser only",
+  "artifacts": [
+    {
+      "file": "browser-measures.safe.json",
+      "sha256": "b70a2e82c4882d3a97bc51e9c2fb7a9be4734f7794aba56a09d30ce19acb429a",
+      "bytes": 1945
+    },
+    {
+      "file": "desktop-confirmation.jpg",
+      "sha256": "84997adf9387cabf0a2f83c22a5ef32016dea2992d20c2b62a86620c2e684d7a",
+      "bytes": 97076
+    },
+    {
+      "file": "held-files.safe.json",
+      "sha256": "1f11e62057c6d6402cf31f892c7ea4f58ef9636cbb6368e94e597a25fdbeb297",
+      "bytes": 1610
+    },
+    {
+      "file": "notice-style.safe.json",
+      "sha256": "6501e79f115cce388244d8eeaf50de705462eade48913ef90944d7e3bc998f22",
+      "bytes": 130
+    },
+    {
+      "file": "phone-confirmation.jpg",
+      "sha256": "bc757fdbacd42d0808d2186a9e95d1e92912f7dd35b30b14dfbbff41c9a78df4",
+      "bytes": 44977
+    },
+    {
+      "file": "phone-notice.jpg",
+      "sha256": "d7694d32899e6ca44daa119fef1c1602bfaea5ab722091a35ed0e2ffb8207488",
+      "bytes": 29313
+    },
+    {
+      "file": "desktop-confirmation-review-correction.jpg",
+      "sha256": "cd4f7c35229e7042076b19762ff1ed2e84bc492f143d016d7d8f59374a52f4c4",
+      "bytes": 97042,
+      "source_scope": "Post-a063457e P2 moderator preservation correction; committed with this manifest update"
+    },
+    {
+      "file": "desktop-pending-controls.jpg",
+      "sha256": "4b27da7d9da7d61679a1886e4907a61ff261a9ff0fb1c38f467e3f56148bd530",
+      "bytes": 96949,
+      "source_scope": "Post-956cf90f P2 disabled neutral Keep correction; committed with this manifest update"
+    }
+  ]
+}

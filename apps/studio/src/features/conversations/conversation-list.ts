@@ -103,13 +103,22 @@ export const questionWords = (c: Pick<ConversationSummary, 'openQuestions' | 'qu
  * What a summary or a question list covers (binding map §3.1): which messages, and what came since; nothing where none
  * exists yet (the words beside it say so). A partial one says it read only the newest.
  */
-export function coverageWords(c: Coverage): string | null {
+const COVERAGE_COPY = {
+  summary: { subject: 'The summary', covers: 'The summary covers', pronoun: 'it covers' },
+  questions: { subject: 'The questions', covers: 'The questions cover', pronoun: 'they cover' },
+  projection: { subject: 'It', covers: 'Covers', pronoun: 'it covers' },
+}
+
+export function coverageWords(c: Coverage, kind?: 'summary' | 'questions'): string | null {
+  const copy = COVERAGE_COPY[kind ?? 'projection']
   if (c.state === 'not_assessed' || c.fromSeq === null || c.throughSeq === null) {
-    return c.state === 'unavailable' ? 'It couldn’t be made just now.' : null
+    return c.state === 'unavailable' ? `${copy.subject} couldn’t be made just now.` : null
   }
   const range = `messages ${String(c.fromSeq)}–${String(c.throughSeq)}${c.complete ? '' : ', the newest then'}`
-  if (c.state === 'unavailable') return `It couldn’t be updated just now: it covers ${range}.`
-  return c.state === 'stale' ? `Covers ${range}; ${sinceWords(c)}.` : `Covers ${range}.`
+  if (c.state === 'unavailable') {
+    return `${copy.subject} couldn’t be updated just now: ${copy.pronoun} ${range}.`
+  }
+  return c.state === 'stale' ? `${copy.covers} ${range}; ${sinceWords(c)}.` : `${copy.covers} ${range}.`
 }
 
 /** What a stale projection says came since its range (`Coverage`). */

@@ -25,9 +25,17 @@ export const CONVERSATION_PAGE_LIMIT = 50
 /** A row's opening: the newest message's first characters, as written. */
 export const CONVERSATION_OPENING = 140
 
-/** The saved-text policy's notice (CON-01 binding map §5), shown before a first message. Davide's D-1 sets the words. */
+/**
+ * The saved-text policy's notice (CON-01 binding map §5), shown before a first message and in the context's help. What
+ * it says is Davide's decision 8 (D-1, for the test cohort): who reads, how long, who removes, and what removal can't
+ * reach. What asking Sophia sends, and to whom, is added before Ask is enabled.
+ */
 export const CONVERSATION_NOTICE =
-  'Messages here are saved for this project and can be read by its members. Live room audio is not saved here.'
+  'Titles and messages here are saved for this project, and its current members can read them. ' +
+  'They’re kept for the life of the project until they’re withdrawn or erased, unless a stricter organization rule applies. ' +
+  'You can withdraw your own messages; admins can remove any message or erase a conversation. ' +
+  'Hosted backups keep their own retention, and what someone has already seen can’t be unseen. ' +
+  'Live room audio is not saved here.'
 
 /** The write receipt: ids only. */
 export interface ConversationReceipt {

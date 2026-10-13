@@ -243,9 +243,9 @@ function ThisConversation(props: { conversation: ConversationSummary & Unnamed; 
       ) : (
         <>
           <p className="conv-this-summary">{c.summary ?? 'No summary yet.'}</p>
-          <Covers words={coverageWords(c.summaryCoverage)} />
+          <Covers words={coverageWords(c.summaryCoverage, 'summary')} />
           <p className="conv-note">{questionWords(c)}</p>
-          <Covers words={coverageWords(c.questionsCoverage)} />
+          <Covers words={coverageWords(c.questionsCoverage, 'questions')} />
         </>
       )}
       {away.press}
