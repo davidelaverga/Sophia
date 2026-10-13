@@ -11,9 +11,9 @@ Runtime unit: Luis's Windows host (node's test runner; Playwright through `.clau
 CI as the run on record.
 Existing authority: Luis's standing instructions for the kit (push to `ui/*`; after the 2026-10-13 freeze, later P2s
 go to a follow-up list); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `38b2514651c6` (tree `4866706d729e`), the last commit of `ui/room-phone-dock`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 3 files changed against
-`origin/main` at that commit: `e2e/room-phone-floor.spec.ts`, `src/app/theme.css`, `docs/plans/room-phone-floor.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `03ffba98831d` (tree `06dc37a452dd`), the last commit of `ui/room-phone-dock`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 5 files changed against
+`origin/main` at that commit: `e2e/room-phone-floor.spec.ts`, `src/app/theme.css`, `src/features/access/LobbyPanel.tsx`, `docs/handoffs/UIKIT-64-attempt-1.md`, `docs/plans/room-phone-floor.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -49,3 +49,10 @@ commits on the branch merge its base forward or touch only this record). 3 files
 ## Next bounded action
 
 The issue for Davide.
+
+## Post-review (Codex P1 on #296)
+
+- `03ffba98` (P1 4263023314): «Decline» is the kit's `Button kind="ghost"` (28 px from the shared scale,
+  `button-class.ts`), not a text press given `height: 28px` in `.lobby-decline`; its colour and type stay the
+  feature's. room-phone-floor still checks it as tall as Let in. Local: room-phone-floor, lobby-door, control-heights,
+  press-answers: 44 passed.
