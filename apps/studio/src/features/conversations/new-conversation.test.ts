@@ -213,6 +213,20 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a compound number’s hyphen joins it; «had» and «has» read as the clitic does (Codex round 25 on #274)', () => {
+    assert.equal(
+      sameQuestion('Compare twenty-one year revenue forecast', [asked('a', 'Compare 21 year revenue forecast', at)])
+        ?.id,
+      'a',
+    )
+    const had = [asked('a', 'We had enabled email alerts before launch?', at)]
+    assert.equal(sameQuestion('We\u2019d enabled email alerts before launch?', had)?.id, 'a')
+    assert.equal(
+      sameQuestion('She\u2019s enabled email alerts?', [asked('a', 'She has enabled email alerts?', at)])?.id,
+      'a',
+    )
+  })
+
   it('a separator ends a spelled number; a clitic reads as its word (Codex round 24 on #274)', () => {
     const total = [asked('a', 'Compare 10200 user budgets', at)]
     assert.equal(sameQuestion('Compare one hundred/two hundred user budgets', total), null)
