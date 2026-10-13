@@ -12,7 +12,7 @@ host was refused by the machine guard (free RAM under 5 GB with AION2 open).
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `7ac230c394e6` (tree `edd710b49368`), the last commit of `ui/p2-board`'s own that changes code (later
+Ending commit/tree: `6eb3bf5b705b` (tree `3f71a29d7a7d`), the last commit of `ui/p2-board`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 10 files changed against
 `origin/main` at that commit: `e2e/app-auth.spec.ts`, `e2e/board-why.spec.ts`, `e2e/work.spec.ts`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `src/features/work/planning/seen.test.ts`, `src/features/work/planning/seen.ts`, `docs/handoffs/UIKIT-48-attempt-1.md`, `docs/plans/p2-board.md`. The review notes below name the commit of each later change.
 
@@ -57,3 +57,7 @@ The next follow-up: hover and press states (Codex P2s on #232 and #234).
 
 - Run 38332973669 on `7fc2306f` (this branch's head, every change and review round in it): all jobs green, the browser suites
   among them, the checks this PR wrote included.
+
+## Post-review, round 2 (Codex on #278)
+
+- `6eb3bf5b`: a stored look whose `waits` is neither absent nor a list of ids is not read (`isSeen`), so a bad entry starts a fresh look rather than throwing in render. Test in `60a0cc16`, failing first. The final head's CI is pending.
