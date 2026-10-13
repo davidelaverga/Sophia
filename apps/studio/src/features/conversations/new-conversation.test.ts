@@ -124,6 +124,15 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Should email notifications be enabled?', here)?.id, 'a')
   })
 
+  it('an action and its opposite both said on each side is the same question; the doubled forms count (Codex on #274)', () => {
+    const both = [asked('a', 'Should we enable email and disable SMS?', at)]
+    assert.equal(sameQuestion('Should we enable email and disable SMS?', both)?.id, 'a')
+    assert.equal(sameQuestion('Should we enable email?', both), null)
+    const start = [asked('a', 'Should we start email notifications?', at)]
+    assert.equal(sameQuestion('Should email notifications be stopped?', start), null)
+    assert.equal(sameQuestion('Stopping email notifications?', start), null)
+  })
+
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)

@@ -56,3 +56,15 @@ test('same question @phone · a long title with no break wraps inside the form, 
   expect((press?.x ?? 0) + (press?.width ?? 0)).toBeLessThanOrEqual((box?.x ?? 0) + (box?.width ?? 0) + 0.5)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0)
 })
+
+test('same question · a question that turns the one asked here shows no line (Codex on #274)', async ({ page }) => {
+  await newConversation(page)
+  const question = form(page).getByRole('textbox', { name: 'Question' })
+  // Alike in its words, but negated by «cannot» (#274's matcher): another question, so nothing is named.
+  await question.fill('Briefs cannot be short or long?')
+  await expect(form(page).getByRole('button', { name: 'Start' })).toBeVisible()
+  await expect(same(page)).toHaveCount(0)
+  // The same words without the turn: named again.
+  await question.fill('Should briefs be short or long?')
+  await expect(same(page)).toContainText('Short or long briefs?')
+})
