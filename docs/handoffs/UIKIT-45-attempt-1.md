@@ -61,12 +61,17 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 
 ## Post-review, round 3 (Codex on #275)
 
-- `d017ad37`: the recovery check waits for the older read to fail for good (its retry spent), then moves the feed with an event (`fixture.update()`, no focus regained), so only the `readAt` effect can bring the quick asks back. Not run on this host (guard); its CI is pending (the run on record above predates this check's change).
+- `d017ad37`: the recovery check waits for the older read to fail for good (its retry spent), then moves the feed with an event (`fixture.update()`, no focus regained), so only the `readAt` effect can bring the quick asks back. Not run on this host (guard); its CI: see «CI on record, final head» below.
 
 ## Post-review, round 4 (Codex on #275)
 
-- `056daf95`: the transcript, the list and the brief count as current only when their `fetchStatus` is `idle`: a refresh paused offline (its old data kept, `isFetching` false) is not. The CI on record above predates this change; the new head's CI is pending, and recorded here when it lands.
+- `056daf95`: the transcript, the list and the brief count as current only when their `fetchStatus` is `idle`: a refresh paused offline (its old data kept, `isFetching` false) is not. Its CI: see «CI on record, final head» below.
 
 ## Post-review, round 5 (Codex on #275)
 
-- `4a2fc8e9` (P1 4254365139): a failed older read is retried once per read of the thread (`triedAt`, the `readAt` it last retried at), never on the error itself, which looped (a refetch with no data resets the query to pending). The final head's CI is pending.
+- `4a2fc8e9` (P1 4254365139): a failed older read is retried once per read of the thread (`triedAt`, the `readAt` it last retried at), never on the error itself, which looped (a refetch with no data resets the query to pending). Its CI: see «CI on record, final head» below.
+
+## CI on record, final head
+
+- Run 38341644324 on `deecead4` (the head with every change and review round, the retry gate and the idle-only reads
+  included): all jobs green, the browser suites among them, next-ask.spec's recovery check as changed in round 3.
