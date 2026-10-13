@@ -38,40 +38,94 @@ const COMMON = new Set(
   ).split(' '),
 )
 
+/**
+ * A title folded for comparing: accents off, lower case the same on every device (not the device's locale, where a
+ * Turkish «I» folds to a dotless «ı»; Codex on #266).
+ */
+const fold = (title: string) => title.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+/** A folded title's words, split at anything not a letter or a digit. */
+const wordsOf = (title: string) => fold(title).split(/[^\p{L}\p{N}]+/u)
+
 /** A title's own words: folded, accents off, three letters or more, common words left out, a final «s» dropped. */
 function ownWords(title: string): Set<string> {
-  const words = title
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLocaleLowerCase()
-    .split(/[^\p{L}\p{N}]+/u)
+  const words = wordsOf(title)
     .filter((w) => w.length >= 3 && !COMMON.has(w))
     .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
   return new Set(words)
 }
 
 /**
- * Words that turn a question's meaning: a negation («not», «never», «without»; a «n't» counts as «not») and an order
- * («before» against «after»). Two titles alike in all else ask different things when one negates and the other does
- * not, or one says before where the other says after (Codex on #266).
+ * Words that turn a question's meaning: a negation («not», «never», «cannot»; a «n't» counts as «not»), an order
+ * («before» against «after»), an action against its opposite («enable» against «disable») and a number. Two titles
+ * alike in all else ask different things when one negates and the other does not, one says before where the other says
+ * after, one acts where the other undoes, or each names a different number (Codex on #266).
  */
-const NEGATIONS = new Set(['not', 'no', 'never', 'without', 'except', 'unless'])
+const NEGATIONS = new Set(['not', 'no', 'never', 'without', 'except', 'unless', 'cannot'])
 
-/** What turns a title: whether it negates, and the order it names (before, after, or neither). */
-function turnsOf(title: string): { negates: boolean; order: 'before' | 'after' | null } {
-  const folded = title.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
-  const words = folded.split(/[^\p{L}\p{N}]+/u)
-  const negates = words.some((w) => NEGATIONS.has(w)) || /n['\u2019]t\b/u.test(folded)
-  const before = words.includes('before')
-  const after = words.includes('after')
-  return { negates, order: before === after ? null : before ? 'before' : 'after' }
+/** Actions and their opposites, by their plain form. */
+const OPPOSITES: readonly (readonly [string, string])[] = [
+  ['enable', 'disable'],
+  ['include', 'exclude'],
+  ['add', 'remove'],
+  ['allow', 'block'],
+  ['accept', 'reject'],
+  ['open', 'close'],
+  ['start', 'stop'],
+  ['show', 'hide'],
+  ['increase', 'decrease'],
+  ['raise', 'lower'],
+  ['import', 'export'],
+  ['hire', 'fire'],
+]
+
+/** Whether the words hold this action in a plain form: «enable», «enables», «enabled», «enabling». */
+const acts = (words: readonly string[], base: string) =>
+  words.some(
+    (w) =>
+      w === base || w === `${base}s` || w === `${base}d` || w === `${base}ed` || w === `${base.replace(/e$/u, '')}ing`,
+  )
+
+/** The orders a title names, each with the word it is said of: «before review», «after approval». */
+function ordersOf(words: readonly string[]): string[] {
+  return words.flatMap((w, i) => {
+    if (w !== 'before' && w !== 'after') return []
+    const of = words.slice(i + 1).find((next) => next !== '' && !COMMON.has(next)) ?? ''
+    return [`${w} ${of}`]
+  })
 }
 
-/** Whether two titles' turns agree: the same negation, and no order said one way in one and the other way in the other. */
+/** The kinds of order a title names: before, after, both or neither. */
+const kindsOf = (orders: readonly string[]) => new Set(orders.map((s) => s.split(' ')[0]))
+
+/** A title's numbers, in one order: «2025», «3 2026». */
+const numbersOf = (words: readonly string[]) =>
+  words
+    .filter((s) => /^\p{N}+$/u.test(s))
+    .toSorted()
+    .join(' ')
+
+/** Whether a title negates: a negating word, or a «n't». */
+const negates = (words: readonly string[], title: string) =>
+  words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(fold(title))
+
+/** Whether two titles name orders that disagree: one before where the other says after, or the two said in turn otherwise. */
+function ordersDisagree(x: readonly string[], y: readonly string[]): boolean {
+  // Both words said on either side: the same orders of the same things, or another question (Codex on #266).
+  if (kindsOf(x).size > 1 || kindsOf(y).size > 1) return x.toSorted().join('|') !== y.toSorted().join('|')
+  const [a] = kindsOf(x)
+  const [b] = kindsOf(y)
+  return a !== undefined && b !== undefined && a !== b
+}
+
+/** Whether two titles' turns agree: the same negation, no order, action or number said one way here and another there. */
 function turnsAgree(a: string, b: string): boolean {
-  const x = turnsOf(a)
-  const y = turnsOf(b)
-  return x.negates === y.negates && (x.order === null || y.order === null || x.order === y.order)
+  const x = wordsOf(a)
+  const y = wordsOf(b)
+  if (negates(x, a) !== negates(y, b)) return false
+  if (ordersDisagree(ordersOf(x), ordersOf(y))) return false
+  if (OPPOSITES.some(([p, q]) => (acts(x, p) && acts(y, q)) || (acts(x, q) && acts(y, p)))) return false
+  return numbersOf(x) === '' || numbersOf(y) === '' || numbersOf(x) === numbersOf(y)
 }
 
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
