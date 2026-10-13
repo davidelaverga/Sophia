@@ -213,6 +213,17 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a compound ordinal is one number; a prefix keeps its own word (Codex round 28 on #274)', () => {
+    assert.equal(sameQuestion('Twenty-first applicant?', [asked('a', '21st applicant?', at)])?.id, 'a')
+    assert.equal(sameQuestion('Twenty-first applicant?', [asked('a', '20 and 1st applicants?', at)]), null)
+    assert.equal(
+      sameQuestion('Re-sign contracts with vendors?', [asked('a', 'Resign contracts with vendors?', at)]),
+      null,
+    )
+    // Not a prefix: the hyphen still keeps the word whole.
+    assert.equal(sameQuestion('Send the e-mail digest?', [asked('a', 'Send the email digest?', at)])?.id, 'a')
+  })
+
   it('any punctuation ends a spelled number; a negating prefix stays a word of its own (Codex round 27 on #274)', () => {
     const total = [asked('a', 'Compare 10200 user budgets', at)]
     assert.equal(sameQuestion('Compare one hundred; two hundred user budgets', total), null)
