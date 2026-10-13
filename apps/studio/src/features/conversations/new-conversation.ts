@@ -56,13 +56,17 @@ const wordsOf = (title: string) =>
     .replace(/(\p{N})\.(?=\p{N})/gu, '$1point')
     // A number's sign stays on it: «-5» is not «5» (Codex on #274).
     .replace(/(^|[^\p{L}\p{N}])[-\u2212](?=\p{N})/gu, '$1minus')
+    // «cannot», «can't» and «won't» are a «can» or a «will» and a «not», as any «n't» is (Codex on #274).
+    .replace(/\b(?:can['\u2019]t|cannot)\b/gu, 'can not')
+    .replace(/\bwon['\u2019]t\b/gu, 'will not')
     // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
     .replace(/n['\u2019]t\b/gu, ' not')
     .split(/[^\p{L}\p{N}]+/u)
-    // A number spelled out is a number: «two years» is not «one year» (Codex on #274).
-    .map((w) => SPELLED.get(w) ?? w)
-    // «twenty one» is one number, as «21» is (Codex on #274).
+    // A number spelled out is a number: «two years» is not «one year» (Codex on #274). Marked as spelled, so only words
+    // said as one number are composed: figures apart («20-1») stay apart.
+    .map((w) => (SPELLED.has(w) || SCALES.has(w) ? `${SAID}${w}` : w))
     .reduce<string[]>(joinTensAndUnits, [])
+    .map((w) => (w.startsWith(SAID) ? valueOf(w) : w))
 
 /**
  * Spelled numbers composed as they are said: a ten then a unit («twenty one», 21), a number then a scale («one hundred»,
@@ -70,11 +74,28 @@ const wordsOf = (title: string) =>
  */
 function joinTensAndUnits(words: string[], w: string): string[] {
   const last = words.at(-1) ?? ''
-  const scale = SCALES.get(w)
-  if (adds(last, w)) words[words.length - 1] = String(Number(last) + Number(w))
-  else if (scale !== undefined && /^[1-9]\d{0,2}$/u.test(last)) words[words.length - 1] = String(Number(last) * scale)
-  else words.push(scale === undefined ? w : String(scale))
+  // Only two spelled words compose; a figure, or a word not a number, stands as it is.
+  if (!w.startsWith(SAID) || !last.startsWith(SAID)) {
+    words.push(w)
+    return words
+  }
+  const [a, b] = [valueOf(last), w.slice(1)]
+  const scale = SCALES.get(b)
+  if (adds(a, valueOf(w))) words[words.length - 1] = `${SAID}${String(Number(a) + Number(valueOf(w)))}`
+  else if (scale !== undefined && /^[1-9]\d{0,2}$/u.test(a))
+    words[words.length - 1] = `${SAID}${String(Number(a) * scale)}`
+  else words.push(w)
   return words
+}
+
+/** What marks a word as a spelled number while they are composed. */
+const SAID = '\u0000'
+
+/** A marked word's value: its number as a figure (a scale's, or the composed one kept as figures). */
+const valueOf = (marked: string): string => {
+  const word = marked.slice(1)
+  const scale = SCALES.get(word)
+  return scale === undefined ? (SPELLED.get(word) ?? word) : String(scale)
 }
 
 /**
