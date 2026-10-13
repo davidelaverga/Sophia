@@ -8,6 +8,7 @@ import {
   heard,
   introText,
   notePrefill,
+  opensHere,
   opensWithIntro,
   topicOf,
   type ConversationInput,
@@ -177,6 +178,17 @@ describe('conversationRows', () => {
   it('says when Sophia could not answer, so the person can ask again', () => {
     const failed = turn('person', 'Hello?', at(0, 19), { reply: 'failed' })
     assert.deepEqual(shape(conversationRows(input([failed]))), ['day:Today', 'person', 'failed'])
+  })
+})
+
+describe('opensHere (docs/plans/personal-first-talk.md)', () => {
+  it('holds while the rows offer the ways to start, and not once something is said', () => {
+    assert.equal(opensHere(conversationRows(input([], { fromTheStart: true }))), true)
+    const said = [
+      turn('person', 'Today I want to plan the week.', at(0, 9)),
+      turn('sophia', 'Where to start?', at(0, 9, 1)),
+    ]
+    assert.equal(opensHere(conversationRows(input(said, { fromTheStart: true }))), false)
   })
 })
 
