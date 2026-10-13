@@ -276,8 +276,9 @@ const turnsOf = {
  */
 const ownOrder = (words: readonly string[]) =>
   words
-    // A negation keeps its place: «not enable … disable» is not «enable … not disable» (Codex on #274).
-    .filter((w) => /\p{N}/u.test(w) || NEGATIONS.has(w) || PRONOUNS.has(w) || (w.length >= 3 && !COMMON.has(w)))
+    // Every word keeps its place but the filler: a negation, a pronoun, a demonstrative, a quantifier («all» against
+    // «some»), each binds what it is said of (Codex on #274).
+    .filter((w) => w !== '' && !FILLER.has(w))
     .map(plainWord)
     // A word said twice running is said once («before review or after review»); a word said again later keeps that
     // later place, which binds it to what is said there («enable SMS and disable email»: Codex on #274).
@@ -285,8 +286,17 @@ const ownOrder = (words: readonly string[]) =>
     .filter((w, i, all) => w !== all[i - 1] || NEGATIONS.has(w))
     .join(' ')
 
-/** Who an action is said of when it is a person: kept in the order, «allow them and block us» (Codex on #274). */
-const PRONOUNS = new Set(['me', 'us', 'you', 'him', 'her', 'them', 'it', 'this', 'that', 'these', 'those'])
+/**
+ * The words that only hold a sentence together, left out of the ordered words: articles, auxiliaries, prepositions and
+ * conjunctions, and «before»/«after», whose order is read on its own (`turnsOf.orders`).
+ */
+const FILLER = new Set(
+  (
+    'a an the and or but of to for in on at by with from into as than then so if ' +
+    'should would could can do does did be is are was were been being will shall may might must ' +
+    'we our i please before after'
+  ).split(' '),
+)
 
 /** Whether a title says a turning word of any kind: a negation, an order, an action of a pair, a number. */
 const turns = (words: readonly string[]) =>
