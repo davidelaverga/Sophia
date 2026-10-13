@@ -2903,10 +2903,6 @@ button.contribution-quote:hover {
   .topbar .mini-dock .dock-notes {
     top: calc(100% + 54px);
   }
-  /* Its tips too: under the views' row, not over it (Codex P2 on #254). */
-  .topbar .mini-dock .tip {
-    top: calc(100% + 52px);
-  }
 }
 
 /* Room access: the lobby over the stage and the Invite panel. */
