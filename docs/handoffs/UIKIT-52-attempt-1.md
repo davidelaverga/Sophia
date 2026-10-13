@@ -10,9 +10,9 @@ contract.
 Runtime unit: none beyond Prettier (records only); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `a9c1d444016d` (tree `49f6f30dfbe2`), the last commit of `ui/p2-records`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 10 files changed against
-`origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/handoffs/UIKIT-52-attempt-1.md`, `docs/plans/light-breath.md`, `docs/plans/needs-api.md`, `docs/plans/p2-records.md`, `docs/plans/section-heads.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `d6b01dd832ba` (tree `e8feb2e57acb`), the last commit of `ui/p2-records` that changes a record other than this
+handoff (the records this PR corrects are handoffs too, so the usual rule could not tell them apart). 10 files
+changed against `origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/handoffs/UIKIT-52-attempt-1.md`, `docs/plans/light-breath.md`, `docs/plans/needs-api.md`, `docs/plans/p2-records.md`, `docs/plans/section-heads.md`.
 
 ## Outcome
 
@@ -50,6 +50,6 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
 
 ## CI on record
 
-- Run 38338054881 on `69dbfafb` (this branch's head, every change and review round in it): all jobs green, the browser suites
-  among them.
+- Run 38338054881 on `69dbfafb`: all jobs green, the browser suites among them. The corrections after it (round 6 on,
+  records only) have no run of their own recorded yet; no code changed in this PR.
 - `d6b01dd8`: UIKIT-36's outcome gives the day label's 10.5 px and 0.63 px beside the 12 px labels' 0.72 px (round 6, Codex on #282).
