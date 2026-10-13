@@ -1105,15 +1105,21 @@ export class ControlBridge {
     if (attempt.stash.length === 0) return
     const stash = attempt.stash
     attempt.stash = []
-    const sent = stash.map((held) => ({ held, message: createUserMessage({ content: [...held.content], source: { kind: 'user' } }) }))
+    const sent = stash.map((held) => {
+      const message = createUserMessage({ content: [...held.content], source: { kind: 'user' } })
+      // An unsettled Resume owns this identity. Keep it across an unstash so
+      // replay can find the same native effect, including after another crash.
+      const resumeOwner = [...attempt.unsettled].find(([, entry]) => entry.kind === 'resume' && entry.messageId === held.messageId)?.[0]
+      return { held, message: resumeOwner ? { ...message, id: held.messageId as UserMessage['id'] } : message, resumeOwner }
+    })
     this.journal.append(attempt.sessionId, 'sophia/unstash', {
       attemptId: attempt.attemptId,
       commandId,
       messageIds: stash.map((m) => m.messageId),
       messages: sent.map(({ held, message }) => ({ messageId: message.id, target: held.target, content: [...held.content] })),
     })
-    for (const { held, message } of sent) {
-      const owner = attempt.pendingIncorporation.get(held.messageId)
+    for (const { held, message, resumeOwner } of sent) {
+      const owner = attempt.pendingIncorporation.get(held.messageId) ?? resumeOwner
       if (owner) {
         attempt.pendingIncorporation.delete(held.messageId)
         attempt.pendingIncorporation.set(message.id, owner)
@@ -1136,7 +1142,14 @@ export class ControlBridge {
   private async deliverTo(attempt: AttemptState, agent: Agent, command: RuntimeCommand, target: DeliveryTarget, text: string): Promise<RuntimeReceipt[]> {
     const replay = attempt.unsettled.get(command.commandId)
     if (replay?.messageId) {
-      if (this.nativeMessageIds(agent).has(replay.messageId)) {
+      // A held service binding may have moved the durable continuation into
+      // the bridge stash on restart. Recover it before looking in native state;
+      // otherwise a replacement leaves the original waiting to run again.
+      if (command.kind === 'resume' && attempt.stash.length > 0) {
+        if (attempt.fence === 'held') this.setFence(attempt, 'active', command)
+        this.redeliverStash(attempt, agent, command.commandId)
+      }
+      if (this.nativeMessageIds(agent).has(replay.messageId) || (command.kind === 'resume' && attempt.pendingIncorporation.get(replay.messageId) === command.commandId)) {
         // Re-execution after a restart: dsh already holds the message. Settle; never send it twice.
         const seq = this.append(attempt, command, { id: replay.messageId, content: replay.content ?? [] }, replay.target)
         if (command.kind === 'resume') {

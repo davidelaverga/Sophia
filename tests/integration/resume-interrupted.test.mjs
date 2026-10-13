@@ -103,3 +103,46 @@ test('A Resume journaled before its wake survives a crash without requiring anot
   await sleep(200)
   assert.equal(w.llm.requests.length, calls + 1, 'the already-consumed continuation was not repeated')
 })
+
+
+test('A Resume recovered into the held stash is consumed once and leaves no latent continuation', async (t) => {
+  const w = await world(t)
+  await w.start()
+  w.send(w.cmd('create', { text: 'First turn.' }))
+  await w.service.waitFor(() => w.turnEnds().some((e) => e.data.reason.kind === 'completed'), 20000, 'first completion')
+  const hold = w.send(w.cmd('hold'))
+  await w.service.waitForReceipt(hold.commandId, 'checked')
+  await w.stop()
+  const resume = w.cmd('resume')
+  const file = join(w.layout.dshHome, 'sophia-bridge', `sophia-${w.attemptId}.jsonl`)
+  let seq = w.journal().at(-1).seq
+  const content = [{ type: 'text', text: 'Continue the interrupted task once.' }]
+  // A crash lost settlement; the service still holds the binding and its
+  // pre-step fence stashed the native continuation on restart.
+  for (const record of [
+    { type: 'sophia/command', data: { commandId: resume.commandId, kind: 'resume', attemptId: w.attemptId, authorityEpoch: 1, messageId: 'resume-held-stash', target: 'next-turn', content, nativeSeq: null, role: null } },
+    { type: 'sophia/fence', data: { attemptId: w.attemptId, authorityEpoch: 1, state: 'active', commandId: resume.commandId } },
+    { type: 'sophia/stash', data: { attemptId: w.attemptId, messages: [{ messageId: 'resume-held-stash', target: 'next-turn', content }] } },
+  ]) appendFileSync(file, `${JSON.stringify({ seq: ++seq, time: Date.now(), ...record })}\n`)
+  w.service.setBindings([{ attemptId: w.attemptId, nativeSessionId: `sophia-${w.attemptId}`, authorityEpoch: 1, state: 'held' }])
+  const calls = w.llm.requests.length
+  await w.start()
+  w.send(resume)
+  await w.service.waitForReceipt(resume.commandId, 'delivered')
+  await w.service.waitFor(() => w.llm.requests.length === calls + 1 && w.llm.active === 0, 5000, 'one continued turn')
+  await w.service.waitFor(() => new Set(w.turnEnds().filter((e) => e.data.reason.kind === 'completed').map((e) => e.nativeSeq)).size >= 2, 10000, 'continued turn completed')
+  const inspect = w.send(w.cmd('inspect'))
+  assert.equal(JSON.parse((await w.service.waitForReceipt(inspect.commandId)).reason).stash, 0)
+  await w.stop()
+  // Lose the new settlement too: its native identity must still be recognised.
+  writeFileSync(file, readFileSync(file, 'utf8').split('\n').filter((line) => !line || !(JSON.parse(line).type === 'sophia/settled' && JSON.parse(line).data.commandId === resume.commandId)).join('\n'))
+  w.service.setBindings([{ attemptId: w.attemptId, nativeSessionId: `sophia-${w.attemptId}`, authorityEpoch: 1, state: 'active' }])
+  await w.start()
+  await w.service.waitFor(() => w.service.receiptsFor(resume.commandId).filter((r) => r.stage === 'delivered').length >= 2, 5000, 'replayed settlement')
+  const holdAgain = w.send(w.cmd('hold'))
+  await w.service.waitForReceipt(holdAgain.commandId, 'checked')
+  const resumeAgain = w.send(w.cmd('resume'))
+  await w.service.waitForReceipt(resumeAgain.commandId, 'delivered')
+  await sleep(300)
+  assert.equal(w.llm.requests.length, calls + 1)
+})
