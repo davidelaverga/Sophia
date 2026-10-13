@@ -31,6 +31,16 @@ commits on the branch merge its base forward or touch only this record). 5 files
   `.claude-guards/safe-run.ps1`, gentle, one worker). The new browser check (a `cannot` question names nothing, the
   plain one is named) fails with `main`'s matcher in place.
 
+## Decisions and changes
+
+- Changed: `sameQuestion`'s gate before scoring; after ten rounds of bindings, one ordered gate (round 10) and a spelled-number parser (round 17). Preserved: the scoring itself (two shared words, 60 %), the view and its line. Chosen: a paraphrase with turning words reads as another question, the form erring to silence. The design note names each change; the post-review notes below name the commit of each later
+  one.
+- Instruction applied: Luis, 2026-10-12, «atiende los P2 en PRs pequeñas» (the kit stack's open Codex P2s, one concern a
+  PR), under his standing instructions for the kit (push to `ui/*`, answer each thread with its fix commit; merges are
+  his, with no open P1).
+- Authority: not widened. Studio code, its checks and records only; no service code, no contract, no deploy. Points that
+  belong to the service (A15's contract, a single-task read) are recorded for that side, not changed here.
+
 ## Remaining obligations
 
 - CI on the PR; the independent review (Codex) with no open P1 before merge; its P2s go to follow-ups.
