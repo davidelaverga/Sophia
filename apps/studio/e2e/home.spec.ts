@@ -177,7 +177,7 @@ test('home · pressed again, the microphone stops, and nothing it would have hea
   await page.goto(PAGE)
   const mic = page.getByRole('button', { name: 'Speak instead' })
   await expect(mic).toBeVisible()
-  // The line's resting words: its own, or the next ask it suggests (next-ask-places.md) when a room is about to start.
+  // The line's resting words: its own, or the next ask it suggests (next-ask-places.md) when a session is about to start.
   const resting = (await line(page).getAttribute('placeholder')) ?? ''
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'true')
