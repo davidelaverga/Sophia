@@ -762,7 +762,8 @@ function useNextUp(
 ) {
   const [recorded, setRecorded] = useState<readonly string[]>([])
   const [shown, setShown] = useState(false)
-  const submitted = useRef<Element | null>(null)
+  // The choice the answer behind the line went from: the one Next up may take the focus from (Codex on #277).
+  const [from, setFrom] = useState<Element | null>(null)
   const review = slot.review !== null && !slot.reviewShown
   const waiting = waitingFor(rows, viewerId, (r) => laneOf(r, rows), LANE_KEYS)
   // Followed, not read once: an answer settling as retryable with the decisions closed re-renders the board, so Next up
@@ -798,11 +799,12 @@ function useNextUp(
       // A line already up names what this answer may be answering: it goes as the send starts, and the line for what
       // is next comes only once this one is recorded (Codex P2 on #263).
       setShown(false)
-      // The choice this answer went from: the one Next up may take the focus from once it is recorded (Codex on #277).
-      submitted.current = document.activeElement
+      // Each answer keeps the choice it went from, so two in flight never hand each other's choice to the line.
+      const went = document.activeElement
       const said = await onDecide(answer)
       if (said === 'recorded') {
         setRecorded((was) => [...was, answeredKey(answer.decision_id, answer.revision)])
+        setFrom(went)
         setShown(true)
       }
       return said
@@ -814,7 +816,7 @@ function useNextUp(
     else if (next?.kind === 'task' && next.id) onOpenTask(next.id)
     else if (next?.kind === 'review') slot.toggleReview()
   }
-  return { next, decide, close, go, submitted }
+  return { next, decide, close, go, from }
 }
 
 interface BarProps {
@@ -920,7 +922,7 @@ function BoardBody(props: BodyProps) {
   return (
     <section className="board" aria-label={`Plan r${String(plan.revision)}`} data-lens={view.lens}>
       <Bar {...bar} />
-      {after.next && <NextUp next={after.next} from={after.submitted} onGo={after.go} onDone={after.close} />}
+      {after.next && <NextUp next={after.next} from={after.from} onGo={after.go} onDone={after.close} />}
       <Notices board={board} coverage={props.coverage} operable={operable} />
       <ProposalBand current={plan} proposals={proposed(goal).filter((p) => p !== plan)} operable={operable} />
       <Updating decisions={goal.decisions} {...decisionProps} />

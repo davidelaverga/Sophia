@@ -2,7 +2,7 @@
 // them next, a press that goes there. It takes the focus as the answer goes (from the page's body, where a disabled
 // choice leaves it, or from inside the decisions), never from somewhere the person moved to meanwhile. With nothing
 // next it says so, holds the focus, and leaves when the focus does.
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useRef } from 'react'
 import { Icon } from '@sophia/ui'
 import type { NextUp as Next } from './next-up.ts'
 
@@ -13,7 +13,7 @@ interface Props {
   /** The line has served (nothing next, the focus gone). */
   onDone: () => void
   /** The choice the answer went from: the focus is taken from it (or from the page), never from another. */
-  from: RefObject<Element | null>
+  from: Element | null
 }
 
 /**
@@ -28,8 +28,7 @@ export function NextUp({ next, from, onGo, onDone }: Props) {
   const said = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (leftByAnswer(document.activeElement, from.current))
-        (press.current ?? said.current)?.focus({ preventScroll: true })
+      if (leftByAnswer(document.activeElement, from)) (press.current ?? said.current)?.focus({ preventScroll: true })
     })
     return () => cancelAnimationFrame(frame)
   }, [next.words, from])
