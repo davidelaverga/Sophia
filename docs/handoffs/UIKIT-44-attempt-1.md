@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `7df664e43748` (tree `8647043bdced`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `c2e8e99269a9` (tree `fea81b3a9a12`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -184,3 +184,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 24 (Codex on #274)
 
 - `7df664e4`: a slash or a dash between words is a boundary a spelled number does not cross («one hundred/two hundred», two); clitics read as their words («we're» we are, «'ll» will…), a possessive's «s» dropped. Tests in `e515dd5c`, failing first.
+
+## Post-review, round 25 (Codex on #274)
+
+- `c2e8e992`: a hyphen inside a compound number joins it («twenty-one», 21; `joins`); «had», «has», «have» and «am» are filler, as their clitics read («we'd enabled» meets «we had enabled»). Tests in `296209fc`, failing first.
