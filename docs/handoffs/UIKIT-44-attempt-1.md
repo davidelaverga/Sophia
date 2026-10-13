@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `5ccb9a057927` (tree `2f63bc1c7e6d`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `8d775cf926ec` (tree `88943bdf8ea0`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -86,3 +86,11 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 - `5ccb9a05`: the thing a turning word keeps is read as the scoring reads words (`plainWord`: an action as its plain form,
   a final «s» dropped), so «emails … texts» meets «email … text» and «Q1 revenues … Q2 costs» meets «Q1 revenue … Q2
   cost». Test in `7e28ca4a`, failing first.
+
+## Post-review, round 7 (Codex on #274)
+
+- `8d775cf9`: a negation, an order or an action said on each side keeps its thing even when said once («not red» against
+  «not blue», «before approval» against «before review»); numbers still from two on each side. Only a comma is a
+  thousands separator: «1.234» stays a decimal. Tests in `c3d211e8`, failing first. Two positive controls moved to a
+  one-word thing (a passive with «password input fields» or «email notifications» now reads as another question:
+  round 5's declared limit, the form erring to silence).
