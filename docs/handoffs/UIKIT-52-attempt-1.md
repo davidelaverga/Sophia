@@ -10,7 +10,7 @@ contract.
 Runtime unit: none beyond Prettier (records only); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `9b36066670cb` (tree `be7e9c169971`), the last commit of `ui/p2-records` that changes a record other than this
+Ending commit/tree: `04c21082f42f` (tree `2c0ce9ecb025`), the last commit of `ui/p2-records` that changes a record other than this
 handoff (the records this PR corrects are handoffs too, so the usual rule could not tell them apart). 10 files
 changed against `origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/handoffs/UIKIT-52-attempt-1.md`, `docs/plans/light-breath.md`, `docs/plans/needs-api.md`, `docs/plans/p2-records.md`, `docs/plans/section-heads.md`.
 
@@ -55,3 +55,4 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
 - `d6b01dd8`: UIKIT-36's outcome gives the day label's 10.5 px and 0.63 px beside the 12 px labels' 0.72 px (round 6, Codex on #282).
 - `5224039d`: a permission's `resourceId` recorded as meant, but still nullable in A15's schema: an open point for the service (round 7, Codex on #282).
 - `9b360666`: the seen mark posted only once the reply is shown (round 8, Codex on #282).
+- `04c21082`: section-heads.md's pinned Tasks scale as delivered, the tiles at 13 and no 14 (round 9, Codex on #282).
