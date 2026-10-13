@@ -154,6 +154,12 @@ export function briefAsks(brief: MissionContext | undefined, failed: boolean): P
 }
 
 /** What the next ask may stand on now: the thread read and not being read again; the viewer's older asks read. */
+/**
+ * A read is settled only when idle: one paused offline keeps its old data with `isFetching` false, yet it is still on
+ * its way, and a newer read started meanwhile would cancel it (Codex on #275).
+ */
+export const settled = (read: { fetchStatus: 'fetching' | 'paused' | 'idle' }): boolean => read.fetchStatus === 'idle'
+
 export interface AskReadings {
   /** The transcript read, not being read again, its last read not failed: its newest message is the newest. */
   fresh: boolean

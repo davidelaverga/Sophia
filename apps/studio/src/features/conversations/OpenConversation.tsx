@@ -32,6 +32,7 @@ import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { settled } from './next-ask.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
 import { MessageActs } from './MessageActs.tsx'
@@ -185,7 +186,7 @@ function nextOf(props: Props, read: ReturnType<typeof useTranscript>, current: b
     // Read and not being read again, the last read not failed: its newest message is the newest; and the list not being
     // read again, its open questions the count now (Codex on #275).
     // Idle only: a read paused offline keeps its old data and is not current either (Codex on #275).
-    fresh: current && read.isSuccess && read.fetchStatus === 'idle' && (props.list?.fetchStatus ?? 'idle') === 'idle',
+    fresh: current && read.isSuccess && settled(read) && settled(props.list ?? { fetchStatus: 'idle' }),
     readAt: read.dataUpdatedAt,
     // The list's last read failed: its count of open questions may be stale.
     openQuestions: props.list?.isError === true ? null : props.conversation.openQuestions,
@@ -389,8 +390,9 @@ function Messages(props: {
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
-          // Not pressed while the thread is read again: an older page then would cancel that read (Codex on #275).
-          busy={read.isFetching}
+          // Not pressed while the thread is read again, paused offline included: an older page then would cancel that
+          // read (Codex on #275).
+          busy={!settled(read)}
           failed={read.isFetchNextPageError}
           onRead={() => {
             asked.current = true
