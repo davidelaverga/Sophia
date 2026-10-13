@@ -41,3 +41,7 @@ commits on the branch merge its base forward or touch only this record). 3 files
 ## Next bounded action
 
 Luis's next «¿Vale $20?» area, or merges of #299–#302.
+
+## Local run (Luis: «Corre el playwright y valida»)
+
+- Through the guard, 2 workers: explore.spec: 12 passed, the new check included.
