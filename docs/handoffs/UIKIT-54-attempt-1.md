@@ -44,3 +44,8 @@ Record each follow-up PR's CI result in its handoff as it lands (Codex P1 on #28
   mounted view, and `/` on a Tasks view with no plans. Each needs a call keeping a project's shell mounted across places
   (Home and back), which the fixture pages do not stage; they are held by the pure helpers' unit tests and CI's existing
   suites. Local Playwright stayed refused by the machine guard (another game open, free RAM about 5.6 GB).
+
+## CI on record
+
+- Run 38336535160 on `e9660242` (this branch's head, every change and review round in it): all jobs green, the browser suites
+  among them.
