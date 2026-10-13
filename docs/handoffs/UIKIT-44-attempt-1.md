@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `32cfed03b89a` (tree `bc5d74aa5b0c`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `3a2dd16be2c8` (tree `1d5bfe836e42`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -166,3 +166,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 22 (Codex on #274)
 
 - `32cfed03`: an «and» after a scale also joins when a larger scale lies ahead («one hundred and twenty thousand», 120000); a scale said again multiplies («one thousand thousand», a million). Tests in `77c5e1a9`, failing first.
+
+## Post-review, round 23 (Codex on #274)
+
+- `3a2dd16b`: only a hundred's coefficient goes on into a larger scale after «and»; after a thousand or more, a larger scale is another quantity («one thousand and one million», two). Tests in `b5a4c2cf`, failing first.
