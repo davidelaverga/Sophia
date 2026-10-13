@@ -382,3 +382,26 @@ test('acts · the latest copy refused, an earlier one landing later is said too,
   })
   expect(said).toBe(rose)
 })
+
+test('acts · a run’s message saying it copied keeps its row clear of the message after it (Codex on #283)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await open(page).getByRole('checkbox', { name: 'Ask Sophia' }).uncheck()
+  for (const words of ['One more thing', 'and another', 'and a last one']) {
+    await field(page).fill(words)
+    await page.keyboard.press('Enter')
+    await expect(messages(page).last()).toContainText(words)
+  }
+  const middle = messages(page).nth(-2)
+  const after = messages(page).last()
+  await expect(middle).toHaveAttribute('data-run', 'on')
+  await middle.hover()
+  await middle.getByRole('button', { name: 'Copy' }).click()
+  await expect(middle.getByRole('status')).toHaveText('Copied')
+  const [row, next] = await Promise.all([
+    middle.locator('.conv-acts').boundingBox(),
+    after.locator('.conv-msg-body').boundingBox(),
+  ])
+  expect(row && next ? row.y + row.height <= next.y + 0.5 : false).toBe(true)
+})

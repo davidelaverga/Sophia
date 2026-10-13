@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { draftsOnlyOf, forgetDrafts } from '../features/personal/draft.ts'
 import { cacheFor, cacheOf } from './account-cache.ts'
 import { accountOf } from './auth-callback.ts'
@@ -46,6 +46,18 @@ function useDraftsOnlyOfWhoIsIn(state: AuthState) {
  * who that is, anyone else's go, and all go once it knows nobody is; while it is still finding out, as every page load
  * starts, none go. Decided as who is in changes, never in an effect's cleanup, which also runs as a load signs in.
  */
+/**
+ * «Recent» is one person's: whenever the account signed in changes, by this tab's switch or sign-out or by the session
+ * another tab changed (the auth listener), it is forgotten (Codex on #283).
+ */
+function useRecentOnlyOf(signedInAs: string | null) {
+  const was = useRef(signedInAs)
+  useEffect(() => {
+    if (was.current !== null && was.current !== signedInAs) forgetRecent()
+    was.current = signedInAs
+  }, [signedInAs])
+}
+
 function useProposalsOnlyOfWhoIsIn(state: AuthState) {
   const who = proposalsKeptFor(state)
   useEffect(() => proposalsOnlyOf(who), [who])
@@ -120,6 +132,7 @@ export function App() {
   const routing = useProjectRoute()
   const signedInAs = state.status === 'signed_in' ? accountOf(state.identity) : null
   const queryClient = useAccountCache(signedInAs)
+  useRecentOnlyOf(signedInAs)
   useProposalsOnlyOfWhoIsIn(state)
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
