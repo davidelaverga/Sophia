@@ -213,6 +213,15 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a negation’s place, a decimal and a quantity past twelve count (Codex round 11 on #274)', () => {
+    const choice = [asked('a', 'Should we enable email and not disable SMS?', at)]
+    assert.equal(sameQuestion('Should we not enable email and disable SMS?', choice), null)
+    assert.equal(sameQuestion('Support versions 1 and 2?', [asked('a', 'Support version 1.2?', at)]), null)
+    const years = [asked('a', 'Compare thirteen year revenue forecast', at)]
+    assert.equal(sameQuestion('Compare fourteen year revenue forecast', years), null)
+    assert.equal(sameQuestion('Compare the thirteen year revenue forecast?', years)?.id, 'a')
+  })
+
   it('a number’s sign is part of it (Codex round 9 on #274)', () => {
     const budget = [asked('a', 'Set budget change to 5 percent', at)]
     assert.equal(sameQuestion('Set budget change to -5 percent', budget), null)
