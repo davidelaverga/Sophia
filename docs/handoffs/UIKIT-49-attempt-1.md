@@ -12,7 +12,7 @@ Runtime unit: CI (GitHub Actions) as the run on record. Playwright on Luis's hos
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `c146dc440bfd` (tree `46d3b0b4957b`), the last commit of `ui/p2-press`'s own that changes code (later
+Ending commit/tree: `382fb584fd31` (tree `8b2d33c8b833`), the last commit of `ui/p2-press`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 6 files changed against
 `origin/main` at that commit: `e2e/press-answers.spec.ts`, `src/app/theme.css`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `docs/handoffs/UIKIT-49-attempt-1.md`, `docs/plans/p2-press.md`. The review notes below name the commit of each later change.
 
