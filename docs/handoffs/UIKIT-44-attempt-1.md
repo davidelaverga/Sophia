@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `814c63f1c280` (tree `d6fa84ff56a6`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `da96881d7610` (tree `2b70721808ec`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -118,3 +118,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
   form says nothing: «Should email be enabled and SMS disabled?» no longer meets «Should we enable email and disable
   SMS?» (round 3 had made it meet, 4253818726), nor «Revenue forecast for 2025» «2025 revenue forecast». A missed
   suggestion costs a press (Start is there); a wrong one points to the inverse question.
+
+## Post-review, round 11 (Codex on #274)
+
+- `da96881d`: a negation keeps its place in the ordered words; a decimal («1.2») is one number; spelled-out quantities up to ninety, a hundred, a thousand and a million count. Tests in `6a1b93af`, failing first.
