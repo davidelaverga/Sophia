@@ -165,6 +165,14 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Should SMS be enabled and email disabled?', both), null)
   })
 
+  it('two orders or two numbers each keep their thing too (Codex round 5 on #274)', () => {
+    const orders = [asked('a', 'Ship export before review and after approval', at)]
+    assert.equal(sameQuestion('Ship export before approval and after review?', orders), null)
+    const quarters = [asked('a', 'Compare Q1 revenue with Q2 costs', at)]
+    assert.equal(sameQuestion('Compare Q1 costs with Q2 revenue', quarters), null)
+    assert.equal(sameQuestion('Compare Q1 revenue with Q2 costs?', quarters)?.id, 'a')
+  })
+
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)
