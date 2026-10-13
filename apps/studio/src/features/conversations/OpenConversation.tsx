@@ -167,21 +167,14 @@ export function OpenConversation(props: Props) {
 
 /** What the composer's next ask reads (useNextAsk.ts), with whether each part is known now (Codex P2s on #262). */
 /**
- * Whether the thread as read answers the feed's cursor now: the cursor it was last read for, noted as each read lands.
- * A moved cursor makes it not current from that very render, before its refetch has even started (Codex on #275).
+ * The thread as read, and whether that read answers the feed's cursor now: the cursor its last feed-triggered read
+ * landed for. A moved cursor makes it not current from that very render, before its refetch has even started; only
+ * that refetch, not an older page, makes it current again (Codex on #275).
  */
-function useReadFor(cursor: string | undefined, readAt: number): boolean {
-  const [readFor, setReadFor] = useState(cursor)
-  const latest = useRef(cursor)
-  latest.current = cursor
-  useEffect(() => setReadFor(latest.current), [readAt])
-  return readFor === cursor
-}
-
-/** The thread as read, and whether that read answers the feed's cursor now. */
 function useThread(conversationId: string, identity: Identity, cursor: string | undefined) {
-  const read = useTranscript(conversationId, identity, cursor)
-  return { read, current: useReadFor(cursor, read.dataUpdatedAt) }
+  const [readFor, setReadFor] = useState(cursor)
+  const read = useTranscript(conversationId, identity, cursor, setReadFor)
+  return { read, current: readFor === cursor }
 }
 
 function nextOf(props: Props, read: ReturnType<typeof useTranscript>, current: boolean): NextAskSource {
@@ -330,7 +323,12 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
 }
 
 /** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
-function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
+function useTranscript(
+  conversationId: string,
+  identity: Identity,
+  cursor: string | undefined,
+  onReadFor?: (cursor: string | undefined) => void,
+) {
   const read = useInfiniteQuery({
     queryKey: messagesKey(conversationId, accountOf(identity)),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
@@ -338,7 +336,17 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     getNextPageParam: (page) => page.before,
     retry: 1,
   })
-  useReadAgain(cursor, read.refetch)
+  // The read the feed asks for, and only it, says which cursor the thread now answers: an older page landing meanwhile
+  // says nothing of the newest (Codex on #275).
+  const { refetch } = read
+  const readAgain = useCallback(
+    () =>
+      refetch().then((r) => {
+        if (r.isSuccess) onReadFor?.(cursor)
+      }),
+    [refetch, onReadFor, cursor],
+  )
+  useReadAgain(cursor, readAgain)
   return read
 }
 
@@ -381,6 +389,8 @@ function Messages(props: {
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
+          // Not pressed while the thread is read again: an older page then would cancel that read (Codex on #275).
+          busy={read.isFetching}
           failed={read.isFetchNextPageError}
           onRead={() => {
             asked.current = true
@@ -406,15 +416,20 @@ function Messages(props: {
 }
 
 /** Earlier messages: reads the page before, once at a time; says so when it can't. */
-function Earlier({ reading, failed, onRead }: { reading: boolean; failed: boolean; onRead: () => void }) {
+function Earlier({
+  reading,
+  busy,
+  failed,
+  onRead,
+}: {
+  reading: boolean
+  busy: boolean
+  failed: boolean
+  onRead: () => void
+}) {
   return (
     <p className="conv-earlier">
-      <button
-        type="button"
-        className="text-button"
-        aria-disabled={reading || undefined}
-        onClick={() => !reading && onRead()}
-      >
+      <button type="button" className="text-button" aria-disabled={busy || undefined} onClick={() => !busy && onRead()}>
         {reading ? 'Reading earlier messages…' : 'Earlier messages'}
       </button>
       {failed && <span role="alert"> They can’t be read now.</span>}
