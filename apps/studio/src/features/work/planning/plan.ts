@@ -424,6 +424,42 @@ export function progressOf(lanes: readonly Lane[]): { done: number; total: numbe
   return { done: counted.filter((l) => l === 'complete').length, total: counted.length }
 }
 
+/** What stands in a goal's way, counted by kind: pending waits on its open tasks, and its Blocked lane. */
+export interface Ways {
+  permissions: number
+  decisions: number
+  capacity: number
+  /** A connection or another service. */
+  outside: number
+  blocked: number
+}
+
+/** A goal at a glance on Goals (goals-overview.md): its tasks' lanes, who is on its open tasks, what is in its way. */
+export interface GoalGlance {
+  lanes: readonly Lane[]
+  people: readonly Person[]
+  ways: Ways
+}
+
+export function glanceOf(rows: readonly PlanRow[]): GoalGlance {
+  const lanes = rows.map((r) => laneOf(r, rows))
+  const unfinished = rows.filter((_, i) => lanes[i] !== 'complete' && lanes[i] !== 'closed')
+  const pending = unfinished.flatMap((r) => r.waits.filter((w) => w.wait.state === 'pending').map((w) => w.wait.kind))
+  const n = (...kinds: WaitKind[]) => pending.filter((k) => kinds.includes(k)).length
+  const people = new Map(unfinished.flatMap((r) => (r.doer.person ? [[r.doer.person.id, r.doer.person] as const] : [])))
+  return {
+    lanes,
+    people: [...people.values()],
+    ways: {
+      permissions: n('native_permission'),
+      decisions: n('product_decision'),
+      capacity: n('capacity'),
+      outside: n('connection', 'external'),
+      blocked: lanes.filter((l) => l === 'blocked').length,
+    },
+  }
+}
+
 export const laneOf = (row: PlanRow, rows: readonly PlanRow[]): Lane => {
   const lane = LANE[row.status.mark]
   return lane === 'next' && blockedIn(row, rows) ? 'blocked' : lane

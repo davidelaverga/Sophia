@@ -51,7 +51,7 @@ import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
 import { seenKey } from '../src/features/work/planning/seen.ts'
-import { accepted, boardOf, forYou, shownPlan } from '../src/features/work/planning/plan.ts'
+import { accepted, boardOf, forYou, glanceOf, shownPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, membership, PROJECT } from './data.ts'
 import { newMeeting } from './meeting-data.ts'
@@ -826,6 +826,8 @@ function slot(g: GoalView, shared: Shared, onCommand: SendCommand | undefined) {
     tasks: rows.map((r) => r.item.id),
     decisions: g.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, g.decisions, viewerId, now),
+    glance: glanceOf(rows),
+    checkpoint: g.next_checkpoint?.label,
   }
 }
 

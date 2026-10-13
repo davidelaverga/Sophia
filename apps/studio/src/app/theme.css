@@ -3615,6 +3615,7 @@ button.contribution-quote:hover {
 }
 .goal-title {
   font-size: 15px;
+  font-weight: 600;
   letter-spacing: -0.015em;
 }
 .goal-outcome {
@@ -5351,16 +5352,182 @@ button.contribution-quote:hover {
 .field-label .data {
   font-size: var(--type-label);
 }
-/* Goals: a goal's progress beside the way to its plan (docs/plans/goals-progress.md). */
-.goal-plan-line {
+/* Goals as an overview (docs/plans/goals-overview.md): its goals grouped by state, a goal in motion a card on the
+   kit's plane, the others rows; past six goals, the filters and the search above them. */
+.goals-overview,
+.goals-shown {
+  display: grid;
+  gap: 28px;
+}
+.goals-overview {
+  margin-top: 20px;
+}
+.goals-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.goals-search {
+  width: min(280px, 100%);
+}
+.goals-group {
+  display: grid;
+  gap: 10px;
+}
+.goals-group-head {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  margin-top: 10px;
+  gap: 8px;
+  margin: 0;
 }
-.goal-progress {
+.goal-cards,
+.goal-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 12px;
+}
+.goal-cards[data-one] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.goal.goal-card {
+  align-content: start;
+  padding: 18px 20px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--plane-2);
+}
+.goal-meta .goal-faces {
+  margin-left: auto;
+}
+.goal-faces {
+  display: inline-flex;
+  align-items: center;
+}
+.goal-faces .avatar {
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  background: var(--plane-2);
+  box-shadow: 0 0 0 1.5px var(--plane-2);
+}
+.goal-faces .avatar:first-child {
+  margin-left: 0;
+}
+.goal-faces-more {
+  margin-left: 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-for-you {
+  color: var(--halo-text);
+  font-size: var(--type-small);
+}
+.goal-next {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 2px 0 0;
+}
+.goal-next > .field-label {
+  color: var(--halo-text);
+}
+.goal-state {
   margin: 0;
   color: var(--text-2);
   font-size: var(--type-small);
+}
+.goal-progress-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+/* Its tasks by lane, in the board's own marks: done teal, moving a lighter teal, up next an outline, blocked amber,
+   nobody on it dashed. */
+.goal-bar {
+  display: flex;
+  gap: 3px;
+  height: 8px;
+}
+.goal-bar > i {
+  flex: 1;
+  border-radius: 4px;
+}
+.goal-bar > i[data-lane='complete'] {
+  background: var(--teal);
+}
+.goal-bar > i[data-lane='active'] {
+  background: rgb(var(--teal-rgb) / 0.42);
+}
+.goal-bar > i[data-lane='next'] {
+  box-shadow: inset 0 0 0 1px var(--text-3);
+}
+.goal-bar > i[data-lane='blocked'] {
+  background: var(--amber);
+}
+.goal-bar > i[data-lane='unassigned'] {
+  border: 1px dashed var(--text-4);
+}
+.goal-card-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: var(--type-small);
+}
+.goal-progress {
+  color: var(--text-2);
   font-variant-numeric: tabular-nums;
+}
+.goal-way {
+  color: var(--amber);
+}
+.goal-clear {
+  color: var(--text-3);
+}
+.goal-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+.goal-card-foot:empty {
+  display: none;
+}
+.goal.goal-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+}
+.goal-row-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-row-line {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.goals-done-fold {
+  justify-self: start;
+}
+@media (max-width: 640px) {
+  .goal-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .goal.goal-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .goal.goal-row > .text-button {
+    grid-column: 2;
+    justify-self: start;
+  }
 }

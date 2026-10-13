@@ -17,7 +17,7 @@ import { Decision, type Decide } from './Decision.tsx'
 import { PlanBoard } from './PlanBoard.tsx'
 import { PlanNext } from './PlanNext.tsx'
 import { PlanTab } from './PlanTab.tsx'
-import { actionable, boardOf, forYou, laneOf, progressOf, type GoalView } from './plan.ts'
+import { actionable, boardOf, forYou, glanceOf, type GoalView } from './plan.ts'
 import { proposals, proposalViewer } from './review-proposal.ts'
 import { ReviewSources } from './ReviewSources.tsx'
 import { commandWith, decideWith, readResultWith } from './served.ts'
@@ -106,7 +106,8 @@ function slotOf(goal: GoalView, { board, people, viewerId, now, ports }: Shared)
     tab: <PlanTab goal={goal} resources={NO_RESOURCES} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
-    progress: progressOf(rows.map((r) => laneOf(r, rows))),
+    glance: glanceOf(rows),
+    checkpoint: goal.next_checkpoint?.label,
     decisions: goal.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, goal.decisions, viewerId, now),
   }

@@ -631,7 +631,7 @@ describe('a goal at a glance (docs/plans/goals-overview.md)', () => {
     const views = [
       view('build', { lifecycle: 'running', assignment: assignment('build') }),
       view('ask', { lifecycle: 'waiting', waiting_on: [wait('native_permission', 'davide')] }),
-      view('decide', { lifecycle: 'waiting', waiting_on: [wait('product_decision', 'luis', 'answered')] }),
+      view('decide', { lifecycle: 'waiting', waiting_on: [wait('product_decision', 'luis', 'resolved')] }),
       view('done', { lifecycle: 'complete', completion: done }),
       view('free'),
     ]
