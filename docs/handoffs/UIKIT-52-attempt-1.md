@@ -53,3 +53,4 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
 - Run 38338054881 on `69dbfafb`: all jobs green, the browser suites among them. The corrections after it (round 6 on,
   records only) have no run of their own recorded yet; no code changed in this PR.
 - `d6b01dd8`: UIKIT-36's outcome gives the day label's 10.5 px and 0.63 px beside the 12 px labels' 0.72 px (round 6, Codex on #282).
+- `5224039d`: a permission's `resourceId` recorded as meant, but still nullable in A15's schema: an open point for the service (round 7, Codex on #282). The ending above stands until the branch's last record; this one is `5224039d`.
