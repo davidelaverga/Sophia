@@ -12,9 +12,9 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `ae293fb92b7a` (tree `b78ebdb7f061`), the last commit of `ui/p2-next-up`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 8 files changed against
-`origin/main` at that commit: `e2e/next-up.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/answers.ts`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-47-attempt-1.md`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `3ee22c156d52` (tree `d241a64ff84d`), the last commit of `ui/p2-next-up`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`origin/main` at that commit: `e2e/next-up.spec.ts`, `e2e/palette-knows.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/answers.ts`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-47-attempt-1.md`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -44,3 +44,10 @@ The next follow-up: the board's seen marks, plan order and focus (Codex P2s on #
   decisions' keys) instead of reading it once, so an answer that settles as conflict, denied, expired or not confirmed
   with the decisions closed re-renders the board: Next up and «For you» offer it again. Unit suite 1098/1098, lint and
   typecheck clean; the browser suites are CI's (local guard: free RAM about 5 GB with AION2 open).
+
+## Post-review, round 2 (Codex on #277)
+
+- `3ee22c15`: `palette-knows.spec.ts` «an answer refused after the decisions closed is offered again» answers with
+  `conflict=1`, closes the decisions while the answer is on its way, and reads «Decide “…”» under «For you» once it
+  settles: with the one-off read it stays left out (nothing re-renders the board). Not run on this host (guard); CI is
+  the run on record.
