@@ -56,3 +56,8 @@ The last follow-up: the lens and the addressed needs (Codex P2s on #238, #242, #
 - `e89fc7d2`: the row's room is read whenever the row holds any status (a proposal's through `propose` too), again as it changes size (ResizeObserver), and given back when the row goes. No new browser case: a proposed continued message needs a proposal staged on a run, which the fixture does not offer (round 3, Codex on #283).
 - `a2c76b14`: «Recent» is kept per account (`sophia.palette.recent:<account>`); a tab reads and writes under the account signed in there (`recentFor`), so two tabs with two dev identities never cross; the bare key of before goes. palette-recent.test covers the crossing; no browser case (round 4, Codex on #283).
 - `4f60561f`: a proposal's status nested in `.conv-propose` wraps too, and `.conv-propose` wraps and may shrink, in a side row (round 5, Codex on #283). No browser case for a proposed run message (the fixture stages none).
+
+## CI on record
+
+- Run 38338824189 on `b3f52ced` (this branch's head, every change and review round in it): all jobs green, the browser suites
+  among them, the checks this PR wrote included.
