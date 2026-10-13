@@ -57,8 +57,8 @@ export function suite(prefix, { model = MOCK_MODEL } = {}) {
         boots += 1
         if (waitReady) await service.waitFor(() => service.readiness.filter((r) => r.state === 'ready').length >= boots, 30000, 'bridge readiness')
       },
-      async stop() {
-        const exit = await runtime.stop()
+      async stop(signal) {
+        const exit = await runtime.stop(signal)
         return exit
       },
       stderr: () => runtime?.stderr() ?? '',
