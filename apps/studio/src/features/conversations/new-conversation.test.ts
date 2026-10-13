@@ -193,6 +193,12 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Use blue but do not use red?', [asked('a', 'Use blue but don’t use red?', at)])?.id, 'a')
   })
 
+  it('a number’s sign is part of it (Codex round 9 on #274)', () => {
+    const budget = [asked('a', 'Set budget change to 5 percent', at)]
+    assert.equal(sameQuestion('Set budget change to -5 percent', budget), null)
+    assert.equal(sameQuestion('Set the budget change to 5 percent?', budget)?.id, 'a')
+  })
+
   it('a thing kept is read as scored: a final «s» dropped (Codex round 6 on #274)', () => {
     const both = [asked('a', 'Should we enable email and disable text?', at)]
     assert.equal(sameQuestion('Should we enable emails and disable texts?', both)?.id, 'a')
