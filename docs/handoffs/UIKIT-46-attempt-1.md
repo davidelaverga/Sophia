@@ -12,9 +12,9 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `4eda8a96aeac` (tree `88d0d93bbced`), the last commit of `ui/p2-ask-places`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 11 files changed against
-`origin/main` at that commit: `e2e/ask-instead.spec.ts`, `e2e/next-ask-places.spec.ts`, `fixtures/home.tsx`, `src/features/artifacts/KnowledgeReports.tsx`, `src/features/conversations/ConversationsView.tsx`, `src/features/personal/Places.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/places-view.test.ts`, `src/features/personal/places-view.ts`, `src/features/work/planning/AskSophia.tsx`, `docs/plans/p2-ask-places.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `c988e81600c0` (tree `4a1bcfdef1bf`), the last commit of `ui/p2-ask-places`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 12 files changed against
+`origin/main` at that commit: `e2e/ask-instead.spec.ts`, `e2e/next-ask-places.spec.ts`, `fixtures/home.tsx`, `src/features/artifacts/KnowledgeReports.tsx`, `src/features/conversations/ConversationsView.tsx`, `src/features/personal/Places.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/places-view.test.ts`, `src/features/personal/places-view.ts`, `src/features/work/planning/AskSophia.tsx`, `docs/handoffs/UIKIT-46-attempt-1.md`, `docs/plans/p2-ask-places.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -37,3 +37,10 @@ commits on the branch merge its base forward or touch only this record). 11 file
 ## Next bounded action
 
 The next follow-up: Next up on the board (Codex P2s on #263).
+
+## Post-review (Codex on #276)
+
+- `c988e816`: a viewer's words to ask now take the view back to the list (`panes.back`), so a viewer already reading a
+  conversation on a phone sees the list rather than that conversation. `e2e/ask-instead.spec.ts` «a viewer reading a
+  conversation, asked from Search, is taken back to the list» (`fd3b93bd`) failed before the change («thread»). Its pass and
+  the rest of the browser suites: CI, the local run being refused by the machine guard (free RAM 2 GB with AION2 open).
