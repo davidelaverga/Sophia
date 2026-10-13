@@ -30,6 +30,16 @@ commits on the branch merge its base forward or touch only this record). 9 files
 - Playwright (gentle, one worker): `next-up` and `palette-knows`: 10 passed, the two new checks failing before the
   change; `work` and `task-keys`: 192 passed.
 
+## Decisions and changes
+
+- Changed: which decisions Next up and «For you» count as answered, the line during a write, and where the focus may be taken from. Preserved: `nextUp`'s order and words. The design note names each change; the post-review notes below name the commit of each later
+  one.
+- Instruction applied: Luis, 2026-10-12, «atiende los P2 en PRs pequeñas» (the kit stack's open Codex P2s, one concern a
+  PR), under his standing instructions for the kit (push to `ui/*`, answer each thread with its fix commit; merges are
+  his, with no open P1).
+- Authority: not widened. Studio code, its checks and records only; no service code, no contract, no deploy. Points that
+  belong to the service (A15's contract, a single-task read) are recorded for that side, not changed here.
+
 ## Remaining obligations
 
 - CI on the PR; the independent review (Codex) with no open P1 before merge; its P2s go to follow-ups.
