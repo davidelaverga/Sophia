@@ -213,6 +213,14 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('an «and» between two scaled quantities keeps them two (Codex round 19 on #274)', () => {
+    assert.equal(
+      sameQuestion('Compare one thousand and two thousand budgets', [asked('a', 'Compare 3000 budgets', at)]),
+      null,
+    )
+    assert.equal(sameQuestion('Compare one hundred and five budgets', [asked('a', 'Compare 105 budgets', at)])?.id, 'a')
+  })
+
   it('a demonstrative keeps its place; a larger scale takes in what came before (Codex round 18 on #274)', () => {
     assert.equal(
       sameQuestion('Should we allow that and block this?', [asked('a', 'Should we allow this and block that?', at)]),
