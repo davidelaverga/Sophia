@@ -338,3 +338,47 @@ test('@phone · acts · what a copy says takes its room under the bubble, never 
   ])
   expect(acts?.y ?? 0).toBeGreaterThanOrEqual((body?.y ?? 0) + (body?.height ?? 0) - 0.5)
 })
+
+test('acts · the latest copy refused, an earlier one landing later is said too, as an error (Codex P2s on #240)', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let presses = 0
+    window.clipWrites = []
+    // The first write hangs until the page settles it (it goes through); the second is refused at once.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          window.clipWrites?.push(text)
+          return presses++ === 0
+            ? new Promise<void>((resolve) => {
+                window.settleFirstCopy = resolve
+              })
+            : Promise.reject(new Error('refused'))
+        },
+      },
+    })
+  })
+  await page.goto(PAGE)
+  const first = messages(page).first()
+  const second = messages(page).nth(1)
+  await first.hover()
+  await first.getByRole('button', { name: 'Copy' }).click()
+  await second.hover()
+  await second.getByRole('button', { name: 'Copy' }).click()
+  await expect(second.getByRole('status')).not.toHaveText('Copied')
+  // The person may have selected the second's words by hand; the first landing now overwrites them: said so.
+  await page.evaluate(() => window.settleFirstCopy?.())
+  const status = second.getByRole('status')
+  await expect(status).toHaveText(/An earlier copy landed after this one/)
+  // An error, as a refusal is: the rose, not the teal of «Copied».
+  const [said, rose] = await status.evaluate((el) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--rose)'
+    el.append(probe)
+    const read = [getComputedStyle(el).color, getComputedStyle(probe).color]
+    probe.remove()
+    return read
+  })
+  expect(said).toBe(rose)
+})

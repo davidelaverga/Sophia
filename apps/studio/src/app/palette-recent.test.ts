@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { keptAfter, readRecent, RECENT_KEY } from './palette-recent.ts'
+import { forgetRecent, keptAfter, readRecent, RECENT_KEY } from './palette-recent.ts'
 
 describe('what the palette ran last', () => {
   it('is kept newest first, a command once, five at most', () => {
@@ -19,5 +19,15 @@ describe('what the palette ran last', () => {
     assert.deepEqual(readRecent({ getItem: () => '{"a":1}' }), [])
     assert.deepEqual(readRecent({ getItem: () => '["a", 3, "b"]' }), ['a', 'b'])
     assert.deepEqual(readRecent({ getItem: (k: string) => (k === RECENT_KEY ? '["x"]' : null) }), ['x'])
+  })
+})
+
+describe('Recent, one person’s (Codex P2 on #264)', () => {
+  it('is forgotten when another comes in: the store keeps nothing of it', () => {
+    const kept = new Map<string, string>([[RECENT_KEY, '["view-tasks"]']])
+    forgetRecent({ removeItem: (k: string) => void kept.delete(k) })
+    assert.equal(kept.has(RECENT_KEY), false)
+    // A blocked store: nothing kept, nothing broken.
+    assert.doesNotThrow(() => forgetRecent(null))
   })
 })

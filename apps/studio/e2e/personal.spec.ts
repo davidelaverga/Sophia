@@ -1542,3 +1542,12 @@ test('follow · in a conversation that fits, a reply that came while away is sim
   await expect(page.locator('.msg.sophia').last()).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Sophia answered' })).toHaveCount(0)
 })
+
+test('personal · a day divider’s day is data at the label size, as dates and times are (Codex P2 on #241)', async ({
+  page,
+}) => {
+  await page.goto('/personal.html?demo=1')
+  const day = page.locator('.places .c3-day').first()
+  await expect(day).toBeVisible()
+  expect(await day.evaluate((el) => getComputedStyle(el).fontSize)).toBe('10.5px')
+})
