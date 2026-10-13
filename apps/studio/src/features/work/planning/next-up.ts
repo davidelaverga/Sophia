@@ -40,6 +40,53 @@ export function quoted(words: string): string {
   return `${(at > 0 ? cut.slice(0, at) : cut).trimEnd()}…`
 }
 
+/**
+ * The decisions answered in this visit as the page knows them: those this board recorded, and any the page's answer
+ * memory (answers.ts) holds recorded or on its way, so a board drawn anew (another goal and back) or two answers in
+ * flight never point back to one already answered (Codex P2s on #263). Not confirmed or refused, still to answer.
+ */
+export function answeredHere<D extends { decision_id: string; revision: number }>(
+  decisions: readonly D[],
+  recorded: readonly string[],
+  stateOf: (decision: D) => string | null,
+): string[] {
+  const known = decisions
+    .filter((d) => {
+      const state = stateOf(d)
+      return state === 'recorded' || state === 'sending'
+    })
+    .map((d) => answeredKey(d.decision_id, d.revision))
+  return [...new Set([...recorded, ...known])]
+}
+
+/** A board row as the tasks waiting for the viewer are read from it. */
+interface WaitingRow {
+  item: { id: string; purpose: string }
+  waits: readonly { wait: { state: string; respondent_id: string | null } }[]
+}
+
+/**
+ * The tasks with a request pending for the viewer, in the board's lane order, then those in a lane it does not show
+ * (closed: stopped, cancelled, failed, superseded), which can still hold one (Codex P2 on #263). By the request, not by
+ * the mark, so a task planned or queued with the viewer's request open counts too (Codex on #263).
+ */
+export function waitingFor<R extends WaitingRow>(
+  rows: readonly R[],
+  viewerId: string | null,
+  laneOf: (row: R) => string,
+  lanes: readonly string[],
+): { id: string; name: string }[] {
+  if (viewerId === null) return []
+  const rank = (r: R) => {
+    const at = lanes.indexOf(laneOf(r))
+    return at === -1 ? lanes.length : at
+  }
+  return rows
+    .filter((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId))
+    .toSorted((a, b) => rank(a) - rank(b))
+    .map((r) => ({ id: r.item.id, name: r.item.purpose }))
+}
+
 export function nextUp({ answered, decisions, waiting, review }: NextUpInput): NextUp {
   const decision = decisions.find((d) => !answered.includes(answeredKey(d.decision_id, d.revision)))
   if (decision)

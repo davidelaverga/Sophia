@@ -14,8 +14,11 @@ interface Props {
   onDone: () => void
 }
 
-/** The focus is where the answer left it: the page's body, or the decisions. */
-const leftByAnswer = (at: Element | null) => at === document.body || (at?.closest('.board-decisions') ?? null) !== null
+/**
+ * The focus is where the answer left it: the page's body, or the choice it disabled. Anywhere else in the decisions
+ * (another decision's choice) is where the person moved to meanwhile, and stays theirs (Codex P2 on #263).
+ */
+const leftByAnswer = (at: Element | null) => at === document.body || (at?.matches(':disabled') ?? false)
 
 export function NextUp({ next, onGo, onDone }: Props) {
   const press = useRef<HTMLButtonElement>(null)

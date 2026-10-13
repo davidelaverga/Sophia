@@ -52,7 +52,8 @@ import {
   type PlanRow,
   type WorkPlan,
 } from './plan.ts'
-import { answeredKey, nextUp, quoted } from './next-up.ts'
+import { answeredHere, answeredKey, nextUp, quoted, waitingFor } from './next-up.ts'
+import { answerKey, answerOf } from './answers.ts'
 import { useCommands } from '../../../app/useCommands.ts'
 import { NextUp } from './NextUp.tsx'
 import { Folded } from './PlanNotes.tsx'
@@ -114,6 +115,9 @@ const LANES: LaneView[] = [
   { key: 'unassigned', label: 'Unassigned', mark: 'free', empty: 'Nothing unassigned' },
   { key: 'complete', label: 'Complete', mark: 'complete', empty: 'Nothing complete yet' },
 ]
+
+/** The lanes' keys in the board's order (closed is not among them). */
+const LANE_KEYS = LANES.map((l) => l.key)
 
 const inLane = (rows: readonly PlanRow[], lane: Lane) => rows.filter((r) => laneOf(r, rows) === lane)
 
@@ -746,17 +750,6 @@ interface BodyProps extends Props {
 }
 
 /**
- * The tasks with a request pending for the viewer, in the board's lane order: by the request, not by the mark, so a
- * task planned or queued with the viewer's request open counts too, as `forViewer` reads it (Codex on #263).
- */
-const waitingFor = (rows: readonly PlanRow[], viewerId: string | null) =>
-  viewerId === null
-    ? []
-    : LANES.flatMap((l) => inLane(rows, l.key))
-        .filter((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId))
-        .map((r) => ({ id: r.item.id, name: r.item.purpose }))
-
-/**
  * After the viewer's answer, what waits on them next on this board (docs/plans/next-up.md): the decisions answered in
  * this visit, the line shown until used, the decisions' pill pressed, or (nothing next) the focus gone.
  */
@@ -767,10 +760,15 @@ function useNextUp(
   onOpenTask: (id: string) => void,
   onDecide: Decide | undefined,
 ) {
-  const [answered, setAnswered] = useState<readonly string[]>([])
+  const [recorded, setRecorded] = useState<readonly string[]>([])
   const [shown, setShown] = useState(false)
   const review = slot.review !== null && !slot.reviewShown
-  const waiting = waitingFor(rows, viewerId)
+  const waiting = waitingFor(rows, viewerId, (r) => laneOf(r, rows), LANE_KEYS)
+  const answered = answeredHere(
+    slot.asks.mine,
+    recorded,
+    (d) => answerOf(answerKey(d.decision_id, d.revision, viewerId))?.state ?? null,
+  )
   const next = shown ? nextUp({ answered, decisions: slot.asks.mine, waiting, review }) : null
   // The same, offered to the palette as «For you» (docs/plans/palette-knows.md). A decision only where the board can
   // take an answer: a read-only proposal or an unavailable board offers none (Codex on #264).
@@ -796,9 +794,12 @@ function useNextUp(
   const decide =
     onDecide &&
     (async (answer: DecisionAnswer) => {
+      // A line already up names what this answer may be answering: it goes as the send starts, and the line for what
+      // is next comes only once this one is recorded (Codex P2 on #263).
+      setShown(false)
       const said = await onDecide(answer)
       if (said === 'recorded') {
-        setAnswered((was) => [...was, answeredKey(answer.decision_id, answer.revision)])
+        setRecorded((was) => [...was, answeredKey(answer.decision_id, answer.revision)])
         setShown(true)
       }
       return said
