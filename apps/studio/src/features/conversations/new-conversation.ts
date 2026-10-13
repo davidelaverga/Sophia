@@ -64,12 +64,31 @@ const wordsOf = (title: string) =>
     // «twenty one» is one number, as «21» is (Codex on #274).
     .reduce<string[]>(joinTensAndUnits, [])
 
-/** A ten («20» … «90») then a unit («1» … «9»), as spelled-out numbers come: one number. */
+/**
+ * Spelled numbers composed as they are said: a ten then a unit («twenty one», 21), a number then a scale («one hundred»,
+ * 100; «two thousand», 2000), so the words meet the figures (Codex on #274).
+ */
 function joinTensAndUnits(words: string[], w: string): string[] {
   const last = words.at(-1) ?? ''
+  const scale = SCALES.get(w)
   if (/^[2-9]0$/u.test(last) && /^[1-9]$/u.test(w)) words[words.length - 1] = String(Number(last) + Number(w))
-  else words.push(w)
+  else if (scale !== undefined && /^[1-9]\d{0,2}$/u.test(last)) words[words.length - 1] = String(Number(last) * scale)
+  else words.push(scale === undefined ? w : String(scale))
   return words
+}
+
+/** The scales a spelled number is said in. */
+const SCALES = new Map([
+  ['hundred', 100],
+  ['thousand', 1000],
+  ['million', 1000000],
+])
+
+/** An ordinal's figure, as a figure is written: «1st», «2nd», «3rd», «4th», «11th», «12th». */
+function ordinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13
+  const suffix = teen ? 'th' : (({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th')
+  return `${String(n)}${suffix}`
 }
 
 /** Numbers written as words, read as their digits. */
@@ -83,10 +102,7 @@ const SPELLED = new Map([
   // Ordinals, as numbers too: «the second year» is not «the first» (Codex on #274).
   ...'first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth'
     .split(' ')
-    .map((w, i) => [w, `${String(i + 1)}th`] as const),
-  ['hundred', '100'],
-  ['thousand', '1000'],
-  ['million', '1000000'],
+    .map((w, i) => [w, ordinal(i + 1)] as const),
 ])
 
 /**
