@@ -284,6 +284,12 @@ export function conversationRows(input: ConversationInput): Row[] {
  * Sophia's introduction leads a new conversation: none yet, or one that began today with its very first turn. Someone
  * returning to an older conversation is welcomed back instead (resume), never introduced again.
  */
+/**
+ * The conversation opens here: its rows offer the ways to start (nothing said yet, a new space or one erased), so it
+ * starts at the page's optical centre rather than resting on the field (docs/plans/personal-first-talk.md).
+ */
+export const opensHere = (rows: readonly Row[]): boolean => rows.some((r) => r.kind === 'starters')
+
 export function opensWithIntro(turns: readonly PersonalTurn[], earlier: boolean, now: Date): boolean {
   const first = turns[0]
   if (!first) return !earlier

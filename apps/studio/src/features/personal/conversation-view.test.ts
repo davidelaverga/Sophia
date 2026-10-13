@@ -9,6 +9,7 @@ import {
   heard,
   introText,
   notePrefill,
+  opensHere,
   opensWithIntro,
   topicOf,
   type ConversationInput,
@@ -185,6 +186,17 @@ describe('askAbout (docs/plans/find-ask-sophia.md)', () => {
   it('asks Sophia about the words looked for, as typed and trimmed', () => {
     assert.equal(askAbout('  vacation '), 'What did I tell you about vacation?')
     assert.equal(askAbout('the Porto trip'), 'What did I tell you about the Porto trip?')
+  })
+})
+
+describe('opensHere (docs/plans/personal-first-talk.md)', () => {
+  it('holds while the rows offer the ways to start, and not once something is said', () => {
+    assert.equal(opensHere(conversationRows(input([], { fromTheStart: true }))), true)
+    const said = [
+      turn('person', 'Today I want to plan the week.', at(0, 9)),
+      turn('sophia', 'Where to start?', at(0, 9, 1)),
+    ]
+    assert.equal(opensHere(conversationRows(input(said, { fromTheStart: true }))), false)
   })
 })
 
