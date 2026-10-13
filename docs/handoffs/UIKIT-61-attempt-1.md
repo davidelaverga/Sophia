@@ -50,3 +50,7 @@ commits on the branch merge its base forward or touch only this record). 5 files
 ## Next bounded action
 
 Finding 5: the toast over the open sheet.
+
+## Local run, after the guard allowed it
+
+- Through the guard, 2 workers: the pill spec and menu-scale (its day-menu check with today's divider 120 px under the top): 6 passed.
