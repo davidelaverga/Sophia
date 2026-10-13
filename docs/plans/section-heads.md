@@ -37,8 +37,9 @@
 
 - `e2e/section-heads.spec.ts`: on Goals, Tasks, Knowledge, Resources and Conversations every head computes
   `15px/20px 600` (the conversations' list, open and new heads among them), and on each view a head is larger than the
-  body (13) and smaller than the view's title (28); Tasks reads five sizes, 10.5 · 12 · 13 · 15 · 28, its tiles' titles
-  and next step at 13 and the decision's question at 15/400.
+  body (13) and smaller than the view's title (28), and a task tile's title computes 13/500. `work.spec.ts` reads Tasks'
+  sizes as one set, 10.5 · 12 · 13 · 15 · 28; `.plan-next` (13) and `.plan-ask-question` (15/400) are not checked one by
+  one, so either could move to another size of the set unseen. (Corrected to what the checks assert: Codex on #282.)
 - The pinned scales that hold a head: `work` (`.goals`: 14 stays for the task tiles, 15 joins), `resources`
   (`.resources`: measured after the change), the knowledge and conversations lists gain 15.
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`; measured in the pane before the push.

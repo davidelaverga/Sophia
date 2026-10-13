@@ -56,6 +56,10 @@
   not advance it); each need kind tied to its `ref.kind`, project and `within` in the schema (discriminated variants);
   only the latest open revision of a decision, its expiry after `readAt`; and the cursor's start for spaces that exist
   at rollout (none read as all unread, nor a reply present then hidden), with a migration test on a space with turns.
+  Two more, raised on #282: A15's own text still lets the service advance the cursor when the personal space is read,
+  which the Studio does in the background at Home, so the amendment should be changed to the seen POST alone; and the
+  need id joins its parts with `:` though A13 lets a work item's and a reference's ids hold one, so it wants an
+  injective encoding (each part escaped, or length-prefixed) before the Studio's keys and the seen route rely on it.
 
 ## Checks (written first)
 
