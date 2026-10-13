@@ -12,7 +12,7 @@ Runtime unit: CI (GitHub Actions) as the run on record. Playwright on Luis's hos
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `f4a41fc00418` (tree `3bd7c00cbadb`), the last commit of `ui/p2-header`'s own that changes code (later
+Ending commit/tree: `e8eda87956e3` (tree `e6d434ab9e59`), the last commit of `ui/p2-header`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 9 files changed against
 `origin/main` at that commit: `e2e/widths.spec.ts`, `src/app/theme.css`, `src/features/artifacts/artifacts.css`, `src/features/conversations/conversations.css`, `src/features/studio/ProjectShell.tsx`, `src/features/work/WorkControls.tsx`, `docs/handoffs/UIKIT-51-attempt-1.md`, `docs/plans/p2-header.md`, `packages/ui/src/ConfirmButton.tsx`. The review notes below name the commit of each later change.
 
@@ -66,3 +66,4 @@ The next follow-up: the lens and the addressed needs (Codex P2s on #238, #242, #
 
 - `49cae8b3`: the lobby and the wait note over an open report start under the dock's notes too (`--dock-notes-h` added to their `top`, both rules), as the report itself does (round 3, Codex on #281). The new head's CI is pending.
 - `f4a41fc0`: the folded copy's check moves the pointer away and reads the exact teal (`var(--teal)`) on the press, so a hover cannot pass it (round 4, Codex on #281).
+- `e8eda879`: the dock's focus restore queries the report's row on its own first, then the dock (round 5, Codex on #281); the wide-to-narrow transition has no browser check (it needs a header dock control focused over an open report as the window narrows). The new head's CI is pending.
