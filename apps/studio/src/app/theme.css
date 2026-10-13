@@ -2973,6 +2973,35 @@ button.contribution-quote:hover {
   pointer-events: auto;
   transform: translate(-50%, 0);
 }
+/* While a sheet is open the notice stands clear of it (docs/plans/toast-over-sheet.md): centred in what the panel
+   (min(420px, 100%)) leaves on the left, and no wider. The command palette shares the veil's class and is no sheet
+   (Codex on #293). */
+:root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+  left: calc((100% - 420px) / 2);
+  max-width: calc(100% - 420px - 2 * var(--gutter));
+}
+/* Where that space is too narrow to read in (just above a phone), it keeps a width of its own at the bottom left,
+   under the sheet's head, the panel's lower edge at most behind it (Codex on #293). */
+@media (min-width: 561px) and (max-width: 790px) {
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+    left: var(--gutter);
+    width: min(320px, calc(100% - 2 * var(--gutter)));
+    max-width: none;
+    transform: translate(0, 8px);
+  }
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast[data-shown] {
+    transform: none;
+  }
+}
+/* On a phone, where the sheet rises from the bottom, at the top. */
+@media (max-width: 560px) {
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    bottom: auto;
+    left: 50%;
+    max-width: calc(100% - 2 * var(--gutter));
+  }
+}
 .toast-time {
   position: absolute;
   left: 0;
