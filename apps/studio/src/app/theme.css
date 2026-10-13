@@ -1051,9 +1051,6 @@ button.mark:hover {
    the third ink, unlit. */
 .menu [role='menuitem'],
 .menu [role='menuitemradio'] {
-  /* Its label on one line, however long its detail: the detail is what gives way, cut with an ellipsis
-     (docs/plans/personal-day-menu.md). */
-  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: space-between;

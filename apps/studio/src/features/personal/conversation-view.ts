@@ -84,7 +84,7 @@ export function topicOf(text: string): string {
   const lower = text.toLowerCase()
   const hit = TOPICS.find(([re]) => re.test(lower))
   if (hit) return hit[1]
-  const words = (text.split(/[.;:?!]/)[0] ?? '').replace(/,/g, '').split(/\s+/).filter(Boolean)
+  const words = (text.split(/[.?!]/)[0] ?? '').replace(/[,;:]/g, '').split(/\s+/).filter(Boolean)
   return words.slice(0, 3).join(' ') + (words.length > 3 ? '…' : '')
 }
 
@@ -368,7 +368,8 @@ export function daysOf(rows: readonly Row[]): Array<{ key: string; label: string
     const current = days.at(-1)
     if (current && row.kind === 'turn' && row.author === 'person') {
       const topic = topicOf(row.text)
-      if (!current.topics.includes(topic)) current.topics.push(topic)
+      // Listed once whatever its case: quoted words keep theirs (Codex on #291).
+      if (!current.topics.some((t) => t.toLowerCase() === topic.toLowerCase())) current.topics.push(topic)
     }
   }
   return days.map((d) => ({ key: d.key, label: d.label, topics: d.topics.slice(0, 2).join(' · ') || 'Just started' }))
