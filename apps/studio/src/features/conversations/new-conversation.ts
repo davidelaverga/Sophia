@@ -79,12 +79,27 @@ const OPPOSITES: readonly (readonly [string, string])[] = [
   ['hire', 'fire'],
 ]
 
-/** Whether the words hold this action in a plain form: «enable», «enables», «enabled», «enabling». */
-const acts = (words: readonly string[], base: string) =>
-  words.some(
-    (w) =>
-      w === base || w === `${base}s` || w === `${base}d` || w === `${base}ed` || w === `${base.replace(/e$/u, '')}ing`,
-  )
+/**
+ * Whether the words hold this action in a plain form: «enable», «enables», «enabled», «enabling»; a final consonant
+ * doubled too: «stopped», «stopping» (Codex on #274).
+ */
+function acts(words: readonly string[], base: string): boolean {
+  const stem = base.replace(/e$/u, '')
+  const doubled = `${base}${base.at(-1) ?? ''}`
+  const forms = [base, `${base}s`, `${base}d`, `${base}ed`, `${stem}ing`, `${doubled}ed`, `${doubled}ing`]
+  return words.some((w) => forms.includes(w))
+}
+
+/**
+ * Whether two titles say an action against its opposite: of a pair, what one says is not what the other says. Both of
+ * a pair said on each side («enable email and disable SMS», twice) is the same; one side only is not (Codex on #274).
+ */
+function opposed(x: readonly string[], y: readonly string[]): boolean {
+  return OPPOSITES.some((pair) => {
+    const said = (words: readonly string[]) => pair.filter((base) => acts(words, base)).join(' ')
+    return said(x) !== '' && said(y) !== '' && said(x) !== said(y)
+  })
+}
 
 /** The orders a title names, each with the word it is said of: «before review», «after approval». */
 function ordersOf(words: readonly string[]): string[] {
@@ -124,7 +139,7 @@ function turnsAgree(a: string, b: string): boolean {
   const y = wordsOf(b)
   if (negates(x, a) !== negates(y, b)) return false
   if (ordersDisagree(ordersOf(x), ordersOf(y))) return false
-  if (OPPOSITES.some(([p, q]) => (acts(x, p) && acts(y, q)) || (acts(x, q) && acts(y, p)))) return false
+  if (opposed(x, y)) return false
   return numbersOf(x) === '' || numbersOf(y) === '' || numbersOf(x) === numbersOf(y)
 }
 
