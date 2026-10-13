@@ -15,7 +15,7 @@ const PREFIX = 'sophia.review.proposal.v1:'
 const PROJECT_A = '00000000-0000-4000-8000-0000000000a1'
 const PROJECT_B = '00000000-0000-4000-8000-0000000000b1'
 /** What another part of the Studio keeps in the tab: never a proposal, so it always stays. */
-const OTHER_PART = 'sophia.plan.seen.v3:["synthetic"]'
+const OTHER_PART = 'sophia.plan.seen.v4:["synthetic"]'
 
 interface Person {
   id: string
