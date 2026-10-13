@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { forgetRecent, keptAfter, readRecent, RECENT_KEY, recentFor } from './palette-recent.ts'
+import { forgetRecent, keptAfter, noteRun, readRecent, RECENT_KEY, recentFor, recentKey } from './palette-recent.ts'
 
 describe('what the palette ran last', () => {
   it('is kept newest first, a command once, five at most', () => {
@@ -32,22 +32,24 @@ describe('Recent, one person’s (Codex P2 on #264)', () => {
   })
 })
 
-describe('Recent, kept with whose it is (Codex on #283)', () => {
-  it('is forgotten for another account, however the last one left, and kept for the same one', () => {
-    const kept = new Map<string, string>([[RECENT_KEY, '["view-tasks"]']])
+describe('Recent, one account’s (Codex on #283)', () => {
+  it('is read and written under the account signed in, so another (another tab’s too) never sees it', () => {
+    const kept = new Map<string, string>([[RECENT_KEY, '["old"]']])
     const store = {
       getItem: (k: string) => kept.get(k) ?? null,
       setItem: (k: string, v: string) => void kept.set(k, v),
       removeItem: (k: string) => void kept.delete(k),
     }
-    // No owner noted (kept before this): another account's, so forgotten; the owner noted now.
-    recentFor('b', store)
-    assert.equal(kept.has(RECENT_KEY), false)
-    kept.set(RECENT_KEY, '["view-tasks"]')
-    recentFor('b', store)
-    assert.equal(kept.get(RECENT_KEY), '["view-tasks"]')
-    // A cold load signed out, then another account in: still forgotten.
+    // Kept before «Recent» was per account: nobody's known, gone.
     recentFor('a', store)
     assert.equal(kept.has(RECENT_KEY), false)
+    noteRun('view-tasks', store)
+    assert.equal(kept.get(recentKey('a')), '["view-tasks"]')
+    // Another account in this tab, or another tab's writes under its own: each reads its own.
+    recentFor('b', store)
+    assert.deepEqual(readRecent(store), [])
+    noteRun('view-goals', store)
+    recentFor('a', store)
+    assert.deepEqual(readRecent(store), ['view-tasks'])
   })
 })
