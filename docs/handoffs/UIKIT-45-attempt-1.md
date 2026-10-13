@@ -83,8 +83,9 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 
 ## CI on record, final head
 
-- Run 38341644324 on `deecead4` (the head with every change and review round, the retry gate and the idle-only reads
-  included): all jobs green, the browser suites among them, next-ask.spec's recovery check as changed in round 3.
+- Run 38350824470 on `72a9e382` (the head with every change and review round, round 8's `d796cc5c` included; only this
+  record follows it): all jobs green, the browser suites among them. This answers Codex's P1 4254957476. The earlier
+  run 38341644324 on `deecead4` predates rounds 6–8.
 
 ## Post-review, round 6 (Codex on #275)
 
