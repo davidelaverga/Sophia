@@ -213,6 +213,18 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a larger scale after «and» takes in the coefficient; a scale repeated multiplies (Codex round 22 on #274)', () => {
+    const two = [asked('a', 'Set budget to 100 and 20000 dollars', at)]
+    assert.equal(sameQuestion('Set budget to one hundred and twenty thousand dollars', two), null)
+    const one = [asked('a', 'Set budget to 120000 dollars', at)]
+    assert.equal(sameQuestion('Set budget to one hundred and twenty thousand dollars', one)?.id, 'a')
+    assert.equal(
+      sameQuestion('Set budget to one thousand thousand dollars', [asked('a', 'Set budget to 1000000 dollars', at)])
+        ?.id,
+      'a',
+    )
+  })
+
   it('every word but the filler keeps its place: quantifiers too (Codex round 21 on #274)', () => {
     const scope = [asked('a', 'Should we enable all alerts and disable some notices?', at)]
     assert.equal(sameQuestion('Should we enable some alerts and disable all notices?', scope), null)
