@@ -373,9 +373,13 @@ function useDockFocus(wide: boolean) {
     if (!name || !lost) return
     // A report open on a narrow screen covers the floating dock: its own call row is the one seen, so it is looked in
     // first (Codex P2 on #254).
-    const again = [...document.querySelectorAll<HTMLElement>('.report-pane-call button, .mini-dock button')].find(
-      (b) => dockKey(b) === name && b.getClientRects().length > 0,
-    )
+    // The report's row first, then the dock: in document order the floating dock comes first and is still drawn under
+    // the report (Codex on #281).
+    const shown = (selector: string) =>
+      [...document.querySelectorAll<HTMLElement>(selector)].find(
+        (b) => dockKey(b) === name && b.getClientRects().length > 0,
+      )
+    const again = shown('.report-pane-call button') ?? shown('.mini-dock button')
     again?.focus({ preventScroll: true })
   }, [wide])
 }
