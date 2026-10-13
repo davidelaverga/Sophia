@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `9da5d032caca` (tree `648aecb1d16a`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `1e4301619ec9` (tree `3557c986d5f3`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -203,3 +203,12 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
   prefix stays a word of its own («never-enabled»; «non-enabled» is «not enabled»), a compound number joins
   («twenty-one»), beside another number word it is a boundary, inside any other word it keeps the word whole. Unit
   suite green, lint and typecheck clean; its CI: the final head's run, recorded when green.
+
+## Post-review, round 28 (Codex on #274)
+
+- `1e430161`: a ten and an ordinal joined by a hyphen are one number («twenty-first» is 21st, not «20 1st»). A prefix
+  whose hyphen bears meaning (`PREFIXES`: re-, pre-, co-, un-, over- and the like) stays a marked word, and two titles
+  must read the same prefixes to be the same question, so «Re-sign contracts» is not «Resign contracts»; any other
+  hyphenated word stays whole («e-mail» is «email»). The 60 % word share alone could not tell them apart (one word in
+  three differs), so the prefix is checked before it, as a negation is. Unit suite green, lint and typecheck clean; its
+  CI: the final head's run, recorded when green.
