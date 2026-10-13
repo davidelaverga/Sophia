@@ -11,9 +11,9 @@ Runtime unit: Luis's Windows host (node's test runner). Playwright refused by th
 (`explorer.exe` holding 3 GB); CI is the run on record.
 Existing authority: Luis's standing instructions for the kit (push to `ui/*`; after the 2026-10-13 freeze, later P2s
 go to a follow-up list); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `d7305b2cf86b` (tree `42c674cf3b35`), the last commit of `ui/personal-day-menu`'s own that changes code (later
+Ending commit/tree: `9933f6de89f9` (tree `f733804fb629`), the last commit of `ui/personal-day-menu`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 7 files changed against
-`origin/main` at that commit: `e2e/home.spec.ts`, `e2e/personal-day-menu.spec.ts`, `src/app/theme.css`, `src/features/personal/conversation-view.test.ts`, `src/features/personal/conversation-view.ts`, `docs/handoffs/UIKIT-60-attempt-1.md`, `docs/plans/personal-day-menu.md`. The review notes below name the commit of each later change.
+`origin/main` at that commit: `e2e/home.spec.ts`, `e2e/personal-day-menu.spec.ts`, `src/features/personal/conversation-view.test.ts`, `src/features/personal/conversation-view.ts`, `src/features/personal/personal.css`, `docs/handoffs/UIKIT-60-attempt-1.md`, `docs/plans/personal-day-menu.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -53,3 +53,10 @@ Finding 4: the day pill and the divider under it.
   today's divider 120 px under the top (yesterday's above), as menu-scale does, which also holds once the pill steps
   aside for a divider right under it (#292). Run here: 2/2 passed; with `main`'s theme.css (no `nowrap`) the date
   takes 2 lines and the check fails, so it measures the change. home.spec and menu-scale: 28 passed.
+
+## Post-review (Codex on #291), the one round
+
+- `9933f6de`: the one-line label is the day menu's only (`.c3-daybar .menu [role='menuitem']`), so another menu's rows
+  (a member's long name in Updates' «By whom») still wrap instead of widening past a phone's screen; a colon or a
+  semicolon no longer ends a quoted sentence («Today plan the…»); a day lists a topic once whatever its case. Tests
+  first (the «(failing)» commit). Local: personal-day-menu, menu-scale, home: 30 passed.
