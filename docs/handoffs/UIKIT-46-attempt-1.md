@@ -56,3 +56,8 @@ The next follow-up: Next up on the board (Codex P2s on #263).
 
 - `7bd02b56`: the Knowledge check reads the old ask by its exact words, so a slow worker that has already settled the new
   words (and shows their ask) no longer fails it; without the change the old button is still there at once.
+
+## CI on record
+
+- Run 38333489404 on `edeb4ec4` (this branch's head, every change and review round in it): all jobs green, the browser suites
+  among them, the checks this PR wrote included.
