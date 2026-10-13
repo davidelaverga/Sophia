@@ -467,7 +467,7 @@
 /* Listening, it still answers: a press stops it (its own selector outranks the kit's pressed hover; Codex on #232). */
 .places .hw-mic[aria-pressed='true']:hover {
   color: var(--text);
-  background: rgba(156, 130, 245, 0.22);
+  background: rgb(var(--halo-rgb) / 0.22);
 }
 @keyframes hw-listen {
   50% {
@@ -1255,7 +1255,7 @@
 /* Listening, it still answers: a press stops it (Codex on #232). */
 .places .ps-composer .message-bar .round[aria-pressed='true']:hover {
   color: var(--text);
-  background: rgba(156, 130, 245, 0.3);
+  background: rgb(var(--halo-rgb) / 0.3);
 }
 /* Voice is a mode: the field gives way to a listening line whose bars move with the room's light. */
 .places .message-bar.listening textarea {
