@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { answeredHere, answeredKey, NOTHING_NEXT, nextUp, waitingFor, type NextUpInput } from './next-up.ts'
+import { answeredHere, answeredKey, NOTHING_NEXT, nextUp, sentFrom, waitingFor, type NextUpInput } from './next-up.ts'
 
 const input = (over: Partial<NextUpInput> = {}): NextUpInput => ({
   answered: [answeredKey('d1', 1)],
@@ -104,5 +104,21 @@ describe('what is next, as the page knows it (Codex P2s on #263)', () => {
       waitingFor(rows, null, (r) => r.lane, lanes),
       [],
     )
+  })
+
+  it('keeps the place each answer went from, two in flight settling out of order (Codex on #277)', async () => {
+    const replies: ((said: string) => void)[] = []
+    const send = () => new Promise<string>((done) => replies.push(done))
+    let focused = 'first choice'
+    const decide = sentFrom(send, () => focused)
+    const first = decide('a')
+    // The second is sent from its own choice while the first is still on its way.
+    focused = 'second choice'
+    const second = decide('b')
+    focused = 'elsewhere'
+    replies[1]?.('recorded')
+    replies[0]?.('recorded')
+    assert.deepEqual(await first, { said: 'recorded', went: 'first choice' })
+    assert.deepEqual(await second, { said: 'recorded', went: 'second choice' })
   })
 })
