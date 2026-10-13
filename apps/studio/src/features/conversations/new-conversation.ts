@@ -127,6 +127,28 @@ const turnsOf = {
   numbers: (words: readonly string[]) => words.filter((w) => /\p{N}/u.test(w)),
 }
 
+/** A word that says what a question is about, as `ownWords` keeps it: an action excluded. */
+const isThing = (w: string) => w.length >= 3 && !COMMON.has(w) && !ACTIONS.has(w)
+
+/**
+ * Each action a title says, with the thing it is said of: the word after it, or for a participle («enabled»,
+ * «hidden») the word before it, as a passive puts it: «enable email» either way.
+ */
+function aimsOf(words: readonly string[]): string {
+  return words
+    .flatMap((w, i) => {
+      const base = ACTIONS.get(w)
+      if (base === undefined) return []
+      const after = words.slice(i + 1).find(isThing)
+      const before = words.slice(0, i).findLast(isThing)
+      const participle = w !== base && (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w))
+      const thing = participle ? (before ?? after) : (after ?? before)
+      return [`${base} ${thing ?? ''}`]
+    })
+    .toSorted()
+    .join('|')
+}
+
 /** Whether a title negates: a negating word, or a «n't». */
 const negates = (words: readonly string[], title: string) =>
   words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(fold(title))
@@ -140,10 +162,14 @@ function turnsAgree(a: string, b: string): boolean {
   const x = wordsOf(a)
   const y = wordsOf(b)
   if (negates(x, a) !== negates(y, b)) return false
-  return Object.values(turnsOf).every((of) => {
+  const alike = Object.values(turnsOf).every((of) => {
     const [p, q] = [of(x), of(y)]
     return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
   })
+  // Two actions or more on each side: each must keep its thing, «enable SMS and disable email» being the inverse of
+  // «enable email and disable SMS» (Codex on #274). One alone has no other to swap with.
+  const two = turnsOf.actions(x).length > 1 && turnsOf.actions(y).length > 1
+  return alike && (!two || aimsOf(x) === aimsOf(y))
 }
 
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
