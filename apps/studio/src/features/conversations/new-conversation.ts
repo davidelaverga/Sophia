@@ -53,10 +53,15 @@ const wordsOf = (title: string) =>
     .replace(/(\p{N})[,.](?=\p{N}{3}(?!\p{N}))/gu, '$1')
     .split(/[^\p{L}\p{N}]+/u)
 
-/** A title's own words: folded, accents off, three letters or more, common words left out, a final «s» dropped. */
+/**
+ * A title's own words: folded, accents off, three letters or more, common words left out, an action as its plain form,
+ * a final «s» dropped.
+ */
 function ownWords(title: string): Set<string> {
   const words = wordsOf(title)
     .filter((w) => w.length >= 3 && !COMMON.has(w))
+    // An action in any of its forms is one word: «enabled» shares «enable» (Codex on #274).
+    .map((w) => ACTIONS.get(w) ?? w)
     .map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w))
   return new Set(words)
 }
@@ -85,18 +90,13 @@ const OPPOSITES: readonly (readonly [string, string])[] = [
   ['hire', 'fire'],
 ]
 
-/**
- * Whether the words hold this action in a plain form: «enable», «enables», «enabled», «enabling»; a final consonant
- * doubled too: «stopped», «stopping» (Codex on #274).
- */
-function acts(words: readonly string[], base: string): boolean {
-  return words.some((w) => formsOf(base).includes(w))
-}
-
 /** Forms no suffix makes: «shown», «hid», «hidden» (Codex on #274). */
 const IRREGULAR: Readonly<Record<string, readonly string[]>> = { show: ['shown'], hide: ['hid', 'hidden'] }
 
-/** An action's plain forms: its suffixed ones, a final consonant doubled, and the irregular ones. */
+/**
+ * An action's plain forms: «enable», «enables», «enabled», «enabling»; a final consonant doubled: «stopped»,
+ * «stopping»; and the irregular ones (Codex on #274).
+ */
 function formsOf(base: string): string[] {
   const stem = base.replace(/e$/u, '')
   const doubled = `${base}${base.at(-1) ?? ''}`
@@ -112,72 +112,38 @@ function formsOf(base: string): string[] {
   ]
 }
 
-/** Each action of a pair a title says, with the thing it is said of: «enable email», «disable sms». */
-function aimsOf(words: readonly string[], pair: readonly string[]): string {
-  return words
-    .flatMap((w, i) => {
-      const base = pair.find((b) => formsOf(b).includes(w))
-      if (base === undefined) return []
-      return [`${base} ${words.slice(i + 1).find((next) => next !== '' && !COMMON.has(next)) ?? ''}`]
-    })
-    .toSorted()
-    .join('|')
-}
+/** Every action of a pair by its plain form, for reading a word as one. */
+const ACTIONS = new Map(OPPOSITES.flat().flatMap((base) => formsOf(base).map((form) => [form, base] as const)))
 
 /**
- * Whether two titles say an action against its opposite: of a pair, what one says is not what the other says. Both of
- * a pair said on each side is the same only when each is said of the same thing: «enable email and disable SMS» meets
- * itself, not «disable email and enable SMS» (Codex on #274).
+ * A title's turning words of one kind, in the order they come: its orders («before», «after»), its actions (of a pair,
+ * by their plain form) or its numbers (any word with a digit: «2025», «q4»). Read in order, not as a bag, so the same
+ * words in other places part two titles: «tier 1 … 2» from «tier 2 … 1», «enable … disable» from «disable … enable»;
+ * and a passive voice or «before or after» reads as its active, its spelled-out twin (Codex on #266 and #274).
  */
-function opposed(x: readonly string[], y: readonly string[]): boolean {
-  return OPPOSITES.some((pair) => {
-    const said = (words: readonly string[]) => pair.filter((base) => acts(words, base)).join(' ')
-    if (said(x) === '' || said(y) === '') return false
-    if (said(x) !== said(y)) return true
-    return said(x) === pair.join(' ') && aimsOf(x, pair) !== aimsOf(y, pair)
-  })
+const turnsOf = {
+  orders: (words: readonly string[]) => words.filter((w) => w === 'before' || w === 'after'),
+  actions: (words: readonly string[]) => words.flatMap((w) => ACTIONS.get(w) ?? []),
+  numbers: (words: readonly string[]) => words.filter((w) => /\p{N}/u.test(w)),
 }
-
-/** The orders a title names, each with the word it is said of: «before review», «after approval». */
-function ordersOf(words: readonly string[]): string[] {
-  return words.flatMap((w, i) => {
-    if (w !== 'before' && w !== 'after') return []
-    const of = words.slice(i + 1).find((next) => next !== '' && !COMMON.has(next)) ?? ''
-    return [`${w} ${of}`]
-  })
-}
-
-/** The kinds of order a title names: before, after, both or neither. */
-const kindsOf = (orders: readonly string[]) => new Set(orders.map((s) => s.split(' ')[0]))
-
-/** A title's numbers, in one order, those inside a label too: «2025», «q4» (Codex on #274). */
-const numbersOf = (words: readonly string[]) =>
-  words
-    .filter((s) => /\p{N}/u.test(s))
-    .toSorted()
-    .join(' ')
 
 /** Whether a title negates: a negating word, or a «n't». */
 const negates = (words: readonly string[], title: string) =>
   words.some((s) => NEGATIONS.has(s)) || /n['\u2019]t\b/u.test(fold(title))
 
-/** Whether two titles name orders that disagree: one before where the other says after, or the two said in turn otherwise. */
-function ordersDisagree(x: readonly string[], y: readonly string[]): boolean {
-  // Both words said on either side: the same orders of the same things, or another question (Codex on #266).
-  if (kindsOf(x).size > 1 || kindsOf(y).size > 1) return x.toSorted().join('|') !== y.toSorted().join('|')
-  const [a] = kindsOf(x)
-  const [b] = kindsOf(y)
-  return a !== undefined && b !== undefined && a !== b
-}
-
-/** Whether two titles' turns agree: the same negation, no order, action or number said one way here and another there. */
+/**
+ * Whether two titles' turns agree: the same negation; and of each kind, the same words in the same order, or none said
+ * on one side (a number on one side only does not part them). Where they don't, nothing is named: saying nothing beats
+ * pointing to the inverse question.
+ */
 function turnsAgree(a: string, b: string): boolean {
   const x = wordsOf(a)
   const y = wordsOf(b)
   if (negates(x, a) !== negates(y, b)) return false
-  if (ordersDisagree(ordersOf(x), ordersOf(y))) return false
-  if (opposed(x, y)) return false
-  return numbersOf(x) === '' || numbersOf(y) === '' || numbersOf(x) === numbersOf(y)
+  return Object.values(turnsOf).every((of) => {
+    const [p, q] = [of(x), of(y)]
+    return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
+  })
 }
 
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
