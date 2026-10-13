@@ -288,3 +288,23 @@ test('answers · in light mode, an «Ask Sophia» on and a listening microphone 
   // The light theme's halo channel (109 91 208), not the dark one's fixed violet (156 130 245).
   await expect.poll(() => mic.evaluate((el) => getComputedStyle(el).backgroundColor)).toMatch(/^rgba\(109, 91, 208,/)
 })
+
+test('answers · in light mode, Conversations’ «Ask Sophia» on and Personal’s listening microphone deepen in the light halo too (Codex on #279)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?place=conversations&conversations=1&theme=light')
+  const ask = page.locator('.conv-compose .conv-ask').first()
+  await expect(ask).toBeVisible()
+  if (!(await ask.locator('input').isChecked())) await ask.click()
+  await expect(ask.locator('input')).toBeChecked()
+  await ask.hover()
+  await expect.poll(() => ask.evaluate((e) => getComputedStyle(e).backgroundColor)).toMatch(/^rgba\(109, 91, 208,/)
+
+  await page.goto('/personal.html?demo=1&theme=light')
+  await drawn(page, DRAWN.personal)
+  await page.getByRole('button', { name: 'Talk instead' }).click()
+  const stop = page.getByRole('button', { name: 'Stop listening' })
+  await expect(stop).toHaveAttribute('aria-pressed', 'true')
+  await stop.hover()
+  await expect.poll(() => stop.evaluate((e) => getComputedStyle(e).backgroundColor)).toMatch(/^rgba\(109, 91, 208,/)
+})
