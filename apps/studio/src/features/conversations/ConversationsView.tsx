@@ -156,7 +156,9 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
           onOpenExisting={(id) => openOne(id, true)}
         />
       )}
-      {shown && <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes }} />}
+      {shown && (
+        <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes, list }} />
+      )}
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
@@ -347,6 +349,8 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
 function Open(props: {
   projectId: string
   conversation: ConversationSummary
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   cursor: string | undefined
@@ -361,6 +365,7 @@ function Open(props: {
       key={c.id}
       projectId={props.projectId}
       conversation={c}
+      list={props.list}
       identity={props.identity}
       me={props.me}
       cursor={props.cursor}

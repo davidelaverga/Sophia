@@ -32,15 +32,19 @@ import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { settled } from './next-ask.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
 import { MessageActs } from './MessageActs.tsx'
 import { withQuote } from './message-acts.ts'
+import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
   conversation: ConversationSummary
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list?: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
@@ -104,7 +108,7 @@ function useQuote(props: Pick<Props, 'writer' | 'draft' | 'onDraft'>, section: R
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
-  const read = useTranscript(c.id, identity, props.cursor)
+  const { read, current } = useThread(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
   const section = useRef<HTMLElement>(null)
   const follow = useFollow()
@@ -154,12 +158,39 @@ export function OpenConversation(props: Props) {
             follow.sent()
             if (sent.sophia === 'asked') props.onAsked(sent.message.at)
           }}
-          next={{ projectId: props.projectId, me, read: read.data, openQuestions: c.openQuestions }}
+          next={nextOf(props, read, current)}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
     </section>
   )
+}
+
+/** What the composer's next ask reads (useNextAsk.ts), with whether each part is known now (Codex P2s on #262). */
+/**
+ * The thread as read, and whether that read answers the feed's cursor now: the cursor its last feed-triggered read
+ * landed for. A moved cursor makes it not current from that very render, before its refetch has even started; only
+ * that refetch, not an older page, makes it current again (Codex on #275).
+ */
+function useThread(conversationId: string, identity: Identity, cursor: string | undefined) {
+  const [readFor, setReadFor] = useState(cursor)
+  const read = useTranscript(conversationId, identity, cursor, setReadFor)
+  return { read, current: readFor === cursor }
+}
+
+function nextOf(props: Props, read: ReturnType<typeof useTranscript>, current: boolean): NextAskSource {
+  return {
+    projectId: props.projectId,
+    me: props.me,
+    read: read.data,
+    // Read and not being read again, the last read not failed: its newest message is the newest; and the list not being
+    // read again, its open questions the count now (Codex on #275).
+    // Idle only: a read paused offline keeps its old data and is not current either (Codex on #275).
+    fresh: current && read.isSuccess && settled(read) && settled(props.list ?? { fetchStatus: 'idle' }),
+    readAt: read.dataUpdatedAt,
+    // The list's last read failed: its count of open questions may be stale.
+    openQuestions: props.list?.isError === true ? null : props.conversation.openQuestions,
+  }
 }
 
 /**
@@ -293,7 +324,12 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
 }
 
 /** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
-function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
+function useTranscript(
+  conversationId: string,
+  identity: Identity,
+  cursor: string | undefined,
+  onReadFor?: (cursor: string | undefined) => void,
+) {
   const read = useInfiniteQuery({
     queryKey: messagesKey(conversationId, accountOf(identity)),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
@@ -301,7 +337,17 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     getNextPageParam: (page) => page.before,
     retry: 1,
   })
-  useReadAgain(cursor, read.refetch)
+  // The read the feed asks for, and only it, says which cursor the thread now answers: an older page landing meanwhile
+  // says nothing of the newest (Codex on #275).
+  const { refetch } = read
+  const readAgain = useCallback(
+    () =>
+      refetch().then((r) => {
+        if (r.isSuccess) onReadFor?.(cursor)
+      }),
+    [refetch, onReadFor, cursor],
+  )
+  useReadAgain(cursor, readAgain)
   return read
 }
 
@@ -344,6 +390,9 @@ function Messages(props: {
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
+          // Not pressed while the thread is read again, paused offline included: an older page then would cancel that
+          // read (Codex on #275).
+          busy={!settled(read)}
           failed={read.isFetchNextPageError}
           onRead={() => {
             asked.current = true
@@ -369,15 +418,20 @@ function Messages(props: {
 }
 
 /** Earlier messages: reads the page before, once at a time; says so when it can't. */
-function Earlier({ reading, failed, onRead }: { reading: boolean; failed: boolean; onRead: () => void }) {
+function Earlier({
+  reading,
+  busy,
+  failed,
+  onRead,
+}: {
+  reading: boolean
+  busy: boolean
+  failed: boolean
+  onRead: () => void
+}) {
   return (
     <p className="conv-earlier">
-      <button
-        type="button"
-        className="text-button"
-        aria-disabled={reading || undefined}
-        onClick={() => !reading && onRead()}
-      >
+      <button type="button" className="text-button" aria-disabled={busy || undefined} onClick={() => !busy && onRead()}>
         {reading ? 'Reading earlier messages…' : 'Earlier messages'}
       </button>
       {failed && <span role="alert"> They can’t be read now.</span>}

@@ -210,6 +210,8 @@ export interface Conversations extends TalkWrites {
   failList: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
   lastShown?: boolean
+  /** Reads of the pages before the newest fail (`older=fail`, `window.fixture.failOlderMessages`). */
+  failOlder?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -538,6 +540,7 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const all = talk.messages[conversationId]
   if (!all) return null
   const before = url.searchParams.get('before')
+  if (before !== null && talk.failOlder) return unavailable()
   // A cursor this list never gave is the client's mistake: unexpected, not an empty page.
   if (before !== null && !/^[1-9][0-9]*$/u.test(before)) return null
   const end = Math.min(all.length, Number(before ?? all.length))

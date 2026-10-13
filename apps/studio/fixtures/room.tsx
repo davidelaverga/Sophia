@@ -149,6 +149,8 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
+  /** The reads of a conversation's older pages fail, or read again. */
+  failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
   /** The brief's reads fail, or read again. */
@@ -592,6 +594,9 @@ window.fixture = {
   failConversations: (on) => {
     if (project.conversations) project.conversations.failList = on
   },
+  failOlderMessages: (on) => {
+    if (project.conversations) project.conversations.failOlder = on
+  },
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
@@ -896,6 +901,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      failOlder: query.get('older') === 'fail',
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,

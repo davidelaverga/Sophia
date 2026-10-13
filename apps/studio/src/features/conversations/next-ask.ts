@@ -3,7 +3,9 @@
 // open, what was decided, a summary, in that order, the first not asked lately nor put away. Nothing fits, nothing is
 // suggested: saying nothing beats guessing. The quick asks under the field drop what was asked lately and the
 // suggestion. Pure, so a node test holds the order; never presented as Sophia's words.
+import type { MissionContext } from '@sophia/contracts'
 import type { ConversationMessage } from '../../api/vision.ts'
+import { acceptedOf, pendingOf } from './conversation-list.ts'
 
 /** What everyone asks: Sophia, in one press. */
 export const QUICK_ASKS = ['Sum it up', 'What’s still open?', 'What did we decide?'] as const
@@ -120,20 +122,62 @@ interface ThreadPage {
 }
 
 /**
- * The viewer's words before the pages the thread has loaded, oldest first, read a page at a time only until `need` of
- * them are in (at most `pages` pages): the loaded page holds six messages in all, not six of the viewer's, so what
- * they asked four turns ago may be a page back (Codex on #262).
+ * The viewer's words before the pages the thread has loaded, oldest first, read a page at a time until `need` of them
+ * are in or the thread begins: the loaded page holds six messages in all, not six of the viewer's, so what they asked
+ * four turns ago may be a page back (Codex on #262). At most `pages` pages are read; stopped there with asks still
+ * wanted and pages left, the answer is not `complete`, and nothing is proposed on it (Codex P2 on #262).
  */
 export async function olderAsks(
   read: (before: string) => Promise<ThreadPage>,
   before: string | null,
   me: string,
   need: number,
-  pages = 4,
-): Promise<string[]> {
-  if (before === null || need <= 0 || pages <= 0) return []
+  pages = 8,
+): Promise<{ asks: string[]; complete: boolean }> {
+  if (before === null || need <= 0) return { asks: [], complete: true }
+  if (pages <= 0) return { asks: [], complete: false }
   const page = await read(before)
   const mine = page.messages.filter((m) => m.author === 'member' && m.actorId === me).map((m) => m.text)
   const earlier = await olderAsks(read, page.before, me, need - mine.length, pages - 1)
-  return [...earlier, ...mine]
+  return { asks: [...earlier.asks, ...mine], complete: earlier.complete }
+}
+
+/** What the brief gives the next ask: its newest proposal waiting, and how many decisions it has accepted. */
+export function briefAsks(brief: MissionContext | undefined, failed: boolean): Pick<AskContext, 'pending' | 'decided'> {
+  // A brief whose last read failed may hold a proposal decided since: nothing is taken from it (Codex P2 on #262).
+  if (!brief || failed) return { pending: null, decided: 0 }
+  const accepted = acceptedOf(brief.constraints)
+  return {
+    pending: pendingOf(brief.pending).shown[0]?.statement ?? null,
+    decided: accepted.shown.length + accepted.more,
+  }
+}
+
+/** What the next ask may stand on now: the thread read and not being read again; the viewer's older asks read. */
+/**
+ * A read is settled only when idle: one paused offline keeps its old data with `isFetching` false, yet it is still on
+ * its way, and a newer read started meanwhile would cancel it (Codex on #275).
+ */
+export const settled = (read: { fetchStatus: 'fetching' | 'paused' | 'idle' }): boolean => read.fetchStatus === 'idle'
+
+export interface AskReadings {
+  /** The transcript read, not being read again, its last read not failed: its newest message is the newest. */
+  fresh: boolean
+  /** What the viewer asked before the loaded pages is read (or not needed). */
+  recencyKnown: boolean
+  /** A message on its way, a refusal standing, nothing read: no suggestion in the field. */
+  quiet: boolean
+  /** Put away under her newest answer: no suggestion until her next. */
+  hushed: boolean
+}
+
+/**
+ * The field's suggestion and the quick asks, from what is known now: with the thread or what was asked before it not
+ * known (being read again, or its read failed), neither, so nothing asked lately is offered again and nothing stands on
+ * a newest message that may no longer be hers (Codex P2s on #262).
+ */
+export function asksNow(ctx: AskContext, r: AskReadings): { suggestion: Suggestion | null; quick: string[] } {
+  if (!r.fresh || !r.recencyKnown) return { suggestion: null, quick: [] }
+  const suggestion = r.quiet || r.hushed ? null : nextAsk(ctx)
+  return { suggestion, quick: quickAsks(ctx.asked, suggestion, ctx.putAway) }
 }

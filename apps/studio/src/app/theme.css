@@ -716,6 +716,13 @@ input[type='checkbox']:hover:not(:disabled) {
 .has-tip:focus-visible .tip[data-align='end'] {
   transform: translate(0, 0);
 }
+/* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
+   own (Codex P2 on #262). */
+:is(input, textarea):focus-visible ~ .next-ask .tip {
+  opacity: 1;
+  transform: translate(0, 0);
+  transition-delay: 320ms;
+}
 
 /* A chip (docs/plans/chips-radii.md): a word or two in a small box on the first radius. The state chip (the tag): 20 px,
    the small type at 500, a dot and a tone that only reinforce the word. The data chip (a model's name): 18 px, the mono
