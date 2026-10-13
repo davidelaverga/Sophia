@@ -2903,6 +2903,10 @@ button.contribution-quote:hover {
   .topbar .mini-dock .dock-notes {
     top: calc(100% + 54px);
   }
+  /* Its tips too: under the views' row, not over it (Codex P2 on #254). */
+  .topbar .mini-dock .tip {
+    top: calc(100% + 52px);
+  }
 }
 
 /* Room access: the lobby over the stage and the Invite panel. */
@@ -3964,6 +3968,19 @@ button.contribution-quote:hover {
 @media (max-width: 1320px) {
   .copy-link .swap {
     display: none;
+  }
+  /* Folded to its icon, it still shows the copy landed: the teal of done, for the two seconds «Link copied» is said
+     (Codex P2 on #259). */
+  .copy-link[data-copied] {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+}
+/* With a header wide enough for the room's dock, a long project title gives way before the views: the nav keeps its
+   width and the title folds to an ellipsis first (Codex P2 on #259). */
+@media (min-width: 901px) {
+  .project-name {
+    flex-shrink: 100;
   }
 }
 

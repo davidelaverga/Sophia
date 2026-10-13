@@ -371,7 +371,9 @@ function useDockFocus(wide: boolean) {
     // Lost to the page, or left on a control no longer drawn (the pane's row, hidden by the move).
     const lost = at === document.body || (at instanceof HTMLElement && at.getClientRects().length === 0)
     if (!name || !lost) return
-    const again = [...document.querySelectorAll<HTMLElement>('.mini-dock button')].find(
+    // A report open on a narrow screen covers the floating dock: its own call row is the one seen, so it is looked in
+    // first (Codex P2 on #254).
+    const again = [...document.querySelectorAll<HTMLElement>('.report-pane-call button, .mini-dock button')].find(
       (b) => dockKey(b) === name && b.getClientRects().length > 0,
     )
     again?.focus({ preventScroll: true })
@@ -792,6 +794,7 @@ function CopyLinkButton({ projectId }: { projectId: string }) {
     <button
       type="button"
       className="ghost copy-link has-tip"
+      data-copied={copied || undefined}
       aria-label={copied ? 'Link copied' : 'Copy project link'}
       onClick={() => void copy()}
     >

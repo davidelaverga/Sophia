@@ -151,7 +151,9 @@
 /* --- the viewer ----------------------------------------------------------------------------------------------- */
 .report-pane {
   position: fixed;
-  top: var(--topbar);
+  /* Under what the header's dock says, when it says something: the notes never cover the report's title and actions
+     (MiniDock keeps --dock-notes-h; Codex P2 on #254). */
+  top: calc(var(--topbar) + var(--dock-notes-h, 0px));
   right: 0;
   bottom: 0;
   /* Over the page, the room's dock and the mini dock (10 and under); under the lobby and a project's opening note (15),
