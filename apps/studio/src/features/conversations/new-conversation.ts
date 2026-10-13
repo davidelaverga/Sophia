@@ -175,6 +175,15 @@ function remainderFollows(prev: string | undefined, after: readonly string[]): b
 }
 
 /**
+ * A word that joins two parts of one spelled number rather than ending it: the hyphen of «twenty-one», an «and» before
+ * a remainder («one hundred and five») (Codex on #274).
+ */
+function joins(w: string, prev: string | undefined, after: readonly string[]): boolean {
+  if (w === BOUNDARY) return TENS.has(prev ?? '') && (UNITS.get(after[0] ?? '') ?? 10) < 10
+  return w === 'and' && remainderFollows(prev, after)
+}
+
+/**
  * Spelled numbers read as figures, each run of number words as one value, so the words meet the figures: «one thousand
  * five hundred» is 1500, «twenty first» 21st, «fourteenth» 14th (Codex on #274). An «and» after a scale («one hundred
  * and five») is part of the run; figures are never composed, «20-1» stays two numbers.
@@ -195,7 +204,7 @@ function spelledNumbers(words: readonly string[]): string[] {
     } else if (UNITS.has(w) || TENS.has(w) || SCALES.has(w)) {
       if (!continues(run.at(-1), w)) flush()
       run.push(w)
-    } else if (!(w === 'and' && remainderFollows(run.at(-1), words.slice(i + 1)))) {
+    } else if (!joins(w, run.at(-1), words.slice(i + 1))) {
       flush()
       out.push(w)
     }
@@ -311,7 +320,7 @@ const FILLER = new Set(
   (
     'a an the and or but of to for in on at by with from into as than then so if ' +
     'should would could can do does did be is are was were been being will shall may might must ' +
-    'we our i please before after'
+    'we our i please before after had has have am'
   ).split(' '),
 )
 
