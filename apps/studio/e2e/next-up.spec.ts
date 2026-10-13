@@ -61,3 +61,34 @@ test('next up · the review’s pill closes the line too (Codex on #263)', async
   await board(page).locator('.review-pill').click()
   await expect(line(page)).toHaveCount(0)
 })
+
+test('next up · focus moved to another decision during the write stays there (Codex P2 on #263)', async ({ page }) => {
+  await page.goto(PAGE)
+  await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
+  const decisions = board(page).locator('[data-decision]')
+  await expect(decisions).toHaveCount(2)
+  const first = decisions.nth(0).locator('.plan-choice:not(:disabled)').first()
+  await first.focus()
+  await page.keyboard.press('Enter')
+  // While the answer is on its way (300 ms), the person moves on to the other decision.
+  const other = decisions.nth(1).locator('.plan-choice:not(:disabled)').first()
+  await other.focus()
+  await expect(line(page)).toBeVisible()
+  await expect(other).toBeFocused()
+})
+
+test('next up · answering the one it names, the line goes while the answer is on its way (Codex P2 on #263)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await page.evaluate(() => window.workFixture?.decisionArrives?.('davide'))
+  const decisions = board(page).locator('[data-decision]')
+  await expect(decisions).toHaveCount(2)
+  await decisions.nth(0).locator('.plan-choice:not(:disabled)').first().click()
+  await expect(line(page)).toContainText('Next: decide')
+  // The next one answered in the list itself: the line naming it goes at once, not after the write.
+  await decisions.nth(1).locator('.plan-choice:not(:disabled)').first().click()
+  await expect(line(page)).toHaveCount(0, { timeout: 250 })
+  await expect(line(page)).toBeVisible()
+  await expect(line(page)).not.toContainText('Next: decide')
+})

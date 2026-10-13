@@ -12,20 +12,26 @@ interface Props {
   onGo: () => void
   /** The line has served (nothing next, the focus gone). */
   onDone: () => void
+  /** The choice the answer went from: the focus is taken from it (or from the page), never from another. */
+  from: Element | null
 }
 
-/** The focus is where the answer left it: the page's body, or the decisions. */
-const leftByAnswer = (at: Element | null) => at === document.body || (at?.closest('.board-decisions') ?? null) !== null
+/**
+ * The focus is where the answer left it: the page's body, or the very choice it went from. Anywhere else, another
+ * decision's choice included, disabled by its own answer or not, is where the person moved to meanwhile, and stays
+ * theirs (Codex on #263 and #277).
+ */
+const leftByAnswer = (at: Element | null, from: Element | null) => at === document.body || (at !== null && at === from)
 
-export function NextUp({ next, onGo, onDone }: Props) {
+export function NextUp({ next, from, onGo, onDone }: Props) {
   const press = useRef<HTMLButtonElement>(null)
   const said = useRef<HTMLParagraphElement>(null)
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (leftByAnswer(document.activeElement)) (press.current ?? said.current)?.focus({ preventScroll: true })
+      if (leftByAnswer(document.activeElement, from)) (press.current ?? said.current)?.focus({ preventScroll: true })
     })
     return () => cancelAnimationFrame(frame)
-  }, [next.words])
+  }, [next.words, from])
   if (next.kind === 'none')
     return (
       <p ref={said} className="next-up" role="status" tabIndex={-1} onBlur={onDone}>
