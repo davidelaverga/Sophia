@@ -384,9 +384,17 @@ function SayLine({ actions, onTalk, line, hidden, here, next }: LineProps) {
 function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
-      <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
-        You and Sophia
-      </h3>
+      {/* Your notes in the head, as Personal's head carries them (docs/plans/home-first-glance.md). */}
+      <div className="hw-label-row">
+        <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
+          You and Sophia
+        </h3>
+        {you && you.notes !== null && (
+          <button className="text-button hw-notes" type="button" onClick={actions.notes}>
+            {notesLabel(you.notes)} <span aria-hidden>→</span>
+          </button>
+        )}
+      </div>
       {you && (
         <ol className="hw-index" aria-label="You and Sophia">
           <li style={{ '--i': 0 }}>
@@ -401,17 +409,6 @@ function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Pr
               </span>
             </button>
           </li>
-          {you.notes !== null && (
-            <li style={{ '--i': 1 }}>
-              <button className="hw-row hw-more" type="button" onClick={actions.notes}>
-                <span className="hw-n" aria-hidden />
-                <span className="hw-t">{notesLabel(you.notes)}</span>
-                <span className="hw-go">
-                  <span aria-hidden>→</span>
-                </span>
-              </button>
-            </li>
-          )}
         </ol>
       )}
       {!locked && <SayLine {...{ actions, onTalk, line, hidden, here, next }} />}

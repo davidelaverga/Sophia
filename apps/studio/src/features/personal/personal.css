@@ -195,6 +195,9 @@
   letter-spacing: -0.045em;
 }
 .places .hw-hello > span {
+  /* Each line is an element of its own: it keeps the greeting's display leading, not the universal grid's 1.55
+     (docs/plans/home-first-glance.md). */
+  line-height: inherit;
   animation: hw-in 620ms var(--ease) both;
 }
 .places .hw-hello > span + span {
@@ -204,8 +207,27 @@
   color: var(--text-3);
 }
 /* A first visit: the line follows its label directly, with the label's own gap. */
-.places .hw-you .hw-label + .hw-say {
+.places .hw-you .hw-label-row + .hw-say {
   margin-top: 0;
+}
+/* A section's head with a press on its right: your notes beside «You and Sophia». */
+.places .hw-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.places .hw-label-row .hw-label {
+  margin-bottom: 0;
+}
+.places .hw-notes {
+  font-size: var(--type-small);
+  color: var(--text-2);
+  animation: hw-in 520ms var(--ease) var(--d) both;
+}
+.places .hw-notes:hover {
+  color: var(--text);
 }
 .places .hw-says {
   max-width: 460px;
@@ -382,6 +404,24 @@
   .places .hw-row:hover::before {
     opacity: 1;
   }
+}
+/* A row that joins or takes you back says so at rest, in its own width, on every screen: its press is the one the
+   moment asks for (docs/plans/home-first-glance.md). */
+.places .hw-row:is([data-act='join'], [data-act='back']) {
+  grid-template-columns: 28px minmax(0, 1fr) auto auto;
+}
+.places .hw-row:is([data-act='join'], [data-act='back']) .hw-go {
+  opacity: 1;
+  transform: none;
+}
+.places .hw-row:is([data-act='join'], [data-act='back']) .hw-go-words {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  margin-right: 6px;
+  font-size: 12px;
+  color: var(--halo-text);
 }
 /* Without a pointer that hovers, a row that joins or takes you back says so before it is tapped, in its own width. */
 @media (hover: none) {
