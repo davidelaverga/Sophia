@@ -11,15 +11,25 @@ interface Props {
   busy: boolean
   /** Take the focus on arrival, where the code is the one thing left to do (unlocking). */
   focus?: boolean
+  /** The id of the words that say the code was refused: the field is marked invalid, described by them, and its digits
+   * selected so the next ones typed replace them (docs/plans/signin-hierarchy.md). */
+  invalid?: string | undefined
   onCheck: (code: string) => void
+  /** The code was changed: a refusal said of the old one no longer stands. */
+  onEdit?: (() => void) | undefined
 }
 
-export function CodeField({ id, action, busy, focus = false, onCheck }: Props) {
+export function CodeField({ id, action, busy, focus = false, invalid, onCheck, onEdit }: Props) {
   const [code, setCode] = useState('')
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (focus) input.current?.focus()
   }, [focus])
+  useEffect(() => {
+    if (!invalid) return
+    input.current?.focus()
+    input.current?.select()
+  }, [invalid])
   return (
     <Field
       as="form"
@@ -42,7 +52,12 @@ export function CodeField({ id, action, busy, focus = false, onCheck }: Props) {
         required
         placeholder="Code from the email"
         value={code}
-        onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid}
+        onChange={(e) => {
+          setCode(e.target.value.replace(/\D/g, ''))
+          onEdit?.()
+        }}
       />
       <button
         type="submit"

@@ -114,6 +114,8 @@ test('sign-in · the controls sit one line and the gap lower, the title where it
 }) => {
   await page.goto(PAGE)
   await expect(page.getByText(LEDE)).toBeVisible()
+  // The title arrives (`.arrive`, 0.36 s): read once it has, or its rise reads as a move of a pixel.
+  await page.locator('.screen-title').evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)))
   const withLine = await tops(page, true)
   const without = await tops(page, false)
   // The line and the gap under it (20 + 14): the controls' only move; the title stands.

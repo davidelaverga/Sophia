@@ -8,6 +8,12 @@
  */
 export const SIGN_IN_LEDE = 'Where your team and Sophia think together.'
 
+/** What was sent, before the address it went to (docs/plans/signin-hierarchy.md). */
+export const SENT_TO = 'We sent a link and a code to'
+
+/** How to use what was sent, as the note under that line: the link where it was asked for, the code from anywhere. */
+export const SENT_HOW = 'Open the link in this browser, or type the code here.'
+
 /** What the Studio reads of an Auth error: its code, its sentence and whether the request got anywhere. */
 export interface AuthFailure {
   code?: string | undefined
