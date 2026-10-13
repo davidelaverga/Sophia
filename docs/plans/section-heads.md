@@ -40,7 +40,7 @@
   body (13) and smaller than the view's title (28), and a task tile's title computes 13/500. `work.spec.ts` reads Tasks'
   sizes as one set, 10.5 · 12 · 13 · 15 · 28; `.plan-next` (13) and `.plan-ask-question` (15/400) are not checked one by
   one, so either could move to another size of the set unseen. (Corrected to what the checks assert: Codex on #282.)
-- The pinned scales that hold a head: `work` (`.goals`: 14 stays for the task tiles, 15 joins), `resources`
+- The pinned scales that hold a head: `work` (`.goals`: the task tiles at the body's 13 and no 14, 15 joins: five sizes), `resources`
   (`.resources`: measured after the change), the knowledge and conversations lists gain 15.
 - `pnpm format`, `pnpm lint`, `pnpm typecheck`; measured in the pane before the push.
 - **The allowlists say what is there** (Codex on #248): in the tiles' scope the title was the only 14 px word, so 15
