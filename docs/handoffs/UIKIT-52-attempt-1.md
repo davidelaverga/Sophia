@@ -52,3 +52,4 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
 
 - Run 38338054881 on `69dbfafb` (this branch's head, every change and review round in it): all jobs green, the browser suites
   among them.
+- `d6b01dd8`: UIKIT-36's outcome gives the day label's 10.5 px and 0.63 px beside the 12 px labels' 0.72 px (round 6, Codex on #282).
