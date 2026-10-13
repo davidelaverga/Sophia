@@ -25,6 +25,9 @@ test('goals · in the demo, Goals opens from its tab with the project’s three 
   await views(page).getByRole('link', { name: 'Goals' }).click()
   await expect(views(page).getByRole('link', { name: 'Goals' })).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: 'Goals', level: 2 })).toBeVisible()
+  // The completed goal is folded under «1 done» (docs/plans/goals-overview.md).
+  await expect(goals(page)).toHaveCount(2)
+  await page.getByRole('button', { name: /1 done/ }).click()
   await expect(goals(page)).toHaveCount(3)
   // Every criterion here is required: the rule goes unsaid (docs/plans/goal-optional.md).
   await expect(page.locator('.criteria li').first()).toBeVisible()

@@ -11,6 +11,7 @@ import {
   forViewer,
   forYou,
   blockersOf,
+  glanceOf,
   LANE,
   laneOf,
   progressOf,
@@ -619,6 +620,44 @@ describe('a goal’s progress (docs/plans/goals-progress.md)', () => {
     assert.deepEqual(progressOf(['active', 'next', 'complete', 'blocked']), { done: 1, total: 4 })
     assert.deepEqual(progressOf(['complete', 'closed', 'complete']), { done: 2, total: 2 })
     assert.deepEqual(progressOf([]), { done: 0, total: 0 })
+  })
+})
+
+describe('a goal at a glance (docs/plans/goals-overview.md)', () => {
+  const done = { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e'] }
+
+  it('reads its lanes, who is on its open tasks and what waits, by kind', () => {
+    const items = [item('build'), item('ask'), item('decide'), item('done'), item('free')]
+    const views = [
+      view('build', { lifecycle: 'running', assignment: assignment('build') }),
+      view('ask', { lifecycle: 'waiting', waiting_on: [wait('native_permission', 'davide')] }),
+      view('decide', { lifecycle: 'waiting', waiting_on: [wait('product_decision', 'luis', 'answered')] }),
+      view('done', { lifecycle: 'complete', completion: done }),
+      view('free'),
+    ]
+    const glance = glanceOf(rowsOf(goal(plan(items), views)))
+    assert.equal(glance.lanes.length, 5)
+    assert.equal(glance.lanes.filter((l) => l === 'complete').length, 1)
+    assert.deepEqual(glance.ways, { permissions: 1, decisions: 0, capacity: 0, outside: 0, blocked: 0 })
+    assert.deepEqual(
+      glance.people.map((p) => p.name),
+      ['Davide'],
+    )
+  })
+
+  it('counts its Blocked lane, and leaves the people of finished work out', () => {
+    const after = item('b', {
+      blocked_by: ['a'],
+      activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+    })
+    const views = [
+      view('a', { lifecycle: 'running' }),
+      view('b'),
+      view('c', { lifecycle: 'complete', completion: done, assignment: assignment('c') }),
+    ]
+    const glance = glanceOf(rowsOf(goal(plan([item('a'), after, item('c')]), views)))
+    assert.equal(glance.ways.blocked, 1)
+    assert.deepEqual(glance.people, [])
   })
 })
 
