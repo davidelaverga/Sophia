@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `da96881d7610` (tree `2b70721808ec`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `5a18d51e7150` (tree `005ec4e0f847`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -122,3 +122,7 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
 ## Post-review, round 11 (Codex on #274)
 
 - `da96881d`: a negation keeps its place in the ordered words; a decimal («1.2») is one number; spelled-out quantities up to ninety, a hundred, a thousand and a million count. Tests in `6a1b93af`, failing first.
+
+## Post-review, round 12 (Codex on #274)
+
+- `5a18d51e`: only a word said twice running is said once in the ordered words; said again later, it keeps that place («enable SMS and disable email» against «enable email and disable SMS» after «For email and SMS»). Ordinals (first…twelfth) are numbers. Tests in `8c9d2053`, failing first.
