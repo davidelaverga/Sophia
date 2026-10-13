@@ -174,7 +174,8 @@
   animation: rp-slide var(--base) var(--ease);
 }
 .report-pane[data-size='full'] {
-  inset: var(--topbar) 0 0;
+  /* Under the dock's notes too, enlarged (Codex on #281). */
+  inset: calc(var(--topbar) + var(--dock-notes-h, 0px)) 0 0;
   width: auto;
   border-left: 0;
   animation: rp-enlarge var(--base) var(--ease);
@@ -1014,7 +1015,8 @@
 /* --- small screens, coarse pointers, reduced motion ---------------------------------------------------------- */
 @media (width <= 760px) {
   .report-pane {
-    inset: var(--topbar) 0 0;
+    /* Under the dock's notes too, where the header (721 to 760 px) still holds the dock (Codex on #281). */
+    inset: calc(var(--topbar) + var(--dock-notes-h, 0px)) 0 0;
     width: auto;
     border-left: 0;
   }
