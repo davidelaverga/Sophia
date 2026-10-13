@@ -121,8 +121,13 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     ]
     assert.equal(sameQuestion('Should we disable email notifications?', here), null)
     assert.equal(sameQuestion('Should reports exclude charts?', here), null)
+    // A paraphrase with turning words (a passive, another order) reads as another question: silence (round 10).
     assert.equal(
-      sameQuestion('Should notifications be enabled?', [asked('a', 'Should we enable notifications?', at)])?.id,
+      sameQuestion('Should notifications be enabled?', [asked('a', 'Should we enable notifications?', at)]),
+      null,
+    )
+    assert.equal(
+      sameQuestion('Should we enable the notifications?', [asked('a', 'Should we enable notifications?', at)])?.id,
       'a',
     )
   })
@@ -148,7 +153,9 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Should password input fields be hidden?', show), null)
     // A one-word thing across the voice meets; «password input fields» is read as «fields» against «password» (round 5's
     // declared limit: the form errs to silence).
-    assert.equal(sameQuestion('Should passwords be shown?', [asked('a', 'Should we show passwords?', at)])?.id, 'a')
+    // A paraphrase with turning words (a passive, another order) reads as another question: silence (round 10).
+    assert.equal(sameQuestion('Should passwords be shown?', [asked('a', 'Should we show passwords?', at)]), null)
+    assert.equal(sameQuestion('Should we show the passwords?', [asked('a', 'Should we show passwords?', at)])?.id, 'a')
   })
 
   it('turning words read in the order they come: numbers by place, a passive voice, «before or after» (Codex round 3 on #274)', () => {
@@ -156,7 +163,8 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set tier 2 price to 1 dollars', [asked('a', 'Set tier 1 price to 2 dollars', at)]), null)
     // The same actions in the same order, said in the passive: the same question.
     const both = [asked('a', 'Should we enable email and disable SMS?', at)]
-    assert.equal(sameQuestion('Should email be enabled and SMS disabled?', both)?.id, 'a')
+    // A paraphrase with turning words (a passive, another order) reads as another question: silence (round 10).
+    assert.equal(sameQuestion('Should email be enabled and SMS disabled?', both), null)
     // «before or after review» against «before review or after review»: the same orders, in the same order.
     const orders = [asked('a', 'Ship the export before or after review?', at)]
     assert.equal(sameQuestion('Ship the export before review or after review?', orders)?.id, 'a')
@@ -166,7 +174,8 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     const both = [asked('a', 'Should we enable email and disable SMS?', at)]
     assert.equal(sameQuestion('Should we enable SMS and disable email?', both), null)
     // The passive keeps them: the thing before its participle.
-    assert.equal(sameQuestion('Should email be enabled and SMS disabled?', both)?.id, 'a')
+    // A paraphrase with turning words (a passive, another order) reads as another question: silence (round 10).
+    assert.equal(sameQuestion('Should email be enabled and SMS disabled?', both), null)
     assert.equal(sameQuestion('Should SMS be enabled and email disabled?', both), null)
   })
 
@@ -193,6 +202,17 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Use blue but do not use red?', [asked('a', 'Use blue but don’t use red?', at)])?.id, 'a')
   })
 
+  it('with turning words on both sides, only the same words in the same order meet (Codex round 10 on #274)', () => {
+    // A lone number moved between subjects, a spelled-out quantity: other questions.
+    const budget = [asked('a', 'Set email budget to 5 instead of SMS', at)]
+    assert.equal(sameQuestion('Set SMS budget to 5 instead of email', budget), null)
+    assert.equal(
+      sameQuestion('Compare two year revenue forecast', [asked('a', 'Compare one year revenue forecast', at)]),
+      null,
+    )
+    assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
+  })
+
   it('a number’s sign is part of it (Codex round 9 on #274)', () => {
     const budget = [asked('a', 'Set budget change to 5 percent', at)]
     assert.equal(sameQuestion('Set budget change to -5 percent', budget), null)
@@ -209,7 +229,9 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)
-    assert.equal(sameQuestion('Revenue forecast for 2025', here)?.id, 'a')
+    // A paraphrase with turning words (a passive, another order) reads as another question: silence (round 10).
+    assert.equal(sameQuestion('Revenue forecast for 2025', here), null)
+    assert.equal(sameQuestion('The 2025 revenue forecast?', here)?.id, 'a')
     assert.equal(sameQuestion('Revenue forecast', here)?.id, 'a')
   })
 
