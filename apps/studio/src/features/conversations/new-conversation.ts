@@ -57,6 +57,15 @@ const wordsOf = (title: string) =>
     // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
     .replace(/n['\u2019]t\b/gu, ' not')
     .split(/[^\p{L}\p{N}]+/u)
+    // A number spelled out is a number: «two years» is not «one year» (Codex on #274).
+    .map((w) => SPELLED.get(w) ?? w)
+
+/** Numbers written as words, read as their digits. */
+const SPELLED = new Map(
+  'zero one two three four five six seven eight nine ten eleven twelve'
+    .split(' ')
+    .map((w, i) => [w, String(i)] as const),
+)
 
 /**
  * A title's own words: folded, accents off, three letters or more, common words left out, an action as its plain form,
@@ -131,8 +140,8 @@ const ACTIONS = new Map(OPPOSITES.flat().flatMap((base) => formsOf(base).map((fo
 /**
  * A title's turning words of one kind, in the order they come: its orders («before», «after»), its actions (of a pair,
  * by their plain form) or its numbers (any word with a digit: «2025», «q4»). Read in order, not as a bag, so the same
- * words in other places part two titles: «tier 1 … 2» from «tier 2 … 1», «enable … disable» from «disable … enable»;
- * and a passive voice or «before or after» reads as its active, its spelled-out twin (Codex on #266 and #274).
+ * words in other places part two titles: «tier 1 … 2» from «tier 2 … 1», «enable … disable» from «disable … enable»
+ * (Codex on #266 and #274).
  */
 const turnsOf = {
   orders: (words: readonly string[]) => words.filter((w) => w === 'before' || w === 'after'),
@@ -140,57 +149,17 @@ const turnsOf = {
   numbers: (words: readonly string[]) => words.filter((w) => /\p{N}/u.test(w)),
 }
 
-/** A word that says what a question is about, as `ownWords` keeps it: an action excluded. */
-const isThing = (w: string) => w.length >= 3 && !COMMON.has(w) && !ACTIONS.has(w) && !/\p{N}/u.test(w)
-
 /**
- * Each turning word of a kind a title says, with the thing it is said of: the word after it («enable email», «before
- * review», «q1 revenue»), or for a participle («enabled», «hidden») the word before it, as a passive puts it. A thing
- * of more than one word across a change of voice is read as another question: the form errs to silence.
+ * A title's own words in the order they first come, numbers kept (a digit is a word here), each once («before review or
+ * after review» is «before or after review»): what two titles with turning words on both sides must share, word for
+ * word, to be the same question.
  */
-function aimsOf(words: readonly string[], of: (w: string) => string | undefined): string {
-  return words
-    .flatMap((w, i) => {
-      const said = of(w)
-      if (said === undefined) return []
-      // A negation reaches past a verb to its thing: «not use blue» is read as «not use blue», not «not use» (Codex on
-      // #274).
-      if (said === 'not')
-        return [
-          `not ${words
-            .slice(i + 1)
-            .filter(isThing)
-            .slice(0, 2)
-            .map(plainWord)
-            .join(' ')}`,
-        ]
-      const after = words.slice(i + 1).find(isThing)
-      const before = words.slice(0, i).findLast(isThing)
-      const base = ACTIONS.get(w)
-      // A passive: a participle after a form of «be» («be enabled», «was hidden»); a past tense alone is active
-      // («admins enabled dark mode»; Codex on #274).
-      const participle =
-        base !== undefined &&
-        w !== base &&
-        (w.endsWith('d') || (IRREGULAR[base] ?? []).includes(w)) &&
-        words.slice(Math.max(0, i - 2), i).some((p) => BE.has(p))
-      const thing = participle ? (before ?? after) : (after ?? before)
-      return [`${said} ${thing === undefined ? '' : plainWord(thing)}`]
-    })
-    .toSorted()
-    .join('|')
-}
+const ownOrder = (words: readonly string[]) =>
+  [...new Set(words.filter((w) => /\p{N}/u.test(w) || (w.length >= 3 && !COMMON.has(w))).map(plainWord))].join(' ')
 
-/** The forms of «be» a passive is made with. */
-const BE = new Set(['be', 'been', 'being', 'is', 'are', 'was', 'were'])
-
-/** How each kind's turning word is read, for its thing: an action by its plain form; an order or a number as it is. */
-const READ = {
-  negations: (w: string) => (NEGATIONS.has(w) ? 'not' : undefined),
-  orders: (w: string) => (w === 'before' || w === 'after' ? w : undefined),
-  actions: (w: string) => ACTIONS.get(w),
-  numbers: (w: string) => (/\p{N}/u.test(w) ? w : undefined),
-}
+/** Whether a title says a turning word of any kind: a negation, an order, an action of a pair, a number. */
+const turns = (words: readonly string[]) =>
+  words.some((w) => NEGATIONS.has(w)) || Object.values(turnsOf).some((of) => of(words).length > 0)
 
 /** Whether a title negates: a negating word, or a «n't». */
 const negates = (words: readonly string[], title: string) =>
@@ -209,15 +178,11 @@ function turnsAgree(a: string, b: string): boolean {
     const [p, q] = [of(x), of(y)]
     return p.length === 0 || q.length === 0 || p.join(' ') === q.join(' ')
   })
-  // A negation, an order or an action said on each side keeps its thing, once said too: «not red» against «not blue»,
-  // «before approval» against «before review», «enable SMS and disable email» against «enable email and disable SMS».
-  // Numbers, two or more on each side («Q1 costs … Q2 revenue»): one number has no other to swap with (Codex on #274).
-  const kept = (['negations', 'orders', 'actions', 'numbers'] as const).every((kind) => {
-    const least = kind === 'numbers' ? 2 : 1
-    const said = (words: readonly string[]) => words.filter((w) => READ[kind](w) !== undefined).length >= least
-    return !(said(x) && said(y)) || aimsOf(x, READ[kind]) === aimsOf(y, READ[kind])
-  })
-  return alike && kept
+  // Turning words on both sides: only the same own words, in the same order, are the same question. Binding each turn
+  // to a word near it was read eleven ways by the review, each an inverse it let through (a number moved between
+  // subjects, a negation's scope, a passive's thing: Codex on #274); word for word, none passes. A paraphrase with
+  // turning words (a passive, another order) is read as another question: the form errs to silence, Start always there.
+  return alike && (!(turns(x) && turns(y)) || ownOrder(x) === ownOrder(y))
 }
 
 /** The least that says «about the same thing»: two shared words, and this share of the question's. */
