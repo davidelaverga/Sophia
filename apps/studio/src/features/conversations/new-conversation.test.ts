@@ -213,6 +213,15 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('cannot and can’t are one negation; figures apart are not composed (Codex round 16 on #274)', () => {
+    assert.equal(sameQuestion('We can’t enable dark mode?', [asked('a', 'We cannot enable dark mode?', at)])?.id, 'a')
+    assert.equal(sameQuestion('Review release 20-1 status', [asked('a', 'Review release 21 status', at)]), null)
+    assert.equal(
+      sameQuestion('Review release twenty one status', [asked('a', 'Review release 21 status', at)])?.id,
+      'a',
+    )
+  })
+
   it('what follows a scale is added to it (Codex round 15 on #274)', () => {
     const two = [asked('a', 'Compare 100- and 20-year revenue forecasts', at)]
     assert.equal(sameQuestion('Compare one hundred twenty year revenue forecast', two), null)
