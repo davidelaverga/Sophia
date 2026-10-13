@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `94d732f0f0bf` (tree `115b453d9a5d`), the last commit of `ui/p2-next-up`'s own that changes code (later
+Ending commit/tree: `b1f7ffb0d182` (tree `7ddb3072f684`), the last commit of `ui/p2-next-up`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 9 files changed against
 `origin/main` at that commit: `e2e/next-up.spec.ts`, `e2e/palette-knows.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/answers.ts`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-47-attempt-1.md`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
 
@@ -73,3 +73,12 @@ The next follow-up: the board's seen marks, plan order and focus (Codex P2s on #
 - `c834bb30`: Next up takes the focus only from the page's body or the very choice its answer went from (`submitted`, noted as the send starts), not from any disabled control: another decision's choice, disabled by its own pending answer, stays the person's. The final head's CI is pending.
 
 - `94d732f0`: each answer keeps the choice it went from (local to its send), handed to the line only when that answer is recorded (`from`), so two answers in flight never hand each other's choice to Next up (round 4, Codex on #277). The final head's CI is pending.
+
+## Post-review, round 5 (Codex on #277)
+
+- `b1f7ffb0`: the place each answer went from is taken by `sentFrom` (next-up.ts) as each answer is sent, and its unit
+  check sends two answers, the second from its own choice while the first is in flight, then settles them out of order:
+  each keeps its own choice, so a shared slot fails it. The race is checked in the unit suite, not the browser: a choice
+  pressed is disabled while its answer is on its way, and where the focus then sits is the browser's own, so a browser
+  check could not tell the two apart reliably. Unit suite green, lint and typecheck clean; its CI: the final head's run,
+  recorded when green.
