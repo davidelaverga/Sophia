@@ -107,7 +107,7 @@ function useQuote(props: Pick<Props, 'writer' | 'draft' | 'onDraft'>, section: R
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
-  const read = useTranscript(c.id, identity, props.cursor)
+  const { read, current } = useThread(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
   const section = useRef<HTMLElement>(null)
   const follow = useFollow()
@@ -157,7 +157,7 @@ export function OpenConversation(props: Props) {
             follow.sent()
             if (sent.sophia === 'asked') props.onAsked(sent.message.at)
           }}
-          next={nextOf(props, read)}
+          next={nextOf(props, read, current)}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
@@ -166,7 +166,25 @@ export function OpenConversation(props: Props) {
 }
 
 /** What the composer's next ask reads (useNextAsk.ts), with whether each part is known now (Codex P2s on #262). */
-function nextOf(props: Props, read: ReturnType<typeof useTranscript>): NextAskSource {
+/**
+ * Whether the thread as read answers the feed's cursor now: the cursor it was last read for, noted as each read lands.
+ * A moved cursor makes it not current from that very render, before its refetch has even started (Codex on #275).
+ */
+function useReadFor(cursor: string | undefined, readAt: number): boolean {
+  const [readFor, setReadFor] = useState(cursor)
+  const latest = useRef(cursor)
+  latest.current = cursor
+  useEffect(() => setReadFor(latest.current), [readAt])
+  return readFor === cursor
+}
+
+/** The thread as read, and whether that read answers the feed's cursor now. */
+function useThread(conversationId: string, identity: Identity, cursor: string | undefined) {
+  const read = useTranscript(conversationId, identity, cursor)
+  return { read, current: useReadFor(cursor, read.dataUpdatedAt) }
+}
+
+function nextOf(props: Props, read: ReturnType<typeof useTranscript>, current: boolean): NextAskSource {
   return {
     projectId: props.projectId,
     me: props.me,
@@ -174,7 +192,7 @@ function nextOf(props: Props, read: ReturnType<typeof useTranscript>): NextAskSo
     // Read and not being read again, the last read not failed: its newest message is the newest; and the list not being
     // read again, its open questions the count now (Codex on #275).
     // Idle only: a read paused offline keeps its old data and is not current either (Codex on #275).
-    fresh: read.isSuccess && read.fetchStatus === 'idle' && (props.list?.fetchStatus ?? 'idle') === 'idle',
+    fresh: current && read.isSuccess && read.fetchStatus === 'idle' && (props.list?.fetchStatus ?? 'idle') === 'idle',
     readAt: read.dataUpdatedAt,
     // The list's last read failed: its count of open questions may be stale.
     openQuestions: props.list?.isError === true ? null : props.conversation.openQuestions,
