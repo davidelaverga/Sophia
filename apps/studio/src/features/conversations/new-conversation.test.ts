@@ -213,6 +213,18 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('a thousand and a million are two quantities (Codex round 23 on #274)', () => {
+    assert.equal(
+      sameQuestion('Compare one thousand and one million budgets', [asked('a', 'Compare 1001000000 budgets', at)]),
+      null,
+    )
+    assert.equal(
+      sameQuestion('Compare one thousand and one million budgets', [asked('a', 'Compare 1000 and 1000000 budgets', at)])
+        ?.id,
+      'a',
+    )
+  })
+
   it('a larger scale after «and» takes in the coefficient; a scale repeated multiplies (Codex round 22 on #274)', () => {
     const two = [asked('a', 'Set budget to 100 and 20000 dollars', at)]
     assert.equal(sameQuestion('Set budget to one hundred and twenty thousand dollars', two), null)
