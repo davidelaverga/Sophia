@@ -52,6 +52,8 @@ const wordsOf = (title: string) =>
   fold(title)
     // A comma between thousands only: a point is a decimal («1.234» seconds is not 1234: Codex on #274).
     .replace(/(\p{N}),(?=\p{N}{3}(?!\p{N}))/gu, '$1')
+    // A number's sign stays on it: «-5» is not «5» (Codex on #274).
+    .replace(/(^|[^\p{L}\p{N}])[-\u2212](?=\p{N})/gu, '$1minus')
     // A contracted negation is a «not» of its own, so its scope is read as one (Codex on #274).
     .replace(/n['\u2019]t\b/gu, ' not')
     .split(/[^\p{L}\p{N}]+/u)
