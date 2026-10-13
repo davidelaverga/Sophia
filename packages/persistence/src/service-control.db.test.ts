@@ -112,10 +112,13 @@ it('bounds actual queued acquisition and removes its pending pool entry without 
   }
 })
 
-it('fences acquisition that returns after control expiry before BEGIN or callback', async () => {
+async function cleanLateAcquisition(abort: boolean) {
   const held = await pool.connect()
+  let released = false
+  const old = await held.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
   let calls = 0
-  const control = { signal: new AbortController().signal, deadline: performance.now() + 30 }
+  const controller = new AbortController()
+  const control = { signal: controller.signal, deadline: performance.now() + (abort ? 5000 : 30) }
   const pending = withService(
     pool,
     () => {
@@ -125,14 +128,27 @@ it('fences acquisition that returns after control expiry before BEGIN or callbac
     control,
   )
   try {
+    assert.equal(pool.waitingCount, 1, 'the real single-client pool queues the controlled request')
+    if (abort) controller.abort()
     await delay(70)
     held.release()
+    released = true
     assert.equal(await beforeSentinel(errorCode(pending)), 'unavailable')
     assert.equal(calls, 0)
-    assert.equal((await beforeSentinel(pool.query('SELECT 1'))).rowCount, 1)
+    const fresh = await beforeSentinel(pool.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+    assert.equal(fresh.rows[0]?.pid, old.rows[0]?.pid, 'a late-acquired clean client is reused, not retired')
   } finally {
-    await pending.catch(() => undefined)
+    if (!released) held.release()
+    await beforeSentinel(pending.catch(() => undefined))
   }
+}
+
+it('fences expired acquisition before BEGIN and returns its clean client to the pool', async () => {
+  await cleanLateAcquisition(false)
+})
+
+it('fences aborted acquisition before BEGIN and returns its clean client to the pool', async () => {
+  await cleanLateAcquisition(true)
 })
 
 it('preserves outcome_unknown when a deferred trigger stalls an already-sent COMMIT', async () => {

@@ -57,6 +57,17 @@ interface TxOptions {
   actorId: string | null
 }
 
+function acquiredClient(client: pg.PoolClient, control?: ServiceControl): pg.PoolClient {
+  try {
+    checkServiceControl(control)
+    return client
+  } catch (err) {
+    // No SQL has been sent: an expired pool waiter must not destroy a healthy connection.
+    client.release()
+    throw err
+  }
+}
+
 /**
  * One connection, one transaction. Reads use REPEATABLE READ READ ONLY so a snapshot and its cursor are
  * consistent. A failure while committing a write leaves its outcome unknown: the client must retry with
@@ -69,13 +80,15 @@ async function transaction<T>(
   control?: ServiceControl,
 ): Promise<T> {
   checkServiceControl(control)
-  const client = await pool.connect().catch((err: unknown) => {
-    throw new DomainError('unavailable', 'Database unavailable', { cause: err })
-  })
+  const client = acquiredClient(
+    await pool.connect().catch((err: unknown) => {
+      throw new DomainError('unavailable', 'Database unavailable', { cause: err })
+    }),
+    control,
+  )
   const lease = serviceClient(client, control)
   let committing = false
   try {
-    lease.check()
     await client.query(opts.mode === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN')
     if (opts.actorId !== null) await client.query("SELECT set_config('sophia.actor_id', $1, true)", [opts.actorId])
     lease.check()
