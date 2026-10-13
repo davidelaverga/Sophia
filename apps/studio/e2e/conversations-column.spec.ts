@@ -130,3 +130,16 @@ test('faces · on paper every disc is opaque, so two that overlap keep their col
   expect(discs.length).toBeGreaterThan(1)
   for (const disc of discs) expect(disc, discs.join(' ')).toMatch(/^rgb\(/)
 })
+
+test('faces · on paper Sophia’s half of her mark reads on her disc (Codex P2 on #257)', async ({ page }) => {
+  await page.goto(`${PAGE}&theme=light`)
+  await drawn(page, DRAWN.conversations)
+  const read = await page.evaluate(() => {
+    const face = document.querySelector('.conv-head .conv-face.sophia')
+    const half = face?.querySelector('.umbral-sophia')
+    return face && half ? { fill: getComputedStyle(half).fill, disc: getComputedStyle(face).backgroundColor } : null
+  })
+  if (!read) throw new Error('no Sophia face with her mark in the head')
+  const glyph = contrastOf({ words: 'glyph', size: 11, ink: read.fill, opacity: 1, grounds: [read.disc] })
+  expect(glyph, JSON.stringify(read)).toBeGreaterThanOrEqual(3)
+})
