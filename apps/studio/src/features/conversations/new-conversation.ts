@@ -145,6 +145,12 @@ function remainderFollows(prev: string | undefined, after: readonly string[]): b
   if (scale === undefined) return false
   const next: string[] = []
   for (const w of after) {
+    // An ordinal ends the number it finishes: «one hundred and first» is the 101st (Codex on #274).
+    const cardinal = cardinalOf(w)
+    if (cardinal !== undefined) {
+      next.push(cardinal)
+      break
+    }
     if (!UNITS.has(w) && !TENS.has(w) && !SCALES.has(w)) break
     next.push(w)
   }
@@ -188,7 +194,8 @@ function spelledNumbers(words: readonly string[]): string[] {
 function ownWords(title: string): Set<string> {
   return new Set(
     wordsOf(title)
-      .filter((w) => w.length >= 3 && !COMMON.has(w))
+      // A figure counts whatever its length: «one» read as «1» is still a word of the question (Codex on #274).
+      .filter((w) => /\p{N}/u.test(w) || (w.length >= 3 && !COMMON.has(w)))
       .map(plainWord),
   )
 }
