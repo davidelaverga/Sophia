@@ -61,6 +61,16 @@ const wordsOf = (title: string) =>
     .split(/[^\p{L}\p{N}]+/u)
     // A number spelled out is a number: «two years» is not «one year» (Codex on #274).
     .map((w) => SPELLED.get(w) ?? w)
+    // «twenty one» is one number, as «21» is (Codex on #274).
+    .reduce<string[]>(joinTensAndUnits, [])
+
+/** A ten («20» … «90») then a unit («1» … «9»), as spelled-out numbers come: one number. */
+function joinTensAndUnits(words: string[], w: string): string[] {
+  const last = words.at(-1) ?? ''
+  if (/^[2-9]0$/u.test(last) && /^[1-9]$/u.test(w)) words[words.length - 1] = String(Number(last) + Number(w))
+  else words.push(w)
+  return words
+}
 
 /** Numbers written as words, read as their digits. */
 const SPELLED = new Map([
@@ -168,12 +178,15 @@ const turnsOf = {
 const ownOrder = (words: readonly string[]) =>
   words
     // A negation keeps its place: «not enable … disable» is not «enable … not disable» (Codex on #274).
-    .filter((w) => /\p{N}/u.test(w) || NEGATIONS.has(w) || (w.length >= 3 && !COMMON.has(w)))
+    .filter((w) => /\p{N}/u.test(w) || NEGATIONS.has(w) || PRONOUNS.has(w) || (w.length >= 3 && !COMMON.has(w)))
     .map(plainWord)
     // A word said twice running is said once («before review or after review»); a word said again later keeps that
     // later place, which binds it to what is said there («enable SMS and disable email»: Codex on #274).
     .filter((w, i, all) => w !== all[i - 1])
     .join(' ')
+
+/** Who an action is said of when it is a person: kept in the order, «allow them and block us» (Codex on #274). */
+const PRONOUNS = new Set(['me', 'us', 'you', 'him', 'her', 'them', 'it'])
 
 /** Whether a title says a turning word of any kind: a negation, an order, an action of a pair, a number. */
 const turns = (words: readonly string[]) =>
