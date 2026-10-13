@@ -3976,6 +3976,26 @@ button.contribution-quote:hover {
   .copy-link .swap {
     display: none;
   }
+  /* Folded to its icon, it still shows the copy landed: the teal of done, for the two seconds «Link copied» is said
+     (Codex P2 on #259). */
+  .copy-link[data-copied] {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+}
+/* With a header wide enough for the room's dock, a long project title gives way before the views: the nav keeps its
+   width and the title folds to an ellipsis first (Codex P2 on #259). */
+@media (min-width: 901px) {
+  .project-name {
+    flex-shrink: 100;
+  }
+}
+/* Where the seven views are meant to stand whole (1241 px and up: docs/plans/nav-fits-1280.md), the nav keeps its own
+   width outright and only the title gives way; under it the row may still scroll, with its fades (Codex on #259). */
+@media (min-width: 1241px) {
+  .view-nav {
+    flex-shrink: 0;
+  }
 }
 
 @media (max-width: 900px) {

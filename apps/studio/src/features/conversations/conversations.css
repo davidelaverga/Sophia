@@ -1275,7 +1275,9 @@
     position: absolute;
     z-index: 19;
     grid-column: auto;
-    top: 0;
+    /* Under what the header's dock says, when it says something (--dock-notes-h, MiniDock's): the notes never cover
+       the panel's first context (Codex P2 on #254). */
+    top: var(--dock-notes-h, 0px);
     right: 0;
     bottom: 0;
     width: min(360px, 92%);

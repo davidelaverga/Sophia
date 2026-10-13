@@ -24,6 +24,8 @@ interface Props {
   keys?: string | undefined
   /** What it does, in its tip (a goal's Stop: «End the work for good»); the label when only a key is given. */
   tip?: string | undefined
+  /** The tip's alignment: `end` for a press at the content's edge, so the tip never runs past it. */
+  tipAlign?: 'center' | 'end'
 }
 
 export function ConfirmButton(props: Props) {
@@ -57,7 +59,9 @@ export function ConfirmButton(props: Props) {
         }}
       >
         {label}
-        {(props.keys || props.tip) && <Tip label={props.tip ?? label} keys={props.keys} side="top" />}
+        {(props.keys || props.tip) && (
+          <Tip label={props.tip ?? label} keys={props.keys} side="top" align={props.tipAlign ?? 'center'} />
+        )}
       </button>
     )
   }

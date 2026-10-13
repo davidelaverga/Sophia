@@ -223,3 +223,48 @@ test('widths @phone · the nav’s first word starts at the page gutter, as the 
   expect(read?.gutter).toBeGreaterThan(0)
   expect(Math.abs((read?.word ?? NaN) - (read?.gutter ?? 0))).toBeLessThanOrEqual(0.5)
 })
+
+test('widths · at 1280 a long project title gives way before the views do (Codex P2 on #259)', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/room.html?demo=1&place=updates')
+  await drawn(page, DRAWN.updates)
+  await page.evaluate(() => document.fonts.ready)
+  // A project titled far past «Pilot review» (titles run to 180 characters): set where the header shows it.
+  await page.locator('.project-name').evaluate((el) => {
+    el.textContent = 'Quarterly onboarding pilot review with the regional partners and the platform team'
+  })
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const nav = document.querySelector('.view-nav')
+        return nav ? { fits: nav.scrollWidth <= nav.clientWidth, moreEnd: nav.hasAttribute('data-more-end') } : null
+      }),
+    )
+    .toEqual({ fits: true, moreEnd: false })
+})
+
+test('widths · at 1280 a viewer’s «Copy project link», folded to its icon, still shows it copied (Codex P2 on #259)', async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/room.html?demo=1&place=updates&role=viewer')
+  const copy = page.locator('.copy-link')
+  await expect(copy).toBeVisible()
+  await copy.click()
+  await expect(copy).toHaveAttribute('aria-label', 'Link copied')
+  // Seen, not only said: the folded press turns the teal of done; read with the pointer away, so no hover answers for it
+  // (Codex on #281).
+  await page.mouse.move(0, 0)
+  const look = () =>
+    copy.evaluate((el) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--teal)'
+      document.body.append(probe)
+      const teal = getComputedStyle(probe).color
+      probe.remove()
+      return getComputedStyle(el).color === teal && getComputedStyle(el).borderTopColor === teal
+    })
+  await expect.poll(look).toBe(true)
+})
