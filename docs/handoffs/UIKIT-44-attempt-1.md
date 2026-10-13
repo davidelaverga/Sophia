@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `d55b5659437e` (tree `daff37dba093`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `2283e00cab59` (tree `11a942f6996c`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -45,3 +45,11 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
   shows no line»; it fails with `main`'s matcher) and recorded above.
 - `d55b5659`: an action pair said alike on both sides («enable email and disable SMS», twice) meets; one side only parts
   them (`opposed`). The doubled forms count: «stopped», «stopping» (`acts`). Tests in `fc383586`.
+
+## Post-review, round 2 (Codex on #274)
+
+- `2283e00c`: with both actions of a pair said on each side, each is read with the thing it is said of («enable email»,
+  «disable sms»), so «disable email and enable SMS» no longer meets «enable email and disable SMS» (`aimsOf`); numbers
+  inside a label part two titles («Q3» against «Q4») and a thousands separator is dropped first («1,000» meets «1000»);
+  «shown», «hid» and «hidden» count as «show» and «hide» (`IRREGULAR`). Tests in `cacff536`, failing first; unit suite
+  passing.
