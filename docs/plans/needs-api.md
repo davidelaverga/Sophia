@@ -37,8 +37,8 @@
   the wire's needs to Home's (`needs-you.ts`): the project's title as `project`, the rest as they are, `projectId`
   kept for the way there.
 - Places reads it at Home (`useNeeds`, every 20 s as the projects are), and hands Welcome `{ items, open }`: a
-  decision or a permission opens the project's Tasks, a review its Knowledge, a guest its room, a reply the personal
-  space. Without the flag nothing is read and Home is as it was. Opening a reply from Home posts its seen mark and
+  decision opens the project's Tasks at its choice, a permission its Resources with the request focused, a guest
+  its room, a reply the personal space (`VIEW_OF` in `api/needs.ts`; no review: A15 dropped it). Without the flag nothing is read and Home is as it was. Opening a reply from Home posts its seen mark and
   reads the list again.
 - The fixture's API answers the route with four needs, one of each kind (a decision and a permission within their work
   item, a guest, a reply); the app's own check routes it and finds the column and the way to Tasks.
