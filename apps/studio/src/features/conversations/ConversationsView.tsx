@@ -346,8 +346,8 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
 function Open(props: {
   projectId: string
   conversation: ConversationSummary
-  /** The list as read: its last read failed, what it says of this conversation may be stale. */
-  list: { isError: boolean }
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list: { isError: boolean; isFetching: boolean }
   identity: Identity
   me: string
   cursor: string | undefined
@@ -362,7 +362,7 @@ function Open(props: {
       key={c.id}
       projectId={props.projectId}
       conversation={c}
-      listFailed={props.list.isError}
+      list={props.list}
       identity={props.identity}
       me={props.me}
       cursor={props.cursor}

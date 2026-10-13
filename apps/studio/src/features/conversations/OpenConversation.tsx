@@ -42,8 +42,8 @@ import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 interface Props {
   projectId: string
   conversation: ConversationSummary
-  /** The list's last read failed: what it says of this conversation (its open questions) may be stale. */
-  listFailed?: boolean
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list?: { isError: boolean; isFetching: boolean }
   identity: Identity
   me: string
   /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
@@ -171,11 +171,12 @@ function nextOf(props: Props, read: ReturnType<typeof useTranscript>): NextAskSo
     projectId: props.projectId,
     me: props.me,
     read: read.data,
-    // Read and not being read again, the last read not failed: its newest message is the newest.
-    fresh: read.isSuccess && !read.isRefetching,
+    // Read and not being read again, the last read not failed: its newest message is the newest; and the list not being
+    // read again, its open questions the count now (Codex on #275).
+    fresh: read.isSuccess && !read.isRefetching && props.list?.isFetching !== true,
     readAt: read.dataUpdatedAt,
     // The list's last read failed: its count of open questions may be stale.
-    openQuestions: props.listFailed === true ? null : props.conversation.openQuestions,
+    openQuestions: props.list?.isError === true ? null : props.conversation.openQuestions,
   }
 }
 

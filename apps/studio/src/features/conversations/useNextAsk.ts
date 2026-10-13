@@ -81,7 +81,10 @@ export function useNextAsk(source: NextAskSource, conversationId: string, identi
   }
   const last = newestId(source.read)
   const hushed = last !== null && hushedAt.get(key) === last
-  const { suggestion, quick } = asksNow(ctx, { fresh: source.fresh, recencyKnown: older.known, quiet, hushed })
+  // The brief being read again (the feed moved) may hold a proposal decided since: nothing is offered until it is in
+  // (Codex on #275).
+  const fresh = source.fresh && !brief.isFetching
+  const { suggestion, quick } = asksNow(ctx, { fresh, recencyKnown: older.known, quiet, hushed })
   return {
     id,
     suggestion,
