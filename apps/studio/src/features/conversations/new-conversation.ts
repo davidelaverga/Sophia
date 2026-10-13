@@ -121,13 +121,16 @@ function continues(prev: string | undefined, w: string): boolean {
 function valueOfRun(run: readonly string[]): number {
   let total = 0
   let group = 0
+  let last = Number.POSITIVE_INFINITY
   for (const w of run) {
     const scale = SCALES.get(w)
     if (scale === undefined) group += UNITS.get(w) ?? TENS.get(w) ?? 0
     else if (scale === 100) group = Math.max(group, 1) * 100
     else {
-      total += Math.max(group, 1) * scale
+      // A larger scale after a smaller one takes in all said so far: «one thousand million» is 10⁹ (Codex on #274).
+      total = scale > last ? (total + group) * scale : total + Math.max(group, 1) * scale
       group = 0
+      last = scale
     }
   }
   return total + group
@@ -261,7 +264,7 @@ const ownOrder = (words: readonly string[]) =>
     .join(' ')
 
 /** Who an action is said of when it is a person: kept in the order, «allow them and block us» (Codex on #274). */
-const PRONOUNS = new Set(['me', 'us', 'you', 'him', 'her', 'them', 'it'])
+const PRONOUNS = new Set(['me', 'us', 'you', 'him', 'her', 'them', 'it', 'this', 'that', 'these', 'those'])
 
 /** Whether a title says a turning word of any kind: a negation, an order, an action of a pair, a number. */
 const turns = (words: readonly string[]) =>
