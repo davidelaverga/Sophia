@@ -213,6 +213,13 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Set the email budget to 5, instead of SMS?', budget)?.id, 'a')
   })
 
+  it('what follows a scale is added to it (Codex round 15 on #274)', () => {
+    const two = [asked('a', 'Compare 100- and 20-year revenue forecasts', at)]
+    assert.equal(sameQuestion('Compare one hundred twenty year revenue forecast', two), null)
+    const one = [asked('a', 'Compare 121 year revenue forecast', at)]
+    assert.equal(sameQuestion('Compare one hundred twenty one year revenue forecast', one)?.id, 'a')
+  })
+
   it('a scale composes; an ordinal reads the same in words and figures (Codex round 14 on #274)', () => {
     const hundred = [asked('a', 'Compare 100 year revenue forecast', at)]
     assert.equal(sameQuestion('Compare one hundred year revenue forecast', hundred)?.id, 'a')
