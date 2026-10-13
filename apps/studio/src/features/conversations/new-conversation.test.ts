@@ -146,6 +146,17 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Should password input fields be shown?', show)?.id, 'a')
   })
 
+  it('turning words read in the order they come: numbers by place, a passive voice, «before or after» (Codex round 3 on #274)', () => {
+    // The same numbers in other places: another question.
+    assert.equal(sameQuestion('Set tier 2 price to 1 dollars', [asked('a', 'Set tier 1 price to 2 dollars', at)]), null)
+    // The same actions in the same order, said in the passive: the same question.
+    const both = [asked('a', 'Should we enable email and disable SMS?', at)]
+    assert.equal(sameQuestion('Should email be enabled and SMS disabled?', both)?.id, 'a')
+    // «before or after review» against «before review or after review»: the same orders, in the same order.
+    const orders = [asked('a', 'Ship the export before or after review?', at)]
+    assert.equal(sameQuestion('Ship the export before review or after review?', orders)?.id, 'a')
+  })
+
   it('different numbers on both sides ask about different things', () => {
     const here = [asked('a', '2025 revenue forecast', at)]
     assert.equal(sameQuestion('2026 revenue forecast', here), null)
