@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  INITIAL_VIEWER_STATE,
   addressLensFor,
+  INITIAL_VIEWER_STATE,
   lensInAddress,
+  lensKept,
   readLensWrite,
   readViewerState,
   storedViewerState,
@@ -84,5 +85,20 @@ describe('the lens in the address', () => {
     assert.equal(readLensWrite('k'), null)
     assert.equal(readLensWrite('{"key":1,"address":"/p"}'), null)
     assert.equal(readLensWrite(null), null)
+  })
+})
+
+describe('the lens in the address, kept and owned (Codex P2s on #242)', () => {
+  it('goes along when an address is normalized: the report kept, the lens with it', () => {
+    assert.equal(lensKept('?lens=build&demo=1', ''), '?lens=build')
+    assert.equal(lensKept('?lens=build', '?report=r1'), '?report=r1&lens=build')
+    assert.equal(lensKept('?demo=1', '?report=r1'), '?report=r1')
+  })
+  it('stays the last subject’s at that address though a report opened over it since', () => {
+    const mine = viewerKey('davide', P)
+    const wrote = { key: mine, address: '/p/one?lens=explore' }
+    const here = { pathname: '/p/one', search: '?lens=explore&report=r1&version=v2' }
+    assert.equal(addressLensFor(viewerKey('ana', P), here, wrote), null)
+    assert.equal(addressLensFor(mine, here, wrote), 'explore')
   })
 })
