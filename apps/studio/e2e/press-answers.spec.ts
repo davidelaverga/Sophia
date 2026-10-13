@@ -124,10 +124,12 @@ async function unanswering(page: Page, scope = 'body', tips = true) {
   // and an endless one (a listening microphone's) is held still while the sweep reads (Codex P2 on #232). Holding an
   // entrance would freeze it mid-way over the hover's own look. Transitions, the hover's own, still run.
   await page.evaluate(async () => {
-    const endless = (a: Animation) => a.effect?.getTiming().iterations === Number.POSITIVE_INFINITY
-    const entrances = document.getAnimations().filter((a) => !(a instanceof CSSTransition) && !endless(a))
+    const entrances = document
+      .getAnimations()
+      .filter((a) => !(a instanceof CSSTransition) && a.effect?.getTiming().iterations !== Number.POSITIVE_INFINITY)
     await Promise.all(entrances.map((a) => a.finished.catch(() => undefined)))
-    for (const a of document.getAnimations()) if (endless(a)) a.pause()
+    for (const a of document.getAnimations())
+      if (a.effect?.getTiming().iterations === Number.POSITIVE_INFINITY) a.pause()
   })
   const mute: string[] = []
   for (const press of presses) {
