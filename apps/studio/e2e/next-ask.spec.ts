@@ -138,3 +138,17 @@ test('next ask · focus in the field shows why, as a pointer on the cap does (Co
   await expect(tip).toHaveCSS('opacity', '1')
   await expect(tip).toContainText('Because it is proposed and not decided')
 })
+
+test('next ask · older asks unread, the quick asks wait; read again with the thread, they come (Codex on #275)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&older=fail`)
+  await expect(messages(page).first()).toBeVisible()
+  // The page before the loaded one unread: what was asked there is not known, so no quick ask is offered.
+  await expect(quick(page)).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.failOlderMessages(false))
+  // Another conversation moves: the feed's cursor moves, the open thread is read again, and the older asks with it
+  // (the viewer's own asks unchanged, so nothing else would ask for them again).
+  await page.evaluate(() => window.fixture?.conversationMoves())
+  await expect(quick(page).first()).toBeVisible({ timeout: 15_000 })
+})
