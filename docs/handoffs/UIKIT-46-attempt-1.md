@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `800adbfdebe1` (tree `5d53bbf7f19f`), the last commit of `ui/p2-ask-places`'s own that changes code (later
+Ending commit/tree: `7bd02b56414e` (tree `8203ce528f20`), the last commit of `ui/p2-ask-places`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 12 files changed against
 `origin/main` at that commit: `e2e/ask-instead.spec.ts`, `e2e/next-ask-places.spec.ts`, `fixtures/home.tsx`, `src/features/artifacts/KnowledgeReports.tsx`, `src/features/conversations/ConversationsView.tsx`, `src/features/personal/Places.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/places-view.test.ts`, `src/features/personal/places-view.ts`, `src/features/work/planning/AskSophia.tsx`, `docs/handoffs/UIKIT-46-attempt-1.md`, `docs/plans/p2-ask-places.md`. The review notes below name the commit of each later change.
 
@@ -51,3 +51,8 @@ The next follow-up: Next up on the board (Codex P2s on #263).
   fading out under the move never shows the ask again. next-ask-places.spec's «comes back on the next visit» still
   holds the reset (the fixture's Leave and Back); the fade itself has no fixture motion to read. Lint and typecheck
   clean; the browser run is CI's (local guard).
+
+## Post-review, round 3 (Codex on #276)
+
+- `7bd02b56`: the Knowledge check reads the old ask by its exact words, so a slow worker that has already settled the new
+  words (and shows their ask) no longer fails it; without the change the old button is still there at once.
