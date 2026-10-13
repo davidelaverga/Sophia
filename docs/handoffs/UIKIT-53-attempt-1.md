@@ -12,9 +12,9 @@ host was refused by the machine guard (free RAM under 6 GB with AION2 open).
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `e752e396b04c` (tree `b49065268382`), the last commit of `ui/p2-small`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 13 files changed against
-`origin/main` at that commit: `e2e/conversation-acts.spec.ts`, `e2e/eyebrows.spec.ts`, `e2e/palette-knows.spec.ts`, `e2e/personal.spec.ts`, `src/app/App.tsx`, `src/app/Palette.tsx`, `src/app/palette-recent.test.ts`, `src/app/palette-recent.ts`, `src/features/conversations/MessageActs.tsx`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `src/features/updates/updates-narrow.test.ts`, `src/features/updates/updates-view.ts`. The review notes below name the commit of each later change.
+Ending commit/tree: `ad290ec84bfe` (tree `0174112dd9b2`), the last commit of `ui/p2-small`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 15 files changed against
+`origin/main` at that commit: `e2e/conversation-acts.spec.ts`, `e2e/eyebrows.spec.ts`, `e2e/palette-knows.spec.ts`, `e2e/personal.spec.ts`, `src/app/App.tsx`, `src/app/Palette.tsx`, `src/app/palette-recent.test.ts`, `src/app/palette-recent.ts`, `src/features/conversations/MessageActs.tsx`, `src/features/conversations/conversations.css`, `src/features/personal/personal.css`, `src/features/updates/updates-narrow.test.ts`, `src/features/updates/updates-view.ts`, `docs/handoffs/UIKIT-53-attempt-1.md`, `docs/plans/p2-small.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -36,3 +36,11 @@ commits on the branch merge its base forward or touch only this record). 13 file
 ## Next bounded action
 
 The last follow-up: the lens and the addressed needs (Codex P2s on #238, #242, #245).
+
+## Post-review (Codex on #283)
+
+- `ad290ec8`: «Recent» is forgotten whenever the signed-in account changes, the auth listener's changes included
+  (`useRecentOnlyOf` on `signedInAs`); the palette scrolls to the active row by the same place-based id the field
+  names; a continued message whose side row says something keeps 52 px under its bubble, so the row never lies over the
+  next message. Checks: conversation-acts.spec (the row clear of the next message), palette-knows.spec (arrowed past the
+  rows in sight). CI is the run on record (local guard).
