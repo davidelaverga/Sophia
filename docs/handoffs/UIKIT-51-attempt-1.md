@@ -19,7 +19,8 @@ commits on the branch merge its base forward or touch only this record). 9 files
 ## Outcome
 
 - Stop's tip aligns to its end; the dock's focus goes to the report's call row when the report covers the dock; the
-  report pane and the context panel start under the dock's notes; the dock's tips open under both header rows; a long
+  report pane and the context panel start under the dock's notes; the dock's tips stay hidden up to 760 px, as every
+  tip is (no rule added); a long
   title gives way before the nav; the folded copy press shows the copy landed.
 - Answers threads 4251423765 on #253, 4249583233, 4249583248, 4250204333, 4251437370 on #254 and 4249584173,
   4249584182 on #259.

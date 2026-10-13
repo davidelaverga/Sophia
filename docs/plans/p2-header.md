@@ -11,7 +11,8 @@ project header, its dock, and the controls at their edges.
   floating dock under the report, not the report's own call row.
 - #254 4249583248, 4251437370: what the header's dock says (a media error, Sophia looking) hangs under the header over
   the report pane's title and actions, and over Conversations' context panel (721 to 1180 px).
-- #254 4250204333: from 721 to 760 px the header has two rows; the dock's tips open over the views' row.
+- #254 4250204333: from 721 to 760 px the header has two rows; the dock's tips were said to open over the views' row.
+  On inspection every tip is `display: none` up to 760 px, so none does (see below).
 - #259 4249584173: at 1280 a long project title shrinks the nav below its 500 px and its fades come back.
 - #259 4249584182: from 1241 to 1320 px «Copy project link» is folded to its icon; «Link copied» is inside the folded
   label, so a sighted person sees nothing change.
@@ -21,14 +22,15 @@ project header, its dock, and the controls at their edges.
 - `ConfirmButton` takes `tipAlign`; the goal's Stop passes `end`.
 - The dock's focus, back after a move, looks in the report's call row first, then the dock.
 - The report pane and the context panel start under what the dock says (`--dock-notes-h`, which MiniDock keeps).
-- From 721 to 760 px the dock's tips open under the views' row.
+- From 721 to 760 px nothing changes for the dock's tips: hidden, as every tip is up to 760 px (a rule added for them
+  was removed in review, Codex on #281).
 - From 901 px the project title gives way before the nav (`flex-shrink: 100`); the nav keeps its width.
 - Folded, the copy press turns the teal of done for the two seconds «Link copied» is said (`data-copied`).
 
 ## Checks (written first)
 
 - `widths.spec.ts`: at 1280 a long title leaves the nav whole (no fade); a viewer's folded copy press changes as the
-  copy lands. `dock-header.spec.ts`: at 740 px the dock's tip opens under the views' row.
+  copy lands. (A `dock-header.spec.ts` check for the tips at 740 px was removed with the rule.)
 
 ## Left
 
