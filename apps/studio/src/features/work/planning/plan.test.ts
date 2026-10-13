@@ -682,7 +682,7 @@ describe('what the Blocked lane waits on', () => {
       ['b', 'c'],
     )
     assert.deepEqual(
-      blockersOf(held, rows).map((r) => r.item.id),
+      blockersOf(held, rows, ['a', 'b', 'c']).map((r) => r.item.id),
       ['a'],
     )
   })
@@ -692,7 +692,25 @@ describe('what the Blocked lane waits on', () => {
     )
     const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
     assert.deepEqual(
-      blockersOf(held, rows).map((r) => r.item.id),
+      blockersOf(held, rows, ['a', 'b', 'c']).map((r) => r.item.id),
+      ['a', 'b'],
+    )
+  })
+})
+
+describe('the blockers named, in the plan’s order, whatever the board’s (Codex P2 on #244)', () => {
+  it('keeps the plan’s order when the board sorts its rows by mark', () => {
+    // a (not started) before b (running) in the plan; the board puts b first, running ranking ahead.
+    const rows = rowsOf(
+      goal(plan([item('a'), item('b'), item('c', { blocked_by: ['a', 'b'] })]), [
+        view('a'),
+        view('b', { lifecycle: 'running' }),
+        view('c'),
+      ]),
+    )
+    const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
+    assert.deepEqual(
+      blockersOf(held, rows, ['a', 'b', 'c']).map((r) => r.item.id),
       ['a', 'b'],
     )
   })

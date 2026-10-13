@@ -286,7 +286,7 @@ describe('where a look is kept (Codex F-034)', () => {
   it('keeps one look per plan, whatever its revision: the key names no revision', () => {
     const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
     assert.equal(seenKey(at), seenKey({ ...at }))
-    assert.deepEqual(JSON.parse(seenKey(at).replace('sophia.plan.seen.v3:', '')), ['p', 'g', 'plan-1', 'davide'])
+    assert.deepEqual(JSON.parse(seenKey(at).replace('sophia.plan.seen.v4:', '')), ['p', 'g', 'plan-1', 'davide'])
   })
 
   it('leaves a look kept under the old joined key as it is: not read as this scope’s, not moved, not deleted', () => {
@@ -341,5 +341,32 @@ describe('a lane moved while away (Codex on #236)', () => {
       decisions: {},
     }
     assert.deepEqual([...changedSince(rows, old)], [])
+  })
+})
+
+describe('a lane moved while away, said as it happened (Codex P2s on #236)', () => {
+  it('a look kept before lanes were noted is not read: the next look notes them', () => {
+    withStorage((store) => {
+      const at = { project: 'p', goal: 'g', plan: 'plan-1', viewer: 'davide' }
+      // The previous release's look, under its own key, with no lane on its tasks.
+      store.set(`sophia.plan.seen.v3:${JSON.stringify(['p', 'g', 'plan-1', 'davide'])}`, JSON.stringify(look('later')))
+      assert.equal(readSeen(at), null)
+    })
+  })
+
+  it('a task free because what it waited on left the plan is not said to have had it complete', () => {
+    const blocked = rowsOf([
+      ['a', { lifecycle: 'running', assignment: assignment('a') }],
+      ['b', {}, AFTER_A],
+    ])
+    // The revision accepted since drops b's wait on a: nothing completed.
+    const freed = rowsOf([
+      ['a', { lifecycle: 'running', assignment: assignment('a') }],
+      ['b', {}],
+    ])
+    const said = whileAway(freed, [], glance(blocked, []), { viewerId: 'davide', people, now: NOW })
+    const all = [...said.phrases, ...said.rest]
+    assert.ok(all.includes('Task b can start: it no longer waits on another task'), JSON.stringify(said))
+    assert.ok(!all.some((p) => p.includes('what it waited on is complete')), JSON.stringify(said))
   })
 })
