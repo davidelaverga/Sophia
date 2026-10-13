@@ -173,6 +173,7 @@ function nextOf(props: Props, read: ReturnType<typeof useTranscript>): NextAskSo
     read: read.data,
     // Read and not being read again, the last read not failed: its newest message is the newest.
     fresh: read.isSuccess && !read.isRefetching,
+    readAt: read.dataUpdatedAt,
     // The list's last read failed: its count of open questions may be stale.
     openQuestions: props.listFailed === true ? null : props.conversation.openQuestions,
   }

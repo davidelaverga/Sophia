@@ -2,7 +2,7 @@
 // the view, the brief from the same read the context pane uses (one query, shared), and what was put away here, kept
 // per conversation while the page lives.
 import { useQuery } from '@tanstack/react-query'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { getConversationMessages, type ConversationMessage } from '../../api/vision.ts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -16,6 +16,8 @@ export interface NextAskSource {
   read: { pages: readonly { messages: readonly ConversationMessage[]; before?: string | null }[] } | undefined
   /** The transcript read, not being read again, its last read not failed (Codex P2 on #262). */
   fresh: boolean
+  /** When the transcript was last read: a read again retries the older asks after a failure (Codex on #275). */
+  readAt: number
   /** The conversation's open questions; null when the list's last read failed and the count may be stale. */
   openQuestions: number | null
 }
@@ -46,8 +48,14 @@ function useOlderAsks(source: NextAskSource, conversationId: string, identity: I
       olderAsks((at) => getConversationMessages(identity.token, conversationId, at, signal), before, source.me, need),
     enabled,
     staleTime: Number.POSITIVE_INFINITY,
-    retry: false,
+    retry: 1,
   })
+  // A failed read is tried again each time the thread is read again (the feed moved), the viewer's asks unchanged and
+  // so its key the same: a passing failure does not blank the quick asks for the rest of the visit (Codex on #275).
+  const { isError, refetch } = older
+  useEffect(() => {
+    if (isError) void refetch()
+  }, [source.readAt, isError, refetch])
   return { words: older.data?.asks ?? [], known: !enabled || (older.isSuccess && older.data.complete) }
 }
 
