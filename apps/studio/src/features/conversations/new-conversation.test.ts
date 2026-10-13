@@ -187,6 +187,12 @@ describe('the same question, words that make it another (Codex P2s on #266)', ()
     assert.equal(sameQuestion('Goal of 1,000 active users', [asked('a', 'Goal of 1000 active users', at)])?.id, 'a')
   })
 
+  it('a past tense is active, a passive needs its «be»; a contracted negation keeps its thing (Codex round 8 on #274)', () => {
+    assert.equal(sameQuestion('Admins enabled dark mode?', [asked('a', 'Did admins enable dark mode?', at)])?.id, 'a')
+    assert.equal(sameQuestion('Use red but don’t use blue?', [asked('a', 'Use blue but don’t use red?', at)]), null)
+    assert.equal(sameQuestion('Use blue but do not use red?', [asked('a', 'Use blue but don’t use red?', at)])?.id, 'a')
+  })
+
   it('a thing kept is read as scored: a final «s» dropped (Codex round 6 on #274)', () => {
     const both = [asked('a', 'Should we enable email and disable text?', at)]
     assert.equal(sameQuestion('Should we enable emails and disable texts?', both)?.id, 'a')
