@@ -42,3 +42,8 @@ The next follow-up: hover and press states (Codex P2s on #232 and #234).
 - `7ac230c3`: a look keeps each task's waits by id (`waits`, in the v4 look); a task freed is said «what it waited on is
   complete» only if it still lists every wait it had and each is complete; a wait dropped (some or all) says «it no
   longer waits on another task». Test in `ecf8e52c`, failing first; unit suite 1100/1100.
+
+## CI on record
+
+- Run 38332973669 on `7fc2306f` (this branch's head, every change and review round in it): all jobs green, the browser suites
+  among them, the checks this PR wrote included.
