@@ -40,7 +40,13 @@ const isSeen = (value: unknown): value is Seen =>
   isRecord(value) &&
   isRecord(value.items) &&
   isRecord(value.decisions) &&
-  Object.values(value.items).every((v) => isRecord(v) && typeof v.mark === 'string') &&
+  Object.values(value.items).every(
+    (v) =>
+      isRecord(v) &&
+      typeof v.mark === 'string' &&
+      // Waits absent (an older look) or a list of ids: anything else is not a look (Codex on #278).
+      (v.waits === undefined || (Array.isArray(v.waits) && v.waits.every((w) => typeof w === 'string'))),
+  ) &&
   Object.values(value.decisions).every((v) => typeof v === 'string')
 
 /**
