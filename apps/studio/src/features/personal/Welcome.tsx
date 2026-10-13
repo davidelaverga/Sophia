@@ -16,6 +16,7 @@ import {
   type RefObject,
 } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
+import { useMedia } from '../../app/useMedia.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
 import type { Point } from '../light/motion.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
@@ -501,13 +502,27 @@ function Light({
   )
 }
 
+/** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
+const ONE_COLUMN = '(max-width: 860px)'
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
+  // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
+  // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
+  const oneColumn = useMedia(ONE_COLUMN)
+  const needs = props.needs && (
+    <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
+  )
   return (
     <div className="hw">
       <div className="hw-col">
         <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
+        {needs && oneColumn && (
+          <aside className="hw-needs-here" aria-label="What needs you">
+            {needs}
+          </aside>
+        )}
         <ReadNotes reads={props.reads} />
         <You
           you={props.you}
@@ -535,10 +550,10 @@ export function Welcome(props: Props) {
           </section>
         )}
       </div>
-      {props.needs ? (
+      {needs && !oneColumn ? (
         <aside className="hw-side" aria-label="What needs you">
           <Light talk={talk} line={line} hidden={props.hidden} large />
-          <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
+          {needs}
         </aside>
       ) : (
         <Light talk={talk} line={line} hidden={props.hidden} />
