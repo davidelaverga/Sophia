@@ -194,7 +194,7 @@ test('conversations · controls are at least 24 px tall, and the text keeps to t
   expect(short).toEqual([])
   const sizes = await typeSizes(page, '.conversations')
   expect(
-    sizes.filter((s) => !['10.5px', '12px', '13px', '14px', '18px'].includes(s)),
+    sizes.filter((s) => !['10.5px', '12px', '13px', '14px', '15px'].includes(s)),
     sizes.join(' '),
   ).toEqual([])
 })
@@ -207,4 +207,13 @@ test('conversations · on a phone, nothing scrolls sideways', async ({ page }) =
   await expect(messages(page)).toHaveCount(6)
   const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(wide).toBeLessThanOrEqual(0)
+})
+
+test('conversations @phone · the open conversation’s title keeps the section head’s 15 px on a phone', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(PAGE)
+  await rows(page).first().click()
+  await expect(open(page).locator('.conv-head h3')).toHaveCSS('font-size', '15px')
 })

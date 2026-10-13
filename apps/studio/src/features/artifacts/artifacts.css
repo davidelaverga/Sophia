@@ -9,20 +9,22 @@
   height: 40px;
   flex: none;
   border-radius: var(--r-2);
-  font: 600 var(--type-label) / 1 var(--mono);
+  font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
-  color: var(--void);
-  background: var(--teal);
+  color: var(--on-teal);
+  background: var(--teal-fill);
 }
 .report-tile[data-format='pdf'] {
-  background: var(--rose);
+  color: var(--on-rose);
+  background: var(--rose-fill);
 }
 .report-tile[data-format='html'] {
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
 }
 .report-meta {
   color: var(--text-2);
-  font: var(--type-small) / 1.4 var(--sans);
+  font: var(--type-small) / var(--lh-small) var(--sans);
 }
 
 /* --- the research card ---------------------------------------------------------------------------------------- */
@@ -34,11 +36,10 @@
   gap: 10px;
   margin-left: auto;
   color: var(--text-2);
-  font: 12px/1.4 var(--mono);
+  font: var(--type-small) / var(--lh-small) var(--mono);
 }
 .work-card-question {
   font-size: 15px;
-  line-height: 1.4;
   color: var(--text);
 }
 .work-card-progress {
@@ -91,7 +92,7 @@
   text-align: left;
 }
 .output-open:hover:not(:disabled) {
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .output-open .report-tile {
   grid-row: span 2;
@@ -105,7 +106,7 @@
 .output-meta {
   grid-column: 2;
   color: var(--text-2);
-  font: 12px/1.4 var(--mono);
+  font: var(--type-small) / var(--lh-small) var(--mono);
 }
 .output-hint {
   grid-row: 1 / span 2;
@@ -150,7 +151,9 @@
 /* --- the viewer ----------------------------------------------------------------------------------------------- */
 .report-pane {
   position: fixed;
-  top: var(--topbar);
+  /* Under what the header's dock says, when it says something: the notes never cover the report's title and actions
+     (MiniDock keeps --dock-notes-h; Codex P2 on #254). */
+  top: calc(var(--topbar) + var(--dock-notes-h, 0px));
   right: 0;
   bottom: 0;
   /* Over the page, the room's dock and the mini dock (10 and under); under the lobby and a project's opening note (15),
@@ -167,11 +170,12 @@
   --measure: 34rem;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
-  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.35);
+  box-shadow: -24px 0 48px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
   animation: rp-slide var(--base) var(--ease);
 }
 .report-pane[data-size='full'] {
-  inset: var(--topbar) 0 0;
+  /* Under the dock's notes too, enlarged (Codex on #281). */
+  inset: calc(var(--topbar) + var(--dock-notes-h, 0px)) 0 0;
   width: auto;
   border-left: 0;
   animation: rp-enlarge var(--base) var(--ease);
@@ -212,7 +216,7 @@
   background: transparent;
 }
 .report-pane-head .round:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* The call's switches, a row of their own under the head, only where the pane covers the dock or the mini dock (the
    full page, and a phone below): a live microphone, camera or shared screen stays in sight with its off switch, as
@@ -244,7 +248,7 @@
 /* Someone at the door is let in from over the full page, under its top: Close, the switches and the tabs stay in
    reach. So is a project's note that it is slow to open, which floats where the lobby would. */
 .shell:has(> .report-pane[data-size='full']) :is(.lobby, .wait-note) {
-  top: calc(var(--topbar) + var(--report-top-h, 0px) + 8px);
+  top: calc(var(--topbar) + var(--dock-notes-h, 0px) + var(--report-top-h, 0px) + 8px);
 }
 .report-pane-name {
   flex: 1;
@@ -253,7 +257,6 @@
 .report-pane-name h2 {
   overflow: hidden;
   font-size: 15px;
-  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -410,7 +413,7 @@
 .md code {
   padding: 1px 4px;
   border-radius: var(--r-1);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   font: var(--type-body) var(--mono);
 }
 .md pre {
@@ -572,11 +575,11 @@
   border-radius: var(--r-3);
 }
 .source[data-focused] {
-  background: rgba(156, 130, 245, 0.08);
+  background: rgb(var(--halo-rgb) / 0.08);
 }
 .source-n {
   color: var(--text-2);
-  font: 600 12px/1.6 var(--mono);
+  font: 600 var(--type-small) / var(--lh-small) var(--mono);
   text-align: right;
 }
 .source-body {
@@ -595,7 +598,7 @@
 }
 .source-url {
   color: var(--text-2);
-  font: 12px var(--mono);
+  font: var(--type-small) / var(--lh-small) var(--mono);
 }
 .source-tags {
   display: flex;
@@ -753,14 +756,11 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 8px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--r-4);
-  background: var(--plane-2);
-  transition: border-color var(--fast) var(--ease);
 }
-.report-card:hover {
-  border-color: var(--line-3);
+/* The kit's card with 8 px around its cover: named with the card, so it outweighs the card's 14 whatever the order the
+   sheets load in. */
+.card.report-card {
+  padding: 8px 8px 14px;
 }
 .report-card > :not(.report-card-cover) {
   margin-inline: 6px;
@@ -770,14 +770,9 @@
   z-index: 1;
 }
 .report-card-cover {
-  position: relative;
   aspect-ratio: 16 / 10;
   max-width: 100%;
   margin-bottom: 6px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--r-3);
-  background: var(--plane);
 }
 .report-cover {
   position: absolute;
@@ -809,7 +804,7 @@
   overflow: hidden;
   border-radius: var(--r-2) var(--r-2) 0 0;
   background: #f8f6f1;
-  box-shadow: 0 -1px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 -1px 12px rgb(var(--shadow-rgb) / calc(0.35 * var(--shadow-k)));
 }
 /* Its words run on past the cover's foot, as a page does: they fade into the paper, never cut through a line. */
 .report-cover-page::after {
@@ -826,7 +821,6 @@
   overflow: hidden;
   color: #55525c;
   font-size: var(--type-small);
-  line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -847,7 +841,7 @@
   place-items: center;
 }
 .report-cover[data-cover='waiting'] {
-  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.03), transparent);
+  background: linear-gradient(90deg, transparent, rgb(var(--ink-rgb) / 0.03), transparent);
 }
 .report-cover-mark {
   display: grid;
@@ -855,16 +849,18 @@
   width: 44px;
   height: 44px;
   border-radius: var(--r-2);
-  color: var(--void);
-  background: var(--teal);
-  font: 600 var(--type-label) / 1 var(--mono);
+  color: var(--on-teal);
+  background: var(--teal-fill);
+  font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
 }
 .report-cover-mark[data-format='pdf'] {
-  background: var(--rose);
+  color: var(--on-rose);
+  background: var(--rose-fill);
 }
 .report-cover-mark[data-format='html'] {
-  background: var(--amber);
+  color: var(--on-amber);
+  background: var(--amber-fill);
 }
 .report-cover-open {
   position: absolute;
@@ -892,10 +888,16 @@
 .report-cover-tag {
   padding: 3px 6px;
   border-radius: var(--r-1);
-  color: var(--void);
-  background: var(--amber);
-  font: 600 var(--type-label) / 1 var(--mono);
+  color: var(--on-amber);
+  background: var(--amber-fill);
+  font: 600 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.04em;
+}
+/* The title is a press of its own over the card: it answers under the pointer with its underline. */
+.report-card-title:hover {
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--ink-rgb) / 0.4);
+  text-underline-offset: 3px;
 }
 .report-card-title {
   display: -webkit-box;
@@ -905,9 +907,8 @@
   border: 0;
   background: none;
   color: var(--text);
-  font-size: var(--type-title);
+  font-size: var(--type-head);
   font-weight: 600;
-  line-height: 1.4;
   text-align: left;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -991,7 +992,7 @@
     max-width: none;
     margin: 0;
     width: calc(100% - var(--report-w));
-    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - 1040px) / 2 + var(--gutter)));
+    padding-inline: max(var(--gutter), calc((100% - var(--report-w) - var(--content)) / 2 + var(--gutter)));
   }
   /* Work's pulse column goes under the goals: two columns beside the pane leave neither room to read. */
   .shell:has(> .report-pane[data-size='side']) > main.page.split {
@@ -1002,7 +1003,7 @@
   }
   .shell:has(> .report-pane[data-size='side']) .lobby,
   .shell:has(> .report-pane[data-size='side']) .wait-note,
-  .shell:has(> .report-pane[data-size='side']) .mini-dock {
+  .shell:has(> .report-pane[data-size='side']) .mini-dock:not(.topbar .mini-dock) {
     right: calc(var(--report-w) + var(--gutter));
   }
   /* And never wider than the room left beside the pane (a 761 px window leaves under 300). */
@@ -1014,7 +1015,8 @@
 /* --- small screens, coarse pointers, reduced motion ---------------------------------------------------------- */
 @media (width <= 760px) {
   .report-pane {
-    inset: var(--topbar) 0 0;
+    /* Under the dock's notes too, where the header (721 to 760 px) still holds the dock (Codex on #281). */
+    inset: calc(var(--topbar) + var(--dock-notes-h, 0px)) 0 0;
     width: auto;
     border-left: 0;
   }
@@ -1031,7 +1033,7 @@
   }
   /* And the door is under its top, over the pane, as over the side panel. */
   .shell:has(> .report-pane:not([hidden])) :is(.lobby, .wait-note) {
-    top: calc(var(--topbar) + var(--report-top-h, 0px) + 8px);
+    top: calc(var(--topbar) + var(--dock-notes-h, 0px) + var(--report-top-h, 0px) + 8px);
     left: var(--gutter);
     right: var(--gutter);
     width: auto;
@@ -1136,7 +1138,7 @@
   width: 100%;
   min-height: 70vh;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: #fff;
 }
 
@@ -1230,7 +1232,7 @@
 }
 .pdf-rail button[aria-current='page'] {
   border-color: var(--line-2);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   color: var(--text);
 }
 @media (pointer: coarse) {
@@ -1279,7 +1281,7 @@
   display: contents;
 }
 .pdf-page .textLayer ::selection {
-  background: rgba(156, 130, 245, 0.35);
+  background: rgb(var(--halo-rgb) / 0.35);
 }
 .pdf-page .textLayer br::selection {
   background: transparent;
@@ -1312,13 +1314,13 @@
 }
 .knowledge-filters .segmented button[aria-pressed='true'] {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08);
 }
 .knowledge-filters .count {
   margin-left: 6px;
   color: var(--text-2);
-  font: 500 var(--type-small) / 1 var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
 }
 /* A card takes the focus when a control inside it goes (Try PDF again): no ring for a focus the reader didn't move. */
 .work-card:focus {
@@ -1350,7 +1352,7 @@
   -webkit-backdrop-filter: blur(16px);
   box-shadow:
     var(--lift),
-    0 12px 32px rgba(0, 0, 0, 0.45);
+    0 12px 32px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   animation: rise var(--fast) var(--ease) both;
 }
 .passage-bar button {
@@ -1360,7 +1362,7 @@
   border-radius: var(--r-2);
   background: transparent;
   color: var(--text);
-  font: 500 var(--type-small) / 1 var(--sans);
+  font: 500 var(--type-small) / var(--lh-small) var(--sans);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1368,7 +1370,7 @@
   color: var(--halo-text);
 }
 .passage-bar button:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .passage-bar button:focus-visible {
   outline: 2px solid var(--halo);
@@ -1405,7 +1407,7 @@
   display: inline-block;
   margin-left: 8px;
   padding: 1px 6px;
-  border: 1px solid rgba(156, 130, 245, 0.35);
+  border: 1px solid rgb(var(--halo-rgb) / 0.35);
   border-radius: var(--r-1);
   color: var(--halo-text);
   font: 500 var(--type-label) / 1.4 var(--sans);
@@ -1433,7 +1435,7 @@
   border: 1px solid var(--line-2);
   border-radius: var(--r-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   color: var(--text);
   font: 500 12px/1.35 var(--sans);
   text-align: left;
@@ -1464,7 +1466,7 @@
 /* A passage a link names (usePassageArrival, docs/plans/room-passage-link.md): its words lit warm, apart from Sophia's
    lavender, and its block marked at its edge; and the note when the version doesn't hold it. */
 ::highlight(report-passage) {
-  background-color: rgba(239, 191, 134, 0.26);
+  background-color: rgb(var(--amber-rgb) / 0.26);
   color: var(--text);
 }
 .md [data-linked] {
@@ -1497,7 +1499,7 @@
   border-radius: var(--r-2);
   background: var(--plane-2);
   color: var(--text);
-  font: 400 var(--type-small) / 1.3 var(--mono);
+  font: 400 var(--type-small) / var(--lh-small) var(--mono);
 }
 
 /* What was carried in from Personal (CarriedIn, Davide's chapter 1): above the reports, words as carried, who and when. */
@@ -1531,4 +1533,11 @@
   overflow-wrap: anywhere;
   color: var(--text-2);
   font-size: var(--type-small);
+}
+
+/* The header holds the room's dock (a wide screen, a view other than the Studio): it stays in sight over a full or
+   narrow pane, so the pane does not repeat its switches and note with the same names (Codex on #254). */
+.shell:has(.topbar .mini-dock) .report-pane .report-pane-call,
+.shell:has(.topbar .mini-dock) .report-pane .report-pane-note {
+  display: none;
 }

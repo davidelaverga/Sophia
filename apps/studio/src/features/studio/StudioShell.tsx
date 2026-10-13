@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { askDraft } from '../artifacts/passage.ts'
 import type { Passage } from '../artifacts/PassageBar.tsx'
@@ -96,6 +96,11 @@ interface Props {
   catchUp?: ReactNode
   /** The project out of sight, the call still on: what its stage shows is followed by nobody here. */
   background?: boolean
+  /**
+   * The address is this project's (the route names it). A call's project kept on screen while another opens is
+   * visible but not routed: it neither reads nor writes the other's address (Codex on #242).
+   */
+  routed?: boolean
 }
 
 /**
@@ -195,21 +200,30 @@ function useUnderTheLine(extras: Extras, chatOpen: boolean) {
   return { present, under: object, showing }
 }
 
-/** The room's own keys: a lens by its number, Chat and the brief by their letters. */
+/** The room's own keys, as commands: a lens by its number, Chat and the brief by their letters, said by their state. */
 function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
-  useShortcuts({
-    '1': () => setLens('converse'),
-    '2': () => setLens('explore'),
-    '3': () => setLens('build'),
-    c: () => panel.toggle('chat'),
-    b: () => panel.toggle('brief'),
+  const toggle = (which: 'chat' | 'brief', words: string) => ({
+    id: which,
+    words: `${panel.panel === which ? 'Close' : 'Open'} the ${words}`,
+    group: 'view' as const,
+    key: which === 'chat' ? 'c' : 'b',
+    run: () => panel.toggle(which),
   })
+  useCommands([
+    { id: 'lens-converse', words: 'Converse lens', group: 'view', key: '1', run: () => setLens('converse') },
+    { id: 'lens-explore', words: 'Explore lens', group: 'view', key: '2', run: () => setLens('explore') },
+    { id: 'lens-build', words: 'Build lens', group: 'view', key: '3', run: () => setLens('build') },
+    toggle('chat', 'chat'),
+    toggle('brief', 'brief'),
+  ])
 }
 
 export function StudioShell(props: Props) {
   const { projectId, identity, room, snapshot, panel, looking, captions: held, made, catchUp = null } = props
   const background = props.background ?? false
-  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId)
+  // Out of sight for its call, or not the project the address names, the shell is not the page's: left alone.
+  const owns = !background && props.routed !== false
+  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId, owns)
   const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)

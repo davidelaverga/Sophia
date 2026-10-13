@@ -9,9 +9,10 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ReportCard } from '@sophia/contracts'
-import { Search, Segmented } from '@sophia/ui'
+import { Card, CardCover, EmptyState, Search, Segmented, Skeleton } from '@sophia/ui'
 import { listReports, type ReportFilter } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
+import { useAskSophia } from '../studio/project-go.tsx'
 import { useDocumentViewer } from './DocumentViewer.tsx'
 import { formatsOffered } from './report-view.ts'
 import { metaOf } from './report-cover.ts'
@@ -109,8 +110,18 @@ function useFormatOffer(format: Format, cards: readonly ReportCard[], loading: b
   return now
 }
 
+/**
+ * The words searched, to ask Sophia instead (docs/plans/ask-instead.md): none without words, or where she can't be; none
+ * while the words in the field are not yet the words searched, the ask carrying the old ones (Codex P2s on #267).
+ */
+const askAbout = (askSophia: ((q: string) => void) | null, q: string, typed: string) => {
+  const words = q.trim()
+  return askSophia && words !== '' && typed.trim() === words ? { words, go: () => askSophia(words) } : null
+}
+
 export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = null }: Props) {
   const f = useFilters(projectId)
+  const askSophia = useAskSophia()
   const reports = useReports(identity, { project: f.project, format: f.format, q: f.q })
   const cards = reports.data?.pages.flatMap((p) => p.reports) ?? []
   const counts = reports.data?.pages[0]?.projects ?? []
@@ -142,6 +153,7 @@ export function KnowledgeReports({ projectId, identity, canEdit, carriedIn = nul
         identity={identity}
         filtered={f.filtered}
         onClear={f.clear}
+        ask={askAbout(askSophia, f.q, f.typed)}
       />
       {reports.hasNextPage && <MoreReports loading={reports.isFetchingNextPage} onMore={more} />}
       {f.project === projectId && carriedIn}
@@ -211,23 +223,35 @@ interface CardsProps {
   /** A format or words narrow the list: an empty one says so, with the way back, never "no reports yet". */
   filtered: boolean
   onClear: () => void
+  /** The words searched, to ask Sophia instead when nothing matches (docs/plans/ask-instead.md); null where she can't be. */
+  ask: { words: string; go: () => void } | null
 }
 
-function ReportCards({ cards, state, showProject, editable, identity, filtered, onClear }: CardsProps) {
-  if (state === 'loading') return <div className="goal skeleton" aria-busy="true" />
+function ReportCards({ cards, state, showProject, editable, identity, filtered, onClear, ask }: CardsProps) {
+  if (state === 'loading') {
+    return <Skeleton kind="card" count={3} label="Reading the reports…" className="report-cards" />
+  }
   if (state === 'failed') return <p className="muted">The reports couldn’t be loaded. Try again in a moment.</p>
   if (cards.length === 0 && filtered) {
     return (
-      <p className="empty">
+      <EmptyState>
         No reports match these filters.{' '}
         <button type="button" className="text-button" onClick={onClear}>
           Clear the filters
         </button>
-      </p>
+        {ask && (
+          <>
+            {' · '}
+            <button type="button" className="text-button" onClick={ask.go}>
+              Ask Sophia about “{ask.words}”
+            </button>
+          </>
+        )}
+      </EmptyState>
     )
   }
   if (cards.length === 0) {
-    return <p className="empty">No reports here yet. Ask Sophia to research something, by voice or in the chat.</p>
+    return <EmptyState>No reports here yet. Ask Sophia to research something, by voice or in the chat.</EmptyState>
   }
   return (
     <ol className="report-cards">
@@ -262,8 +286,8 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
   // the card names, in HTML.
   const as = card.formats.includes('html') ? { versionId: card.currentVersionId, format: 'html' as const } : {}
   return (
-    <li className="report-card">
-      <div className="report-card-cover">
+    <Card as="li" live className="report-card">
+      <CardCover className="report-card-cover">
         <ReportCover card={card} identity={identity} />
         {card.formats.includes('html') && (
           <button
@@ -277,7 +301,7 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
             <span className="report-cover-tag">HTML</span>
           </button>
         )}
-      </div>
+      </CardCover>
       <button
         type="button"
         className="report-card-title"
@@ -302,6 +326,6 @@ function ReportCardView({ card, showProject, editable, identity }: CardProps) {
           History
         </button>
       </SummaryEditor>
-    </li>
+    </Card>
   )
 }

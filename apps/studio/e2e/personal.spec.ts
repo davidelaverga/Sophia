@@ -457,8 +457,9 @@ test('detail 路 one type scale: Personal鈥檚 text comes in four sizes, the app鈥
   await page.locator('#c-notes').getByRole('button', { name: 'Review what to carry' }).click()
   await page.locator('#c-notes').getByRole('checkbox').first().check()
   await read()
-  // On the app's scale (docs/plans/type-places.md): label, body, heading, and her reading voice a size above.
-  expect([...sizes].toSorted()).toEqual(['10.5px', '13px', '15px', '16px'])
+  // On the app's scale (docs/plans/type-places.md): label, body, heading, and her reading voice a size above; the
+  // section labels read at 12 since UIKIT-19 (docs/plans/task-keys-micro-type.md), the data stays at 10.5.
+  expect([...sizes].toSorted()).toEqual(['10.5px', '12px', '13px', '15px', '16px'])
 })
 
 test('detail 路 with less motion asked for, nothing in Personal moves: no breathing wash, no flicker', async ({
@@ -1540,4 +1541,13 @@ test('follow 路 in a conversation that fits, a reply that came while away is sim
   expect(await page.locator('.msgs').evaluate((l) => l.scrollHeight <= l.clientHeight)).toBe(true)
   await expect(page.locator('.msg.sophia').last()).toBeInViewport()
   await expect(page.getByRole('button', { name: 'Sophia answered' })).toHaveCount(0)
+})
+
+test('personal 路 a day divider鈥檚 day is data at the label size, as dates and times are (Codex P2 on #241)', async ({
+  page,
+}) => {
+  await page.goto('/personal.html?demo=1')
+  const day = page.locator('.places .c3-day').first()
+  await expect(day).toBeVisible()
+  expect(await day.evaluate((el) => getComputedStyle(el).fontSize)).toBe('10.5px')
 })

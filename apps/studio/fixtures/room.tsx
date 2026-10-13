@@ -79,10 +79,13 @@ import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoServedGoals } from './demo-work.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
+  /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
+  shutDoor: () => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
@@ -146,6 +149,8 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
+  /** The reads of a conversation's older pages fail, or read again. */
+  failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
   /** The brief's reads fail, or read again. */
@@ -245,6 +250,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {
@@ -301,6 +307,7 @@ function floorMoves(actorId: string): void {
 
 const project = {
   revision: 1,
+  doorShut: false,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
   room,
   roomMoves: false,
@@ -468,6 +475,10 @@ installFixtureApi(project)
 
 window.fixture = {
   update: () => publish(project),
+  shutDoor: () => {
+    project.doorShut = true
+    publish(project)
+  },
   say: (text) => {
     project.messages.push(text)
     publish(project)
@@ -582,6 +593,9 @@ window.fixture = {
   },
   failConversations: (on) => {
     if (project.conversations) project.conversations.failList = on
+  },
+  failOlderMessages: (on) => {
+    if (project.conversations) project.conversations.failOlder = on
   },
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
@@ -887,6 +901,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      failOlder: query.get('older') === 'fail',
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,

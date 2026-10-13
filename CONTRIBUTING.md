@@ -168,8 +168,13 @@ writing a new one, and keep the rule when you change the code around it.
   between the mark and the name goes back to the projects (W).
 - **A task that takes the whole attention is a sheet** (`app/Sheet.tsx`: the
   Studio's side panel, modal through `useDialog`, closed with Esc, Close or
-  the veil). There are no centered dialogs. One sheet at a time: a sheet that
-  needs another (your data asking to unlock) closes and comes back after.
+  the veil). There are no centered dialogs, with one exception: the command
+  palette (⌘K, `app/Palette.tsx`) is a launcher, not a task. It opens in the
+  middle of the screen over the same veil, modal through the same `useDialog`
+  and closed the same way, because what is typed into it is the point and the
+  eye is already there; it holds no form and nothing to read. One sheet at a
+  time: a sheet that needs another (your data asking to unlock) closes and
+  comes back after.
 - **A menu or a popover closes itself** (`usePopover`): a press anywhere
   outside it, or Esc inside it, which gives the focus back to its control.
   It listens for `pointerdown`, so the click that opened it from elsewhere
@@ -575,9 +580,9 @@ when you change the room:
   marked, until Mark seen; a request is said once, on top. A session's earlier reports fold under its
   last one (`Session.recent`, newest first). `since=1` shows the line.
   The work views keep to one type scale (theme.css `--type-title` 14,
-  `--type-body` 13, `--type-small` 12, `--type-label` 10.5, under a view's 20
-  and a sheet's 15): at most five sizes on a screen, a field's words included,
-  checked (`type ·`).
+  `--type-body` 13, `--type-small` 12, `--type-label` 10.5, under the heads'
+  15 (`--type-head`) and a view's 28 (`--type-view`); a sheet's title 15): at
+  most five sizes on a screen, a field's words included, checked (`type ·`).
 - **The report viewer has its own checks** (`e2e/report.spec.ts`, SMC-M03): on
   the room's fixture page, whose API also answers the fixture report
   (`fixtures/report-data.ts`), Knowledge and a research notice. A report

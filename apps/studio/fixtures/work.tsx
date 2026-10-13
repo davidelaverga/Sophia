@@ -64,6 +64,7 @@ import {
   firstGoal,
   fixtureParts,
   goal,
+  manyBlockers,
   manyTasks,
   moreGoals,
   moreViews,
@@ -95,6 +96,7 @@ import {
 import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
 import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 declare global {
   interface Window {
@@ -113,6 +115,7 @@ declare global {
       /** A new decision, asked of `deciderId`, arrives with the next observation. */
       decisionArrives?: (deciderId: string) => void
       begin?: (workId: string) => void
+      complete?: (workId: string) => void
       reassign?: (workId: string) => void
       replan?: () => void
       arrive?: () => void
@@ -163,6 +166,7 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
 const six = query.get('goals') === '6'
 const two = six || query.get('two') === '1'
@@ -422,6 +426,7 @@ const attemptless: Change = (g) =>
 function opening(viewer: Viewer): GoalView {
   let g = attemptless(inCase(scenario, firstGoal(viewer), viewer))
   if (query.get('many') === '1') g = manyTasks(g)
+  if (query.get('waits') === '1') g = manyBlockers(g)
   g = decisionsAsked(g)
   const current = g.current_plan
   if (current && query.get('proposed') === '1') {
@@ -566,6 +571,13 @@ const beginWith = (workId: string, viewer: Viewer): Change =>
     lifecycle: 'running',
     assignment: claude('claude-reviewer', 'reviewer', 1),
     available_actions: [...fixtureParts.commands(viewer, true), ...v.available_actions],
+  }))
+
+/** A task complete, its check satisfied: what it blocked goes up next (`complete`, the focus check; Codex on #236). */
+const completeWith = (workId: string): Change =>
+  observed(workId, () => ({
+    lifecycle: 'complete',
+    completion: { policy_ref: 'policy-fixture', status: 'satisfied', evidence_refs: ['evidence-fixture'] },
   }))
 
 /** The same session given the task again: its next assignment generation, its next attempt. */
@@ -808,6 +820,7 @@ function slot(g: GoalView, shared: Shared, onCommand: SendCommand | undefined) {
     tab: <PlanTab goal={g} resources={resources} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
+    decisions: g.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, g.decisions, viewerId, now),
   }
 }
@@ -880,6 +893,7 @@ function Tasks() {
         viewer,
         { commands: lead.commands, again },
       ),
+      complete: (workId: string) => update(completeWith(workId)),
       ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
       ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),

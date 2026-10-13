@@ -1,0 +1,238 @@
+// Commands (docs/plans/commands.md): the palette on Ctrl+K, the index of keys on Ctrl+/ and ?, both from one registry
+// fed by the parts on screen, on the room fixture.
+import { expect, test, type Page } from '@playwright/test'
+import { DRAWN, drawn } from './drawn.ts'
+
+const PAGE = '/room.html?demo=1'
+const palette = (page: Page) => page.getByRole('dialog', { name: 'Commands' })
+const index = (page: Page) => page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+const field = (page: Page) => page.getByRole('combobox', { name: 'Command' })
+const options = (page: Page) => palette(page).getByRole('option')
+
+test('commands · Ctrl+K opens the palette in its field; a view by its words, Enter goes there; Escape closes', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  await expect(field(page)).toBeFocused()
+  await field(page).fill('tas')
+  await expect(options(page).first()).toHaveText(/Go to Tasks/)
+  await page.keyboard.press('Enter')
+  await expect(palette(page)).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page')
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(palette(page)).toHaveCount(0)
+})
+
+test('commands · the palette offers what the page takes now: the Studio view’s brief, said by its state; not in Tasks; ↓ moves', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await field(page).fill('brief')
+  await expect(options(page).first()).toHaveText(/Open the brief\s*B$/)
+  await page.keyboard.press('Enter')
+  await expect(palette(page)).toHaveCount(0)
+  await page.keyboard.press('Control+k')
+  await field(page).fill('brief')
+  await expect(options(page).first()).toHaveText(/Close the brief/)
+  await field(page).fill('')
+  await expect(options(page).first()).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('ArrowDown')
+  await expect(options(page).nth(1)).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Escape')
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.keyboard.press('Control+k')
+  expect((await options(page).allInnerTexts()).join('\n')).not.toMatch(/brief|lens/)
+  await expect(options(page).first()).toHaveText(/Home\s*H$/)
+})
+
+test('commands · the index of keys: ? where nothing takes stray typing, Ctrl+/ from anywhere; the keys the page takes', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  // Tasks takes stray typing into its search, so `?` is a letter there: the index comes by Ctrl+/ (and by `?` on Goals, below).
+  await page.keyboard.press('Control+/')
+  await expect(index(page)).toBeVisible()
+  // Tasks has a search of its own on `/`: the index names it, and the project's search keeps no key here.
+  await expect(index(page).locator('.keys-list li')).toHaveText([
+    /Home\s*H$/,
+    /Your projects\s*W$/,
+    /Search goals and tasks\s*\/$/,
+    /Commands\s*Ctrl\+K$/,
+    /Keyboard shortcuts\s*Ctrl\+\/$/,
+    /Switch to the (light page|dark room)\s*Ctrl\+Shift\+L$/, // the appearance, from anywhere (places-commands.md)
+    /Invite someone\s*I$/,
+  ])
+  await page.keyboard.press('Escape')
+  await expect(index(page)).toHaveCount(0)
+  // In the Studio view with its chat shut, nothing takes stray typing: `?` opens the index, which names the chat's key.
+  // The key is pressed as itself: `Shift+/` reaches the page as `/` (the search's key) on a synthesized keyboard.
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('?')
+  await expect(index(page)).toBeVisible()
+  await expect(index(page).locator('.keys-list li')).toContainText([
+    /Converse lens\s*1$/,
+    /Explore lens\s*2$/,
+    /Build lens\s*3$/,
+    /Open the chat\s*C$/,
+    /Open the brief\s*B$/,
+  ])
+  await page.keyboard.press('Escape')
+  await expect(index(page)).toHaveCount(0)
+  // The chat open, its message bar takes stray typing: ? is text for it; Ctrl+/ opens the index from the field.
+  await page.keyboard.press('c')
+  const bar = page.locator('[data-typing-sink]').first()
+  await expect(bar).toBeVisible()
+  await page.keyboard.press('?')
+  await expect(bar).toHaveValue('?')
+  await expect(index(page)).toHaveCount(0)
+  await page.keyboard.press('Control+/')
+  await expect(index(page)).toBeVisible()
+})
+
+test('commands · the index has a visible control too: «Keyboard shortcuts» in the account menu, with its key', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.getByRole('button', { name: 'Account' }).click()
+  const item = page.getByRole('menuitem', { name: /Keyboard shortcuts/ })
+  await expect(item).toContainText('Ctrl+/')
+  await item.click()
+  await expect(index(page)).toBeVisible()
+})
+
+test('commands · the row the keys choose stays in the list’s view', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 })
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await expect(options(page).first()).toBeVisible()
+  for (let i = 0; i < 14; i += 1) await page.keyboard.press('ArrowDown')
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const list = document.querySelector('.palette-list')
+        const active = list?.querySelector('[aria-selected="true"]')
+        if (!list || !active) return null
+        const box = list.getBoundingClientRect()
+        const row = active.getBoundingClientRect()
+        return row.top >= box.top - 1 && row.bottom <= box.bottom + 1
+      }),
+    )
+    .toBe(true)
+  await expect(field(page)).toBeFocused()
+})
+
+test('commands · the light by a key: Ctrl+Shift+L puts the light page on the root, again the dark room; the palette says which comes next', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await field(page).fill('light')
+  await expect(options(page).first()).toHaveText(/Switch to the light page\s*Ctrl\+Shift\+L$/)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+Shift+l')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.keyboard.press('Control+k')
+  await field(page).fill('dark')
+  await expect(options(page).first()).toHaveText(/Switch to the dark room/)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+Shift+l')
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
+  // «Follow the system», the system turning light: the words and the key follow what the page shows, not the choice.
+  await page.getByRole('button', { name: 'Account' }).click()
+  await page.getByRole('menuitemradio', { name: 'Follow the system' }).click()
+  await page.keyboard.press('Escape')
+  await page.emulateMedia({ colorScheme: 'light' })
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+  await page.keyboard.press('Control+k')
+  await field(page).fill('dark')
+  await expect(options(page).first()).toHaveText(/Switch to the dark room/)
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+Shift+l')
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'light')
+})
+
+test('commands · in a call the palette keeps its height: the call’s row first, the list the one that scrolls', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&call=on&people=2&floor=1&sophia=listening&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  await expect(palette(page).getByRole('group', { name: 'Your call' })).toBeVisible()
+  const read = await palette(page).evaluate((dialog) => {
+    const list = dialog.querySelector<HTMLElement>('.palette-list')
+    if (!list) return null
+    const d = dialog.getBoundingClientRect()
+    const l = list.getBoundingClientRect()
+    return {
+      height: Math.round(d.height),
+      listWithin: l.bottom <= d.bottom + 0.5 && l.top >= d.top,
+      scrolls: list.scrollHeight > list.clientHeight + 1,
+      rows: getComputedStyle(dialog).gridTemplateRows.split(' ').length,
+    }
+  })
+  expect(read?.rows).toBe(3)
+  expect(read?.height).toBeLessThanOrEqual(480)
+  expect(read?.listWithin).toBe(true)
+  expect(read?.scrolls).toBe(true)
+})
+
+test('commands · behind a shut door the palette offers no view to go to: Home and Your projects stay', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.evaluate(() => window.fixture?.shutDoor())
+  await expect(page.locator('.page.notice h2')).toBeVisible()
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  const words = await options(page).locator('.palette-words').allInnerTexts()
+  expect(words.some((w) => w.startsWith('Go to '))).toBe(false)
+  expect(words).toContain('Home')
+  expect(words).toContain('Your projects')
+})
+
+test('commands · in a call, Enter on the call’s own switch is the switch’s, not the palette’s (Codex on #238)', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}&call=on&people=2&floor=1&sophia=listening&place=work`)
+  await drawn(page, DRAWN.tasks)
+  await page.keyboard.press('Control+k')
+  await expect(palette(page)).toBeVisible()
+  const mic = palette(page).getByRole('group', { name: 'Your call' }).getByRole('button').first()
+  const before = await mic.getAttribute('aria-pressed')
+  await mic.focus()
+  await page.keyboard.press('Enter')
+  // The palette stays: Enter pressed the switch, not the first command.
+  await expect(palette(page)).toBeVisible()
+  await expect(mic).not.toHaveAttribute('aria-pressed', before ?? '')
+})
+
+test('commands · nothing matching keeps the list the field controls, and says so in a status (Codex on #238)', async ({
+  page,
+}) => {
+  await page.goto(PAGE)
+  await drawn(page, DRAWN.room)
+  await page.keyboard.press('Control+k')
+  await page.keyboard.type('zzqx')
+  const box = palette(page).getByRole('combobox')
+  const controls = (await box.getAttribute('aria-controls')) ?? ''
+  expect(await page.locator(`[id="${controls}"]`).count()).toBe(1)
+  await expect(palette(page).getByRole('status')).toContainText('Nothing does that.')
+  // The palette's own command is not one of its rows.
+  await box.fill('commands')
+  await expect(palette(page).getByRole('option', { name: /^Do\s*Commands/ })).toHaveCount(0)
+})

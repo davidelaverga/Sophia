@@ -1,0 +1,79 @@
+# Implementation-session handoff
+
+Goal and attempt: UIKIT-43 (the next ask on Home and on a task's sheet; informe-inteligencia #4; Luis: «Procede»),
+attempt 1
+Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-kit`
+Native session: unknown
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/next-ask-places` from `ui/ask-instead`
+(stacked on PR #267 → #266 → … ; the base retargets as each merges)
+Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`), on branch `ui/next-ask-places`; no
+service code, no deploy, no contract.
+Runtime unit: Luis's Windows host (the fixture dev server on :5197; Playwright through `.claude-guards/safe-run.ps1`,
+2 workers); CI (GitHub Actions) as the run on record.
+Existing authority: Luis's standing instructions for the kit stack (push to `ui/*`, answer Codex's threads with a fix
+commit, cancel superseded CI runs); merges are Luis's, with no open P1. Spending: no paid service; CI minutes only.
+Ending commit/tree: `7a965225b76b` (tree `1dbe0ef2e3a7`), the last commit of `ui/next-ask-places`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`ui/ask-instead` at that commit: `e2e/home.spec.ts`, `e2e/next-ask-places.spec.ts`, `e2e/resources.spec.ts`, `fixtures/home.tsx`, `src/features/personal/Welcome.tsx`, `src/features/personal/places-view.test.ts`, `src/features/personal/places-view.ts`, `src/features/work/planning/AskSophia.tsx`, `docs/handoffs/UIKIT-43-attempt-1.md`, `docs/plans/next-ask-places.md`. The review notes below name the commit of each later change.
+
+## Outcome
+
+- Home's line suggests the next ask as its placeholder (`homeNextAsk`): a session about to start («Help me get ready
+  for Pitch run in Weekly standup», *because it starts in 10 min*), else nothing. Focused and empty, the key cap «Tab»
+  stands where «/» stood; Tab or → fills the line; Esc puts it away for the visit. Listening: nothing. A live room is
+  not offered to catch up on (round 4 below).
+- A task's sheet: the field's placeholder is the first question its state invites; the cap while focused and empty; Tab
+  fills it; Esc puts it away for the sheet. The chips stay.
+
+## Evidence
+
+- `places-view.test.ts` (18, one new): pass, with the whole Studio unit suite (1096). Lint (type-aware) and typecheck
+  clean.
+- `e2e/next-ask-places.spec.ts` (6: Home suggests getting ready for the session ahead and Tab fills; a live room alone
+  suggests nothing; Esc puts it away; it comes back on the next visit; the task's sheet suggests and Tab fills; Escape
+  in its empty field leaves the sheet open) with `home.spec.ts`: 29 passed locally (Playwright through
+  `.claude-guards/safe-run.ps1`, gentle, one worker), after the round 4 change.
+- CI on the stack's tip `4020b4ba`, run 38302673542: all six jobs green, the browser job with `next-ask-places.spec.ts`,
+  `home.spec.ts` and `resources.spec.ts`; «Live auth on local Supabase» after one rerun of that job, its first try
+  refused by Docker Hub's rate limit before any test ran. That was before round 4; the round 4 head's CI is the run on
+  record.
+- Capture `evaluacion-2026-10-12/inteligencia/next-ask-home.png` (it shows the room's ask, since withdrawn).
+
+## Remaining obligations
+
+- CI on the round 4 head; the independent review (Codex) with no open P1 before merge; its P2s go to follow-ups. #267
+  is merged, so the base is `main`.
+
+## Next bounded action
+
+informe-inteligencia #8 (a message that reads like a decision offers «Propose as decision») once real messages can be
+measured for false positives; the personal space's composer with her own signals.
+
+## Post-review (Codex on #268)
+
+A session under way (the project list keeps it as `nextSession` until it ends) is not suggested to get ready for: only
+sessions starting ahead of now; it neither shows «Because it started» nor outranks one about to start.
+
+## Post-review, round 2 (Codex on #268)
+
+- Put away for the visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask again
+  (`useLineNext` resets on `hidden`). next-ask-places.spec leaves Home and comes back (the fixture's `leave=1` shows its
+  own Leave Home control in the demo); it fails without the reset.
+- home.spec's microphone check reads the line's resting words, which the next ask now fills while a room is about to
+  start (it pinned the default and failed on this branch).
+
+## Post-review, round 3 (Codex on #268)
+
+- `72c1b94b`: Escape in a task sheet's empty field puts the suggestion away and leaves the sheet open (`AskSophia`
+  stops the key there); next-ask-places.spec reads it.
+- `b3676be5`: the tiles' arrow-key check in `resources.spec.ts` reads rows from layout (`offsetTop`), not from boxes
+  still rising in; it had failed once in CI on a frame mid-animation.
+- This record's counts and CI result brought to the final branch (as Codex asked of #266's, P1 4251947535).
+
+## Post-review, round 4 (Codex on #268)
+
+- Home's line goes to the companion, which never sees a project (`apps/api/src/companion.ts`), so «Catch me up on
+  <room>» promised what it could not read. Withdrawn: Home suggests only getting ready for a session about to start,
+  whose title, project and time its words carry; catching up stays the project's conversation's own next ask («Sum it
+  up»), where Sophia reads the project. `places-view.test.ts` and next-ask-places.spec read a live room alone leaving
+  the line's own words; the spec fails without the change (the demo's placeholder was the room's ask).

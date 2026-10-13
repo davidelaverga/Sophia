@@ -122,7 +122,9 @@ function SourcesField({
 }) {
   return (
     <fieldset>
-      <legend className="field-label">Sources to review (up to {availability.limits.maxSources})</legend>
+      <legend className="field-label">
+        Sources to review (up to <span className="data">{availability.limits.maxSources}</span>)
+      </legend>
       {availability.sources.length === 0 && <p className="view-note">No report version can be reviewed yet.</p>}
       {availability.sources.map((s) => (
         <label key={s.sourceId} className="review-source">

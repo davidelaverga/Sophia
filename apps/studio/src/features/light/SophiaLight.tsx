@@ -1,6 +1,7 @@
 // SophiaLight: the light as a React component. React says what the room is (mode, where she sits,
 // whom she attends to, whether work runs); the engine draws it outside React's render cycle.
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react'
+import { usePaper } from '../../app/theme.ts'
 import { defaultTarget, LightEngine, type LightInput, type LightTarget } from './engine.ts'
 import type { Point } from './motion.ts'
 import { highRest, restsHigh, sameRest } from './screen-rest.ts'
@@ -28,7 +29,8 @@ interface Props extends LightInput {
 /**
  * On a screen without a room the light follows its words (screen-rest.ts): it rests high when they would not fit
  * under it, and marks the screen (`data-rest-high`) so theme.css starts the words by the same numbers. A window that
- * changes decides afresh; words that grow can only lift the light, so typing never drops it back mid-word.
+ * changes decides afresh; words that grow can only lift the light, so typing never drops it back mid-word; the fonts
+ * arriving decide afresh too.
  */
 function useScreenRest(screen: boolean, box: RefObject<HTMLDivElement | null>): LightTarget | null {
   const [rest, setRest] = useState<LightTarget | null>(null)
@@ -49,7 +51,14 @@ function useScreenRest(screen: boolean, box: RefObject<HTMLDivElement | null>): 
     const grown = new ResizeObserver(() => place(true))
     resized.observe(room)
     grown.observe(words)
+    // The font arriving is not typing: words set in a wider fallback (a line more) that settle shorter are decided
+    // afresh, without the growth's latch, so a rest lifted only by the fallback comes back down (Codex on #247).
+    let live = true
+    void document.fonts.ready.then(() => {
+      if (live) place(false)
+    })
     return () => {
+      live = false
       resized.disconnect()
       grown.disconnect()
     }
@@ -107,6 +116,8 @@ export function SophiaLight({
   const size = useShapingSize(box, shaping)
   // Where the light rests once through, for the mark to form there: the same numbers the engine is given.
   const [restsAt, setRestsAt] = useState<LightTarget | null>(null)
+  // On paper the trace writes in the paper's inks (trace.ts); the root's theme is followed as it changes.
+  const paper = usePaper()
   const markAt = formed && restsAt ? { x: restsAt.x, y: restsAt.y, size: markSize(restsAt.radius) } : null
 
   useEffect(() => {
@@ -118,6 +129,10 @@ export function SophiaLight({
       engine.current = null
     }
   }, [])
+
+  useEffect(() => {
+    engine.current?.setPaper(paper)
+  }, [paper])
 
   useEffect(() => {
     const placed = target ?? rest

@@ -40,6 +40,8 @@ function readMenu() {
     rows: [...new Set(rows.map((r) => Math.round(r.getBoundingClientRect().height)))],
     type: [...new Set(rows.map((r) => getComputedStyle(r).fontSize))],
     stops: rows.every((r) => r.tabIndex === -1),
+    // At rest: the arrival's transform is over, so the place read is where the plane stands, not where it passed.
+    settled: cs.transform === 'none' || cs.transform === 'matrix(1, 0, 0, 1, 0, 0)',
     focused: rows.findIndex((r) => r === document.activeElement),
     checked: rows
       .filter((r) => r.getAttribute('aria-checked') === 'true')
@@ -47,13 +49,13 @@ function readMenu() {
   }
 }
 
-/** The open menu, polled: its arrival moves it 3 px, so the measure is the one it rests at. */
+/** The open menu, polled: its arrival moves it 3 px, so the measure is the one it rests at (`settled` holds the poll). */
 function openMenu(page: Page) {
   return expect.poll(() => page.evaluate(readMenu))
 }
 
 const PLANE = '6px · 8px · 1px rgba(236, 235, 241, 0.14)'
-const ONE = { plane: PLANE, rows: [32], type: ['13px'], stops: true }
+const ONE = { plane: PLANE, rows: [32], type: ['13px'], stops: true, settled: true }
 
 test.afterEach(async ({ page }) => {
   // Each fixture page keeps its own list of requests it didn't expect.
@@ -77,7 +79,7 @@ test('menu · the account’s: the plane 6 px under its control at its end, the 
     at: '6 px under, end',
     size: '230 px',
     focused: 0,
-    checked: [],
+    checked: ['Dark ●'], // Appearance: the dark room is the choice in force (docs/plans/light-mode.md)
   })
   await page.keyboard.press('ArrowDown')
   await expect(page.getByRole('menuitem', { name: 'How privacy works' })).toBeFocused()

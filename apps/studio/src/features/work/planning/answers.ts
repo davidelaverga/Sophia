@@ -4,6 +4,7 @@
 // remount would forget it, and the other choice could be sent before the first is resolved: deciding twice. A revised
 // decision is a new one, with a new key, so it starts afresh. No answer waits for good: each send has the Studio's
 // write limit, then is not confirmed, and only its own reply, in time, says what became of it (Codex F-023).
+import { useSyncExternalStore } from 'react'
 import { WRITE_TIMEOUT_MS } from '../../../api/client.ts'
 import { pageMemory, useMemory } from './page-memory.ts'
 
@@ -34,6 +35,17 @@ export const setAnswer = (key: string, answer: Answer): void => answers.set(key,
 
 /** The answer given to a decision at its revision, followed as it comes back; null when none was given. */
 export const useAnswer = (key: string) => useMemory(answers, key)
+
+/**
+ * The states of these answers by their keys, followed as any of them changes, with no decision mounted to follow its
+ * own (the decisions closed while one settles: Codex on #277). Read as one string, a snapshot that stays the same
+ * between changes.
+ */
+export function useAnswerStates(keys: readonly string[]): ReadonlyMap<string, string> {
+  const joined = useSyncExternalStore(answers.subscribe, () => keys.map((k) => answers.get(k)?.state ?? '').join('\n'))
+  const states = joined.split('\n')
+  return new Map(keys.map((k, i) => [k, states[i] ?? '']))
+}
 
 /**
  * The operation an answer goes as: the same one when the same choice is tried again after it wasn't confirmed (a lost

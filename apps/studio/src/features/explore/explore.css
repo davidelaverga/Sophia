@@ -21,7 +21,7 @@
 .direction-meta {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .direction-tiles {
   display: grid;
@@ -66,7 +66,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   color: var(--text-2);
 }
 .candidate-image {
@@ -93,7 +93,7 @@
 .candidate-image.empty p {
   max-width: 28ch;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   text-align: center;
 }
 .candidate-image.mismatch p {
@@ -160,7 +160,7 @@
 }
 .direction-why {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* A phone compares two at a time, side by side; the route takes its own line so nothing is cut. */
 @media (max-width: 560px) {

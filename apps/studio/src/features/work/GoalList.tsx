@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
+import { EmptyState, Skeleton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { TaskCard } from '../conversation/TaskCard.tsx'
 import { workHeading } from '../conversation/conversation-view.ts'
 import { GoalTabs } from './GoalTabs.tsx'
 import { GoalCard } from './GoalCard.tsx'
-import { TASK } from '../resources/link.ts'
+import { DECISION, TASK } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import { moving } from '../resources/motion.ts'
 import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
@@ -20,6 +21,8 @@ export interface GoalPlan {
   next?: React.ReactNode
   /** Its tasks' ids: an address naming one of them (`#task-<id>`) chooses this goal. */
   tasks?: readonly string[]
+  /** Its decisions' ids: an address naming one (`#decision-<id>`, from Home) chooses this goal too (Codex on #245). */
+  decisions?: readonly string[]
   /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
   attention?: boolean
 }
@@ -43,6 +46,10 @@ interface Props {
 /** The goal whose plan has a task, by its id; undefined when none has. */
 const goalOf = (plans: Props['plans'], task: string | null) =>
   task ? Object.entries(plans ?? {}).find(([, p]) => p.tasks?.includes(task))?.[0] : undefined
+
+/** The goal whose plan holds a decision, by its id; undefined when none does. */
+const goalOfDecision = (plans: Props['plans'], decision: string | null) =>
+  decision ? Object.entries(plans ?? {}).find(([, p]) => p.decisions?.includes(decision))?.[0] : undefined
 
 type Goal = Snapshot['goals'][number]
 
@@ -69,13 +76,26 @@ function listedGoals(
  * A followed address: whether its task is on a plan yet (one may arrive after the address), and whether the search
  * hides its task's goal (it then gives way, so the task opens).
  */
-function followedOf(named: { id: string | null; seq: number }, plans: Props['plans'], tabbed: readonly Goal[]) {
-  const addressed = goalOf(plans, named.id)
+function followedOf(seq: number, addressed: string | undefined, tabbed: readonly Goal[]) {
   return {
-    seq: named.seq,
+    seq,
     found: addressed !== undefined,
     hidden: Boolean(addressed && !tabbed.some((g) => g.id === addressed)),
   }
+}
+
+/**
+ * Each time an address is followed, a search hiding its goal is cleared once what it names is on a plan, which may
+ * arrive later: until then the address waits, and a search typed while it waits gives way too. One typed after is kept.
+ * The address the page opens with is followed too: none is handled yet.
+ */
+function useClearHiding(followed: ReturnType<typeof followedOf>, setQuery: (q: string) => void) {
+  const handled = useRef<number | null>(null)
+  useEffect(() => {
+    if (handled.current === followed.seq || !followed.found) return
+    handled.current = followed.seq
+    if (followed.hidden) setQuery('')
+  }, [followed.seq, followed.found, followed.hidden, setQuery])
 }
 
 /**
@@ -91,6 +111,13 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
   // arrive, and each time a link is followed. A goal chosen from the rail holds until the address is followed again.
   const named = useAddressed(TASK)
   const [chosen, setChosen] = useState<{ id: string; seq: number } | null>(null)
+  // A decision named in the address chooses its goal, so its board is mounted to open it (the board's own slot); the
+  // choice holds after the board lets the address go, as a goal chosen from the rail does (Codex on #245).
+  const decided = useAddressed(DECISION)
+  const decidedGoal = goalOfDecision(plans, decided.id)
+  useEffect(() => {
+    if (decidedGoal) setChosen({ id: decidedGoal, seq: named.seq })
+  }, [decidedGoal, decided.seq, named.seq])
   const goal = (chosen?.seq === named.seq ? chosen.id : null) ?? goalOf(plans, named.id)
   const shown = tabbed.length > 1 ? (tabbed.find((g) => g.id === goal) ?? tabbed[0]) : null
   const anyPlan = Object.keys(plans ?? {}).length > 0
@@ -100,7 +127,9 @@ function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], qu
     shown,
     listed,
     anyPlan,
-    followed: followedOf(named, plans, tabbed),
+    followed: followedOf(named.seq, goalOf(plans, named.id), tabbed),
+    // A decision named too: a search hiding its goal gives way, so its board and choices mount (Codex on #245).
+    decisionFollowed: followedOf(decided.seq, decidedGoal, tabbed),
     // The board glides from one goal's plan to the other's (View Transitions, as Resources' filters).
     choose: (id: string) => moving(() => setChosen({ id, seq: named.seq })),
   }
@@ -140,23 +169,16 @@ export function GoalList({
 }: Props) {
   const planned = (id: string) => plans?.[id]?.view
   const [query, setQuery] = useState('')
-  const { tabbed, shown, listed, anyPlan, choose, followed } = useChosenGoal(snapshot, plans, query)
-  // Each time an address is followed, a search hiding its task's goal is cleared once its task is on a plan, which may
-  // arrive later: until then the address waits, and a search typed while it waits gives way too. One typed after is kept.
-  // The address the page opens with is followed too: none is handled yet.
-  const handled = useRef<number | null>(null)
-  useEffect(() => {
-    if (handled.current === followed.seq || !followed.found) return
-    handled.current = followed.seq
-    if (followed.hidden) setQuery('')
-  }, [followed.seq, followed.found, followed.hidden])
+  const { tabbed, shown, listed, anyPlan, choose, followed, decisionFollowed } = useChosenGoal(snapshot, plans, query)
+  useClearHiding(followed, setQuery)
+  useClearHiding(decisionFollowed, setQuery)
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />
       {anyPlan && query && tabbed.length === 0 && listed.length === 0 && (
-        <p className="view-note">No goal or task answers “{query}”. Escape clears the search.</p>
+        <EmptyState>No goal or task answers “{query}”. Escape clears the search.</EmptyState>
       )}
-      {!snapshot && <div className="goal skeleton" aria-busy="true" />}
+      {!snapshot && <Skeleton label="Reading the goals…" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       {shown && <Rail goals={tabbed} shown={shown.id} plans={plans} onChoose={choose} />}
@@ -279,18 +301,21 @@ function NoGoals({
   onInvite: () => void
 }) {
   return (
-    <div className="empty">
-      <p>No goals yet. They’ll come from your conversations with Sophia in the room.</p>
-      <div className="control-row">
-        <button type="button" className="pill" onClick={onOpenStudio}>
-          Open the Studio
-        </button>
-        {canAct && (
-          <button type="button" className="pill" onClick={onInvite}>
-            Invite people
+    <EmptyState
+      actions={
+        <>
+          <button type="button" className="pill" onClick={onOpenStudio}>
+            Open the Studio
           </button>
-        )}
-      </div>
-    </div>
+          {canAct && (
+            <button type="button" className="pill" onClick={onInvite}>
+              Invite people
+            </button>
+          )}
+        </>
+      }
+    >
+      No goals yet. They’ll come from your conversations with Sophia in the room.
+    </EmptyState>
   )
 }

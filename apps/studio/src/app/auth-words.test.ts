@@ -1,8 +1,25 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { secondsToWait, sendFailure, waitAfter } from './auth-words.ts'
+import { secondsToWait, SENT_HOW, SENT_TO, sendFailure, SIGN_IN_LEDE, waitAfter } from './auth-words.ts'
 
 const EMAIL = 'ana@sophia.test'
+
+describe('what was sent, said in a line and a note (docs/plans/signin-hierarchy.md)', () => {
+  it('names what went where, then how to use it: the link in this browser, or the code here', () => {
+    assert.equal(SENT_TO, 'We sent a link and a code to')
+    assert.equal(SENT_HOW, 'Open the link in this browser, or type the code here.')
+    // One short line each: the note fits the narrowest column at the label size.
+    assert.ok(SENT_HOW.length <= 56, SENT_HOW)
+  })
+})
+
+describe('what opens, said at the door', () => {
+  it('is the guest door’s sentence, of Sophia and your team: one line, a full stop, no project named', () => {
+    assert.equal(SIGN_IN_LEDE, 'Where your team and Sophia think together.')
+    assert.match(SIGN_IN_LEDE, /^Where your team and Sophia think together\.$/)
+    assert.ok(!SIGN_IN_LEDE.includes('“'), 'no project is quoted before one exists')
+  })
+})
 
 describe('why a sign-in email was not sent', () => {
   it('says that new accounts are closed, by code or by the older sentence', () => {

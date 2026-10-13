@@ -49,7 +49,11 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
               warning="Stopped goals can’t be resumed."
               confirm="Stop for good"
               keep="Keep working"
-              className="pill"
+              className="text-button"
+              // Its tip as Hold has its own: the destructive press says what it does too (Codex on #253).
+              tip={COMMAND.stop.hint}
+              // The last control, at the content's edge: its tip aligns to its end (Codex P2 on #253).
+              tipAlign="end"
               disabled={busy}
               onConfirm={() => void admission.submit('stop')}
             />
@@ -57,7 +61,8 @@ export function WorkControls({ goal, projectId, identity, token }: Props) {
             <button
               key={kind}
               type="button"
-              className={kind === 'request_review' ? 'pill primary has-tip' : 'pill has-tip'}
+              // One filled press per goal (docs/plans/goal-controls-text.md): the rest are text, with their tips.
+              className={kind === 'request_review' ? 'pill primary has-tip' : 'text-button has-tip'}
               disabled={busy}
               onClick={() => void admission.submit(kind)}
             >

@@ -13,7 +13,9 @@ import {
 } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import type { Command } from '../../app/commands.ts'
+import { useCommands } from '../../app/useCommands.ts'
+import { useProjectGo } from '../studio/project-go.tsx'
 import { countdown, nextSession, sessionLabel } from '../access/access-view.ts'
 import { reachesSophia } from '../conversation/chat-view.ts'
 import { SophiaLight, type SophiaLightHandle } from '../light/SophiaLight.tsx'
@@ -21,19 +23,22 @@ import { Presences } from './Presences.tsx'
 import { canShareScreen, RoomDock } from './RoomDock.tsx'
 import { ROOM_KEYS } from './room-keys.ts'
 import {
+  type FloorView,
   floorView,
   orderParticipants,
+  type RoomLine,
   roomLine,
   runningWork,
   shortName,
   stageMode,
-  type FloorView,
-  type RoomLine,
   type StageMode,
+  soleWorkingTask,
 } from './room-view.ts'
 import { sophiaView, type SophiaView } from './sophia-view.ts'
 import { anchorOf, measureStage, sameGeometry, type StageGeometry } from './stage-geometry.ts'
 import type { ProjectRoom } from './useProjectRoom.ts'
+
+type Participant = ProjectRoom['participants'][number]
 import { useWorkWords } from './useWorkWords.ts'
 import { VideoStage } from './VideoStage.tsx'
 import { useNow } from '../../app/use-now.ts'
@@ -120,7 +125,30 @@ function useFloorHandoff(
   return travel
 }
 
-function SophiaLine({ line, session }: { line: RoomLine; session: string | null }) {
+/** The work's note goes to Tasks; with one task working, to that task (named in the address). Null outside a shell. */
+function useWorkGo(snapshot: Snapshot | undefined): (() => void) | null {
+  const go = useProjectGo()
+  if (!go) return null
+  const only = soleWorkingTask(snapshot)
+  return () => {
+    go(only === null ? { view: 'work' } : { view: 'work', taskId: only })
+    // No task named, no card to take the focus: the view's own item in the nav does, never the page (Codex on #242).
+    if (only === null)
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => document.querySelector<HTMLElement>('.view-nav a[aria-current]')?.focus()),
+      )
+  }
+}
+
+function SophiaLine({
+  line,
+  session,
+  onWork,
+}: {
+  line: RoomLine
+  session: string | null
+  onWork: (() => void) | null
+}) {
   return (
     <div className="sophia-line">
       <p className="line-text" aria-live="polite">
@@ -128,10 +156,19 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
           {line.text}
         </span>
       </p>
-      {line.note && (
-        <p key={line.note} className="line-note arrive">
-          {line.note}
+      {line.note && line.goes === 'work' && onWork ? (
+        // One key for the press, its words changing under it (3 sources read, then 4): the focus stays (Codex on #242).
+        <p key="work" className="line-note arrive">
+          <button type="button" className="text-button" onClick={onWork}>
+            {line.note}
+          </button>
         </p>
+      ) : (
+        line.note && (
+          <p key={line.note} className="line-note arrive">
+            {line.note}
+          </p>
+        )
       )}
       {session && <p className="line-session">{session}</p>}
     </div>
@@ -142,16 +179,49 @@ function SophiaLine({ line, session }: { line: RoomLine; session: string | null 
  * With the command key (room-keys.ts): J joins; in the room, D, E and Shift+E toggle the microphone, the camera and
  * the screen (the dock's tips show them). A stray letter never starts sending.
  */
+const onOff = (on: boolean | undefined) => (on ? 'off' : 'on')
+/** A command's action while the room allows it; none otherwise, so it is not offered. */
+const when = (ok: boolean, run: () => void) => (ok ? run : undefined)
+
+/** The stage's commands (docs/plans/commands.md): join; in the room the microphone, the camera and the screen. */
+function roomCommands(room: ProjectRoom, me: Participant | undefined, speaks: boolean, joins: boolean): Command[] {
+  return [
+    {
+      id: 'join',
+      words: 'Join the room',
+      group: 'room',
+      key: ROOM_KEYS.join,
+      run: when(joins, () => void room.join()),
+    },
+    {
+      id: 'microphone',
+      words: `Microphone ${onOff(me?.micOn)}`,
+      group: 'room',
+      key: ROOM_KEYS.microphone,
+      run: when(speaks, () => void room.setMicrophone(!me?.micOn)),
+    },
+    {
+      id: 'camera',
+      words: `Camera ${onOff(me?.cameraOn)}`,
+      group: 'room',
+      key: ROOM_KEYS.camera,
+      run: when(speaks, () => void room.setCamera(!me?.cameraOn)),
+    },
+    {
+      id: 'screen',
+      words: me?.screenOn ? 'Stop sharing the screen' : 'Share the screen',
+      group: 'room',
+      key: ROOM_KEYS.screen,
+      run: when(speaks && canShareScreen, () => void room.setScreenShare(!me?.screenOn)),
+    },
+  ]
+}
+
 function useRoomKeys(room: ProjectRoom) {
   const me = room.participants.find((p) => p.local)
   const speaks = room.status === 'live' || room.status === 'reconnecting'
   const joins = room.ready && (room.status === 'idle' || room.status === 'failed')
-  useShortcuts({
-    [ROOM_KEYS.join]: joins ? () => void room.join() : undefined,
-    [ROOM_KEYS.microphone]: speaks ? () => void room.setMicrophone(!me?.micOn) : undefined,
-    [ROOM_KEYS.camera]: speaks ? () => void room.setCamera(!me?.cameraOn) : undefined,
-    [ROOM_KEYS.screen]: speaks && canShareScreen ? () => void room.setScreenShare(!me?.screenOn) : undefined,
-  })
+  useCommands(roomCommands(room, me, speaks, joins))
 }
 
 /** Sophia as observed (sophia-view.ts): the light's mode and her line come from this, never from `live`. */
@@ -222,6 +292,7 @@ function useStageModel({ room, snapshot, projectId, identity, presented }: Props
 
 export function RoomStage(props: Props) {
   const { room, snapshot, projectId, identity, lensBar, lensBody, line, corner, captions, presented, showing } = props
+  const onWork = useWorkGo(snapshot)
   const stage = useRef<HTMLElement>(null)
   // The time, again every half minute: enough for "starts in 12 min".
   const now = useNow(30_000)
@@ -256,6 +327,7 @@ export function RoomStage(props: Props) {
           <SophiaLine
             line={line ?? conversationLine(room, snapshot, floor, { running, doing }, sophia)}
             session={sessionNote(snapshot, now)}
+            onWork={onWork}
           />
           <div className="stage-body">
             {showing}

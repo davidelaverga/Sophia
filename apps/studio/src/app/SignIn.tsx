@@ -8,6 +8,7 @@ import type { Point } from '../features/light/motion.ts'
 import { SophiaLight } from '../features/light/SophiaLight.tsx'
 import { LINK_SLOW } from './auth-callback.ts'
 import { authMode, passkeysOffered, sendMagicLink, verifyEmailCode } from './auth.ts'
+import { SIGN_IN_LEDE } from './auth-words.ts'
 import { CodeField } from './CodeField.tsx'
 import { devIdentities, type Identity } from './dev-identity.ts'
 import { startOver } from './link-accept.ts'
@@ -17,6 +18,7 @@ import { SLOW_NOTE, useSlow } from './useSlow.ts'
 import { Mark } from './Mark.tsx'
 import { mailHome, plausibleEmail } from './mail-home.ts'
 import { CODE_NOT_CONFIRMED, EMAIL_NOT_CONFIRMED, FIRST_EMAIL_NOT_CONFIRMED, waitAfter } from './auth-words.ts'
+import { SENT_HOW, SENT_TO } from './auth-words.ts'
 import { endsWithin } from './deadline.ts'
 
 /** Auth served by the local Supabase stack: sign-in emails land in Mailpit, not a real inbox. */
@@ -229,7 +231,19 @@ function useListening(field: React.RefObject<HTMLInputElement | null>, email: st
     input.addEventListener('focus', focus)
     input.addEventListener('blur', blur)
     window.addEventListener('resize', aim)
+    // The field moves without the window changing: the font arriving reflows the lede above it (two lines to one) and
+    // the centred body with it. Her attention follows the field, not where it stood; once the form is gone (the email
+    // sent while the font loads), the detached field measures nothing (Codex on #247).
+    let live = true
+    void document.fonts.ready.then(() => {
+      if (live && input.isConnected) aim()
+    })
+    const moved = new ResizeObserver(aim)
+    const body = input.closest('.screen-body')
+    if (body) moved.observe(body)
     return () => {
+      live = false
+      moved.disconnect()
       input.removeEventListener('focus', focus)
       input.removeEventListener('blur', blur)
       window.removeEventListener('resize', aim)
@@ -291,6 +305,8 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
   }
   return (
     <Centered title="Sign in to Sophia" light={listening}>
+      {/* What opens, in the door's voice (auth-words.ts, docs/plans/sign-in-lede.md): the first screen says what Sophia is. */}
+      <p className="screen-lede">{SIGN_IN_LEDE}</p>
       {notice && (
         <p className="form-error" role="alert">
           {notice}
@@ -413,10 +429,11 @@ function LinkSent({
   const home = mailHome(email)
   return (
     <>
-      <p>
-        We sent a sign-in link and a code to <strong>{email}</strong>. Open the link in this browser, or enter the code
-        here if you read your email somewhere else.
+      {/* What went where, then how to use it, as a line and a note (docs/plans/signin-hierarchy.md). */}
+      <p className="sent-to">
+        {SENT_TO} <strong>{email}</strong>.
       </p>
+      <p className="muted">{SENT_HOW}</p>
       {home && (
         <a className="pill" href={home.url} target="_blank" rel="noreferrer">
           Open {home.name}
@@ -444,6 +461,8 @@ function LinkSent({
  * thing left to do here. */
 export function CodeForm({ email, verify = verifyEmailCode }: { email: string } & Pick<EmailPorts, 'verify'>) {
   const [state, setState] = useState<Step>({ step: 'idle' })
+  // Refused, the code is wrong and said on its field; not confirmed in time, it may still sign in: the field is not.
+  const wrong = state.step === 'error' && state.message !== CODE_NOT_CONFIRMED
   const check = async (code: string) => {
     setState({ step: 'sending' })
     try {
@@ -460,11 +479,15 @@ export function CodeForm({ email, verify = verifyEmailCode }: { email: string } 
         action="Sign in with code"
         busy={state.step === 'sending'}
         focus={finePointer()}
+        invalid={wrong ? 'email-code-error' : undefined}
         onCheck={(code) => void check(code)}
+        onEdit={() => {
+          if (wrong) setState({ step: 'idle' })
+        }}
       />
       {state.step === 'sending' && <SlowNote />}
       {state.step === 'error' && (
-        <p className="form-error" role="alert">
+        <p id="email-code-error" className="form-error" role="alert">
           {state.message}
         </p>
       )}

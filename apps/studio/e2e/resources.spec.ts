@@ -458,21 +458,54 @@ test('a resource’s sheet has its own address, to share; the address opens it',
   await expect(page.getByRole('dialog')).toHaveCount(0)
 })
 
+test('a request named in the address (#request-, from Home) opens its resource’s sheet with the request focused', async ({
+  page,
+}) => {
+  await page.goto(`${PAGE}?viewer=davide#request-action-1`)
+  await expect(sheet(page, 'Davide · Claude Code')).toBeVisible()
+  await expect(page.locator('[data-request="action-1"]')).toBeFocused()
+  // Reached once: the address is the sheet's from then on.
+  await expect(page).toHaveURL(/#resource-davide-claude$/)
+  // A request not among those read opens nothing, and the address waits for it.
+  await page.goto(`${PAGE}?fresh=1#request-nobody`)
+  await expect(grid(page).getByRole('button')).toHaveCount(3)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page).toHaveURL(/#request-nobody$/)
+})
+
+test('a request named with its resource opens that resource’s sheet (Codex on #245)', async ({ page }) => {
+  await page.goto(`${PAGE}?viewer=davide#request-davide-claude/action-1`)
+  await expect(page.locator('[data-request="action-1"]')).toBeFocused()
+  // Named with another resource, it opens nothing: the request is that resource's, not the first that has the id.
+  await page.goto(`${PAGE}?viewer=davide&again=1#request-luis-gemini/action-1`) // a fresh load, not a hash change
+  await expect(page.locator('[data-request="action-1"]')).toHaveCount(0)
+})
+
 test('arrow keys move across the tiles; Tab leaves the grid in one step', async ({ page }) => {
   await page.goto(`${PAGE}?more=1`)
   const names = await grid(page)
     .getByRole('button')
     .evaluateAll((ts) => ts.map((t) => t.getAttribute('aria-label') ?? ''))
   const at = (i: number) => tile(page, names[i] ?? '')
+  // How many tiles stand in a row at this width: the grid says (the page's column is 1280 at 1280 and up). Read from the
+  // layout (offsetTop), not the painted box: tiles still rising in as the page opens would read on two rows (CI).
+  const perRow = await grid(page)
+    .getByRole('button')
+    .evaluateAll((ts) => {
+      const tops = ts.map((t) => (t instanceof HTMLElement ? t.offsetTop : 0))
+      return tops.filter((top) => top === tops[0]).length
+    })
+  const last = names.length - 1
   await at(0).focus()
   await page.keyboard.press('ArrowRight')
   await expect(at(1)).toBeFocused()
-  await page.keyboard.press('ArrowDown') // three tiles to a row at this width
-  await expect(at(4)).toBeFocused()
+  // One row down when a tile stands there; when the row below is shorter the focus stays (nothing is below).
+  await page.keyboard.press('ArrowDown')
+  await expect(at(1 + perRow <= last ? 1 + perRow : 1)).toBeFocused()
   await page.keyboard.press('Home')
   await expect(at(0)).toBeFocused()
   await page.keyboard.press('End')
-  await expect(at(4)).toBeFocused()
+  await expect(at(last)).toBeFocused()
   await page.keyboard.press('ArrowRight') // the last stays the last
   await expect(at(4)).toBeFocused()
   await expect(grid(page).locator('[tabindex="0"]')).toHaveCount(1)
@@ -559,12 +592,12 @@ test('live · while the resources are read, placeholders hold their places', asy
   await page.goto(`${PAGE}?loading=1`)
   const busy = page.locator('.resource-placeholders')
   await expect(busy).toHaveAttribute('aria-busy', 'true')
-  await expect(busy.locator('.resource-placeholder')).toHaveCount(6)
+  await expect(busy.locator('.skeleton-shape')).toHaveCount(6)
   await expect(page.getByRole('status').filter({ hasText: 'Reading the resources…' })).toBeAttached()
   await expect(page.locator('.view-head .count')).toHaveText('–')
   await expect(page.getByRole('list', { name: 'Resources' })).toHaveCount(0)
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await expect(busy.locator('.resource-placeholder > span').first()).toHaveCSS('animation-name', 'none')
+  await expect(busy.locator('.skeleton-shape > span').first()).toHaveCSS('animation-name', 'none')
 })
 
 test('each session’s model shows as people say it, in its family’s colour; none is guessed', async ({ page }) => {
@@ -575,7 +608,8 @@ test('each session’s model shows as people say it, in its family’s colour; n
   await expect(chip('Davide · Codex')).toHaveText('GPT-6.1 Sol')
   await expect(chip('Davide · Grok')).toHaveText('Grok 4')
   await expect(chip('Luis · Claude Code')).toHaveCount(0) // its host reported no model: none is made up
-  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--model').trim())
+  // The kit's data chip carries its family's ink as `--chip-ink` (ModelChip sets the family; resources.css the ink).
+  const colour = (name: string) => chip(name).evaluate((c) => getComputedStyle(c).getPropertyValue('--chip-ink').trim())
   const colours = await Promise.all(
     ['Davide · Claude Code', 'Luis · Gemini CLI', 'Davide · Codex', 'Davide · Grok'].map(colour),
   )
@@ -1821,7 +1855,7 @@ test('type · the view and its sheet keep to the scale: at most five sizes each'
   await page.goto(`${PAGE}?viewer=davide&tight=1&more=1`)
   await expect(tile(page, 'Davide · Claude Code')).toBeVisible()
   const view = await typeSizes(page, '.resources')
-  expect(view, view.join(' ')).toEqual(['10.5px', '12px', '13px', '14px', '20px'])
+  expect(view, view.join(' ')).toEqual(['10.5px', '12px', '13px', '15px', '28px'])
   await open(page, 'Davide · Claude Code')
   const inSheet = await typeSizes(page, '.resource-sheet')
   expect(inSheet.length, inSheet.join(' ')).toBeLessThanOrEqual(5)

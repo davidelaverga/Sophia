@@ -314,16 +314,17 @@ test('signin · the service out of reach is said, and the address stays to try a
   await expect(email(page)).toBeFocused() // back where trying again starts
 })
 
-test('signin · its words keep to three sizes: the title, the text, a label', async ({ page }) => {
+test('signin · its words keep to the kit’s sizes: the title, the text, a note, a label', async ({ page }) => {
   await page.goto(PAGE)
   await expect(email(page)).toBeVisible({ timeout: 15_000 })
   const idle = await typeSizes(page, '.screen')
   await sendTo(page, 'luis@gmail.com')
   const sent = await typeSizes(page, '.screen')
   for (const sizes of [idle, sent]) {
-    // The title is 22 on a phone, 26 on a wider screen.
+    // The title is 22 on a phone, 26 on a wider screen; a note under the form is a size under the text
+    // (docs/plans/signin-hierarchy.md).
     expect(
-      sizes.filter((s) => !['26px', '22px', '14px', '10.5px'].includes(s)),
+      sizes.filter((s) => !['26px', '22px', '14px', '12px', '10.5px'].includes(s)),
       sizes.join(' '),
     ).toEqual([])
   }

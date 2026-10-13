@@ -14,7 +14,8 @@ export const DRAWN = {
   home: [
     // Work's index and «You and Sophia» (their own reads in the Studio; the fixture gives them on its first render).
     (page) => page.getByText('Launch plan').first(),
-    (page) => page.getByText(/\b1 note\b/).first(),
+    // The notes' count is the fixture's: one with `demo`, three without.
+    (page) => page.getByText(/\b\d+ notes?\b/).first(),
   ],
   personal: [
     // The thread and its notes (given on the fixture's first render with `demo`).
