@@ -10,7 +10,7 @@ contract.
 Runtime unit: none beyond Prettier (records only); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `60549ef8485b` (tree `c999fe4ef82b`), the last commit of `ui/p2-records`'s own that changes code (later
+Ending commit/tree: `98189613328e` (tree `814117e402e6`), the last commit of `ui/p2-records`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 10 files changed against
 `origin/main` at that commit: `docs/handoffs/UIKIT-18-attempt-1.md`, `docs/handoffs/UIKIT-25-attempt-1.md`, `docs/handoffs/UIKIT-29-attempt-1.md`, `docs/handoffs/UIKIT-30-attempt-1.md`, `docs/handoffs/UIKIT-36-attempt-1.md`, `docs/handoffs/UIKIT-52-attempt-1.md`, `docs/plans/light-breath.md`, `docs/plans/needs-api.md`, `docs/plans/p2-records.md`, `docs/plans/section-heads.md`. The review notes below name the commit of each later change.
 
@@ -44,3 +44,4 @@ label, Recent per viewer, DOM-safe ids, the tracking check).
   does now» (four needs in the fixture, the reply's seen mark) and «Left» (marking read is in the amendment).
 - `60549ef8`: the merged need identity, `<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`, and `ref.resourceId`
   for a permission's request (round 2, Codex on #282).
+- `98189613`: «What the Studio does now» routes as `VIEW_OF` does, no review (round 3, Codex on #282).
