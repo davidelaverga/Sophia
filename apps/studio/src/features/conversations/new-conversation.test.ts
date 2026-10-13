@@ -106,3 +106,43 @@ describe('words given as a question, whole characters (Codex on #267)', () => {
     assert.ok(fitted.endsWith('…'))
   })
 })
+
+describe('the same question, words that make it another (Codex P2s on #266)', () => {
+  const at = '2026-10-01T00:00:00Z'
+  it('«cannot» negates, as «not» does', () => {
+    assert.equal(sameQuestion('Can we enable dark mode?', [asked('a', 'We cannot enable dark mode', at)]), null)
+    assert.equal(sameQuestion('Can we enable dark mode?', [asked('a', 'Can we enable the dark mode?', at)])?.id, 'a')
+  })
+
+  it('opposite actions ask opposite things', () => {
+    const here = [
+      asked('a', 'Should we enable email notifications?', at),
+      asked('b', 'Should reports include charts?', at),
+    ]
+    assert.equal(sameQuestion('Should we disable email notifications?', here), null)
+    assert.equal(sameQuestion('Should reports exclude charts?', here), null)
+    assert.equal(sameQuestion('Should email notifications be enabled?', here)?.id, 'a')
+  })
+
+  it('different numbers on both sides ask about different things', () => {
+    const here = [asked('a', '2025 revenue forecast', at)]
+    assert.equal(sameQuestion('2026 revenue forecast', here), null)
+    assert.equal(sameQuestion('Revenue forecast for 2025', here)?.id, 'a')
+    assert.equal(sameQuestion('Revenue forecast', here)?.id, 'a')
+  })
+
+  it('with before and after both said, their order must match', () => {
+    const here = [asked('a', 'Ship export before review and after approval', at)]
+    assert.equal(sameQuestion('Ship export after review and before approval', here), null)
+    assert.equal(sameQuestion('Ship the export before review, after approval?', here)?.id, 'a')
+  })
+
+  it('folds case the same whatever the device’s language (a Turkish locale’s dotless ı)', (t) => {
+    // The device's locale for this check only: Turkish lowers «I» to a dotless «ı».
+    t.mock.method(String.prototype, 'toLocaleLowerCase', function (this: string) {
+      return this.replaceAll('I', 'ı').toLowerCase()
+    })
+    assert.equal('INVOICE'.toLocaleLowerCase(), 'ınvoıce', 'the locale stands in')
+    assert.equal(sameQuestion('INVOICE STATUS', [asked('a', 'invoice status', at)])?.id, 'a')
+  })
+})
