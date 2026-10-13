@@ -83,7 +83,7 @@ test('palette · an answer refused after the decisions closed is offered again u
   await openPalette(page)
   await expect(
     rows(page)
-      .filter({ hasText: /^For you\s*Decide “/ })
+      .locator('.palette-words', { hasText: /^Decide “/ })
       .first(),
   ).toBeVisible()
 })
