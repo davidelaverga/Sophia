@@ -29,6 +29,16 @@ commits on the branch merge its base forward or touch only this record). 10 file
 - `e2e/board-why.spec.ts`: the toggle's focus check written; `work.spec.ts` and `app-auth.spec.ts` updated to the v4
   key. Not run on this host (guard refused); CI is the run on record.
 
+## Decisions and changes
+
+- Changed: the while-away wording for a freed task, the look's storage version (v4, with lanes and waits), blockers' order and the toggle's focus. Preserved: what a look keeps otherwise (ids and states only). The design note names each change; the post-review notes below name the commit of each later
+  one.
+- Instruction applied: Luis, 2026-10-12, «atiende los P2 en PRs pequeñas» (the kit stack's open Codex P2s, one concern a
+  PR), under his standing instructions for the kit (push to `ui/*`, answer each thread with its fix commit; merges are
+  his, with no open P1).
+- Authority: not widened. Studio code, its checks and records only; no service code, no contract, no deploy. Points that
+  belong to the service (A15's contract, a single-task read) are recorded for that side, not changed here.
+
 ## Remaining obligations
 
 - CI on the PR, the browser suites among it; the independent review (Codex) with no open P1 before merge.
