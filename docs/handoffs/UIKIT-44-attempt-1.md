@@ -11,7 +11,7 @@ Runtime unit: Luis's Windows host (node's test runner); CI (GitHub Actions) as t
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `e2865944dfe6` (tree `63dc97ccab78`), the last commit of `ui/p2-same-question`'s own that changes code (later
+Ending commit/tree: `86c0ef3d607e` (tree `b0865b23fe61`), the last commit of `ui/p2-same-question`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 5 files changed against
 `origin/main` at that commit: `e2e/same-question.spec.ts`, `src/features/conversations/new-conversation.test.ts`, `src/features/conversations/new-conversation.ts`, `docs/handoffs/UIKIT-44-attempt-1.md`, `docs/plans/p2-same-question.md`. The review notes below name the commit of each later change.
 
@@ -70,3 +70,13 @@ The next follow-up: the next ask's freshness (Codex P2s on #262), then the rest 
   action, or before a participle as a passive puts it), so «enable SMS and disable email» no longer meets «enable email
   and disable SMS», while «email be enabled and SMS disabled» still does. One action alone is left to the ordered
   reading. Test in `5ad1d490`, failing first; unit suite passing.
+
+## Post-review, round 5 (Codex on #274)
+
+- `86c0ef3d`: orders and numbers keep their thing as actions do, two of a kind or more on each side (`aimsOf` with a reader
+  per kind): «before approval and after review» parts from «before review and after approval», «Q1 costs … Q2 revenue»
+  from «Q1 revenue … Q2 costs». Test in `aa2e1460`, failing first; unit suite 1106/1106.
+- Declined, by design (4253918594): a thing of more than one word across a change of voice («enable incoming email»
+  against «incoming email be enabled») is read as another question. Binding phrases across voice needs a parse this
+  matcher does not attempt; the form errs to silence, never to pointing at the inverse question, and Start is always
+  one press away.
