@@ -12,7 +12,7 @@ worker); CI (GitHub Actions) as the run on record.
 Existing authority: Luis's standing instructions for the kit follow-ups (push to `ui/*`, answer Codex's threads with a
 fix commit, cancel superseded CI runs on `ui/*`); merges are Luis's, with no open P1. Spending: no paid service; CI
 minutes only.
-Ending commit/tree: `3ee22c156d52` (tree `d241a64ff84d`), the last commit of `ui/p2-next-up`'s own that changes code (later
+Ending commit/tree: `51b2ab91a8dc` (tree `d3a24ea742ab`), the last commit of `ui/p2-next-up`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 9 files changed against
 `origin/main` at that commit: `e2e/next-up.spec.ts`, `e2e/palette-knows.spec.ts`, `src/features/work/planning/NextUp.tsx`, `src/features/work/planning/PlanBoard.tsx`, `src/features/work/planning/answers.ts`, `src/features/work/planning/next-up.test.ts`, `src/features/work/planning/next-up.ts`, `docs/handoffs/UIKIT-47-attempt-1.md`, `docs/plans/p2-next-up.md`. The review notes below name the commit of each later change.
 
