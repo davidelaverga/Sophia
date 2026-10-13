@@ -7,13 +7,13 @@ Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-kit`, branch `ui/goals-progress` from `main`
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no service code, no deploy, no
 contract.
-Runtime unit: Luis's Windows host (node's test runner); the browser suites not run here (Luis stopped the local run),
-CI is their run on record.
+Runtime unit: Luis's Windows host (node's test runner; Playwright through `.claude-guards/safe-run.ps1`, 2 workers, on
+Luis's word «Corre el playwright y valida»); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit (push to `ui/*`; one review round, then P2s to the
 follow-up list); merges are Luis's, with no open P1. Spending: CI minutes only.
-Ending commit/tree: `abe22a1f1f52` (tree `77ff4cb19c06`), the last commit of `ui/goals-progress`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 10 files changed against
-`origin/main` at that commit: `e2e/goals-progress.spec.ts`, `src/app/theme.css`, `src/features/resources/link.ts`, `src/features/studio/ProjectShell.tsx`, `src/features/work/GoalCard.tsx`, `src/features/work/GoalList.tsx`, `src/features/work/planning/ServedWork.tsx`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `docs/plans/goals-progress.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `e7515db96076` (tree `b658c527ee94`), the last commit of `ui/goals-progress`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 13 files changed against
+`origin/main` at that commit: `e2e/goals-progress.spec.ts`, `src/app/theme.css`, `src/features/resources/link.ts`, `src/features/studio/ProjectShell.tsx`, `src/features/studio/project-door.test.ts`, `src/features/studio/project-door.ts`, `src/features/work/GoalCard.tsx`, `src/features/work/GoalList.tsx`, `src/features/work/planning/ServedWork.tsx`, `src/features/work/planning/plan.test.ts`, `src/features/work/planning/plan.ts`, `docs/handoffs/UIKIT-67-attempt-1.md`, `docs/plans/goals-progress.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -46,3 +46,10 @@ commits on the branch merge its base forward or touch only this record). 10 file
 ## Next bounded action
 
 Resources mounted in the project under the flag (`informe-vistas-20.md` finding 2).
+
+## Local run (Luis: «Corre el playwright y valida»)
+
+- The first run failed goals-progress: Goals showed no progress, because the served board was read only on Tasks
+  (`readsServedBoard`). `e7515db9`: it is read on Goals too (`project-door.ts`, its unit test first). The failing commit's
+  unit test had a straight apostrophe that broke its string; fixed in the same commit.
+- After: goals-progress, work, view-titles: 206 passed (the first run's other suites, next-up and board-why, passed).
