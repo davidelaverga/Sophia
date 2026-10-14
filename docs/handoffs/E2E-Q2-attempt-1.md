@@ -7,9 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/honor-
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API, no contract, no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
-Ending commit/tree: `6da2bdcc2620` (tree `3cbcc4b3372f`), the last commit of `ui/honor-retry-never`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 3 files changed against
-`origin/main` at that commit: `src/app/account-cache.test.ts`, `src/app/account-cache.ts`, `docs/plans/honor-retry-never.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `6282302ce181` (tree `87428ca3ea14`), the last commit of `ui/honor-retry-never`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`origin/main` at that commit: `src/app/account-cache.test.ts`, `src/app/account-cache.ts`, `docs/handoffs/E2E-Q2-attempt-1.md`, `docs/plans/honor-retry-never.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -26,6 +26,13 @@ commits on the branch merge its base forward or touch only this record). 3 files
 - Written first and failing: `account-cache.test.ts` (`retryRead` refuses a `never` 403, allows a `safe_read` 503 up to
   three times and a network error; every account's cache uses it). Before the fix the module had no `retryRead`.
 - After: unit tests 1209/1209. Prettier, type-aware lint (whole repo) and typecheck clean.
+
+## Review notes
+
+- CI failed `signed-in-later.spec.ts` (two cases). `account-cache.ts` loads on the sign-in page, and importing
+  `ApiError` from `api/client.ts` brought the client and the validators into the signed-out page. `retryRead` now reads
+  a final refusal by its shape (a `retry` of `never`) with no import; the unit cases still use `ApiError` (4/4).
+  Typecheck and lint clean. Local Playwright refused (a heavy app open); CI is the run on record.
 
 ## Remaining obligations
 
