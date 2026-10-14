@@ -28,3 +28,18 @@ test('personal · the day pill steps aside for the divider under it, and comes b
   await expect(pill).toContainText('Today')
   await expect.poll(() => pill.evaluate((p) => getComputedStyle(p).opacity)).toBe('1')
 })
+
+test('personal · the pill stepped aside leaves the accessibility tree, and comes back to it (Codex P2 on #292)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 440 })
+  await page.goto('/personal.html')
+  const pill = page.locator('.c3-daypill')
+  await placeToday(page, 20)
+  await expect(pill).toHaveAttribute('data-crowded', 'true')
+  await expect(pill).toHaveAttribute('aria-hidden', 'true')
+  await expect(pill).toHaveAttribute('inert', '')
+  await placeToday(page, -40)
+  await expect(pill).not.toHaveAttribute('aria-hidden', 'true')
+  await expect(pill).not.toHaveAttribute('inert', '')
+})
