@@ -5,6 +5,7 @@
 // exist keep their phases, their text and their controls.
 import type { NativeTask } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
+import { shortName } from '../voice/room-view.ts'
 
 export const TASK_PHASE: Record<NativeTask['phase'], { label: string; tone: Tone; note: string }> = {
   queued: { label: 'Queued', tone: 'lav', note: 'Waiting for Sophia to start it.' },
@@ -63,7 +64,10 @@ export function workHeading(work: readonly Pick<NativeTask, 'kind'>[]): string {
 /** Who said it: "You", a name the room knows, or a neutral word (the snapshot carries actor ids only). */
 export function authorLabel(actorId: string, me: string, names: ReadonlyMap<string, string>): string {
   if (actorId === me) return 'You'
-  return names.get(actorId) ?? 'A member'
+  const name = names.get(actorId)
+  if (name === undefined) return 'A member'
+  // An address is no name: the person, as the stage names them (e2e-real Q1); a name given stays whole.
+  return name.includes('@') ? shortName(name) : name
 }
 
 export type BriefBlock =
