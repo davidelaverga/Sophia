@@ -10,12 +10,18 @@
 
 ## What changes
 
-- **The route refuses a title of spaces alone** as it refuses an empty one: 422 `invalid_request`, retry never, «A
-  project needs a title». The stored title is the one sent: nothing is trimmed (a title's own spaces stay its own, and
-  a retry with the same key keeps the same digest).
+- **`create_project` refuses a title of spaces alone for a new creation** (migration 0047, its 0006 body with one check
+  after the key's replay): 422 `invalid_request`, retry never, «A project needs a title», as an empty title is refused.
+  The stored title is the one sent: nothing is trimmed.
+- **A replay still answers what was admitted** (Codex P1 on #327): a creation an earlier build admitted with a blank
+  title, retried with its key and body, gets its stored 201 receipt, not a refusal. The check sits after the replay for
+  that reason, in the database: the API cannot read the creations' register.
 
 ## Checks
 
-- `api.db.test.ts`: «conflicts on a reused key with another title and validates the request» now also sends `"   "`:
-  422 `invalid_request`, never.
+- `api.db.test.ts`:
+  - «conflicts on a reused key with another title and validates the request» now also sends `"   "`: 422
+    `invalid_request`, never.
+  - «replays a blank title admitted before blanks were refused»: an earlier build's state, put as owner, answers its
+    stored receipt (201).
 - `pnpm check`; the database suites on PostgreSQL 16 (CI, and locally through `scripts/with-postgres.ts`).

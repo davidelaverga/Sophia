@@ -1,7 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { ProjectCreate, ProjectSummary } from '@sophia/contracts'
-import { DomainError } from '@sophia/domain'
 import { createProject, listProjects, readPersonalEpoch, withActor, type ProjectListing } from '@sophia/persistence'
 import { liveRooms, roomParticipants, type LiveKitConfig } from '../livekit.ts'
 import { lookupAll } from '../presence.ts'
@@ -81,8 +80,6 @@ export function projectRoutes(
       },
     },
     async (req, reply) => {
-      // Three spaces pass the contract's length (1–180) and the database's: a title of spaces alone is no title.
-      if (req.body.title.trim() === '') throw new DomainError('invalid_request', 'A project needs a title')
       const created = await withActor(pool, req.actorId, 'write', (c) =>
         createProject(c, req.headers['idempotency-key'], req.body),
       )

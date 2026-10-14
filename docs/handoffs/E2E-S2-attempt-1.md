@@ -4,7 +4,7 @@ Goal and attempt: E2E-S2 (a project's title of spaces alone is refused; `informe
 Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-docs`
 Native session: unknown
 Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `api/blank-title` from `main`
-Writable scope: this worktree only (`apps/api`, `docs/plans`, `docs/handoffs`); no migration, no contract change, no deploy.
+Writable scope: this worktree only (`apps/api`, `db/migrations`, `docs/plans`, `docs/handoffs`); no contract change, no deploy.
 Runtime unit: Luis's Windows host (the database suite through `scripts/with-postgres.ts`, Docker); CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
 Ending commit/tree: `16356fbe8e14` (tree `230f66e5e97a`), the last commit of `api/blank-title`'s own that changes code (later
@@ -25,6 +25,14 @@ commits on the branch merge its base forward or touch only this record). 3 files
   `[201, undefined, undefined]`, not `[422, 'invalid_request', 'never']`.
 - After: `api.db.test.ts` 15/15 on a disposable PostgreSQL 16 (`scripts/with-postgres.ts`). Type-aware lint of
   `apps/api` clean; typecheck clean.
+
+## Review notes
+
+- Codex P1 on #327: the route's check refused a replay of a blank title an earlier build had admitted (its receipt
+  recorded under its key): a retry after a lost reply got 422, not its 201. The check moved into `create_project`
+  (migration 0047, 0006's body plus the check after the replay); the route's check is gone. New case «replays a blank
+  title admitted before blanks were refused» (failing first: it got 422); after, `api.db.test.ts` and
+  `persistence.db.test.ts` 37/37.
 
 ## Remaining obligations
 
