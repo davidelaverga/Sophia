@@ -52,12 +52,17 @@ function AddNote(where: Where) {
   const [kind, setKind] = useState<NoteKind>('observation')
   const write = useNoteWrite(where)
   const controls = writeControls(write.state.status)
+  // Once kept, the field starts over as a plain note: a difficulty is chosen for each note, never carried to the next.
+  const kept = () => {
+    setText('')
+    setKind('observation')
+  }
   const save = async () => {
     if (!text.trim() || !controls.canSubmit) return
-    if (await write.submit({ text: text.trim(), kind })) setText('')
+    if (await write.submit({ text: text.trim(), kind })) kept()
   }
   const retry = async () => {
-    if (await write.retry()) setText('')
+    if (await write.retry()) kept()
   }
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return

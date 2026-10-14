@@ -41,6 +41,7 @@ test('notes · a Difficulty written on the ready goal comes first as «You» and
   await expect(first).toContainText('You')
   await expect(first.locator('.goal-note-kind')).toHaveText('Difficulty')
   await expect(sheet.getByRole('textbox', { name: 'A note on this goal' })).toHaveValue('')
+  await expect(sheet.getByRole('radio', { name: 'Note', exact: true })).toHaveAttribute('aria-checked', 'true')
   await page.keyboard.press('Escape')
   await expect(row(page, READY).locator('.goal-health')).toHaveText('Needs attention')
   await expect(row(page, READY).locator('.goal-row-line')).toContainText(
