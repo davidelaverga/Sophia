@@ -41,3 +41,16 @@ test('personal · a conversation in progress still rests on the field', async ({
   const [turn, field] = await Promise.all([last.boundingBox(), page.locator('.ps-composer').boundingBox()])
   expect(turn && field ? field.y - (turn.y + turn.height) : 999).toBeLessThanOrEqual(64)
 })
+
+test('personal · a conversation begun here rests on the field again once Personal was left and come back to (Codex P2 on #290)', async ({
+  page,
+}) => {
+  await page.goto('/personal.html?talk=new')
+  await page.locator('#c-input').fill('Today I want to plan the week calmly.')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msgs .msg.sophia:not(.typing)')).toHaveCount(2)
+  await expect(page.locator('[data-begins]')).toHaveCount(1)
+  await page.evaluate(() => window.personalFixture?.away?.())
+  await page.evaluate(() => window.personalFixture?.back?.())
+  await expect(page.locator('[data-begins]')).toHaveCount(0)
+})

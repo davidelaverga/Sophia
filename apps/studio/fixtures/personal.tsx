@@ -407,7 +407,7 @@ function useHanded() {
  * `window.personalFixture.away/back` leave Personal and come back (its notes' layer goes, then opens again), and
  * `signOut` takes the account away. Whether the account is still signed in.
  */
-function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): boolean {
+function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): { signedIn: boolean; here: boolean } {
   const [here, setHere] = useState(true)
   useEscape(notes && here, () => setNotes(false))
   const [signedIn, setSignedIn] = useState(true)
@@ -420,7 +420,7 @@ function useFixturePlace(notes: boolean, setNotes: (open: boolean) => void): boo
     window.personalFixture.away = () => setHere(false)
     window.personalFixture.back = () => setHere(true)
   }, [])
-  return signedIn
+  return { signedIn, here }
 }
 
 function Personal() {
@@ -429,7 +429,7 @@ function Personal() {
   const extras = useExtras(query, pressed, ago, wrote)
   const projects = useMemo(() => projectsFor(query, ahead), [])
   const [notes, setNotes] = useState(query.get('notes') === 'open')
-  const signedIn = useFixturePlace(notes, setNotes)
+  const { signedIn, here } = useFixturePlace(notes, setNotes)
   const [earlier, setEarlier] = useState(false)
   const [locked, setLocked] = useState(false)
   const epochKnown = useLater('epochAfter')
@@ -451,7 +451,8 @@ function Personal() {
       )}
       {signedIn && (
         <PersonalSpace
-          hidden={locked}
+          // Away (another place), Personal is hidden as Places hides it (personal-first-talk.md).
+          hidden={locked || !here}
           handed={handed}
           onHanded={() => setHanded(null)}
           locked={locked}
