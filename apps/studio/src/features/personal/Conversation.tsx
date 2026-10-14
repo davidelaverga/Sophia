@@ -519,6 +519,8 @@ interface ConversationProps {
   answered?: React.ReactNode
   /** What finding marks in the turns (Find), or null when nothing is looked for. */
   lens?: Lens | null
+  /** Personal is out of sight (another place): its visit, and the start begun in it, end. */
+  hidden?: boolean
 }
 
 /**
@@ -526,12 +528,16 @@ interface ConversationProps {
  * message sent grows the thread downward from where it began, instead of throwing it to the bottom
  * (docs/plans/personal-first-talk.md).
  */
-function useBegins(rows: readonly Row[]) {
+function useBegins(rows: readonly Row[], hidden: boolean) {
   const [begins, setBegins] = useState(false)
   const opens = opensHere(rows)
   useEffect(() => {
     if (opens) setBegins(true)
   }, [opens])
+  // The visit ends when Personal is left: come back to, the conversation rests on the field (Codex P2 on #290).
+  useEffect(() => {
+    if (hidden) setBegins(false)
+  }, [hidden])
   return begins || opens
 }
 
@@ -541,7 +547,7 @@ export function Conversation(props: ConversationProps) {
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
   const { day, crowded } = useDayPill(list, rows)
-  const begins = useBegins(rows)
+  const begins = useBegins(rows, props.hidden ?? false)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
   return (

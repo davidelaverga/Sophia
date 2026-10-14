@@ -662,6 +662,7 @@ export function PersonalSpace(props: Props) {
         <Conversation
           {...{ rows, turns, list, actions, composer, more: props.readBack.more, reading: props.readBack.reading }}
           covered={covered || talk.talking}
+          hidden={props.hidden}
           notice={<ReadNotes reads={[props.read]} />}
           earlier={earlier.open}
           setEarlier={earlier.set}
