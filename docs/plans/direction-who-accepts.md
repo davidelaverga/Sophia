@@ -14,14 +14,18 @@
 
 ## What changes
 
-- **The form says what happens**: «Saving proposes it. Any editor or admin can accept it, you included.» The words
-  move to `mission-view.ts` (`SAVE_DIRECTION_NOTE`) so a check holds them. Nothing else changes: who may decide stays
-  the server's.
+- **The form says what happens**: «Saving proposes it. Any editor or admin can accept it, you included.» It is in
+  Save direction's tip, and in the button's accessible description (an `sr-only` line it names with
+  `aria-describedby`), never as a sentence under it: «Say less» puts a sentence that explains a control in its tip
+  (CONTRIBUTING.md; Codex P1 on #331). The words live in `mission-view.ts` (`SAVE_DIRECTION_NOTE`). Nothing else
+  changes: who may decide stays the server's.
 
 ## Checks
 
 - `mission-view.test.ts`, «who accepts a direction»: the note names any editor or admin, says «you included», and no
   longer says «the team to accept».
+- `e2e/direction-who-accepts.spec.ts` (the rendered form, Codex P1 on #331): Save direction's description and its tip
+  say the note, and no paragraph under it does.
 - Prettier, type-aware lint, typecheck; unit tests; CI.
 
 ## Left
