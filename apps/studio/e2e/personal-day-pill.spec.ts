@@ -71,3 +71,21 @@ test('personal · a resize that moves the divider away reads the crowding again,
   expect(scrolls).toBe(0)
   await expect(pill).not.toHaveAttribute('data-crowded', 'true')
 })
+
+test('personal · the days’ menu closed with Escape once the pill is crowded: the focus goes to the divider under it (Codex P2 on #316)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 440 })
+  await page.goto('/personal.html')
+  const pill = page.locator('.c3-daypill')
+  await placeToday(page, -40)
+  await pill.click()
+  await expect(page.getByRole('menu', { name: 'Earlier days' })).toBeVisible()
+  // Open, the pill stays in reach; the divider comes right under it meanwhile.
+  await placeToday(page, 20)
+  await page.keyboard.press('Escape')
+  await expect(pill).toHaveAttribute('data-crowded', 'true')
+  const focused = page.locator(':focus')
+  await expect(focused).toHaveClass(/c3-day\b/)
+  await expect(focused).toContainText('Today')
+})

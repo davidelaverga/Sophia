@@ -23,3 +23,13 @@
   under the list's top hides the pill; placed above the top, the pill is back and says «Today».
 - `pnpm exec prettier --check .`, `pnpm exec oxlint --type-aware .`, `tsc --noEmit -p apps/studio`; the Personal
   specs through the guard when it allows, CI otherwise.
+
+## The focus when the pill steps aside (Codex P2 on #316)
+
+- Measured: with the days' menu open, the divider came under the pill (a scroll or resize). Escape closed the menu and
+  gave the focus back to the pill, which turned inert in the same render. In Chromium the focus stayed on an inert,
+  hidden control that Enter can't reopen.
+- Changed: the pill holding the focus as it steps aside hands it to the divider that crowds it. That divider names the
+  next day and opens the same menu.
+- Check: `personal-day-pill.spec.ts`, «the days' menu closed with Escape once the pill is crowded»: the focus is on the
+  «Today» divider.
