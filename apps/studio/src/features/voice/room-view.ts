@@ -1,5 +1,6 @@
 // What the room shows, derived from the project's room record (the input floor) and the people and
 // video LiveKit reports. Pure, so the rules are unit-tested; React only renders the result.
+import type { ReactNode } from 'react'
 import type { NativeTask, Snapshot } from '@sophia/contracts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
@@ -161,6 +162,8 @@ export interface RoomLine {
   note: string | null
   /** The note is the work's: a press goes to Tasks (docs/plans/studio-lens-address.md). */
   goes?: 'work' | undefined
+  /** Presses under the line: a new project's first step (first-step.md). */
+  presses?: ReactNode
 }
 
 /** Before anyone asks Sophia into the conversation (S1-05A), the room says how she joins. */

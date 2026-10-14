@@ -102,6 +102,8 @@ interface Project {
   lobbyAsked?: string | null
   /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
+  /** A project just made (`fresh=1`, first-step.md): its ledger holds nothing yet. */
+  fresh?: boolean
   /** The invitations made here (invitations-data.ts); absent, the list is empty and making one is unexpected. */
   invitations?: Invitations
   /** The report's description on Knowledge (report-data.ts). */
@@ -974,7 +976,10 @@ function missionAnswer(project: Project, method: string, path: string, init: Req
 function missionRead(project: Project): Response {
   if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
   served.push(`mission:${project.revision}`)
-  return json(withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus))
+  const read = withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus)
+  // Just made, nothing is recorded until its first note: the ledger reads empty (first-step.md).
+  const fresh = project.fresh && read.entries.length === 0
+  return json(fresh ? { ...read, readState: 'empty', mission: null } : read)
 }
 
 /** The brief with what the conversations' context adds (a purpose, accepted decisions, one still open), if any. */

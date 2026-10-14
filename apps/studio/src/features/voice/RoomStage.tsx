@@ -170,6 +170,7 @@ function SophiaLine({
           </p>
         )
       )}
+      {line.presses && <div className="line-presses arrive">{line.presses}</div>}
       {session && <p className="line-session">{session}</p>}
     </div>
   )

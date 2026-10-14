@@ -411,6 +411,8 @@ const project = {
   waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
   lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
+  // `fresh=1`: a project just made, nothing recorded yet (first-step.md).
+  fresh: query.get('fresh') === '1',
   ...(query.get('role') === 'editor' ? { role: 'editor' as const } : {}),
   // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
   invitations: { kept: [], made: 0 },
