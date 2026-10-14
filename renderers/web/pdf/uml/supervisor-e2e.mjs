@@ -11,6 +11,9 @@ import fs from 'node:fs'
 import http from 'node:http'
 import { runOnce } from '../supervisor.mjs'
 
+// Match the protected production startup: credentials stay private while the guest must read its own input disk.
+process.umask(0o077)
+
 /**
  * @typedef {{ name: string, outcome: string, target?: string | null, detail?: unknown }} Check
  * @typedef {{ status?: string, error?: unknown, sandbox?: { active?: boolean }, checks?: Check[],
