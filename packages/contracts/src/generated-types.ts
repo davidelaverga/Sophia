@@ -241,6 +241,8 @@ export type DesignDeliveryReceipt = { "deliveryId": string; "renderJobId": strin
 export type DesignShownMeasure = { "id": string; "section": string | null; "box": { "x": number; "y": number; "width": number; "height": number; }; "fontPx": number; "issues": ReadonlyArray<"not_rendered" | "hidden" | "transparent" | "no_visible_text" | "off_page" | "text_cut" | "clipped" | "scrolls" | "covered" | "low_contrast">; "contrast": { "ratio": number | null; "floor": number; "large": boolean; "detail": string | null; }; };
 export type Need = { "id": string; "kind": "decision" | "permission" | "guest" | "reply"; "title": string; "projectId": string | null; "projectTitle": string | null; "expiresAt": string | null; "detail": string | null; "at": string; "ref": { "kind": "work_decision" | "work_wait" | "lobby_entry" | "personal_turn"; "id": string; "within": string | null; "resourceId": string | null; }; };
 export type NeedList = { "needs": ReadonlyArray<Need>; "readAt": string; };
+export type PendingInvitation = { "id": string; "projectId": string; "projectTitle": string; "inviter": string | null; "role": "editor" | "viewer"; "expiresAt": string; };
+export type PendingInvitationList = { "invitations": ReadonlyArray<PendingInvitation>; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -382,4 +384,6 @@ export interface Operations {
   "runtimeReviewDelivered": { method: "POST"; path: "/v1/runtime/review/delivered"; request: DesignDeliveryAck; response: DesignDeliveryReceipt; };
   "listNeeds": { method: "GET"; path: "/api/v1/me/needs"; request: undefined; response: NeedList; };
   "markNeedSeen": { method: "POST"; path: "/api/v1/me/needs/{id}/seen"; request: undefined; response: undefined; };
+  "listPendingInvitations": { method: "GET"; path: "/api/v1/me/invitations"; request: undefined; response: PendingInvitationList; };
+  "acceptPendingInvitation": { method: "POST"; path: "/api/v1/invitations/{invitationId}/accept"; request: undefined; response: InvitationAccepted; };
 }

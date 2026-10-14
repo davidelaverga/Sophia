@@ -1,0 +1,213 @@
+{
+  "id": "A16",
+  "goal": "E2E",
+  "title": "The member invitations waiting for the calling person, and accepting one where they are",
+  "why": [
+    "The end-to-end pass on the real dev stack (2026-10-14, informe-e2e-real.md): Luis invited Davide while Davide had Sophia open; nothing appeared until Davide opened the email's link. Luis: «¿y si la persona está activamente in app?» The invited person cannot read their own invitation (room_invitations is readable by the project's editors only), and accepting takes the link's token.",
+    "GET /api/v1/me/invitations lists, for the address the caller's token carries (never a request field), the member invitations still open and usable in projects the caller is not already in: who invited, to which project, as what, until when. No link and no token are in it. A guest has none (403), as for every route outside the guests' own.",
+    "POST /api/v1/invitations/{invitationId}/accept accepts one of those. The service rebuilds the link's token from the invitation's id and version and runs the same acceptance as POST /api/v1/join/accept, so the address match, closed, used up and already a member all hold. An invitation not in the caller's own list answers not_found, whoever's it is. Accepting by the link already required signing in with the invited address; signing in proves what holding the emailed link proved, so this asks for nothing less."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/PendingInvitation",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A member invitation waiting for the calling person (A16). No link and no token: it is accepted by its id.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectTitle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "inviter": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who invited, as their account names them (an address when it has no other name)."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["editor", "viewer"]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "projectId", "projectTitle", "inviter", "role", "expiresAt"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/PendingInvitationList",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PendingInvitation"
+            }
+          }
+        },
+        "required": ["invitations"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1me~1invitations",
+      "value": {
+        "get": {
+          "operationId": "listPendingInvitations",
+          "tags": ["rooms"],
+          "summary": "The member invitations waiting for the calling person, by the address they signed in with: open, usable, in projects they are not already in. No link and no token.",
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PendingInvitationList"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted (a guest has no invitations of their own)",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "E2E"
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1invitations~1{invitationId}~1accept",
+      "value": {
+        "post": {
+          "operationId": "acceptPendingInvitation",
+          "tags": ["rooms"],
+          "summary": "The calling person accepts a member invitation waiting for them (one of listPendingInvitations), with the same checks as accepting by the link.",
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "invitationId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "OK",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InvitationAccepted"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not permitted",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Closed or used up",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "No such invitation for this person, or the request fails the declared schema",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "503": {
+              "description": "Dependent service unavailable",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          },
+          "x-sophia-implementation": "contract_only",
+          "x-sophia-release-goal": "E2E"
+        }
+      }
+    }
+  ]
+}

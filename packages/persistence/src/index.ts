@@ -24,6 +24,7 @@ export {
   decideLobbyEntry,
   knockRoom,
   listInvitations,
+  listPendingInvitations,
   previewRoomInvitation,
   readInvitation,
   readLobbyEntry,
@@ -34,6 +35,7 @@ export {
   scheduleRoomSession,
   type InvitationRecord,
   type InvitationRequest,
+  type PendingInvitationRecord,
   type LobbyRecord,
   type NewInvitation,
 } from './access.ts'

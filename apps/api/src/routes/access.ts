@@ -2,7 +2,7 @@
 // block for good), room sessions and one's own membership. Links are derived here (invite-token.ts) and never stored; every write goes through the
 // sophia.* functions, which re-check authority. Guests reach only knock, their lobby entry and the call.
 import { randomUUID } from 'node:crypto'
-import type { FastifyBaseLogger, FastifyInstance } from 'fastify'
+import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import type {
   Invitation,
@@ -23,6 +23,7 @@ import {
   decideLobbyEntry,
   knockRoom,
   listInvitations,
+  listPendingInvitations,
   pendingRemoval,
   previewRoomInvitation,
   quiesceAcked,
@@ -398,8 +399,51 @@ function sessionRoutes(app: FastifyInstance, deps: AccessDeps): void {
   )
 }
 
+/** The address a signed-in person's invitations are for: their token's email; a guest or no address has none. */
+function addressOf(req: FastifyRequest): string {
+  if (req.actorAnonymous || !req.actorName) throw new DomainError('forbidden', 'Sign in with the invited email')
+  return req.actorName
+}
+
+/**
+ * A16: the member invitations waiting for the signed-in person, by the address their token carries, and the accept
+ * from there. The accept rebuilds the link's token from the invitation's id and version and runs the same acceptance
+ * as the link's, so every check holds; an invitation not in the caller's own list is not found, whoever's it is.
+ */
+function pendingInvitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
+  app.get('/api/v1/me/invitations', { schema: { response: { 200: ref('PendingInvitationList') } } }, async (req) => {
+    const email = addressOf(req)
+    const list = await withActor(deps.pool, req.actorId, 'read', (c) => listPendingInvitations(c, email))
+    return {
+      invitations: list.map((r) => ({
+        id: r.id,
+        projectId: r.projectId,
+        projectTitle: r.projectTitle,
+        inviter: r.inviterName,
+        role: r.role,
+        expiresAt: r.expiresAt,
+      })),
+    }
+  })
+
+  app.post<{ Params: { invitationId: string } }>(
+    '/api/v1/invitations/:invitationId/accept',
+    { schema: { params: params('invitationId'), response: { 200: ref('InvitationAccepted') } } },
+    async (req) => {
+      const cfg = requireInvites(deps)
+      const email = addressOf(req)
+      return withActor(deps.pool, req.actorId, 'write', async (c) => {
+        const waiting = (await listPendingInvitations(c, email)).find((r) => r.id === req.params.invitationId)
+        if (!waiting) throw new DomainError('not_found', 'No such invitation for you')
+        return acceptRoomInvitation(c, linkFor(cfg, waiting.id, waiting.tokenVersion).hash, email)
+      })
+    },
+  )
+}
+
 export function accessRoutes(app: FastifyInstance, deps: AccessDeps): void {
   invitationRoutes(app, deps)
+  pendingInvitationRoutes(app, deps)
   manageInvitationRoutes(app, deps)
   joinRoutes(app, deps)
   lobbyRoutes(app, deps)
