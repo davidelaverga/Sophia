@@ -26,11 +26,13 @@
 - **`GET /api/v1/me/invitations`** (`listPendingInvitations`): `{invitations: [{id, projectId, projectTitle, inviter,
   role, expiresAt}]}`. It returns no link and no token. A guest gets 403, as for every route outside the guests' own.
 - **`POST /api/v1/invitations/{invitationId}/accept`** (`acceptPendingInvitation`):
-  - It finds the invitation in the caller's own waiting list. If it isn't there (unknown, closed, or for another
-    address) the answer is 422 `not_found`, so it doesn't say whose it is.
+  - It finds the member invitation for the caller's address by its id, whatever its state
+    (`sophia.member_invitation_for`). If there's none — unknown, or for another address — the answer is 422
+    `not_found`, so it doesn't say whose it is.
   - It rebuilds the link's token from the invitation's id and version, as `linkFor` makes it, and runs the same
-    `accept_room_invitation`. The address match, closed, used up, already a member, the locks and the event all hold,
-    unchanged.
+    `accept_room_invitation`. Each state is answered as the link's accept answers it: already a member returns the
+    project (a retry after a lost reply, Codex P2 on #332), and closed or used up is 409. The address match, the locks
+    and the event all hold, unchanged; no 50-row window applies.
 - **Security.** The link's token proved only that its holder could read the email. Accepting already required signing
   in with that address, which proves the same, so the in-app accept asks for nothing less. A reissued link (a new
   version) between the list and the accept is answered «Invitation not found», and reading the list again finds the
@@ -42,8 +44,9 @@
 - `access.db.test.ts`, «member invitations waiting in the app (A16)»:
   - The invited address (in any case) lists its invitation: id, project, title, inviter, role, expiry, and no link.
   - Another address lists none and can't accept it (422 `not_found`).
-  - The invited person accepts it, joins with the invited role, and their list is empty after.
-  - A revoked invitation is neither listed nor accepted, and a guest gets 403.
+  - The invited person accepts it, joins with the invited role, and their list is empty after. Accepting again (a lost
+    reply) answers the same project.
+  - A revoked invitation is not listed, and accepting it says it's closed (409). A guest gets 403.
 - `pnpm check` (contracts regenerated and checked), and the database suites on PostgreSQL 16.
 
 ## Left

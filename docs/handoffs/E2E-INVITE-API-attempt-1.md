@@ -38,6 +38,17 @@ commits on the branch merge its base forward or touch only this record). 9 files
 - `pnpm test` on this host fails in the renderer and capture-kernel suites. Main fails the same way here (checked in
   `Sophia-e2e` at 2572d786), so this is the Windows environment. CI is the run on record.
 
+## Review notes
+
+- Main merged in after #328 (the invitations list's 403): both added a describe block at the same place in
+  `access.db.test.ts`; both kept.
+- Codex P2 on #332: the accept looked the invitation up in the pending list, which leaves out projects the caller is
+  already in (so a retry after a lost reply got 422 `not_found`) and holds 50 rows. It now finds the member invitation
+  by id for the caller's address, whatever its state (`sophia.member_invitation_for`, in 0046, still unmerged), and
+  `accept_room_invitation` answers each state as the link's accept does: already a member returns the project; closed
+  or used up is 409. Failing first: the retry got 422, and the revoked accept 422 instead of 409. After: the access
+  suites 23/23.
+
 ## Remaining obligations
 
 - CI; Codex with no open P1. This is in the API and the database (Davide's lane), done at Luis's request.

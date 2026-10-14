@@ -24,6 +24,7 @@ import {
   knockRoom,
   listInvitations,
   listPendingInvitations,
+  memberInvitationFor,
   pendingRemoval,
   previewRoomInvitation,
   quiesceAcked,
@@ -415,7 +416,7 @@ function addressOf(req: FastifyRequest): string {
 /**
  * A16: the member invitations waiting for the signed-in person, by the address their token carries, and the accept
  * from there. The accept rebuilds the link's token from the invitation's id and version and runs the same acceptance
- * as the link's, so every check holds; an invitation not in the caller's own list is not found, whoever's it is.
+ * as the link's, so every check holds; an invitation not for the caller's address is not found, whoever's it is.
  */
 function pendingInvitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
   app.get('/api/v1/me/invitations', { schema: { response: { 200: ref('PendingInvitationList') } } }, async (req) => {
@@ -440,9 +441,11 @@ function pendingInvitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
       const cfg = requireInvites(deps)
       const email = addressOf(req)
       return withActor(deps.pool, req.actorId, 'write', async (c) => {
-        const waiting = (await listPendingInvitations(c, email)).find((r) => r.id === req.params.invitationId)
-        if (!waiting) throw new DomainError('not_found', 'No such invitation for you')
-        return acceptRoomInvitation(c, linkFor(cfg, waiting.id, waiting.tokenVersion).hash, email)
+        // Found by its id for this address, whatever its state: the link's accept then answers each state as it does
+        // (already a member, a retry after a lost reply, returns the project; closed or used up is said so).
+        const invitation = await memberInvitationFor(c, email, req.params.invitationId)
+        if (!invitation) throw new DomainError('not_found', 'No such invitation for you')
+        return acceptRoomInvitation(c, linkFor(cfg, invitation.id, invitation.tokenVersion).hash, email)
       })
     },
   )

@@ -25,6 +25,7 @@ export {
   knockRoom,
   listInvitations,
   listPendingInvitations,
+  memberInvitationFor,
   previewRoomInvitation,
   readInvitation,
   readLobbyEntry,
