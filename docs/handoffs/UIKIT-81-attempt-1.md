@@ -7,9 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/person
 Writable scope: this worktree only (`apps/studio`, `docs/handoffs`); no service code, no deploy, no contract.
 Runtime unit: Luis's Windows host (headless captures of the preview); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit; merges on green with no open P1 (his queue).
-Ending commit/tree: `29148c282d48` (tree `988b0fcafb8b`), the last commit of `ui/personal-followups`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 2 files changed against
-`origin/main` at that commit: `e2e/personal-day-pill.spec.ts`, `src/features/personal/Conversation.tsx`. The review notes below name the commit of each later change.
+Ending commit/tree: `ef5448e728af` (tree `2915fc559919`), the last commit of `ui/personal-followups`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 3 files changed against
+`origin/main` at that commit: `e2e/personal-day-pill.spec.ts`, `src/features/personal/Conversation.tsx`, `docs/handoffs/UIKIT-81-attempt-1.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
