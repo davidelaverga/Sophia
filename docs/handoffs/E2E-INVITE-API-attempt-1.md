@@ -1,0 +1,55 @@
+# Implementation-session handoff
+
+Goal and attempt: E2E-INVITE-API (A16: member invitations waiting in the app, the API; Luis: «¿y si la persona está activamente in app?» and «Arregla los puntos mencionados»), attempt 1
+Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-docs`
+Native session: unknown
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `api/pending-invitations` from `main`
+Writable scope: this worktree only (`db/migrations`, `packages/contracts`, `packages/persistence`, `apps/api`, `docs/plans`, `docs/handoffs`); no deploy.
+Runtime unit: Luis's Windows host (the database suites through `scripts/with-postgres.ts`, Docker); CI as the run on record.
+Existing authority: Luis's instruction; merges on green with no open P1.
+Ending commit/tree: `84748c5db6ac` (tree `62eebc67efa1`), the last commit of `api/pending-invitations`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/routes/access.ts`, `db/migrations/0046_pending_member_invitations.sql`, `docs/handoffs/E2E-INVITE-API-attempt-1.md`, `docs/plans/pending-invitations-api.md`, `packages/contracts/amendments/A16-pending-invitations.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/persistence/src/access.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
+
+## Outcome
+
+- **Migration 0046, `sophia.pending_member_invitations(p_email)`.** SECURITY DEFINER, executable by `sophia_api` only.
+  It returns the member invitations for that address that are still open and usable, in projects the caller is not
+  already in. It never returns the token's hash; it returns the link's version.
+- **`GET /api/v1/me/invitations`.** Returns `{invitations: [{id, projectId, projectTitle, inviter, role, expiresAt}]}`
+  for the address the caller's token carries, with no link and no token. A guest gets 403.
+- **`POST /api/v1/invitations/{invitationId}/accept`.** It finds the invitation in the caller's own list, rebuilds the
+  link's token (`linkFor`), and runs the same `accept_room_invitation`. Anything not in the caller's list answers 422
+  `not_found`.
+- **Contract amendment A16:** `PendingInvitation`, `PendingInvitationList`, and the two paths. Contracts regenerated.
+- **Persistence:** `listPendingInvitations`.
+
+## Evidence
+
+- Plan: `docs/plans/pending-invitations-api.md`, which includes the security reasoning: signing in with the invited
+  address proves what holding the emailed link proved.
+- Measured on the real dev stack: Davide, at Home while invited, saw nothing until he opened the email.
+- Written first and failing (commit `fad67b7c`): `access.db.test.ts` «member invitations waiting in the app (A16)». Both
+  cases failed for want of the routes (404).
+- After the change:
+  - `apps/api/src/access.db.test.ts` 11/11, `packages/persistence/src/access.db.test.ts` and `api.db.test.ts` 26/26,
+    on a disposable PostgreSQL 16.
+  - `pnpm contracts:check` clean. Type-aware lint (whole repo), typecheck and Prettier clean.
+- `pnpm test` on this host fails in the renderer and capture-kernel suites. Main fails the same way here (checked in
+  `Sophia-e2e` at 2572d786), so this is the Windows environment. CI is the run on record.
+
+## Review notes
+
+- Main merged in after #328 (the invitations list's 403): both added a describe block at the same place in
+  `access.db.test.ts`; both kept.
+- Codex P2 on #332: the accept looked the invitation up in the pending list, which leaves out projects the caller is
+  already in (so a retry after a lost reply got 422 `not_found`) and holds 50 rows. It now finds the member invitation
+  by id for the caller's address, whatever its state (`sophia.member_invitation_for`, in 0046, still unmerged), and
+  `accept_room_invitation` answers each state as the link's accept does: already a member returns the project; closed
+  or used up is 409. Failing first: the retry got 422, and the revoked accept 422 instead of 409. After: the access
+  suites 23/23.
+
+## Remaining obligations
+
+- CI; Codex with no open P1. This is in the API and the database (Davide's lane), done at Luis's request.
+- The Studio's notice is the next PR, on this contract.
