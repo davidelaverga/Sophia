@@ -731,6 +731,8 @@ function jobDisks(job, where) {
   const files = job.files.map((f) => f.path)
   const archive = inputArchive(job.format, kernelJob(job, GUEST), where.sourceRoot, files)
   fs.writeFileSync(path.join(dir, 'input.tar'), archive, { flag: 'wx', mode: 0o644 })
+  // The protected host's credential umask may remove the guest's read bit; only this job input is shared.
+  fs.chmodSync(path.join(dir, 'input.tar'), 0o644)
   const disk = outputDisk(path.join(dir, 'output.img'), owner)
   try {
     if (owner) fs.chownSync(dir, owner.uid, owner.gid)

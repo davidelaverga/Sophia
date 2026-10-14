@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -50,6 +50,7 @@ if (mode === 'hang') {
   fs.writeFileSync(pids, process.pid + ' ' + child.pid)
   setInterval(() => {}, 1000)
 } else {
+  if (mode === 'private-mask' && (fs.statSync(path.join(dir, 'input.tar')).mode & 0o444) !== 0o444) process.exit(4)
   const into = fs.mkdtempSync(path.join(dir, 'guest-'))
   if (spawnSync('tar', ['-xf', path.join(dir, 'input.tar'), '-C', into]).status !== 0) process.exit(3)
   const listing = spawnSync('tar', ['-tf', path.join(dir, 'input.tar')], { encoding: 'utf8' }).stdout.trim().split('\\n')
@@ -319,6 +320,23 @@ describe(
       })
       assert.deepEqual(listing, ['kernel', 'job.json', 'src/', 'src/report.html', 'src/img/', 'src/img/chart.png'])
       assert.deepEqual(readdirSync(work), [], 'the job directory is removed')
+    })
+
+    it('keeps the guest input readable under the private credential umask, without relaxing that mask', async () => {
+      const previous = process.umask(0o077)
+      const secret = join(scratch, 'private-mask-secret')
+      try {
+        writeFileSync(secret, 'synthetic secret', { mode: 0o666 })
+        const { outcome } = await run({ format: 'pdf' }, 'private-mask')
+        assert.deepEqual(outcome, { claimed: true, jobId: 'job-1', outcome: 'settled' })
+        assert.equal(seen.uploads.length, 1)
+        assert.equal(seen.settles.length, 1)
+        assert.equal(process.umask(), 0o077, 'the credential mask stays private')
+        assert.equal(statSync(secret).mode & 0o777, 0o600, 'unrelated credential files stay private')
+      } finally {
+        process.umask(previous)
+        rmSync(secret, { force: true })
+      }
     })
 
     it('runs a capture job the same way and uploads each capture its receipt names', async () => {
