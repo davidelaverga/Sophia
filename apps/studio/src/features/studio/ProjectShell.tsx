@@ -4,7 +4,7 @@
 // project for home or the personal space: the shell stays mounted out of sight (`background`), takes no keys,
 // and reports the call upward (`onCall`) so the places' bar shows it with Leave one tap away.
 import { taskPeople } from '../artifacts/task-view.ts'
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentProps } from 'react'
 import type { Membership, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -38,6 +38,7 @@ import { GoalList, type GoalPlan } from '../work/GoalList.tsx'
 import { WorkPulse } from '../work/WorkPulse.tsx'
 import { PendingView } from './PendingView.tsx'
 import { GOAL, showInAddress } from '../resources/link.ts'
+import { WelcomeBand } from '../access/WelcomeBand.tsx'
 import { ADDRESS_NAMED } from '../resources/useAddressed.ts'
 import { useKnownNames } from './useKnownNames.ts'
 import { UpdatesView } from '../updates/UpdatesView.tsx'
@@ -99,6 +100,18 @@ function OpeningNote({ loaded, blocked }: { loaded: boolean; blocked: Blocked | 
       {SLOW_NOTE}
     </p>
   )
+}
+
+/** Under the bar: a slow opening said, or, once open, the newcomer's welcome (newcomer-welcome.md). */
+interface UnderProps extends Omit<ComponentProps<typeof WelcomeBand>, 'onGoals'> {
+  loaded: boolean
+  blocked: Blocked | null
+  onShow: (view: View) => void
+}
+
+function UnderTheBar({ loaded, blocked, onShow, ...welcome }: UnderProps) {
+  if (!loaded || blocked) return <OpeningNote loaded={loaded} blocked={blocked} />
+  return <WelcomeBand {...welcome} onGoals={() => onShow('goals')} />
 }
 
 const isInCall = (room: ProjectRoom) => room.status === 'live' || room.status === 'reconnecting'
@@ -423,7 +436,7 @@ export function ProjectShell(props: Props) {
           onLeave={onLeave}
           onWork={onWork}
         />
-        <OpeningNote loaded={loaded} blocked={blocked} />
+        <UnderTheBar {...{ loaded, blocked, projectId, identity, onShow, snapshot: snapshot.data }} />
         <CommandsHost onSearch={VISION && shown ? search : undefined} />
         {inviting && shown && (
           <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />

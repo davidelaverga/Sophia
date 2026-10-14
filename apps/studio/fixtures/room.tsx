@@ -27,6 +27,7 @@ import { AccountMenu } from '../src/app/AccountMenu.tsx'
 import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
+import { rememberWelcome } from '../src/features/access/welcome.ts'
 import '../src/app/theme.css'
 import { noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
@@ -260,6 +261,9 @@ declare global {
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
+// `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
+if (query.get('welcome') === '1')
+  rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })
 
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {
