@@ -54,3 +54,16 @@ test('personal · a conversation begun here rests on the field again once Person
   await page.evaluate(() => window.personalFixture?.back?.())
   await expect(page.locator('[data-begins]')).toHaveCount(0)
 })
+
+test('personal · left with its ways in still offered and come back to, the first message keeps the centred start (Codex P2 on #320)', async ({
+  page,
+}) => {
+  await page.goto('/personal.html?talk=new')
+  await expect(page.getByRole('button', { name: /Something’s on my mind/ })).toBeVisible()
+  await page.evaluate(() => window.personalFixture?.away?.())
+  await page.evaluate(() => window.personalFixture?.back?.())
+  await page.locator('#c-input').fill('Today I want to plan the week calmly.')
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.msgs .msg.sophia:not(.typing)')).toHaveCount(2)
+  await expect(page.locator('[data-begins]')).toHaveCount(1)
+})

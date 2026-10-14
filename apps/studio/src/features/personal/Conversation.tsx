@@ -1,7 +1,7 @@
 // The conversation's rows (conversation-view.ts), rendered: day dividers that list the days, turns grouped by side, each
 // side's first turn marked by its half of Umbral, times on hover (a tap on touch), "Note this" on the person's own turns with its short form in their own
 // words, "Copy" on hers, Sophia's suggested note (keep it or let it go), and the wait for her reply.
-import { useEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react'
 import type { PersonalSuggestion, PersonalTurn } from '@sophia/contracts'
 import { Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { onScreen } from '../../app/shortcuts.ts'
@@ -393,6 +393,8 @@ const PILL_BAND = 68
 function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]) {
   const [day, setDay] = useState<string | null>(null)
   const [crowded, setCrowded] = useState(false)
+  // The divider that crowds it, by its id: the pill holding the focus hands it there (useHandOff).
+  const [ahead, setAhead] = useState<string | null>(null)
   useEffect(() => {
     const box = list.current
     if (!box) return undefined
@@ -405,7 +407,9 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
       // The next day's divider right under the pill names its day: the pill steps aside rather than say another one a
       // line above it (docs/plans/personal-day-pill.md).
       const next = days.find((d) => d.getBoundingClientRect().top >= top)
-      setCrowded(next !== undefined && next.getBoundingClientRect().top - top < PILL_BAND)
+      const crowding = next !== undefined && next.getBoundingClientRect().top - top < PILL_BAND
+      setCrowded(crowding)
+      setAhead(crowding ? next.id : null)
     }
     update()
     box.addEventListener('scroll', update, { passive: true })
@@ -417,7 +421,20 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
       resized?.disconnect()
     }
   }, [list, rows])
-  return { day, crowded }
+  return { day, crowded, ahead }
+}
+
+/**
+ * The pill holding the focus as it steps aside hands it to the divider that crowds it, which names the next day and
+ * opens the same menu: inert, the pill would keep a focus no key can use (Codex P2 on #316). Before paint, while the
+ * focus is still on it.
+ */
+function useHandOff(pill: RefObject<HTMLButtonElement | null>, stepped: boolean, ahead: string | null) {
+  useLayoutEffect(() => {
+    if (stepped && ahead && document.activeElement === pill.current) {
+      document.getElementById(ahead)?.focus({ preventScroll: true })
+    }
+  }, [pill, stepped, ahead])
 }
 
 /** The day chosen from the days' menu: in sight, with the focus, so Tab and the keys go on from there. */
@@ -454,6 +471,8 @@ function Earlier(props: {
   day: string | null
   /** The next day's divider is right under the pill: it steps aside (useDayPill). */
   crowded: boolean
+  /** That divider's id, while it crowds the pill. */
+  ahead: string | null
   setOpen: (open: boolean) => void
   /** Earlier days than those shown exist: the first item reads them back. */
   more: boolean
@@ -464,6 +483,7 @@ function Earlier(props: {
   const { rows, open, day, crowded, setOpen, more, reading, onMore } = props
   const menu = usePopover(open, () => setOpen(false))
   useFocusAfterMore(menu.panel, open, more)
+  useHandOff(menu.opener, crowded && !open, props.ahead)
   return (
     <div ref={menu.wrap} className="c3-daybar">
       {day && (
@@ -540,13 +560,12 @@ interface ConversationProps {
 function useBegins(rows: readonly Row[], hidden: boolean) {
   const [begins, setBegins] = useState(false)
   const opens = opensHere(rows)
-  useEffect(() => {
-    if (opens) setBegins(true)
-  }, [opens])
-  // The visit ends when Personal is left: come back to, the conversation rests on the field (Codex P2 on #290).
+  // The visit ends when Personal is left: come back to, the conversation rests on the field (Codex P2 on #290); one
+  // that still opens here begins its start again, as opening it did (Codex P2 on #320).
   useEffect(() => {
     if (hidden) setBegins(false)
-  }, [hidden])
+    else if (opens) setBegins(true)
+  }, [opens, hidden])
   return begins || opens
 }
 
@@ -555,7 +574,7 @@ export function Conversation(props: ConversationProps) {
     props
   const lens = props.lens ?? null
   const [noteAt, setNoteAt] = useState<string | null>(null)
-  const { day, crowded } = useDayPill(list, rows)
+  const { day, crowded, ahead } = useDayPill(list, rows)
   const begins = useBegins(rows, props.hidden ?? false)
   // The typing scope (shortcuts.ts): a letter typed on any of its controls, or with the focus on the conversation
   // itself, is text for the message bar, never a place's key.
@@ -567,6 +586,7 @@ export function Conversation(props: ConversationProps) {
           open={earlier}
           day={day}
           crowded={crowded}
+          ahead={ahead}
           setOpen={setEarlier}
           {...{ more, reading }}
           onMore={() => void actions.readEarlier()}

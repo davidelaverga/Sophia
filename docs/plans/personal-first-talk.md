@@ -32,3 +32,11 @@
   the field.
 - `pnpm exec prettier --check .`, `pnpm exec oxlint --type-aware .`, `tsc --noEmit -p apps/studio`, the Personal specs
   through the guard.
+
+## A visit that ends before anything is said (Codex P2 on #320)
+
+- Measured: Personal left while the ways in were still offered, then come back to. Its first message dropped the
+  thread to the field: the begun start had ended with the last visit, and nothing began it again for this one.
+- Changed: coming back to a conversation that still opens here begins its start again, as opening it did.
+- Check: `personal-first-talk.spec.ts`, «left with its ways in still offered and come back to»: after the first
+  message the thread keeps its centred start (`data-begins`).
