@@ -160,6 +160,8 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
+  holdBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
   /** The reads of a conversation's older pages fail, or read again. */
@@ -478,6 +480,7 @@ const project = {
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
+  boardHeld: null as (() => void)[] | null,
   // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
   missionFails: query.get('mission') === 'fail',
   reviews: {
@@ -692,6 +695,10 @@ window.fixture = {
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
     project.searchHeld = on ? waiting() : null
+  },
+  holdBoard: (on) => {
+    if (!on) for (const answer of project.boardHeld ?? []) answer()
+    project.boardHeld = on ? waiting() : null
   },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []

@@ -47,16 +47,31 @@ export interface LocalHit {
   title: string
   /** The words that answered, when they aren't the title: a goal's outcome or criterion, a task's goal. */
   words: string | null
-  /** «Goal · Needs attention», «Task · Marco's Claude Code». */
+  /** «Goal · Needs attention», «Task · Marco's Claude Code»; «Goal» alone while its health isn't known. */
   source: string
+  /** A task's doer, marked in its line as its title is (search-honest.md). */
+  doer?: string
 }
+
+/** What a task's line says before its doer. */
+export const TASK_LEAD = 'Task · '
 
 const has = (text: string, q: string) => text.toLowerCase().includes(q)
 
-function goalHit(goal: Goal, q: string, health: (goal: Goal) => string): LocalHit | null {
+/** A goal's health in words; null while it isn't known (its notes unread): then none is said (search-honest.md). */
+type HealthWords = (goal: Goal) => string | null
+
+function goalHit(goal: Goal, q: string, health: HealthWords): LocalHit | null {
   const answer = [goal.outcome, ...goal.criteria.map((c) => c.description)].find((t) => has(t, q))
   if (!has(goal.title, q) && !answer) return null
-  return { kind: 'goal', id: goal.id, title: goal.title, words: answer ?? null, source: `Goal · ${health(goal)}` }
+  const said = health(goal)
+  return {
+    kind: 'goal',
+    id: goal.id,
+    title: goal.title,
+    words: answer ?? null,
+    source: said ? `Goal · ${said}` : 'Goal',
+  }
 }
 
 /** At most three goals, then three tasks, found by their words; nothing under two letters. */
@@ -64,7 +79,7 @@ export function localHits(
   goals: readonly Goal[],
   plans: Readonly<Record<string, { tasksFound?: readonly TaskFound[] | undefined }>> | undefined,
   query: string,
-  health: (goal: Goal) => string,
+  health: HealthWords,
 ): LocalHit[] {
   const q = query.trim().toLowerCase()
   if (q.length < MIN_LOCAL) return []
@@ -78,7 +93,8 @@ export function localHits(
       id: t.id,
       title: t.purpose,
       words: goal.title,
-      source: `Task · ${t.doer}`,
+      source: `${TASK_LEAD}${t.doer}`,
+      doer: t.doer,
     }))
   return [...found, ...tasks]
 }

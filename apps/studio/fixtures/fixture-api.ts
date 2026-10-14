@@ -177,6 +177,8 @@ interface Project {
   showing?: Showing
   /** While set, searches wait for `holdSearch(false)` (A13). */
   searchHeld?: (() => void)[] | null
+  /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
+  boardHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
@@ -897,7 +899,8 @@ function workRead(project: Project, path: string) {
       coverage: 'complete',
       goals: project.servedGoals?.() ?? [],
     }
-    return json(board)
+    const held = project.boardHeld
+    return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
   }
   if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(project.review ?? REVIEW_NOT_ENABLED)
   const key = PROPOSAL_READ.exec(path)?.[1]
