@@ -78,6 +78,17 @@ describe('the recap’s sections', () => {
     )
   })
 
+  it('says when a decided or kept line happened, given the words for it (docs/plans/updates-when.md)', () => {
+    const when = (at: string) => `at ${at}`
+    const sections = recapSections(full, nameOf, false, when)
+    assert.equal(sections[0]?.lines[0]?.by, 'proposed by Marco, decided by you · at x')
+    assert.equal(sections[1]?.lines[0]?.by, 'asked by you')
+    assert.deepEqual(
+      sections[2]?.lines.map((l) => l.by),
+      ['kept by Marco · at x', 'Sophia’s paraphrase · at x'],
+    )
+  })
+
   it('copies as plain text: the head, then each section’s lines; nothing kept says so', () => {
     const text = recapText('Fixture project', full, nameOf)
     assert.ok(text.startsWith('Fixture project\n42 min · 2 members\n'))
