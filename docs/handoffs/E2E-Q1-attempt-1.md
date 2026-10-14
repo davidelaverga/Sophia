@@ -27,6 +27,18 @@ commits on the branch merge its base forward or touch only this record). 3 files
 - After: unit tests 1207/1207. Prettier, type-aware lint (whole repo) and typecheck clean.
 - Local Playwright did not run: free RAM was 2 GB beside a heavy app, and the guard refused. CI is the run on record.
 
+## Review notes
+
+- Codex P2 on #330: a chosen name with an at sign (`@alice`, `Ana @ Acme`) was cut. Only a name shaped like an address
+  now reads as its person (commit f2cea38d; failing first, then `conversation-view.test.ts` 7/7).
+- Codex P1 on #330 (browser verification), done on the real dev stack with this branch's Studio (worktree
+  `Sophia-e2e` at f2cea38d, `dev-stack.ts --voice rehearse`). Luis and Davide joined the seeded project's call, Davide
+  wrote in the room's chat, and Luis's chat read «Davide Checking how my name reads in the chat.» with no
+  «davide@sophia.test» (`verify-q1.cjs`, screenshot `evaluacion-2026-10-14/e2e-real/verify-q1/luis-chat.png`).
+- Seen while verifying, not this PR's: with nobody in the call, the same message read «A member». The room learns
+  names from the call's participants (`useKnownNames`), so a chat read outside a call names no one. It goes to the
+  follow-up list.
+
 ## Remaining obligations
 
 - CI; Codex with no open P1. The account-wide name (#307) stays its own item: this only stops showing addresses.
