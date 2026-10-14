@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/honor-
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API, no contract, no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `6da2bdcc2620` (tree `3cbcc4b3372f`), the last commit of `ui/honor-retry-never`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 3 files changed against
+`origin/main` at that commit: `src/app/account-cache.test.ts`, `src/app/account-cache.ts`, `docs/plans/honor-retry-never.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
