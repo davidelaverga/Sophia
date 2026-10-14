@@ -10,6 +10,9 @@ import { DECISION, GOAL, TASK } from '../resources/link.ts'
 import { useAddressed } from '../resources/useAddressed.ts'
 import { moving } from '../resources/motion.ts'
 import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
+import { GoalsOverview } from './GoalsOverview.tsx'
+import type { GoalGlance } from './goals-glance.ts'
+import type { Ask } from './planning/plan.ts'
 
 /** A goal's plan from the lead: its view, and the few marks that stand for it in the goals' rail. */
 export interface GoalPlan {
@@ -25,8 +28,12 @@ export interface GoalPlan {
   decisions?: readonly string[]
   /** Whether something in it waits on the viewer: another goal's board then links to it, without switching to it. */
   attention?: boolean
-  /** How far it has gone: its tasks done of those counted (`progressOf`), said on Goals (goals-progress.md). */
-  progress?: { done: number; total: number }
+  /** Goals: its tasks' lanes, who is on it and what is in its way (`glanceOf`, goals-overview.md). */
+  glance?: GoalGlance
+  /** Goals: its plan's next checkpoint, in words. */
+  checkpoint?: string | undefined
+  /** Goals: what in it waits on the viewer (`asksOf`), each a press to it in Tasks. */
+  asks?: readonly Ask[]
 }
 
 interface Props {
@@ -43,9 +50,11 @@ interface Props {
   plans?: Readonly<Record<string, GoalPlan>> | undefined
   /** Tasks: what Sophia offers to start under a goal (the source-review pilot, WBC-02), under its plan. */
   entry?: ((goal: Goal) => React.ReactNode) | undefined
-  /** Goals: each plan read for its progress only, its board left to Tasks, where `onOpenGoal` takes the goal. */
+  /** Goals: the goals as an overview (GoalsOverview), each plan read at a glance, its board left to Tasks, where
+   * `onOpenGoal` takes the goal. */
   summary?: boolean
-  onOpenGoal?: ((goalId: string) => void) | undefined
+  /** Tasks, with what is named in the address: the goal (`#goal-`), or a task or decision in it. */
+  onOpenGoal?: ((id: string, address?: string) => void) | undefined
 }
 
 /** The goal whose plan has a task, by its id; undefined when none has. */
@@ -118,15 +127,6 @@ function useGoalAddressed(plans: Props['plans'], choose: (id: string) => void, s
   }, [named, addressed.seq, seq])
 }
 
-/** Goals reads each plan for its progress and a press to it; only Tasks draws the boards, the rail and their search. */
-function useSummary(summary: boolean | undefined, given: Props['plans'], onOpenGoal: Props['onOpenGoal']) {
-  return {
-    plans: summary ? undefined : given,
-    progress: (id: string) => (summary ? given?.[id]?.progress : undefined),
-    opener: (id: string) => (summary && given?.[id] && onOpenGoal ? () => onOpenGoal(id) : undefined),
-  }
-}
-
 function useChosenGoal(snapshot: Snapshot | undefined, plans: Props['plans'], query: string) {
   const tabbed = (snapshot?.goals ?? []).filter((g) => {
     const plan = plans?.[g.id]
@@ -182,6 +182,51 @@ function Head(props: {
   )
 }
 
+/** Tasks' search, when it leaves no goal and no task. */
+function NoAnswer({ found, query }: { found: boolean; query: string }) {
+  if (found || !query) return null
+  return <EmptyState>No goal or task answers “{query}”. Escape clears the search.</EmptyState>
+}
+
+/** The plans Tasks draws: Goals reads each at a glance, and only Tasks draws the boards, the rail and their search. */
+const drawn = (summary: boolean | undefined, given: Props['plans']) => (summary ? undefined : given)
+
+interface ListedProps extends Pick<Props, 'snapshot' | 'projectId' | 'identity' | 'entry' | 'onOpenGoal'> {
+  summary: boolean | undefined
+  controls: boolean
+  /** Every plan as served; `plans`, those Tasks draws. */
+  given: Props['plans']
+  plans: Props['plans']
+  listed: readonly Goal[]
+  query: string
+}
+
+/** Goals: the overview. Tasks: each goal with its plan under it, as the search leaves them. */
+function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
+  const { given, plans, listed, query } = shown
+  if (summary) return snapshot ? <GoalsOverview goals={snapshot.goals} plans={given} onOpenGoal={onOpenGoal} /> : null
+  return (
+    <SearchQuery.Provider value={query}>
+      <ol className="goal-list">
+        {listed.map((g) => (
+          <GoalCard
+            key={g.id}
+            goal={g}
+            projectId={projectId}
+            identity={identity}
+            controls={controls}
+            compact={plans?.[g.id] !== undefined}
+            next={plans?.[g.id]?.next}
+          >
+            {plans?.[g.id]?.view}
+            {entry?.(g)}
+          </GoalCard>
+        ))}
+      </ol>
+    </SearchQuery.Provider>
+  )
+}
+
 export function GoalList({
   snapshot,
   projectId,
@@ -195,8 +240,7 @@ export function GoalList({
   summary,
   onOpenGoal,
 }: Props) {
-  const { plans, progress, opener } = useSummary(summary, given, onOpenGoal)
-  const planned = (id: string) => plans?.[id]?.view
+  const plans = drawn(summary, given)
   const [query, setQuery] = useState('')
   const { tabbed, shown, listed, anyPlan, choose, followed, decisionFollowed } = useChosenGoal(snapshot, plans, query)
   useClearHiding(followed, setQuery)
@@ -204,33 +248,16 @@ export function GoalList({
   return (
     <section className="goals" aria-labelledby="goals-title">
       <Head tasks={controls} anyPlan={anyPlan} snapshot={snapshot} query={query} onQuery={setQuery} />
-      {anyPlan && query && tabbed.length === 0 && listed.length === 0 && (
-        <EmptyState>No goal or task answers “{query}”. Escape clears the search.</EmptyState>
-      )}
+      <NoAnswer found={!anyPlan || tabbed.length + listed.length > 0} query={query} />
       {!snapshot && <Skeleton label="Reading the goals…" />}
       {snapshot?.goals.length === 0 && <NoGoals canAct={canAct} onOpenStudio={onOpenStudio} onInvite={onInvite} />}
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       {shown && <Rail goals={tabbed} shown={shown.id} plans={plans} onChoose={choose} />}
-      <SearchQuery.Provider value={query}>
-        <ol className="goal-list">
-          {listed.map((g) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
-              projectId={projectId}
-              identity={identity}
-              controls={controls && canAct}
-              compact={plans?.[g.id] !== undefined}
-              next={plans?.[g.id]?.next}
-              progress={progress(g.id)}
-              onOpen={opener(g.id)}
-            >
-              {planned(g.id)}
-              {entry?.(g)}
-            </GoalCard>
-          ))}
-        </ol>
-      </SearchQuery.Provider>
+      <Listed
+        {...{ snapshot, projectId, identity, entry, onOpenGoal, given, plans, listed, query }}
+        summary={summary}
+        controls={controls && canAct}
+      />
       {snapshot && <NativeTasks snapshot={snapshot} projectId={projectId} identity={identity} canAct={canAct} />}
     </section>
   )

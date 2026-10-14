@@ -1,0 +1,145 @@
+import assert from 'node:assert/strict'
+import { describe, it } from 'node:test'
+import type { Goal } from '@sophia/contracts'
+import {
+  briefOf,
+  goalsShown,
+  healthLine,
+  healthOf,
+  MANY,
+  ordered,
+  rowLine,
+  stateLine,
+  wayLine,
+  type GoalGlance,
+} from './goals-glance.ts'
+import type { Ask } from './planning/plan.ts'
+
+const goal = (id: string, status: Goal['status'], title = id, criteria = 0): Goal => ({
+  id,
+  projectId: 'p',
+  title,
+  revision: 1,
+  authorityEpoch: 1,
+  status,
+  outcome: `${title}, done well`,
+  criteria: Array.from({ length: criteria }, (_, i) => ({
+    id: `c${String(i)}`,
+    description: 'A criterion',
+    required: true,
+    verification: 'checked',
+  })),
+  stateRevision: 1,
+})
+
+const NONE = { permissions: 0, decisions: 0, capacity: 0, outside: 0, blocked: 0 }
+
+const glance = (over: Partial<GoalGlance> = {}): GoalGlance => ({
+  lanes: ['complete', 'active', 'active', 'next', 'next'],
+  people: [],
+  ways: NONE,
+  ...over,
+})
+
+const ask: Ask = { id: 'a', kind: 'request', words: 'Open the shared folder', by: 'Marco’s Claude Code', target: 't' }
+const stuck = glance({ ways: { ...NONE, permissions: 1, blocked: 1 } })
+
+describe('a goal’s health (docs/plans/goals-overview.md)', () => {
+  it('needs attention when moving with something in its way or waiting on the viewer; else on track', () => {
+    assert.equal(healthOf(goal('a', 'running'), { glance: stuck }), 'attention')
+    assert.equal(healthOf(goal('a', 'running'), { glance: glance(), asks: [ask] }), 'attention')
+    assert.equal(healthOf(goal('a', 'running'), { glance: glance() }), 'track')
+    assert.equal(healthOf(goal('a', 'checking'), undefined), 'track')
+  })
+
+  it('reads the other states as people do', () => {
+    const states = ['ready', 'holding', 'held', 'stopping', 'stopped', 'completed'] as const
+    assert.deepEqual(
+      states.map((s) => healthOf(goal('a', s), undefined)),
+      ['new', 'paused', 'paused', 'paused', 'paused', 'done'],
+    )
+    assert.equal(healthOf(goal('a', 'ready'), { asks: [ask] }), 'attention')
+  })
+})
+
+describe('the brief', () => {
+  it('says first what waits on the viewer, in words', () => {
+    assert.equal(briefOf(0), 'Nothing waits on you.')
+    assert.equal(briefOf(1), 'One thing waits on you.')
+    assert.equal(briefOf(2), 'Two things wait on you.')
+    assert.equal(briefOf(12), '12 things wait on you.')
+  })
+
+  it('counts the goals by health, the done ones left out', () => {
+    const goals = [goal('a', 'running'), goal('b', 'running'), goal('c', 'ready'), goal('d', 'completed')]
+    assert.equal(healthLine(goals, { a: { glance: stuck } }), '1 needs attention · 1 on track · 1 not started')
+    assert.equal(healthLine([goal('d', 'completed')], {}), '')
+  })
+})
+
+describe('the line under a goal', () => {
+  it('says what each state means now', () => {
+    assert.equal(stateLine(goal('a', 'ready'), glance()), '5 tasks planned')
+    assert.equal(stateLine(goal('a', 'ready'), undefined), 'No plan yet')
+    assert.equal(stateLine(goal('a', 'running'), glance()), '1 of 5 done')
+    assert.equal(stateLine(goal('a', 'checking', 'a', 2), glance()), 'Checking the outcome against 2 criteria')
+    assert.equal(stateLine(goal('a', 'holding'), glance()), 'Holding · stops after its current step')
+    assert.equal(stateLine(goal('a', 'held'), glance()), 'Held · 1 of 5 done')
+    assert.equal(stateLine(goal('a', 'stopping'), glance()), 'Stopping · finished work is kept')
+    assert.equal(stateLine(goal('a', 'stopped'), undefined), 'Stopped')
+  })
+
+  it('sums what is in the way by kind, and says nothing when nothing is', () => {
+    assert.equal(wayLine(stuck), '1 waiting on a permission · 1 blocked')
+    assert.equal(wayLine(glance({ ways: { ...NONE, outside: 1 } })), '1 waiting on another service')
+    assert.equal(wayLine(glance()), null)
+    assert.equal(wayLine(undefined), null)
+  })
+
+  it('says, after the health word, what matters now', () => {
+    assert.equal(rowLine(goal('a', 'running'), { glance: stuck }), '1 waiting on a permission · 1 blocked')
+    assert.equal(rowLine(goal('a', 'running'), { glance: glance(), asks: [ask] }), '1 waiting on you')
+    assert.equal(
+      rowLine(goal('a', 'running'), { glance: glance(), checkpoint: 'The review passes' }),
+      'Next · The review passes',
+    )
+    assert.equal(rowLine(goal('a', 'running'), { glance: glance() }), '1 of 5 done')
+    assert.equal(rowLine(goal('a', 'ready'), undefined), 'No plan yet')
+    assert.equal(rowLine(goal('a', 'held'), { glance: glance() }), 'Held · 1 of 5 done')
+    assert.equal(rowLine(goal('a', 'completed', 'Pilot'), undefined), 'Pilot, done well')
+  })
+})
+
+describe('the goals in order, and many of them', () => {
+  const goals = [
+    goal('e', 'completed', 'Run the pilot'),
+    goal('c', 'held', 'Localise pricing'),
+    goal('b', 'ready', 'Map the admin flow'),
+    goal('t', 'running', 'Large reports'),
+    goal('a', 'running', 'Roll out the onboarding'),
+  ]
+  const plans = { a: { glance: stuck, words: 'Translate the checklist Marco' }, t: { glance: glance() } }
+
+  it('puts what needs attention first, then on track, not started, paused, done', () => {
+    assert.deepEqual(
+      ordered(goals, plans).map((g) => g.id),
+      ['a', 't', 'b', 'c', 'e'],
+    )
+  })
+
+  it('finds a goal by its title, its outcome or its tasks', () => {
+    assert.deepEqual(
+      goalsShown(goals, plans, 'PRICING').map((g) => g.id),
+      ['c'],
+    )
+    assert.deepEqual(
+      goalsShown(goals, plans, 'checklist').map((g) => g.id),
+      ['a'],
+    )
+    assert.equal(goalsShown(goals, plans, '  ').length, 5)
+  })
+
+  it('offers the search past six goals', () => {
+    assert.equal(MANY, 6)
+  })
+})

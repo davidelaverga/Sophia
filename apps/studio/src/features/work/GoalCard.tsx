@@ -4,6 +4,7 @@ import { Button, Icon, Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { GOAL_STATUS } from './labels.ts'
 import { WorkControls } from './WorkControls.tsx'
+import { Criteria } from './Criteria.tsx'
 
 interface Props {
   goal: Goal
@@ -20,42 +21,6 @@ interface Props {
   children?: React.ReactNode
   /** Its plan's next checkpoint, said on its second line (Tasks, compact). */
   next?: React.ReactNode
-  /** Goals: how far its plan has gone, and the press that opens that plan in Tasks (goals-progress.md). */
-  progress?: { done: number; total: number } | undefined
-  onOpen?: (() => void) | undefined
-}
-
-/** Goals: its plan's progress and the way to it. */
-function PlanLine({ progress, onOpen }: Pick<Props, 'progress' | 'onOpen'>) {
-  if (!progress && !onOpen) return null
-  return (
-    <div className="goal-plan-line">
-      {progress && (
-        <p className="goal-progress">
-          {progress.done} of {progress.total} {progress.total === 1 ? 'task' : 'tasks'} done
-        </p>
-      )}
-      {onOpen && (
-        <Button kind="text" onClick={onOpen}>
-          Open in Tasks
-        </Button>
-      )}
-    </div>
-  )
-}
-
-/** A goal's criteria. Required unless said otherwise: the exception is marked, never the rule (goal-optional.md). */
-function Criteria({ goal }: { goal: Goal }) {
-  return (
-    <ul className="criteria">
-      {goal.criteria.map((c) => (
-        <li key={c.id}>
-          <span>{c.description}</span>
-          {!c.required && <span className="criterion-optional"> · optional</span>}
-        </li>
-      ))}
-    </ul>
-  )
 }
 
 /**
@@ -91,7 +56,7 @@ function SecondLine({ goal, next }: { goal: Goal; next?: React.ReactNode }) {
 }
 
 export function GoalCard(props: Props) {
-  const { goal, projectId, identity, controls = true, compact = false, children, next, progress, onOpen } = props
+  const { goal, projectId, identity, controls = true, compact = false, children, next } = props
   const status = GOAL_STATUS[goal.status]
   const tag = <Tag tone={status.tone}>{status.label}</Tag>
   return (
@@ -107,7 +72,6 @@ export function GoalCard(props: Props) {
         <>
           <p className="goal-outcome">{goal.outcome}</p>
           {goal.criteria.length > 0 && <Criteria goal={goal} />}
-          <PlanLine progress={progress} onOpen={onOpen} />
         </>
       )}
       {controls && <WorkControls goal={goal} projectId={projectId} identity={identity.name} token={identity.token} />}

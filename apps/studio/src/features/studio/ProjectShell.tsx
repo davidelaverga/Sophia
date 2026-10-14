@@ -742,10 +742,10 @@ function Goals(props: BodyProps) {
       canAct={canInvite(membership)}
       plans={plans}
       summary={!work}
-      onOpenGoal={(id) => {
-        // Tasks, with the goal named in the address: its plan is the one on the board (goals-progress.md).
+      onOpenGoal={(id, address = GOAL) => {
+        // Tasks, with the goal, or a task or decision of it, named in the address (goals-overview.md).
         onShow('work')
-        showInAddress(id, GOAL)
+        showInAddress(id, address)
         window.dispatchEvent(new Event(ADDRESS_NAMED))
       }}
       entry={work ? entry : undefined}

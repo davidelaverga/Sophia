@@ -451,6 +451,25 @@ export const moreGoals: Goal[] = MORE.map(([title, outcome], i) => ({
   stateRevision: 1,
 }))
 
+/** `goals=9`: three more goals past the six, held, stopped and completed, none with a plan on the board (goals-overview.md). */
+export const laterGoals: Goal[] = (
+  [
+    ['Localise the pricing page', 'Every region reads its own prices', 'held'],
+    ['Pilot a paid tier with two teams', 'Two teams pay for a month', 'stopped'],
+    ['Run the export pilot with five teams', 'Five teams export a report each week', 'completed'],
+  ] as const
+).map(([title, outcome, status], i) => ({
+  id: `00000000-0000-4000-8000-0000000000d${String(i)}`,
+  projectId: PROJECT,
+  title,
+  revision: 1,
+  authorityEpoch: 1,
+  status,
+  outcome,
+  criteria: [],
+  stateRevision: 1,
+}))
+
 export const moreViews: GoalView[] = moreGoals.map((g, i) => {
   const id = `more-${String(i)}-a`
   const human = i % 2 === 0
