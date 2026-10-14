@@ -23,11 +23,9 @@ test('account · the theme’s three choices stand on one row, and Light turns o
   await expect(choices).toHaveCount(3)
   const tops = await choices.evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)))
   expect(new Set(tops).size).toBe(1)
+  // A choice of theme keeps the menu open, as the other radio items do: it turns on where it stands.
   await menu.getByRole('menuitemradio', { name: 'Light' }).click()
-  await page.getByRole('button', { name: 'Account' }).click()
-  await expect(
-    page.getByRole('menu', { name: 'Account' }).getByRole('menuitemradio', { name: 'Light' }),
-  ).toHaveAttribute('aria-checked', 'true')
+  await expect(menu.getByRole('menuitemradio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
 })
 
 test('account · in a project the data item says it is your personal data', async ({ page }) => {
