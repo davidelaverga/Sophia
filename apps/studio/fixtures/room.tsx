@@ -28,7 +28,7 @@ import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import '../src/app/theme.css'
-import { noteKept, type Notes } from './brief-data.ts'
+import { goalNote, noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
 import { noTasks, taskOf } from './task-data.ts'
@@ -252,6 +252,25 @@ declare global {
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 
+/** The demo's notes on its rollout (goal-notes.md): Sophia's difficulty from the call, and the viewer's own. */
+function demoGoalNotes() {
+  const rollout = DEMO_GOALS.find((g) => g.status === 'running')
+  if (!rollout) return []
+  return [
+    goalNote(1, rollout.id, {
+      kind: 'observation',
+      text: 'The pilot numbers hold: 2.4 days to a first shared report.',
+      hours: 72,
+    }),
+    goalNote(2, rollout.id, {
+      kind: 'blocker',
+      text: 'From the call: legal review of the translated checklist lands Thursday; nothing ships before.',
+      hours: 2,
+      sophia: true,
+    }),
+  ]
+}
+
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {
   if (floor === 'me') return membership.actorId
@@ -462,7 +481,7 @@ const project = {
     ...(DEMO ? { published: () => [readoutMade()] } : {}),
   },
   notes: {
-    kept: [],
+    kept: DEMO ? demoGoalNotes() : [],
     written: 0,
     receipts: new Map(),
     loseReply: false,

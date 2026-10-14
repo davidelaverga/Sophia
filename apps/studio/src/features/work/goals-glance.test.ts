@@ -60,6 +60,36 @@ describe('a goal’s health (docs/plans/goals-overview.md)', () => {
     )
     assert.equal(healthOf(goal('a', 'ready'), { asks: [ask] }), 'attention')
   })
+
+  it('needs attention when its latest note is a difficulty (docs/plans/goal-notes.md)', () => {
+    const difficulty = { kind: 'blocker' as const, said: 'Sophia “Legal lands Thursday.”' }
+    assert.equal(healthOf(goal('a', 'running'), { glance: glance(), note: difficulty }), 'attention')
+    assert.equal(healthOf(goal('a', 'ready'), { note: difficulty }), 'attention')
+    assert.equal(healthOf(goal('a', 'held'), { note: difficulty }), 'paused')
+    assert.equal(
+      healthOf(goal('a', 'running'), { glance: glance(), note: { ...difficulty, kind: 'observation' } }),
+      'track',
+    )
+  })
+})
+
+describe('a note on a goal’s row (docs/plans/goal-notes.md)', () => {
+  const note = { kind: 'observation' as const, said: 'Sophia “The first candidate renders in 41 s.”' }
+
+  it('is the line of a goal that needs nothing, in place of where it is', () => {
+    assert.equal(rowLine(goal('a', 'running'), { glance: glance(), checkpoint: 'Next', note }), note.said)
+    assert.equal(rowLine(goal('a', 'ready'), { note }), note.said)
+  })
+
+  it('says a difficulty in place of the way; what waits on the viewer still comes first', () => {
+    const difficulty = { ...note, kind: 'blocker' as const }
+    assert.equal(rowLine(goal('a', 'running'), { glance: stuck, note: difficulty }), difficulty.said)
+    assert.equal(
+      rowLine(goal('a', 'running'), { glance: stuck, asks: [ask], note: difficulty }),
+      `1 waiting on you · ${difficulty.said}`,
+    )
+    assert.equal(rowLine(goal('a', 'running'), { glance: stuck, note }), '1 waiting on a permission · 1 blocked')
+  })
 })
 
 describe('the brief', () => {
