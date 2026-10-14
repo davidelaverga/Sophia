@@ -20,6 +20,20 @@ const meet = (page: Page) =>
     return !(t.right <= s.left || t.left >= s.right || t.bottom <= s.top || t.top >= s.bottom)
   })
 
+test('toast · in a window both narrow and short (500×400), the sheet leaves the notice its band at the top (Codex P2 on #293)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 500, height: 400 })
+  await page.goto('/room.html?demo=1')
+  await page.getByRole('button', { name: 'Invite' }).first().click()
+  await page.getByRole('tab', { name: 'Calendar' }).click()
+  await expect(page.locator('.sheet')).toBeVisible()
+  await notice(page)
+  await page.waitForTimeout(400)
+  expect(await meet(page)).toBe(false)
+  await expect(page.locator('.toast')).toBeInViewport()
+})
+
 for (const width of [390, 900]) {
   test(`toast · with a sheet open at ${String(width)} px, a notice stands clear of it`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 })
