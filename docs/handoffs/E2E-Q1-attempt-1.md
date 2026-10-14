@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/author
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API, no contract, no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `07b2e6a23c8f` (tree `17cf79a6c1a3`), the last commit of `ui/author-names`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 3 files changed against
+`origin/main` at that commit: `src/features/conversation/conversation-view.test.ts`, `src/features/conversation/conversation-view.ts`, `docs/plans/author-names.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
