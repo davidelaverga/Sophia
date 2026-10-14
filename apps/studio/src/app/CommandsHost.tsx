@@ -40,6 +40,7 @@ function useLightCommand() {
   return {
     id: 'theme',
     words: light ? 'Switch to the dark room' : 'Switch to the light page',
+    also: ['theme', 'dark', 'light', 'mode'],
     group: 'do' as const,
     key: 'mod+shift+l',
     run: () => setTheme(lightShown() ? 'dark' : 'light'),
@@ -60,7 +61,14 @@ export function CommandsHost({ onSearch }: Props) {
   const index = () => setOpen('index')
   useCommands([
     { id: 'commands', words: 'Commands', group: 'do', key: 'mod+k', run: palette },
-    { id: 'keys', words: 'Keyboard shortcuts', group: 'do', key: 'mod+/', run: index },
+    {
+      id: 'keys',
+      words: 'Keyboard shortcuts',
+      group: 'do',
+      key: 'mod+/',
+      also: ['keys', 'help', 'hotkeys'],
+      run: index,
+    },
     useLightCommand(),
   ])
   // The same index on ?, where it can be typed as a key: not listed twice.

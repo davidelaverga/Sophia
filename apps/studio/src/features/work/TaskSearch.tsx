@@ -18,7 +18,14 @@ export function answers(query: string, ...texts: readonly (string | null | undef
 export function TaskSearch({ query, onChange }: { query: string; onChange: (query: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   useCommands([
-    { id: 'search-tasks', words: 'Search goals and tasks', group: 'view', key: '/', run: () => input.current?.focus() },
+    {
+      id: 'search-tasks',
+      words: 'Search goals and tasks',
+      group: 'view',
+      key: '/',
+      also: ['find'],
+      run: () => input.current?.focus(),
+    },
   ])
   return (
     <Search

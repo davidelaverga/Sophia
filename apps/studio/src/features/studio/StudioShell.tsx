@@ -242,6 +242,9 @@ function useUnderTheLine(extras: Extras, chatOpen: boolean) {
   return { present, under: object, showing }
 }
 
+/** Other words people type for the chat and the brief (docs/plans/palette-also.md). */
+const PANEL_ALSO = { chat: ['sophia', 'ask', 'talk'], brief: ['summary', 'decisions'] } as const
+
 /** The room's own keys, as commands: a lens by its number, Chat and the brief by their letters, said by their state. */
 function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
   const toggle = (which: 'chat' | 'brief', words: string) => ({
@@ -249,6 +252,7 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
     words: `${panel.panel === which ? 'Close' : 'Open'} the ${words}`,
     group: 'view' as const,
     key: which === 'chat' ? 'c' : 'b',
+    also: PANEL_ALSO[which],
     run: () => panel.toggle(which),
   })
   useCommands([

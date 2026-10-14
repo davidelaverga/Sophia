@@ -77,7 +77,14 @@ function moveAlong(event: KeyboardEvent<HTMLUListElement>) {
 function SearchGoals({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   useCommands([
-    { id: 'search-goals', words: 'Search the goals', group: 'view', key: '/', run: () => input.current?.focus() },
+    {
+      id: 'search-goals',
+      words: 'Search the goals',
+      group: 'view',
+      key: '/',
+      also: ['find'],
+      run: () => input.current?.focus(),
+    },
   ])
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Escape') return

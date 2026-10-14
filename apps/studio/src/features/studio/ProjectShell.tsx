@@ -247,11 +247,28 @@ function useBeyondTheView(props: Props, snapshot: Snapshot | undefined, room: Pr
   useJoinOnOpen(room, props.joinOnOpen ?? false, props.onJoinHandled)
 }
 
+/** Other words people type for each view (docs/plans/palette-also.md): «what changed» is Updates, «sophia» Conversations. */
+const VIEW_ALSO: Readonly<Record<View, readonly string[]>> = {
+  studio: ['room', 'call'],
+  conversations: ['sophia', 'ask', 'chat'],
+  goals: ['outcomes'],
+  work: ['board', 'plan'],
+  knowledge: ['reports', 'library', 'docs'],
+  updates: ['what changed', 'recap', 'news'],
+  resources: ['tools', 'agents', 'sessions'],
+}
+
 /** The views a person can go to from here, each a command without a key (docs/plans/commands.md). */
 const viewCommands = (view: View, onShow: (view: View) => void) =>
   viewsShown(VISION)
     .filter((v) => v !== view)
-    .map((v) => ({ id: `view-${v}`, words: `Go to ${VIEW_LABEL[v]}`, group: 'go' as const, run: () => onShow(v) }))
+    .map((v) => ({
+      id: `view-${v}`,
+      words: `Go to ${VIEW_LABEL[v]}`,
+      group: 'go' as const,
+      also: VIEW_ALSO[v],
+      run: () => onShow(v),
+    }))
 
 /**
  * H goes home and W to the projects, from a project as from every place; I invites, where the viewer may; `/`
@@ -270,7 +287,14 @@ function useProjectKeys(
       { id: 'work', words: 'Your projects', group: 'go', key: 'w', run: go.onWork },
       // Behind a shut door there are no views to go to: Home and Your projects stay (Codex on #238).
       ...(at.blocked ? [] : viewCommands(at.view, go.show)),
-      { id: 'invite', words: 'Invite someone', group: 'do', key: 'i', run: at.mayInvite ? go.invite : undefined },
+      {
+        id: 'invite',
+        words: 'Invite someone',
+        group: 'do',
+        key: 'i',
+        also: ['add', 'people', 'members'],
+        run: at.mayInvite ? go.invite : undefined,
+      },
       {
         id: 'search',
         words: 'Search this project',
@@ -278,6 +302,7 @@ function useProjectKeys(
         // A view's own search on `/` (Tasks with plans, Resources): there the project's keeps its words, not the key; a
         // Tasks view with no plans has none, and `/` stays the project's (Codex on #238).
         key: slashTaken ? undefined : '/',
+        also: ['find'],
         run: VISION && at.shown ? go.search : undefined,
       },
     ],
