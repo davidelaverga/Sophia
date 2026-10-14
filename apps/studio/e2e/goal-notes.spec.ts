@@ -49,6 +49,21 @@ test('notes · a Difficulty written on the ready goal comes first as «You» and
   )
 })
 
+test('notes · a note Sophia writes from a call reaches the row as the project moves, with no reload (Codex P1 on #305)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=goals')
+  await expect(row(page, READY).locator('.goal-health')).toHaveText('Not started')
+  await page.evaluate(() =>
+    window.fixture?.noteOnGoal(
+      'Keep teams through an admin change',
+      'From the call: nobody owns the admin checklist yet.',
+    ),
+  )
+  await expect(row(page, READY).locator('.goal-health')).toHaveText('Needs attention')
+  await expect(row(page, READY).locator('.goal-row-line')).toContainText('Sophia “From the call: nobody owns')
+})
+
 test('notes · ⌘/Ctrl+Enter adds the note', async ({ page }) => {
   await page.goto('/room.html?demo=1&place=goals')
   const sheet = await open(page, READY)

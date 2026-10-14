@@ -95,6 +95,8 @@ interface Fixture {
   update: () => void
   /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
   shutDoor: () => void
+  /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
+  noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
@@ -505,6 +507,14 @@ window.fixture = {
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
+    publish(project)
+  },
+  noteOnGoal: (title, text) => {
+    const goal = DEMO_GOALS.find((g) => g.title === title)
+    if (!goal) return
+    project.notes.kept.push(
+      goalNote(project.notes.kept.length + 10, goal.id, { kind: 'blocker', text, hours: 0, sophia: true }),
+    )
     publish(project)
   },
   say: (text) => {
