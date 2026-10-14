@@ -24,7 +24,7 @@ import {
   type Kind,
   type Narrowing,
 } from './updates-view.ts'
-import { clock, dayOf, sameDay } from '../../app/time-words.ts'
+import { ago, clock, dayOf, sameDay } from '../../app/time-words.ts'
 import { useArrival, useProjectGo } from '../studio/project-go.tsx'
 
 interface Props {
@@ -119,7 +119,8 @@ function DigestBody({ digest, projectId, identity, me }: Omit<SinceProps, 'curso
   const nameOf = namers(me, NO_NAMES, digest.names).shown
   const [by, setBy] = useState<Narrowing>({ kind: 'all', person: null })
   const shown = narrowRecords(digest, by)
-  const sections = recapSections(shown, nameOf)
+  // Since you last looked, when is half the news: each decided and kept line says it (updates-when.md).
+  const sections = recapSections(shown, nameOf, false, (at) => ago(at, Date.now()))
   const any = recapSections(digest, nameOf).length > 0
   const lead = digestLead(digest)
   const seen = useMarkSeen(projectId, identity)
