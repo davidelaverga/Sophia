@@ -344,7 +344,8 @@ function useTasksWork(
     canAct: canInvite(membership),
     enabled: readsServedBoard(props.view, blocked, !!props.plans, searching),
   })
-  return { plans: props.plans ?? served.plans, entry: served.entry }
+  // A page's own plans are read already; else the board's first read may still bring tasks (search-honest.md).
+  return { plans: props.plans ?? served.plans, entry: served.entry, boardReading: !props.plans && served.boardReading }
 }
 
 /** What the door lets through: whether a snapshot ever loaded, why the project is closed, and what may be acted on. */
@@ -580,6 +581,8 @@ interface BodyProps {
   plans: Readonly<Record<string, GoalPlan>> | undefined
   /** The source-review pilot's entry under each goal in Tasks (WBC-02), where Sophia offers it. */
   entry?: ServedWork['entry']
+  /** The served board's first read is under way (search-honest.md). */
+  boardReading?: boolean
   /** The project's search (A13): open from the head's Search, or `/`. */
   search: { open: boolean; onClose: () => void }
   /** The room's dock when the header has no room for it (a narrow screen): floating, mounted outside the header. */
@@ -677,6 +680,7 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
         {...{ projectId, identity, snapshot, membership, room }}
         {...props.search}
         plans={props.plans}
+        boardReading={props.boardReading ?? false}
         onThere={(view, id, address) => {
           // A goal's sheet in Goals, a task's in Tasks, named in the address (search-goals.md).
           onShow(view)
