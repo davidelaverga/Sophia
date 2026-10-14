@@ -84,12 +84,12 @@ import {
   NOW as RESOURCES_READ,
   observations as resourceObservations,
   people as resourcePeople,
-  resources as demoResources,
+  resources as resourceList,
 } from './resources-data.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
-import { demoServedGoals } from './demo-work.ts'
+import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
 
 interface Fixture {
@@ -1007,16 +1007,20 @@ function Project({ background }: { background: boolean }) {
   )
 }
 
+/** The resources' labelled fixture data told in the pilot's words and cast, as the demo's board is (demo-work.ts). */
+const DEMO_RESOURCES = demoResources({ resources: resourceList, actions: resourceActions })
+
 /**
  * The demo's Resources: the real panel over the resources' labelled fixture data (resources-data.ts), read-only (no
- * effort, act or task link wired, so nothing offers a press that does nothing; docs/plans/demo-resources.md).
+ * effort, act or task link wired, so nothing offers a press that does nothing; docs/plans/demo-resources.md), told as
+ * the board is (docs/plans/demo-resources-story.md).
  */
 function DemoResources() {
   return (
     <ResourcePanel
-      resources={demoResources}
+      resources={DEMO_RESOURCES.resources}
       observations={resourceObservations}
-      actions={resourceActions}
+      actions={DEMO_RESOURCES.actions}
       viewerId={resourcePeople.luis.id}
       now={RESOURCES_READ}
       history={earlierReadings(resourceObservations)}
