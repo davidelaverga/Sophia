@@ -750,6 +750,7 @@ function PageBody(props: BodyProps) {
 function Goals(props: BodyProps) {
   const { view, projectId, identity, membership, snapshot, onShow, onInvite, plans, entry } = props
   const work = view === 'work'
+  const names = useKnownNames(props.room)
   return (
     <GoalList
       snapshot={snapshot}
@@ -759,6 +760,8 @@ function Goals(props: BodyProps) {
       canAct={canInvite(membership)}
       plans={plans}
       summary={!work}
+      me={membership?.actorId}
+      names={names}
       onOpenGoal={(id, address = GOAL) => {
         // Tasks, with the goal, or a task or decision of it, named in the address (goals-overview.md).
         onShow('work')

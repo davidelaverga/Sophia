@@ -29,7 +29,7 @@ import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
 import { rememberWelcome } from '../src/features/access/welcome.ts'
 import '../src/app/theme.css'
-import { noteKept, type Notes } from './brief-data.ts'
+import { goalNote, noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
 import { noTasks, taskOf } from './task-data.ts'
@@ -96,6 +96,8 @@ interface Fixture {
   update: () => void
   /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
   shutDoor: () => void
+  /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
+  noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
@@ -264,6 +266,25 @@ bootTheme(query.get('theme'))
 // `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
 if (query.get('welcome') === '1')
   rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })
+
+/** The demo's notes on its rollout (goal-notes.md): Sophia's difficulty from the call, and the viewer's own. */
+function demoGoalNotes() {
+  const rollout = DEMO_GOALS.find((g) => g.status === 'running')
+  if (!rollout) return []
+  return [
+    goalNote(1, rollout.id, {
+      kind: 'observation',
+      text: 'The pilot numbers hold: 2.4 days to a first shared report.',
+      hours: 72,
+    }),
+    goalNote(2, rollout.id, {
+      kind: 'blocker',
+      text: 'From the call: legal review of the translated checklist lands Thursday; nothing ships before.',
+      hours: 2,
+      sophia: true,
+    }),
+  ]
+}
 
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {
@@ -478,7 +499,7 @@ const project = {
     ...(DEMO ? { published: () => [readoutMade()] } : {}),
   },
   notes: {
-    kept: [],
+    kept: DEMO ? demoGoalNotes() : [],
     written: 0,
     receipts: new Map(),
     loseReply: false,
@@ -493,6 +514,14 @@ window.fixture = {
   update: () => publish(project),
   shutDoor: () => {
     project.doorShut = true
+    publish(project)
+  },
+  noteOnGoal: (title, text) => {
+    const goal = DEMO_GOALS.find((g) => g.title === title)
+    if (!goal) return
+    project.notes.kept.push(
+      goalNote(project.notes.kept.length + 10, goal.id, { kind: 'blocker', text, hours: 0, sophia: true }),
+    )
     publish(project)
   },
   say: (text) => {
