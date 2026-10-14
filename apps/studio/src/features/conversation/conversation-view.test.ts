@@ -65,6 +65,13 @@ describe('conversation view', () => {
     // An address is no name: the person, as the stage names them (e2e-real Q1); a name given stays whole.
     assert.equal(authorLabel('b', 'me', names), 'Luis')
     assert.equal(authorLabel('d', 'me', names), 'Ana López')
+    // A chosen name with an at sign is still a name (Codex P2 on #330): only an address reads as its person.
+    const chosen = new Map([
+      ['e', '@alice'],
+      ['f', 'Ana @ Acme'],
+    ])
+    assert.equal(authorLabel('e', 'me', chosen), '@alice')
+    assert.equal(authorLabel('f', 'me', chosen), 'Ana @ Acme')
     assert.equal(authorLabel('c', 'me', names), 'A member')
   })
 
