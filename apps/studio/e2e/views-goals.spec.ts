@@ -29,14 +29,17 @@ test('goals · in the demo, Goals opens from its tab with the project’s three 
   await expect(goals(page)).toHaveCount(2)
   await page.getByRole('button', { name: /1 done/ }).click()
   await expect(goals(page)).toHaveCount(3)
-  // Every criterion here is required: the rule goes unsaid (docs/plans/goal-optional.md).
-  await expect(page.locator('.criteria li').first()).toBeVisible()
-  await expect(page.locator('.criteria').getByText(/required/i)).toHaveCount(0)
   for (const title of [ROLLOUT, 'Keep teams through an admin change', 'Run the pilot with fourteen teams']) {
     await expect(goal(page, title)).toHaveCount(1)
   }
   // Goals reads outcomes; the controls are Tasks'.
   await expect(goal(page, ROLLOUT).getByRole('button', { name: /^Hold/ })).toHaveCount(0)
+  // A goal's criteria are in its sheet. Every one here is required: the rule goes unsaid (docs/plans/goal-optional.md).
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await expect(sheet.locator('.criteria li').first()).toBeVisible()
+  await expect(sheet.locator('.criteria').getByText(/required/i)).toHaveCount(0)
+  await expect(sheet.getByRole('button', { name: /^Hold/ })).toHaveCount(0)
 })
 
 test('goals · in the demo, Resources opens from its tab and says what it will hold', async ({ page }) => {

@@ -6,6 +6,7 @@ import type { BoardDecision, ItemView, Lifecycle, Wait } from './board-view.ts'
 import {
   actionable,
   allowed,
+  asksOf,
   boardOf,
   decidedFor,
   forViewer,
@@ -658,6 +659,62 @@ describe('a goal at a glance (docs/plans/goals-overview.md)', () => {
     const glance = glanceOf(rowsOf(goal(plan([item('a'), after, item('c')]), views)))
     assert.equal(glance.ways.blocked, 1)
     assert.deepEqual(glance.people, [])
+  })
+})
+
+describe('what waits on the viewer in a goal (docs/plans/goals-overview.md)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const asked = (over: Partial<BoardDecision>): BoardDecision => ({
+    decision_id: 'd',
+    revision: 1,
+    work_id: 'ask',
+    plan_id: 'plan-1',
+    plan_revision: 2,
+    candidate_version_ref: null,
+    question: 'Ship it before the review?',
+    decider_id: 'davide',
+    choices: [{ key: 'a', label: 'A' }],
+    expires_at: '2026-10-02T13:00:00Z',
+    state: 'proposed',
+    selected_choice: null,
+    choice_receipt_id: null,
+    plan_reaction: 'not_needed',
+    ...over,
+  })
+  const views = [
+    view('ask', {
+      lifecycle: 'waiting',
+      assignment: assignment('ask'),
+      waiting_on: [wait('native_permission', 'davide'), wait('capacity', 'luis', 'resolved')],
+    }),
+  ]
+  const decisions = [
+    asked({}),
+    asked({ decision_id: 'old', expires_at: '2026-10-02T11:00:00Z' }),
+    asked({ decision_id: 'theirs', decider_id: 'luis' }),
+  ]
+
+  it('lists the requests naming the viewer, then their decisions still open, each with where it opens', () => {
+    const rows = rowsOf(goal(plan([item('ask')]), views), 'davide')
+    assert.deepEqual(asksOf(rows, decisions, 'davide', now), [
+      {
+        id: 'ask:ref-native_permission',
+        kind: 'request',
+        words: 'About native_permission',
+        by: 'Davide’s Claude Code',
+        target: 'ask',
+      },
+      { id: 'd', kind: 'decision', words: 'Ship it before the review?', by: null, target: 'd' },
+    ])
+  })
+
+  it('holds nothing of anyone else’s, nothing answered and nothing for no one', () => {
+    const rows = rowsOf(goal(plan([item('ask')]), views), 'luis')
+    assert.deepEqual(
+      asksOf(rows, decisions, 'luis', now).map((a) => a.id),
+      ['theirs'],
+    )
+    assert.deepEqual(asksOf(rows, decisions, null, now), [])
   })
 })
 
