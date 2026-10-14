@@ -55,3 +55,23 @@ export function withNotes<P extends object>(
   }
   return out
 }
+
+/**
+ * How the notes stand (notes-robust.md): read; being read for the first time; failed with nothing read; or failed on
+ * a later read, the last list kept.
+ */
+export function notesRead(q: { data: unknown; isError: boolean }): 'read' | 'reading' | 'failed' | 'stale' {
+  if (q.isError) return q.data === undefined ? 'failed' : 'stale'
+  return q.data === undefined ? 'reading' : 'read'
+}
+
+/** After a note is kept, the field clears only what was sent: words typed since, or a kind chosen since, stay. */
+export function keptAfter(
+  now: { text: string; kind: NoteKind },
+  sent: { text: string; kind: NoteKind },
+): { text: string; kind: NoteKind } {
+  return {
+    text: now.text.trim() === sent.text ? '' : now.text,
+    kind: now.kind === sent.kind ? 'observation' : now.kind,
+  }
+}

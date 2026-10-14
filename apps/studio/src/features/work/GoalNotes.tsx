@@ -3,7 +3,7 @@
 // the ledger's reason instead of the field. A write keeps its key until the server answers; no reply offers the retry
 // that reuses it.
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type KeyboardEvent } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
 import { Button, Segmented } from '@sophia/ui'
 import { getMission, recordMissionEntry } from '../../api/mission.ts'
@@ -12,7 +12,7 @@ import { Avatar } from '../../app/Avatar.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import { ago } from '../../app/time-words.ts'
 import { missionKey, writeControls } from '../mission/mission-view.ts'
-import { goalNotes, NOTE_KINDS, noteAuthor, noteWord, type NoteKind } from './goal-notes.ts'
+import { goalNotes, keptAfter, NOTE_KINDS, noteAuthor, notesRead, noteWord, type NoteKind } from './goal-notes.ts'
 
 export interface NotesFor {
   projectId: string
@@ -56,24 +56,38 @@ function useNoteWrite({ goalId, projectId, identity }: Where) {
   })
 }
 
-function AddNote(where: Where) {
-  const { goalId } = where
+/**
+ * The field's words and kind, and its write. Once kept, the field starts over as a plain note: a difficulty is chosen
+ * for each note, never carried to the next. Only what was sent is cleared: words typed or a kind chosen while it went
+ * stay (notes-robust.md).
+ */
+function useAddNote(where: Where) {
   const [text, setText] = useState('')
   const [kind, setKind] = useState<NoteKind>('observation')
   const write = useNoteWrite(where)
   const controls = writeControls(write.state.status)
-  // Once kept, the field starts over as a plain note: a difficulty is chosen for each note, never carried to the next.
-  const kept = () => {
-    setText('')
-    setKind('observation')
+  const now = useRef({ text, kind })
+  now.current = { text, kind }
+  const kept = (sent: { text: string; kind: NoteKind }) => {
+    const next = keptAfter(now.current, sent)
+    setText(next.text)
+    setKind(next.kind)
   }
   const save = async () => {
     if (!text.trim() || !controls.canSubmit) return
-    if (await write.submit({ text: text.trim(), kind })) kept()
+    const sent = { text: text.trim(), kind }
+    if (await write.submit(sent)) kept(sent)
   }
   const retry = async () => {
-    if (await write.retry()) kept()
+    const sent = write.state.status === 'unknown' ? write.state.args : null
+    if ((await write.retry()) && sent) kept(sent)
   }
+  return { text, setText, kind, setKind, write, controls, save, retry }
+}
+
+function AddNote(where: Where) {
+  const { goalId } = where
+  const { text, setText, kind, setKind, write, controls, save, retry } = useAddNote(where)
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key !== 'Enter' || !(e.metaKey || e.ctrlKey)) return
     e.preventDefault()
@@ -176,6 +190,15 @@ export function GoalNotes({ goalId, ...who }: { goalId: string } & NotesFor) {
   return (
     <section className="goal-sheet-section" aria-label="Notes">
       <h3 className="field-label">Notes</h3>
+      {notesRead(ledger) === 'stale' && (
+        // A note kept, its list then unread: said, with the way to read it again; the last list stays (notes-robust.md).
+        <p className="goal-notes-off" role="alert">
+          The notes couldn’t be read again.{' '}
+          <button type="button" className="text-button" onClick={() => void ledger.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
       {ledger.data ? (
         <Notes ctx={ledger.data} goalId={goalId} {...who} />
       ) : (
