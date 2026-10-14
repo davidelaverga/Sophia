@@ -43,3 +43,20 @@ test('home · on a wide screen what needs you stays the right column', async ({ 
   const [s, col] = await Promise.all([side.boundingBox(), page.locator('.hw-col').boundingBox()])
   expect(s && col ? s.x >= col.x + col.width : false).toBe(true)
 })
+
+test('@phone · home · a long note wraps under its title, whole, as in the side column (Codex P2 on #289)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(PAGE)
+  const note = page.locator('.hw-needs-here .hw-m').first()
+  await expect(note).toBeVisible()
+  // A project's title may run to 180 characters: the note says it whole, on as many lines as it needs.
+  const read = await note.evaluate((m) => {
+    m.textContent = `${'A project with a very long title that runs on '.repeat(3)}· expires in 20 min`
+    const line = parseFloat(getComputedStyle(m).lineHeight)
+    return { cut: m.scrollWidth > m.clientWidth, lines: Math.round(m.getBoundingClientRect().height / line) }
+  })
+  expect(read.cut).toBe(false)
+  expect(read.lines).toBeGreaterThan(1)
+})
