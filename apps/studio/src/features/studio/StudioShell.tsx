@@ -18,7 +18,6 @@ import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
 import { missionKey } from '../mission/mission-view.ts'
 import { FIRST_LINE, isNew } from './first-step.ts'
-import type { RoomLine } from '../voice/room-view.ts'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
@@ -94,17 +93,6 @@ interface FirstFor {
   panel: RoomPanel
 }
 
-/** What sits under her line: a new project's first step (when there is one) over whoever shows what. */
-const withFirstStep = (step: { line?: RoomLine; first?: ReactNode }, showing: ReactNode) => ({
-  ...(step.line && { line: step.line }),
-  showing: (
-    <>
-      {step.first}
-      {showing}
-    </>
-  ),
-})
-
 /**
  * A new project's first step (docs/plans/first-step.md): while the ledger holds nothing, no goal exists and nobody is
  * in the call, Sophia's line says to tell her what it's for, by voice or in writing. The ledger is the brief's own read.
@@ -120,19 +108,18 @@ function useFirstStep({ projectId, identity, snapshot, room, panel }: FirstFor) 
   const write = () => {
     if (panel.panel !== 'chat') panel.toggle('chat')
   }
-  return {
-    line: FIRST_LINE,
-    first: (
-      <div className="first-step">
-        <Button kind="primary" onClick={() => void room.join()}>
-          Talk it through
-        </Button>
-        <Button kind="pill" onClick={write}>
-          Write to Sophia
-        </Button>
-      </div>
-    ),
-  }
+  // Both quiet: the dock's Join the room stays the one primary press on the stage.
+  const presses = (
+    <>
+      <Button kind="pill" onClick={() => void room.join()}>
+        Talk it through
+      </Button>
+      <Button kind="pill" onClick={write}>
+        Write to Sophia
+      </Button>
+    </>
+  )
+  return { line: { ...FIRST_LINE, presses } }
 }
 
 interface Props {
@@ -300,7 +287,8 @@ export function StudioShell(props: Props) {
         lensBody={<LensBody lens={state.lens} made={under} />}
         captions={captions}
         presented={present.presented}
-        {...withFirstStep(useFirstStep({ projectId, identity, snapshot, room, panel }), showing)}
+        showing={showing}
+        {...useFirstStep({ projectId, identity, snapshot, room, panel })}
         corner={
           <PanelToggles
             open={panel.panel}

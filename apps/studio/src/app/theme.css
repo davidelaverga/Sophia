@@ -5679,7 +5679,8 @@ button.contribution-quote:hover {
 }
 
 /* A new project's first step under Sophia's line (docs/plans/first-step.md): by voice or in writing, side by side. */
-.first-step {
+.line-presses {
+  margin-top: 14px;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
