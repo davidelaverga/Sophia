@@ -409,7 +409,13 @@ function useDayPill(list: RefObject<HTMLDivElement | null>, rows: readonly Row[]
     }
     update()
     box.addEventListener('scroll', update, { passive: true })
-    return () => box.removeEventListener('scroll', update)
+    // A resize or a rotation moves the dividers too: crowding is read again then, not only on scroll (Codex P2 on #292).
+    const resized = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update)
+    resized?.observe(box)
+    return () => {
+      box.removeEventListener('scroll', update)
+      resized?.disconnect()
+    }
   }, [list, rows])
   return { day, crowded }
 }
@@ -466,6 +472,9 @@ function Earlier(props: {
           className="c3-daypill"
           data-crowded={(crowded && !open) || undefined}
           tabIndex={crowded && !open ? -1 : undefined}
+          // Stepped aside, it is out of sight and out of reach: no reader names it, no key lands on it (Codex P2 on #292).
+          aria-hidden={(crowded && !open) || undefined}
+          inert={crowded && !open}
           type="button"
           aria-haspopup="menu"
           aria-expanded={open}
