@@ -2928,6 +2928,46 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
 }
 /* A project that is slow to open says so where the lobby would float (it has no one waiting yet). */
+/* The newcomer's welcome (docs/plans/newcomer-welcome.md): a card under the bar, on the right as the slow opening's note,
+   over whatever view is open and moving none of it; once, until a press ends it. */
+.welcome-band {
+  position: fixed;
+  top: calc(var(--topbar) + 16px);
+  right: var(--gutter);
+  z-index: 15;
+  display: grid;
+  gap: 14px;
+  width: min(360px, calc(100% - 2 * var(--gutter)));
+  padding: 16px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--plane-2);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.32);
+}
+.welcome-words {
+  display: grid;
+  gap: 4px;
+}
+.welcome-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-head);
+  font-weight: 600;
+  line-height: var(--lh-body);
+}
+.welcome-line,
+.welcome-for {
+  margin: 0;
+  color: var(--text-2);
+}
+.welcome-for {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.welcome-presses {
+  display: flex;
+  gap: 8px;
+}
 .wait-note {
   position: fixed;
   top: calc(var(--topbar) + 24px);
@@ -5628,6 +5668,95 @@ button.contribution-quote:hover {
 .goal-sheet-foot {
   display: flex;
   justify-content: flex-end;
+}
+/* Notes on a goal, in its sheet (docs/plans/goal-notes.md): the field, then the notes, newest first. */
+.goal-note-field {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--plane-2);
+}
+.goal-note-field:focus-within {
+  border-color: rgb(var(--halo-text-rgb) / 0.5);
+}
+.goal-note-field textarea {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.goal-note-field textarea::placeholder {
+  color: var(--text-3);
+}
+.goal-note-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.goal-note-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.goal-note-refused {
+  color: var(--rose);
+  font-size: var(--type-small);
+}
+.goal-notes {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-notes li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+}
+.goal-notes .avatar {
+  width: 22px;
+  height: 22px;
+}
+.goal-note-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-note-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-note-author {
+  color: var(--text);
+  font-weight: 500;
+}
+[data-kind='blocker'] .goal-note-kind {
+  color: var(--amber);
+}
+.goal-note-text {
+  margin: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.goal-notes-none,
+.goal-notes-off {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
 }
 @media (max-width: 640px) {
   .goal-rows > .goal {

@@ -13,7 +13,8 @@ test('goals · the demo as Luis: nothing waits on him, the rollout needs attenti
   await expect(page.locator('.goal-asks')).toHaveCount(0)
   const rollout = row(page, ROLLOUT)
   await expect(rollout.locator('.goal-health')).toHaveText('Needs attention')
-  await expect(rollout).toContainText('waiting on a permission')
+  // Its row says the difficulty Sophia wrote on it (goal-notes.md); what stands in its way is said in its sheet.
+  await expect(rollout.locator('.goal-row-line')).toContainText('Sophia “From the call')
   await expect(rollout).toContainText('1 of 7')
   await expect(row(page, 'Keep teams through an admin change')).toContainText('Not started · No plan yet')
   // What needs attention comes first.
