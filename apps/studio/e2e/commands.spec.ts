@@ -241,7 +241,7 @@ test('commands · the palette understands other words people type: «dark», «h
   page,
 }) => {
   await page.goto('/room.html?demo=1&place=work')
-  await drawn(page, DRAWN.room)
+  await drawn(page, DRAWN.tasks)
   for (const [typed, first] of [
     ['dark', /Switch to the light page/],
     ['help', /Keyboard shortcuts/],

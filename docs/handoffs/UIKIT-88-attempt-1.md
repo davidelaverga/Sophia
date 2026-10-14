@@ -31,6 +31,11 @@ commits on the branch merge its base forward or touch only this record). 12 file
   rows «tas», «go», «invite» and «light» found before are unchanged.
 - Local Playwright was refused by the guard (a heavy app open); CI is the run on record for the e2e.
 
+## Review notes
+
+- CI's first run failed on the new e2e: it waited for the Studio view's «The room is ready» (`DRAWN.room`) on Tasks,
+  where that line never shows. It now waits for the board as Tasks draws it (`DRAWN.tasks`). No product change.
+
 ## Remaining obligations
 
 - CI; Codex with no open P1.
