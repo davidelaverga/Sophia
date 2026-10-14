@@ -66,9 +66,13 @@ export function authorLabel(actorId: string, me: string, names: ReadonlyMap<stri
   if (actorId === me) return 'You'
   const name = names.get(actorId)
   if (name === undefined) return 'A member'
-  // An address is no name: the person, as the stage names them (e2e-real Q1); a name given stays whole.
-  return name.includes('@') ? shortName(name) : name
+  // An address is no name: the person, as the stage names them (e2e-real Q1); a name given stays whole, an at sign in it
+  // or not (a guest's «@alice», «Ana @ Acme»: Codex P2 on #330).
+  return ADDRESS.test(name) ? shortName(name) : name
 }
+
+/** An email address, as an account's name falls back to one: one word, an at sign, a domain with a dot. */
+const ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export type BriefBlock =
   { kind: 'heading'; text: string } | { kind: 'item'; text: string } | { kind: 'paragraph'; text: string }
