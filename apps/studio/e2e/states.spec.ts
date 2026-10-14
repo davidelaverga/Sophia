@@ -91,6 +91,9 @@ test('states · Goals with none yet: the sentence where the first row would be, 
   await expect(page.getByText(/No goals yet/)).toBeVisible()
   expect(await offLook(page)).toEqual([])
   await expect(page.locator('.empty .control-row').getByRole('button', { name: 'Open the Studio' })).toBeVisible()
+  // Nothing of the briefing under it: no brief, no list, no search that found nothing (docs/plans/goals-overview.md).
+  await expect(page.locator('.goals-briefing')).toHaveCount(0)
+  await expect(page.getByText(/No goal answers/)).toHaveCount(0)
 })
 
 test('states · a board lane with nothing: a slot, the sentence centred in a dashed edge', async ({ page }) => {
