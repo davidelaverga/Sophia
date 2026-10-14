@@ -19,6 +19,6 @@ test('home · an invitation waiting for you says who, to what and as what; Accep
 
 test('home · with nothing waiting, no invitations band', async ({ page }) => {
   await page.goto('/home.html')
-  await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
+  await expect(page.locator('.hw-hello')).toBeVisible()
   await expect(page.getByRole('region', { name: 'Invitations' })).toHaveCount(0)
 })
