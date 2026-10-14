@@ -99,6 +99,7 @@ import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.t
 import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
 import { bootTheme } from '../src/app/theme.ts'
+import { ADDRESS_MOVED } from '../src/app/route.ts'
 
 declare global {
   interface Window {
@@ -950,7 +951,13 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
       identity={viewing}
       account={null}
       // Conversations' reads aren't faked on this page (room.html's are): its tab stays where it is.
-      onShow={(next) => next !== 'conversations' && setView(next)}
+      onShow={(next) => {
+        if (next === 'conversations') return
+        // As the app's router moves to a view (useProjectRoute): the fragment goes, and the move is told.
+        window.history.pushState(null, '', window.location.pathname + window.location.search)
+        window.dispatchEvent(new Event(ADDRESS_MOVED))
+        setView(next)
+      }}
       onLeave={nothing}
       onWork={nothing}
       onSignOut={nothing}

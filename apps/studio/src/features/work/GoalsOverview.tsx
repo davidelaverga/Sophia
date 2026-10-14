@@ -14,6 +14,7 @@ import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
 import { GoalSheet } from './GoalSheet.tsx'
 import {
   briefOf,
+  canOpenInTasks,
   goalsShown,
   HEALTH_LABEL,
   healthLine,
@@ -175,7 +176,7 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
           onClose={() => setOpen(null)}
           onOpenAsk={openAsk}
           notes={notes}
-          onOpenTasks={served?.[opened.id] && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
+          onOpenTasks={canOpenInTasks(plans[opened.id]) && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
         />
       )}
     </div>
