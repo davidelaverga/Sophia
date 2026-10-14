@@ -33,7 +33,7 @@ test('call keys · the camera turned on in the Studio view, Ctrl+E from Tasks tu
   await page.keyboard.press('Control+e')
   await expect(page.getByRole('button', { name: 'Camera' }).first()).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('link', { name: 'Tasks' }).click()
-  await drawn(page, DRAWN.tasks)
+  await expect(page.getByRole('heading', { name: 'Tasks', level: 2 })).toBeVisible()
   const camera = dock(page).getByRole('button', { name: 'Camera' })
   await expect(camera).toHaveAttribute('aria-pressed', 'true')
   await page.keyboard.press('Control+e')

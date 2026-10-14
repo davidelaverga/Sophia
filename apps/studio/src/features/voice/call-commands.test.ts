@@ -9,8 +9,13 @@ const controls = {
   setScreenShare: (on: boolean) => void sent.push(`screen ${String(on)}`),
   leave: () => void sent.push('leave'),
 }
+const withoutLeave = {
+  setMicrophone: controls.setMicrophone,
+  setCamera: controls.setCamera,
+  setScreenShare: controls.setScreenShare,
+}
 const offered = (sending: { microphone: boolean; camera: boolean; screen: boolean }, withLeave = true) =>
-  callCommands(sending, withLeave ? controls : { ...controls, leave: undefined }).filter((c) => c.run)
+  callCommands(sending, withLeave ? controls : withoutLeave).filter((c) => c.run)
 
 describe('the call’s keys beyond the dock (docs/plans/call-keys-anywhere.md)', () => {
   it('the microphone goes both ways on mod+d, as its switch there does', () => {

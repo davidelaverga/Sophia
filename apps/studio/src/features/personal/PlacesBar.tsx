@@ -8,6 +8,8 @@ import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
 import { CommandsHost } from '../../app/CommandsHost.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
+import { useCommands } from '../../app/useCommands.ts'
+import { callCommands } from '../voice/call-commands.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { LOCK_TIP, WHO_SEES } from './places-view.ts'
@@ -133,6 +135,14 @@ function useFocusAfterCall(pill: RefObject<HTMLDivElement | null>) {
 function CallPill({ call }: { call: InCall }) {
   const pill = useRef<HTMLDivElement>(null)
   useFocusAfterCall(pill)
+  const controls = {
+    setMicrophone: call.onMicrophone,
+    setCamera: call.onCamera,
+    setScreenShare: call.onScreen,
+    leave: call.onLeave,
+  }
+  // The call's keys come with its switches here, as they allow (docs/plans/call-keys-anywhere.md).
+  useCommands(callCommands(call.sending, controls))
   return (
     <div ref={pill} className="room-pill" role="group" aria-label="Your call">
       <span className="live" aria-hidden />
@@ -142,14 +152,9 @@ function CallPill({ call }: { call: InCall }) {
       </button>
       <CallSwitches
         sending={call.sending}
-        controls={{
-          setMicrophone: call.onMicrophone,
-          setCamera: call.onCamera,
-          setScreenShare: call.onScreen,
-          leave: call.onLeave,
-        }}
+        controls={controls}
         textMode={{ on: call.textMode, onVoice: call.onVoice }}
-        keys={false}
+        keys
         side="bottom"
       />
     </div>

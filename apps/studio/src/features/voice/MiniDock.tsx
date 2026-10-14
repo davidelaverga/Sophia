@@ -3,9 +3,12 @@
 // call (a failed join, a blocked microphone) is said here too, not only on the Studio stage.
 //
 // Whatever this person is sending is shown here with its off switch (CallSwitches): a camera or a shared screen is
-// never on out of sight just because the view changed. The room's keys work only on the stage, so these tips show none.
+// never on out of sight just because the view changed. Its keys come with it, as its switches here allow: the
+// microphone both ways, the camera and the screen only off, Leave in the palette (docs/plans/call-keys-anywhere.md).
 import { useEffect, useRef } from 'react'
 import { Tip } from '@sophia/ui'
+import { useCommands } from '../../app/useCommands.ts'
+import { callCommands } from './call-commands.ts'
 import { CallSwitches, sendingOf } from './CallSwitches.tsx'
 import { joinTip, TextMode } from './RoomDock.tsx'
 import { LookingIndicator } from './SophiaControls.tsx'
@@ -20,9 +23,18 @@ interface Props {
 
 /**
  * The call's switches beyond the dock, Leave included: the mini dock's, and a sheet's while it covers them (SheetCall).
- * Leaving from inside a sheet hands the focus to the sheet, not to the page behind it.
+ * Leaving from inside a sheet hands the focus to the sheet, not to the page behind it. `keys`: the mini dock's own, so
+ * its switches' keys and commands are offered (a sheet's row offers none: the mini dock under it already does).
  */
-export function RoomSwitches({ room, side = 'top' }: { room: ProjectRoom; side?: 'top' | 'bottom' }) {
+export function RoomSwitches({
+  room,
+  side = 'top',
+  keys = false,
+}: {
+  room: ProjectRoom
+  side?: 'top' | 'bottom'
+  keys?: boolean
+}) {
   const me = room.participants.find((p) => p.local)
   const leave = () => {
     const sheet =
@@ -30,17 +42,20 @@ export function RoomSwitches({ room, side = 'top' }: { room: ProjectRoom; side?:
     void room.leave({ pressed: true })
     if (sheet instanceof HTMLElement) sheet.focus()
   }
+  const sending = sendingOf(me)
+  const controls = {
+    setMicrophone: (on: boolean) => void room.setMicrophone(on),
+    setCamera: (on: boolean) => void room.setCamera(on),
+    setScreenShare: (on: boolean) => void room.setScreenShare(on),
+    leave,
+  }
+  useCommands(callCommands(sending, controls), keys)
   return (
     <CallSwitches
-      sending={sendingOf(me)}
-      controls={{
-        setMicrophone: (on) => void room.setMicrophone(on),
-        setCamera: (on) => void room.setCamera(on),
-        setScreenShare: (on) => void room.setScreenShare(on),
-        leave,
-      }}
+      sending={sending}
+      controls={controls}
       textMode={{ on: room.textMode, onVoice: () => void room.setTextMode(false) }}
-      keys={false}
+      keys={keys}
       side={side}
     />
   )
@@ -94,7 +109,7 @@ export function MiniDock({ room, looking, onOpen }: Props) {
             In the room · {room.participants.length}
             <Tip label="Open the room" />
           </button>
-          <RoomSwitches room={room} />
+          <RoomSwitches room={room} keys />
         </>
       ) : (
         <>
