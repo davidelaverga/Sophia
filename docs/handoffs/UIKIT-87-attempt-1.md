@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/demo-r
 Writable scope: this worktree only (`apps/studio/fixtures`, `apps/studio/e2e`, `docs/plans`, `docs/handoffs`); no product code, no service code, no deploy, no contract.
 Runtime unit: Luis's Windows host (headless reads of the preview through `.claude-guards/safe-browser.cjs`); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit; merges on green with no open P1 (his queue).
-Ending commit/tree: pending
+Ending commit/tree: `b6b7792d755e` (tree `fc5ff1cc051d`), the last commit of `ui/demo-resources-story`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`origin/main` at that commit: `e2e/demo-resources.spec.ts`, `fixtures/demo-work.ts`, `fixtures/room.tsx`, `docs/plans/demo-resources-story.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
