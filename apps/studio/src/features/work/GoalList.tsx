@@ -212,11 +212,11 @@ const NO_NAMES: ReadonlyMap<string, string> = new Map()
 
 function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
   const { given, plans, listed, query, me, names } = shown
+  // With no goal yet, the view's empty state says so alone: no brief, no list, no search (goals-overview.md).
   if (summary) {
-    const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES, cursor: snapshot?.cursor }
-    return snapshot ? (
-      <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} />
-    ) : null
+    if (!snapshot?.goals.length) return null
+    const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES, cursor: snapshot.cursor }
+    return <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} />
   }
   return (
     <SearchQuery.Provider value={query}>
