@@ -478,7 +478,8 @@ const project = {
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
-  missionFails: false,
+  // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
+  missionFails: query.get('mission') === 'fail',
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,

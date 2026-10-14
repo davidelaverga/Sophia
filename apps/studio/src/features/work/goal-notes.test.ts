@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { Goal, MissionEntry } from '@sophia/contracts'
-import { goalNotes, noteAuthor, noteWord, said, withNotes } from './goal-notes.ts'
+import { goalNotes, keptAfter, noteAuthor, notesRead, noteWord, said, withNotes } from './goal-notes.ts'
 
 const entry = (id: string, over: Partial<MissionEntry> = {}): MissionEntry => ({
   id,
@@ -91,5 +91,24 @@ describe('a goal’s notes (docs/plans/goal-notes.md)', () => {
     assert.deepEqual(plans.g1, { checkpoint: 'Next', note: { kind: 'blocker', said: 'You “Note a”' } })
     assert.deepEqual(plans.g2, { note: { kind: 'observation', said: 'Sophia “Note b”' } })
     assert.equal(plans.g3, undefined)
+  })
+})
+
+describe('the notes when the ledger is slow or fails, and a note still going (docs/plans/notes-robust.md)', () => {
+  it('says whether the notes are read, being read, or failed', () => {
+    assert.equal(notesRead({ data: {}, isError: false }), 'read')
+    assert.equal(notesRead({ data: undefined, isError: false }), 'reading')
+    assert.equal(notesRead({ data: undefined, isError: true }), 'failed')
+    assert.equal(notesRead({ data: {}, isError: true }), 'stale')
+  })
+
+  it('clears only what was sent: words and a kind chosen since stay', () => {
+    const sent = { text: 'First note', kind: 'blocker' as const }
+    assert.deepEqual(keptAfter({ text: 'First note', kind: 'blocker' }, sent), { text: '', kind: 'observation' })
+    assert.deepEqual(keptAfter({ text: 'Second one', kind: 'blocker' }, sent), {
+      text: 'Second one',
+      kind: 'observation',
+    })
+    assert.deepEqual(keptAfter({ text: 'First note', kind: 'expectation' }, sent), { text: '', kind: 'expectation' })
   })
 })
