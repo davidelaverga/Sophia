@@ -1,52 +1,45 @@
-// Goals as an overview (docs/plans/goals-overview.md): each goal's group by state, the line under it, what stands in
-// its way in a line, and which goals a filter and a search keep once there are many.
+// Goals as a briefing (docs/plans/goals-overview.md): each goal's health as people read it, the brief that leads the
+// view, the line under a goal, the order by health, and what a search keeps once there are many goals.
 import type { Goal } from '@sophia/contracts'
-import { progressOf, type GoalGlance, type Ways } from './planning/plan.ts'
+import { progressOf, type Ask, type GoalGlance, type Ways } from './planning/plan.ts'
 
 export type { GoalGlance }
 
-export type Group = 'motion' | 'ready' | 'paused' | 'done'
-export type Filter = 'all' | 'you' | Group
+export type Health = 'attention' | 'track' | 'new' | 'paused' | 'done'
 
-/** Past this many goals, Goals offers its search and its filters. */
+/** What Goals reads of a goal's plan. */
+export interface Glanced {
+  glance?: GoalGlance | undefined
+  asks?: readonly Ask[] | undefined
+  checkpoint?: string | undefined
+  words?: string | undefined
+}
+
+type Plans = Readonly<Record<string, Glanced>> | undefined
+
+/** Past this many goals, Goals offers its search. */
 export const MANY = 6
 
-const GROUP: Readonly<Record<Goal['status'], Group>> = {
-  running: 'motion',
-  checking: 'motion',
-  holding: 'motion',
-  stopping: 'motion',
-  ready: 'ready',
+export const HEALTH_LABEL: Readonly<Record<Health, string>> = {
+  attention: 'Needs attention',
+  track: 'On track',
+  new: 'Not started',
+  paused: 'Paused',
+  done: 'Done',
+}
+
+/** The order a person reads them in: what needs a look first. */
+const ORDER: readonly Health[] = ['attention', 'track', 'new', 'paused', 'done']
+
+const AT_REST: Readonly<Partial<Record<Goal['status'], Health>>> = {
+  holding: 'paused',
   held: 'paused',
+  stopping: 'paused',
   stopped: 'paused',
   completed: 'done',
 }
 
-export const groupOf = (status: Goal['status']): Group => GROUP[status]
-
 const counted = (n: number, one: string, many = `${one}s`) => `${String(n)} ${n === 1 ? one : many}`
-
-type Said = (goal: Goal, done: string | null, total: number) => string
-
-/** What each state means now, said under its title. */
-const LINE: Readonly<Record<Goal['status'], Said>> = {
-  ready: (_, __, total) => (total > 0 ? `${counted(total, 'task')} planned` : 'No plan yet'),
-  running: (_, done) => done ?? 'No plan on the board yet',
-  checking: (goal) =>
-    goal.criteria.length > 0
-      ? `Checking the outcome against ${counted(goal.criteria.length, 'criterion', 'criteria')}`
-      : 'Checking the outcome',
-  holding: () => 'Holding · stops after its current step',
-  held: (_, done) => (done ? `Held · ${done}` : 'Held'),
-  stopping: () => 'Stopping · finished work is kept',
-  stopped: (_, done) => (done ? `Stopped · ${done}` : 'Stopped'),
-  completed: () => 'Completed',
-}
-
-export function stateLine(goal: Goal, glance: GoalGlance | undefined): string {
-  const { done, total } = progressOf(glance?.lanes ?? [])
-  return LINE[goal.status](goal, total > 0 ? `${String(done)} of ${String(total)} done` : null, total)
-}
 
 const WAYS: readonly [keyof Ways, string][] = [
   ['permissions', 'waiting on a permission'],
@@ -63,34 +56,78 @@ export function wayLine(glance: GoalGlance | undefined): string | null {
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
-/** What Goals reads of a goal's plan to filter and search it. */
-export interface Findable {
-  attention?: boolean | undefined
-  words?: string | undefined
+/**
+ * A goal's health from what is served: waiting on the viewer, or moving with something in its way, it needs
+ * attention; moving freely, it is on track; ready, not started; holding, held, stopping or stopped, paused.
+ */
+export function healthOf(goal: Goal, plan: Glanced | undefined): Health {
+  const rest = AT_REST[goal.status]
+  if (rest) return rest
+  if ((plan?.asks?.length ?? 0) > 0) return 'attention'
+  if (goal.status === 'ready') return 'new'
+  return wayLine(plan?.glance) ? 'attention' : 'track'
 }
 
-const keeps = (goal: Goal, plan: Findable | undefined, filter: Filter) =>
-  filter === 'all' || (filter === 'you' ? plan?.attention === true : groupOf(goal.status) === filter)
+type Said = (goal: Goal, done: string | null, total: number) => string
 
-const answers = (goal: Goal, plan: Findable | undefined, query: string) =>
+/** What each state means now. */
+const LINE: Readonly<Record<Goal['status'], Said>> = {
+  ready: (_, __, total) => (total > 0 ? `${counted(total, 'task')} planned` : 'No plan yet'),
+  running: (_, done) => done ?? 'No plan on the board yet',
+  checking: (goal) =>
+    goal.criteria.length > 0
+      ? `Checking the outcome against ${counted(goal.criteria.length, 'criterion', 'criteria')}`
+      : 'Checking the outcome',
+  holding: () => 'Holding · stops after its current step',
+  held: (_, done) => (done ? `Held · ${done}` : 'Held'),
+  stopping: () => 'Stopping · finished work is kept',
+  stopped: (_, done) => (done ? `Stopped · ${done}` : 'Stopped'),
+  completed: (goal) => goal.outcome,
+}
+
+export function stateLine(goal: Goal, glance: GoalGlance | undefined): string {
+  const { done, total } = progressOf(glance?.lanes ?? [])
+  return LINE[goal.status](goal, total > 0 ? `${String(done)} of ${String(total)} done` : null, total)
+}
+
+/** What matters now, said after its health word: what waits on the viewer or stands in its way, else where it is. */
+export function rowLine(goal: Goal, plan: Glanced | undefined): string {
+  const asks = plan?.asks?.length ?? 0
+  const way = wayLine(plan?.glance)
+  if (healthOf(goal, plan) === 'attention') {
+    return [asks > 0 ? `${String(asks)} waiting on you` : null, way].filter(Boolean).join(' · ')
+  }
+  if (goal.status === 'running' && plan?.checkpoint) return `Next · ${plan.checkpoint}`
+  return stateLine(goal, plan?.glance)
+}
+
+const WORDS = ['Nothing', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine']
+
+/** The view's first sentence: what waits on the viewer. */
+export function briefOf(asks: number): string {
+  const n = WORDS[asks] ?? String(asks)
+  if (asks === 0) return 'Nothing waits on you.'
+  return asks === 1 ? `${n} thing waits on you.` : `${n} things wait on you.`
+}
+
+/** The goals counted by health, in a quiet line; the done ones left out. */
+export function healthLine(goals: readonly Goal[], plans: Plans): string {
+  const healths = goals.map((g) => healthOf(g, plans?.[g.id]))
+  return ORDER.filter((h) => h !== 'done')
+    .map((h) => [h, healths.filter((x) => x === h).length] as const)
+    .filter(([, n]) => n > 0)
+    .map(([h, n]) => `${String(n)} ${HEALTH_LABEL[h].toLowerCase()}`)
+    .join(' · ')
+}
+
+/** The goals by health, in the order a person reads them; within one health, as they came. */
+export const ordered = (goals: readonly Goal[], plans: Plans): Goal[] =>
+  ORDER.flatMap((h) => goals.filter((g) => healthOf(g, plans?.[g.id]) === h))
+
+const answers = (goal: Goal, plan: Glanced | undefined, query: string) =>
   [goal.title, goal.outcome, plan?.words ?? ''].some((s) => s.toLowerCase().includes(query))
 
-export function goalsShown(
-  goals: readonly Goal[],
-  plans: Readonly<Record<string, Findable>> | undefined,
-  filter: Filter,
-  query: string,
-): Goal[] {
+export function goalsShown(goals: readonly Goal[], plans: Plans, query: string): Goal[] {
   const q = query.trim().toLowerCase()
-  return goals.filter((g) => keeps(g, plans?.[g.id], filter) && (!q || answers(g, plans?.[g.id], q)))
-}
-
-export const FILTERS: readonly Filter[] = ['all', 'motion', 'you', 'ready', 'paused', 'done']
-
-export function countsOf(
-  goals: readonly Goal[],
-  plans: Readonly<Record<string, Findable>> | undefined,
-): Record<Filter, number> {
-  const n = (f: Filter) => goalsShown(goals, plans, f, '').length
-  return { all: n('all'), motion: n('motion'), you: n('you'), ready: n('ready'), paused: n('paused'), done: n('done') }
+  return q ? goals.filter((g) => answers(g, plans?.[g.id], q)) : [...goals]
 }

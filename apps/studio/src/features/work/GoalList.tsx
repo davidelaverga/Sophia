@@ -12,6 +12,7 @@ import { moving } from '../resources/motion.ts'
 import { answers, SearchQuery, TaskSearch } from './TaskSearch.tsx'
 import { GoalsOverview } from './GoalsOverview.tsx'
 import type { GoalGlance } from './goals-glance.ts'
+import type { Ask } from './planning/plan.ts'
 
 /** A goal's plan from the lead: its view, and the few marks that stand for it in the goals' rail. */
 export interface GoalPlan {
@@ -31,6 +32,8 @@ export interface GoalPlan {
   glance?: GoalGlance
   /** Goals: its plan's next checkpoint, in words. */
   checkpoint?: string | undefined
+  /** Goals: what in it waits on the viewer (`asksOf`), each a press to it in Tasks. */
+  asks?: readonly Ask[]
 }
 
 interface Props {
@@ -50,7 +53,8 @@ interface Props {
   /** Goals: the goals as an overview (GoalsOverview), each plan read at a glance, its board left to Tasks, where
    * `onOpenGoal` takes the goal. */
   summary?: boolean
-  onOpenGoal?: ((goalId: string) => void) | undefined
+  /** Tasks, with what is named in the address: the goal (`#goal-`), or a task or decision in it. */
+  onOpenGoal?: ((id: string, address?: string) => void) | undefined
 }
 
 /** The goal whose plan has a task, by its id; undefined when none has. */

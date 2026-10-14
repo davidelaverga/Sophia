@@ -1,215 +1,63 @@
-// Goals as an overview (docs/plans/goals-overview.md): the goals grouped by state in the order a person acts on them.
-// A goal in motion is a card: its tasks as a bar by lane, how far it has gone, what is in its way, who is on it and the
-// press to its plan in Tasks. Ready and paused goals are rows; done goals fold to one line. Past six goals, a search
-// and filters with their counts.
-import { useRef, useState } from 'react'
+// Goals as a briefing (docs/plans/goals-overview.md): one sentence on what waits on the viewer, then each of those as a
+// sentence with its press to Tasks, then the goals by health in one list. A row is one press: it opens the goal's
+// sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits.
+import { useRef, useState, type KeyboardEvent } from 'react'
 import type { Goal } from '@sophia/contracts'
-import { Button, EmptyState, Search, Segmented, Tag } from '@sophia/ui'
-import { Avatar } from '../../app/Avatar.tsx'
+import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
+import { DECISION, TASK } from '../resources/link.ts'
 import type { GoalPlan } from './GoalList.tsx'
-import { Criteria } from './Criteria.tsx'
-import { GOAL_STATUS } from './labels.ts'
-import {
-  countsOf,
-  FILTERS,
-  goalsShown,
-  groupOf,
-  MANY,
-  stateLine,
-  wayLine,
-  type Filter,
-  type GoalGlance,
-  type Group,
-} from './goals-glance.ts'
-import { progressOf, type Lane } from './planning/plan.ts'
+import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
+import { GoalSheet } from './GoalSheet.tsx'
+import { briefOf, goalsShown, HEALTH_LABEL, healthLine, healthOf, MANY, ordered, rowLine } from './goals-glance.ts'
+import type { Ask } from './planning/plan.ts'
 
 type Plans = Readonly<Record<string, GoalPlan>> | undefined
 
 interface Props {
   goals: readonly Goal[]
   plans: Plans
-  /** Tasks, with the goal named in the address; undefined where Tasks can't take it. */
-  onOpenGoal: ((goalId: string) => void) | undefined
+  /** Tasks, with the goal, or a task or decision of it, named in the address; undefined where Tasks can't take it. */
+  onOpenGoal: ((id: string, address?: string) => void) | undefined
 }
 
-const FILTER_LABEL: Readonly<Record<Filter, string>> = {
-  all: 'All',
-  motion: 'In motion',
-  you: 'Needs you',
-  ready: 'Ready',
-  paused: 'Paused',
-  done: 'Done',
-}
-
-/** The bar's order: what is done first, then what moves, what waits to start, what is held, what nobody does. */
-const BAR: readonly Lane[] = ['complete', 'active', 'next', 'blocked', 'unassigned']
-
-function Bar({ lanes }: { lanes: readonly Lane[] }) {
-  const shown = BAR.flatMap((lane) => lanes.filter((l) => l === lane))
-  if (shown.length === 0) return null
+/** One goal: its title (the press that opens its sheet), its health and what matters now, its progress, its people. */
+function GoalRow({ goal, plan, onOpen }: { goal: Goal; plan: GoalPlan | undefined; onOpen: () => void }) {
+  const health = healthOf(goal, plan)
+  const line = rowLine(goal, plan)
   return (
-    <span className="goal-bar" aria-hidden>
-      {shown.map((lane, i) => (
-        <i key={i} data-lane={lane} />
-      ))}
-    </span>
-  )
-}
-
-function Faces({ glance }: { glance: GoalGlance | undefined }) {
-  const people = glance?.people ?? []
-  if (people.length === 0) return null
-  const more = people.length - 3
-  return (
-    <span className="goal-faces" aria-label={`On it: ${people.map((p) => p.name).join(', ')}`}>
-      {people.slice(0, 3).map((p) => (
-        <Avatar key={p.id} identity={{ name: p.name, displayName: p.name, avatarUrl: p.avatarUrl ?? null }} />
-      ))}
-      {more > 0 && <span className="goal-faces-more">+{more}</span>}
-    </span>
-  )
-}
-
-interface GoalProps {
-  goal: Goal
-  plan: GoalPlan | undefined
-  onOpen: (() => void) | undefined
-}
-
-/** Its tasks as a bar by lane, how many are done, and what is in its way or that nothing is. */
-function Progress({ glance }: { glance: GoalGlance | undefined }) {
-  const { done, total } = progressOf(glance?.lanes ?? [])
-  if (!glance || total === 0) return null
-  const way = wayLine(glance)
-  return (
-    <div className="goal-progress-block">
-      <Bar lanes={glance.lanes} />
-      <p className="goal-card-line">
-        <span className="goal-progress">
-          {done} of {total} done
-        </span>
-        {way ? <span className="goal-way">{way}</span> : <span className="goal-clear">Nothing in the way</span>}
-      </p>
-    </div>
-  )
-}
-
-function OpenInTasks({ onOpen }: { onOpen: (() => void) | undefined }) {
-  if (!onOpen) return null
-  return (
-    <Button kind="text" onClick={onOpen}>
-      Open in Tasks
-    </Button>
-  )
-}
-
-/** A goal in motion: what it is for, how far it has gone, what is in its way, who is on it, and the way to its plan. */
-function GoalCardOverview({ goal, plan, onOpen }: GoalProps) {
-  const status = GOAL_STATUS[goal.status]
-  return (
-    <li className="goal goal-card" data-status={goal.status}>
-      <div className="goal-meta">
-        <Tag tone={status.tone}>{status.label}</Tag>
-        {plan?.attention && <span className="goal-for-you">Needs you</span>}
-        <Faces glance={plan?.glance} />
-      </div>
-      <h4 className="goal-title">{goal.title}</h4>
-      <p className="goal-outcome">{goal.outcome}</p>
-      {plan?.checkpoint && (
-        <p className="goal-next">
-          <span className="field-label">Next</span>
-          {plan.checkpoint}
-        </p>
-      )}
-      {goal.status !== 'running' && <p className="goal-state">{stateLine(goal, plan?.glance)}</p>}
-      <Progress glance={plan?.glance} />
-      {goal.criteria.length > 0 && <Criteria goal={goal} />}
-      <div className="goal-card-foot">
-        <OpenInTasks onOpen={onOpen} />
-      </div>
-    </li>
-  )
-}
-
-/**
- * A ready, paused or done goal: its state, its title and one line (what its state means now, or its outcome where the
- * state says it all), and the way to its plan where there is one.
- */
-function GoalRow({ goal, plan, onOpen }: GoalProps) {
-  const status = GOAL_STATUS[goal.status]
-  const line = stateLine(goal, plan?.glance)
-  return (
-    <li className="goal goal-row" data-status={goal.status}>
-      <Tag tone={status.tone}>{status.label}</Tag>
+    <li className="goal" data-health={health} data-status={goal.status}>
       <div className="goal-row-words">
-        <h4 className="goal-title">{goal.title}</h4>
+        <h3 className="goal-title">
+          <button type="button" className="goal-press" onClick={onOpen}>
+            {goal.title}
+          </button>
+        </h3>
         <p className="goal-row-line">
-          {line === status.label ? goal.outcome : line}
-          {plan?.attention && <span className="goal-for-you"> · Needs you</span>}
+          {/* Paused: its state says which pause («Held · 2 of 6 done»); otherwise the health word leads. */}
+          <span className="goal-health">{health === 'paused' ? line : HEALTH_LABEL[health]}</span>
+          {health !== 'paused' && line && ` · ${line}`}
         </p>
       </div>
-      <OpenInTasks onOpen={onOpen} />
+      <Meter glance={plan?.glance} />
+      <Faces glance={plan?.glance} />
     </li>
   )
 }
 
-const GROUP_LABEL: Readonly<Record<Group, string>> = {
-  motion: 'In motion',
-  ready: 'Ready',
-  paused: 'Paused',
-  done: 'Done',
+/** ↑ ↓, Home and End along the rows' presses. */
+function moveAlong(event: KeyboardEvent<HTMLUListElement>) {
+  const presses = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('.goal-press')]
+  const at = presses.findIndex((p) => p === document.activeElement)
+  const step: Record<string, number> = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: presses.length - 1 }
+  const next = step[event.key]
+  if (at < 0 || next === undefined) return
+  event.preventDefault()
+  presses[Math.min(presses.length - 1, Math.max(0, next))]?.focus()
 }
 
-interface SectionProps {
-  group: Group
-  goals: readonly Goal[]
-  plans: Plans
-  opener: (id: string) => (() => void) | undefined
-}
-
-function Section({ group, goals, plans, opener }: SectionProps) {
-  const mine = goals.filter((g) => groupOf(g.status) === group)
-  if (mine.length === 0) return null
-  const Item = group === 'motion' ? GoalCardOverview : GoalRow
-  return (
-    <section className="goals-group" data-group={group} aria-label={GROUP_LABEL[group]}>
-      <h3 className="goals-group-head">
-        <span className="field-label">{GROUP_LABEL[group]}</span>
-        <span className="count">{mine.length}</span>
-      </h3>
-      <ol className={group === 'motion' ? 'goal-cards' : 'goal-rows'} data-one={mine.length === 1 || undefined}>
-        {mine.map((g) => (
-          <Item key={g.id} goal={g} plan={plans?.[g.id]} onOpen={opener(g.id)} />
-        ))}
-      </ol>
-    </section>
-  )
-}
-
-/** Done goals, folded to one line that opens; a search or the Done filter shows them open. */
-function Done({ goals, plans, opener, open }: Omit<SectionProps, 'group'> & { open: boolean }) {
-  const [unfolded, setUnfolded] = useState(false)
-  const done = goals.filter((g) => groupOf(g.status) === 'done')
-  if (done.length === 0) return null
-  if (open || unfolded) return <Section group="done" goals={done} plans={plans} opener={opener} />
-  return (
-    <Button kind="ghost" size="sm" className="goals-done-fold" aria-expanded={false} onClick={() => setUnfolded(true)}>
-      {done.length} done
-    </Button>
-  )
-}
-
-interface ToolsProps {
-  query: string
-  onQuery: (q: string) => void
-  filter: Filter
-  onFilter: (f: Filter) => void
-  counts: Record<Filter, number>
-}
-
-/** Past six goals: the search, focused with "/", and the filters with their counts. */
-function Tools({ query, onQuery, filter, onFilter, counts }: ToolsProps) {
+/** Past six goals: the search, focused with "/"; Escape clears it, then leaves it. */
+function SearchGoals({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
   useCommands([
     { id: 'search-goals', words: 'Search the goals', group: 'view', key: '/', run: () => input.current?.focus() },
@@ -220,65 +68,98 @@ function Tools({ query, onQuery, filter, onFilter, counts }: ToolsProps) {
     else input.current?.blur()
   }
   return (
-    <div className="goals-tools">
-      <Segmented
-        role="tablist"
-        label="Show"
-        items={FILTERS.map((f) => ({ id: f, label: FILTER_LABEL[f], count: counts[f], controls: 'goals-shown' }))}
-        value={filter}
-        onChange={onFilter}
-      />
-      <Search
-        ref={input}
-        className="goals-search"
-        aria-label="Search goals"
-        aria-keyshortcuts="/"
-        placeholder="Search goals, tasks, people…"
-        value={query}
-        onChange={(e) => onQuery(e.target.value)}
-        onKeyDown={onKeyDown}
-        tip={{ label: 'Search', keys: '/', side: 'bottom' }}
-      />
-    </div>
+    <Search
+      ref={input}
+      className="goals-search"
+      aria-label="Search goals"
+      aria-keyshortcuts="/"
+      placeholder="Search goals and tasks…"
+      value={query}
+      onChange={(e) => onQuery(e.target.value)}
+      onKeyDown={onKeyDown}
+      tip={{ label: 'Search', keys: '/', side: 'bottom' }}
+    />
   )
 }
 
-function Nothing({ query, onClear, onAll }: { query: string; onClear: () => void; onAll: () => void }) {
-  const [words, label, onPress] = query
-    ? [`No goal answers “${query}”.`, 'Clear the search', onClear]
-    : ['No goal here.', 'Show all goals', onAll]
+/** Done goals, folded to one line that opens. */
+function DoneFold({ done, onOpen }: { done: readonly Goal[]; onOpen: () => void }) {
+  if (done.length === 0) return null
+  return (
+    <Button kind="text" className="goals-done-fold" aria-expanded={false} onClick={onOpen}>
+      {done.length} done · {done.map((g) => g.title).join(' · ')}
+    </Button>
+  )
+}
+
+function NoAnswer({ query, onClear }: { query: string; onClear: () => void }) {
   return (
     <EmptyState
       actions={
-        <Button kind="pill" onClick={onPress}>
-          {label}
+        <Button kind="pill" onClick={onClear}>
+          Clear the search
         </Button>
       }
     >
-      {words}
+      No goal answers “{query}”.
     </EmptyState>
   )
 }
 
-export function GoalsOverview({ goals, plans, onOpenGoal }: Props) {
-  const [filter, setFilter] = useState<Filter>('all')
+/** Everything that waits on the viewer, goal by goal. */
+const asksIn = (goals: readonly Goal[], plans: Plans): Asked[] =>
+  goals.flatMap((goal) => (plans?.[goal.id]?.asks ?? []).map((ask) => ({ ask, goal })))
+
+/** A request opens its task in Tasks; a decision, the decision. */
+const askOpener = (onOpenGoal: Props['onOpenGoal']) =>
+  onOpenGoal ? (ask: Ask) => onOpenGoal(ask.target, ask.kind === 'request' ? TASK : DECISION) : undefined
+
+/** The goals shown, by health: past six, as the search keeps them; done ones folded until opened or searched. */
+function useListed(goals: readonly Goal[], plans: Plans) {
   const [query, setQuery] = useState('')
+  const [unfolded, setUnfolded] = useState(false)
   const many = goals.length > MANY
-  const shown = many ? goalsShown(goals, plans, filter, query) : goals
-  const opener = (id: string) => (plans?.[id] && onOpenGoal ? () => onOpenGoal(id) : undefined)
-  const groups = { goals: shown, plans, opener }
+  const shown = ordered(goalsShown(goals, plans, many ? query : ''), plans)
+  const all = unfolded || (many && query.trim() !== '')
+  const listed = all ? shown : shown.filter((g) => g.status !== 'completed')
+  const folded = shown.filter((g) => !listed.includes(g))
+  return { many, query, setQuery, shown, listed, folded, unfold: () => setUnfolded(true) }
+}
+
+export function GoalsOverview({ goals, plans, onOpenGoal }: Props) {
+  const { many, query, setQuery, shown, listed, folded, unfold } = useListed(goals, plans)
+  const [open, setOpen] = useState<string | null>(null)
+  const asks = asksIn(goals, plans)
+  const openAsk = askOpener(onOpenGoal)
+  const opened = goals.find((g) => g.id === open)
+  const health = healthLine(goals, plans)
   return (
-    <div className="goals-overview">
-      {many && (
-        <Tools query={query} onQuery={setQuery} filter={filter} onFilter={setFilter} counts={countsOf(goals, plans)} />
-      )}
-      <div id="goals-shown" className="goals-shown">
-        {shown.length === 0 && <Nothing query={query} onClear={() => setQuery('')} onAll={() => setFilter('all')} />}
-        <Section group="motion" {...groups} />
-        <Section group="ready" {...groups} />
-        <Section group="paused" {...groups} />
-        <Done {...groups} open={query.trim() !== '' || filter === 'done'} />
+    <div className="goals-briefing">
+      <p className="goals-brief">
+        <span className="goals-brief-you">{briefOf(asks.length)}</span>
+        {health && ` ${health}`}
+      </p>
+      <Asks asks={asks} onOpen={openAsk} />
+      <div className="goals-list-head">
+        <h3 className="field-label">Goals</h3>
+        {many && <SearchGoals query={query} onQuery={setQuery} />}
       </div>
+      {shown.length === 0 && <NoAnswer query={query} onClear={() => setQuery('')} />}
+      <ul className="goal-rows" onKeyDown={moveAlong}>
+        {listed.map((g) => (
+          <GoalRow key={g.id} goal={g} plan={plans?.[g.id]} onOpen={() => setOpen(g.id)} />
+        ))}
+      </ul>
+      <DoneFold done={folded} onOpen={unfold} />
+      {opened && (
+        <GoalSheet
+          goal={opened}
+          plan={plans?.[opened.id]}
+          onClose={() => setOpen(null)}
+          onOpenAsk={openAsk}
+          onOpenTasks={plans?.[opened.id] && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
+        />
+      )}
     </div>
   )
 }

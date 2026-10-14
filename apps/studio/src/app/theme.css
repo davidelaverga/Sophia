@@ -5352,62 +5352,172 @@ button.contribution-quote:hover {
 .field-label .data {
   font-size: var(--type-label);
 }
-/* Goals as an overview (docs/plans/goals-overview.md): its goals grouped by state, a goal in motion a card on the
-   kit's plane, the others rows; past six goals, the filters and the search above them. */
-.goals-overview,
-.goals-shown {
+/* Goals as a briefing (docs/plans/goals-overview.md): one sentence, what waits on the viewer, then the goals by health
+   in one list; the type carries the hierarchy and the one accent, amber, marks only what waits. */
+.goals-briefing {
   display: grid;
   gap: 28px;
+  margin-top: 8px;
 }
-.goals-overview {
-  margin-top: 20px;
+.goals-brief {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--text-3);
+  font-size: var(--type-title);
+  line-height: var(--lh-body);
 }
-.goals-tools {
+.goals-brief-you {
+  color: var(--text);
+}
+.goal-asks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-asks li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.goal-asks li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.goal-ask-dot {
+  align-self: start;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.goal-ask-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-ask-text {
+  margin: 0;
+}
+.goal-ask-meta {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goals-list-head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: -16px;
+}
+.goals-list-head .field-label {
+  margin: 0;
 }
 .goals-search {
   width: min(280px, 100%);
 }
-.goals-group {
-  display: grid;
-  gap: 10px;
-}
-.goals-group-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0;
-}
-.goal-cards,
 .goal-rows {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.goal-cards {
+.goal-rows > .goal {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 112px 56px;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 12px;
+  margin: 0 -12px;
+  border-bottom: 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 0 var(--line);
+  transition: background 0.16s var(--ease);
+}
+.goal-rows > .goal:hover,
+.goal-rows > .goal:focus-within {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.goal-row-words {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 12px;
+  gap: 3px;
+  min-width: 0;
 }
-.goal-cards[data-one] {
-  grid-template-columns: minmax(0, 1fr);
+.goal-press {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: start;
+  text-decoration: underline transparent;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: text-decoration-color 0.16s var(--ease);
 }
-.goal.goal-card {
-  align-content: start;
-  padding: 18px 20px;
-  border: 1px solid var(--line-2);
-  border-radius: 12px;
-  background: var(--plane-2);
+/* Under the pointer the title takes a hairline, as the row's plane lifts. */
+.goal-press:hover {
+  text-decoration-color: var(--line-2);
 }
-.goal-meta .goal-faces {
-  margin-left: auto;
+/* The whole row is the title's press. */
+.goal-press::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+}
+.goal-press:focus-visible {
+  outline: none;
+}
+.goal-press:focus-visible::after {
+  box-shadow: 0 0 0 2px rgb(var(--halo-text-rgb) / 0.7);
+}
+.goal-row-line {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goal-health {
+  color: var(--text-2);
+}
+[data-health='attention'] .goal-health {
+  color: var(--amber);
+}
+.goal-meter {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.goal-track {
+  display: block;
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.goal-track > span {
+  display: block;
+  height: 100%;
+  background: var(--text-2);
+}
+.goal-meter-count {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
 }
 .goal-faces {
   display: inline-flex;
+  justify-content: flex-end;
   align-items: center;
 }
 .goal-faces .avatar {
@@ -5415,7 +5525,7 @@ button.contribution-quote:hover {
   height: 22px;
   margin-left: -6px;
   background: var(--plane-2);
-  box-shadow: 0 0 0 1.5px var(--plane-2);
+  box-shadow: 0 0 0 2px var(--void);
 }
 .goal-faces .avatar:first-child {
   margin-left: 0;
@@ -5425,109 +5535,65 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
-.goal-for-you {
-  color: var(--halo-text);
+.goals-done-fold {
+  justify-self: start;
+  margin-top: -12px;
+  color: var(--text-3);
+}
+/* A goal's sheet. */
+.goal-sheet {
+  display: grid;
+  gap: 22px;
+}
+.goal-sheet-health {
+  margin: 0;
+  color: var(--text-3);
   font-size: var(--type-small);
 }
-.goal-next {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin: 2px 0 0;
+.goal-sheet .goal-outcome {
+  margin: -14px 0 0;
 }
-.goal-next > .field-label {
-  color: var(--halo-text);
+.goal-sheet .goal-asks li {
+  grid-template-columns: 6px minmax(0, 1fr) auto;
 }
-.goal-state {
+.goal-sheet-way {
   margin: 0;
   color: var(--text-2);
   font-size: var(--type-small);
 }
-.goal-progress-block {
+.goal-sheet-progress {
   display: grid;
   gap: 8px;
-  margin-top: 6px;
 }
-/* Its tasks by lane, in the board's own marks: done teal, moving a lighter teal, up next an outline, blocked amber,
-   nobody on it dashed. */
-.goal-bar {
-  display: flex;
-  gap: 3px;
-  height: 8px;
-}
-.goal-bar > i {
-  flex: 1;
-  border-radius: 4px;
-}
-.goal-bar > i[data-lane='complete'] {
-  background: var(--teal);
-}
-.goal-bar > i[data-lane='active'] {
-  background: rgb(var(--teal-rgb) / 0.42);
-}
-.goal-bar > i[data-lane='next'] {
-  box-shadow: inset 0 0 0 1px var(--text-3);
-}
-.goal-bar > i[data-lane='blocked'] {
-  background: var(--amber);
-}
-.goal-bar > i[data-lane='unassigned'] {
-  border: 1px dashed var(--text-4);
-}
-.goal-card-line {
+.goal-sheet-progress p {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 4px 12px;
   margin: 0;
+  color: var(--text-3);
   font-size: var(--type-small);
 }
-.goal-progress {
-  color: var(--text-2);
-  font-variant-numeric: tabular-nums;
+.goal-sheet-progress b {
+  color: var(--text);
+  font-weight: 500;
 }
-.goal-way {
-  color: var(--amber);
+.goal-sheet-section {
+  display: grid;
+  gap: 8px;
 }
-.goal-clear {
-  color: var(--text-3);
+.goal-sheet-section .field-label {
+  margin: 0;
 }
-.goal-card-foot {
+.goal-sheet-foot {
   display: flex;
   justify-content: flex-end;
-  margin-top: 4px;
-}
-.goal-card-foot:empty {
-  display: none;
-}
-.goal.goal-row {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 0;
-}
-.goal-row-words {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.goal-row-line {
-  margin: 0;
-  color: var(--text-2);
-  font-size: var(--type-small);
-}
-.goals-done-fold {
-  justify-self: start;
 }
 @media (max-width: 640px) {
-  .goal-cards {
-    grid-template-columns: minmax(0, 1fr);
+  .goal-rows > .goal {
+    grid-template-columns: minmax(0, 1fr) 56px;
   }
-  .goal.goal-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .goal.goal-row > .text-button {
-    grid-column: 2;
-    justify-self: start;
+  .goal-rows > .goal .goal-faces {
+    display: none;
   }
 }

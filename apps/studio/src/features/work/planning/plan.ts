@@ -485,6 +485,56 @@ export const forYou = (
   (rows.some((r) => r.waits.some((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId)) ||
     latestDecisions(decisions).some((d) => d.decider_id === viewerId && actionable(d, now)))
 
+/** Something in a goal that waits on the viewer: a request naming them, or a decision of theirs still open. */
+export interface Ask {
+  id: string
+  kind: 'request' | 'decision'
+  /** The request's words, or the decision's question. */
+  words: string
+  /** Who asks: the task's doer; none for a decision. */
+  by: string | null
+  /** Where it opens in Tasks: the task's id (`#task-`), or the decision's (`#decision-`). */
+  target: string
+}
+
+/** What waits on the viewer in a goal (goals-overview.md): its requests naming them, then their open decisions. */
+export function asksOf(
+  rows: readonly PlanRow[],
+  decisions: readonly BoardDecision[],
+  viewerId: string | null,
+  now: Date,
+): Ask[] {
+  if (viewerId === null) return []
+  const requests = rows.flatMap((r) =>
+    r.waits
+      .filter((w) => w.wait.state === 'pending' && w.wait.respondent_id === viewerId)
+      .map((w): Ask => ({
+        id: `${r.item.id}:${w.wait.reference_id}`,
+        kind: 'request',
+        words: w.wait.detail,
+        by: r.doer.name,
+        target: r.item.id,
+      })),
+  )
+  const decided = latestDecisions(decisions)
+    .filter((d) => d.decider_id === viewerId && actionable(d, now))
+    .map((d): Ask => ({ id: d.decision_id, kind: 'decision', words: d.question, by: null, target: d.decision_id }))
+  return [...requests, ...decided]
+}
+
+/** What Goals reads of a goal's plan (goals-overview.md): its glance, what in it waits on the viewer, its checkpoint. */
+export const glancedOf = (
+  goal: GoalView,
+  rows: readonly PlanRow[],
+  operable: boolean,
+  viewerId: string | null,
+  now: Date,
+) => ({
+  glance: glanceOf(rows),
+  asks: operable ? asksOf(rows, goal.decisions, viewerId, now) : [],
+  checkpoint: goal.next_checkpoint?.label,
+})
+
 /** Its last report, when it is its current attempt's, in its current generation. */
 const currentActivity = (view: ItemView | null): Activity | null => {
   const activity = view?.activity ?? null

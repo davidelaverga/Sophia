@@ -662,25 +662,27 @@ describe('a goal at a glance (docs/plans/goals-overview.md)', () => {
   })
 })
 
+/** A decision Davide is asked, open until 13:00. */
+const asked = (over: Partial<BoardDecision>): BoardDecision => ({
+  decision_id: 'd',
+  revision: 1,
+  work_id: 'ask',
+  plan_id: 'plan-1',
+  plan_revision: 2,
+  candidate_version_ref: null,
+  question: 'Ship it before the review?',
+  decider_id: 'davide',
+  choices: [{ key: 'a', label: 'A' }],
+  expires_at: '2026-10-02T13:00:00Z',
+  state: 'proposed',
+  selected_choice: null,
+  choice_receipt_id: null,
+  plan_reaction: 'not_needed',
+  ...over,
+})
+
 describe('what waits on the viewer in a goal (docs/plans/goals-overview.md)', () => {
   const now = new Date('2026-10-02T12:00:00Z')
-  const asked = (over: Partial<BoardDecision>): BoardDecision => ({
-    decision_id: 'd',
-    revision: 1,
-    work_id: 'ask',
-    plan_id: 'plan-1',
-    plan_revision: 2,
-    candidate_version_ref: null,
-    question: 'Ship it before the review?',
-    decider_id: 'davide',
-    choices: [{ key: 'a', label: 'A' }],
-    expires_at: '2026-10-02T13:00:00Z',
-    state: 'proposed',
-    selected_choice: null,
-    choice_receipt_id: null,
-    plan_reaction: 'not_needed',
-    ...over,
-  })
   const views = [
     view('ask', {
       lifecycle: 'waiting',
