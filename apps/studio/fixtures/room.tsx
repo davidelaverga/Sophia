@@ -386,6 +386,9 @@ const project = {
   waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
   lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
+  ...(query.get('role') === 'editor' ? { role: 'editor' as const } : {}),
+  // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
+  invitations: { kept: [], made: 0 },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',

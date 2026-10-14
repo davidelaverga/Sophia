@@ -8,7 +8,9 @@ import {
   clock,
   countdown,
   doorNote,
+  firstInviteTab,
   formSlot,
+  ROLE_NOTE,
   freshJoinToken,
   invitationState,
   knockNote,
@@ -206,5 +208,19 @@ describe('room access, as the Studio shows it', () => {
     assert.equal(admissionLabel('sending', 'Send invitation', 'Sending…'), 'Sending…')
     assert.equal(admissionLabel('unknown', 'Send invitation', 'Sending…'), 'Try again')
     assert.equal(admissionLabel('rejected', 'Send invitation', 'Sending…'), 'Send invitation')
+  })
+})
+
+describe('where Invite opens, and what each role may do (docs/plans/invite-members.md)', () => {
+  it('opens on Members for an admin out of a call; on Guests in a call, or for anyone else', () => {
+    assert.equal(firstInviteTab('admin', false), 'members')
+    assert.equal(firstInviteTab('admin', true), 'guests')
+    assert.equal(firstInviteTab('editor', false), 'guests')
+    assert.equal(firstInviteTab(undefined, false), 'guests')
+  })
+
+  it('says each role in one line', () => {
+    assert.equal(ROLE_NOTE.editor, 'Editors work on the goals and tasks, and invite and let in guests.')
+    assert.equal(ROLE_NOTE.viewer, 'Viewers read the project and change nothing.')
   })
 })
