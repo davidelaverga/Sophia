@@ -5677,3 +5677,11 @@ button.contribution-quote:hover {
     display: none;
   }
 }
+
+/* A new project's first step under Sophia's line (docs/plans/first-step.md): by voice or in writing, side by side. */
+.first-step {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}

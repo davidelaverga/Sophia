@@ -2,7 +2,10 @@
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
+import { Button } from '@sophia/ui'
+import { getMission } from '../../api/mission.ts'
 import type { Snapshot } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -13,6 +16,9 @@ import type { Passage } from '../artifacts/PassageBar.tsx'
 import type { CaptionTurn } from '../conversation/captions.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
+import { missionKey } from '../mission/mission-view.ts'
+import { FIRST_LINE, isNew } from './first-step.ts'
+import type { RoomLine } from '../voice/room-view.ts'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
@@ -79,6 +85,55 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
 }
 
 export type RoomPanel = ReturnType<typeof useRoomPanel>
+
+interface FirstFor {
+  projectId: string
+  identity: Identity
+  snapshot: Snapshot | undefined
+  room: ProjectRoom
+  panel: RoomPanel
+}
+
+/** What sits under her line: a new project's first step (when there is one) over whoever shows what. */
+const withFirstStep = (step: { line?: RoomLine; first?: ReactNode }, showing: ReactNode) => ({
+  ...(step.line && { line: step.line }),
+  showing: (
+    <>
+      {step.first}
+      {showing}
+    </>
+  ),
+})
+
+/**
+ * A new project's first step (docs/plans/first-step.md): while the ledger holds nothing, no goal exists and nobody is
+ * in the call, Sophia's line says to tell her what it's for, by voice or in writing. The ledger is the brief's own read.
+ */
+function useFirstStep({ projectId, identity, snapshot, room, panel }: FirstFor) {
+  const ledger = useQuery({
+    queryKey: [...missionKey(projectId), identity.name, snapshot?.cursor],
+    queryFn: () => getMission(identity.token, projectId),
+    placeholderData: keepPreviousData,
+  }).data
+  const fresh = isNew({ ledger: ledger?.readState, goals: snapshot?.goals.length ?? 0, inCall: room.status !== 'idle' })
+  if (!fresh) return {}
+  const write = () => {
+    if (panel.panel !== 'chat') panel.toggle('chat')
+  }
+  return {
+    line: FIRST_LINE,
+    first: (
+      <div className="first-step">
+        <Button kind="primary" onClick={() => void room.join()}>
+          Talk it through
+        </Button>
+        <Button kind="pill" onClick={write}>
+          Write to Sophia
+        </Button>
+      </div>
+    ),
+  }
+}
 
 interface Props {
   projectId: string
@@ -245,7 +300,7 @@ export function StudioShell(props: Props) {
         lensBody={<LensBody lens={state.lens} made={under} />}
         captions={captions}
         presented={present.presented}
-        showing={showing}
+        {...withFirstStep(useFirstStep({ projectId, identity, snapshot, room, panel }), showing)}
         corner={
           <PanelToggles
             open={panel.panel}
