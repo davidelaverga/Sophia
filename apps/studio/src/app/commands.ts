@@ -26,6 +26,11 @@ export interface Command {
   group: CommandGroup
   /** Its key, as useShortcuts names it ("h", "mod+k"), when it has one. */
   key?: string | undefined
+  /**
+   * Other words people type for it that its words don't say («theme», «dark» for the light's switch): never shown, they
+   * score as a group's word does, below its own (docs/plans/palette-also.md).
+   */
+  also?: readonly string[] | undefined
   /** Runs it; undefined while the page cannot (the room not joined): then it is not offered. */
   run?: (() => void) | undefined
 }
@@ -81,13 +86,14 @@ const wordsOf = (text: string) =>
 /** How well a command answers the words asked: 0 when a word starts none of its own, else the sum of its hits. */
 function scoreOf(asked: readonly string[], command: Offered): number {
   const own = wordsOf(command.words)
-  const group = wordsOf(GROUP_WORDS[command.group])
+  // Its group's words and its other words count alike, below its own.
+  const beside = [...wordsOf(GROUP_WORDS[command.group]), ...wordsOf((command.also ?? []).join(' '))]
   let score = 0
   for (const q of asked) {
     const at = own.findIndex((w) => w.startsWith(q))
     if (at === 0) score += 3
     else if (at > 0) score += 2
-    else if (group.some((w) => w.startsWith(q))) score += 1
+    else if (beside.some((w) => w.startsWith(q))) score += 1
     else return 0
   }
   return score

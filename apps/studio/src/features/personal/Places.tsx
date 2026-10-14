@@ -293,9 +293,23 @@ function usePlaceKeys(props: PlacesProps, layers: Layers, nav: Nav) {
   useCommands(
     [
       { id: 'home', words: 'Home', group: 'go', key: 'h', run: () => nav.enter('home') },
-      { id: 'personal', words: 'Personal', group: 'go', key: 'p', run: () => nav.enter('personal') },
+      {
+        id: 'personal',
+        words: 'Personal',
+        group: 'go',
+        key: 'p',
+        also: ['sophia', 'companion'],
+        run: () => nav.enter('personal'),
+      },
       { id: 'work', words: 'Your projects', group: 'go', key: 'w', run: () => nav.enter('work') },
-      { id: 'data', words: 'Your data', group: 'do', key: 'd', run: () => layers.setData(true) },
+      {
+        id: 'data',
+        words: 'Your data',
+        group: 'do',
+        key: 'd',
+        also: ['privacy', 'export'],
+        run: () => layers.setData(true),
+      },
       {
         id: 'lock',
         words: props.lock.locked ? 'Unlock your space' : 'Lock your space',
