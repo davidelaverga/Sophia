@@ -54,7 +54,11 @@ export function GoalSheet({ goal, plan, onClose, onOpenAsk, onOpenTasks }: Props
         </p>
         <p className="goal-outcome">{goal.outcome}</p>
         <Asks asks={asks} onOpen={onOpenAsk} inGoal />
-        {way && <p className="goal-sheet-way">{way}</p>}
+        {way && (
+          <p className="goal-sheet-way">
+            {asks.length > 0 ? 'Also in the way' : 'In the way'} · {way}
+          </p>
+        )}
         <Progress plan={plan} />
         {goal.criteria.length > 0 && (
           <section className="goal-sheet-section" aria-label="Done when">
