@@ -4,9 +4,9 @@
 // here must be typed for the conversation to work, and an empty field is one plain line, not an empty card. It
 // refreshes with the project's events (the snapshot cursor) and after each write.
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import type { MissionContext, MissionReceipt } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
+import { Tag, Tip } from '@sophia/ui'
 import {
   getMission,
   decideMissionChange,
@@ -27,6 +27,7 @@ import {
   OUTCOME,
   pendingFocus,
   PROPOSAL_KIND,
+  SAVE_DIRECTION_NOTE,
   writeControls,
 } from './mission-view.ts'
 import { AddNote, MoreNotes, NewestNotes } from './MissionNotes.tsx'
@@ -179,6 +180,8 @@ function EditDirection({
     identity,
     onEditing,
   })
+  // Who accepts it, said in Save's tip and to a screen reader, not as a sentence under it («Say less»: Codex on #331).
+  const noteId = useId()
   if (!open)
     return (
       <button type="button" className="text-button" onClick={begin}>
@@ -189,16 +192,20 @@ function EditDirection({
     <div className="mission-edit">
       <label htmlFor="brief-direction">Direction</label>
       <textarea id="brief-direction" value={text} maxLength={2000} rows={3} onChange={(e) => setText(e.target.value)} />
-      <p className="muted">Save proposes the direction for the team to accept.</p>
       <div className="control-row">
         <button
           type="button"
-          className="pill"
+          className="pill has-tip"
+          aria-describedby={noteId}
           disabled={!text.trim() || !controls.canSubmit}
           onClick={() => void save()}
         >
           Save direction
+          <Tip label={SAVE_DIRECTION_NOTE} />
         </button>
+        <span id={noteId} className="sr-only">
+          {SAVE_DIRECTION_NOTE}
+        </span>
         <button type="button" className="text-button" disabled={!controls.canSubmit} onClick={close}>
           Cancel
         </button>

@@ -8,6 +8,7 @@ import type {
   MissionWithdrawalPreview,
 } from '@sophia/contracts'
 import {
+  SAVE_DIRECTION_NOTE,
   citesLine,
   decidedBy,
   direction,
@@ -353,5 +354,13 @@ describe('mission view', () => {
       'Rests on 2 notes: “Book the hall early.” and 1 not shown here.',
     )
     assert.equal(citesLine(ctx, { supportingEntryIds: ['9'] }), 'Rests on a note.')
+  })
+})
+
+describe('who accepts a direction (e2e-real S1)', () => {
+  it('says what the server allows: any editor or admin accepts it, the one who proposed it included', () => {
+    assert.match(SAVE_DIRECTION_NOTE, /any editor or admin/i)
+    assert.match(SAVE_DIRECTION_NOTE, /you included/i)
+    assert.doesNotMatch(SAVE_DIRECTION_NOTE, /the team to accept/)
   })
 })

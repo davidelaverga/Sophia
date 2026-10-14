@@ -15,6 +15,12 @@ import { authorLabel } from '../conversation/conversation-view.ts'
 /** The mission read's query key: every write and project event refreshes it. */
 export const missionKey = (projectId: string) => ['mission', projectId] as const
 
+/**
+ * Under the direction form: who accepts it, as the server decides (any editor or admin, `can_edit`), the one who
+ * proposed it included: the voice flow puts Sophia's proposal back to its speaker to confirm (e2e-real S1).
+ */
+export const SAVE_DIRECTION_NOTE = 'Saving proposes it. Any editor or admin can accept it, you included.'
+
 export const ENTRY_KIND: Record<MissionEntry['kind'], string> = {
   observation: 'Observation',
   expectation: 'Expectation',
