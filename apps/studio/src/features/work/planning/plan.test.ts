@@ -660,6 +660,13 @@ describe('a goal at a glance (docs/plans/goals-overview.md)', () => {
     assert.equal(glance.ways.blocked, 1)
     assert.deepEqual(glance.people, [])
   })
+
+  it('leaves out of its way what waits on the viewer: that is theirs to answer, said apart', () => {
+    const views = [view('ask', { lifecycle: 'waiting', waiting_on: [wait('native_permission', 'davide')] })]
+    const rows = rowsOf(goal(plan([item('ask')]), views), 'davide')
+    assert.equal(glanceOf(rows, 'davide').ways.permissions, 0)
+    assert.equal(glanceOf(rows, 'luis').ways.permissions, 1)
+  })
 })
 
 /** A decision Davide is asked, open until 13:00. */

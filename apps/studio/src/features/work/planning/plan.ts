@@ -441,10 +441,15 @@ export interface GoalGlance {
   ways: Ways
 }
 
-export function glanceOf(rows: readonly PlanRow[]): GoalGlance {
+/** What is in its way leaves out what waits on the viewer: that is theirs to answer (`asksOf`), said apart. */
+export function glanceOf(rows: readonly PlanRow[], viewerId: string | null = null): GoalGlance {
   const lanes = rows.map((r) => laneOf(r, rows))
   const unfinished = rows.filter((_, i) => lanes[i] !== 'complete' && lanes[i] !== 'closed')
-  const pending = unfinished.flatMap((r) => r.waits.filter((w) => w.wait.state === 'pending').map((w) => w.wait.kind))
+  const pending = unfinished.flatMap((r) =>
+    r.waits
+      .filter((w) => w.wait.state === 'pending' && (viewerId === null || w.wait.respondent_id !== viewerId))
+      .map((w) => w.wait.kind),
+  )
   const n = (...kinds: WaitKind[]) => pending.filter((k) => kinds.includes(k)).length
   const people = new Map(unfinished.flatMap((r) => (r.doer.person ? [[r.doer.person.id, r.doer.person] as const] : [])))
   return {
@@ -530,7 +535,7 @@ export const glancedOf = (
   viewerId: string | null,
   now: Date,
 ) => ({
-  glance: glanceOf(rows),
+  glance: glanceOf(rows, viewerId),
   asks: operable ? asksOf(rows, goal.decisions, viewerId, now) : [],
   checkpoint: goal.next_checkpoint?.label,
 })
