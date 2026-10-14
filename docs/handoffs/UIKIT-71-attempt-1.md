@@ -59,3 +59,9 @@ commits on the branch merge its base forward or touch only this record). 14 file
 ## Next bounded action
 
 Correcting or forgetting one's own note from the goal's sheet (the brief already does both), if Luis wants it there.
+
+## CI
+
+- The first run on `main` failed one check of #304's own: `goals-overview.spec.ts` read «waiting on a permission» on the
+  demo rollout's row, which now says Sophia's difficulty (this change). `daafcb73` reads the row's difficulty; the way
+  stays asserted in the sheet. The branch took `main` forward first (`33bc6e56`).
