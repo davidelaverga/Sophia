@@ -52,7 +52,8 @@ describe('how they signed in (docs/plans/account-menu.md)', () => {
     assert.equal(providerOf({ provider: 'google' }), 'google')
     assert.equal(providerOf({ provider: 'github' }), 'github')
     assert.equal(providerOf({ provider: 'email' }), 'email')
-    assert.equal(providerOf({ provider: 'azure' }), null)
+    assert.equal(providerOf({ provider: 'azure' }), 'azure')
+    assert.equal(providerOf({ provider: 'apple' }), null)
     assert.equal(providerOf(null), null)
   })
 
@@ -60,6 +61,8 @@ describe('how they signed in (docs/plans/account-menu.md)', () => {
     assert.equal(signedInWith('google'), 'Signed in with Google')
     assert.equal(signedInWith('github'), 'Signed in with GitHub')
     assert.equal(signedInWith('email'), 'Signed in with an email code')
+    // Microsoft, offered when the deployment turns it on (Codex P2 on #309).
+    assert.equal(signedInWith('azure'), 'Signed in with Microsoft')
     assert.equal(signedInWith(null), null)
   })
 })

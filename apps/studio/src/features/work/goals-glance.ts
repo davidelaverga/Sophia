@@ -142,3 +142,9 @@ export function goalsShown(goals: readonly Goal[], plans: Plans, query: string):
   const q = query.trim().toLowerCase()
   return q ? goals.filter((g) => answers(g, plans?.[g.id], q)) : [...goals]
 }
+
+/**
+ * Whether a goal's sheet offers «Open in Tasks»: only when its board holds tasks. A goal observed with items and no
+ * plan has a slot too, and Tasks would show it nothing planned (Codex P2 on #300).
+ */
+export const canOpenInTasks = (plan: Glanced | undefined): boolean => (plan?.glance?.lanes.length ?? 0) > 0

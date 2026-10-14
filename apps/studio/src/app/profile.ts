@@ -40,9 +40,9 @@ export function initialOf(displayName: string | null | undefined, email: string)
 }
 
 /** How someone signed in (docs/plans/account-menu.md): the session's provider, when it is one the Studio offers. */
-export type Provider = 'google' | 'github' | 'email'
+export type Provider = 'google' | 'github' | 'azure' | 'email'
 
-const PROVIDERS: readonly Provider[] = ['google', 'github', 'email']
+const PROVIDERS: readonly Provider[] = ['google', 'github', 'azure', 'email']
 
 export function providerOf(appMetadata: unknown): Provider | null {
   const provider =
@@ -53,6 +53,8 @@ export function providerOf(appMetadata: unknown): Provider | null {
 const SIGNED_IN: Readonly<Record<Provider, string>> = {
   google: 'Signed in with Google',
   github: 'Signed in with GitHub',
+  // Microsoft, offered when the deployment turns it on (auth.ts names `azure` so).
+  azure: 'Signed in with Microsoft',
   email: 'Signed in with an email code',
 }
 

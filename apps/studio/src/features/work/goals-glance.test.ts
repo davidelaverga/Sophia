@@ -7,6 +7,7 @@ import {
   healthLine,
   healthOf,
   MANY,
+  canOpenInTasks,
   ordered,
   rowLine,
   stateLine,
@@ -171,5 +172,14 @@ describe('the goals in order, and many of them', () => {
 
   it('offers the search past six goals', () => {
     assert.equal(MANY, 6)
+  })
+})
+
+describe('«Open in Tasks» only where Tasks shows a plan (Codex P2 on #300)', () => {
+  it('offers it for a goal whose board has tasks, not for one observed with none planned', () => {
+    assert.equal(canOpenInTasks({ glance: glance() }), true)
+    assert.equal(canOpenInTasks({ glance: glance({ lanes: [] }) }), false)
+    assert.equal(canOpenInTasks({}), false)
+    assert.equal(canOpenInTasks(undefined), false)
   })
 })
