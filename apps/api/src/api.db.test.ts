@@ -348,6 +348,9 @@ describe('createProject', () => {
         .status,
       422,
     )
+    // A title of spaces alone is no title (e2e-real S2): refused as the empty one is, never stored as "   ".
+    const blank = await call(A, 'POST', '/api/v1/projects', { title: '   ' }, { 'idempotency-key': randomUUID() })
+    assert.deepEqual([blank.status, blank.json.code, blank.json.retry], [422, 'invalid_request', 'never'])
     assert.equal(
       (await call(A, 'POST', '/api/v1/projects', { title: 'Spoof', createdBy: B }, { 'idempotency-key': randomUUID() }))
         .status,
