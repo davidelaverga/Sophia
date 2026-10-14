@@ -1733,22 +1733,6 @@
 .places .sheet [aria-disabled='true'] {
   cursor: progress;
 }
-.places .privacy-rules {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.places .privacy-rules li {
-  color: var(--text-2);
-  font-size: 13px;
-}
-.places .privacy-rules strong {
-  display: block;
-  color: var(--text);
-  font-weight: 600;
-}
 @keyframes ps-arrive {
   from {
     opacity: 0;
