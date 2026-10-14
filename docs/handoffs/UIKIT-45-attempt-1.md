@@ -89,16 +89,17 @@ The next follow-up: ask-instead and the next ask on Home and a task's sheet (Cod
 
 ## Post-review, round 6 (Codex on #275)
 
-- `bfdc0444`: the thread is current only for the feed cursor its last read landed for (`useReadFor`): a moved cursor makes it not current from that very render, before the refetch starts, so no suggestion flashes from the old state. The final head's CI is pending (the run on record above predates this change).
+- `bfdc0444`: the thread is current only for the feed cursor its last read landed for (`useReadFor`): a moved cursor makes it not current from that very render, before the refetch starts, so no suggestion flashes from the old state. Its CI: the final head's run under «CI on record, final head» above.
 
 ## Post-review, round 7 (Codex on #275)
 
-- `db8f2824`: the cursor the thread answers is stamped by the feed-triggered read alone (`useTranscript`'s `onReadFor`, on that refetch's success), not by any data update, so an older page landing meanwhile leaves it not current; «Earlier messages» is not pressed while the thread is read again (`busy`), its words unchanged. The final head's CI is pending.
+- `db8f2824`: the cursor the thread answers is stamped by the feed-triggered read alone (`useTranscript`'s `onReadFor`, on that refetch's success), not by any data update, so an older page landing meanwhile leaves it not current; «Earlier messages» is not pressed while the thread is read again (`busy`), its words unchanged. Its CI: the final head's run above.
 
 ## Post-review, round 8 (Codex on #275)
 
 - `d796cc5c`: «Earlier messages» is not pressed, and nothing is offered, while a read is not settled (`settled`, `fetchStatus`
   idle): a refresh paused offline (`isFetching` false) is still on its way, and an older page pressed then would cancel
   it. Unit suite green, lint and typecheck clean.
-- P1 4254957476: the browser suites run on the final head in CI (local Playwright refused by the machine guard); its run
-  is recorded under «CI on record, final head» once green, the earlier run on `deecead4` kept as history.
+- P1 4254957476: the browser suites ran on the final head in CI (local Playwright refused by the machine guard): run
+  38350824470 on `72a9e382`, green, recorded under «CI on record, final head» above; the earlier run on `deecead4` kept as
+  history.
