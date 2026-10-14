@@ -5334,7 +5334,8 @@ button.contribution-quote:hover {
 }
 /* The words searched for, in a hit (docs/plans/search-goals.md): the ink kept, a quiet lavender behind. */
 .search-hit mark {
-  border-radius: 2px;
+  /* On the kit's radii (4 · 6 · 8 · 12), as every box. */
+  border-radius: 4px;
   background: rgb(var(--halo-text-rgb) / 0.22);
   color: inherit;
 }
