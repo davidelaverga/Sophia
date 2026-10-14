@@ -27,6 +27,7 @@ import {
   OUTCOME,
   pendingFocus,
   PROPOSAL_KIND,
+  SAVE_DIRECTION_NOTE,
   writeControls,
 } from './mission-view.ts'
 import { AddNote, MoreNotes, NewestNotes } from './MissionNotes.tsx'
@@ -189,7 +190,7 @@ function EditDirection({
     <div className="mission-edit">
       <label htmlFor="brief-direction">Direction</label>
       <textarea id="brief-direction" value={text} maxLength={2000} rows={3} onChange={(e) => setText(e.target.value)} />
-      <p className="muted">Save proposes the direction for the team to accept.</p>
+      <p className="muted">{SAVE_DIRECTION_NOTE}</p>
       <div className="control-row">
         <button
           type="button"
