@@ -204,7 +204,11 @@ interface ListedProps extends Pick<Props, 'snapshot' | 'projectId' | 'identity' 
 /** Goals: the overview. Tasks: each goal with its plan under it, as the search leaves them. */
 function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
   const { given, plans, listed, query } = shown
-  if (summary) return snapshot ? <GoalsOverview goals={snapshot.goals} plans={given} onOpenGoal={onOpenGoal} /> : null
+  // With no goal yet, the view's empty state says so alone: no brief, no list, no search (goals-overview.md).
+  if (summary) {
+    if (!snapshot?.goals.length) return null
+    return <GoalsOverview goals={snapshot.goals} plans={given} onOpenGoal={onOpenGoal} />
+  }
   return (
     <SearchQuery.Provider value={query}>
       <ol className="goal-list">
