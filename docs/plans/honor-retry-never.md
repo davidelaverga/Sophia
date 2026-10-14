@@ -19,7 +19,7 @@
 
 - `account-cache.test.ts`:
   - `retryRead` refuses a `never` 403;
-  - it allows a `safe` 503 up to three times, and a network error;
+  - it allows a `safe_read` 503 up to three times, and a network error;
   - every account's cache uses `retryRead`.
 - Prettier, type-aware lint, typecheck; unit tests. CI as the run on record (the browser specs run on fixtures, whose
   own clients are not this one).

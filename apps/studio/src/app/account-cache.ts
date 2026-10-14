@@ -2,6 +2,7 @@
 // cache of its own before anything of it renders, so nothing read for the last one is shown to the next, not even for a
 // frame; the last one's is cleared once the next has taken over, never while rendering (Codex's review of a06db118).
 import { QueryClient } from '@tanstack/react-query'
+import { ApiError } from '../api/client.ts'
 
 export interface AccountCache {
   /** The account signed in (accountOf: its token's subject), or null while nobody is. */
@@ -9,7 +10,17 @@ export interface AccountCache {
   client: QueryClient
 }
 
-export const cacheOf = (account: string | null): AccountCache => ({ account, client: new QueryClient() })
+/**
+ * How a read is asked again: never after a refusal the API marks `retry: never` (a 403 behind «No access» does not
+ * change by asking: e2e-real Q2); anything else three times, as TanStack's default. A read's own `retry` wins.
+ */
+export const retryRead = (failures: number, error: unknown): boolean =>
+  !(error instanceof ApiError && error.retry === 'never') && failures < 3
+
+export const cacheOf = (account: string | null): AccountCache => ({
+  account,
+  client: new QueryClient({ defaultOptions: { queries: { retry: retryRead } } }),
+})
 
 /** The cache for `account`: the one it has, or a new, empty one. */
 export const cacheFor = (cache: AccountCache, account: string | null): AccountCache =>

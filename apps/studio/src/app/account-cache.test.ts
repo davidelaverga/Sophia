@@ -36,7 +36,7 @@ describe('each account has its own cache (Codex’s review of a06db118)', () => 
 
 describe('a refusal that will not change is not asked again (e2e-real Q2)', () => {
   const forbidden = new ApiError(403, 'forbidden', 'Not permitted', 'never')
-  const unavailable = new ApiError(503, 'unavailable', 'Try again', 'safe')
+  const unavailable = new ApiError(503, 'unavailable', 'Try again', 'safe_read')
   it('a refusal the API marks retry never is not retried; anything else, three times as before', () => {
     assert.equal(retryRead(0, forbidden), false)
     assert.equal(retryRead(0, unavailable), true)
