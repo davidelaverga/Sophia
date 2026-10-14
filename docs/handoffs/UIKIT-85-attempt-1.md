@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/search
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no service code, no deploy, no contract.
 Runtime unit: Luis's Windows host (local Playwright through `.claude-guards/safe-run.ps1`); CI as the run on record.
 Existing authority: Luis's standing instructions for the kit; merges on green with no open P1 (his queue).
-Ending commit/tree: pending
+Ending commit/tree: `08902f78bc7f` (tree `939f18d9bba7`), the last commit of `ui/search-honest`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 9 files changed against
+`origin/main` at that commit: `e2e/search-goals.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/features/search/SearchSheet.tsx`, `src/features/search/search-view.test.ts`, `src/features/search/search-view.ts`, `src/features/studio/ProjectShell.tsx`, `src/features/work/planning/ServedWork.tsx`, `docs/plans/search-honest.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
