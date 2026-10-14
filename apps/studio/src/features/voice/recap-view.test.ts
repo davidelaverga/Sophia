@@ -17,6 +17,8 @@ const names = new Map([
   ['marco', 'Marco'],
 ])
 const nameOf = (id: string) => names.get(id) ?? 'a member'
+/** When, as a test says it: the moment's own words. */
+const saidAt = (at: string) => `at ${at}`
 
 const recap = (over: Partial<MeetingRecap> = {}): MeetingRecap => ({
   meetingId: 'm',
@@ -79,8 +81,7 @@ describe('the recap’s sections', () => {
   })
 
   it('says when a decided or kept line happened, given the words for it (docs/plans/updates-when.md)', () => {
-    const when = (at: string) => `at ${at}`
-    const sections = recapSections(full, nameOf, false, when)
+    const sections = recapSections(full, nameOf, false, saidAt)
     assert.equal(sections[0]?.lines[0]?.by, 'proposed by Marco, decided by you · at x')
     assert.equal(sections[1]?.lines[0]?.by, 'asked by you')
     assert.deepEqual(

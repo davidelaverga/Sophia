@@ -52,15 +52,24 @@ export type Records = Pick<MeetingRecap, 'decided' | 'made' | 'noted' | 'open' |
 /** Work not finished yet: queued or running. */
 export const ongoing = (state: string): boolean => state === 'pending' || state === 'running'
 
-/** `closed`: the recap is the record at close, so work running then is said as such, never as done. */
-export function recapSections(recap: Records, nameOf: NameOf, closed = false): RecapSection[] {
+/**
+ * `closed`: the recap is the record at close, so work running then is said as such, never as done. `when`: Updates says
+ * when a decided or kept line happened (updates-when.md); a meeting's recap, all of one meeting, doesn't.
+ */
+export function recapSections(
+  recap: Records,
+  nameOf: NameOf,
+  closed = false,
+  when?: (at: string) => string,
+): RecapSection[] {
+  const at = (by: string, moment: string) => (when ? `${by} · ${when(moment)}` : by)
   const sections: RecapSection[] = [
     {
       title: 'Decided',
       lines: recap.decided.map((d) => ({
         key: d.decisionId,
         text: d.statement,
-        by: `proposed by ${nameOf(d.proposedBy)}, decided by ${nameOf(d.decidedBy)}`,
+        by: at(`proposed by ${nameOf(d.proposedBy)}, decided by ${nameOf(d.decidedBy)}`, d.at),
         to: 'brief',
       })),
     },
@@ -74,7 +83,7 @@ export function recapSections(recap: Records, nameOf: NameOf, closed = false): R
     },
     {
       title: 'Kept',
-      lines: recap.noted.map((n) => ({ key: n.entryId, text: n.text, by: keptBy(n, nameOf), to: 'brief' })),
+      lines: recap.noted.map((n) => ({ key: n.entryId, text: n.text, by: at(keptBy(n, nameOf), n.at), to: 'brief' })),
     },
     {
       title: 'Still open',
