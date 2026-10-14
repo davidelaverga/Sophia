@@ -4339,7 +4339,9 @@ button.contribution-quote:hover {
     top: auto;
     left: 0;
     width: 100%;
-    max-height: 90dvh;
+    /* At most 90 % of the screen, and always 64 px short of its top: a notice (the toast) has its band there over an
+       open sheet, even in a window both narrow and short (500×400; Codex P2 on #293). */
+    max-height: min(90dvh, calc(100dvh - 64px));
     padding: var(--sheet-top) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
     border-left: 0;
     border-top: 1px solid var(--line-2);
