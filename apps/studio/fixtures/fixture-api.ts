@@ -56,6 +56,7 @@ import {
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
+import { invitationsAnswer, type Invitations } from './invitations-data.ts'
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
@@ -101,6 +102,8 @@ interface Project {
   lobbyAsked?: string | null
   /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
+  /** The invitations made here (invitations-data.ts); absent, the list is empty and making one is unexpected. */
+  invitations?: Invitations
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
   /**
@@ -421,7 +424,7 @@ function visionRead(project: Project, url: URL) {
   return json(roomFocus(project.showing, project.revision))
 }
 
-/** The brief, the meeting's records and the invitations sent (none) (A08, A12); undefined for any other request. */
+/** The brief, the meeting's records and the invitations sent (A08, A12); undefined for any other request. */
 function recordsAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
@@ -431,6 +434,7 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
     return json(digestOf(project.meeting, project.revision))
+  if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
 }

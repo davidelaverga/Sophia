@@ -8,7 +8,7 @@ import { createInvitation, reissueInvitation, revokeInvitation } from '../../api
 import { ApiError } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { Sheet } from '../../app/Sheet.tsx'
-import { admissionLabel, doorNote, invitationState, linkLimits } from './access-view.ts'
+import { admissionLabel, doorNote, firstInviteTab, invitationState, linkLimits, ROLE_NOTE } from './access-view.ts'
 import { AdmissionNote } from './AdmissionNote.tsx'
 import { CalendarTab } from './CalendarTab.tsx'
 import { QrCode } from './QrCode.tsx'
@@ -37,7 +37,7 @@ const EMAIL: Record<Invitation['emailStatus'], string> = {
 }
 
 export function InviteSheet({ context, onClose }: { context: SheetContext; onClose: () => void }) {
-  const [tab, setTab] = useState<Tab>('guests')
+  const [tab, setTab] = useState<Tab>(() => firstInviteTab(context.membership?.role, context.inCall ?? false))
   return (
     <Sheet id="invite-title" title="Invite" onClose={onClose} top={<SheetTabs tab={tab} onTab={setTab} />}>
       <TabPanel tab="guests" shown={tab}>
@@ -430,6 +430,7 @@ function MemberForm({ context, onSent }: { context: SheetContext; onSent: () => 
           <option value="viewer">Viewer</option>
         </select>
       </div>
+      <p className="role-note">{ROLE_NOTE[role]}</p>
       <button type="submit" className="pill primary" disabled={create.state.status === 'sending' || !email.trim()}>
         {admissionLabel(create.state.status, 'Send invitation', 'Sending…')}
       </button>

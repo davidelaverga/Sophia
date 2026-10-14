@@ -3479,6 +3479,12 @@ button.contribution-quote:hover {
 .sheet-form > input {
   width: 100%;
 }
+/* What the role chosen may do, under the member's field (docs/plans/invite-members.md). */
+.role-note {
+  margin: 0 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
 .sheet-status {
   min-height: 1.3em;
   color: var(--text-3);
