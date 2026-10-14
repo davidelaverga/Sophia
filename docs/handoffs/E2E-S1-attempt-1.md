@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/direct
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no API, no migration, no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `aaa6b3f4d930` (tree `6f33426437f1`), the last commit of `ui/direction-who-accepts`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 4 files changed against
+`origin/main` at that commit: `src/features/mission/MissionPanel.tsx`, `src/features/mission/mission-view.test.ts`, `src/features/mission/mission-view.ts`, `docs/plans/direction-who-accepts.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
