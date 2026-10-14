@@ -26,6 +26,15 @@ commits on the branch merge its base forward or touch only this record). 2 files
   `data-crowded="true"`, `aria-hidden="true"`, `inert`; back, none of them.
 - Local Playwright did not run (a heavy app was open); CI is the run on record.
 
+## Review notes
+
+- Codex P1 (no check for the resize path): «a resize that moves the divider away reads the crowding again, with no
+  scroll». Room is added below so the reader is not at the end (the list's own stick-to-the-end would scroll, and that
+  scroll alone reads the crowding again: the reason a viewport resize could not isolate the observer, which fired 2–4
+  scroll events in a probe). Padding on the list resizes its box and moves the divider 80 px down with no scroll event;
+  the test asserts zero scrolls and the crowding cleared. Local Playwright through the guard: 3/3 pass; control mutant
+  (`resized?.observe(box)` commented out) fails on the crowding assertion.
+
 ## Remaining obligations
 
 - CI; Codex with no open P1.
