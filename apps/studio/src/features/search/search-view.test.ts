@@ -87,6 +87,14 @@ describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
     assert.deepEqual(localHits(goals, plans, 'c', health), [])
   })
 
+  it('carries a task’s doer, so its line can mark it (Codex P2 on #313)', () => {
+    assert.equal(localHits(goals, plans, 'marco', health)[0]?.doer, 'Marco’s Claude Code')
+  })
+
+  it('says «Goal» alone while its health isn’t known: the notes unread (Codex P2 on #313)', () => {
+    assert.equal(localHits(goals, plans, 'admin', () => null)[0]?.source, 'Goal')
+  })
+
   it('keeps three of each at most', () => {
     const many = Array.from({ length: 5 }, (_, i) => goal(`m${String(i)}`, `Report ${String(i)}`))
     assert.equal(localHits(many, undefined, 'report', health).length, 3)
