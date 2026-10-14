@@ -1845,6 +1845,13 @@
     text-overflow: ellipsis;
     font-size: 12px;
   }
+  /* What needs you, on one column: a note says itself whole under its title, as the side column's rows do under 440 px
+     (a project's title may run to 180 characters; Codex P2 on #289). */
+  .places .hw-needs-here .hw-m {
+    max-width: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
   .places .hw-go {
     grid-area: go;
   }
