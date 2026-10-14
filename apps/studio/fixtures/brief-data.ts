@@ -144,7 +144,8 @@ export function goalNote(
     text: note.text,
     textKind: note.sophia ? 'sophia_paraphrase' : 'member_text',
     authoredBy: note.sophia ? 'sophia' : 'member',
-    actorId: note.sophia ? 'sophia' : membership.actorId,
+    // Sophia's own actor, an id as every actor's is: the contract reads it as a UUID.
+    actorId: note.sophia ? '00000000-0000-4000-8000-00000000050f' : membership.actorId,
     origin: note.sophia ? 'voice' : 'studio',
     exchangeId: null,
     inputEpoch: null,
