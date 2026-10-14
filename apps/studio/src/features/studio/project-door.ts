@@ -45,6 +45,7 @@ export function staleRetry(error: Error | null, loaded: boolean): number | false
  * docs/plans/goals-progress.md) is in view and the project can be shown, and never where the page brings its own plans
  * (a fixture). No other view reads it.
  */
-export function readsServedBoard(view: View, blocked: Blocked | null, ownPlans: boolean): boolean {
-  return (view === 'work' || view === 'goals') && !blocked && !ownPlans
+export function readsServedBoard(view: View, blocked: Blocked | null, ownPlans: boolean, searching = false): boolean {
+  // The project's search reads it too, from any view: it finds tasks by their words (search-goals.md).
+  return (view === 'work' || view === 'goals' || searching) && !blocked && !ownPlans
 }

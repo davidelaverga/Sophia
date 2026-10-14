@@ -334,6 +334,7 @@ function useTasksWork(
   feed: Feed | null,
   membership: Membership | undefined,
   blocked: Blocked | null,
+  searching: boolean,
 ): ServedWork {
   const { projectId, identity } = props
   const served = useServedWork({
@@ -341,7 +342,7 @@ function useTasksWork(
     identity,
     feed,
     canAct: canInvite(membership),
-    enabled: readsServedBoard(props.view, blocked, !!props.plans),
+    enabled: readsServedBoard(props.view, blocked, !!props.plans, searching),
   })
   return { plans: props.plans ?? served.plans, entry: served.entry }
 }
@@ -419,7 +420,7 @@ export function ProjectShell(props: Props) {
   const { inviting, setInviting, searching, setSearching, invite, search } = useShellSheets()
   const { loaded, blocked, shown } = doorOf(snapshot)
   const dockAt = useDockPlace(room, snapshot.data, () => onShow('studio'), dockShown(view, blocked))
-  const work = useTasksWork(props, feed, membership, blocked)
+  const work = useTasksWork(props, feed, membership, blocked, searching)
   useBeyondTheView(props, snapshot.data, room, blocked)
   const at = { view, inviting, mayInvite: !!shown && canInvite(membership), shown: !!shown, blocked: !!blocked }
   useProjectKeys({ onLeave, onWork, invite, search, show: onShow }, at)
@@ -675,6 +676,13 @@ function ProjectSheets(props: BodyProps & { panel: RoomPanel; catchUp: React.Rea
       <ProjectSearch
         {...{ projectId, identity, snapshot, membership, room }}
         {...props.search}
+        plans={props.plans}
+        onThere={(view, id, address) => {
+          // A goal's sheet in Goals, a task's in Tasks, named in the address (search-goals.md).
+          onShow(view)
+          showInAddress(id, address)
+          window.dispatchEvent(new Event(ADDRESS_NAMED))
+        }}
         onBrief={() => {
           onShow('studio')
           // Opened as its toggle opens it, so closing it gives the focus back there.

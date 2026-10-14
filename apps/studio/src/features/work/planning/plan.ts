@@ -538,6 +538,8 @@ export const glancedOf = (
   glance: glanceOf(rows, viewerId),
   asks: operable ? asksOf(rows, goal.decisions, viewerId, now) : [],
   checkpoint: goal.next_checkpoint?.label,
+  // What the project's search finds a task by (search-goals.md): its purpose and who does it.
+  tasksFound: rows.map((r) => ({ id: r.item.id, purpose: r.item.purpose, doer: r.doer.name })),
 })
 
 /** Its last report, when it is its current attempt's, in its current generation. */

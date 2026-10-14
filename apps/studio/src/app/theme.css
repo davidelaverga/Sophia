@@ -5332,6 +5332,12 @@ button.contribution-quote:hover {
 .search-hit:hover {
   background: var(--line);
 }
+/* The words searched for, in a hit (docs/plans/search-goals.md): the ink kept, a quiet lavender behind. */
+.search-hit mark {
+  border-radius: 2px;
+  background: rgb(var(--halo-text-rgb) / 0.22);
+  color: inherit;
+}
 .search-hit-title {
   font-size: 14px;
   font-weight: 500;
