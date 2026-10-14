@@ -289,6 +289,9 @@ describe('member invitations waiting in the app (A16)', () => {
     )
     assert.deepEqual(me, { actorId: N, role: 'viewer' })
     assert.deepEqual((await inbox(N, 'nina@example.com')).list, [])
+    // A retry after a lost reply is answered as the link's is: the same project, not «not found» (Codex P2 on #332).
+    const again = await accept(N, 'nina@example.com', created.id)
+    assert.deepEqual([again.status, again.json], [200, { projectId: seed.projectId }])
   })
 
   it('shows no closed invitation, and a guest has none', async () => {
@@ -298,7 +301,8 @@ describe('member invitations waiting in the app (A16)', () => {
     await call(`/api/v1/invitations/${created.id}/revoke`, { bearer: await token(A), body: {} })
     const R = randomUUID()
     assert.deepEqual((await inbox(R, 'rita@example.com')).list, [])
-    assert.equal((await accept(R, 'rita@example.com', created.id)).status, 422)
+    // Closed, it is said closed, as the link says it (409), not unknown.
+    assert.equal((await accept(R, 'rita@example.com', created.id)).status, 409)
     const guest = await call('/api/v1/me/invitations', { method: 'GET', bearer: await guestToken(randomUUID()) })
     assert.equal(guest.status, 403)
   })
