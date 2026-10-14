@@ -24,6 +24,7 @@ import { forgetKept } from '../src/features/conversations/talk-store.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
+import { PrivacySheet } from '../src/features/personal/PlaceDialogs.tsx'
 import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
@@ -924,30 +925,39 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
  * The project as the signed-in Studio shows it (SignedIn.tsx): its view moves as the person picks another (ViewNav,
  * the mini dock).
  */
+/**
+ * The account menu's actions on the fixture page (account-menu.md): How privacy works opens its sheet here; your
+ * personal data goes to the personal space, as the app goes home; signing out goes to the sign-in.
+ */
+const demoAccount = (privacy: () => void) => ({
+  data: () => window.location.assign(`personal.html${DEMO ? '?demo=1' : ''}`),
+  privacy,
+  chooseDev: nothing,
+  signOut: () => window.location.assign(`signin.html${DEMO ? '?demo=1' : ''}`),
+})
+
 function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
+  const [privacy, setPrivacy] = useState(false)
   return (
-    <ProjectShell
-      projectId={PROJECT}
-      view={view}
-      identity={identity}
-      account={
-        <AccountMenu
-          identity={identity}
-          where="project"
-          actions={{ data: nothing, privacy: nothing, chooseDev: nothing, signOut: nothing }}
-        />
-      }
-      onShow={(next) => {
-        if (SERVED.includes(next)) setView(next)
-      }}
-      onLeave={nothing}
-      onWork={nothing}
-      onSignOut={nothing}
-      joinOnOpen={query.get('call') === 'on'}
-      background={background}
-      resources={DEMO ? <DemoResources /> : undefined}
-    />
+    <>
+      {privacy && <PrivacySheet onClose={() => setPrivacy(false)} />}
+      <ProjectShell
+        projectId={PROJECT}
+        view={view}
+        identity={identity}
+        account={<AccountMenu identity={identity} where="project" actions={demoAccount(() => setPrivacy(true))} />}
+        onShow={(next) => {
+          if (SERVED.includes(next)) setView(next)
+        }}
+        onLeave={nothing}
+        onWork={nothing}
+        onSignOut={nothing}
+        joinOnOpen={query.get('call') === 'on'}
+        background={background}
+        resources={DEMO ? <DemoResources /> : undefined}
+      />
+    </>
   )
 }
 
