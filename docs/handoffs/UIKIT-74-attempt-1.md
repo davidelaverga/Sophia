@@ -55,3 +55,10 @@ commits on the branch merge its base forward or touch only this record). 11 file
 ## Next bounded action
 
 A Profile sheet to set one's name, once #307 decides where a display name comes from.
+
+## CI
+
+- The first run failed checks that read the old head and label: `app-auth.spec.ts` read the whole head as the address
+  (now the initial, the email and how they signed in; it reads the head's name line, `b9cbbf2e`), `menu-scale.spec.ts`
+  looked for «Your data» in a project (now «Your personal data»), and the new theme check reopened a menu that a choice
+  keeps open (it asserts where it stands).
