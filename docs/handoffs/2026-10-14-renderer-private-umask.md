@@ -4,7 +4,7 @@ Goal and attempt: SDD-01 / WBC-02, first production PDF gate, renderer permissio
 Human owner / executor resource: existing Sophia release operator, existing renderer.  
 Native session: the existing pilot session was retained; no replacement task.  
 Starting commit: `98ff7edbfce1aeeee949f07733b3d969e5c8fb50`.  
-Ending commit/tree: recorded by the PR head; source qualification remains pending.
+Ending renderer implementation commit: `74d231d458d1e7f6bcff51550ad10f0288e3be85`; full tree `e3601cc325cebf3684eff0c3770ad1e48e74d6a4`, renderer subtree `0128f57b6353f6409b996862a269c3cf307b8133`. This subsequent handoff-only correction does not alter those renderer bytes. Source qualification remains pending.
 
 ## Outcome
 
