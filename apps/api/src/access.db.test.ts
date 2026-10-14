@@ -304,6 +304,19 @@ describe('member invitations waiting in the app (A16)', () => {
   })
 })
 
+describe('the invitations list', () => {
+  // Who manages invitations reads them; anyone else is refused as every project read refuses them, not answered an
+  // empty list (e2e-real S3): a viewer, an outsider, and a project that does not exist.
+  const list = async (actor: string, projectId = seed.projectId) =>
+    (await call(`/api/v1/projects/${projectId}/invitations`, { method: 'GET', bearer: await token(actor) })).status
+  it('is read by its admin and editors, and refused to a viewer, an outsider and a project that does not exist', async () => {
+    assert.deepEqual(
+      [await list(A), await list(B), await list(V), await list(randomUUID()), await list(A, randomUUID())],
+      [200, 200, 403, 403, 403],
+    )
+  })
+})
+
 describe('sessions and membership', () => {
   it('put a start on the room calendar, in a real time zone', async () => {
     const startsAt = new Date(Date.now() + 86_400_000).toISOString()

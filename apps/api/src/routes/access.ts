@@ -211,7 +211,14 @@ function invitationRoutes(app: FastifyInstance, deps: AccessDeps): void {
     { schema: { params: projectParams, response: { 200: ref('InvitationList') } } },
     async (req) => {
       const cfg = requireInvites(deps)
-      const list = await withActor(deps.pool, req.actorId, 'read', (c) => listInvitations(c, req.params.projectId))
+      const list = await withActor(deps.pool, req.actorId, 'read', async (c) => {
+        // Who manages invitations reads them; anyone else is refused as every project read refuses them, not
+        // answered an empty list by the row policy (e2e-real S3): a viewer, an outsider, an unknown project.
+        const membership = await readMembership(c, req.params.projectId)
+        if (membership?.role !== 'admin' && membership?.role !== 'editor')
+          throw new DomainError('forbidden', 'Not permitted')
+        return listInvitations(c, req.params.projectId)
+      })
       return { invitations: list.map((r) => toBody(cfg, r)) }
     },
   )
