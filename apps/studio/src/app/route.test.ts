@@ -9,6 +9,7 @@ import {
   PLACES,
   projectOnScreen,
   routePath,
+  shownView,
   VIEWS,
   viewsShown,
 } from './route.ts'
@@ -68,11 +69,17 @@ describe('the project on screen', () => {
   })
 })
 
-describe('viewsShown', () => {
-  it('shows Conversations only under the vision flag', () => {
-    assert.ok(viewsShown(true).includes('conversations'))
-    assert.ok(!viewsShown(false).includes('conversations'))
-    assert.equal(viewsShown(false).length, VIEWS.length - 1)
+describe('viewsShown (docs/plans/served-views.md)', () => {
+  it('shows only the served views without the vision flag, and all of them under it', () => {
+    assert.deepEqual(viewsShown(false), ['studio', 'goals', 'work', 'knowledge'])
+    assert.deepEqual(viewsShown(true), VIEWS)
+  })
+
+  it('opens the Studio for an address to a view not shown', () => {
+    assert.equal(shownView('knowledge', false), 'knowledge')
+    assert.equal(shownView('updates', false), 'studio')
+    assert.equal(shownView('resources', false), 'studio')
+    assert.equal(shownView('updates', true), 'updates')
   })
 })
 

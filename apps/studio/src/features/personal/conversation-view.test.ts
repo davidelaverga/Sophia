@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalTurn } from '@sophia/contracts'
 import {
+  askAbout,
   conversationRows,
   dayLabel,
   daysOf,
@@ -178,6 +179,13 @@ describe('conversationRows', () => {
   it('says when Sophia could not answer, so the person can ask again', () => {
     const failed = turn('person', 'Hello?', at(0, 19), { reply: 'failed' })
     assert.deepEqual(shape(conversationRows(input([failed]))), ['day:Today', 'person', 'failed'])
+  })
+})
+
+describe('askAbout (docs/plans/find-ask-sophia.md)', () => {
+  it('asks Sophia about the words looked for, as typed and trimmed', () => {
+    assert.equal(askAbout('  vacation '), 'What did I tell you about vacation?')
+    assert.equal(askAbout('the Porto trip'), 'What did I tell you about the Porto trip?')
   })
 })
 

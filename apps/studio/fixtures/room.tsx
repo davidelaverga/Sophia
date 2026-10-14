@@ -75,6 +75,15 @@ import {
   VERSIONS_HELD,
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
+import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
+import {
+  actions as resourceActions,
+  earlierReadings,
+  NOW as RESOURCES_READ,
+  observations as resourceObservations,
+  people as resourcePeople,
+  resources as demoResources,
+} from './resources-data.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
@@ -956,6 +965,25 @@ function Project({ background }: { background: boolean }) {
       onSignOut={nothing}
       joinOnOpen={query.get('call') === 'on'}
       background={background}
+      resources={DEMO ? <DemoResources /> : undefined}
+    />
+  )
+}
+
+/**
+ * The demo's Resources: the real panel over the resources' labelled fixture data (resources-data.ts), read-only (no
+ * effort, act or task link wired, so nothing offers a press that does nothing; docs/plans/demo-resources.md).
+ */
+function DemoResources() {
+  return (
+    <ResourcePanel
+      resources={demoResources}
+      observations={resourceObservations}
+      actions={resourceActions}
+      viewerId={resourcePeople.luis.id}
+      now={RESOURCES_READ}
+      history={earlierReadings(resourceObservations)}
+      scope="demo"
     />
   )
 }

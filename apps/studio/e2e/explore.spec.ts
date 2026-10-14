@@ -191,3 +191,16 @@ test('going back or trying one image again reads no other image', async ({ page 
   await expect(tile(page, 1).getByText('This image couldn’t be read.')).toBeVisible() // A waits for its own retry
   expect(await readsOfA(), 'A was not read again behind the person’s back').toBe(before)
 })
+
+test('explore · at 1440 every candidate’s route is named whole, never cut (docs/plans/explore-route-name.md)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/explore.html')
+  const routes = page.locator('.candidate-route')
+  await expect(routes.first()).toBeVisible()
+  const cut = await routes.evaluateAll((els) =>
+    els.filter((e) => e.scrollWidth > e.clientWidth + 0.5).map((e) => e.textContent),
+  )
+  expect(cut).toEqual([])
+})

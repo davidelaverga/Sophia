@@ -1094,6 +1094,14 @@
   box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.4 * var(--shadow-k)));
   animation: ps-arrive 200ms var(--ease);
 }
+/* The next day's divider right under it names the day: the pill steps aside (docs/plans/personal-day-pill.md). */
+.places .c3-daypill {
+  transition: opacity 140ms var(--ease);
+}
+.places .c3-daypill[data-crowded] {
+  opacity: 0;
+  pointer-events: none;
+}
 .places .c3-daypill:hover,
 .places .c3-daypill[aria-expanded='true'] {
   color: var(--text);
