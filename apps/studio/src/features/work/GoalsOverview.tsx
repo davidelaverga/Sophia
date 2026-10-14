@@ -9,7 +9,7 @@ import { useCommands } from '../../app/useCommands.ts'
 import { DECISION, TASK } from '../resources/link.ts'
 import type { GoalPlan } from './GoalList.tsx'
 import { useLedger, type NotesFor } from './GoalNotes.tsx'
-import { withNotes } from './goal-notes.ts'
+import { notesRead, withNotes } from './goal-notes.ts'
 import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
 import { GoalSheet } from './GoalSheet.tsx'
 import {
@@ -141,6 +141,19 @@ function useListed(goals: readonly Goal[], plans: Plans) {
   return { many, query, setQuery, shown, listed, folded, unfold: () => setUnfolded(true) }
 }
 
+/** The notes unread: a difficulty may be missing from the health, said with the way to read them again. */
+function NotesFailed({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
+  if (notesRead(ledger) !== 'failed') return null
+  return (
+    <p className="goals-notes-failed" role="alert">
+      The notes can’t be read right now, so a difficulty may be missing.{' '}
+      <button type="button" className="text-button" onClick={() => void ledger.refetch()}>
+        Try again
+      </button>
+    </p>
+  )
+}
+
 export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props) {
   const ledger = useLedger(notes)
   const plans: Plans = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
@@ -155,7 +168,10 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
       <p className="goals-brief">
         <span className="goals-brief-you">{briefOf(asks.length)}</span>
         {health && ` ${health}`}
+        {/* Until the notes are read a difficulty may be missing from the health: said (notes-robust.md). */}
+        {notesRead(ledger) === 'reading' && ' · Reading the notes…'}
       </p>
+      <NotesFailed ledger={ledger} />
       <Asks asks={asks} onOpen={openAsk} />
       <div className="goals-list-head">
         <h3 className="field-label">Goals</h3>
