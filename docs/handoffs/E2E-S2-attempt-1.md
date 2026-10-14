@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `api/blank
 Writable scope: this worktree only (`apps/api`, `docs/plans`, `docs/handoffs`); no migration, no contract change, no deploy.
 Runtime unit: Luis's Windows host (the database suite through `scripts/with-postgres.ts`, Docker); CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `16356fbe8e14` (tree `230f66e5e97a`), the last commit of `api/blank-title`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 3 files changed against
+`origin/main` at that commit: `apps/api/src/api.db.test.ts`, `apps/api/src/routes/projects.ts`, `docs/plans/api-blank-title.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
