@@ -65,3 +65,12 @@ Correcting or forgetting one's own note from the goal's sheet (the brief already
 - The first run on `main` failed one check of #304's own: `goals-overview.spec.ts` read «waiting on a permission» on the
   demo rollout's row, which now says Sophia's difficulty (this change). `daafcb73` reads the row's difficulty; the way
   stays asserted in the sheet. The branch took `main` forward first (`33bc6e56`).
+
+## Review (Codex on #305)
+
+- P1, the notes never re-read as the project moved (another member's or Sophia's note stayed unseen until an unrelated
+  refetch): `48c7cb1a` wrote the failing check (a fixture hook writes Sophia's Difficulty and publishes; the row must
+  turn without reload), then the read took the brief's key (viewer, snapshot cursor) with `keepPreviousData`. Checked
+  on the preview. Thread answered and resolved.
+- Three P2s (unread notes read as none; typing during a send; a failed refresh after a kept note) go to
+  `evaluacion-2026-10-13/follow-ups-p2.md`, per the one-round rule.
