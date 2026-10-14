@@ -23,7 +23,20 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
  LIMIT 50
 $$;
 
+-- The member invitation for this address by its id, whatever its state, so the API rebuilds its token and accepts it
+-- through accept_room_invitation, which answers each state as the link's accept does: already a member (a retry after a
+-- lost reply) returns the project; closed or used up is said so. Never the token's hash; never another address's.
+CREATE FUNCTION sophia.member_invitation_for(p_email text, p_invitation uuid)
+RETURNS TABLE(id uuid, project_id uuid, token_version integer)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
+ SELECT i.id, i.project_id, i.token_version FROM sophia.room_invitations i
+ WHERE sophia.actor_id() IS NOT NULL AND p_email IS NOT NULL AND i.kind='member' AND i.id=p_invitation
+  AND i.email=lower(p_email)
+$$;
+
 REVOKE ALL ON FUNCTION sophia.pending_member_invitations(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.pending_member_invitations(text) TO sophia_api;
+REVOKE ALL ON FUNCTION sophia.member_invitation_for(text,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.member_invitation_for(text,uuid) TO sophia_api;
 
 COMMIT;

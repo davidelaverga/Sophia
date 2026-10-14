@@ -255,6 +255,19 @@ export async function listPendingInvitations(c: pg.PoolClient, email: string): P
   }))
 }
 
+/** The member invitation for `email` by its id, whatever its state: its link's version, to accept it (A16). */
+export async function memberInvitationFor(
+  c: pg.PoolClient,
+  email: string,
+  invitationId: string,
+): Promise<{ id: string; tokenVersion: number } | null> {
+  const { rows } = await c.query<{ id: string; token_version: number }>(
+    `SELECT id, token_version FROM sophia.member_invitation_for($1, $2)`,
+    [email, invitationId],
+  )
+  return rows[0] ? { id: rows[0].id, tokenVersion: rows[0].token_version } : null
+}
+
 /** The person a member invitation was sent to (their verified email) joins the project. */
 export async function acceptRoomInvitation(
   c: pg.PoolClient,
