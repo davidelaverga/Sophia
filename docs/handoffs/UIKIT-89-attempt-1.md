@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/call-k
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no service code, no deploy, no contract.
 Runtime unit: Luis's Windows host (local Playwright through `.claude-guards/safe-run.ps1`); CI as the run on record.
 Existing authority: Luis's approval of proposal A; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `9730a0841cbf` (tree `5b4b95fd4f7e`), the last commit of `ui/call-keys-anywhere`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 6 files changed against
+`origin/main` at that commit: `e2e/call-keys.spec.ts`, `src/features/personal/PlacesBar.tsx`, `src/features/voice/MiniDock.tsx`, `src/features/voice/call-commands.test.ts`, `src/features/voice/call-commands.ts`, `docs/plans/call-keys-anywhere.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
