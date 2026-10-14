@@ -20,7 +20,7 @@ import { settleWithin } from './deadline.ts'
 import { devIdentities, loadIdentity, saveIdentity, type Identity } from './dev-identity.ts'
 import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
-import { profileFromMetadata } from './profile.ts'
+import { profileFromMetadata, providerOf } from './profile.ts'
 import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
@@ -76,6 +76,7 @@ const fromSession = (s: Session | null): SignedIn | SignedOut =>
           role: s.user.is_anonymous ? 'guest' : '',
           token: s.access_token,
           ...profileFromMetadata(s.user.user_metadata, s.user.email),
+          provider: providerOf(s.user.app_metadata),
         },
       }
     : { status: 'signed_out' }

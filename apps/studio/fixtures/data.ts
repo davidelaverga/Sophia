@@ -28,6 +28,8 @@ export const identity: Identity = {
   name: DEMO ? 'luis@sophia.test' : 'fixture@sophia.test',
   role: 'admin',
   token: 'fixture-no-api',
+  // How the demo's viewer signed in, said in the account menu's head (account-menu.md).
+  provider: 'email',
 }
 
 export const membership: Membership = { actorId: ME, role: 'admin' }

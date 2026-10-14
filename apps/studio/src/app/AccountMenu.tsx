@@ -1,4 +1,5 @@
-// The account, one control in every bar (the places' and a project's): the avatar opens a menu with who is signed in,
+// The account, one control in every bar (the places' and a project's): the avatar opens a menu with who is signed in
+// (their picture, name, email and how they signed in; account-menu.md),
 // "Your data" and how privacy works, passkeys, and signing out. From a project the first two open at home, where the
 // personal space's own sheets are. Locally the dev identity is chosen in its head. It is the kit's menu, and closes
 // like any popover (usePopover): Escape returns to the avatar, a press anywhere else closes it.
@@ -10,6 +11,7 @@ import { devIdentities, type Identity } from './dev-identity.ts'
 import { askCommands } from './CommandsHost.tsx'
 import { PasskeySheet } from './PasskeySheet.tsx'
 import { keyLabel, onMac } from './shortcuts.ts'
+import { signedInWith } from './profile.ts'
 import { type Theme, useTheme } from './theme.ts'
 
 export interface AccountActions {
@@ -26,6 +28,9 @@ const DATA_TIP: Record<Where, { label: string; keys: string | null }> = {
   places: { label: 'What your personal space keeps', keys: 'D' },
   project: { label: 'Opens at home', keys: null },
 }
+
+/** In a project, the item says whose data it is: the personal space's, at home (account-menu.md). */
+const DATA_LABEL: Record<Where, string> = { places: 'Your data', project: 'Your personal data' }
 
 function DevChoice({ identity, onChoose }: { identity: Identity; onChoose: (i: Identity | null) => void }) {
   return (
@@ -46,36 +51,48 @@ function DevChoice({ identity, onChoose }: { identity: Identity; onChoose: (i: I
   )
 }
 
+/** Who is signed in: their picture, their name (else the email), the email under a name, and how they signed in. */
 function Head({ identity, onChoose }: { identity: Identity; onChoose: (i: Identity | null) => void }) {
+  const how = signedInWith(identity.provider)
   return (
     <MenuHead>
-      {identity.displayName ?? identity.name}
-      {authMode === 'dev' ? (
-        <DevChoice identity={identity} onChoose={onChoose} />
-      ) : (
-        identity.displayName && <span>{identity.name}</span>
-      )}
+      <span className="account-who">
+        <Avatar identity={identity} />
+        <span className="account-names">
+          <span className="account-name">{identity.displayName ?? identity.name}</span>
+          {authMode !== 'dev' && identity.displayName && <span>{identity.name}</span>}
+          {authMode !== 'dev' && how && <span>{how}</span>}
+        </span>
+      </span>
+      {authMode === 'dev' && <DevChoice identity={identity} onChoose={onChoose} />}
     </MenuHead>
   )
 }
 
 /** The appearance (docs/plans/light-mode.md): the dark room, the report's paper, or the system's. */
-const THEMES: readonly (readonly [Theme, string])[] = [
-  ['dark', 'Dark'],
-  ['light', 'Light'],
-  ['system', 'Follow the system'],
+const THEMES: readonly (readonly [Theme, string, string])[] = [
+  ['dark', 'Dark', 'Dark'],
+  ['light', 'Light', 'Light'],
+  // One word on the row; its whole name, which holds the word, for whoever hears it.
+  ['system', 'System', 'Follow the system'],
 ]
 
+/** The theme on one row: the menu's radio items side by side, the one on lit (account-menu.md). */
 function Appearance() {
   const [theme, setTheme] = useTheme()
   return (
     <>
       <MenuSep />
-      {THEMES.map(([value, label]) => (
-        <MenuItem key={value} checked={theme === value} onClick={() => setTheme(value)}>
-          {label}
-        </MenuItem>
-      ))}
+      <div className="menu-choices" role="group" aria-label="Theme">
+        <span className="menu-choices-label" aria-hidden>
+          Theme
+        </span>
+        {THEMES.map(([value, label, name]) => (
+          <MenuItem key={value} checked={theme === value} aria-label={name} onClick={() => setTheme(value)}>
+            {label}
+          </MenuItem>
+        ))}
+      </div>
     </>
   )
 }
@@ -115,7 +132,7 @@ export function AccountMenu({ identity, where, actions }: Props) {
         <Menu popover={menu} label="Account" className="account-menu">
           <Head identity={identity} onChoose={actions.chooseDev} />
           <MenuItem className="has-tip" onClick={pick(actions.data)}>
-            Your data
+            {DATA_LABEL[where]}
             <Tip label={tip.label} {...(tip.keys ? { keys: tip.keys } : {})} side="bottom" align="end" />
           </MenuItem>
           <MenuItem onClick={pick(actions.privacy)}>How privacy works</MenuItem>

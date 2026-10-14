@@ -1071,6 +1071,76 @@ button.mark:hover {
 .menu [aria-disabled='true'] {
   color: var(--text-3);
 }
+/* How privacy works, wherever its sheet opens (at home, or over a project in the demo; account-menu.md): each rule's
+   lead on its line, the rest under it. */
+.privacy-rules {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.privacy-rules li {
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.privacy-rules strong {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+}
+/* The account's head (account-menu.md): the picture beside the name, the email and how they signed in. */
+.account-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.account-who > .avatar {
+  width: 32px;
+  height: 32px;
+}
+.menu-head .account-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+.menu-head .account-name {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+.account-names > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A set of radio items on one row (the theme): the word, then the choices, the one on lit instead of dotted. */
+.menu-choices {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+}
+.menu-choices-label {
+  flex: 1;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.menu .menu-choices [role='menuitemradio'] {
+  padding: 0 10px;
+  color: var(--text-2);
+}
+.menu .menu-choices [role='menuitemradio'][aria-checked='true'] {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--text);
+}
+.menu-choices .menu-mark {
+  display: none;
+}
 /* The one of a set that is on: the app's lavender dot at the row's end. */
 .menu-mark {
   flex: none;

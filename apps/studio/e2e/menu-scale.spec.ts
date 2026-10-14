@@ -84,7 +84,8 @@ test('menu · the account’s: the plane 6 px under its control at its end, the 
   await page.keyboard.press('ArrowDown')
   await expect(page.getByRole('menuitem', { name: 'How privacy works' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
-  await expect(page.getByRole('menuitem', { name: /^Your data/ })).toBeFocused()
+  // In a project it is your personal data, said so (docs/plans/account-menu.md).
+  await expect(page.getByRole('menuitem', { name: /^Your personal data/ })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('menu')).toHaveCount(0)
   await expect(account).toBeFocused()

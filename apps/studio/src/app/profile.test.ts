@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { initialOf, profileFromMetadata } from './profile.ts'
+import { initialOf, profileFromMetadata, providerOf, signedInWith } from './profile.ts'
 
 describe('profileFromMetadata', () => {
   it('reads Google and GitHub claims', () => {
@@ -44,5 +44,22 @@ describe('initialOf', () => {
   it('uses the name, else the email', () => {
     assert.equal(initialOf('ada Lovelace', 'z@x.com'), 'A')
     assert.equal(initialOf(null, 'zoe@x.com'), 'Z')
+  })
+})
+
+describe('how they signed in (docs/plans/account-menu.md)', () => {
+  it('reads the provider from the session, and nothing it does not know', () => {
+    assert.equal(providerOf({ provider: 'google' }), 'google')
+    assert.equal(providerOf({ provider: 'github' }), 'github')
+    assert.equal(providerOf({ provider: 'email' }), 'email')
+    assert.equal(providerOf({ provider: 'azure' }), null)
+    assert.equal(providerOf(null), null)
+  })
+
+  it('says it in words', () => {
+    assert.equal(signedInWith('google'), 'Signed in with Google')
+    assert.equal(signedInWith('github'), 'Signed in with GitHub')
+    assert.equal(signedInWith('email'), 'Signed in with an email code')
+    assert.equal(signedInWith(null), null)
   })
 })

@@ -199,7 +199,8 @@ async function signedInAs(page: Page) {
   const head = page.locator('.menu-head')
   try {
     await account(page).click({ timeout: 1000 })
-    return (await head.textContent({ timeout: 1000 })) ?? ''
+    // The head's name line: the picture's initial and how they signed in sit beside it (account-menu.md).
+    return (await head.locator('.account-name').textContent({ timeout: 1000 })) ?? ''
   } catch {
     return ''
   } finally {
