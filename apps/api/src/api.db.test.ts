@@ -333,6 +333,27 @@ describe('createProject', () => {
     assert.equal(await projectsForKey(key), 1) // still exactly one project
   })
 
+  it('replays a blank title admitted before blanks were refused: the stored receipt, not a refusal (Codex P1 on #327)', async () => {
+    // The state an earlier build could leave: a project titled with spaces, its creation recorded under its key.
+    const key = randomUUID()
+    const legacy = randomUUID()
+    const receipt = { projectId: legacy, cursor: '0' }
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      await owner.query(`INSERT INTO sophia.projects(id, title, created_by) VALUES ($1, '   ', $2)`, [legacy, A])
+      await owner.query(
+        `INSERT INTO sophia.project_creations(actor_id, idempotency_key, semantic_request, project_id, receipt)
+         VALUES ($1, $2, '{"title":"   "}', $3, $4)`,
+        [A, key, legacy, receipt],
+      )
+    } finally {
+      await owner.end()
+    }
+    const replay = await call(A, 'POST', '/api/v1/projects', { title: '   ' }, { 'idempotency-key': key })
+    assert.deepEqual([replay.status, replay.json], [201, receipt])
+  })
+
   it('conflicts on a reused key with another title and validates the request', async () => {
     const key = randomUUID()
     await call(A, 'POST', '/api/v1/projects', { title: 'One' }, { 'idempotency-key': key })
