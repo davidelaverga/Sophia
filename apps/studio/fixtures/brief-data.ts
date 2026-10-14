@@ -26,7 +26,6 @@ export interface Notes {
   unread?: boolean
 }
 
-const AT = '2026-10-05T12:00:00.000Z'
 const BUILT = { id: '00000000-0000-4000-8000-0000000000af', revision: 1 }
 
 const isEntryRequest = (value: unknown): value is MissionEntryRequest =>

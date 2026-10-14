@@ -1,18 +1,19 @@
 // A goal's sheet (docs/plans/goals-overview.md): its health, its outcome, what in it waits on the viewer (with the
 // presses), what else stands in its way, how far it has gone and what comes next, what done means, and the way to its
-// plan in Tasks. Notes on the goal come next, here.
+// plan in Tasks; and its notes (goal-notes.md).
 import type { Goal } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { Sheet } from '../../app/Sheet.tsx'
-import type { GoalPlan } from './GoalList.tsx'
+import { GoalNotes, type NotesFor } from './GoalNotes.tsx'
 import { Asks } from './GoalParts.tsx'
 import { Criteria } from './Criteria.tsx'
-import { HEALTH_LABEL, healthOf, stateLine, wayLine } from './goals-glance.ts'
+import { HEALTH_LABEL, healthOf, stateLine, wayLine, type Glanced } from './goals-glance.ts'
 import { progressOf, type Ask } from './planning/plan.ts'
 
 interface Props {
   goal: Goal
-  plan: GoalPlan | undefined
+  plan: Glanced | undefined
+  notes: NotesFor
   onClose: () => void
   onOpenAsk: ((ask: Ask) => void) | undefined
   /** Tasks, with this goal chosen; undefined while it has no plan there. */
@@ -20,7 +21,7 @@ interface Props {
 }
 
 /** How far it has gone, and what comes next. */
-function Progress({ plan }: { plan: GoalPlan | undefined }) {
+function Progress({ plan }: { plan: Glanced | undefined }) {
   const { done, total } = progressOf(plan?.glance?.lanes ?? [])
   if (total === 0) return null
   return (
@@ -41,7 +42,7 @@ function Progress({ plan }: { plan: GoalPlan | undefined }) {
   )
 }
 
-export function GoalSheet({ goal, plan, onClose, onOpenAsk, onOpenTasks }: Props) {
+export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }: Props) {
   const health = healthOf(goal, plan)
   const way = wayLine(plan?.glance)
   const asks = (plan?.asks ?? []).map((ask) => ({ ask, goal }))
@@ -60,6 +61,7 @@ export function GoalSheet({ goal, plan, onClose, onOpenAsk, onOpenTasks }: Props
           </p>
         )}
         <Progress plan={plan} />
+        <GoalNotes goalId={goal.id} {...notes} />
         {goal.criteria.length > 0 && (
           <section className="goal-sheet-section" aria-label="Done when">
             <h3 className="field-label">Done when</h3>

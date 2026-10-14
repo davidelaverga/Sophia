@@ -55,6 +55,9 @@ interface Props {
   summary?: boolean
   /** Tasks, with what is named in the address: the goal (`#goal-`), or a task or decision in it. */
   onOpenGoal?: ((id: string, address?: string) => void) | undefined
+  /** Goals' notes: the viewer's actor id, and the names the Studio knows (goal-notes.md). */
+  me?: string | undefined
+  names?: ReadonlyMap<string, string> | undefined
 }
 
 /** The goal whose plan has a task, by its id; undefined when none has. */
@@ -191,7 +194,10 @@ function NoAnswer({ found, query }: { found: boolean; query: string }) {
 /** The plans Tasks draws: Goals reads each at a glance, and only Tasks draws the boards, the rail and their search. */
 const drawn = (summary: boolean | undefined, given: Props['plans']) => (summary ? undefined : given)
 
-interface ListedProps extends Pick<Props, 'snapshot' | 'projectId' | 'identity' | 'entry' | 'onOpenGoal'> {
+interface ListedProps extends Pick<
+  Props,
+  'snapshot' | 'projectId' | 'identity' | 'entry' | 'onOpenGoal' | 'me' | 'names'
+> {
   summary: boolean | undefined
   controls: boolean
   /** Every plan as served; `plans`, those Tasks draws. */
@@ -202,9 +208,16 @@ interface ListedProps extends Pick<Props, 'snapshot' | 'projectId' | 'identity' 
 }
 
 /** Goals: the overview. Tasks: each goal with its plan under it, as the search leaves them. */
+const NO_NAMES: ReadonlyMap<string, string> = new Map()
+
 function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
-  const { given, plans, listed, query } = shown
-  if (summary) return snapshot ? <GoalsOverview goals={snapshot.goals} plans={given} onOpenGoal={onOpenGoal} /> : null
+  const { given, plans, listed, query, me, names } = shown
+  if (summary) {
+    const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES }
+    return snapshot ? (
+      <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} />
+    ) : null
+  }
   return (
     <SearchQuery.Provider value={query}>
       <ol className="goal-list">
@@ -239,6 +252,8 @@ export function GoalList({
   entry,
   summary,
   onOpenGoal,
+  me,
+  names,
 }: Props) {
   const plans = drawn(summary, given)
   const [query, setQuery] = useState('')
@@ -254,7 +269,7 @@ export function GoalList({
       {controls && !canAct && <ViewerNote snapshot={snapshot} />}
       {shown && <Rail goals={tabbed} shown={shown.id} plans={plans} onChoose={choose} />}
       <Listed
-        {...{ snapshot, projectId, identity, entry, onOpenGoal, given, plans, listed, query }}
+        {...{ snapshot, projectId, identity, entry, onOpenGoal, given, plans, listed, query, me, names }}
         summary={summary}
         controls={controls && canAct}
       />

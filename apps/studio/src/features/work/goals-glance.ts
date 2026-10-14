@@ -1,14 +1,15 @@
 // Goals as a briefing (docs/plans/goals-overview.md): each goal's health as people read it, the brief that leads the
 // view, the line under a goal, the order by health, and what a search keeps once there are many goals.
 import type { Goal } from '@sophia/contracts'
+import type { Noted } from './goal-notes.ts'
 import { progressOf, type Ask, type GoalGlance, type Ways } from './planning/plan.ts'
 
 export type { GoalGlance }
 
 export type Health = 'attention' | 'track' | 'new' | 'paused' | 'done'
 
-/** What Goals reads of a goal's plan. */
-export interface Glanced {
+/** What Goals reads of a goal's plan, and its latest note (goal-notes.md). */
+export interface Glanced extends Noted {
   glance?: GoalGlance | undefined
   asks?: readonly Ask[] | undefined
   checkpoint?: string | undefined
@@ -58,12 +59,13 @@ export function wayLine(glance: GoalGlance | undefined): string | null {
 
 /**
  * A goal's health from what is served: waiting on the viewer, or moving with something in its way, it needs
- * attention; moving freely, it is on track; ready, not started; holding, held, stopping or stopped, paused.
+ * attention, as when its latest note is a difficulty; moving freely, it is on track; ready, not started; holding,
+ * held, stopping or stopped, paused.
  */
 export function healthOf(goal: Goal, plan: Glanced | undefined): Health {
   const rest = AT_REST[goal.status]
   if (rest) return rest
-  if ((plan?.asks?.length ?? 0) > 0) return 'attention'
+  if ((plan?.asks?.length ?? 0) > 0 || plan?.note?.kind === 'blocker') return 'attention'
   if (goal.status === 'ready') return 'new'
   return wayLine(plan?.glance) ? 'attention' : 'track'
 }
@@ -90,13 +92,22 @@ export function stateLine(goal: Goal, glance: GoalGlance | undefined): string {
   return LINE[goal.status](goal, total > 0 ? `${String(done)} of ${String(total)} done` : null, total)
 }
 
-/** What matters now, said after its health word: what waits on the viewer or stands in its way, else where it is. */
-export function rowLine(goal: Goal, plan: Glanced | undefined): string {
+/** Why a goal needs attention: what waits on the viewer, then a difficulty written on it or what stands in its way. */
+function attentionLine(plan: Glanced | undefined): string {
   const asks = plan?.asks?.length ?? 0
-  const way = wayLine(plan?.glance)
-  if (healthOf(goal, plan) === 'attention') {
-    return [asks > 0 ? `${String(asks)} waiting on you` : null, way].filter(Boolean).join(' · ')
-  }
+  const note = plan?.note
+  const way = note?.kind === 'blocker' ? note.said : wayLine(plan?.glance)
+  return [asks > 0 ? `${String(asks)} waiting on you` : null, way].filter(Boolean).join(' · ')
+}
+
+/**
+ * What matters now, said after its health word: what waits on the viewer, then a difficulty written on it or what
+ * stands in its way; else its latest note, or where it is.
+ */
+export function rowLine(goal: Goal, plan: Glanced | undefined): string {
+  if (healthOf(goal, plan) === 'attention') return attentionLine(plan)
+  const note = plan?.note
+  if (note) return note.said
   if (goal.status === 'running' && plan?.checkpoint) return `Next · ${plan.checkpoint}`
   return stateLine(goal, plan?.glance)
 }

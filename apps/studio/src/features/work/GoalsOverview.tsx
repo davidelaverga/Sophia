@@ -1,28 +1,43 @@
 // Goals as a briefing (docs/plans/goals-overview.md): one sentence on what waits on the viewer, then each of those as a
 // sentence with its press to Tasks, then the goals by health in one list. A row is one press: it opens the goal's
-// sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits.
+// sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits. Each
+// goal's latest note is read from the project's ledger (goal-notes.md).
 import { useRef, useState, type KeyboardEvent } from 'react'
 import type { Goal } from '@sophia/contracts'
 import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
 import { DECISION, TASK } from '../resources/link.ts'
 import type { GoalPlan } from './GoalList.tsx'
+import { useLedger, type NotesFor } from './GoalNotes.tsx'
+import { withNotes } from './goal-notes.ts'
 import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
 import { GoalSheet } from './GoalSheet.tsx'
-import { briefOf, goalsShown, HEALTH_LABEL, healthLine, healthOf, MANY, ordered, rowLine } from './goals-glance.ts'
+import {
+  briefOf,
+  goalsShown,
+  HEALTH_LABEL,
+  healthLine,
+  healthOf,
+  MANY,
+  ordered,
+  rowLine,
+  type Glanced,
+} from './goals-glance.ts'
 import type { Ask } from './planning/plan.ts'
 
-type Plans = Readonly<Record<string, GoalPlan>> | undefined
+type Plans = Readonly<Record<string, Glanced>> | undefined
 
 interface Props {
   goals: readonly Goal[]
-  plans: Plans
+  plans: Readonly<Record<string, GoalPlan>> | undefined
+  /** Where the notes are read and written, and how their authors are named. */
+  notes: NotesFor
   /** Tasks, with the goal, or a task or decision of it, named in the address; undefined where Tasks can't take it. */
   onOpenGoal: ((id: string, address?: string) => void) | undefined
 }
 
 /** One goal: its title (the press that opens its sheet), its health and what matters now, its progress, its people. */
-function GoalRow({ goal, plan, onOpen }: { goal: Goal; plan: GoalPlan | undefined; onOpen: () => void }) {
+function GoalRow({ goal, plan, onOpen }: { goal: Goal; plan: Glanced | undefined; onOpen: () => void }) {
   const health = healthOf(goal, plan)
   const line = rowLine(goal, plan)
   return (
@@ -126,7 +141,9 @@ function useListed(goals: readonly Goal[], plans: Plans) {
   return { many, query, setQuery, shown, listed, folded, unfold: () => setUnfolded(true) }
 }
 
-export function GoalsOverview({ goals, plans, onOpenGoal }: Props) {
+export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props) {
+  const ledger = useLedger(notes)
+  const plans: Plans = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
   const { many, query, setQuery, shown, listed, folded, unfold } = useListed(goals, plans)
   const [open, setOpen] = useState<string | null>(null)
   const asks = asksIn(goals, plans)
@@ -147,17 +164,18 @@ export function GoalsOverview({ goals, plans, onOpenGoal }: Props) {
       {shown.length === 0 && <NoAnswer query={query} onClear={() => setQuery('')} />}
       <ul className="goal-rows" onKeyDown={moveAlong}>
         {listed.map((g) => (
-          <GoalRow key={g.id} goal={g} plan={plans?.[g.id]} onOpen={() => setOpen(g.id)} />
+          <GoalRow key={g.id} goal={g} plan={plans[g.id]} onOpen={() => setOpen(g.id)} />
         ))}
       </ul>
       <DoneFold done={folded} onOpen={unfold} />
       {opened && (
         <GoalSheet
           goal={opened}
-          plan={plans?.[opened.id]}
+          plan={plans[opened.id]}
           onClose={() => setOpen(null)}
           onOpenAsk={openAsk}
-          onOpenTasks={plans?.[opened.id] && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
+          notes={notes}
+          onOpenTasks={served?.[opened.id] && onOpenGoal ? () => onOpenGoal(opened.id) : undefined}
         />
       )}
     </div>
