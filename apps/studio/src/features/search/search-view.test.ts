@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { Goal } from '@sophia/contracts'
 import type { SearchHit } from '../../api/vision.ts'
-import { hitRunning, hitSource } from './search-view.ts'
+import { around, hitRunning, hitSource, localHits, marked } from './search-view.ts'
 
 const words = { day: () => 'Oct 4', time: () => '15:00', today: () => false }
 
@@ -36,5 +37,79 @@ describe('whether a recap hit’s meeting runs', () => {
 
   it('is unknown until they are read', () => {
     assert.equal(hitRunning('m1', undefined), undefined)
+  })
+})
+
+const goal = (id: string, title: string, over: Partial<Goal> = {}): Goal => ({
+  id,
+  projectId: 'p',
+  title,
+  revision: 1,
+  authorityEpoch: 1,
+  status: 'ready',
+  outcome: `${title}, done`,
+  criteria: [],
+  stateRevision: 1,
+  ...over,
+})
+
+/** A goal's health as a test says it: on track while running, else not started. */
+const health = (g: Goal) => (g.status === 'running' ? 'On track' : 'Not started')
+
+describe('goals and tasks in the search (docs/plans/search-goals.md)', () => {
+  const goals = [
+    goal('g1', 'Roll the onboarding out', { status: 'running' }),
+    goal('g2', 'Keep teams through an admin change', {
+      criteria: [{ id: 'c', description: 'The checklist opens on its first step', required: true, verification: 'v' }],
+    }),
+  ]
+  const plans = {
+    g1: { tasksFound: [{ id: 't1', purpose: 'Translate the checklist', doer: 'Marco’s Claude Code' }] },
+  }
+
+  it('finds a goal by its criterion and a task by its purpose, each labelled', () => {
+    const hits = localHits(goals, plans, 'CHECKLIST', health)
+    assert.deepEqual(
+      hits.map((h) => [h.kind, h.id, h.title, h.source]),
+      [
+        ['goal', 'g2', 'Keep teams through an admin change', 'Goal · Not started'],
+        ['task', 't1', 'Translate the checklist', 'Task · Marco’s Claude Code'],
+      ],
+    )
+    assert.equal(hits[0]?.words, 'The checklist opens on its first step')
+  })
+
+  it('finds a task by who does it, and nothing under two letters', () => {
+    assert.deepEqual(
+      localHits(goals, plans, 'marco', health).map((h) => h.id),
+      ['t1'],
+    )
+    assert.deepEqual(localHits(goals, plans, 'c', health), [])
+  })
+
+  it('keeps three of each at most', () => {
+    const many = Array.from({ length: 5 }, (_, i) => goal(`m${String(i)}`, `Report ${String(i)}`))
+    assert.equal(localHits(many, undefined, 'report', health).length, 3)
+  })
+})
+
+describe('the words marked, and a long text cut around them', () => {
+  it('marks every match whatever its case', () => {
+    assert.deepEqual(marked('The Checklist and the checklist', 'checklist'), [
+      { text: 'The ', mark: false },
+      { text: 'Checklist', mark: true },
+      { text: ' and the ', mark: false },
+      { text: 'checklist', mark: true },
+    ])
+    assert.deepEqual(marked('Nothing here', 'checklist'), [{ text: 'Nothing here', mark: false }])
+  })
+
+  it('cuts a long text around the first match', () => {
+    const long = `${'a '.repeat(100)}the checklist ${'b '.repeat(100)}`
+    const cut = around(long, 'checklist', 80)
+    assert.ok(cut.startsWith('…') && cut.endsWith('…'))
+    assert.ok(cut.includes('the checklist'))
+    assert.ok(cut.length <= 82)
+    assert.equal(around('short text', 'text', 80), 'short text')
   })
 })

@@ -2,11 +2,12 @@
 // sentence with its press to Tasks, then the goals by health in one list. A row is one press: it opens the goal's
 // sheet. Done goals fold to one line; past six goals, a search. One accent, amber, only where something waits. Each
 // goal's latest note is read from the project's ledger (goal-notes.md).
-import { useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { Goal } from '@sophia/contracts'
 import { Button, EmptyState, Search } from '@sophia/ui'
 import { useCommands } from '../../app/useCommands.ts'
-import { DECISION, TASK } from '../resources/link.ts'
+import { DECISION, GOAL, showInAddress, TASK } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 import type { GoalPlan } from './GoalList.tsx'
 import { useLedger, type NotesFor } from './GoalNotes.tsx'
 import { notesRead, withNotes } from './goal-notes.ts'
@@ -142,6 +143,24 @@ function useListed(goals: readonly Goal[], plans: Plans) {
   return { many, query, setQuery, shown, listed, folded, unfold: () => setUnfolded(true) }
 }
 
+/**
+ * The goal whose sheet is open: pressed in the list, or named in the address (`#goal-`, from the project's search;
+ * search-goals.md). Closing it lets the address go, so it doesn't open again.
+ */
+function useOpenGoal(goals: readonly Goal[]): [string | null, (id: string | null) => void] {
+  const [open, setOpen] = useState<string | null>(null)
+  const named = useAddressed(GOAL)
+  const known = named.id !== null && goals.some((g) => g.id === named.id) ? named.id : null
+  useEffect(() => {
+    if (known) setOpen(known)
+  }, [known, named.seq])
+  const set = (id: string | null) => {
+    if (id === null && known) showInAddress(null, GOAL)
+    setOpen(id)
+  }
+  return [open, set]
+}
+
 /** The notes unread: a difficulty may be missing from the health, said with the way to read them again. */
 function NotesFailed({ ledger }: { ledger: ReturnType<typeof useLedger> }) {
   if (notesRead(ledger) !== 'failed') return null
@@ -159,7 +178,7 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
   const ledger = useLedger(notes)
   const plans: Plans = withNotes(goals, served, ledger.data?.entries ?? [], notes.me, notes.names)
   const { many, query, setQuery, shown, listed, folded, unfold } = useListed(goals, plans)
-  const [open, setOpen] = useState<string | null>(null)
+  const [open, setOpen] = useOpenGoal(goals)
   const asks = asksIn(goals, plans)
   const openAsk = askOpener(onOpenGoal)
   const opened = goals.find((g) => g.id === open)

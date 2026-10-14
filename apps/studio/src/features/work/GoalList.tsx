@@ -34,6 +34,8 @@ export interface GoalPlan {
   checkpoint?: string | undefined
   /** Goals: what in it waits on the viewer (`asksOf`), each a press to it in Tasks. */
   asks?: readonly Ask[]
+  /** The project's search: its tasks by purpose and doer (search-goals.md). */
+  tasksFound?: readonly { id: string; purpose: string; doer: string }[]
 }
 
 interface Props {
