@@ -1,8 +1,21 @@
 // Room access in the Studio, as plain rules: invitation links, the room calendar and the QR code's shape.
 // Pure, so they are unit-tested; the components only render them.
-import type { Invitation, LobbyEntry, RoomSession, SessionCreate } from '@sophia/contracts'
+import type { Invitation, LobbyEntry, Membership, RoomSession, SessionCreate } from '@sophia/contracts'
 import type { AdmissionState } from '../../api/useAdmission.ts'
 import { ago, dayOf, inTime } from '../../app/time-words.ts'
+
+/**
+ * Where the Invite sheet opens (docs/plans/invite-members.md): an admin out of a call adds a teammate; in a call the
+ * guests are the call's, and anyone but an admin may invite guests only.
+ */
+export const firstInviteTab = (role: Membership['role'] | undefined, inCall: boolean): 'members' | 'guests' =>
+  role === 'admin' && !inCall ? 'members' : 'guests'
+
+/** What each role a member is invited as may do, in one line under the choice. */
+export const ROLE_NOTE: Readonly<Record<'editor' | 'viewer', string>> = {
+  editor: 'Editors work on the goals and tasks, and invite and let in guests.',
+  viewer: 'Viewers read the project and change nothing.',
+}
 
 /** Invitation links are `/join#<token>`: the token rides in the fragment and never reaches a server log. */
 const TOKEN = /^[A-Za-z0-9_-]{20,100}$/

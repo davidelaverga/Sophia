@@ -16,6 +16,8 @@ export interface SheetContext {
   sessions: readonly RoomSession[]
   /** The lobby from the snapshot: who waits and which guests are in the call. */
   lobby: readonly LobbyEntry[]
+  /** Whether the viewer is in the room's call: Invite then opens on its guests (invite-members.md). */
+  inCall?: boolean
 }
 
 export const membershipKey = (projectId: string, viewer: string) => ['membership', projectId, viewer] as const

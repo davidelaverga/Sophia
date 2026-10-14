@@ -426,10 +426,7 @@ export function ProjectShell(props: Props) {
         <OpeningNote loaded={loaded} blocked={blocked} />
         <CommandsHost onSearch={VISION && shown ? search : undefined} />
         {inviting && shown && (
-          <LazyInvite
-            context={{ projectId, identity, membership, sessions: shown.sessions, lobby: shown.lobby }}
-            onClose={() => setInviting(false)}
-          />
+          <LazyInvite from={{ projectId, identity, membership, shown, room }} onClose={() => setInviting(false)} />
         )}
         {blocked ? (
           <AccessNotice
@@ -485,8 +482,15 @@ function HeadActions(props: { may: boolean; projectId: string; go: { invite: () 
   )
 }
 
-/** The invitation's sheet, loaded as it opens. */
-function LazyInvite({ context, onClose }: { context: SheetContext; onClose: () => void }) {
+interface InviteFrom extends Pick<SheetContext, 'projectId' | 'identity' | 'membership'> {
+  shown: Snapshot
+  room: ProjectRoom
+}
+
+/** The invitation's sheet, loaded as it opens; in the room's call, on the call's guests (invite-members.md). */
+function LazyInvite({ from, onClose }: { from: InviteFrom; onClose: () => void }) {
+  const { shown, room, ...who } = from
+  const context = { ...who, sessions: shown.sessions, lobby: shown.lobby, inCall: isInCall(room) }
   return (
     <Suspense fallback={null}>
       <InviteSheet context={context} onClose={onClose} />
