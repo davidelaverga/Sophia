@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `api/invit
 Writable scope: this worktree only (`apps/api`, `docs/plans`, `docs/handoffs`); no migration, no contract change, no deploy.
 Runtime unit: Luis's Windows host (the database suite through `scripts/with-postgres.ts`, Docker); CI as the run on record.
 Existing authority: Luis's instruction to fix the e2e findings; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `402404026f0b` (tree `ea7b0614885a`), the last commit of `api/invitations-list-access`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 3 files changed against
+`origin/main` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/routes/access.ts`, `docs/plans/api-invitations-list-access.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
