@@ -2,7 +2,7 @@
 // Expected) and Add (also ⌘/Ctrl+Enter); under it the goal's notes, newest first. Where notes are off for the viewer,
 // the ledger's reason instead of the field. A write keeps its key until the server answers; no reply offers the retry
 // that reuses it.
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type KeyboardEvent } from 'react'
 import type { MissionContext, MissionEntry, MissionReceipt } from '@sophia/contracts'
 import { Button, Segmented } from '@sophia/ui'
@@ -21,11 +21,21 @@ export interface NotesFor {
   me: string
   /** The names the Studio knows, by actor id. */
   names: ReadonlyMap<string, string>
+  /** The snapshot's cursor: a project event (a note written elsewhere) is a new read, as the brief's (Codex P1 on #305). */
+  cursor: string | undefined
 }
 
-/** The project's ledger, read once for Goals and its sheets: the brief's own query. */
-export const useLedger = ({ projectId, identity }: Pick<NotesFor, 'projectId' | 'identity'>) =>
-  useQuery({ queryKey: missionKey(projectId), queryFn: () => getMission(identity.token, projectId) })
+/**
+ * The project's ledger, read once for Goals and its sheets: the brief's own query, keyed as the brief keys it (the
+ * viewer, the snapshot's cursor), so a note written elsewhere is read as the project moves; the last read stays while
+ * the next one comes.
+ */
+export const useLedger = ({ projectId, identity, cursor }: Pick<NotesFor, 'projectId' | 'identity' | 'cursor'>) =>
+  useQuery({
+    queryKey: [...missionKey(projectId), identity.name, cursor],
+    queryFn: () => getMission(identity.token, projectId),
+    placeholderData: keepPreviousData,
+  })
 
 type Where = { goalId: string } & Pick<NotesFor, 'projectId' | 'identity'>
 

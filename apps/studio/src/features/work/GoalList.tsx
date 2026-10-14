@@ -213,7 +213,7 @@ const NO_NAMES: ReadonlyMap<string, string> = new Map()
 function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, controls, ...shown }: ListedProps) {
   const { given, plans, listed, query, me, names } = shown
   if (summary) {
-    const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES }
+    const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES, cursor: snapshot?.cursor }
     return snapshot ? (
       <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} />
     ) : null
