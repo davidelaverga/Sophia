@@ -7,9 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `api/pendi
 Writable scope: this worktree only (`db/migrations`, `packages/contracts`, `packages/persistence`, `apps/api`, `docs/plans`, `docs/handoffs`); no deploy.
 Runtime unit: Luis's Windows host (the database suites through `scripts/with-postgres.ts`, Docker); CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: `9e5ee1d9c866` (tree `cf16f9b33a2e`), the last commit of `api/pending-invitations`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 9 files changed against
-`origin/main` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/routes/access.ts`, `db/migrations/0046_pending_member_invitations.sql`, `docs/plans/pending-invitations-api.md`, `packages/contracts/amendments/A16-pending-invitations.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/persistence/src/access.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
+Ending commit/tree: `84748c5db6ac` (tree `62eebc67efa1`), the last commit of `api/pending-invitations`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/routes/access.ts`, `db/migrations/0046_pending_member_invitations.sql`, `docs/handoffs/E2E-INVITE-API-attempt-1.md`, `docs/plans/pending-invitations-api.md`, `packages/contracts/amendments/A16-pending-invitations.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/persistence/src/access.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
