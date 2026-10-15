@@ -223,7 +223,7 @@ function Turn({ turn }: { turn: ChatTurn }) {
   return (
     <>
       <div className="chat-message user">
-        <strong>You</strong> <At at={new Date(turn.at)} className="chat-at" />
+        <strong>You</strong> <At at={new Date(turn.sentAt)} className="chat-at" />
         <p>
           <LinkedText text={turn.text} />
         </p>
