@@ -270,6 +270,7 @@ function Finder({ finder }: { finder: ReturnType<typeof useFinder> }) {
   return (
     <div className="c3-find">
       <Search
+        id="find-project"
         className="c3-find-field"
         placeholder="Find a project"
         aria-label="Find a project"
@@ -284,7 +285,7 @@ function Finder({ finder }: { finder: ReturnType<typeof useFinder> }) {
 
 function NoneFound({ typed, onClear }: { typed: string; onClear: () => void }) {
   return (
-    <p className="c3-none">
+    <p className="c3-none" role="status">
       {`No project is called «${typed.trim()}». `}
       <button className="text-button" type="button" onClick={onClear}>
         Clear
@@ -306,7 +307,7 @@ export function WorkSpace(props: Props) {
           Your projects
         </h2>
         <div className="c3-head-acts">
-          {!newProject.open && list.length > 0 && (
+          {!newProject.open && !!projects && projects.length > 0 && (
             <button className="ghost" type="button" onClick={() => newProject.set(true)}>
               New project
             </button>
@@ -326,7 +327,16 @@ export function WorkSpace(props: Props) {
             onClose={() => newProject.set(false)}
           />
         )}
-        {finder.none && <NoneFound typed={finder.typed} onClear={() => finder.setTyped('')} />}
+        {finder.none && (
+          <NoneFound
+            typed={finder.typed}
+            onClear={() => {
+              // The Clear pressed goes with the words: the focus goes back to the field (Codex on #347).
+              document.getElementById('find-project')?.focus()
+              finder.setTyped('')
+            }}
+          />
+        )}
         {projects && projects.length === 0 && !newProject.open && <Empty onStart={() => newProject.set(true)} />}
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} now={now} />

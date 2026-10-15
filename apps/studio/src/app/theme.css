@@ -5997,6 +5997,8 @@ button.contribution-quote:hover {
 
 /* Work past five projects (docs/plans/find-projects.md): a field that finds one by its title, and the order beside. */
 .c3-find {
+  width: min(760px, 100%);
+  justify-self: center;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -6021,4 +6023,12 @@ button.contribution-quote:hover {
 }
 .msg-link:hover {
   color: var(--text);
+}
+/* With the finder, Work's column has three rows: the head, the finder, and the list, which keeps the scroll (Codex P1
+   on #347). Without it the list still takes the last row; the empty middle one is nothing. */
+.places .c3-space[data-place-view='work'] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.places .c3-space[data-place-view='work'] > .c3-projects {
+  grid-row: 3;
 }
