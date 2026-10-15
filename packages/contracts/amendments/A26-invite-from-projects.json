@@ -1,0 +1,101 @@
+{
+  "id": "A26",
+  "goal": "E2E",
+  "title": "Invite people from your other projects",
+  "why": [
+    "Luis (2026-10-15): inviting to a project shouldn't mean typing everyone's email when they already work with you; the Members tab lists the people an admin shares another project with, and choosing them sends each an invitation they accept.",
+    "GET /api/v1/projects/{projectId}/invitable, for an admin: those people with the address the room keeps for them (their verified account name, 0050), without the project's members, the admin, anyone an open member invitation already reaches, or anyone whose address isn't known. The invitations themselves are the existing createInvitation, one per person."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/InvitablePerson",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 320
+          }
+        },
+        "required": ["actorId", "email"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/InvitablePeople",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "people": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/InvitablePerson"
+            }
+          }
+        },
+        "required": ["people"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1invitable",
+      "value": {
+        "get": {
+          "operationId": "listInvitablePeople",
+          "summary": "The people an admin shares other projects with, to invite here by their address.",
+          "tags": ["access"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "The people",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/InvitablePeople"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

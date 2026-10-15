@@ -6148,3 +6148,43 @@ button.contribution-quote:hover {
 .goal-target p {
   margin: 0;
 }
+
+/* Invite people from your other projects (docs/plans/invite-from-projects.md): a checkbox each, one role, Invite N. */
+.invite-from {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+.invite-from-people {
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.invite-from-people label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 6px;
+  border-radius: var(--r-2);
+}
+.invite-from-people input {
+  width: 16px;
+  height: 24px;
+  margin: 0;
+}
+.invite-from-people label:hover {
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.invite-from-acts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

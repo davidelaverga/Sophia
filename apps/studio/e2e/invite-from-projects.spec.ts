@@ -27,7 +27,7 @@ test('from projects · an admin picks two people and invites them with one role;
   await expect(from.getByRole('checkbox')).toHaveCount(3)
   await from.getByRole('checkbox', { name: 'marco@example.test' }).check()
   await from.getByRole('checkbox', { name: 'noor@example.test' }).check()
-  await from.getByLabel('Role').selectOption('viewer')
+  await from.getByLabel('Invite as').selectOption('viewer')
   await from.getByRole('button', { name: 'Invite 2' }).click()
   await expect(from.getByRole('status')).toHaveText('Invited 2')
   await expect(from.getByRole('checkbox')).toHaveCount(1)

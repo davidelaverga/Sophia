@@ -1,6 +1,7 @@
 // Room access calls (contract amendments A02 and A03). An invitation link's token travels only in request
 // bodies, never in a URL the API or a proxy could log; the Studio reads it from the link's fragment.
 import type {
+  InvitablePeople,
   Invitation,
   InvitationAccepted,
   InvitationCreate,
@@ -15,6 +16,7 @@ import type {
   SessionCreate,
 } from '@sophia/contracts'
 import {
+  parseInvitablePeople,
   parseInvitation,
   parseInvitationAccepted,
   parseInvitationList,
@@ -29,6 +31,10 @@ import { callApi } from './client.ts'
 
 export const createInvitation = (token: string, projectId: string, key: string, body: InvitationCreate) =>
   callApi<Invitation>(`/api/v1/projects/${projectId}/invitations`, { token, body, key }, parseInvitation)
+
+/** listInvitablePeople (A26): the people an admin shares other projects with, to invite here by address. */
+export const listInvitablePeople = (token: string, projectId: string) =>
+  callApi<InvitablePeople>(`/api/v1/projects/${projectId}/invitable`, { token, method: 'GET' }, parseInvitablePeople)
 
 export const listInvitations = (token: string, projectId: string) =>
   callApi<InvitationList>(`/api/v1/projects/${projectId}/invitations`, { token, method: 'GET' }, parseInvitationList)
