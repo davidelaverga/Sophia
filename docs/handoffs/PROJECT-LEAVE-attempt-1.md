@@ -11,9 +11,9 @@ Writable scope: this worktree only (`db/migrations`, `packages/contracts`, `pack
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record (Docker Desktop doesn't start on the host, so the DB suites run in CI only).
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: `7237afe58853` (tree `b9917e7c2473`), the last commit of `api/project-leave`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 24 files changed against
-`api/project-rename` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/projects.ts`, `e2e/project-leave.spec.ts`, `e2e/project-rename.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ProjectName.tsx`, `src/features/studio/ProjectShell.tsx`, `db/migrations/0052_project_leave.sql`, `docs/plans/project-leave.md`, `packages/contracts/amendments/A21-project-leave.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/projects.ts`. The review notes below name the commit of each later change.
+Ending commit/tree: `d31d17718601` (tree `5a7dad0b5c07`), the last commit of `api/project-leave`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 26 files changed against
+`api/project-rename` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/projects.ts`, `e2e/project-leave.spec.ts`, `e2e/project-rename.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ProjectName.tsx`, `src/features/studio/ProjectShell.tsx`, `db/migrations/0052_project_leave.sql`, `docs/handoffs/PROJECT-LEAVE-attempt-1.md`, `docs/plans/project-leave.md`, `packages/contracts/amendments/A21-project-leave.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/projects.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -50,3 +50,7 @@ commits on the branch merge its base forward or touch only this record). 24 file
 - CI; Codex with no open P1. It merges after the rename PR, retargeted to `main`.
 - **Not done:** handing the admin role over. Until it exists, the only admin of a project can't leave it. Archiving,
   the next piece, gives them a way out.
+
+## Review notes
+
+- `d31d1771`: the sanitizer knows `project.member_left` (the rename PR's CI found the same gap for `project.renamed`).
