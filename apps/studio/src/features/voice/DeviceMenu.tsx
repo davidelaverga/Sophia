@@ -15,11 +15,11 @@ import {
 } from './device-preference.ts'
 
 /** What the menu found: still reading, refused, or each kind's devices. */
-type Found =
+export type Found =
   { state: 'reading' } | { state: 'refused' } | { state: 'found'; devices: Partial<Record<DeviceKind, MediaDevice[]>> }
 
 /** How a kind's devices are listed: the room's own (useProjectRoom). */
-type List = (kind: DeviceKind) => Promise<MediaDevice[]>
+export type List = (kind: DeviceKind) => Promise<MediaDevice[]>
 
 /** The devices of these kinds; refused where the browser keeps access back. */
 async function readDevices(kinds: readonly DeviceKind[], list: List): Promise<Found> {
@@ -32,7 +32,7 @@ async function readDevices(kinds: readonly DeviceKind[], list: List): Promise<Fo
 }
 
 /** Read while open, and again when a device is plugged in or out. */
-function useDevices(open: boolean, kinds: readonly DeviceKind[], list: List): Found {
+export function useDevices(open: boolean, kinds: readonly DeviceKind[], list: List): Found {
   const [found, setFound] = useState<Found>({ state: 'reading' })
   useEffect(() => {
     if (!open) return undefined
@@ -57,13 +57,21 @@ function useDevices(open: boolean, kinds: readonly DeviceKind[], list: List): Fo
 /** A line in the menu that says something and offers nothing to press. */
 const Said = ({ children }: { children: string }) => <MenuItem disabled>{children}</MenuItem>
 
-function KindItems({ kind, found, onChoose }: { kind: DeviceKind; found: Found; onChoose: (id: string) => void }) {
+interface KindProps {
+  kind: DeviceKind
+  found: Found
+  /** The device chosen of this kind, if any. */
+  chosen: string | undefined
+  onChoose: (id: string) => void
+}
+
+function KindItems({ kind, found, chosen, onChoose }: KindProps) {
   if (found.state === 'reading') return <Said>Finding devices…</Said>
   if (found.state === 'refused')
     return <Said>{`Allow the ${KIND_WORD[kind].toLowerCase()} in your browser’s site settings to choose one`}</Said>
   const devices = found.devices[kind] ?? []
   if (devices.length === 0) return <Said>{`No ${KIND_WORD[kind].toLowerCase()} found`}</Said>
-  const inUse = deviceInUse(devices, chosenDevices()[kind])
+  const inUse = deviceInUse(devices, chosen)
   return devices.map((d) => (
     <MenuItem key={d.id} checked={d.id === inUse} onClick={() => onChoose(d.id)}>
       {d.label}
@@ -117,9 +125,50 @@ export function DeviceMenu({ kinds, label, list, onChoose }: Props) {
             <Fragment key={kind}>
               {i > 0 && <MenuSep />}
               <MenuHead>{KIND_WORD[kind]}</MenuHead>
-              <KindItems kind={kind} found={found} onChoose={(id) => choose(kind, id)} />
+              <KindItems kind={kind} found={found} chosen={chosenDevices()[kind]} onChoose={(id) => choose(kind, id)} />
             </Fragment>
           ))}
+        </Menu>
+      )}
+    </div>
+  )
+}
+
+/** What a kind's row says before a device can be named. */
+const UNNAMED: Record<Found['state'], string> = { reading: 'Finding…', refused: 'Not allowed', found: 'None found' }
+
+/**
+ * One kind's device, named, in the check before joining (device-check.md): a press opens the kit's menu to choose
+ * another, the one in use marked.
+ */
+export function DeviceChoice({ kind, found, chosen, onChoose }: KindProps) {
+  const [open, setOpen] = useState(false)
+  const menu = usePopover(open, () => setOpen(false))
+  const devices = found.state === 'found' ? (found.devices[kind] ?? []) : []
+  const inUse = deviceInUse(devices, chosen)
+  const name = devices.find((d) => d.id === inUse)?.label ?? UNNAMED[found.state]
+  const choose = (id: string) => {
+    menu.opener.current?.focus()
+    setOpen(false)
+    onChoose(id)
+  }
+  return (
+    <div ref={menu.wrap} className="device-choice">
+      <button
+        ref={menu.opener}
+        type="button"
+        className="device-choice-open"
+        aria-label={`${KIND_WORD[kind]}: ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="device-choice-name">{name}</span>
+        <Icon name="chevron" />
+      </button>
+      {open && (
+        <Menu popover={menu} label={KIND_WORD[kind]} side="bottom" align="start" className="device-list">
+          <KindItems kind={kind} found={found} chosen={chosen} onChoose={choose} />
         </Menu>
       )}
     </div>

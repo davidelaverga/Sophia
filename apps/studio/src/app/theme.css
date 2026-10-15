@@ -2617,6 +2617,101 @@ button.contribution-quote:hover {
     display: none;
   }
 }
+/* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
+   beside the microphone, and Join at its foot. The picture is mirrored, as a person expects to see themselves. */
+.device-check {
+  display: grid;
+  gap: 16px;
+}
+.device-preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-3);
+  border: 1px solid var(--line);
+  background: rgb(var(--ink-rgb) / 0.04);
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 13px;
+  text-align: center;
+}
+.device-preview p {
+  max-width: 320px;
+  margin: 0;
+  padding: 16px;
+}
+.device-preview-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.device-rows {
+  display: grid;
+  gap: 8px;
+}
+.device-row {
+  display: grid;
+  /* The meter's column on every row, so the devices' names line up whether a row has one or not. */
+  grid-template-columns: 96px minmax(0, 1fr) 72px;
+  align-items: center;
+  gap: 12px;
+}
+.device-row-label {
+  color: var(--text-2);
+  font-size: 13px;
+}
+.device-choice {
+  position: relative;
+  min-width: 0;
+}
+.device-choice-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-2);
+  background: rgb(var(--ink-rgb) / 0.03);
+  color: var(--text);
+  font-size: 13px;
+  text-align: left;
+}
+.device-choice-open:hover,
+.device-choice-open[aria-expanded='true'] {
+  border-color: var(--line-2);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.device-choice-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-choice-open svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.device-meter {
+  width: 72px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgb(var(--ink-rgb) / 0.08);
+  overflow: hidden;
+}
+.device-meter span {
+  display: block;
+  height: 100%;
+  background: var(--core);
+}
+.device-check-foot {
+  display: flex;
+  justify-content: flex-end;
+}
 /* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
 .sophia-controls {
   gap: 6px;

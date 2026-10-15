@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
     const media = { asked: [] as MediaStreamConstraints[], stopped: 0, refuse: location.search.includes('gum=refuse') }
     window.checkMedia = media
     navigator.mediaDevices.getUserMedia = (asked?: MediaStreamConstraints) => {
-      media.asked.push(JSON.parse(JSON.stringify(asked ?? {})) as MediaStreamConstraints)
+      media.asked.push(structuredClone(asked ?? {}))
       if (media.refuse) return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'))
       const tracks: MediaStreamTrack[] = []
       if (asked?.video) {
@@ -75,7 +75,11 @@ test('check · before joining, the camera’s picture, a meter that moves with t
   // The camera's picture plays in the sheet.
   const preview = sheet(page).locator('video.device-preview-video')
   await expect
-    .poll(() => preview.evaluate((v: HTMLVideoElement) => (v.srcObject as MediaStream | null)?.getVideoTracks().length))
+    .poll(() =>
+      preview.evaluate((v: HTMLVideoElement) =>
+        v.srcObject instanceof MediaStream ? v.srcObject.getVideoTracks().length : 0,
+      ),
+    )
     .toBe(1)
   // The meter moves with the voice (here a steady tone).
   const meter = sheet(page).getByRole('meter', { name: 'Microphone level' })
