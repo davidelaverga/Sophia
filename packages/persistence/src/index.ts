@@ -4,6 +4,8 @@ export {
   createPool,
   checkRoleSafety,
   nameActor,
+  nameFromRoom,
+  rememberRoomName,
   withActor,
   withoutActor,
   withService,

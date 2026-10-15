@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { FloorRequest, RoomTokenRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { authorizeRoomJoin, transferInputFloor, withActor } from '@sophia/persistence'
+import { authorizeRoomJoin, nameActor, rememberRoomName, transferInputFloor, withActor } from '@sophia/persistence'
 import { issueRoomToken, type LiveKitConfig } from '../livekit.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
@@ -39,9 +39,15 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
     async (req) => {
       if (!livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
       const { roomId, expectedAudienceRevision } = req.body
-      const access = await withActor(pool, req.actorId, 'read', (c) =>
-        authorizeRoomJoin(c, req.params.projectId, roomId, expectedAudienceRevision),
-      )
+      // The name the token carries is kept for the member's voice writes (0050), in the same transaction.
+      const access = await withActor(pool, req.actorId, 'write', async (c) => {
+        const allowed = await authorizeRoomJoin(c, req.params.projectId, roomId, expectedAudienceRevision)
+        if (allowed) {
+          await nameActor(c, req.actorName)
+          await rememberRoomName(c, req.params.projectId)
+        }
+        return allowed
+      })
       if (!access) throw new DomainError('forbidden', 'Not permitted')
       return issueRoomToken(livekit, {
         roomId,
