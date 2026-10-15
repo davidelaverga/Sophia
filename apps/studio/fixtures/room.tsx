@@ -47,6 +47,7 @@ import {
   others,
   personId,
   setFollowers,
+  personLeaves,
   setSophia,
   setSpeaking,
   sophiaAsked,
@@ -193,6 +194,8 @@ interface Fixture {
   taskBy: (n: number | null) => void
   /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
   followers: (people: number[]) => void
+  /** Someone leaves the room, by name (room-pin-fullscreen.md). */
+  leaves?: (name: string) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
@@ -811,6 +814,7 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true
   },
