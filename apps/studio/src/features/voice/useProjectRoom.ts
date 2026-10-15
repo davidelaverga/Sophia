@@ -134,6 +134,8 @@ const micOnArrival = () => micOnJoin()
 export interface JoinOptions {
   textOnly?: boolean
   mic?: boolean
+  /** The camera on once in, as chosen before joining (prejoin-toggles.md). */
+  camera?: boolean
 }
 
 /** A member's room: the token names this project's room and the audience revision the member saw. */
@@ -339,18 +341,31 @@ export const newCall = (): number => (callsNumbered += 1)
  * then let go: a join still settling, its microphone still arriving, answers for its own call and no later one).
  * `call` moves with each call begun.
  */
-function useJoin(ports: Omit<JoinPorts, 'onLive'>, joining: { current: Promise<boolean> | null }) {
+function useJoin(
+  ports: Omit<JoinPorts, 'onLive'>,
+  joining: { current: Promise<boolean> | null },
+  startCamera: () => Promise<void>,
+) {
   const [call, setCall] = useState(newCall)
   const [liveSince, setLiveSince] = useState<number | null>(null)
+  // The choices of a join that failed stand for the next one asked without its own (Try again; Codex P1 on #361).
+  const failedWith = useRef<JoinOptions | undefined>(undefined)
   const join = (options?: JoinOptions) => {
     if (joining.current) return joining.current
     const onLive = () => {
       setCall(newCall())
       setLiveSince(Date.now())
     }
-    const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, options).finally(() => {
-      if (joining.current === attempt) joining.current = null
-    })
+    const used = options ?? failedWith.current
+    const attempt: Promise<boolean> = joinConnection({ ...ports, onLive }, used)
+      .then(async (inCall) => {
+        failedWith.current = inCall ? undefined : used
+        if (inCall && used?.camera) await startCamera()
+        return inCall
+      })
+      .finally(() => {
+        if (joining.current === attempt) joining.current = null
+      })
     joining.current = attempt
     return attempt
   }
@@ -496,7 +511,9 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setError(why ? CALL_END[why].note : null)
   }
 
-  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining)
+  const joined = useJoin({ calls, issue, typedChat, setStatus, setError, refresh, arrive, outOfCall }, joining, () =>
+    devices.setCamera(true),
+  )
 
   const { leave, leftByPress } = useLeave(calls, outOfCall)
 
