@@ -34,7 +34,7 @@ export function noteWord(kind: MissionEntry['kind']): string | null {
 
 /** Who wrote it: Sophia, the viewer («You»), a name the Studio knows, else «A member». */
 export const noteAuthor = (entry: MissionEntry, me: string, names: ReadonlyMap<string, string>) =>
-  entry.authoredBy === 'sophia' ? 'Sophia' : authorLabel(entry.actorId, me, names)
+  entry.authoredBy === 'sophia' ? 'Sophia' : authorLabel(entry.actorId, me, names, entry.authorName ?? null)
 
 /** The note as who said what: «Sophia “Legal lands Thursday.”». */
 export const said = (entry: MissionEntry, me: string, names: ReadonlyMap<string, string>) =>

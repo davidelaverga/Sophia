@@ -27,10 +27,12 @@
   `decidedByName`. Each is a string or null, and optional.
 - **The guide hears no name.** `project_status` already says who wrote or decided only as who they are to the speaker
   («speaker», «member 1»). A test now holds it to that.
-- **The Studio uses the names when the call doesn't know the author:**
-  - `missionNames(known, ctx)` adds each author's name from the brief, through #334's `withAuthors`.
-  - The brief panel and a goal's notes pass it, so the notes, the pending proposal and «decided by» name people
-    outside a call (`davide@sophia.test` → «Davide»).
+- **The Studio uses each record's own name when the call doesn't know the author.** A note passes its `authorName` to
+  `authorLabel` as the fallback, a proposal its `proposedByName`, a decision its `decidedByName`. So the notes, the
+  pending proposal and «decided by» name people outside a call (`davide@sophia.test` → «Davide»). A name is never
+  pooled per actor, so someone renamed between two writes reads as each write kept it (Codex P2 on #336).
+- **`/ready` requires the columns** (Codex P1 on #336): an API on a database short of 0048 or 0049 takes no traffic,
+  since the chat and the brief read them on every load.
 
 ## Checks
 

@@ -31,7 +31,8 @@ commits on the branch merge its base forward or touch only this record). 18 file
   - `readMissionContext` returns the names.
 - **Contract amendment A18:** `MissionEntry.authorName`, `MissionDecision.proposedByName` and `decidedByName`. Contracts
   regenerated.
-- **Studio:** `missionNames(known, ctx)` in `mission-view.ts`. The brief panel and a goal's notes use it.
+- **Studio:** first `missionNames(known, ctx)` (`b6489625`); after Codex's P2, each record's own name as `authorLabel`'s
+  fallback (see the review notes).
 - **Voice guide:** `project_status` keeps naming people only as who they are to the speaker. A test now holds it.
 - **`mission-rollout.db.test.ts`:** it reads with today's reader, so it now brings the 0020 database to today's schema
   before reading (`migrateOnward`).
@@ -61,3 +62,19 @@ commits on the branch merge its base forward or touch only this record). 18 file
 
 - CI; Codex with no open P1. Retarget to `main` once #334 merges. Voice writes keep no name: the plan's «Left» says
   how they would follow.
+
+## Review notes
+
+- **Codex P1 on #336** (`/ready` didn't require 0049):
+  - `REQUIRED_SCHEMA` now requires the four name columns of 0048 and 0049.
+  - `readiness.db.test.ts` walks a database through 0047, 0048 and 0049: it is not ready short of either, and ready
+    with all.
+  - Written first: before the change it read 200 without 0048.
+- **Codex P2 on #336** (names pooled per actor):
+  - `missionNames` is gone. A note, a proposal and a decision each pass the name they kept as `authorLabel`'s
+    fallback, so an actor renamed between two writes reads as each one kept it.
+  - `mission-view.test.ts` and `goal-notes.test.ts` cover it.
+- After both:
+  - The database suites pass 633/634 (the same `design.db` failure, as on main here).
+  - Studio unit tests: 1219 pass.
+  - Lint, typecheck and Prettier are clean.

@@ -23,7 +23,6 @@ import {
   decidedBy,
   direction,
   missionKey,
-  missionNames,
   notesLine,
   OUTCOME,
   pendingFocus,
@@ -66,8 +65,7 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
   // Unavailable is said as such: it is never shown as an empty mission.
   if (mission.isError) return <p className="mission muted">The mission couldn’t be read just now.</p>
   const ctx = frozen ?? mission.data
-  const named = missionNames(names, ctx)
-  const parts = { ctx, projectId, identity, me, names: named, onEditing: editing }
+  const parts = { ctx, projectId, identity, me, names, onEditing: editing }
   return (
     <section className="mission" aria-label="Mission">
       <DirectionLine ctx={ctx} />
@@ -92,7 +90,7 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
       <NewestNotes {...parts} />
       {ctx.capabilities.recordNote.available && <AddNote {...parts} />}
       <NoteConsent ctx={ctx} projectId={projectId} identity={identity} />
-      <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={named} />}>
+      <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={names} />}>
         <CaptureOff ctx={ctx} projectId={projectId} identity={identity} />
       </MoreNotes>
     </section>
@@ -255,7 +253,7 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
       <p>{proposal.statement}</p>
       {cites && <p className="muted">{cites}</p>}
       <p className="muted">
-        Proposed by {authorLabel(proposal.proposedBy, me, names)}
+        Proposed by {authorLabel(proposal.proposedBy, me, names, proposal.proposedByName ?? null)}
         {alternatives > 0 ? `; ${String(alternatives)} other proposal${alternatives > 1 ? 's' : ''} pending` : ''}.
         {proposal.stale ? ' The accepted direction changed since; it can’t be accepted as it is.' : ''}
       </p>

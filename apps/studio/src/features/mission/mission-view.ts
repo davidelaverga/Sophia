@@ -10,7 +10,7 @@ import type {
   MissionWithdrawalPreview,
 } from '@sophia/contracts'
 import type { Tone } from '@sophia/ui'
-import { authorLabel, withAuthors } from '../conversation/conversation-view.ts'
+import { authorLabel } from '../conversation/conversation-view.ts'
 
 /** The mission read's query key: every write and project event refreshes it. */
 export const missionKey = (projectId: string) => ['mission', projectId] as const
@@ -60,27 +60,12 @@ export const OUTCOME: Record<MissionDecision['state'], string> = {
 }
 
 /**
- * The names the Studio knows, with the brief's own (A18) for each author the call doesn't know: who wrote each note,
- * and who proposed and who decided each decision. Outside a call it knows no one, and each would read «A member».
- * What the call knows wins.
+ * Who decided a proposal, and where: by voice with Sophia or in the Studio; null when it was replaced, not decided. The
+ * decider is named by the call, else by the name the decision kept (A18).
  */
-export function missionNames(
-  names: ReadonlyMap<string, string>,
-  ctx: Pick<MissionContext, 'entries' | 'history' | 'pending' | 'decided' | 'constraints'>,
-): ReadonlyMap<string, string> {
-  const decisions = [...ctx.pending, ...ctx.decided, ...ctx.constraints]
-  return withAuthors(names, [
-    ...ctx.entries,
-    ...ctx.history,
-    ...decisions.map((d) => ({ actorId: d.proposedBy, authorName: d.proposedByName })),
-    ...decisions.flatMap((d) => (d.decidedBy ? [{ actorId: d.decidedBy, authorName: d.decidedByName }] : [])),
-  ])
-}
-
-/** Who decided a proposal, and where: by voice with Sophia or in the Studio; null when it was replaced, not decided. */
 export function decidedBy(d: MissionDecision, me: string, names: ReadonlyMap<string, string>): string | null {
   if (!d.decidedBy) return null
-  return `${authorLabel(d.decidedBy, me, names)}, ${d.decidedVia === 'voice' ? 'by voice' : d.decidedVia === 'text' ? 'by text with Sophia' : 'in the Studio'}`
+  return `${authorLabel(d.decidedBy, me, names, d.decidedByName ?? null)}, ${d.decidedVia === 'voice' ? 'by voice' : d.decidedVia === 'text' ? 'by text with Sophia' : 'in the Studio'}`
 }
 
 export interface Line {
