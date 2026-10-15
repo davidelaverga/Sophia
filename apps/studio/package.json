@@ -17,6 +17,7 @@
     "@livekit/track-processors": "0.8.1",
     "@lobehub/icons-static-svg": "1.95.1",
     "@mediapipe/tasks-vision": "0.10.14",
+    "@sentry/react": "10.75.3",
     "@sophia/report": "workspace:*",
     "@sophia/ui": "workspace:*",
     "@supabase/supabase-js": "2.117.1",
