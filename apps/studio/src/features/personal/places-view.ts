@@ -299,6 +299,36 @@ export function workOrder(projects: readonly ProjectSummary[], now: Date): Proje
   })
 }
 
+/** From how many projects Work offers finding one and ordering them (find-projects.md). */
+export const FIND_FROM = 6
+
+/** A title as a search compares it: no case, no accents. */
+const plain = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+
+/** The notes whose words hold what is typed, whatever its case or accents, in their order (personal-notes-write-find.md). */
+export function findNotes<T extends { text: string }>(notes: readonly T[], typed: string): T[] {
+  const wanted = plain(typed.trim())
+  return wanted ? notes.filter((n) => plain(n.text).includes(wanted)) : [...notes]
+}
+
+/** The projects whose title holds what is typed, whatever its case or accents; all of them for nothing typed. */
+export function findProjects(projects: readonly ProjectSummary[], typed: string): ProjectSummary[] {
+  const wanted = plain(typed.trim())
+  return wanted ? projects.filter((p) => plain(p.title).includes(wanted)) : [...projects]
+}
+
+export type ProjectOrder = 'next' | 'az'
+
+/** Work's own order (sessions soon first), or A–Z by title as a person reads it. */
+export function orderProjects(projects: readonly ProjectSummary[], order: ProjectOrder, now: Date): ProjectSummary[] {
+  if (order === 'next') return workOrder(projects, now)
+  return projects.toSorted((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+}
+
 /** All projects' count, under Home's rows: how many, and the notes carried from you. Nothing while they load. */
 export function workCount(projects: readonly ProjectSummary[] | undefined): string {
   if (!projects || projects.length === 0) return ''

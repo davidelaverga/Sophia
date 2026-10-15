@@ -2,8 +2,15 @@ import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
 import type { FloorRequest, RoomTokenRequest } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { authorizeRoomJoin, nameActor, rememberRoomName, transferInputFloor, withActor } from '@sophia/persistence'
-import { issueRoomToken, type LiveKitConfig } from '../livekit.ts'
+import {
+  authorizeRoomJoin,
+  hostedRoom,
+  nameActor,
+  rememberRoomName,
+  transferInputFloor,
+  withActor,
+} from '@sophia/persistence'
+import { issueRoomToken, memberInRoom, muteMicrophone, removeFromCall, type LiveKitConfig } from '../livekit.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
 const roomParams = {
@@ -11,6 +18,13 @@ const roomParams = {
   additionalProperties: false,
   properties: { roomId: { type: 'string', format: 'uuid' } },
   required: ['roomId'],
+} as const
+
+const personParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { projectId: { type: 'string', format: 'uuid' }, identity: { type: 'string', format: 'uuid' } },
+  required: ['projectId', 'identity'],
 } as const
 
 interface Deps {
@@ -60,6 +74,8 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
     },
   )
 
+  hostControls(app, { pool, livekit })
+
   app.post<{ Params: { roomId: string }; Headers: { 'idempotency-key': string }; Body: FloorRequest }>(
     '/api/v1/rooms/:roomId/input-floor',
     {
@@ -75,4 +91,28 @@ export function roomRoutes(app: FastifyInstance, { pool, livekit }: Deps): void 
         transferInputFloor(c, req.params.roomId, req.headers['idempotency-key'], req.body),
       ),
   )
+}
+
+/**
+ * An admin mutes or removes a member in the call (A24, docs/plans/host-controls.md). Who may is the database's answer;
+ * who is in the call, and as what, is the room server's, from the standing the API signed into each token. Neither act
+ * changes a record, so neither needs a key: twice is the same as once.
+ */
+function hostControls(app: FastifyInstance, { pool, livekit }: Deps): void {
+  for (const what of ['mute', 'remove'] as const) {
+    app.post<{ Params: { projectId: string; identity: string } }>(
+      `/api/v1/projects/:projectId/room/people/:identity/${what}`,
+      { schema: { params: personParams } },
+      async (req, reply) => {
+        const roomId = await withActor(pool, req.actorId, 'read', (c) => hostedRoom(c, req.params.projectId))
+        if (!roomId) throw new DomainError('forbidden', 'Not permitted')
+        if (req.params.identity === req.actorId) throw new DomainError('invalid_request', 'Your own call is yours')
+        if (!livekit) throw new DomainError('unavailable', 'The voice room is not configured on this server')
+        if (!(await memberInRoom(livekit, roomId, req.params.identity)))
+          throw new DomainError('invalid_request', 'They aren’t a member in the call')
+        await (what === 'mute' ? muteMicrophone : removeFromCall)(livekit, roomId, req.params.identity)
+        return reply.code(204).send()
+      },
+    )
+  }
 }

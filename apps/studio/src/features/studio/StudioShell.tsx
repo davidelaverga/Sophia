@@ -29,6 +29,7 @@ import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { LENS_LABEL, LensSwitcher } from './LensSwitcher.tsx'
 import { chatSignature, panelNote, toggled, type Panel } from './side-panel.ts'
 import { useKnownNames } from './useKnownNames.ts'
+import { PeoplePanel } from './PeoplePanel.tsx'
 import { PanelToggles, SidePanel, useBriefUpdates, useUnread } from './SidePanel.tsx'
 import { useViewerState } from './useViewerState.ts'
 import type { Lens } from './viewer-state.ts'
@@ -243,15 +244,21 @@ function useUnderTheLine(extras: Extras, chatOpen: boolean) {
 }
 
 /** Other words people type for the chat and the brief (docs/plans/palette-also.md). */
-const PANEL_ALSO = { chat: ['sophia', 'ask', 'talk'], brief: ['summary', 'decisions'] } as const
+const PANEL_ALSO = {
+  chat: ['sophia', 'ask', 'talk'],
+  people: ['participants', 'who', 'mute'],
+  brief: ['summary', 'decisions'],
+} as const
+
+const PANEL_KEY = { chat: 'c', people: 'p', brief: 'b' } as const
 
 /** The room's own keys, as commands: a lens by its number, Chat and the brief by their letters, said by their state. */
 function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
-  const toggle = (which: 'chat' | 'brief', words: string) => ({
+  const toggle = (which: 'chat' | 'people' | 'brief', words: string) => ({
     id: which,
     words: `${panel.panel === which ? 'Close' : 'Open'} the ${words}`,
     group: 'view' as const,
-    key: which === 'chat' ? 'c' : 'b',
+    key: PANEL_KEY[which],
     also: PANEL_ALSO[which],
     run: () => panel.toggle(which),
   })
@@ -260,6 +267,7 @@ function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
     { id: 'lens-explore', words: 'Explore lens', group: 'view', key: '2', run: () => setLens('explore') },
     { id: 'lens-build', words: 'Build lens', group: 'view', key: '3', run: () => setLens('build') },
     toggle('chat', 'chat'),
+    toggle('people', 'people in the call'),
     toggle('brief', 'brief'),
   ])
 }
@@ -315,6 +323,7 @@ export function StudioShell(props: Props) {
             onShowRoom={() => panel.show(null)}
           />
         }
+        people={<PeoplePanel room={room} projectId={projectId} identity={identity} />}
         brief={<MissionPanel {...common} cursor={snapshot?.cursor} onRevision={panel.brief.onRevision} />}
         call={<PanelCallSwitches room={room} looking={looking} />}
         note={panelNote(panel.panel, room.mediaError, room.error)}

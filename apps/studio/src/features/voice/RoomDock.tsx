@@ -78,6 +78,12 @@ export function RoomDock(props: Props) {
             {room.mediaError ?? room.error}
           </p>
         )}
+        {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
+        {live && room.mutedHint && !room.participants.find((p) => p.local)?.micOn && (
+          <p className="dock-note" role="status">
+            You’re muted. Turn the microphone on to be heard.
+          </p>
+        )}
         <nav className="dock" aria-label="Room controls">
           {live ? (
             <LiveControls {...props} />

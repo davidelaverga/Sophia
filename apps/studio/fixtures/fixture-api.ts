@@ -30,6 +30,7 @@ import {
   idOf,
   said,
 } from './data.ts'
+import { hostActed } from './fake-people.ts'
 import { missionWritten } from './mission-writes.ts'
 import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
@@ -99,6 +100,10 @@ interface Project {
   loseContributionReply?: boolean
   /** While set, messages land but their replies wait for `releaseMessages` (`window.fixture.holdMessages`). */
   messagesHeld?: (() => void)[] | null
+  /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
+  failHost?: boolean
+  /** While set, host controls land but their replies wait for `holdHost(false)` (`window.fixture.holdHost`). */
+  hostHeld?: (() => void)[] | null
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
   failEarlier?: boolean
   /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
@@ -395,7 +400,7 @@ function designAdmitted(project: Project, init: RequestInit | undefined): Respon
   )
 }
 
-/** The project's own writes: its rename (A21) and a member leaving it (A22); null for any other path. */
+/** The project's own writes: its rename (A21), a member leaving it (A22), an admin's host controls (A24). */
 function projectWritten(
   project: Project,
   path: string,
@@ -404,7 +409,26 @@ function projectWritten(
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/html-edits`) return designEdited(project, init)
-  return path === `${base}/leave` ? departed(project) : null
+  if (path === `${base}/leave`) return departed(project)
+  const host = HOST_ACT.exec(path)
+  return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
+}
+
+const HOST_ACT = new RegExp(`^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove)$`)
+
+/** An admin mutes or removes someone (A24): recorded, and LiveKit's server applies it to the fake room. */
+function hostAct(project: Project, what: 'mute' | 'remove', identity: string): Response | Promise<Response> {
+  if (project.failHost) {
+    project.failHost = false
+    return unavailable()
+  }
+  served.push(`${what}:${identity}`)
+  const done = () => {
+    hostActed(what, identity)
+    return new Response(null, { status: 204 })
+  }
+  const held = project.hostHeld
+  return held ? new Promise((resolve) => held.push(() => resolve(done()))) : done()
 }
 
 /** The room's discussion read: A20's replies (proposed), or a page of it (A23). */
@@ -1162,7 +1186,13 @@ function contributed(project: Project, init: RequestInit | undefined): Response 
   const replyTo = replyOf(project, body)
   if (replyTo instanceof Response) return replyTo
   const id = entryIdOf(project.messages.length)
-  project.messages.push({ id, text: body.text, me: true, ...(replyTo ? { replyTo } : {}) })
+  project.messages.push({
+    id,
+    text: body.text,
+    me: true,
+    at: new Date().toISOString(),
+    ...(replyTo ? { replyTo } : {}),
+  })
   publish(project)
   served.push(`contribution:${body.intent}`)
   const receipt: ContributionReceipt = {

@@ -6,6 +6,7 @@ import { namedLiveKit } from './lib/livekit.ts'
 
 const TESTS = [
   'apps/media-bridge/src/rtc.livekit.test.ts',
+  'apps/media-bridge/src/host-controls.livekit.test.ts',
   'apps/worker/src/room-removals.livekit.test.ts',
   'apps/api/src/room-presence.livekit.test.ts',
 ]

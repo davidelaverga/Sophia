@@ -102,22 +102,39 @@ export function personLeaves(name: string): void {
   changed()
 }
 
+/** Who an admin muted, and who they took out of the call (host-controls.md), by identity. */
+const muted = new Set<string>()
+const removed = new Set<string>()
+
+/** An admin's act lands, as LiveKit's server applies it: the microphone goes off, or the person leaves. */
+export function hostActed(what: 'mute' | 'remove', identity: string): void {
+  ;(what === 'mute' ? muted : removed).add(identity)
+  changed()
+}
+
 /** The others in the room, as LiveKit lists remote participants. */
 export function others(): RoomParticipant[] {
-  return here().map(({ name, i }) => ({
+  return here()
+    .map(({ name, i }) => person(name, i))
+    .filter((p) => !removed.has(p.identity))
+}
+
+function person(name: string, i: number): RoomParticipant {
+  return {
     identity: personId(i + 1),
     name,
     speaking: now.speaking.includes(i + 1),
-    micOn: true,
+    micOn: !muted.has(personId(i + 1)),
     cameraOn: video === 'camera',
-    screenOn: video === 'screen' && i === screenBy - 1,
+    // `video=screens`: the first two share at once (two-screens.md).
+    screenOn: (video === 'screen' && i === screenBy - 1) || (video === 'screens' && i < 2),
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
     following: followingBy.get(i + 1) ?? null,
     // They came in the order of NAMES, a minute apart.
     joinedAt: Date.UTC(2026, 9, 6, 15) + i * 60_000,
-  }))
+  }
 }
 
 /** A name for an actor id, as the room shows it: the viewer's own, an other's, or nobody's. */
@@ -236,5 +253,6 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
 export function feeds(): VideoFeed[] {
   if (video === 'camera') return here().map(({ i }) => feed(i + 1, 'camera'))
   if (video === 'screen' && count > 0) return [feed(screenBy, 'screen')]
+  if (video === 'screens' && count > 1) return [feed(1, 'screen'), feed(2, 'screen')]
   return []
 }
