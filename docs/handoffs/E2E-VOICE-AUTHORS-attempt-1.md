@@ -9,7 +9,9 @@ Writable scope: this worktree only (`db/migrations`, `packages/persistence`, `ap
 no deploy.
 Runtime unit: Luis's Windows host (the database suites through `scripts/with-postgres.ts`); CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `6abb7f9110cd` (tree `3444825b4c0b`), the last commit of `api/voice-author-names`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `apps/api/src/app.ts`, `apps/api/src/media-tools.ts`, `apps/api/src/mission-tools.ts`, `apps/api/src/mission.db.test.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/rooms.ts`, `db/migrations/0050_room_names.sql`, `docs/plans/voice-author-names.md`, `packages/persistence/src/index.ts`, `packages/persistence/src/tx.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
