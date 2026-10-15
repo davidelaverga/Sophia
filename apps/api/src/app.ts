@@ -84,11 +84,27 @@ export interface AppDeps {
 }
 
 /**
+ * Columns the API reads that no required function names: the authors' names a room message keeps (0048) and a note
+ * and a decision keep (0049). The chat and the brief read them on every load (Codex P1 on #336).
+ */
+const COLUMNS = [
+  ['contributions', 'author_name'],
+  ['mission_entries', 'author_name'],
+  ['decisions', 'proposed_by_name'],
+  ['decisions', 'decided_by_name'],
+] as const
+
+/** Whether a column of the schema exists: read from the catalog, which every role may read. */
+const columnExists = (table: string, column: string) =>
+  `EXISTS (SELECT 1 FROM pg_catalog.pg_attribute WHERE attrelid = to_regclass('sophia.${table}') AND attname = '${column}' AND NOT attisdropped)`
+
+/**
  * Functions the API requires in the database; /ready fails if any is missing, so an instance on a database that a
  * migration hasn't reached takes no traffic. The personal space (0021) lists every function its routes call. 0043
  * (#117) is required by the two functions the capture routes call, the only ones this API calls that main's doesn't:
  * the migration is one transaction, and its other changes replace functions under their own signatures. The previous
- * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts).
+ * API requires nothing of 0043 and stays ready on either database (Codex on #107; readiness.db.test.ts). The columns
+ * above are required too.
  */
 const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT NULL
   AND to_regproc('sophia.notify_project_event') IS NOT NULL
@@ -155,7 +171,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.coordination_permit(bytea,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
-  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL AS ok`
+  AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL
+  AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
  * What an API with a byte store also requires: the claim every write makes first (0044, writeOnce). An API without

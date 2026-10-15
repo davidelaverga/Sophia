@@ -16,6 +16,7 @@ import type {
 import { DomainError } from '@sophia/domain'
 import { readDesignProgress, readResearchHtml } from './design-progress.ts'
 import { onlyRow } from './rows.ts'
+import { nameActor } from './tx.ts'
 
 const iso = (value: Date | string) => new Date(value).toISOString()
 
@@ -34,7 +35,7 @@ export async function submitContribution(
    */
   { origin = 'composer', authorName = null }: { origin?: ContributionOrigin; authorName?: string | null } = {},
 ): Promise<ContributionReceipt> {
-  if (authorName) await c.query(`SELECT set_config('sophia.actor_name', $1, true)`, [authorName])
+  await nameActor(c, authorName)
   const { rows } = await c.query<{ receipt: ContributionReceipt }>(
     `SELECT sophia.submit_contribution($1, $2, $3, $4) AS receipt`,
     [projectId, idempotencyKey, JSON.stringify(body), origin],

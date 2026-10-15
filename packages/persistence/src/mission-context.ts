@@ -20,6 +20,11 @@ const WORK_LIMIT = 10
 export interface MissionReader {
   actorId: string
   channel: 'studio' | 'voice'
+  /**
+   * Whether the reader reads the authors' names (A18): only a Studio that asks for them. A Studio still open from
+   * before refuses a property it doesn't know, and the voice guide names people only as who they are to the speaker.
+   */
+  names?: boolean
 }
 
 type Role = 'admin' | 'editor' | 'viewer'
@@ -51,6 +56,8 @@ interface DecisionRow {
   decided_by: string | null
   decided_at: Date | null
   decided_via: MissionDecision['decidedVia']
+  proposed_by_name: string | null
+  decided_by_name: string | null
   body_source_id: string
   sha256: string
 }
@@ -63,6 +70,7 @@ interface EntryRow {
   body: string | null
   authored_by: MissionEntry['authoredBy']
   actor_id: string
+  author_name: string | null
   origin: MissionEntry['origin']
   exchange_id: string | null
   input_epoch: string | null
@@ -129,7 +137,7 @@ function missionFrame(p: ProjectRow): { mission: MissionFrame | null; legacy: bo
 
 const DECISION_COLUMNS = `d.id, d.revision, d.kind, d.state, d.proposal, d.proposed_by, d.origin, d.created_at,
   d.base_mission_revision, d.supersedes_decision_id, d.supporting_entry_ids, d.decided_by, d.decided_at, d.decided_via,
-  d.body_source_id, s.sha256`
+  d.proposed_by_name, d.decided_by_name, d.body_source_id, s.sha256`
 
 async function readDecisions(c: pg.PoolClient, projectId: string, where: string, order: string, limit: number) {
   const { rows } = await c.query<DecisionRow>(
@@ -143,7 +151,7 @@ async function readDecisions(c: pg.PoolClient, projectId: string, where: string,
   return rows
 }
 
-function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
+function toDecision(r: DecisionRow, missionRevision: number, names: boolean): MissionDecision {
   const base = revision(r.base_mission_revision, 'decision.baseMissionRevision')
   return {
     id: r.id,
@@ -156,6 +164,7 @@ function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
     origin: r.proposal.origin ?? null,
     textKind: r.origin === 'studio' ? 'member_text' : 'sophia_paraphrase',
     proposedBy: r.proposed_by,
+    ...(names && { proposedByName: r.proposed_by_name }),
     proposedVia: r.origin,
     createdAt: iso(r.created_at),
     baseMissionRevision: base,
@@ -163,6 +172,7 @@ function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
     supersedesDecisionId: r.supersedes_decision_id,
     supportingEntryIds: r.supporting_entry_ids,
     decidedBy: r.decided_by,
+    ...(names && { decidedByName: r.decided_by_name }),
     decidedAt: r.decided_at ? iso(r.decided_at) : null,
     decidedVia: r.decided_via,
     sourceId: r.body_source_id,
@@ -170,7 +180,8 @@ function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
   }
 }
 
-const ENTRY_COLUMNS = `e.id, e.kind, e.epistemic, e.state, t.body, e.authored_by, e.actor_id, e.origin, e.exchange_id,
+const ENTRY_COLUMNS = `e.id, e.kind, e.epistemic, e.state, t.body, e.authored_by, e.actor_id, e.author_name, e.origin,
+  e.exchange_id,
   e.input_epoch, e.related_entry_id, e.supersedes_entry_id,
   (SELECT n.id FROM sophia.mission_entries n WHERE n.project_id = e.project_id AND n.supersedes_entry_id = e.id LIMIT 1) AS superseded_by,
   e.goal_id, e.decision_id, e.source_id, s.sha256, e.ledger_revision, e.observed_at, e.recorded_at, e.changed_at`
@@ -194,7 +205,7 @@ async function readEntries(c: pg.PoolClient, projectId: string, states: string[]
   return { rows, more: Math.max(0, safeInt(count[0]?.n ?? '0', 'entries') - rows.length) }
 }
 
-function toEntry(r: EntryRow): MissionEntry {
+function toEntry(r: EntryRow, names: boolean): MissionEntry {
   const withdrawn = r.state === 'withdrawn'
   return {
     id: r.id,
@@ -205,6 +216,7 @@ function toEntry(r: EntryRow): MissionEntry {
     textKind: r.authored_by === 'sophia' ? 'sophia_paraphrase' : 'member_text',
     authoredBy: r.authored_by,
     actorId: r.actor_id,
+    ...(names && { authorName: r.author_name }),
     origin: r.origin,
     exchangeId: r.exchange_id,
     inputEpoch: revision(r.input_epoch, 'entry.inputEpoch'),
@@ -347,9 +359,11 @@ function withDigest(body: Omit<MissionContext, 'digest'>): MissionContext {
   return { ...body, digest: createHash('sha256').update(JSON.stringify(body)).digest('hex') }
 }
 
-async function readLedger(c: pg.PoolClient, projectId: string, missionRevision: number) {
+async function readLedger(c: pg.PoolClient, projectId: string, missionRevision: number, names: boolean) {
   const decisions = (where: string, order: string, limit: number) =>
-    readDecisions(c, projectId, where, order, limit).then((rows) => rows.map((r) => toDecision(r, missionRevision)))
+    readDecisions(c, projectId, where, order, limit).then((rows) =>
+      rows.map((r) => toDecision(r, missionRevision, names)),
+    )
   // Sequential on purpose: one connection, one REPEATABLE READ snapshot.
   const constraints = await decisions(`d.state = 'accepted' AND d.kind IN ('constraint', 'lesson')`, 'd.created_at', 50)
   const pending = await decisions(`d.state = 'proposed'`, 'd.created_at', 50)
@@ -372,10 +386,11 @@ export async function readMissionContext(
   if (!project) return null
   const missionRevision = safeInt(project.mission_revision, 'missionRevision')
   const { mission, legacy } = missionFrame(project)
-  const ledger = await readLedger(c, projectId, missionRevision)
+  const names = reader.names === true
+  const ledger = await readLedger(c, projectId, missionRevision, names)
   const work = await readWork(c, projectId)
   const policy = notePolicy(await readNotePolicy(c, projectId, reader.actorId))
-  const entries = ledger.current.rows.map(toEntry)
+  const entries = ledger.current.rows.map((r) => toEntry(r, names))
   const present = mission !== null || legacy || (await hasHistory(c, projectId))
   return withDigest({
     projectId,
@@ -389,7 +404,7 @@ export async function readMissionContext(
     pending: ledger.pending,
     decided: ledger.decided,
     entries,
-    history: ledger.past.rows.map(toEntry),
+    history: ledger.past.rows.map((r) => toEntry(r, names)),
     excluded: { olderEntries: ledger.current.more, olderHistory: ledger.past.more, legacyFrame: legacy },
     missing: missing({ mission, constraints: ledger.constraints, entries, work }),
     work,
