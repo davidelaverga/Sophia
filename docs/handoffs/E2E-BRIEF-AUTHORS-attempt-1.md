@@ -78,3 +78,14 @@ commits on the branch merge its base forward or touch only this record). 18 file
   - The database suites pass 633/634 (the same `design.db` failure, as on main here).
   - Studio unit tests: 1219 pass.
   - Lint, typecheck and Prettier are clean.
+- **Codex P1 on #336, second round** (a Studio still open from before refuses the new properties):
+  - The names go only to a reader that asks: `getMission?names=1`, declared in A18. The new Studio asks for them.
+  - `MissionReader.names` leaves them out of the context, and of its digest, for anyone else, the voice guide
+    included.
+  - `mission.db.test.ts` «names no one to a reader that doesn't ask» was written first. Before the change it found
+    `authorName`, `proposedByName` and `decidedByName` in a read without the parameter.
+- After it:
+  - The mission, readiness and media database suites pass 32/32.
+  - Studio unit tests: 1229 pass.
+  - The e2e of goal notes, the goals overview, press answers and the brief pass 33/33 locally.
+  - Lint, typecheck and the contracts check are clean.

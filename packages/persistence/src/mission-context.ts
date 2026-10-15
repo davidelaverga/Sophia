@@ -20,6 +20,11 @@ const WORK_LIMIT = 10
 export interface MissionReader {
   actorId: string
   channel: 'studio' | 'voice'
+  /**
+   * Whether the reader reads the authors' names (A18): only a Studio that asks for them. A Studio still open from
+   * before refuses a property it doesn't know, and the voice guide names people only as who they are to the speaker.
+   */
+  names?: boolean
 }
 
 type Role = 'admin' | 'editor' | 'viewer'
@@ -146,7 +151,7 @@ async function readDecisions(c: pg.PoolClient, projectId: string, where: string,
   return rows
 }
 
-function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
+function toDecision(r: DecisionRow, missionRevision: number, names: boolean): MissionDecision {
   const base = revision(r.base_mission_revision, 'decision.baseMissionRevision')
   return {
     id: r.id,
@@ -159,7 +164,7 @@ function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
     origin: r.proposal.origin ?? null,
     textKind: r.origin === 'studio' ? 'member_text' : 'sophia_paraphrase',
     proposedBy: r.proposed_by,
-    proposedByName: r.proposed_by_name,
+    ...(names && { proposedByName: r.proposed_by_name }),
     proposedVia: r.origin,
     createdAt: iso(r.created_at),
     baseMissionRevision: base,
@@ -167,7 +172,7 @@ function toDecision(r: DecisionRow, missionRevision: number): MissionDecision {
     supersedesDecisionId: r.supersedes_decision_id,
     supportingEntryIds: r.supporting_entry_ids,
     decidedBy: r.decided_by,
-    decidedByName: r.decided_by_name,
+    ...(names && { decidedByName: r.decided_by_name }),
     decidedAt: r.decided_at ? iso(r.decided_at) : null,
     decidedVia: r.decided_via,
     sourceId: r.body_source_id,
@@ -200,7 +205,7 @@ async function readEntries(c: pg.PoolClient, projectId: string, states: string[]
   return { rows, more: Math.max(0, safeInt(count[0]?.n ?? '0', 'entries') - rows.length) }
 }
 
-function toEntry(r: EntryRow): MissionEntry {
+function toEntry(r: EntryRow, names: boolean): MissionEntry {
   const withdrawn = r.state === 'withdrawn'
   return {
     id: r.id,
@@ -211,7 +216,7 @@ function toEntry(r: EntryRow): MissionEntry {
     textKind: r.authored_by === 'sophia' ? 'sophia_paraphrase' : 'member_text',
     authoredBy: r.authored_by,
     actorId: r.actor_id,
-    authorName: r.author_name,
+    ...(names && { authorName: r.author_name }),
     origin: r.origin,
     exchangeId: r.exchange_id,
     inputEpoch: revision(r.input_epoch, 'entry.inputEpoch'),
@@ -354,9 +359,11 @@ function withDigest(body: Omit<MissionContext, 'digest'>): MissionContext {
   return { ...body, digest: createHash('sha256').update(JSON.stringify(body)).digest('hex') }
 }
 
-async function readLedger(c: pg.PoolClient, projectId: string, missionRevision: number) {
+async function readLedger(c: pg.PoolClient, projectId: string, missionRevision: number, names: boolean) {
   const decisions = (where: string, order: string, limit: number) =>
-    readDecisions(c, projectId, where, order, limit).then((rows) => rows.map((r) => toDecision(r, missionRevision)))
+    readDecisions(c, projectId, where, order, limit).then((rows) =>
+      rows.map((r) => toDecision(r, missionRevision, names)),
+    )
   // Sequential on purpose: one connection, one REPEATABLE READ snapshot.
   const constraints = await decisions(`d.state = 'accepted' AND d.kind IN ('constraint', 'lesson')`, 'd.created_at', 50)
   const pending = await decisions(`d.state = 'proposed'`, 'd.created_at', 50)
@@ -379,10 +386,11 @@ export async function readMissionContext(
   if (!project) return null
   const missionRevision = safeInt(project.mission_revision, 'missionRevision')
   const { mission, legacy } = missionFrame(project)
-  const ledger = await readLedger(c, projectId, missionRevision)
+  const names = reader.names === true
+  const ledger = await readLedger(c, projectId, missionRevision, names)
   const work = await readWork(c, projectId)
   const policy = notePolicy(await readNotePolicy(c, projectId, reader.actorId))
-  const entries = ledger.current.rows.map(toEntry)
+  const entries = ledger.current.rows.map((r) => toEntry(r, names))
   const present = mission !== null || legacy || (await hasHistory(c, projectId))
   return withDigest({
     projectId,
@@ -396,7 +404,7 @@ export async function readMissionContext(
     pending: ledger.pending,
     decided: ledger.decided,
     entries,
-    history: ledger.past.rows.map(toEntry),
+    history: ledger.past.rows.map((r) => toEntry(r, names)),
     excluded: { olderEntries: ledger.current.more, olderHistory: ledger.past.more, legacyFrame: legacy },
     missing: missing({ mission, constraints: ledger.constraints, entries, work }),
     work,

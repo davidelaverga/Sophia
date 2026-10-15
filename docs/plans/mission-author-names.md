@@ -31,6 +31,10 @@
   `authorLabel` as the fallback, a proposal its `proposedByName`, a decision its `decidedByName`. So the notes, the
   pending proposal and «decided by» name people outside a call (`davide@sophia.test` → «Davide»). A name is never
   pooled per actor, so someone renamed between two writes reads as each write kept it (Codex P2 on #336).
+- **Only a reader that asks gets the names** (`getMission?names=1`, Codex P1 on #336). A Studio still open from before
+  refuses a property it doesn't know (`additionalProperties: false`), so it asks without the parameter and reads the
+  brief it always read. The Studio asks; the voice guide's context never carries the names. This is the media bridge's
+  `guide` pattern.
 - **`/ready` requires the columns** (Codex P1 on #336): an API on a database short of 0048 or 0049 takes no traffic,
   since the chat and the brief read them on every load.
 

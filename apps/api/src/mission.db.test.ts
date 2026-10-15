@@ -116,7 +116,8 @@ describe('who wrote a note and who decided, as the brief shows it (e2e brief «A
       body: { decision: 'accept', expectedRevision: 1 },
     })
     assert.equal(decision.status, 202)
-    const ctx = await missionOf(projectId, V)
+    // A Studio that reads names asks for them (Codex P1 on #336).
+    const ctx = parseMissionContext((await call(`/api/v1/projects/${projectId}/mission?names=1`, { as: V })).json)
     const entry = ctx.entries.find((e) => e.id === noted.entryId)
     assert.deepEqual([entry?.actorId, entry?.authorName], [E, named(E)])
     const agreed = [...ctx.constraints, ...ctx.decided].find((d) => d.id === decided.decisionId)
@@ -133,6 +134,25 @@ describe('who wrote a note and who decided, as the brief shows it (e2e brief «A
       body: { kind: 'constraint', statement: 'Spoofed', proposedByName: 'Luis' },
     })
     assert.equal(spoofed.status, 422)
+  })
+
+  it('names no one to a reader that doesn’t ask: a Studio still open from before reads the brief it always read', async () => {
+    // Codex P1 on #336: the previous Studio's validator refuses a property it doesn't know, so the names are sent only
+    // to a reader that asks for them (`names=1`), as the media bridge names its guide version.
+    const { projectId } = await project()
+    await typed(projectId, E, { kind: 'observation', epistemic: 'observed', text: 'The door sign is small.' })
+    await call(`/api/v1/projects/${projectId}/mission/proposals`, {
+      as: E,
+      key: randomUUID(),
+      body: { kind: 'constraint', statement: 'A bigger sign.' },
+    })
+    const unasked = (await call(`/api/v1/projects/${projectId}/mission`, { as: V })).json
+    const keys = [...unasked.entries, ...unasked.pending].flatMap((r: Record<string, unknown>) => Object.keys(r))
+    assert.deepEqual(
+      keys.filter((k) => k.endsWith('Name')),
+      [],
+    )
+    assert.equal((await call(`/api/v1/projects/${projectId}/mission?names=yes`, { as: V })).status, 422)
   })
 })
 

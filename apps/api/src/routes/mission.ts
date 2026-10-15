@@ -49,9 +49,9 @@ interface Deps {
   pool: pg.Pool
 }
 
-async function readContext(pool: pg.Pool, actorId: string, projectId: string) {
+async function readContext(pool: pg.Pool, actorId: string, projectId: string, names = false) {
   const context = await withActor(pool, actorId, 'read', (c) =>
-    readMissionContext(c, projectId, { actorId, channel: 'studio' }),
+    readMissionContext(c, projectId, { actorId, channel: 'studio', names }),
   )
   if (!context) throw new DomainError('forbidden', 'Not permitted')
   return context
@@ -187,12 +187,22 @@ function policyRoutes(app: FastifyInstance, { pool }: Deps): void {
   )
 }
 
+/**
+ * `names=1`: the reader reads the authors' names (A18). A Studio still open from before asks without it and reads the
+ * brief it always read, since its validator refuses a property it doesn't know (Codex P1 on #336).
+ */
+const NAMES_QUERY = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { names: { type: 'string', enum: ['1'] } },
+} as const
+
 /** getMission and the mission writes (A08). */
 export function missionRoutes(app: FastifyInstance, deps: Deps): void {
-  app.get<{ Params: { projectId: string } }>(
+  app.get<{ Params: { projectId: string }; Querystring: { names?: '1' } }>(
     '/api/v1/projects/:projectId/mission',
-    { schema: { params: projectParams, response: { 200: { $ref: 'MissionContext#' } } } },
-    async (req) => readContext(deps.pool, req.actorId, req.params.projectId),
+    { schema: { params: projectParams, querystring: NAMES_QUERY, response: { 200: { $ref: 'MissionContext#' } } } },
+    async (req) => readContext(deps.pool, req.actorId, req.params.projectId, req.query.names === '1'),
   )
   entryRoutes(app, deps)
   proposalRoutes(app, deps)
