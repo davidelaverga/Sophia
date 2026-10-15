@@ -179,6 +179,16 @@ function DevIdentityPicker({ onChoose }: { onChoose: (identity: Identity) => voi
   )
 }
 
+/** What continuing means, one press from the door (terms-privacy.md). */
+function LegalLine() {
+  return (
+    <p className="signin-legal">
+      By continuing you agree to the <a href="/terms">Terms</a> and acknowledge the{' '}
+      <a href="/privacy">Privacy notice</a>.
+    </p>
+  )
+}
+
 type Step = { step: 'idle' | 'sending' | 'sent' } | { step: 'error'; message: string; field?: boolean }
 
 /** Where a sign-in email goes, and where its code is checked: Supabase Auth, or a fixture's own. */
@@ -341,6 +351,7 @@ export function EmailSignIn({ notice, send = sendMagicLink, verify }: { notice: 
       )}
       <p className="muted">New here? The same link creates your account.</p>
       <PasskeyLink {...passkey} />
+      <LegalLine />
     </Centered>
   )
 }

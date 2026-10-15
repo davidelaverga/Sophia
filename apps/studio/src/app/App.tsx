@@ -11,6 +11,8 @@ import type { Identity } from './dev-identity.ts'
 import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
+import { legalDoc } from './legal.ts'
+import { LegalPage } from './Legal.tsx'
 import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
 import { useOpening } from './useOpening.ts'
@@ -125,6 +127,20 @@ function useSignedInAhead(state: AuthState, door: boolean) {
   }, [status, member, door])
 }
 
+/**
+ * The pages that are their own: the join page, and the terms and the privacy notice, which anyone reads, signed in or
+ * not (terms-privacy.md). None prepares the Studio.
+ */
+function useOwnPage(state: AuthState) {
+  const joinPage = opensJoinPage(window.location.pathname, state.status)
+  const legal = legalDoc(window.location.pathname)
+  const ownPage = joinPage || legal !== null
+  useSignedInAhead(state, ownPage)
+  // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
+  useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !ownPage)
+  return { joinPage, legal }
+}
+
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
@@ -135,10 +151,7 @@ export function App() {
   // Who is in, for writes that outlive their part (signed-in.ts): set as it changes, cleared at once on leaving.
   useEffect(() => setSignedIn(signedInAs), [signedInAs])
   useDraftsOnlyOfWhoIsIn(state)
-  const joinPage = opensJoinPage(window.location.pathname, state.status)
-  useSignedInAhead(state, joinPage)
-  // The opening hands off once all is ready: the Studio's once it has prepared what the person opens first.
-  useOpening(state.status, state.status === 'signed_in' && state.identity.role !== 'guest' && !joinPage)
+  const { joinPage, legal } = useOwnPage(state)
 
   // Cached server state belongs to one identity; drop it whenever the identity changes.
   const switchIdentity = (identity: Identity | null) => {
@@ -160,6 +173,7 @@ export function App() {
     void signOutForgetting(signOut, forgetDrafts).catch(() => setSignedIn(signedInAs))
   }
 
+  if (legal) return <LegalPage doc={legal} />
   // An invitation link works before, during and after sign-in: it handles its own. A sign-in link's question
   // ("Continue as …?") still comes first there, so the session it carries is accepted or declined, never lost.
   if (joinPage) {

@@ -6216,3 +6216,79 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
+
+/* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
+.signin-legal {
+  margin-top: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.signin-legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.signin-legal a:hover {
+  color: var(--text-2);
+}
+
+/* The terms and the privacy notice: a reading column on the page's ground, the mark above, the way on below. */
+.legal {
+  min-height: 100dvh;
+  padding: 32px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+}
+.legal-head,
+.legal-doc,
+.legal-foot {
+  max-width: 680px;
+  margin-inline: auto;
+}
+.legal-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.legal-doc h1 {
+  margin: 40px 0 4px;
+  font-size: var(--type-view);
+  letter-spacing: -0.025em;
+}
+.legal-updated {
+  margin: 0 0 24px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
+.legal-doc h2 {
+  margin: 28px 0 8px;
+  font-size: var(--type-head);
+  font-weight: 600;
+}
+.legal-doc p,
+.legal-doc li {
+  color: var(--text-2);
+  font-size: var(--type-title);
+  line-height: 1.6;
+}
+.legal-doc p {
+  margin: 0 0 10px;
+}
+.legal-doc ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.legal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.legal-foot a {
+  color: var(--text-2);
+}
