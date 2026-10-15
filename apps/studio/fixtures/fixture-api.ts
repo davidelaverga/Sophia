@@ -317,7 +317,7 @@ function admitted(project: Project, init: RequestInit | undefined): Response | n
   return json(receipt)
 }
 
-/** A rename (A19): the title the request names, for every read from now on. */
+/** A rename (A21): the title the request names, for every read from now on. */
 function renamed(project: Project, init: RequestInit | undefined): Response {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
   const title: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'title') : null

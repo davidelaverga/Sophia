@@ -1,5 +1,5 @@
 // The project's title in the header (docs/plans/project-rename.md): words for everyone; for an admin, a press that
-// opens the kit's menu «Project», whose Rename… opens a sheet. The rename is idempotent per key (A19): a retry after an
+// opens the kit's menu «Project», whose Rename… opens a sheet. The rename is idempotent per key (A21): a retry after an
 // unknown outcome sends the same key, so it is never a second rename. Saved, the snapshot and the projects' list are
 // read again, and the header says the new name.
 import { useQueryClient } from '@tanstack/react-query'
@@ -18,7 +18,7 @@ interface Props {
   identity: Identity
 }
 
-/** The most a title holds (A19), counted as the API counts it. */
+/** The most a title holds (A21), counted as the API counts it. */
 const TITLE_MOST = 180
 
 function RenameSheet({ title, projectId, identity, onClose }: Omit<Props, 'admin'> & { onClose: () => void }) {

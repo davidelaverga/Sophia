@@ -20,7 +20,7 @@ commits on the branch merge its base forward or touch only this record). 23 file
   - It is for an admin only (42501), with a title of 1–180 characters that isn't spaces alone (22023).
   - It is idempotent per actor and key in `sophia.project_renames`, as `create_project` is.
   - It holds the project's row, bumps `projects.title_revision`, and emits `project.renamed`.
-- **A19:** `POST /api/v1/projects/{projectId}/title`, with `ProjectRenameRequest` and `ProjectRenamed`. `/ready`
+- **A21** (A19 and A20 are proposals to Davide in #105): `POST /api/v1/projects/{projectId}/title`, with `ProjectRenameRequest` and `ProjectRenamed`. `/ready`
   requires the function.
 - **Persistence and API:** `renameProject`, and its route next to `createProject`'s.
 - **Studio:**
@@ -55,3 +55,5 @@ commits on the branch merge its base forward or touch only this record). 23 file
 - `85f336aa`: CI's runtime-unit refused `project.renamed` as an unknown event type (`diagnostics/sanitize.test.ts`, run
   only in CI here). The sanitizer now knows it, and the event's summary code is `project.renamed`, dotted like the
   others.
+- The amendment was renumbered from A19 to A21, because A19 and A20 are already proposals to Davide in #105
+  (`apps/studio/src/api/vision.ts`). The leave PR takes A22.

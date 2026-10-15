@@ -19,7 +19,7 @@ export async function createProject(
   return onlyRow(rows, 'create_project').receipt
 }
 
-/** Rename a project (A19): an admin only, idempotent per actor and key. Call inside withActor(..., "write"). */
+/** Rename a project (A21): an admin only, idempotent per actor and key. Call inside withActor(..., "write"). */
 export async function renameProject(
   c: pg.PoolClient,
   projectId: string,

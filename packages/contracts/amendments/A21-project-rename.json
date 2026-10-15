@@ -1,9 +1,9 @@
 {
-  "id": "A19",
+  "id": "A21",
   "goal": "E2E",
   "title": "An admin renames a project",
   "why": [
-    "The gaps report (2026-10-15, point 1): a project could be created and never changed, so a typo in its title stayed for good. Renaming is the first of the point's pieces; leaving and archiving follow, and deleting for good waits for a decision.",
+    "The gaps report (2026-10-15, point 1): a project could be created and never changed, so a typo in its title stayed for good. Renaming is the first of the point's pieces; leaving and archiving follow, and deleting for good waits for a decision. A19 and A20 are proposals to Davide (#105), so this takes A21.",
     "POST /api/v1/projects/{projectId}/title renames it: an admin only, idempotent per actor and key as createProject is, a title of 1–180 characters that isn't spaces alone. The rename emits project.renamed, so every member's feed reads the new title from its snapshot and the projects' list."
   ],
   "patch": [

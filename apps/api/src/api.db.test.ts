@@ -384,7 +384,7 @@ describe('createProject', () => {
   })
 })
 
-describe('renaming a project (A19)', () => {
+describe('renaming a project (A21)', () => {
   const rename = (actor: string, projectId: string, title: unknown, key = randomUUID()) =>
     call(actor, 'POST', `/api/v1/projects/${projectId}/title`, { title }, { 'idempotency-key': key })
 
