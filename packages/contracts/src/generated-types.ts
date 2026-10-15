@@ -262,6 +262,8 @@ export type ActivityEntry = { "sequence": string; "occurredAt": string; "type": 
 export type ActivityPage = { "entries": ReadonlyArray<ActivityEntry>; "before": string | null; };
 export type MemberRemoveRequest = {  };
 export type MemberRemoved = { "actorId": string; "cursor": string; };
+export type ProjectArchiveRequest = { "archived": boolean; };
+export type ProjectArchived = { "projectId": string; "archived": boolean; "cursor": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -417,4 +419,6 @@ export interface Operations {
   "changeMemberRole": { method: "PUT"; path: "/api/v1/projects/{projectId}/members/{actorId}/role"; request: MemberRoleRequest; response: MemberRoleSet; };
   "readProjectActivity": { method: "GET"; path: "/api/v1/projects/{projectId}/activity"; request: undefined; response: ActivityPage; };
   "removeMember": { method: "POST"; path: "/api/v1/projects/{projectId}/members/{actorId}/removal"; request: MemberRemoveRequest; response: MemberRemoved; };
+  "archiveProject": { method: "POST"; path: "/api/v1/projects/{projectId}/archive"; request: ProjectArchiveRequest; response: ProjectArchived; };
+  "listArchivedProjects": { method: "GET"; path: "/api/v1/projects/archived"; request: undefined; response: ProjectList; };
 }

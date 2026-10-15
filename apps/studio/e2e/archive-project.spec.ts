@@ -57,3 +57,32 @@ test('archive · a viewer reads the line, with nothing to press', async ({ page 
   await expect(line).toBeVisible()
   await expect(line.getByRole('button')).toHaveCount(0)
 })
+
+test('archive · Work keeps archived projects folded under «Archived»: each opens, and an admin brings one back', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?archived=1')
+  const fold = page.getByRole('button', { name: 'Archived (1)' })
+  await expect(fold).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByText('Old pilot')).toHaveCount(0)
+  await fold.click()
+  const row = page.getByRole('listitem').filter({ hasText: 'Old pilot' })
+  await row.getByRole('button', { name: 'Old pilot' }).click()
+  await row.getByRole('button', { name: 'Unarchive' }).click()
+  expect(await page.evaluate(() => window.workSpaceFixture)).toEqual({
+    opened: ['00000000-0000-4000-8000-00000000c003'],
+    unarchived: ['00000000-0000-4000-8000-00000000c003'],
+  })
+})
+
+test('archive · an editor opens an archived project, with nothing to bring back; none archived, no fold', async ({
+  page,
+}) => {
+  await page.goto('/work-space.html?archived=1&role=editor')
+  await page.getByRole('button', { name: 'Archived (1)' }).click()
+  await expect(
+    page.getByRole('listitem').filter({ hasText: 'Old pilot' }).getByRole('button', { name: 'Unarchive' }),
+  ).toHaveCount(0)
+  await page.goto('/work-space.html')
+  await expect(page.getByRole('button', { name: /^Archived/ })).toHaveCount(0)
+})
