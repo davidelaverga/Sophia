@@ -122,6 +122,8 @@ interface Fixture {
   failReplies: (on: boolean) => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
+  /** While on, requests to revise the page wait for their replies; off, they answer. */
+  holdEdit: (on: boolean) => void
   /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
   failEarlier: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
@@ -432,6 +434,7 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failEdit: false,
+  editHeld: null as (() => void)[] | null,
   failEarlier: false,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
@@ -590,6 +593,11 @@ window.fixture = {
   },
   failEdit: () => {
     project.failEdit = true
+  },
+  holdEdit: (on) => {
+    const held = project.editHeld ?? []
+    project.editHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   failEarlier: () => {
     project.failEarlier = true

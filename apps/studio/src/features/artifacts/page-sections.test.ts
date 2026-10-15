@@ -29,6 +29,15 @@ describe('a designed page’s sections (revise-section.md)', () => {
     ])
   })
 
+  it('offers no section from a comment or from raw text, as the compiler, which reads elements, wouldn’t', () => {
+    const html = [
+      '<!-- <section data-section="draft"><h2>Draft</h2></section> -->',
+      '<script>const s = \'<div data-section="code">\'</script>',
+      '<main data-section="real"><h1>Real</h1></main>',
+    ].join('\n')
+    assert.deepEqual(pageSections(html), [{ id: 'real', label: 'Real' }])
+  })
+
   it('a page with no named section has none to offer', () => {
     assert.deepEqual(pageSections('<main><h1>Untitled</h1></main>'), [])
   })

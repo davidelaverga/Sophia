@@ -83,6 +83,8 @@ interface Project {
   title?: string
   /** The next request to revise the page is refused, a design under way (`window.fixture.failEdit`). */
   failEdit?: boolean
+  /** While set, requests to revise the page land but their replies wait (`window.fixture.holdEdit`). */
+  editHeld?: (() => void)[] | null
   /** The viewer is the project's only admin (`admins=1`): leaving is refused (project-leave.md). */
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
@@ -356,7 +358,13 @@ function departed(project: Project): Response {
 }
 
 /** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
-function designEdited(project: Project, init: RequestInit | undefined): Response {
+function designEdited(project: Project, init: RequestInit | undefined): Response | Promise<Response> {
+  const held = project.editHeld
+  if (held) return new Promise((resolve) => held.push(() => resolve(designAdmitted(project, init))))
+  return designAdmitted(project, init)
+}
+
+function designAdmitted(project: Project, init: RequestInit | undefined): Response {
   if (project.failEdit) {
     project.failEdit = false
     const problem = {
@@ -388,7 +396,11 @@ function designEdited(project: Project, init: RequestInit | undefined): Response
 }
 
 /** The project's own writes: its rename (A21) and a member leaving it (A22); null for any other path. */
-function projectWritten(project: Project, path: string, init: RequestInit | undefined): Response | null {
+function projectWritten(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/html-edits`) return designEdited(project, init)
