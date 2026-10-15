@@ -435,9 +435,9 @@ const project = {
     }
   },
   // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
-  // `discussion=days`: two from yesterday and two from today (chat-times.md).
-  messages: (query.get('discussion') === 'days'
-    ? overTwoDays()
+  // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
+  messages: (query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+    ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
     : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,

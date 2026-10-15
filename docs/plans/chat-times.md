@@ -11,6 +11,8 @@
   - The first message of each day in the viewer's zone opens one: «Today», «Yesterday», a weekday within the week,
     then the date (`time-words.ts`'s `dayLabel`, never ahead).
   - A time that isn't one opens nothing.
+  - The turns with Sophia are this session's, so today's: «Today» opens them when the discussion before them ends on
+    another day.
 - **The discussion:**
   - The day line above the first message of each day.
   - Each message's time by its author, on a 24-hour clock (`clock`), as `<time datetime>`.
@@ -18,7 +20,7 @@
   - The time of «You».
   - The words, and Sophia's reply, through `LinkedText`, as the discussion's are.
 - **The fixture:**
-  - `discussion=days`: two messages from yesterday and two from today.
+  - `discussion=days`: two messages from yesterday and two from today; `discussion=yesterday`, yesterday's two.
   - A message written on the page is dated now.
 
 ## Checks
@@ -26,4 +28,5 @@
 - `chat-days.test.ts`: a line for each day's first message, and none for the rest; a malformed time opens none.
 - `chat-times.spec.ts`:
   - the discussion over two days shows «Yesterday», then «Today», and a time by each author;
+  - after a discussion that ended yesterday, the turns with Sophia open on «Today»;
   - a link in a typed turn opens in a new tab with no opener.

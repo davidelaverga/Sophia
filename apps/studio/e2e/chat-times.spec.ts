@@ -32,6 +32,14 @@ test('times · the discussion over two days says Yesterday, then Today, and the 
   await expect(times.first()).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}T/)
 })
 
+test('times · after a discussion that ended yesterday, the turns with Sophia open on Today', async ({ page }) => {
+  await enter(page, 'discussion=yesterday&exchange=open')
+  await expect(discussion(page).locator('.chat-day')).toHaveText(['Yesterday'])
+  await page.locator('#converse-draft').fill('Where were we?')
+  await page.locator('#converse-draft').press('Enter')
+  await expect(page.locator('.conversation-history > .chat-day')).toHaveText('Today')
+})
+
 test('times · a typed turn with Sophia says when, and its link opens in a new tab with no opener', async ({ page }) => {
   await enter(page, 'exchange=open')
   const bar = page.locator('#converse-draft')
