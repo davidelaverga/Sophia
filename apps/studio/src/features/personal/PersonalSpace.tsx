@@ -124,6 +124,7 @@ function useActions(
   onFailed: (err: unknown) => void,
 ): ConversationActions & {
   carry: (note: PersonalNote, project: ProjectSummary) => void
+  forget: (noteId: string) => Promise<boolean>
   /** Where the composer puts its send for a way to start. */
   starter: RefObject<((words: string) => Promise<boolean>) | null>
 } {
@@ -152,6 +153,18 @@ function useActions(
         (kept) => {
           const noteId = kept.noteId
           if (noteId) toast(NOTICE.kept, () => attempt(() => writes.forget(noteId)))
+          return true
+        },
+        (err: unknown) => {
+          onFailed(err)
+          return false
+        },
+      ),
+    // A note forgotten from the notes: gone for good, so the toast offers no Undo (personal-forget-note.md).
+    forget: (noteId) =>
+      writes.forget(noteId).then(
+        () => {
+          toast(NOTICE.forgotten)
           return true
         },
         (err: unknown) => {
@@ -581,6 +594,7 @@ function Notes({ props, actions, under }: { props: Props; actions: ReturnType<ty
         focusNotesToggle()
       }}
       onCarry={actions.carry}
+      onForget={actions.forget}
       carrying={actions.waits}
       memory={props.extras?.memory}
       under={under}

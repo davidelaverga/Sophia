@@ -223,7 +223,8 @@ function Turn({ row, noting, onNote }: TurnProps) {
       className={`msg ${me ? 'me' : 'sophia'} ${row.first ? 'first' : 'cont'}${showAt ? ' show-at' : ''}`}
       data-turn={row.turn?.id}
       onClick={(e) => {
-        if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button'))) setShowAt(!showAt)
+        // A link opens; it doesn't toggle the time (message-links.md).
+        if (tapShowsTime() && !(e.target instanceof Element && e.target.closest('button, a'))) setShowAt(!showAt)
       }}
     >
       {row.first && <Who who={me ? 'you' : 'sophia'} />}

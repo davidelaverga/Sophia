@@ -6010,3 +6010,15 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: 13px;
 }
+
+/* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
+   column however long it is. */
+.msg-link {
+  color: var(--halo-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.msg-link:hover {
+  color: var(--text);
+}

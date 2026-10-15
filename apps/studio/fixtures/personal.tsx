@@ -34,6 +34,10 @@ declare global {
       answer?: () => void
       carried: string[]
       takenBack: string[]
+      /** Each note forgotten, by id (personal-forget-note.md). */
+      forgotten: string[]
+      /** What the toast said, in order. */
+      toasts: string[]
       /** The account leaves (signing out): Personal goes from the page, as App's leaveSession takes it. */
       signOut?: () => void
       /** Personal left for another place, and come back to: the notes' Escape layer goes and opens again, as Places'. */
@@ -49,7 +53,9 @@ const sent: string[] = []
 const pressed: string[] = []
 const carried: string[] = []
 const takenBack: string[] = []
-window.personalFixture = { sent, pressed, carried, takenBack }
+const forgotten: string[] = []
+const toasts: string[] = []
+window.personalFixture = { sent, pressed, carried, takenBack, forgotten, toasts }
 /** `carryFails=N`: the Nth carry fails, once (a package stops there); `carryLost=N`: it lands, its reply lost. */
 let carries = 0
 /** The fixture's account, signed in until `signOut` (the writes' `here`). */
@@ -344,6 +350,7 @@ function useSimulated() {
       return Promise.resolve({ ...receipt('keep_note'), noteId: id })
     },
     forget: (id) => {
+      forgotten.push(id)
       setSpace((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== id) }))
       return Promise.resolve(receipt('forget_note'))
     },
@@ -470,7 +477,7 @@ function Personal() {
           notes={{ open: notes, set: setNotes }}
           earlier={{ open: earlier, set: setEarlier }}
           edge={{ badge: 0, pulse: 0 }}
-          toast={() => undefined}
+          toast={(text) => void toasts.push(text)}
           onCarried={() => undefined}
           onCross={() => undefined}
           onStartProject={() => undefined}
