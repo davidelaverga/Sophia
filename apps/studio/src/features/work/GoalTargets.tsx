@@ -9,6 +9,10 @@ import { Button } from '@sophia/ui'
 import { ApiError, getGoalTargets, getProjectMembers, setGoalTarget } from '../../api/client.ts'
 import { useMembership } from '../access/useAccess.ts'
 import type { NotesFor } from './GoalNotes.tsx'
+import { dayOf } from './goal-day.ts'
+import { dueOf, dueWords, type Due } from './goal-due.ts'
+
+export { dayOf } from './goal-day.ts'
 
 type At = Pick<NotesFor, 'projectId' | 'identity' | 'cursor'>
 
@@ -34,25 +38,29 @@ export function useMembers(at: At): readonly ProjectMember[] {
   return read.data?.members ?? []
 }
 
-/** A calendar date as the Studio says it: «30 Oct 2026». */
-export const dayOf = (date: string) =>
-  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  })
-
 const ownerName = (members: readonly ProjectMember[], id: string) =>
   members.find((m) => m.actorId === id)?.name ?? 'A member'
 
-/** What a goal's row says of its target: «Marco · due 30 Oct 2026», either part alone, or nothing. */
-export function targetLine(target: GoalTarget | undefined, members: readonly ProjectMember[]): string | null {
-  const parts = [
-    target?.ownerId ? ownerName(members, target.ownerId) : null,
-    target?.targetDate ? `due ${dayOf(target.targetDate)}` : null,
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' · ') : null
+/** Against what a row's target is read: the viewer (named «You»), their calendar day, and whether the goal is done. */
+export interface TargetAt {
+  me: string
+  today: string
+  done: boolean
+}
+
+/**
+ * What a goal's row says of its target: «Marco · due 30 Oct 2026», «You · overdue since 30 Oct 2026» (goal-overdue.md),
+ * either part alone, or nothing; with how its date stands.
+ */
+export function targetLine(
+  target: GoalTarget | undefined,
+  members: readonly ProjectMember[],
+  at: TargetAt,
+): { text: string; due: Due | null } | null {
+  const due = dueOf(target?.targetDate, at.today, at.done)
+  const owner = target?.ownerId === at.me ? 'You' : target?.ownerId ? ownerName(members, target.ownerId) : null
+  const parts = [owner, target?.targetDate ? dueWords(target.targetDate, due) : null].filter(Boolean)
+  return parts.length > 0 ? { text: parts.join(' · '), due } : null
 }
 
 type Note = 'saved' | 'stale' | 'failed' | null

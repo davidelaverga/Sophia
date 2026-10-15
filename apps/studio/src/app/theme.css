@@ -5715,6 +5715,10 @@ button.contribution-quote:hover {
 .goals-list-head .field-label {
   margin: 0;
 }
+/* «Mine», before the search, at the head's end (goal-overdue.md). */
+.goals-mine {
+  margin-left: auto;
+}
 .goals-search {
   width: min(280px, 100%);
 }
@@ -6134,6 +6138,10 @@ button.contribution-quote:hover {
   margin: 2px 0 0;
   color: var(--text-3);
   font-size: var(--type-small);
+}
+/* A date that has passed, on a goal not completed (docs/plans/goal-overdue.md). */
+.goal-row-target[data-due='overdue'] {
+  color: var(--rose);
 }
 .goal-target-form {
   display: grid;
