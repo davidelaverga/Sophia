@@ -44,3 +44,13 @@ commits on the branch merge its base forward or touch only this record). 10 file
   routes the list, a later route winning, and the fixture's `projects=many` is gone.
   - Before the fix, `app-auth`, `commands` and `home` ran 51/53, the two new cases failing.
   - After it, the two cases pass.
+- Codex round on `e0bad5cb`, fixed in `e7c46061` (the tests first, in `78ec9b76`):
+  - **P1, the list's row:** Work's column now has explicit rows: the head, the finder, and the list in
+    `minmax(0, 1fr)`. Measured before the change, the list still scrolled, because Chromium shrinks the implicit auto
+    row of a scroll container. The rows are explicit now, and the test pins that the list scrolls inside the view at
+    1280 × 560.
+  - **P2:** the finder keeps the 760 px column, centred like the head; before the change the test caught it 1 px off.
+  - **P2:** an empty search keeps New project.
+  - **P2:** «No project is called…» is a status, so a screen reader says it.
+  - **P2:** Clear gives the focus back to the field.
+  - Locally, the find-projects test passes. The layout check polls until the view's entrance settles.
