@@ -6048,3 +6048,112 @@ button.contribution-quote:hover {
 .menu.react-list {
   min-width: 180px;
 }
+
+/* The stage's main view, under the pointer or the focus (docs/plans/room-pin-fullscreen.md): full screen, and Unpin for
+   a person pinned. Full screen keeps the picture whole on black. */
+.stage-acts {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.screen-main:hover .stage-acts,
+.screen-main:focus-within .stage-acts {
+  opacity: 1;
+}
+.screen-main:fullscreen {
+  border: 0;
+  border-radius: 0;
+}
+.spotlight-main {
+  display: grid;
+  place-items: center;
+  background: var(--plane);
+}
+.spotlight-initial {
+  font-size: 64px;
+}
+/* A tile's Pin, in the gallery, under the pointer or the focus. */
+.tile-pin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.tile:hover .tile-pin,
+.tile:focus-within .tile-pin {
+  opacity: 1;
+}
+@media (hover: none) {
+  .stage-acts,
+  .tile-pin {
+    opacity: 1;
+  }
+}
+
+/* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
+   column however long it is. */
+.msg-link {
+  color: var(--halo-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.msg-link:hover {
+  color: var(--text);
+}
+
+/* The project's title for an admin (docs/plans/project-rename.md): the same words, a press that opens the project's
+   menu; Rename… opens its sheet. */
+.project-name:has(.project-name-menu) {
+  overflow: visible;
+}
+.project-name-menu {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.project-name-open {
+  display: inline-flex;
+  min-width: 0;
+  max-width: calc(100% + 12px);
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.project-name-open:hover,
+.project-name-open[aria-expanded='true'] {
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.project-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-name-open svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.rename-acts {
+  justify-self: stretch;
+  margin-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -62,6 +62,12 @@ function room(options: { published?: boolean; drawn?: () => Promise<void>; make?
   return {
     told,
     published: () => published,
+    /** LiveKit's own camera, with no background: on publishes a plain track, off lets it go. */
+    plain: (on: boolean) => () => {
+      told.push(on ? 'plain on' : 'plain off')
+      published = on ? track(told) : null
+      return Promise.resolve()
+    },
     ports: {
       camera: () => published,
       make: options.make ?? ((e: BackgroundEffect) => Promise.resolve(new Drawer(e))),
@@ -95,14 +101,14 @@ describe('the camera’s background, as LiveKit draws it (call-backgrounds.md)',
   it('a camera turning on with a background is published only once its processor has drawn a frame', async () => {
     const r = room()
     const drawing = cameraBackground({ ...r.ports, chosen: 'blur' })
-    assert.equal(await drawing.turnOn(), true)
+    await drawing.turnOn(r.plain(true))
     assert.deepEqual(r.told, ['create', 'set', 'waits for a drawn frame', 'publish'])
   })
 
   it('a camera only muted is let go first, so no frame of it is ever unmuted raw', async () => {
     const r = room({ published: true })
     const drawing = cameraBackground({ ...r.ports, chosen: 'dusk' })
-    await drawing.turnOn()
+    await drawing.turnOn(r.plain(true))
     assert.deepEqual(r.told.slice(0, 2), ['unpublish', 'stop track'])
     assert.equal(r.told.at(-1), 'publish')
   })
@@ -110,23 +116,32 @@ describe('the camera’s background, as LiveKit draws it (call-backgrounds.md)',
   it('without a background the camera turns on as before; a camera drawn here turns off by being let go', async () => {
     const r = room()
     const plain = cameraBackground({ ...r.ports, chosen: 'none' })
-    assert.equal(await plain.turnOn(), false)
-    assert.equal(await plain.turnOff(), false)
+    await plain.turnOn(r.plain(true))
+    await plain.turnOff(r.plain(false))
+    assert.deepEqual(r.told, ['plain on', 'plain off'])
     const drawing = cameraBackground({ ...r.ports, chosen: 'blur' })
-    await drawing.turnOn()
-    assert.equal(await drawing.turnOff(), true)
+    await drawing.turnOn(r.plain(true))
+    await drawing.turnOff(r.plain(false))
     assert.equal(r.published(), null)
     assert.equal(r.told.at(-1), 'stop track')
+    assert.equal(r.told.filter((t) => t.startsWith('plain')).length, 2)
   })
 
   it('no drawn frame, or no processor: the camera stays off and says why, nothing published', async () => {
     const late = room({ drawn: () => Promise.reject(new Error('No frame drawn')) })
-    await assert.rejects(cameraBackground({ ...late.ports, chosen: 'blur' }).turnOn(), BackgroundUnavailable)
+    await assert.rejects(
+      cameraBackground({ ...late.ports, chosen: 'blur' }).turnOn(late.plain(true)),
+      BackgroundUnavailable,
+    )
     assert.equal(late.published(), null)
     assert.equal(late.told.includes('publish'), false)
     assert.equal(late.told.at(-1), 'stop track')
     const none = room({ make: () => Promise.reject(new Error('No WebGL')) })
-    await assert.rejects(cameraBackground({ ...none.ports, chosen: 'blur' }).turnOn(), BackgroundUnavailable)
+    await assert.rejects(
+      cameraBackground({ ...none.ports, chosen: 'blur' }).turnOn(none.plain(true)),
+      BackgroundUnavailable,
+    )
+    assert.equal(none.told.includes('plain on'), false)
     assert.equal(
       mediaMessage(new BackgroundUnavailable(new Error('No WebGL')), 'camera', true),
       'Couldn’t draw your background, so the camera stayed off. Choose None or try again.',
@@ -160,6 +175,55 @@ describe('the camera’s background, as LiveKit draws it (call-backgrounds.md)',
     const none = drawing.set('none')
     waiting.shift()?.()
     await Promise.all([blur, none])
+    assert.equal(r.published()?.getProcessor(), undefined)
+  })
+
+  it('a background chosen while a plain camera still starts lands on it, never left off (Codex P1 on #342)', async () => {
+    const r = room()
+    const starting: (() => void)[] = []
+    const drawing = cameraBackground({ ...r.ports, chosen: 'none' })
+    const on = drawing.turnOn(
+      () => new Promise<void>((started) => starting.push(() => void r.plain(true)().then(started))),
+    )
+    await reached(starting)
+    const blur = drawing.set('blur')
+    starting.shift()?.()
+    await Promise.all([on, blur])
+    assert.equal(r.published()?.getProcessor()?.effects.at(-1)?.mode, 'background-blur')
+  })
+
+  it('a choice changed while the remembered one loads is followed: drawn with it, never a plain camera', async () => {
+    const waiting: (() => void)[] = []
+    const r = room({
+      make: () => new Promise<Drawer>((made) => waiting.push(() => made(new Drawer({ mode: 'disabled' })))),
+    })
+    const drawing = cameraBackground({ ...r.ports, chosen: 'blur' })
+    const on = drawing.turnOn(r.plain(true))
+    await reached(waiting)
+    const dusk = drawing.set('dusk')
+    waiting.shift()?.()
+    await Promise.all([on, dusk])
+    assert.equal(r.told.includes('plain on'), false)
+    assert.equal(r.told.filter((t) => t === 'publish').length, 1)
+    assert.deepEqual(r.published()?.getProcessor()?.effects.at(-1), {
+      mode: 'virtual-background',
+      imagePath: 'data:dusk',
+    })
+  })
+
+  it('None chosen while the remembered one loads starts the camera plain, nothing drawn published', async () => {
+    const waiting: (() => void)[] = []
+    const r = room({
+      make: () => new Promise<Drawer>((made) => waiting.push(() => made(new Drawer({ mode: 'disabled' })))),
+    })
+    const drawing = cameraBackground({ ...r.ports, chosen: 'blur' })
+    const on = drawing.turnOn(r.plain(true))
+    await reached(waiting)
+    const none = drawing.set('none')
+    waiting.shift()?.()
+    await Promise.all([on, none])
+    assert.equal(r.told.includes('publish'), false)
+    assert.equal(r.told.includes('plain on'), true)
     assert.equal(r.published()?.getProcessor(), undefined)
   })
 })

@@ -16,6 +16,7 @@ import { authorLabel, withAuthors } from './conversation-view.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
+import { LinkedText } from '../../app/LinkedText.tsx'
 
 interface Props {
   projectId: string
@@ -231,7 +232,9 @@ function Discussion({ entries, me, names: known, replies, onReply }: DiscussionP
           <li key={entry.id} className="contribution" {...(onReply ? { id: `entry-${entry.id}`, tabIndex: -1 } : {})}>
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
-            <span className="contribution-text">{entry.text}</span>
+            <span className="contribution-text">
+              <LinkedText text={entry.text} />
+            </span>
             {onReply && (
               <button
                 type="button"

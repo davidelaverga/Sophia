@@ -95,3 +95,10 @@ commits on the branch merge its base forward or touch only this record). 21 file
   - `camera-background.test.ts` passes 6/6, and Studio unit tests pass.
   - Lint, typecheck and Prettier are clean.
   - The browser suites can't run here while a game is open (the guard refuses); CI is the run on record.
+- Third round, `ecd7fd07` (Codex P1, «Serialize camera startup with background changes»):
+  - The camera's own on and off now take their turns in the same queue as background choices. A choice made while a
+    plain camera starts lands on it.
+  - A choice changed while the remembered one loads is followed: the camera is drawn with the latest choice, and
+    `turnOn` no longer reads it as «no background». If None is chosen meanwhile, the camera starts plain.
+  - `camera-background.test.ts` passes 9/9 with three new cases.
+  - Locally, the backgrounds, devices and call-keys specs pass 14/14. Lint and typecheck are clean.
