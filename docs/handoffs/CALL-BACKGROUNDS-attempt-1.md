@@ -69,3 +69,16 @@ commits on the branch merge its base forward or touch only this record). 21 file
 - CI; Codex with no open P1. Retarget once #340 and #341 merge.
 - Davide should see the policy change, since it touches security.
 - Left: a background in the check before joining; a person's own picture.
+
+## Review notes
+
+- **Codex on #342: one P1, two P2s.** Answered in one commit after a failing one (`033ec675`):
+  - **P1:** the processor goes with the camera's capture, so the first published frame is drawn.
+  - **P2:** a background that fails keeps the camera off, and the dock says why.
+  - **P2:** the latest choice wins over a slow load.
+  - The rules live in `camera-background.ts`, unit-tested: `camera-background.test.ts`, 5 cases.
+- After the fix:
+  - Studio unit tests: 1234 pass.
+  - Lint, typecheck and Prettier are clean.
+- The local browser suites weren't run again: the machine's guard refused (`safe-run.ps1` exit 90: a game open, 6.8 GB
+  free). CI is the run on record.
