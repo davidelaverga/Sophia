@@ -54,5 +54,5 @@ commits on the branch merge its base forward or touch only this record). 26 file
 ## Review notes
 
 - `d31d1771`: the sanitizer knows `project.member_left` (the rename PR's CI found the same gap for `project.renamed`).
-- The amendment was renumbered to A22, because A19 and A20 are already proposals to Davide in #105 and the rename took
+- `9b599293` (the merge of the rename branch): the amendment was renumbered to A22, because A19 and A20 are already proposals to Davide in #105 and the rename took
   A21.
