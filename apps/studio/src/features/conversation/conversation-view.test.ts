@@ -133,3 +133,12 @@ it('brief metadata filtering keeps ordinary authored Source and Drafted by sente
     ],
   )
 })
+
+describe('an author the call does not know (e2e chat «A member»)', () => {
+  it('names them from the message’s own author name, as the room names an address', () => {
+    const names = new Map([['b', 'Luis']])
+    assert.equal(authorLabel('c', 'me', names, 'davide@sophia.test'), 'Davide')
+    assert.equal(authorLabel('c', 'me', names, null), 'A member')
+    assert.equal(authorLabel('b', 'me', names, 'luis@sophia.test'), 'Luis') // what the room knows wins
+  })
+})

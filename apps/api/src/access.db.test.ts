@@ -321,6 +321,29 @@ describe('the invitations list', () => {
   })
 })
 
+describe('who wrote in the room, as the room shows it (e2e chat «A member»)', () => {
+  // A message keeps its author's name from the token that wrote it, so a chat read outside a call names its author;
+  // the client cannot name itself (the request has no such field).
+  const said = (actor: string, body: Record<string, unknown>) =>
+    token(actor).then((bearer) =>
+      call(`/api/v1/projects/${seed.projectId}/contributions`, {
+        bearer,
+        key: true,
+        body: { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', ...body },
+      }),
+    )
+  it('keeps the author’s name with the message, and refuses a name sent by the client', async () => {
+    assert.equal((await said(B, { text: 'Can we start with the checklist?' })).status, 202)
+    const snap = await call(`/api/v1/projects/${seed.projectId}/snapshot`, { method: 'GET', bearer: await token(A) })
+    const entries = (
+      snap.json as { discussion: { actorId: string; text: string | null; authorName?: string | null }[] }
+    ).discussion
+    const mine = entries.find((e) => e.text === 'Can we start with the checklist?')
+    assert.deepEqual([mine?.actorId, mine?.authorName], [B, `${B.slice(0, 8)}@sophia.test`])
+    assert.equal((await said(B, { text: 'Spoofed', authorName: 'Luis' })).status, 422)
+  })
+})
+
 describe('sessions and membership', () => {
   it('put a start on the room calendar, in a real time zone', async () => {
     const startsAt = new Date(Date.now() + 86_400_000).toISOString()
