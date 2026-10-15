@@ -100,6 +100,8 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /** Members' roles as an admin changed them (A27), by actor id. */
+  memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
@@ -396,18 +398,62 @@ function goalTargetsRead(project: Project): Response {
   return json({ targets })
 }
 
-/** The project's members (A25): the viewer and the two others the room fixture names. */
+/** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
+  const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
   return json({
     members: [
-      { actorId: membership.actorId, role: project.role ?? membership.role, name: VIEWER_NAME },
-      { actorId: personId(1), role: 'editor', name: 'Marco' },
-      { actorId: personId(2), role: 'viewer', name: 'Lucía' },
+      {
+        actorId: membership.actorId,
+        role: roleOf(membership.actorId, project.role ?? membership.role),
+        name: VIEWER_NAME,
+      },
+      { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
+      { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
     ],
   })
 }
 
 const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
+const MEMBER_ROLE = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/role$`)
+
+/** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
+function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
+  const target = GOAL_TARGET.exec(path)?.[1]
+  if (target) return goalTargetPut(project, target, init)
+  const member = MEMBER_ROLE.exec(path)?.[1]
+  return member ? rolePut(project, member, init) : null
+}
+
+/** The role a request names, or null. */
+function requestedRole(init: RequestInit | undefined): Membership['role'] | null {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const next: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'role') : null
+  return next === 'admin' || next === 'editor' || next === 'viewer' ? next : null
+}
+
+const NEEDS_AN_ADMIN = {
+  code: 'invalid_state',
+  message: 'A project needs an admin: make another member an admin first',
+  requestId: PROJECT,
+  retry: 'never',
+}
+
+/** A member's role changed (A27): an admin's; the only admin stepping down is refused, as the API refuses it. */
+function rolePut(project: Project, actorId: string, init: RequestInit | undefined): Response {
+  if ((project.role ?? membership.role) !== 'admin') return refused('Only an admin changes roles')
+  const next = requestedRole(init)
+  if (!next) return refused('Unknown role')
+  const roles = (project.memberRoles ??= new Map())
+  if (actorId === membership.actorId && next !== 'admin' && project.soleAdmin)
+    return new Response(JSON.stringify(NEEDS_AN_ADMIN), {
+      status: 409,
+      headers: { 'content-type': 'application/json' },
+    })
+  roles.set(actorId, next)
+  served.push(`role:${actorId}:${next}`)
+  return json({ actorId, role: next, revision: 2, cursor: String(project.revision) })
+}
 
 /** A goal's owner and date set (A25): an editor's or an admin's, compare-and-set on its revision. */
 function goalTargetPut(project: Project, goalId: string, init: RequestInit | undefined): Response {
@@ -895,8 +941,8 @@ function written(project: Project, method: string, path: string, init: RequestIn
   const receipt = answered(project, method, path, init)
   if (receipt) return receipt
   if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
-  const target = method === 'PUT' ? GOAL_TARGET.exec(path)?.[1] : undefined
-  if (target) return goalTargetPut(project, target, init)
+  const put = method === 'PUT' ? projectPut(project, path, init) : null
+  if (put) return put
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
 }

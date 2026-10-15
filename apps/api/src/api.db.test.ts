@@ -587,6 +587,54 @@ describe('goal targets (A25)', () => {
   })
 })
 
+describe('member roles (A27)', () => {
+  const role = (actor: string, projectId: string, target: string, next: unknown) =>
+    call(actor, 'PUT', `/api/v1/projects/${projectId}/members/${target}/role`, { role: next })
+  const roles = async (actor: string, projectId: string) =>
+    Object.fromEntries(
+      (
+        (await call(actor, 'GET', `/api/v1/projects/${projectId}/members`)).json.members as {
+          actorId: string
+          role: string
+        }[]
+      ).map((m) => [m.actorId, m.role]),
+    )
+
+  it('an admin hands the admin role over: the other becomes admin, then the first steps down and can leave', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const made = await role(A, projectId, B, 'admin')
+    assert.equal(made.status, 200)
+    assert.deepEqual(
+      { ...made.json, cursor: typeof made.json.cursor },
+      { actorId: B, role: 'admin', revision: 2, cursor: 'string' },
+    )
+    assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'admin', [V]: 'viewer' })
+    const again = await role(A, projectId, B, 'admin')
+    assert.deepEqual([again.status, again.json.revision], [200, 2])
+    assert.equal((await role(A, projectId, A, 'editor')).status, 200)
+    assert.deepEqual(await roles(V, projectId), { [A]: 'editor', [B]: 'admin', [V]: 'viewer' })
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_role_changed' AND summary_code = 'project.member_role'`,
+      [projectId],
+    )
+    assert.equal(heard, 2)
+    const left = await call(A, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': randomUUID() })
+    assert.equal(left.status, 200)
+  })
+
+  it('admins only; a project keeps an admin; the target a member; a role the contract knows', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await role(B, projectId, V, 'editor')).status, 403)
+    assert.equal((await role(C, projectId, V, 'editor')).status, 403)
+    const last = await role(A, projectId, A, 'editor')
+    assert.deepEqual([last.status, last.json.code], [409, 'invalid_state'])
+    assert.equal((await role(A, projectId, C, 'editor')).status, 422)
+    assert.equal((await role(A, projectId, V, 'owner')).status, 422)
+    assert.deepEqual(await roles(V, projectId), { [A]: 'admin', [B]: 'editor', [V]: 'viewer' })
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)
