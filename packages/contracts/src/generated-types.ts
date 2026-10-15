@@ -247,6 +247,7 @@ export type ProjectRenameRequest = { "title": string; };
 export type ProjectRenamed = { "projectId": string; "title": string; "cursor": string; };
 export type ProjectLeaveRequest = {  };
 export type ProjectLeft = { "projectId": string; "cursor": string; };
+export type DiscussionPage = { "entries": ReadonlyArray<DiscussionEntry>; "before": string | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -392,4 +393,5 @@ export interface Operations {
   "acceptPendingInvitation": { method: "POST"; path: "/api/v1/invitations/{invitationId}/accept"; request: undefined; response: InvitationAccepted; };
   "renameProject": { method: "POST"; path: "/api/v1/projects/{projectId}/title"; request: ProjectRenameRequest; response: ProjectRenamed; };
   "leaveProject": { method: "POST"; path: "/api/v1/projects/{projectId}/leave"; request: ProjectLeaveRequest; response: ProjectLeft; };
+  "readDiscussion": { method: "GET"; path: "/api/v1/projects/{projectId}/discussion"; request: undefined; response: DiscussionPage; };
 }

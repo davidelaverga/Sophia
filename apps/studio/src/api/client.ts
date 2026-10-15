@@ -9,6 +9,7 @@ import type {
   ProjectCreated,
   ProjectRenamed,
   ProjectLeft,
+  DiscussionPage,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -20,6 +21,7 @@ import {
   parseProjectCreated,
   parseProjectRenamed,
   parseProjectLeft,
+  parseDiscussionPage,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -101,6 +103,20 @@ export function getSnapshot(token: string, projectId: string, signal?: AbortSign
     return readBody(res, parseSnapshot, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read, signal)
+}
+
+/** readDiscussion (A23): a page of the room's discussion, oldest first: the newest, or the 50 before `before`. */
+export function getDiscussionPage(token: string, projectId: string, before: string | null): Promise<DiscussionPage> {
+  const query = before ? `?before=${encodeURIComponent(before)}` : ''
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/discussion${query}`), {
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseDiscussionPage, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
 }
 
 /**
