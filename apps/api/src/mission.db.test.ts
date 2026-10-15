@@ -32,6 +32,8 @@ import { projectStatus } from './mission-tools.ts'
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
 const MEDIA_TOKEN = 'media-bridge-capability-for-mission-tests-0123'
+/** A LiveKit the API signs room tokens for; nothing connects to it here. */
+const LIVEKIT = { url: 'ws://127.0.0.1:7880', apiKey: 'devkey', apiSecret: 'livekit-test-secret-at-least-32-bytes!!' }
 const A = randomUUID() // admin
 const E = randomUUID() // editor
 const V = randomUUID() // viewer
@@ -77,7 +79,7 @@ before(async () => {
   pool = createPool(db.apiUrl, { max: 6 })
   const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
   const mediaBridgeTokenSha256 = createHash('sha256').update(MEDIA_TOKEN, 'utf8').digest()
-  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256 })
+  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, livekit: LIVEKIT })
   await app.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
 })
@@ -425,6 +427,68 @@ describe('the guide’s voice operations over /v1/media/tool-calls', () => {
     assert.equal(res.status, 200, JSON.stringify(res.json))
     return res.json as { status: string; output: ResponseBody }
   }
+
+  it('names the speaker by the name their room token carried: a note, a proposal and a decision by voice', async () => {
+    // The follow-up of #336: a voice write keeps a name too. The API signs each member's room token with their account
+    // name; the database keeps it for the project then, and a voice write by that member takes it from there. The
+    // bridge names no one, so a speaker who never joined through the Studio keeps none.
+    const { projectId } = await project()
+    const consent = { method: 'PUT', as: E, body: { state: 'accepted' } }
+    await call(`/api/v1/projects/${projectId}/mission/note-policy`, {
+      method: 'PUT',
+      as: A,
+      body: { capture: 'automatic', expectedRevision: 0 },
+    })
+    await call(`/api/v1/projects/${projectId}/mission/note-consent`, consent)
+    const exchangeId = await openedBy(E, projectId)
+    const said = (text: string, utterance: number) =>
+      voice(
+        exchangeId,
+        E,
+        'record_mission_note',
+        { kind: 'observation', epistemic: 'reported', text },
+        {
+          utterance,
+          inputMode: 'text',
+        },
+      )
+    const unjoined = await said('Said before joining through the Studio.', 1)
+    const snap = await withActor(pool, E, 'read', (c) => readSnapshot(c, projectId))
+    assert.ok(snap)
+    const joined = await call(`/api/v1/projects/${projectId}/room-token`, {
+      as: E,
+      key: randomUUID(),
+      body: { roomId: snap.room.id, expectedAudienceRevision: snap.audienceRevision },
+    })
+    assert.equal(joined.status, 200, JSON.stringify(joined.json))
+    const noted = await said('Said once in the call.', 2)
+    const proposal = await voice(
+      exchangeId,
+      E,
+      'propose_mission_change',
+      { kind: 'constraint', statement: 'Spoken rule.' },
+      {
+        utterance: 3,
+        inputMode: 'text',
+      },
+    )
+    const decision = await voice(
+      exchangeId,
+      E,
+      'decide_mission_change',
+      { proposalId: proposal.output.proposalId, proposalRevision: 1, decision: 'accept' },
+      { utterance: 4, inputMode: 'text' },
+    )
+    assert.deepEqual(
+      [unjoined.status, noted.status, proposal.status, decision.status],
+      ['committed', 'committed', 'proposed', 'committed'],
+    )
+    const ctx = parseMissionContext((await call(`/api/v1/projects/${projectId}/mission?names=1`, { as: V })).json)
+    const nameOf = (id: string) => ctx.entries.find((e) => e.id === id)?.authorName ?? null
+    assert.deepEqual([nameOf(unjoined.output.entryId), nameOf(noted.output.entryId)], [null, named(E)])
+    const agreed = [...ctx.constraints, ...ctx.decided].find((d) => d.id === proposal.output.proposalId)
+    assert.deepEqual([agreed?.proposedByName, agreed?.decidedByName], [named(E), named(E)])
+  })
 
   it('project_status tells an empty project from one with history, and reports an outage as unavailable (T02)', async () => {
     const created = await call('/api/v1/projects', { as: A, key: randomUUID(), body: { title: 'Blank' } })
