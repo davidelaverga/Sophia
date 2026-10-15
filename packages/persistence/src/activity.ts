@@ -2,7 +2,8 @@
 // events, with their actors and the members acted on, named as the room keeps them; and the record of an admin's act on
 // someone in the call (A24), which the API writes once the room server has done it.
 import type pg from 'pg'
-import type { ActivityPage } from '@sophia/contracts'
+import type { ActivityPage, MemberRemoved } from '@sophia/contracts'
+import type { RemovalClaim } from './removals.ts'
 import { onlyRow } from './rows.ts'
 
 interface ActivityRow {
@@ -56,4 +57,33 @@ export async function recordHostAct(
     act,
   ])
   return onlyRow(rows, 'record_host_act').cursor
+}
+
+/** Remove a member (A29, 0057): admins only, never oneself, idempotent per actor and key. Inside withActor("write"). */
+export async function removeMember(
+  c: pg.PoolClient,
+  projectId: string,
+  target: string,
+  idempotencyKey: string,
+): Promise<MemberRemoved> {
+  const { rows } = await c.query<{ receipt: MemberRemoved }>(`SELECT sophia.remove_member($1, $2, $3) AS receipt`, [
+    projectId,
+    target,
+    idempotencyKey,
+  ])
+  return onlyRow(rows, 'remove_member').receipt
+}
+
+/** The open removal of a member an admin removed, for the API's immediate attempt; admins only. Inside withActor. */
+export async function pendingMemberRemoval(
+  c: pg.PoolClient,
+  projectId: string,
+  target: string,
+): Promise<RemovalClaim | null> {
+  const { rows } = await c.query<RemovalClaim & { room_id: string }>(
+    `SELECT id, room_id, identity, state, attempts FROM sophia.pending_member_removal($1, $2)`,
+    [projectId, target],
+  )
+  const r = rows[0]
+  return r ? { id: r.id, roomId: r.room_id, identity: r.identity, state: r.state, attempts: r.attempts } : null
 }

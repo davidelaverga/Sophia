@@ -28,6 +28,7 @@ const EXPORTS = [
   'InvitablePeople',
   'MemberRoleSet',
   'ActivityPage',
+  'MemberRemoved',
   'Error',
   'Event',
   'CursorAdvance',
