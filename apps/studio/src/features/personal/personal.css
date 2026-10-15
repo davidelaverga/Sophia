@@ -2396,3 +2396,36 @@
 :root[data-theme='light'] .places .c3-way-note {
   color: var(--soon);
 }
+
+/* The invitations waiting for the signed-in person (A16, pending-invitations-studio.md): at the head of Home and
+   Work, one row each, the line and its Accept; a refusal said under the row. */
+.places .invited {
+  margin-top: 24px;
+}
+.places .invited ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.places .invited-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+}
+.places .invited-line {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.places .invited-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-2);
+}

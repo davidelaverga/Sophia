@@ -24,6 +24,7 @@ const EXPORTS = [
   'ExchangeReceipt',
   'Invitation',
   'InvitationList',
+  'PendingInvitationList',
   'InvitationPreview',
   'InvitationAccepted',
   'LobbyEntry',

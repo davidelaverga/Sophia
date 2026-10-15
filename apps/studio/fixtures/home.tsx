@@ -35,6 +35,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useNeeds } from '../src/features/personal/useNeeds.ts'
 import { turnShown } from '../src/features/personal/turn-shown.ts'
 import { needsAnswer } from './fixture-api.ts'
+import { InvitedBand } from '../src/features/access/InvitedBand.tsx'
 
 declare global {
   interface Window {
@@ -205,6 +206,44 @@ if (viaApi) {
     return real(input, init)
   }
 }
+/**
+ * `invited=1`: one member invitation waits for the person (A16): GET /api/v1/me/invitations answers it as the API
+ * would, and POST /api/v1/invitations/<id>/accept is recorded as "accept <id>" and answers the project (the band then
+ * reads the list again, empty). The band's Accept opens the project: recorded as "open <projectId>".
+ */
+const INVITED = query.get('invited') === '1'
+const INVITATION = {
+  id: '00000000-0000-4000-8000-0000000000a1',
+  projectId: '00000000-0000-4000-8000-0000000000b1',
+  projectTitle: 'Onboarding pilot',
+  inviter: 'luis@sophia.test',
+  role: 'editor',
+  expiresAt: new Date(NOW.getTime() + 7 * 86_400_000).toISOString(),
+}
+const json = (value: unknown) =>
+  Promise.resolve(new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } }))
+if (INVITED) {
+  const real = window.fetch.bind(window)
+  let accepted = false
+  window.fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const { pathname } = new URL(url, window.location.href)
+    if (pathname === '/api/v1/me/invitations') return json({ invitations: accepted ? [] : [INVITATION] })
+    if (pathname === `/api/v1/invitations/${INVITATION.id}/accept` && init?.method === 'POST') {
+      accepted = true
+      pressed.push(`accept ${INVITATION.id}`)
+      return json({ projectId: INVITATION.projectId })
+    }
+    return real(input, init)
+  }
+}
+/** The band Home shows with `invited=1`: the person's own invitations, read and accepted as the Studio does. */
+const INVITED_BAND = INVITED ? (
+  <InvitedBand
+    identity={{ name: 'Luis', role: 'admin', token: 'fixture-token' }}
+    onOpen={(projectId) => pressed.push(`open ${projectId}`)}
+  />
+) : undefined
 const client = new QueryClient()
 
 const yesterday = new Date(NOW.getTime() - 26 * 3_600_000).toISOString()
@@ -347,7 +386,7 @@ function Home() {
           inCallProject={inCall}
           count={workCount(projects)}
           locked={locked}
-          {...{ hidden: away, here: !away }}
+          {...{ hidden: away, here: !away, invited: INVITED_BAND }}
           needs={
             fromApi.seen ?? (needs ? { items: needs, open: (need) => pressed.push(`need ${need.id}`) } : undefined)
           }
