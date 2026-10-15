@@ -10,7 +10,9 @@ Writable scope: this worktree only (`apps/studio`, `packages/ui` for the icon, `
 deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `7f558658df81` (tree `7e3a69b42106`), the last commit of `ui/call-reactions`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 14 files changed against
+`origin/ui/call-backgrounds` at that commit: `e2e/call-reactions.spec.ts`, `fixtures/fake-livekit.ts`, `fixtures/room.tsx`, `src/app/theme.css`, `src/features/voice/ReactMenu.tsx`, `src/features/voice/Reactions.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/livekit-room.ts`, `src/features/voice/reaction-channel.ts`, `src/features/voice/reactions.test.ts`, `src/features/voice/reactions.ts`, `src/features/voice/useProjectRoom.ts`, `docs/plans/call-reactions.md`, `packages/ui/src/Icon.tsx`. The review notes below name the commit of each later change.
 
 ## Outcome
 
