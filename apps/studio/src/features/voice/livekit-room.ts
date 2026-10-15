@@ -343,9 +343,10 @@ function deviceControls(room: Room, after: (change: Promise<unknown>) => Promise
     setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
     // The chosen background goes with the capture, so the room never sees what is behind (camera-background.ts).
     // With a background, the camera is made, drawn and only then published (camera-background.ts).
-    setCamera: async (on) => {
-      if (await (on ? drawn.turnOn() : drawn.turnOff())) return after(Promise.resolve())
-      await after(deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on))
+    // The camera's own on and off take their turns with background choices, so neither races the other (Codex on #342).
+    setCamera: (on) => {
+      const plain = () => deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on)
+      return after(on ? drawn.turnOn(plain) : drawn.turnOff(plain))
     },
     setBackground: (id) => after(drawn.set(id)),
     // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.
