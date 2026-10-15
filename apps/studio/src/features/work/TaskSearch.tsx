@@ -2,8 +2,8 @@
 // goals' rail to the goals whose title or tasks match, and its words reach each plan's board (SearchQuery), where tasks
 // that don't match step back, as a lens does: nothing moves.
 import { createContext, useRef } from 'react'
-import { Tip } from '@sophia/ui'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { Search } from '@sophia/ui'
+import { useCommands } from '../../app/useCommands.ts'
 
 /** What Tasks is searched for, as typed; empty when nothing is. */
 export const SearchQuery = createContext('')
@@ -17,24 +17,31 @@ export function answers(query: string, ...texts: readonly (string | null | undef
 
 export function TaskSearch({ query, onChange }: { query: string; onChange: (query: string) => void }) {
   const input = useRef<HTMLInputElement>(null)
-  useShortcuts({ '/': () => input.current?.focus() })
+  useCommands([
+    {
+      id: 'search-tasks',
+      words: 'Search goals and tasks',
+      group: 'view',
+      key: '/',
+      also: ['find'],
+      run: () => input.current?.focus(),
+    },
+  ])
   return (
-    <div className="field quiet resource-search task-search has-tip">
-      <input
-        ref={input}
-        type="search"
-        aria-label="Search goals and tasks"
-        aria-keyshortcuts="/"
-        placeholder="Search goals, tasks, people…"
-        value={query}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key !== 'Escape') return
-          if (query) onChange('')
-          else input.current?.blur()
-        }}
-      />
-      <Tip label="Search" keys="/" side="bottom" />
-    </div>
+    <Search
+      ref={input}
+      className="resource-search task-search"
+      aria-label="Search goals and tasks"
+      aria-keyshortcuts="/"
+      placeholder="Search goals, tasks, people…"
+      value={query}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        if (query) onChange('')
+        else input.current?.blur()
+      }}
+      tip={{ label: 'Search', keys: '/', side: 'bottom' }}
+    />
   )
 }

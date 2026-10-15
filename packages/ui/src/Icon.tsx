@@ -10,6 +10,8 @@ export type IconName =
   | 'screen'
   | 'leave'
   | 'link'
+  | 'copy'
+  | 'quote'
   | 'invite'
   | 'chevron'
   | 'close'
@@ -31,6 +33,7 @@ export type IconName =
   | 'search'
   | 'hand'
   | 'sophia'
+  | 'sophiaOff'
   | 'eye'
   | 'eyeOff'
   | 'speaker'
@@ -147,6 +150,15 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
     </>
   ),
+  // Sophia out of the conversation: her light struck through, as the dock strikes the camera and the speaker
+  // (docs/plans/dock-end-icon.md).
+  sophiaOff: (
+    <>
+      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      {slash}
+    </>
+  ),
   eye,
   eyeOff: (
     <>
@@ -181,6 +193,15 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   // A decision: a check in a ring (a message proposed as one, C7).
+  copy: (
+    <>
+      <rect x="9" y="9" width="10.5" height="10.5" rx="2" />
+      <path d="M6 15h-.5A1.5 1.5 0 0 1 4 13.5v-8A1.5 1.5 0 0 1 5.5 4h8A1.5 1.5 0 0 1 15 5.5V6" />
+    </>
+  ),
+  quote: (
+    <path d="M9.5 7.5H6A1.5 1.5 0 0 0 4.5 9v3A1.5 1.5 0 0 0 6 13.5h2a1.5 1.5 0 0 1 1.5 1.5a2.5 2.5 0 0 1-2.5 2.5M19.5 7.5H16a1.5 1.5 0 0 0-1.5 1.5v3a1.5 1.5 0 0 0 1.5 1.5h2a1.5 1.5 0 0 1 1.5 1.5a2.5 2.5 0 0 1-2.5 2.5" />
+  ),
   decide: (
     <>
       <circle cx="12" cy="12" r="8.5" />

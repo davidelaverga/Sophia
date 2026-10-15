@@ -1,5 +1,6 @@
 // What the room shows, derived from the project's room record (the input floor) and the people and
 // video LiveKit reports. Pure, so the rules are unit-tested; React only renders the result.
+import type { ReactNode } from 'react'
 import type { NativeTask, Snapshot } from '@sophia/contracts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
@@ -159,6 +160,10 @@ export interface RoomLine {
   text: string
   /** A quiet second line, or null. */
   note: string | null
+  /** The note is the work's: a press goes to Tasks (docs/plans/studio-lens-address.md). */
+  goes?: 'work' | undefined
+  /** Presses under the line: a new project's first step (first-step.md). */
+  presses?: ReactNode
 }
 
 /** Before anyone asks Sophia into the conversation (S1-05A), the room says how she joins. */
@@ -222,9 +227,30 @@ export function roomLine(
   doing: string | null = null,
 ): RoomLine {
   const work = doing ?? workCountText(workCount)
+  return aboutWork(lineOf(status, floor, work, sophia), work)
+}
+
+function lineOf(status: DockStatus, floor: FloorView, work: string | null, sophia: SophiaLineView | null): RoomLine {
   if (status === 'joining') return { text: 'Joining the room…', note: null }
   if (status === 'reconnecting') return { text: 'Reconnecting…', note: work }
   if (sophia?.inConversation) return { text: sophia.label, note: sophia.note ?? work ?? floorLine(floor) }
   if (status === 'live') return { text: floorLine(floor), note: work }
   return { text: 'The room is ready', note: work ?? VOICE_NOTE }
+}
+
+/** A note that is the work's goes to Tasks. */
+const aboutWork = (line: RoomLine, work: string | null): RoomLine =>
+  work !== null && line.note === work ? { ...line, goes: 'work' } : line
+
+/** The tasks working now, by id. */
+const workingTaskIds = (snapshot: Pick<Snapshot, 'work'> | undefined): string[] =>
+  (snapshot?.work ?? []).filter((t) => WORKING_PHASES.has(t.phase)).map((t) => t.id)
+
+/**
+ * The one task that is all the work in the background, or null: named in the address when the work's note is pressed.
+ * One task beside a goal running on its own is not alone (the line says two): nothing is named, Tasks as a whole.
+ */
+export function soleWorkingTask(snapshot: Pick<Snapshot, 'goals' | 'work'> | undefined): string | null {
+  const ids = workingTaskIds(snapshot)
+  return ids.length === 1 && runningWork(snapshot) === 1 ? (ids[0] ?? null) : null
 }

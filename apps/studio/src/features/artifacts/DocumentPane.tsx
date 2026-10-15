@@ -8,11 +8,11 @@ import { useQuery } from '@tanstack/react-query'
 import { lazy, Suspense, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
 import { reportLanguage } from '@sophia/report/language'
-import { Icon, Tip } from '@sophia/ui'
+import { Icon, ReadNote, Segmented, Tabs, Tip } from '@sophia/ui'
 import { listArtifactVersions, listReportSources } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { nextInRow } from '../../app/roving.ts'
-import { modalOnScreen, onScreen as isVisible, ShortcutScope, useShortcuts } from '../../app/shortcuts.ts'
+import { modalOnScreen, onScreen as isVisible, ShortcutScope } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import {
   checkedBlob,
   HashMismatch,
@@ -379,7 +379,16 @@ function usePaneBehaviour(
 ) {
   usePinnedVersion(link, data.versions, onVersion)
   useEscape(onStepDown)
-  useShortcuts({ f: link.size === 'full' ? onStepDown : onEnlarge })
+  const full = link.size === 'full'
+  useCommands([
+    {
+      id: 'report-size',
+      words: full ? 'Step the report down' : 'Enlarge the report',
+      group: 'view',
+      key: 'f',
+      run: full ? onStepDown : onEnlarge,
+    },
+  ])
   const title = useFocusHandoff(opener)
   // Back to the side pane with the focus on a call switch: beside the room the dock has them and the row is hidden,
   // so the focus goes to the title rather than stay on a button nobody sees.
@@ -886,41 +895,22 @@ const TABS: readonly ViewerTab[] = VISION
  * between them. The format switch sits beside the row, not in it (a tab list holds tabs only).
  */
 function PaneTabs({ tab, onTab, sources, versions, tasks, formats, format, onFormat }: TabsProps) {
-  const buttons = useRef(new Map<ViewerTab, HTMLButtonElement>())
   const label: Record<ViewerTab, string> = {
     document: 'Document',
     sources: `Sources${count(sources)}`,
     history: `History${count(versions)}`,
     tasks: `Tasks${count(tasks)}`,
   }
-  const onKey = (e: React.KeyboardEvent) => {
-    const next = nextInRow(TABS, tab, e.key)
-    if (!next) return
-    e.preventDefault()
-    onTab(next)
-    buttons.current.get(next)?.focus()
-  }
   return (
     <div className="report-tabs">
-      <div className="report-tablist" role="tablist" aria-label="Report" onKeyDown={onKey}>
-        {TABS.map((id) => (
-          <button
-            key={id}
-            ref={(el) => {
-              if (el) buttons.current.set(id, el)
-            }}
-            type="button"
-            role="tab"
-            id={`report-tab-${id}`}
-            aria-selected={tab === id}
-            aria-controls="report-tabpanel"
-            tabIndex={tab === id ? 0 : -1}
-            onClick={() => onTab(id)}
-          >
-            {label[id]}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        label="Report"
+        className="report-tablist"
+        items={TABS.map((id) => ({ id, label: label[id], controls: 'report-tabpanel' }))}
+        value={tab}
+        onChange={onTab}
+        idFor={(id) => `report-tab-${id}`}
+      />
       {formats.length > 1 && <FormatSwitch formats={formats} format={format} onFormat={onFormat} />}
     </div>
   )
@@ -936,15 +926,15 @@ function FormatSwitch(props: {
 }) {
   const { formats, format, onFormat } = props
   return (
-    <span className="report-format" role="group" aria-label="Format">
-      {formats
-        .map((id) => [id, FORMAT_NAME[id]] as const)
-        .map(([id, label]) => (
-          <button key={id} type="button" aria-pressed={format === id} onClick={() => onFormat(id)}>
-            {label}
-          </button>
-        ))}
-    </span>
+    <Segmented
+      role="group"
+      label="Format"
+      size="sm"
+      className="report-format"
+      items={formats.map((id) => ({ id, label: FORMAT_NAME[id] }))}
+      value={format}
+      onChange={onFormat}
+    />
   )
 }
 
@@ -959,9 +949,9 @@ function PdfTab({ data, full }: { data: PaneData; full: boolean }) {
       </p>
     )
   }
-  if (!data.pdf.data) return <p className="muted">Loading the PDF…</p>
+  if (!data.pdf.data) return <ReadNote>Loading the PDF…</ReadNote>
   return (
-    <Suspense fallback={<p className="muted">Opening the PDF…</p>}>
+    <Suspense fallback={<ReadNote>Opening the PDF…</ReadNote>}>
       <PdfView bytes={data.pdf.data.bytes} full={full} />
     </Suspense>
   )
@@ -978,7 +968,7 @@ function HtmlTab({ data, full }: { data: PaneData; full: boolean }) {
       </p>
     )
   }
-  if (!data.html.data || !data.page) return <p className="muted">Loading the page…</p>
+  if (!data.html.data || !data.page) return <ReadNote>Loading the page…</ReadNote>
   return (
     <HtmlView html={data.html.data.text} title={data.version?.title ?? 'Report'} rendition={data.page} full={full} />
   )
@@ -1007,7 +997,7 @@ function DocumentTab({ data, onCite, changes }: DocumentTabProps) {
       </p>
     )
   }
-  if (!data.parsed || !data.version) return <p className="muted">Loading the report…</p>
+  if (!data.parsed || !data.version) return <ReadNote>Loading the report…</ReadNote>
   return (
     <>
       {formatNote(data) && (

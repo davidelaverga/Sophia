@@ -95,7 +95,6 @@ describe('@sophia/contracts/validate', () => {
   it('rejects what a cast would have let through', () => {
     const cases: Array<[string, () => unknown, RegExp]> = [
       ['missing field', () => parseSnapshot({ ...snapshot, goals: undefined }), /goals/],
-      ['unknown field', () => parseReceipt({ ...receipt, actorId: G }), /additional properties/],
       ['numeric cursor', () => parseReceipt({ ...receipt, cursor: 13 }), /\/cursor must be string/],
       ['cursor with a leading zero', () => parseProjectCreated({ projectId: P, cursor: '01' }), /\/cursor/],
       [
@@ -112,6 +111,34 @@ describe('@sophia/contracts/validate', () => {
       assert.match(err.issues, issue, name)
     }
     assert.equal(violation(() => parseSnapshot(null)).schema, 'Snapshot')
+  })
+
+  it('drops a property it doesn’t know: what a newer API adds reads as the shape this reader knows', () => {
+    // A Studio still open from before a deploy reads the new API (Luis: «haz que el Studio tolere campos
+    // desconocidos»). It keeps what it knows and drops the rest, at any depth, so nothing unknown is sent back either.
+    const message = {
+      id: G,
+      actorId: G,
+      intent: 'discuss',
+      origin: 'composer',
+      text: 'Can we start with the checklist?',
+      sourceId: G,
+      sha256: 'a'.repeat(64),
+      createdAt: '2026-09-24T18:00:00.000Z',
+    }
+    const later = { ...snapshot, futureField: 1, discussion: [{ ...message, mood: 'curious' }] }
+    const read = parseSnapshot(later)
+    assert.equal('futureField' in read, false)
+    assert.equal(Object.keys(read.discussion[0] ?? {}).includes('mood'), false, 'a nested addition is dropped too')
+    assert.deepEqual(parseReceipt({ ...receipt, actorId: G }), receipt)
+  })
+
+  it('still refuses what breaks the shape it knows, whatever is added beside it', () => {
+    assert.match(
+      violation(() => parseReceipt({ ...receipt, actorId: G, cursor: 13 })).issues,
+      /\/cursor must be string/,
+    )
+    assert.match(violation(() => parseReceipt({ ...receipt, extra: 1, goalId: undefined })).issues, /goalId/)
   })
 
   it('reads research work and Markdown reports, and an unknown task kind only where readers tolerate it (A11)', () => {
@@ -218,7 +245,7 @@ describe('@sophia/contracts/validate', () => {
     assert.deepEqual(parseFrame(event), event)
     assert.equal(isCursorAdvance(parseFrame(advance)), true)
     assert.equal(isCursorAdvance(parseFrame(event)), false)
-    assert.match(violation(() => parseFrame({ ...advance, eventId: G })).issues, /additional properties/)
+    assert.deepEqual(parseFrame({ ...advance, eventId: G }), advance, 'a field it doesn’t know is dropped')
     assert.match(violation(() => parseFrame({ ...event, occurredAt: 'yesterday' })).issues, /date-time/)
     assert.equal(violation(() => parseFrame({ ...event, sequence: undefined })).schema, 'Event')
   })

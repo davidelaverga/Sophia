@@ -9,6 +9,12 @@ import pg from 'pg'
 import { createTestDatabase, seedProject } from '@sophia/test-support'
 import { createPool, withActor, setMissionNoteConsent, setMissionNotePolicy, readMissionContext } from './index.ts'
 
+/** The migrations after 0020, as a deploy brings them: today's reader reads today's schema (0049's names). */
+async function migrateOnward(owner: pg.Client) {
+  for (const name of (await readdir('db/migrations')).toSorted())
+    if (name.endsWith('.sql') && name >= '0021') await owner.query(await readFile(join('db/migrations', name), 'utf8'))
+}
+
 it('0019 preserves existing opt-outs and consent, refreshes only implicit policies and grants the API its reader', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'sophia-pre-a09-'))
   for (const name of await readdir('db/migrations'))
@@ -50,6 +56,7 @@ it('0019 preserves existing opt-outs and consent, refreshes only implicit polici
       ).rows,
       rows.rows,
     )
+    await migrateOnward(owner)
     const read = (actor: string, id: string) =>
       withActor(pool, actor, 'read', (c) => readMissionContext(c, id, { actorId: actor, channel: 'voice' }))
     assert.equal((await read(admin, implicit.projectId))?.notePolicy.capture, 'automatic')

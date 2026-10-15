@@ -24,7 +24,7 @@ import { callApi } from './client.ts'
 const base = (projectId: string) => `/api/v1/projects/${projectId}/mission` as const
 
 export const getMission = (token: string, projectId: string): Promise<MissionContext> =>
-  callApi(base(projectId), { token, method: 'GET' }, parseMissionContext)
+  callApi(`${base(projectId)}?names=1`, { token, method: 'GET' }, parseMissionContext)
 
 /** A note in the member's own words. */
 export const recordMissionEntry = (

@@ -1,6 +1,7 @@
 // Dev-only identities written by scripts/dev-stack.ts into .env.development.local (gitignored).
 // Each browser tab keeps its own identity, so two tabs can act as the two founders.
 // Real sign-in with Supabase Auth replaces this; production builds never contain these tokens.
+import type { Provider } from './profile.ts'
 
 export interface Identity {
   /** The stable key: the email for an account, the dev name locally. */
@@ -10,6 +11,8 @@ export interface Identity {
   /** For display only, from the account provider (Google, GitHub). */
   displayName?: string | null
   avatarUrl?: string | null
+  /** How they signed in, said in the account menu's head (account-menu.md). */
+  provider?: Provider | null
 }
 
 const KEY = 'sophia.dev.identity'

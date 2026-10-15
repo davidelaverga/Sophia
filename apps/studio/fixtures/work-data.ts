@@ -451,6 +451,25 @@ export const moreGoals: Goal[] = MORE.map(([title, outcome], i) => ({
   stateRevision: 1,
 }))
 
+/** `goals=9`: three more goals past the six, held, stopped and completed, none with a plan on the board (goals-overview.md). */
+export const laterGoals: Goal[] = (
+  [
+    ['Localise the pricing page', 'Every region reads its own prices', 'held'],
+    ['Pilot a paid tier with two teams', 'Two teams pay for a month', 'stopped'],
+    ['Run the export pilot with five teams', 'Five teams export a report each week', 'completed'],
+  ] as const
+).map(([title, outcome, status], i) => ({
+  id: `00000000-0000-4000-8000-0000000000d${String(i)}`,
+  projectId: PROJECT,
+  title,
+  revision: 1,
+  authorityEpoch: 1,
+  status,
+  outcome,
+  criteria: [],
+  stateRevision: 1,
+}))
+
 export const moreViews: GoalView[] = moreGoals.map((g, i) => {
   const id = `more-${String(i)}-a`
   const human = i % 2 === 0
@@ -484,6 +503,39 @@ const MANY = [
   'Measure retries per day',
   'Remove the old export path',
 ]
+
+const WAITS = [
+  'Agree the export’s font list',
+  'Read https://exports.example.test/reports/2026/fonts/embedding/check-every-glyph-before-the-pdf-retry-lands',
+  'Collect the support tickets on exports',
+  'Write the retry’s release note',
+]
+
+/**
+ * `waits=1`: four more tasks unassigned, and one by hand that waits on all four, listed in the reverse of the plan's
+ * order: the Blocked lane names three in the plan's order, the rest behind «and N more» (Codex on #244).
+ */
+export function manyBlockers(g: GoalView): GoalView {
+  const current = g.current_plan
+  if (!current) return g
+  const waited = WAITS.map((purpose, i) =>
+    planned(`wait-${String(i)}`, purpose, { assignee_kind: 'unassigned' as const, assignee_id: null }),
+  )
+  const waiting = planned('wait-all', 'Ship the export once all four land', {
+    ...byHand('luis'),
+    blocked_by: waited.map((w) => w.id).toReversed(),
+    activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+  })
+  return {
+    ...g,
+    current_plan: { ...current, items: [...current.items, ...waited, waiting] },
+    items: [
+      ...g.items,
+      ...waited.map((i) => projection(i.id, {})),
+      projection(waiting.id, { assignment: luisByHand(waiting.id) }),
+    ],
+  }
+}
 
 /** `many=1`: eight more tasks on the first plan, after the retry or unassigned, to see a lane fill and fold. */
 export function manyTasks(g: GoalView): GoalView {

@@ -3,7 +3,8 @@
 // (work-data.ts) that the page first passes through the Studio's own reader (readBoardView): a view it refuses is
 // shown as refused, never drawn. The query string picks who is looking, `viewer=davide|luis|mara` (default: Luis;
 // Mara is a viewer who reads); `case=…` a scenario (work-cases.ts); `proposed=1` (no plan accepted yet: the first
-// goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`;
+// goal's plan is proposed); `superseded=1` (none shows); `two=1` (a second goal, its plan proposed); `goals=6`; `goals=9` (three more:
+// held, stopped, completed); `view=goals` (opens on Goals);
 // `attempt=none` (no assignment names its attempt); `many=1`; `unplanned=1`; `since=1|2` (an earlier look; 2, before Davide's decision was asked); `expired=1|state|soon`
 // (the decision waiting on Davide past its expiry, marked expired, or expiring 30 s after the page opens); `odd-id=1`
 // (its id with quotes and brackets); `conflict=1` and `unknown=1` (how a decision's answer comes back); `later=1` (the
@@ -50,11 +51,11 @@ import { PlanBoard } from '../src/features/work/planning/PlanBoard.tsx'
 import { PlanNext } from '../src/features/work/planning/PlanNext.tsx'
 import { PlanTab } from '../src/features/work/planning/PlanTab.tsx'
 import { seenKey } from '../src/features/work/planning/seen.ts'
-import { accepted, boardOf, forYou, shownPlan } from '../src/features/work/planning/plan.ts'
+import { accepted, boardOf, forYou, glancedOf, shownPlan } from '../src/features/work/planning/plan.ts'
 import '../src/app/theme.css'
 import { identity, membership, PROJECT } from './data.ts'
 import { newMeeting } from './meeting-data.ts'
-import { installFixtureApi, unexpected } from './fixture-api.ts'
+import { installFixtureApi, served as readOut, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -64,7 +65,9 @@ import {
   firstGoal,
   fixtureParts,
   goal,
+  manyBlockers,
   manyTasks,
+  laterGoals,
   moreGoals,
   moreViews,
   people,
@@ -95,11 +98,15 @@ import {
 import { openedWith, reviewedAgain, reviewer, reviewMode } from './work-review.ts'
 import type { Ask, Question } from '../src/features/work/planning/ask.ts'
 import type { Reviewed } from '../src/features/work/planning/review.ts'
+import { bootTheme } from '../src/app/theme.ts'
+import { ADDRESS_MOVED } from '../src/app/route.ts'
 
 declare global {
   interface Window {
     workFixture?: {
       unexpected: readonly string[]
+      /** What the simulated service read out, in order (fixture-api.ts): `review:offered:<n>`, the pilot's offer read. */
+      served?: readonly string[]
       /** Each answer a decider gave, in order, and each command and receipt: for the checks to read. */
       answered?: readonly DecisionAnswer[]
       /** Each question sent to the conversation, each send of it included. */
@@ -113,6 +120,7 @@ declare global {
       /** A new decision, asked of `deciderId`, arrives with the next observation. */
       decisionArrives?: (deciderId: string) => void
       begin?: (workId: string) => void
+      complete?: (workId: string) => void
       reassign?: (workId: string) => void
       replan?: () => void
       arrive?: () => void
@@ -163,13 +171,23 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
 /** `two=1`: a second goal with its own plan; `goals=6`: four more, to see the goals' rail scroll. */
-const six = query.get('goals') === '6'
+const nine = query.get('goals') === '9'
+const six = nine || query.get('goals') === '6'
 const two = six || query.get('two') === '1'
 /** `served=1`: Tasks reads the board Sophia serves, as the Studio does without the page's plans, the pilot enabled. */
 const served = query.get('served') === '1'
 /** `cap=<usd>`: the project's cap for one review, in place of the pilot's half a dollar (a sub-cent one, Codex on #107). */
 const cap = query.get('cap')
+/** `sources=0`: the pilot enabled with no report version to review yet (the real stack's first goal, E2E-Q3). */
+const unsourced = query.get('sources') === '0'
+/** What the pilot offers on this page: the fixture's sources, or none; under the page's cap, if it sets one. */
+const offer = {
+  ...SOURCE_REVIEW,
+  ...(cap !== null && { maxAllowanceUsd: Number(cap) }),
+  ...(unsourced && { sources: [] }),
+}
 /**
  * `proposed=lost|unreadable`: the first proposal's reply is lost, or a success that cannot be read; the next is answered.
  * `proposed=held`: the first is recorded and its answer waits for `workFixture.releaseProposal`; the second's reply is
@@ -318,6 +336,7 @@ installFixtureApi({
     goal,
     ...(two ? [secondGoal] : []),
     ...(six ? moreGoals : []),
+    ...(nine ? laterGoals : []),
     ...(query.get('unplanned') === '1' ? [unplannedGoal] : []),
   ],
   // The room page's report (SMC-M03), at rest: this page reads none of it.
@@ -330,7 +349,7 @@ installFixtureApi({
   textHeld: false,
   textTampered: false,
   work: false,
-  ...(served && { review: cap === null ? SOURCE_REVIEW : { ...SOURCE_REVIEW, maxAllowanceUsd: Number(cap) } }),
+  ...(served && { review: offer }),
   ...(proposals && { proposals }),
   ...(admits && { servedGoals, onAnswer: answerAdmission }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
@@ -350,6 +369,7 @@ installFixtureApi({
 })
 window.workFixture = {
   unexpected,
+  served: readOut,
   answered: answers,
   commands,
   receipts,
@@ -422,6 +442,7 @@ const attemptless: Change = (g) =>
 function opening(viewer: Viewer): GoalView {
   let g = attemptless(inCase(scenario, firstGoal(viewer), viewer))
   if (query.get('many') === '1') g = manyTasks(g)
+  if (query.get('waits') === '1') g = manyBlockers(g)
   g = decisionsAsked(g)
   const current = g.current_plan
   if (current && query.get('proposed') === '1') {
@@ -566,6 +587,13 @@ const beginWith = (workId: string, viewer: Viewer): Change =>
     lifecycle: 'running',
     assignment: claude('claude-reviewer', 'reviewer', 1),
     available_actions: [...fixtureParts.commands(viewer, true), ...v.available_actions],
+  }))
+
+/** A task complete, its check satisfied: what it blocked goes up next (`complete`, the focus check; Codex on #236). */
+const completeWith = (workId: string): Change =>
+  observed(workId, () => ({
+    lifecycle: 'complete',
+    completion: { policy_ref: 'policy-fixture', status: 'satisfied', evidence_refs: ['evidence-fixture'] },
   }))
 
 /** The same session given the task again: its next assignment generation, its next attempt. */
@@ -808,7 +836,9 @@ function slot(g: GoalView, shared: Shared, onCommand: SendCommand | undefined) {
     tab: <PlanTab goal={g} resources={resources} people={people} viewerId={viewerId} now={now} />,
     words: rows.map((r) => r.item.purpose).join(' '),
     tasks: rows.map((r) => r.item.id),
+    decisions: g.decisions.map((d) => d.decision_id),
     attention: (shown?.operable ?? false) && forYou(rows, g.decisions, viewerId, now),
+    ...glancedOf(g, rows, shown?.operable ?? false, viewerId, now),
   }
 }
 
@@ -880,6 +910,8 @@ function Tasks() {
         viewer,
         { commands: lead.commands, again },
       ),
+      complete: (workId: string) => update(completeWith(workId)),
+      served: readOut,
       ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
       ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),
@@ -922,7 +954,8 @@ interface ShellProps {
  * resources and the same command port, as the Studio has both in one project (Codex F-016). Its views switch in place.
  */
 function Shell({ plans, viewer, now, onCommand }: ShellProps) {
-  const [view, setView] = useState<View>('work')
+  // `view=goals`: the page opens on Goals (goals-overview.md); Tasks otherwise.
+  const [view, setView] = useState<View>(query.get('view') === 'goals' ? 'goals' : 'work')
   return (
     <ProjectShell
       projectId={PROJECT}
@@ -930,7 +963,13 @@ function Shell({ plans, viewer, now, onCommand }: ShellProps) {
       identity={viewing}
       account={null}
       // Conversations' reads aren't faked on this page (room.html's are): its tab stays where it is.
-      onShow={(next) => next !== 'conversations' && setView(next)}
+      onShow={(next) => {
+        if (next === 'conversations') return
+        // As the app's router moves to a view (useProjectRoute): the fragment goes, and the move is told.
+        window.history.pushState(null, '', window.location.pathname + window.location.search)
+        window.dispatchEvent(new Event(ADDRESS_MOVED))
+        setView(next)
+      }}
       onLeave={nothing}
       onWork={nothing}
       onSignOut={nothing}

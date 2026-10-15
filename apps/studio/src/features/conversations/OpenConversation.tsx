@@ -7,7 +7,7 @@
 // byline said once in sight and every time to a screen reader (docs/plans/conversation-thread.md). The thread follows
 // what is written: a message sent comes into sight, and one read at its end stays at its end.
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import {
   getConversationMessages,
   type ConversationMessage,
@@ -19,6 +19,7 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
 import { Mark } from '../../app/Mark.tsx'
+import { Button } from '@sophia/ui'
 import {
   answeredAfter,
   continuesRun,
@@ -31,13 +32,19 @@ import { ConversationComposer } from './ConversationComposer.tsx'
 import type { Held } from './held-write.ts'
 import type { Asked } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
+import { settled } from './next-ask.ts'
 import { blocksOf } from './sophia-text.ts'
 import { useProposeHere } from './ProposeHere.tsx'
+import { MessageActs } from './MessageActs.tsx'
+import { withQuote } from './message-acts.ts'
+import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 
 interface Props {
   projectId: string
   conversation: ConversationSummary
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list?: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   /** The project's feed position: the messages are read again as it moves (Sophia's answer, others' messages). */
@@ -88,19 +95,31 @@ function useAwaiting(asked: Asked | null) {
   return { since: asked?.at ?? null, late }
 }
 
+/** A quote goes under the draft and the field takes the focus; null for those who can't write here. */
+function useQuote(props: Pick<Props, 'writer' | 'draft' | 'onDraft'>, section: RefObject<HTMLElement | null>) {
+  if (props.writer !== true) return null
+  return (quote: string) => {
+    props.onDraft(withQuote(props.draft, quote))
+    // The composer's own field: a proposal's form open on a message has a textarea of its own before it.
+    section.current?.querySelector<HTMLTextAreaElement>('.conv-compose textarea')?.focus()
+  }
+}
+
 export function OpenConversation(props: Props) {
   const { conversation: c, identity, me, arrived, onArrived } = props
   const awaiting = useAwaiting(props.asked)
-  const read = useTranscript(c.id, identity, props.cursor)
+  const { read, current } = useThread(c.id, identity, props.cursor)
   const head = useRef<HTMLHeadingElement>(null)
+  const section = useRef<HTMLElement>(null)
   const follow = useFollow()
+  const onQuote = useQuote(props, section)
   useEffect(() => {
     if (!arrived) return
     head.current?.focus()
     onArrived()
   }, [arrived, onArrived])
   return (
-    <section className="conv-open" aria-label="Open conversation">
+    <section ref={section} className="conv-open" aria-label="Open conversation">
       <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
       {/* A scrolled region the keyboard reaches (arrows scroll it); from the keyboard, every time shows there. */}
       <div
@@ -118,6 +137,7 @@ export function OpenConversation(props: Props) {
           onAnswered={props.onAnswered}
           onGrown={follow.grown}
           propose={props.writer === true ? { projectId: props.projectId, identity } : null}
+          onQuote={onQuote}
         />
       </div>
       {props.writer === true && (
@@ -138,11 +158,39 @@ export function OpenConversation(props: Props) {
             follow.sent()
             if (sent.sophia === 'asked') props.onAsked(sent.message.at)
           }}
+          next={nextOf(props, read, current)}
         />
       )}
       {props.writer === false && <p className="conv-note">Viewers read conversations; members write in them.</p>}
     </section>
   )
+}
+
+/** What the composer's next ask reads (useNextAsk.ts), with whether each part is known now (Codex P2s on #262). */
+/**
+ * The thread as read, and whether that read answers the feed's cursor now: the cursor its last feed-triggered read
+ * landed for. A moved cursor makes it not current from that very render, before its refetch has even started; only
+ * that refetch, not an older page, makes it current again (Codex on #275).
+ */
+function useThread(conversationId: string, identity: Identity, cursor: string | undefined) {
+  const [readFor, setReadFor] = useState(cursor)
+  const read = useTranscript(conversationId, identity, cursor, setReadFor)
+  return { read, current: readFor === cursor }
+}
+
+function nextOf(props: Props, read: ReturnType<typeof useTranscript>, current: boolean): NextAskSource {
+  return {
+    projectId: props.projectId,
+    me: props.me,
+    read: read.data,
+    // Read and not being read again, the last read not failed: its newest message is the newest; and the list not being
+    // read again, its open questions the count now (Codex on #275).
+    // Idle only: a read paused offline keeps its old data and is not current either (Codex on #275).
+    fresh: current && read.isSuccess && settled(read) && settled(props.list ?? { fetchStatus: 'idle' }),
+    readAt: read.dataUpdatedAt,
+    // The list's last read failed: its count of open questions may be stale.
+    openQuestions: props.list?.isError === true ? null : props.conversation.openQuestions,
+  }
 }
 
 /**
@@ -159,11 +207,17 @@ function Head(props: {
   const { conversation: c, context } = props
   return (
     <header className="conv-head">
-      <button type="button" className="icon-button conv-back" aria-label="All conversations" onClick={props.onBack}>
+      <Button
+        kind="icon"
+        size="md"
+        className="icon-button conv-back"
+        aria-label="All conversations"
+        onClick={props.onBack}
+      >
         <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
           <path d="M9 2L4 7l5 5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-      </button>
+      </Button>
       <div className="conv-head-words">
         <h3 ref={props.head} tabIndex={-1}>
           {c.title}
@@ -185,9 +239,10 @@ function Head(props: {
 /** «Context»: opens the project's context where it is a panel (under 1180 px); over that it is a pane, and this hides. */
 export function ContextToggle({ context }: { context: Props['context'] }) {
   return (
-    <button
+    <Button
       ref={context.ref}
-      type="button"
+      kind="icon"
+      size="md"
       className="icon-button conv-context-toggle"
       aria-label="Context"
       title="Context"
@@ -199,7 +254,7 @@ export function ContextToggle({ context }: { context: Props['context'] }) {
         <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
         <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.3" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
@@ -269,7 +324,12 @@ function Output({ output }: { output: ConversationSummary['output'] }) {
 }
 
 /** The conversation as read, a page at a time (the newest first), and read again as the feed moves. */
-function useTranscript(conversationId: string, identity: Identity, cursor: string | undefined) {
+function useTranscript(
+  conversationId: string,
+  identity: Identity,
+  cursor: string | undefined,
+  onReadFor?: (cursor: string | undefined) => void,
+) {
   const read = useInfiniteQuery({
     queryKey: messagesKey(conversationId, accountOf(identity)),
     queryFn: ({ pageParam, signal }) => getConversationMessages(identity.token, conversationId, pageParam, signal),
@@ -277,7 +337,17 @@ function useTranscript(conversationId: string, identity: Identity, cursor: strin
     getNextPageParam: (page) => page.before,
     retry: 1,
   })
-  useReadAgain(cursor, read.refetch)
+  // The read the feed asks for, and only it, says which cursor the thread now answers: an older page landing meanwhile
+  // says nothing of the newest (Codex on #275).
+  const { refetch } = read
+  const readAgain = useCallback(
+    () =>
+      refetch().then((r) => {
+        if (r.isSuccess) onReadFor?.(cursor)
+      }),
+    [refetch, onReadFor, cursor],
+  )
+  useReadAgain(cursor, readAgain)
   return read
 }
 
@@ -291,6 +361,7 @@ function Messages(props: {
   onGrown: () => void
   /** Where a message may be proposed as a decision (C7); null for those who can't write here. */
   propose: Propose
+  onQuote: ((quote: string) => void) | null
 }) {
   const { read, me, onAnswered, onGrown } = props
   // Each page is oldest first, and each one read is earlier than the last: the earliest page goes on top.
@@ -319,6 +390,9 @@ function Messages(props: {
       {read.hasNextPage && (
         <Earlier
           reading={read.isFetchingNextPage}
+          // Not pressed while the thread is read again, paused offline included: an older page then would cancel that
+          // read (Codex on #275).
+          busy={!settled(read)}
           failed={read.isFetchNextPageError}
           onRead={() => {
             asked.current = true
@@ -326,7 +400,9 @@ function Messages(props: {
           }}
         />
       )}
-      {messages.length > 0 && <MessageList messages={messages} me={me} first={first} propose={props.propose} />}
+      {messages.length > 0 && (
+        <MessageList messages={messages} me={me} first={first} propose={props.propose} onQuote={props.onQuote} />
+      )}
       {waiting && (
         <p className="conv-note conv-answering" role="status">
           <span className="conv-glyph" aria-hidden>
@@ -342,15 +418,20 @@ function Messages(props: {
 }
 
 /** Earlier messages: reads the page before, once at a time; says so when it can't. */
-function Earlier({ reading, failed, onRead }: { reading: boolean; failed: boolean; onRead: () => void }) {
+function Earlier({
+  reading,
+  busy,
+  failed,
+  onRead,
+}: {
+  reading: boolean
+  busy: boolean
+  failed: boolean
+  onRead: () => void
+}) {
   return (
     <p className="conv-earlier">
-      <button
-        type="button"
-        className="text-button"
-        aria-disabled={reading || undefined}
-        onClick={() => !reading && onRead()}
-      >
+      <button type="button" className="text-button" aria-disabled={busy || undefined} onClick={() => !busy && onRead()}>
         {reading ? 'Reading earlier messages…' : 'Earlier messages'}
       </button>
       {failed && <span role="alert"> They can’t be read now.</span>}
@@ -370,6 +451,7 @@ function MessageList(props: {
   me: string
   first: RefObject<HTMLLIElement | null>
   propose: Propose
+  onQuote: ((quote: string) => void) | null
 }) {
   const { messages, me, first, propose } = props
   const now = Date.now()
@@ -386,13 +468,49 @@ function MessageList(props: {
           now={now}
           first={i === 0 ? first : undefined}
           propose={propose}
+          onQuote={props.onQuote}
           pressed={pressed === m.id}
-          onPress={() => setPressed(m.id)}
+          onPress={(row) => {
+            setPressed(m.id)
+            // The row it opens under the bubble stays in sight, the newest message's too (Codex on #240).
+            requestAnimationFrame(() => row?.querySelector('.conv-acts')?.scrollIntoView({ block: 'nearest' }))
+          }}
         />
       ))}
     </ol>
   )
 }
+
+/**
+ * A message's acts and where they stand: above the bubble, or beside it for a member's message continuing a run under
+ * a pointer (not over the bubble above it; Codex on #240). Words that leave the thread name who said them by name.
+ */
+function useActsPlace(
+  m: ConversationMessage,
+  before: ConversationMessage | undefined,
+  with_: { now: number; onQuote: ((quote: string) => void) | null; propose: ReactNode },
+) {
+  const run = continuesRun(before, m)
+  // Read as the message renders: a pointer that hovers does not come and go within a visit.
+  const side = run && m.author !== 'sophia' && window.matchMedia(HOVERS).matches
+  const acts = (
+    <MessageActs
+      message={m}
+      who={portableBy(m)}
+      now={with_.now}
+      onQuote={with_.onQuote}
+      propose={with_.propose}
+      side={side}
+    />
+  )
+  return { run, side, acts }
+}
+
+/** A pointer that hovers: where a message's acts show under it. */
+const HOVERS = '(hover: hover)'
+
+/** Who said a message, by name, for words that leave the thread (the clipboard, a quote). */
+const portableBy = (m: ConversationMessage) => (m.author === 'sophia' ? 'Sophia' : (m.name ?? 'A member'))
 
 /** One message: its day when it starts one, who wrote it, its words; where one can propose, its press and form (C7). */
 function MessageItem(props: {
@@ -402,26 +520,22 @@ function MessageItem(props: {
   now: number
   first: RefObject<HTMLLIElement | null> | undefined
   propose: Propose
+  onQuote: ((quote: string) => void) | null
   pressed: boolean
-  onPress: () => void
+  onPress: (row: HTMLLIElement | null) => void
 }) {
   const { message: m, before, me, now } = props
   const sophia = m.author === 'sophia'
   const here = useProposeHere(props.propose && { ...props.propose, messageId: m.id, text: m.text, sophia })
-  // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
-  const at = (
-    <span className="conv-msg-at" aria-hidden>
-      {clock(m.at)}
-    </span>
-  )
+  const { run, side, acts } = useActsPlace(m, before, { now, onQuote: props.onQuote, propose: here.press })
   return (
     <li
       ref={props.first}
       tabIndex={props.first ? -1 : undefined}
       className={classOf(m, me)}
-      data-run={continuesRun(before, m) ? 'on' : undefined}
+      data-run={run ? 'on' : undefined}
       data-pressed={props.pressed || undefined}
-      onClick={props.onPress}
+      onClick={(e) => props.onPress(e.currentTarget)}
     >
       {(!before || !sameDay(before.at, m.at)) && (
         <span className="conv-day" aria-hidden>
@@ -440,14 +554,35 @@ function MessageItem(props: {
           <time dateTime={m.at}>{when(m.at, now)}</time>
         </span>
       </span>
+      <Turn m={m} side={side} acts={acts} />
+      {here.form}
+    </li>
+  )
+}
+
+/**
+ * The turn (the bubble, the acts, the clock) is the acts' box: the thread's width, from the bubble's top line; the name
+ * stays before it, so the acts never share its coordinates. A member's message continuing a run, under a pointer,
+ * keeps its acts in the bubble's box, beside it, not over the one above (Codex on #240).
+ */
+function Turn({ m, side, acts }: { m: ConversationMessage; side: boolean; acts: ReactNode }) {
+  const sophia = m.author === 'sophia'
+  // The clock under the pointer (or the focus): seen, not read; the byline says it to a screen reader.
+  const at = (
+    <span className="conv-msg-at" aria-hidden>
+      {clock(m.at)}
+    </span>
+  )
+  return (
+    <div className="conv-turn">
       <div className="conv-msg-body">
         {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
         {sophia && at}
-        {here.press}
+        {side && acts}
       </div>
+      {!side && acts}
       {!sophia && at}
-      {here.form}
-    </li>
+    </div>
   )
 }
 

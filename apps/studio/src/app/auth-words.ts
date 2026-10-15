@@ -1,5 +1,18 @@
-// Why a sign-in email could not be sent, in words a person can act on. Pure, so every case is unit-tested. The
-// text comes from Supabase Auth's own reply (a trusted source), never from the address bar.
+// The sign-in's words: what opens, said at the door, and why a sign-in email could not be sent, in words a person can
+// act on. Pure, so every case is unit-tested. An error's text comes from Supabase Auth's own reply (a trusted source),
+// never from the address bar.
+
+/**
+ * What opens, said under «Sign in to Sophia» (docs/plans/sign-in-lede.md): the guest door says «“Project” is a room
+ * where people and Sophia think together»; before any project, the same of Sophia, with your team.
+ */
+export const SIGN_IN_LEDE = 'Where your team and Sophia think together.'
+
+/** What was sent, before the address it went to (docs/plans/signin-hierarchy.md). */
+export const SENT_TO = 'We sent a link and a code to'
+
+/** How to use what was sent, as the note under that line: the link where it was asked for, the code from anywhere. */
+export const SENT_HOW = 'Open the link in this browser, or type the code here.'
 
 /** What the Studio reads of an Auth error: its code, its sentence and whether the request got anywhere. */
 export interface AuthFailure {

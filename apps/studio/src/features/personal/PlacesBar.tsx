@@ -3,11 +3,13 @@
 // Personal's padlock when it is shut; on the right, the room you're in (back to it, its switches, Leave), who can see
 // where you are (nothing at home, where the line with the lock says it), and your account.
 import { useLayoutEffect, useRef, type RefObject } from 'react'
-import { Icon, Tip, useSlidingThumb } from '@sophia/ui'
+import { Icon, Tip, Segmented, usePopover } from '@sophia/ui'
 import { AccountMenu, type AccountActions } from '../../app/AccountMenu.tsx'
+import { CommandsHost } from '../../app/CommandsHost.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import type { Place } from '../../app/route.ts'
-import { usePopover } from '../../app/usePopover.ts'
+import { useCommands } from '../../app/useCommands.ts'
+import { callCommands } from '../voice/call-commands.ts'
 import { CallSwitches, type Sending } from '../voice/CallSwitches.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
 import { LOCK_TIP, WHO_SEES } from './places-view.ts'
@@ -55,27 +57,16 @@ function Switch({
   newInWork,
   go,
 }: Pick<Props, 'place' | 'locked' | 'newInWork'> & { go: Props['actions']['go'] }) {
-  const thumb = useSlidingThumb<HTMLDivElement>(place)
   return (
-    <div ref={thumb} className="segmented places-switch" role="group" aria-label="Places">
-      {SWITCH.map((s) => (
-        <button
-          key={s.place}
-          type="button"
-          className={`has-tip${s.place === 'personal' && locked ? ' locked' : ''}`}
-          data-thumb={s.place}
-          data-place={s.place}
-          data-new={s.place === 'work' && newInWork ? `${newInWork} new` : undefined}
-          aria-pressed={place === s.place}
-          aria-label={s.name}
-          onClick={() => go(s.place)}
-        >
-          {s.place === 'personal' && (
-            <span className="seg-lock" aria-hidden>
-              <Icon name="lock" size={12} />
-            </span>
-          )}
-          {s.place === 'home' ? (
+    <Segmented
+      role="group"
+      label="Places"
+      className="places-switch"
+      items={SWITCH.map((s) => ({
+        id: s.place,
+        name: s.name,
+        label:
+          s.place === 'home' ? (
             <>
               <span className="seg-t">Home</span>
               <span className="seg-i" aria-hidden>
@@ -83,12 +74,22 @@ function Switch({
               </span>
             </>
           ) : (
-            <span>{s.name}</span>
-          )}
-          <Tip label={s.name} keys={s.key} side="bottom" />
-        </button>
-      ))}
-    </div>
+            <>
+              {s.place === 'personal' && (
+                <span className="seg-lock" aria-hidden>
+                  <Icon name="lock" size={12} />
+                </span>
+              )}
+              <span>{s.name}</span>
+            </>
+          ),
+        tip: { label: s.name, keys: s.key, side: 'bottom' },
+        ...(s.place === 'personal' && locked && { className: 'locked' }),
+        data: { place: s.place, ...(s.place === 'work' && newInWork ? { new: `${newInWork} new` } : {}) },
+      }))}
+      value={place}
+      onChange={go}
+    />
   )
 }
 
@@ -134,6 +135,14 @@ function useFocusAfterCall(pill: RefObject<HTMLDivElement | null>) {
 function CallPill({ call }: { call: InCall }) {
   const pill = useRef<HTMLDivElement>(null)
   useFocusAfterCall(pill)
+  const controls = {
+    setMicrophone: call.onMicrophone,
+    setCamera: call.onCamera,
+    setScreenShare: call.onScreen,
+    leave: call.onLeave,
+  }
+  // The call's keys come with its switches here, as they allow (docs/plans/call-keys-anywhere.md).
+  useCommands(callCommands(call.sending, controls))
   return (
     <div ref={pill} className="room-pill" role="group" aria-label="Your call">
       <span className="live" aria-hidden />
@@ -143,14 +152,9 @@ function CallPill({ call }: { call: InCall }) {
       </button>
       <CallSwitches
         sending={call.sending}
-        controls={{
-          setMicrophone: call.onMicrophone,
-          setCamera: call.onCamera,
-          setScreenShare: call.onScreen,
-          leave: call.onLeave,
-        }}
+        controls={controls}
         textMode={{ on: call.textMode, onVoice: call.onVoice }}
-        keys={false}
+        keys
         side="bottom"
       />
     </div>
@@ -208,6 +212,18 @@ function PrivacyChip({ place, chip, onLock, onPrivacy }: ChipProps) {
 }
 
 export function PlacesBar(props: Props) {
+  return (
+    <>
+      <PlacesHeader {...props} />
+      {/* The palette and the index of keys, here as in a project (docs/plans/places-commands.md). Beside the bar, not
+          in it: the bar's backdrop-filter holds fixed children to its own 48 px, so the veil would dim the bar alone
+          (Codex on #243). */}
+      <CommandsHost />
+    </>
+  )
+}
+
+function PlacesHeader(props: Props) {
   const { place, locked, newInWork, identity, call, chip, actions } = props
   return (
     <header className="topbar places-bar">

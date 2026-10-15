@@ -50,7 +50,7 @@ after(async () => {
 })
 beforeEach(async () => {
   await client.query(
-    `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, public.heartbeat_runs`,
+    `TRUNCATE ${NAMESPACE}.controls, ${NAMESPACE}.effects, ${NAMESPACE}.wakes, ${NAMESPACE}.commissions, ${NAMESPACE}.envelope_nonces, ${NAMESPACE}.reviewer_provisioning, public.heartbeat_runs`,
   )
 })
 
@@ -1421,12 +1421,13 @@ describe('an issue moved out of its mapped Paperclip project (Codex’s automati
     it(`a create whose issue lands just after the commission's first read, moved to ${where}, binds and wakes nothing`, async () => {
       const p = paperclip()
       const c = commissionOf()
-      // The create an earlier claim followed ends with its issue between this commission's first read and its claim.
+      // The create an earlier claim followed ends with its issue between this commission's first read and its claim
+      // (here while the plugin reads the company's bound reviewer, the step between them).
       const host: CoordinationHost = {
         ...p.host,
-        reviewerAgent: async (companyId) => {
+        boundReviewerAgent: async (companyId) => {
           moveTo(p, await landCreate(p, c), to)
-          return p.host.reviewerAgent(companyId)
+          return p.host.boundReviewerAgent(companyId)
         },
       }
       const actor = { actorType: 'user' as const, actorId: INTEGRATION_USER, userId: INTEGRATION_USER }

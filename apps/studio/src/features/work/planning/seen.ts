@@ -5,7 +5,7 @@
 // moves no task, and no task text is kept, only ids and states. Kept per project, goal, plan and viewer, so another
 // viewer's look never leaks into this one; a browser that refuses storage just forgets.
 import type { BoardDecision } from './board-view.ts'
-import { actionable, latestDecisions, type Mark, type PlanRow } from './plan.ts'
+import { actionable, laneOf, latestDecisions, type Lane, type Mark, type PlanRow } from './plan.ts'
 import { resultsOf } from './results.ts'
 
 /** Whose look, at which plan. */
@@ -17,7 +17,9 @@ export interface SeenAt {
 }
 
 export interface Seen {
-  items: Record<string, { mark: Mark; result: string | null }>
+  /** Each task's mark, result and lane (the lane is derived: a task up next can be blocked without its mark moving;
+   * looks kept before it was noted have none, and are compared without it; Codex on #236). */
+  items: Record<string, { mark: Mark; result: string | null; lane?: Lane; waits?: string[] }>
   decisions: Record<string, string>
 }
 
@@ -28,7 +30,9 @@ export interface Seen {
  * deleted, so a first visit here starts afresh.
  */
 export const seenKey = (at: SeenAt) =>
-  `sophia.plan.seen.v3:${JSON.stringify([at.project, at.goal, at.plan, at.viewer])}`
+  // v4: each task's lane noted. A v3 look has none, so a lane-only move could never be said from it: it is not read,
+  // and the next look, under this key, notes them (Codex on #236).
+  `sophia.plan.seen.v4:${JSON.stringify([at.project, at.goal, at.plan, at.viewer])}`
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
@@ -36,7 +40,13 @@ const isSeen = (value: unknown): value is Seen =>
   isRecord(value) &&
   isRecord(value.items) &&
   isRecord(value.decisions) &&
-  Object.values(value.items).every((v) => isRecord(v) && typeof v.mark === 'string') &&
+  Object.values(value.items).every(
+    (v) =>
+      isRecord(v) &&
+      typeof v.mark === 'string' &&
+      // Waits absent (an older look) or a list of ids: anything else is not a look (Codex on #278).
+      (v.waits === undefined || (Array.isArray(v.waits) && v.waits.every((w) => typeof w === 'string'))),
+  ) &&
   Object.values(value.decisions).every((v) => typeof v === 'string')
 
 /**
@@ -51,7 +61,17 @@ const decisionState = (d: BoardDecision) => `${d.state}:${d.plan_reaction}`
 /** The plan as it stands now, as a look keeps it. */
 export const glance = (rows: readonly PlanRow[], decisions: readonly BoardDecision[]): Seen => ({
   items: Object.fromEntries(
-    rows.map((r) => [r.item.id, { mark: r.status.mark, result: resultsOf(r.view).current?.version_id ?? null }]),
+    rows.map((r) => [
+      r.item.id,
+      {
+        mark: r.status.mark,
+        result: resultsOf(r.view).current?.version_id ?? null,
+        lane: laneOf(r, rows),
+        // What it waited on, by id: a task freed later is said to have had them complete only if it still lists every
+        // one and each is (Codex on #278).
+        waits: [...r.item.blocked_by],
+      },
+    ]),
   ),
   decisions: Object.fromEntries(decisions.map((d) => [decisionKey(d), decisionState(d)])),
 })
@@ -75,6 +95,26 @@ export function writeSeen(at: SeenAt, seen: Seen): Seen {
   return seen
 }
 
+/** A lane that moved: compared only when the look noted one. */
+const laneMoved = (was: Lane | undefined, now: Lane | undefined) => was !== undefined && was !== now
+
+/**
+ * A task out of Blocked, said as it happened: every task it waited on when last seen is still its wait and complete;
+ * else (a revision dropped a wait, or the task it waited on, or the look noted none) it no longer waits, without
+ * saying anything completed (Codex on #236 and #278).
+ */
+function freedSaid(row: PlanRow, rows: readonly PlanRow[], before: readonly string[] | undefined): string {
+  const complete = (id: string) => {
+    const blocker = rows.find((r) => r.item.id === id)
+    return blocker !== undefined && laneOf(blocker, rows) === 'complete'
+  }
+  const all =
+    before !== undefined && before.length > 0 && before.every((id) => row.item.blocked_by.includes(id) && complete(id))
+  return all
+    ? `${row.item.purpose} can start: what it waited on is complete`
+    : `${row.item.purpose} can start: it no longer waits on another task`
+}
+
 /** The tasks that moved, arrived or got a new result since `seen`; none when there is nothing to compare with. */
 export function changedSince(rows: readonly PlanRow[], seen: Seen | null): ReadonlySet<string> {
   if (!seen) return new Set()
@@ -84,7 +124,8 @@ export function changedSince(rows: readonly PlanRow[], seen: Seen | null): Reado
       .filter(
         (r) =>
           seen.items[r.item.id]?.mark !== now[r.item.id]?.mark ||
-          seen.items[r.item.id]?.result !== now[r.item.id]?.result,
+          seen.items[r.item.id]?.result !== now[r.item.id]?.result ||
+          laneMoved(seen.items[r.item.id]?.lane, now[r.item.id]?.lane),
       )
       .map((r) => r.item.id),
   )
@@ -184,7 +225,11 @@ function movesOf(rows: readonly PlanRow[], seen: Seen) {
   })
   // Its mark is said only when its mark moved, or the task is new: a result changing moves no mark.
   const marked = moved.filter((r) => !resulted.includes(r) && seen.items[r.item.id]?.mark !== r.status.mark)
-  return { resulted, lost, marked }
+  // Its lane alone moved (blocked, or no longer): said as such (Codex on #236).
+  const laned = moved.filter(
+    (r) => !resulted.includes(r) && !marked.includes(r) && laneMoved(seen.items[r.item.id]?.lane, laneOf(r, rows)),
+  )
+  return { resulted, lost, marked, laned }
 }
 
 /**
@@ -200,7 +245,8 @@ export function whileAway(
 ): { phrases: string[]; more: number; rest: string[] } {
   if (!seen) return { phrases: [], more: 0, rest: [] }
   const { viewerId } = looking
-  const { resulted, lost, marked } = movesOf(rows, seen)
+  const { resulted, lost, marked, laned } = movesOf(rows, seen)
+  const blocked = laned.filter((r) => laneOf(r, rows) === 'blocked')
   const markSaid = (r: PlanRow) =>
     SAID[r.status.mark](
       r.item.purpose,
@@ -212,7 +258,9 @@ export function whileAway(
     ...resulted.map((r) => `${r.item.purpose} has a new result: ${resultNow(r) ?? ''}`),
     ...lost.map(({ row, was }) => lostSaid(row, was)),
     ...marked.filter((r) => PRESSING.has(r.status.mark)).map(markSaid),
+    ...blocked.map((r) => `${r.item.purpose} is blocked`),
     ...marked.filter((r) => !PRESSING.has(r.status.mark)).map(markSaid),
+    ...laned.filter((r) => !blocked.includes(r)).map((r) => freedSaid(r, rows, seen.items[r.item.id]?.waits)),
   ]
   return { phrases: all.slice(0, 3), more: Math.max(0, all.length - 3), rest: all.slice(3) }
 }

@@ -3,15 +3,15 @@
 // where everything else is. It goes in ProjectShell's `resources`. Its owner's acts (guidance, Hold, Stop) and effort
 // requests go out through `onAct` and `onEffort`, to whoever the host passes; nothing here calls a tool.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Tip, useSlidingThumb } from '@sophia/ui'
-import { nextInRow } from '../../app/roving.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { EmptyState, Search as SearchField, Segmented, Skeleton } from '@sophia/ui'
+import { useCommands } from '../../app/useCommands.ts'
 import { useClock } from './clock.ts'
-import { linkedId, showInAddress } from './link.ts'
+import { linkedId, REQUEST, requestOf, showInAddress } from './link.ts'
 import { moving } from './motion.ts'
 import { ordered, placed, type Order } from './order.ts'
 import { readPrefs, savePrefs } from './prefs.ts'
 import { useUltra } from './ultra.ts'
+import { useAddressed } from './useAddressed.ts'
 import type { EffortAsk } from './change.ts'
 import { ResourceSheet, type EffortControl, type TaskLinks } from './ResourceSheet.tsx'
 import { glance, readSeen, whileAway, writeSeen, type Seen } from './away.ts'
@@ -141,36 +141,15 @@ interface FiltersProps {
 }
 
 function Filters({ filter, counts, onChange }: FiltersProps) {
-  const tabs = useRef(new Map<Filter, HTMLButtonElement>())
-  const thumb = useSlidingThumb<HTMLDivElement>(filter)
-  const onKeyDown = (event: React.KeyboardEvent) => {
-    const next = nextInRow(FILTERS, filter, event.key)
-    if (!next) return
-    event.preventDefault()
-    onChange(next)
-    tabs.current.get(next)?.focus()
-  }
   return (
-    <div ref={thumb} className="segmented resource-filters" role="tablist" aria-label="Show" onKeyDown={onKeyDown}>
-      {FILTERS.map((f) => (
-        <button
-          key={f}
-          ref={(el) => {
-            if (el) tabs.current.set(f, el)
-          }}
-          type="button"
-          role="tab"
-          data-thumb={f}
-          aria-selected={f === filter}
-          aria-controls="resource-grid"
-          tabIndex={f === filter ? 0 : -1}
-          onClick={() => onChange(f)}
-        >
-          {FILTER_LABEL[f]}
-          <span className="filter-count">{counts[f]}</span>
-        </button>
-      ))}
-    </div>
+    <Segmented
+      role="tablist"
+      label="Show"
+      className="resource-filters"
+      items={FILTERS.map((f) => ({ id: f, label: FILTER_LABEL[f], count: counts[f], controls: 'resource-grid' }))}
+      value={filter}
+      onChange={onChange}
+    />
   )
 }
 
@@ -182,26 +161,33 @@ interface SearchProps {
 /** The search, focused with "/" from anywhere on the view; Escape clears it, then leaves it. */
 function Search({ query, onChange }: SearchProps) {
   const input = useRef<HTMLInputElement>(null)
-  useShortcuts({ '/': () => input.current?.focus() })
+  useCommands([
+    {
+      id: 'search-resources',
+      words: 'Search the resources',
+      group: 'view',
+      key: '/',
+      also: ['find'],
+      run: () => input.current?.focus(),
+    },
+  ])
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Escape') return
     if (query) onChange('')
     else input.current?.blur()
   }
   return (
-    <div className="field quiet resource-search has-tip">
-      <input
-        ref={input}
-        type="search"
-        aria-label="Search resources"
-        aria-keyshortcuts="/"
-        placeholder="Search tools, owners, work…"
-        value={query}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      <Tip label="Search" keys="/" side="bottom" />
-    </div>
+    <SearchField
+      ref={input}
+      className="resource-search"
+      aria-label="Search resources"
+      aria-keyshortcuts="/"
+      placeholder="Search tools, owners, work…"
+      value={query}
+      onChange={(e) => onChange(e.target.value)}
+      onKeyDown={onKeyDown}
+      tip={{ label: 'Search', keys: '/', side: 'bottom' }}
+    />
   )
 }
 
@@ -308,21 +294,10 @@ function Browse(props: Shown) {
   )
 }
 
-/** While the resources are read: tiles' shapes, still and quiet, in their places. */
+/** While the resources are read: six tiles' shapes in their places (the kit's skeleton, in the tiles' own grid). */
 function Placeholders() {
   return (
-    <div className="resource-grid resource-placeholders" aria-busy="true">
-      <p className="sr-only" role="status">
-        Reading the resources…
-      </p>
-      {Array.from({ length: 6 }, (_, i) => (
-        <span key={i} className="resource-placeholder" aria-hidden style={{ '--i': i }}>
-          <span />
-          <span />
-          <span />
-        </span>
-      ))}
-    </div>
+    <Skeleton kind="card" count={6} label="Reading the resources…" className="resource-grid resource-placeholders" />
   )
 }
 
@@ -330,9 +305,7 @@ function Placeholders() {
 function Body(props: Shown) {
   if (props.loading) return <Placeholders />
   if (props.resources.length === 0) {
-    return (
-      <p className="view-note">No tool is enrolled for this project yet. An owner enrolls one from their own host.</p>
-    )
+    return <EmptyState>No tool is enrolled for this project yet. An owner enrolls one from their own host.</EmptyState>
   }
   return <Browse {...props} />
 }
@@ -372,12 +345,45 @@ function useViewClock(given: Props): Date {
   return now
 }
 
+/** The request's row, once the sheet has drawn it (a frame or a few after its resource opened): it takes the focus. */
+function focusRequest(id: string, tries = 10): void {
+  const row = document.querySelector<HTMLElement>(`[data-request="${CSS.escape(id)}"]`)
+  if (row) row.focus()
+  else if (tries > 0) requestAnimationFrame(() => focusRequest(id, tries - 1))
+}
+
+/**
+ * A request named in the address (`#request-<id>`, from Home's «needs you», needs-api.md): its resource's sheet opens
+ * and the request takes the focus, once per address; the address is the sheet's from then on. A request not among
+ * those read opens nothing, and the address is kept for when it is.
+ */
+function useAddressedRequest(
+  actions: readonly RequiredAction[],
+  resources: readonly Resource[],
+  setOpen: (id: string | null) => void,
+) {
+  const named = useAddressed(REQUEST)
+  const handled = useRef(-1)
+  useEffect(() => {
+    if (handled.current === named.seq || !named.id) return
+    // By the request and its resource when the address names both (Codex on #245).
+    const { resourceId, requestId } = requestOf(named.id)
+    const action = actions.find((a) => a.id === requestId && (resourceId === null || a.resourceId === resourceId))
+    if (!action || !resources.some((r) => r.id === action.resourceId)) return
+    handled.current = named.seq
+    setOpen(action.resourceId)
+    showInAddress(action.resourceId)
+    requestAnimationFrame(() => focusRequest(action.id))
+  }, [named, actions, resources, setOpen])
+}
+
 export function ResourcePanel(given: Props) {
   const now = useViewClock(given)
   const props = { ...given, now }
   const { resources, observations, actions, viewerId } = props
   // The address's resource is kept until the resources are read; it opens when it is among them.
   const [open, setOpen] = useState<string | null>(() => linkedId(window.location.hash))
+  useAddressedRequest(actions, resources, setOpen)
   const selected = resources.find((r) => r.id === open)
   const show = (id: string | null) => {
     setOpen(id)

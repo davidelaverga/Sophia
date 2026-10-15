@@ -249,6 +249,101 @@ describe('member invitations', () => {
   })
 })
 
+describe('member invitations waiting in the app (A16)', () => {
+  // The person an invitation is for sees it where they are, signed in with that address, and accepts it there: the
+  // same acceptance as the link's, so every check holds (the address, closed, used up, already a member).
+  const inbox = async (sub: string, email: string) => {
+    const res = await call('/api/v1/me/invitations', { method: 'GET', bearer: await token(sub, { email }) })
+    return { status: res.status, list: (res.json as { invitations?: Record<string, unknown>[] } | null)?.invitations }
+  }
+  const accept = async (sub: string, email: string, id: string) =>
+    call(`/api/v1/invitations/${id}/accept`, { bearer: await token(sub, { email }) })
+
+  it('lists what waits for the signed-in address, with no link in it, and accepts it there', async () => {
+    const created = parseInvitation(
+      (await invite(A, { kind: 'member', role: 'viewer', email: 'nina@example.com' })).json,
+    )
+    const N = randomUUID()
+    const mine = await inbox(N, 'Nina@Example.com')
+    assert.equal(mine.status, 200)
+    assert.equal(mine.list?.length, 1)
+    const [waiting] = mine.list ?? []
+    assert.deepEqual(
+      { ...waiting, expiresAt: Date.parse(String(waiting?.expiresAt)) },
+      {
+        id: created.id,
+        projectId: seed.projectId,
+        projectTitle: 'Founders',
+        inviter: `${A.slice(0, 8)}@sophia.test`,
+        role: 'viewer',
+        expiresAt: Date.parse(created.expiresAt),
+      },
+    )
+    assert.deepEqual((await inbox(randomUUID(), 'someone.else@example.com')).list, [])
+    const stranger = await accept(randomUUID(), 'someone.else@example.com', created.id)
+    assert.deepEqual([stranger.status, (stranger.json as { code?: string }).code], [422, 'not_found'])
+    const joined = await accept(N, 'nina@example.com', created.id)
+    assert.deepEqual([joined.status, joined.json], [200, { projectId: seed.projectId }])
+    const me = parseMembership(
+      (await call(`/api/v1/projects/${seed.projectId}/membership`, { method: 'GET', bearer: await token(N) })).json,
+    )
+    assert.deepEqual(me, { actorId: N, role: 'viewer' })
+    assert.deepEqual((await inbox(N, 'nina@example.com')).list, [])
+    // A retry after a lost reply is answered as the link's is: the same project, not «not found» (Codex P2 on #332).
+    const again = await accept(N, 'nina@example.com', created.id)
+    assert.deepEqual([again.status, again.json], [200, { projectId: seed.projectId }])
+  })
+
+  it('shows no closed invitation, and a guest has none', async () => {
+    const created = parseInvitation(
+      (await invite(A, { kind: 'member', role: 'editor', email: 'rita@example.com' })).json,
+    )
+    await call(`/api/v1/invitations/${created.id}/revoke`, { bearer: await token(A), body: {} })
+    const R = randomUUID()
+    assert.deepEqual((await inbox(R, 'rita@example.com')).list, [])
+    // Closed, it is said closed, as the link says it (409), not unknown.
+    assert.equal((await accept(R, 'rita@example.com', created.id)).status, 409)
+    const guest = await call('/api/v1/me/invitations', { method: 'GET', bearer: await guestToken(randomUUID()) })
+    assert.equal(guest.status, 403)
+  })
+})
+
+describe('the invitations list', () => {
+  // Who manages invitations reads them; anyone else is refused as every project read refuses them, not answered an
+  // empty list (e2e-real S3): a viewer, an outsider, and a project that does not exist.
+  const list = async (actor: string, projectId = seed.projectId) =>
+    (await call(`/api/v1/projects/${projectId}/invitations`, { method: 'GET', bearer: await token(actor) })).status
+  it('is read by its admin and editors, and refused to a viewer, an outsider and a project that does not exist', async () => {
+    assert.deepEqual(
+      [await list(A), await list(B), await list(V), await list(randomUUID()), await list(A, randomUUID())],
+      [200, 200, 403, 403, 403],
+    )
+  })
+})
+
+describe('who wrote in the room, as the room shows it (e2e chat «A member»)', () => {
+  // A message keeps its author's name from the token that wrote it, so a chat read outside a call names its author;
+  // the client cannot name itself (the request has no such field).
+  const said = (actor: string, body: Record<string, unknown>) =>
+    token(actor).then((bearer) =>
+      call(`/api/v1/projects/${seed.projectId}/contributions`, {
+        bearer,
+        key: true,
+        body: { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', ...body },
+      }),
+    )
+  it('keeps the author’s name with the message, and refuses a name sent by the client', async () => {
+    assert.equal((await said(B, { text: 'Can we start with the checklist?' })).status, 202)
+    const snap = await call(`/api/v1/projects/${seed.projectId}/snapshot`, { method: 'GET', bearer: await token(A) })
+    const entries = (
+      snap.json as { discussion: { actorId: string; text: string | null; authorName?: string | null }[] }
+    ).discussion
+    const mine = entries.find((e) => e.text === 'Can we start with the checklist?')
+    assert.deepEqual([mine?.actorId, mine?.authorName], [B, `${B.slice(0, 8)}@sophia.test`])
+    assert.equal((await said(B, { text: 'Spoofed', authorName: 'Luis' })).status, 422)
+  })
+})
+
 describe('sessions and membership', () => {
   it('put a start on the room calendar, in a real time zone', async () => {
     const startsAt = new Date(Date.now() + 86_400_000).toISOString()

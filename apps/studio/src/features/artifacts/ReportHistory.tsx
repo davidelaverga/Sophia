@@ -9,7 +9,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import type { ArtifactVersion } from '@sophia/contracts'
-import { Tag } from '@sophia/ui'
+import { ReadNote, Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { loadReportText } from './download.ts'
 import { compareSections, type SectionChange } from './markdown.ts'
@@ -27,7 +27,7 @@ interface Props {
 export function ReportHistory({ identity, versions, shown, onShow }: Props) {
   const [compare, setCompare] = useState<{ older: ArtifactVersion; newer: ArtifactVersion } | null>(null)
   const list = useRef<HTMLOListElement>(null)
-  if (!versions) return <p className="muted">Loading the history…</p>
+  if (!versions) return <ReadNote>Loading the history…</ReadNote>
   const close = (newer: string) => {
     setCompare(null)
     list.current?.querySelector<HTMLElement>(`[data-compare="${newer}"]`)?.focus()
@@ -177,7 +177,7 @@ function Comparison({ identity, older, newer, onClose }: CompareProps) {
         </button>
       </header>
       {change.isError && <p className="muted">The versions couldn’t be compared. Try again in a moment.</p>}
-      {change.isPending && <p className="muted">Comparing…</p>}
+      {change.isPending && <ReadNote>Comparing…</ReadNote>}
       {change.data && <ChangeLists change={change.data} />}
     </section>
   )

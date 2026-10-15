@@ -5561,6 +5561,18 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "description": "1 to read the authors' names (authorName, proposedByName, decidedByName); without it they are left out, so a reader from before them reads what it always read.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
           }
         ],
         "responses": {
@@ -12813,6 +12825,257 @@
         "x-sophia-implementation": "implemented",
         "x-sophia-release-goal": "SDD-01"
       }
+    },
+    "/api/v1/me/needs": {
+      "get": {
+        "operationId": "listNeeds",
+        "tags": [
+          "personal"
+        ],
+        "summary": "What needs the calling person now, across the projects they belong to and their personal space: decisions waiting on them (with their expiry), native permissions agents ask of them, guests waiting in lobbies they admit to, Sophia's replies they have not read. Owner-only: built from the person's own memberships and space; nothing of another person is in it. A need leaves the list when its record is answered where it lives.",
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeedList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (a guest has no needs of their own)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "F2"
+      }
+    },
+    "/api/v1/me/needs/{id}/seen": {
+      "post": {
+        "operationId": "markNeedSeen",
+        "tags": [
+          "personal"
+        ],
+        "summary": "The calling person has seen this need. For a reply (ref.kind personal_turn) it advances their last seen personal turn to the one named, so the reply leaves the list: a reply opens the personal space, where every turn since the last seen is shown, so seeing one is seeing those before it; the mark only moves forward (a turn before the mark changes nothing), and replies after the one named stay listed. For any other kind it answers 204 and changes nothing (those leave when their record is answered). Owner-only and idempotent.",
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "description": "The need's id (`<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`)."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Seen (or nothing to mark for this kind)"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (a guest has no needs of their own)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such need for this person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "F2"
+      }
+    },
+    "/api/v1/me/invitations": {
+      "get": {
+        "operationId": "listPendingInvitations",
+        "tags": [
+          "rooms"
+        ],
+        "summary": "The member invitations waiting for the calling person, by the address they signed in with: open, usable, in projects they are not already in. No link and no token.",
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingInvitationList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted (a guest has no invitations of their own)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "E2E"
+      }
+    },
+    "/api/v1/invitations/{invitationId}/accept": {
+      "post": {
+        "operationId": "acceptPendingInvitation",
+        "tags": [
+          "rooms"
+        ],
+        "summary": "The calling person accepts a member invitation waiting for them (one of listPendingInvitations), with the same checks as accepting by the link.",
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "invitationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationAccepted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not permitted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Closed or used up",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "No such invitation for this person, or the request fails the declared schema",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Dependent service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-sophia-implementation": "contract_only",
+        "x-sophia-release-goal": "E2E"
+      }
     }
   },
   "components": {
@@ -15903,6 +16166,19 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "authorName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
           }
         },
         "required": [
@@ -17251,6 +17527,19 @@
                 "type": "null"
               }
             ]
+          },
+          "authorName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
           }
         },
         "required": [
@@ -17442,6 +17731,32 @@
           "sha256": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "proposedByName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who proposed it, as their account named them then; null when unknown."
+          },
+          "decidedByName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who decided it, as their account named them then; null while undecided or when unknown."
           }
         },
         "required": [
@@ -28300,6 +28615,242 @@
           "contrast"
         ],
         "description": "One label a tooltip, an accessible name or an ID reference rests on (data-sophia-shown), or an element inside one that holds text, measured as a block is (#117, CX-0037)."
+      },
+      "Need": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One thing that needs the calling person, where it lives.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 600,
+            "description": "Stable for the record it names, and unique across the person's needs: `<kind>:<projectId, or personal>:<ref.within, or ->:<ref.id>`. A13 bounds a wait's reference only by length, so two projects (or two work items) may hold the same one: the project and the holder are part of the id."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "decision",
+              "permission",
+              "guest",
+              "reply"
+            ],
+            "description": "What it is. A review asked of a person is not in this amendment: A11 keeps verdicts, not requests; the kind joins when a request record exists."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1200,
+            "description": "What it is about, in the record's own words, whole: a decision's statement is up to 1200 characters (A13 WorkDecision.question), what the agent asks to do, the report's title, the guest's name, the first words of Sophia's reply. The Studio cuts a long one for the eye; the record keeps it."
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project it is in; null for the personal space (a reply)."
+          },
+          "projectTitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When it stops waiting: a decision's expiry (WorkDecision.expires_at); null for the rest (a wait, a guest and a reply have none)."
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A word on it when nothing expires: how long a permission or a guest has waited (`Asked 10 min ago`, `Waiting 2 min`)."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it came to need the person: the proposal, the ask, the knock, the reply. For a permission, when its wait was opened: A13's WorkWait keeps no time, so the service records it (`opened_at` beside the wait, with this route's implementation)."
+          },
+          "ref": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "The record it names, so the Studio opens that one and never guesses.",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "work_decision",
+                  "work_wait",
+                  "lobby_entry",
+                  "personal_turn"
+                ],
+                "description": "The record family: a decision of the work board (WorkDecision: it has a decider and an expiry, and Tasks renders it), a work item's wait (WorkWait, by its own reference: one work item may hold several), a lobby entry, a personal turn."
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "within": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The record that holds it, when the Studio's address needs it: a decision's or a wait's work item (work_decision, work_wait). Null otherwise."
+              },
+              "resourceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The resource whose native tool holds a wait's request (work_wait of kind native_permission: A13's reference_id names the request, this names the resource it was made on), so the Studio opens the request in Resources, where its owner finds how to answer it and the tool's own link. Null otherwise."
+              }
+            },
+            "required": [
+              "kind",
+              "id",
+              "within",
+              "resourceId"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "projectId",
+          "projectTitle",
+          "expiresAt",
+          "detail",
+          "at",
+          "ref"
+        ]
+      },
+      "NeedList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "needs": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/Need"
+            },
+            "description": "In no promised order; the Studio sorts by urgency (the expiring first, soonest first). At most 200: a person with more gets the 200 most urgent by the service's own order (the expiring first, soonest first; then the rest, newest first), always the same 200 for the same records; the rest stand where they live (each project's board, lobby and the personal space). No cursor: what needs a person is a list they act on, and 200 is far past one; a longer read is a later amendment's."
+          },
+          "readAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The service's clock when it answered: expiries are compared against it, never against the reader's clock."
+          }
+        },
+        "required": [
+          "needs",
+          "readAt"
+        ]
+      },
+      "PendingInvitation": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "A member invitation waiting for the calling person (A16). No link and no token: it is accepted by its id.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "projectTitle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "inviter": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who invited, as their account names them (an address when it has no other name)."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "editor",
+              "viewer"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "projectTitle",
+          "inviter",
+          "role",
+          "expiresAt"
+        ]
+      },
+      "PendingInvitationList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/PendingInvitation"
+            }
+          }
+        },
+        "required": [
+          "invitations"
+        ]
       }
     }
   }

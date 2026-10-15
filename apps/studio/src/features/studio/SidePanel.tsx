@@ -2,8 +2,7 @@
 // from the stage's corner and closed from the panel's own header (or Esc). Both stay mounted while hidden, so an
 // unsent message or a brief edit in progress is never lost. On a phone the panel covers the room.
 import { useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { Icon, Tip, type IconName } from '@sophia/ui'
-import { nextInRow } from '../../app/roving.ts'
+import { Icon, Tabs, Tip, type IconName } from '@sophia/ui'
 import { ShortcutScope } from '../../app/shortcuts.ts'
 import { changedUnseen, focusOnOpen, focusStep, isNew, PANEL_TITLE, PANELS, seenNow, type Panel } from './side-panel.ts'
 
@@ -148,35 +147,18 @@ export function SidePanel({ open, opener, onOpen, chat, brief, call, note }: Pan
 
 /** The panel's tabs (arrow keys move between them) and its Close. */
 function PanelHead({ open, onOpen }: Pick<PanelProps, 'open' | 'onOpen'>) {
-  const tabs = useRef(new Map<Panel, HTMLButtonElement>())
-  const onTabKey = (e: React.KeyboardEvent) => {
-    const next = open ? nextInRow(PANELS, open, e.key) : null
-    if (!next) return
-    e.preventDefault()
-    onOpen(next)
-    tabs.current.get(next)?.focus()
-  }
   return (
     <header className="side-panel-head">
-      <div className="side-tabs" role="tablist" aria-label="Side panel" onKeyDown={onTabKey}>
-        {PANELS.map((p) => (
-          <button
-            key={p}
-            ref={(el) => {
-              if (el) tabs.current.set(p, el)
-            }}
-            type="button"
-            role="tab"
-            id={`side-tab-${p}`}
-            aria-selected={open === p}
-            aria-controls={`side-${p}`}
-            tabIndex={open === p ? 0 : -1}
-            onClick={() => onOpen(p)}
-          >
-            {PANEL_TITLE[p]}
-          </button>
-        ))}
-      </div>
+      {open && (
+        <Tabs
+          label="Side panel"
+          className="side-tabs"
+          items={PANELS.map((p) => ({ id: p, label: PANEL_TITLE[p], controls: `side-${p}` }))}
+          value={open}
+          onChange={onOpen}
+          idFor={(p) => `side-tab-${p}`}
+        />
+      )}
       <button type="button" className="round has-tip" aria-label="Close" onClick={() => onOpen(null)}>
         <Icon name="close" />
         <Tip label="Close" keys="Esc" side="bottom" align="end" />

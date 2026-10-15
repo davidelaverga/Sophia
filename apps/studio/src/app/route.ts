@@ -6,9 +6,18 @@
 export const VIEWS = ['studio', 'conversations', 'goals', 'work', 'knowledge', 'updates', 'resources'] as const
 export type View = (typeof VIEWS)[number]
 
-/** The views a project's nav shows: Conversations only under the vision flag (Davide's chapter 2, A18 proposed). */
+/**
+ * Views not served yet outside the vision flag: Conversations (A18, Davide's chapter 2), Updates (A12/A13) and Resources
+ * (the resources' API). Under the flag (the demo, the fixtures) they show from their fixture data.
+ */
+const UNSERVED: readonly View[] = ['conversations', 'updates', 'resources']
+
+/** The views a project's nav shows: only the served ones, every one under the vision flag (docs/plans/served-views.md). */
 export const viewsShown = (vision: boolean): readonly View[] =>
-  vision ? VIEWS : VIEWS.filter((v) => v !== 'conversations')
+  vision ? VIEWS : VIEWS.filter((v) => !UNSERVED.includes(v))
+
+/** The view an address opens: itself when shown, else the project's Studio, never a «Coming» page. */
+export const shownView = (view: View, vision: boolean): View => (viewsShown(vision).includes(view) ? view : 'studio')
 
 /** Outside a project: the two doors (home), the personal space and the work space (A10, direction C). */
 export const PLACES = ['home', 'personal', 'work'] as const
@@ -56,6 +65,16 @@ export function parseRoute(pathname: string): Route {
   return isPlace(place) ? { ...HOME, place } : HOME
 }
 
+/**
+ * Whether an address is this project's to edit: its path names the project, or names none (a fixture page, which has no
+ * project in its path). Another project's address is left alone (Codex on #242: a shell leaving the address must not
+ * strip the lens of the project Back or Forward went to).
+ */
+export function pathIsFor(pathname: string, projectId: string): boolean {
+  const named = parseRoute(pathname).projectId
+  return named === null || named === projectId.toLowerCase()
+}
+
 export function routePath({ projectId, view, place }: { projectId: string | null; view: View; place?: Place }): string {
   if (projectId) return `/p/${projectId}/${view}`
   return !place || place === 'home' ? '/' : `/${place}`
@@ -75,3 +94,6 @@ export const joinStands = (joining: string | null, onScreen: string | null): str
  */
 export const projectOnScreen = (asked: string | null, calling: string | null): string | null =>
   asked !== null && calling !== null && asked !== calling ? calling : asked
+
+/** Said on the window after the app moves the address itself (`useProjectRoute.go`): what mirrors it writes again. */
+export const ADDRESS_MOVED = 'sophia:address-moved'

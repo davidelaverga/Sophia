@@ -2,12 +2,14 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { PersonalTurn } from '@sophia/contracts'
 import {
+  askAbout,
   conversationRows,
   dayLabel,
   daysOf,
   heard,
   introText,
   notePrefill,
+  opensHere,
   opensWithIntro,
   topicOf,
   type ConversationInput,
@@ -180,6 +182,24 @@ describe('conversationRows', () => {
   })
 })
 
+describe('askAbout (docs/plans/find-ask-sophia.md)', () => {
+  it('asks Sophia about the words looked for, as typed and trimmed', () => {
+    assert.equal(askAbout('  vacation '), 'What did I tell you about vacation?')
+    assert.equal(askAbout('the Porto trip'), 'What did I tell you about the Porto trip?')
+  })
+})
+
+describe('opensHere (docs/plans/personal-first-talk.md)', () => {
+  it('holds while the rows offer the ways to start, and not once something is said', () => {
+    assert.equal(opensHere(conversationRows(input([], { fromTheStart: true }))), true)
+    const said = [
+      turn('person', 'Today I want to plan the week.', at(0, 9)),
+      turn('sophia', 'Where to start?', at(0, 9, 1)),
+    ]
+    assert.equal(opensHere(conversationRows(input(said, { fromTheStart: true }))), false)
+  })
+})
+
 describe('the words around the conversation', () => {
   it('names a day by what was talked about, and a message by its topic', () => {
     const turns = [
@@ -191,10 +211,27 @@ describe('the words around the conversation', () => {
       daysOf(conversationRows(input(turns))).map((d) => [d.label, d.topics]),
       [
         ['Yesterday', 'the pitch · sleep'],
-        ['Today', 'weekend plans with…'],
+        ['Today', 'Weekend plans with…'],
       ],
     )
     assert.equal(topicOf('Just talk'), 'a chat')
+  })
+
+  it('quotes your words as you wrote them, to the first sentence (docs/plans/personal-day-menu.md)', () => {
+    assert.equal(topicOf('Davide and I disagreed about the pricing tiers.'), 'Davide and I…')
+    assert.equal(topicOf('Starting over. Today I want to plan the week calmly.'), 'Starting over')
+    // A topic Sophia names stays as she names it.
+    assert.equal(topicOf('I cannot sleep'), 'sleep')
+    // A colon or a semicolon goes on with the sentence (Codex on #291).
+    assert.equal(topicOf('Today: plan the week calmly'), 'Today plan the…')
+  })
+
+  it('lists a day’s topic once, whatever its case (Codex on #291)', () => {
+    const turns = [turn('person', 'Roadmap timing', at(0, 9)), turn('person', 'roadmap timing', at(0, 10))]
+    assert.deepEqual(
+      daysOf(conversationRows(input(turns))).map((d) => d.topics),
+      ['Roadmap timing'],
+    )
   })
 
   it('prefills a note with Sophia’s suggestion when there is one, else the words, cut short', () => {

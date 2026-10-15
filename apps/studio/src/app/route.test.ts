@@ -5,9 +5,11 @@ import {
   joinStands,
   opensJoinPage,
   parseRoute,
+  pathIsFor,
   PLACES,
   projectOnScreen,
   routePath,
+  shownView,
   VIEWS,
   viewsShown,
 } from './route.ts'
@@ -67,10 +69,25 @@ describe('the project on screen', () => {
   })
 })
 
-describe('viewsShown', () => {
-  it('shows Conversations only under the vision flag', () => {
-    assert.ok(viewsShown(true).includes('conversations'))
-    assert.ok(!viewsShown(false).includes('conversations'))
-    assert.equal(viewsShown(false).length, VIEWS.length - 1)
+describe('viewsShown (docs/plans/served-views.md)', () => {
+  it('shows only the served views without the vision flag, and all of them under it', () => {
+    assert.deepEqual(viewsShown(false), ['studio', 'goals', 'work', 'knowledge'])
+    assert.deepEqual(viewsShown(true), VIEWS)
+  })
+
+  it('opens the Studio for an address to a view not shown', () => {
+    assert.equal(shownView('knowledge', false), 'knowledge')
+    assert.equal(shownView('updates', false), 'studio')
+    assert.equal(shownView('resources', false), 'studio')
+    assert.equal(shownView('updates', true), 'updates')
+  })
+})
+
+describe('whose address it is (Codex on #242)', () => {
+  it('is a project’s when its path names it, or names no project (a fixture page); another project’s is not', () => {
+    assert.equal(pathIsFor(`/p/${P}/studio`, P), true)
+    assert.equal(pathIsFor(`/p/${P.toUpperCase()}/work`, P), true)
+    assert.equal(pathIsFor('/room.html', P), true)
+    assert.equal(pathIsFor('/p/00000000-0000-4000-8000-0000000000ff/studio', P), false)
   })
 })

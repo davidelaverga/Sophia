@@ -1,7 +1,7 @@
 // The mission ledger for members (contract amendment A08). One read, the same MissionContext the voice guide's
 // project_status uses; writes under the member's own identity, each idempotent per member and Idempotency-Key and
 // answered with a receipt. A stale revision is a 409, never a silent overwrite. Nothing here reaches a model.
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import type {
   MissionCorrectionRequest,
@@ -21,6 +21,7 @@ import {
   recordMissionEntry,
   setMissionNoteConsent,
   setMissionNotePolicy,
+  nameActor,
   withActor,
   withdrawMissionEntry,
 } from '@sophia/persistence'
@@ -48,12 +49,23 @@ interface Deps {
   pool: pg.Pool
 }
 
-async function readContext(pool: pg.Pool, actorId: string, projectId: string) {
+async function readContext(pool: pg.Pool, actorId: string, projectId: string, names = false) {
   const context = await withActor(pool, actorId, 'read', (c) =>
-    readMissionContext(c, projectId, { actorId, channel: 'studio' }),
+    readMissionContext(c, projectId, { actorId, channel: 'studio', names }),
   )
   if (!context) throw new DomainError('forbidden', 'Not permitted')
   return context
+}
+
+/**
+ * A brief write as the member, named from their own token so the note, proposal or decision keeps who wrote it
+ * (0049); the request never names anyone.
+ */
+function asMember<T>(pool: pg.Pool, req: FastifyRequest, write: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  return withActor(pool, req.actorId, 'write', async (c) => {
+    await nameActor(c, req.actorName)
+    return write(c)
+  })
 }
 
 function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
@@ -61,7 +73,7 @@ function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
     '/api/v1/projects/:projectId/mission/entries',
     { schema: writeSchema(projectParams, 'MissionEntryRequest') },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         recordMissionEntry(c, req.params.projectId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
@@ -77,7 +89,7 @@ function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
     { schema: writeSchema(withId('entryId'), 'MissionCorrectionRequest') },
     async (req, reply) => {
       const write = { ...req.body, correctsEntryId: req.params.entryId }
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         recordMissionEntry(c, req.params.projectId, req.headers['idempotency-key'], write),
       )
       return reply.status(202).send(receipt)
@@ -116,7 +128,7 @@ function proposalRoutes(app: FastifyInstance, { pool }: Deps): void {
     '/api/v1/projects/:projectId/mission/proposals',
     { schema: writeSchema(projectParams, 'MissionProposalRequest') },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         proposeMissionChange(c, req.params.projectId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
@@ -132,7 +144,7 @@ function proposalRoutes(app: FastifyInstance, { pool }: Deps): void {
     { schema: writeSchema(withId('proposalId'), 'MissionDecisionRequest') },
     async (req, reply) => {
       const { projectId, proposalId } = req.params
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         decideMissionChange(c, projectId, proposalId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
@@ -175,12 +187,22 @@ function policyRoutes(app: FastifyInstance, { pool }: Deps): void {
   )
 }
 
+/**
+ * `names=1`: the reader reads the authors' names (A18). A Studio still open from before asks without it and reads the
+ * brief it always read, since its validator refuses a property it doesn't know (Codex P1 on #336).
+ */
+const NAMES_QUERY = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { names: { type: 'string', enum: ['1'] } },
+} as const
+
 /** getMission and the mission writes (A08). */
 export function missionRoutes(app: FastifyInstance, deps: Deps): void {
-  app.get<{ Params: { projectId: string } }>(
+  app.get<{ Params: { projectId: string }; Querystring: { names?: '1' } }>(
     '/api/v1/projects/:projectId/mission',
-    { schema: { params: projectParams, response: { 200: { $ref: 'MissionContext#' } } } },
-    async (req) => readContext(deps.pool, req.actorId, req.params.projectId),
+    { schema: { params: projectParams, querystring: NAMES_QUERY, response: { 200: { $ref: 'MissionContext#' } } } },
+    async (req) => readContext(deps.pool, req.actorId, req.params.projectId, req.query.names === '1'),
   )
   entryRoutes(app, deps)
   proposalRoutes(app, deps)

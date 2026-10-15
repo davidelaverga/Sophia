@@ -1,4 +1,5 @@
-// A menu or a small popover under the control that opens it (the account, who can see a place, the earlier days).
+// A menu or a small popover under the control that opens it (the account, who can see a place, the earlier days): the
+// kit's `Menu` is its panel when it is a menu; a popover that is not one (the privacy chip's answer) draws its own.
 // While it is open, a press anywhere outside it closes it; Escape inside it closes it and gives the focus back to that
 // control; Up and Down move through a menu's items. On opening, its first item takes the focus. A menu's items are
 // reached by the arrows, not by Tab: Tab closes the menu and goes on from its control, as if it had never opened (a
@@ -60,3 +61,6 @@ export function usePopover(open: boolean, close: () => void) {
   }
   return { wrap, panel, opener, onKeyDown }
 }
+
+/** What the hook gives: the control's wrap, the panel, the control itself, and the keys the panel takes. */
+export type Popover = ReturnType<typeof usePopover>

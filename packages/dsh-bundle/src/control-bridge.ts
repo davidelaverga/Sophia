@@ -24,6 +24,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
+import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
 import type { Agent, AgentHandle, AgentOptions, AgentSetup } from '@deepseek-ai/dsh-agent'
 // Type-only: brings the `ctx.agentDefaultModel` Context augmentation into scope.
 import type {} from '@deepseek-ai/dsh-agent-default-model'
@@ -1061,13 +1062,79 @@ export class ControlBridge {
     }
     const agent = this.agentOf(attempt)
     if (attempt.fence === 'stopped') throw new ProtocolError('the attempt is stopped; a stopped native session is never resumed')
-    const seq = this.append(attempt, command, null, null)
     const wasHeld = attempt.fence === 'held'
+    // Hold can interrupt already-consumed work with no message left in the inbox.
+    // Native cancellation does not retain a wake for that work. Continue only a
+    // turn the native log says our Hold aborted; a completed/failed idle turn is
+    // not new work. The command's ordinary durable delivery handles crash replay.
+    const ended = foldConsumedWork(agent.session.snapshotEvents()).end?.data.reason
+    const empty = attempt.stash.length + agent.inbox.nextStep.length + agent.inbox.nextTurn.length === 0
+    const heldWork = wasHeld && empty && ended?.kind === 'aborted' && ended.reason.kind === 'hook' && ended.reason.reason === 'sophia-hold'
+    if (heldWork || attempt.unsettled.get(command.commandId)?.messageId) {
+      return this.deliverTo(attempt, agent, command, 'next-turn', 'The owner resumed this held task. Continue the interrupted work from its retained history and current state, within the existing task scope and allowance. Check what already completed before taking further action.')
+    }
+    const seq = this.append(attempt, command, null, null)
     if (wasHeld) this.setFence(attempt, 'active', command)
     // Also completes a Resume that a restart cut short after lifting the fence.
     this.redeliverStash(attempt, agent, command.commandId)
     if (wasHeld) this.rewakePending(agent)
+    await this.recoverInterruptedResume(attempt, agent)
     return [this.record(attempt, command, 'delivered', seq, await this.settled(attempt, agent, command))]
+  }
+
+  /** Recover only an unfinished Hold-created continuation, not unrelated work. */
+  private async recoverInterruptedResume(attempt: AttemptState, agent: Agent): Promise<void> {
+    if (attempt.fence !== 'active' || attempt.stash.length || agent.inbox.nextStep.length || agent.inbox.nextTurn.length) return
+    const events = agent.session.snapshotEvents()
+    const end = foldConsumedWork(events).end
+    if (end?.data.reason.kind !== 'interrupted') return
+    const records = this.journal.read(attempt.sessionId)
+    const commands = foldLog(records, events).commands
+    const recoveries = records.filter((r) => r.type === 'sophia/resume-recovery')
+    const present = this.nativeMessageIds(agent)
+    const start = events.findLastIndex((e) => e.type === 'turn/start' && (e.data as { turn: number }).turn === end.data.turn)
+    if (start < 0) return
+    const consumed = new Set(events.slice(start).filter((e) => e.seq <= end.seq && e.type === 'user/message').map((e) => (e.data as { id: string }).id))
+    // The turn may crash after claiming its inbox, before user/message is
+    // appended. Read the native durable splices to identify that claim too.
+    const inbox: Record<DeliveryTarget, string[]> = { 'next-turn': [], 'next-step': [] }
+    for (const event of events) {
+      if (event.seq > end.seq) break
+      if (event.type !== 'agent/inbox/spliced') continue
+      const data = event.data as { target: DeliveryTarget; start: number; removedCount?: number; inserted: UserMessage[]; outcome?: string }
+      const removed = inbox[data.target].splice(data.start, data.removedCount ?? 0, ...data.inserted.map((m) => m.id))
+      if (event.seq >= events[start]!.seq && data.outcome !== 'canceled') for (const id of removed) consumed.add(id)
+    }
+    const owned = new Map<string, string>()
+    for (const [id, entry] of commands) {
+      if (entry.kind === 'resume' && entry.messageId && (entry.settled || present.has(entry.messageId))) owned.set(entry.messageId, id)
+    }
+    for (const record of records) {
+      if (record.type === 'sophia/resume-recovery') owned.set(record.data.message.messageId, record.data.commandId)
+      if (record.type === 'sophia/unstash') record.data.messages?.forEach((message, index) => {
+        const owner = owned.get(record.data.messageIds[index]!)
+        if (owner) owned.set(message.messageId, owner)
+      })
+    }
+    let commandId = [...owned].find(([id]) => consumed.has(id))?.[1]
+    // A crash between the recovery journal and delivery leaves the same
+    // interrupted ending. Reuse that pending identity, never an older one
+    // abandoned before some later completed/error/blocked turn.
+    const pending = recoveries.findLast((r) => r.data.afterNativeSeq === end.seq && !present.has(r.data.message.messageId))
+    if (!commandId && pending) commandId = pending.data.commandId
+    if (!commandId) return
+    let message: UserMessage
+    if (pending?.data.commandId === commandId) {
+      message = { ...createUserMessage({ content: [...pending.data.message.content], source: { kind: 'user' } }), id: pending.data.message.messageId as UserMessage['id'] }
+    } else {
+      message = createUserMessage({ content: [{ type: 'text', text: 'The runtime restarted while continuing the task the owner resumed. Continue that interrupted work from its retained history and current state, within the existing scope and allowance. Check completed actions and uncertain effects before acting again.' }], source: { kind: 'user' } })
+      this.journal.append(attempt.sessionId, 'sophia/resume-recovery', {
+        attemptId: attempt.attemptId, commandId, afterNativeSeq: end.seq,
+        message: { messageId: message.id, target: 'next-turn', content: [...message.content] },
+      })
+    }
+    agent.followup(message)
+    await this.ctx.sessions.flush(agent.session)
   }
 
   /**
@@ -1094,15 +1161,21 @@ export class ControlBridge {
     if (attempt.stash.length === 0) return
     const stash = attempt.stash
     attempt.stash = []
-    const sent = stash.map((held) => ({ held, message: createUserMessage({ content: [...held.content], source: { kind: 'user' } }) }))
+    const sent = stash.map((held) => {
+      const message = createUserMessage({ content: [...held.content], source: { kind: 'user' } })
+      // An unsettled Resume owns this identity. Keep it across an unstash so
+      // replay can find the same native effect, including after another crash.
+      const resumeOwner = [...attempt.unsettled].find(([, entry]) => entry.kind === 'resume' && entry.messageId === held.messageId)?.[0]
+      return { held, message: resumeOwner ? { ...message, id: held.messageId as UserMessage['id'] } : message, resumeOwner }
+    })
     this.journal.append(attempt.sessionId, 'sophia/unstash', {
       attemptId: attempt.attemptId,
       commandId,
       messageIds: stash.map((m) => m.messageId),
       messages: sent.map(({ held, message }) => ({ messageId: message.id, target: held.target, content: [...held.content] })),
     })
-    for (const { held, message } of sent) {
-      const owner = attempt.pendingIncorporation.get(held.messageId)
+    for (const { held, message, resumeOwner } of sent) {
+      const owner = attempt.pendingIncorporation.get(held.messageId) ?? resumeOwner
       if (owner) {
         attempt.pendingIncorporation.delete(held.messageId)
         attempt.pendingIncorporation.set(message.id, owner)
@@ -1125,9 +1198,20 @@ export class ControlBridge {
   private async deliverTo(attempt: AttemptState, agent: Agent, command: RuntimeCommand, target: DeliveryTarget, text: string): Promise<RuntimeReceipt[]> {
     const replay = attempt.unsettled.get(command.commandId)
     if (replay?.messageId) {
-      if (this.nativeMessageIds(agent).has(replay.messageId)) {
+      // A held service binding may have moved the durable continuation into
+      // the bridge stash on restart. Recover it before looking in native state;
+      // otherwise a replacement leaves the original waiting to run again.
+      if (command.kind === 'resume' && attempt.stash.length > 0) {
+        if (attempt.fence === 'held') this.setFence(attempt, 'active', command)
+        this.redeliverStash(attempt, agent, command.commandId)
+      }
+      if (this.nativeMessageIds(agent).has(replay.messageId) || (command.kind === 'resume' && attempt.pendingIncorporation.get(replay.messageId) === command.commandId)) {
         // Re-execution after a restart: dsh already holds the message. Settle; never send it twice.
         const seq = this.append(attempt, command, { id: replay.messageId, content: replay.content ?? [] }, replay.target)
+        if (command.kind === 'resume') {
+          if (attempt.fence === 'held') this.setFence(attempt, 'active', command)
+          this.rewakePending(agent)
+        }
         return [this.record(attempt, command, 'delivered', seq, await this.settled(attempt, agent, command), 'redelivered after a restart; dsh already held the message')]
       }
       attempt.pendingIncorporation.delete(replay.messageId)
@@ -1137,6 +1221,7 @@ export class ControlBridge {
     // Journal first (fsynced), then hand to the native inbox, then flush its
     // splice: the receipt says `delivered` only once both are durable.
     const seq = this.append(attempt, command, message, target)
+    if (command.kind === 'resume' && attempt.fence === 'held') this.setFence(attempt, 'active', command)
     attempt.targets.set(message.id, target)
     attempt.pendingIncorporation.set(message.id, command.commandId)
     if (target === 'next-step') agent.steer(message)
@@ -1285,6 +1370,7 @@ export class ControlBridge {
         this.rewakePending(agent)
         await this.ctx.sessions.flush(agent.session)
       }
+      await this.recoverInterruptedResume(attempt, agent)
       this.settings.log(`reconciled ${binding.attemptId}: fence=${attempt.fence} commands=${attempt.receipts.size} unsettled=${attempt.unsettled.size} stash=${attempt.stash.length}`)
       return null
     } catch (error) {

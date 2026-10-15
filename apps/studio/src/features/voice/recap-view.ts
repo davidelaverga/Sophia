@@ -32,6 +32,8 @@ export interface RecapLine {
   text: string
   /** Who and how, in a few words: "proposed by Marco, decided by you", "asked by you", "your note". */
   by: string
+  /** Where the line lives, for a press from Updates: the brief, or the task in Tasks; what was made opens itself. */
+  to?: 'brief' | 'task'
 }
 
 export interface RecapSection {
@@ -50,15 +52,25 @@ export type Records = Pick<MeetingRecap, 'decided' | 'made' | 'noted' | 'open' |
 /** Work not finished yet: queued or running. */
 export const ongoing = (state: string): boolean => state === 'pending' || state === 'running'
 
-/** `closed`: the recap is the record at close, so work running then is said as such, never as done. */
-export function recapSections(recap: Records, nameOf: NameOf, closed = false): RecapSection[] {
+/**
+ * `closed`: the recap is the record at close, so work running then is said as such, never as done. `when`: Updates says
+ * when a decided or kept line happened (updates-when.md); a meeting's recap, all of one meeting, doesn't.
+ */
+export function recapSections(
+  recap: Records,
+  nameOf: NameOf,
+  closed = false,
+  when?: (at: string) => string,
+): RecapSection[] {
+  const at = (by: string, moment: string) => (when ? `${by} · ${when(moment)}` : by)
   const sections: RecapSection[] = [
     {
       title: 'Decided',
       lines: recap.decided.map((d) => ({
         key: d.decisionId,
         text: d.statement,
-        by: `proposed by ${nameOf(d.proposedBy)}, decided by ${nameOf(d.decidedBy)}`,
+        by: at(`proposed by ${nameOf(d.proposedBy)}, decided by ${nameOf(d.decidedBy)}`, d.at),
+        to: 'brief',
       })),
     },
     {
@@ -69,14 +81,21 @@ export function recapSections(recap: Records, nameOf: NameOf, closed = false): R
         by: `asked by ${nameOf(m.askedBy)}`,
       })),
     },
-    { title: 'Kept', lines: recap.noted.map((n) => ({ key: n.entryId, text: n.text, by: keptBy(n, nameOf) })) },
-    { title: 'Still open', lines: recap.open.map((o) => ({ key: o.proposalId, text: o.statement, by: 'proposed' })) },
+    {
+      title: 'Kept',
+      lines: recap.noted.map((n) => ({ key: n.entryId, text: n.text, by: at(keptBy(n, nameOf), n.at), to: 'brief' })),
+    },
+    {
+      title: 'Still open',
+      lines: recap.open.map((o) => ({ key: o.proposalId, text: o.statement, by: 'proposed', to: 'brief' })),
+    },
     {
       title: 'Work',
       lines: recap.work.map((w) => ({
         key: w.taskId,
         text: w.kind.replaceAll('_', ' '),
         by: closed && ongoing(w.state) ? 'still running at close' : w.state.replaceAll('_', ' '),
+        to: 'task',
       })),
     },
   ]

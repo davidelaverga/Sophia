@@ -120,7 +120,7 @@ export async function requestDesignEdit(
       artifactVersionId: request.versionId,
       intent: 'discuss',
     },
-    origin,
+    { origin },
   )
   const { rows } = await c.query<{ receipt: Omit<DesignEditReceipt, 'contributionId'> }>(
     `SELECT sophia.request_design_edit($1, $2) AS receipt`,

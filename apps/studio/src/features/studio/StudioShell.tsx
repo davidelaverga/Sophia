@@ -2,17 +2,22 @@
 // viewer's own lens. The lens and drafts are viewer-local (viewer-state.ts); the room, goals and events
 // are shared. The chat and the brief sit in a side panel beside the stage, as meeting apps have them, so the
 // stage keeps Sophia's light and the people at its centre; the panel is this viewer's own, like the lens.
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useEffect, useState, type ReactNode } from 'react'
+import { Button } from '@sophia/ui'
+import { getMission } from '../../api/mission.ts'
 import type { Snapshot } from '@sophia/contracts'
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
-import { useShortcuts } from '../../app/shortcuts.ts'
+import { useCommands } from '../../app/useCommands.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { askDraft } from '../artifacts/passage.ts'
 import type { Passage } from '../artifacts/PassageBar.tsx'
 import type { CaptionTurn } from '../conversation/captions.ts'
 import { Conversation } from '../conversation/Conversation.tsx'
 import { MissionPanel } from '../mission/MissionPanel.tsx'
+import { missionKey } from '../mission/mission-view.ts'
+import { FIRST_LINE, isNew } from './first-step.ts'
 import { CallSwitches, sendingOf } from '../voice/CallSwitches.tsx'
 import { RoomStage } from '../voice/RoomStage.tsx'
 import { LookingIndicator } from '../voice/SophiaControls.tsx'
@@ -80,6 +85,43 @@ export function useRoomPanel(snapshot: Snapshot | undefined, room: ProjectRoom, 
 
 export type RoomPanel = ReturnType<typeof useRoomPanel>
 
+interface FirstFor {
+  projectId: string
+  identity: Identity
+  snapshot: Snapshot | undefined
+  room: ProjectRoom
+  panel: RoomPanel
+}
+
+/**
+ * A new project's first step (docs/plans/first-step.md): while the ledger holds nothing, no goal exists and nobody is
+ * in the call, Sophia's line says to tell her what it's for, by voice or in writing. The ledger is the brief's own read.
+ */
+function useFirstStep({ projectId, identity, snapshot, room, panel }: FirstFor) {
+  const ledger = useQuery({
+    queryKey: [...missionKey(projectId), identity.name, snapshot?.cursor],
+    queryFn: () => getMission(identity.token, projectId),
+    placeholderData: keepPreviousData,
+  }).data
+  const fresh = isNew({ ledger: ledger?.readState, goals: snapshot?.goals.length ?? 0, inCall: room.status !== 'idle' })
+  if (!fresh) return {}
+  const write = () => {
+    if (panel.panel !== 'chat') panel.toggle('chat')
+  }
+  // Both quiet: the dock's Join the room stays the one primary press on the stage.
+  const presses = (
+    <>
+      <Button kind="pill" onClick={() => void room.join()}>
+        Talk it through
+      </Button>
+      <Button kind="pill" onClick={write}>
+        Write to Sophia
+      </Button>
+    </>
+  )
+  return { line: { ...FIRST_LINE, presses } }
+}
+
 interface Props {
   projectId: string
   identity: Identity
@@ -96,6 +138,11 @@ interface Props {
   catchUp?: ReactNode
   /** The project out of sight, the call still on: what its stage shows is followed by nobody here. */
   background?: boolean
+  /**
+   * The address is this project's (the route names it). A call's project kept on screen while another opens is
+   * visible but not routed: it neither reads nor writes the other's address (Codex on #242).
+   */
+  routed?: boolean
 }
 
 /**
@@ -195,21 +242,34 @@ function useUnderTheLine(extras: Extras, chatOpen: boolean) {
   return { present, under: object, showing }
 }
 
-/** The room's own keys: a lens by its number, Chat and the brief by their letters. */
+/** Other words people type for the chat and the brief (docs/plans/palette-also.md). */
+const PANEL_ALSO = { chat: ['sophia', 'ask', 'talk'], brief: ['summary', 'decisions'] } as const
+
+/** The room's own keys, as commands: a lens by its number, Chat and the brief by their letters, said by their state. */
 function useShellKeys(setLens: (lens: Lens) => void, panel: RoomPanel) {
-  useShortcuts({
-    '1': () => setLens('converse'),
-    '2': () => setLens('explore'),
-    '3': () => setLens('build'),
-    c: () => panel.toggle('chat'),
-    b: () => panel.toggle('brief'),
+  const toggle = (which: 'chat' | 'brief', words: string) => ({
+    id: which,
+    words: `${panel.panel === which ? 'Close' : 'Open'} the ${words}`,
+    group: 'view' as const,
+    key: which === 'chat' ? 'c' : 'b',
+    also: PANEL_ALSO[which],
+    run: () => panel.toggle(which),
   })
+  useCommands([
+    { id: 'lens-converse', words: 'Converse lens', group: 'view', key: '1', run: () => setLens('converse') },
+    { id: 'lens-explore', words: 'Explore lens', group: 'view', key: '2', run: () => setLens('explore') },
+    { id: 'lens-build', words: 'Build lens', group: 'view', key: '3', run: () => setLens('build') },
+    toggle('chat', 'chat'),
+    toggle('brief', 'brief'),
+  ])
 }
 
 export function StudioShell(props: Props) {
   const { projectId, identity, room, snapshot, panel, looking, captions: held, made, catchUp = null } = props
   const background = props.background ?? false
-  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId)
+  // Out of sight for its call, or not the project the address names, the shell is not the page's: left alone.
+  const owns = !background && props.routed !== false
+  const { state, setLens, setDraft } = useViewerState(accountOf(identity), projectId, owns)
   const chatDraft = useAskedInto(panel, state.drafts.converse ?? '', (text) => setDraft('converse', text))
   const me = useMembership(projectId, identity.name, identity.token).data?.actorId ?? ''
   const names = useKnownNames(room)
@@ -232,6 +292,7 @@ export function StudioShell(props: Props) {
         captions={captions}
         presented={present.presented}
         showing={showing}
+        {...useFirstStep({ projectId, identity, snapshot, room, panel })}
         corner={
           <PanelToggles
             open={panel.panel}

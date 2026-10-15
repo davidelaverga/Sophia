@@ -1,18 +1,45 @@
 // Home, the Welcome (docs/plans/home-welcome.md): an editorial page that knows you. On the left, the date, the greeting
 // and Sophia's one sentence; then you and Sophia (where you left off, your notes, a line to write or speak to her) and
 // your projects (the ones Work shows first); on the right, alone, her own light behind Umbral, whose rays turn to you as
-// you move and to the line while you write or speak to her.
+// you move and to the line while you write or speak to her. Given what needs you (needs-you.ts, behind the vision
+// flag), the right half is a column: her light at its head (the 96 px emblem in a small box), the needs under it.
 import type { ProjectSummary } from '@sophia/contracts'
-import { Icon, Tip } from '@sophia/ui'
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react'
+import { Button, Icon, NextAskHint, nextAskKey, Skeleton } from '@sophia/ui'
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
+import { useMedia } from '../../app/useMedia.ts'
 import { defaultTarget, type LightMode, type LightTarget } from '../light/engine.ts'
 import type { Point } from '../light/motion.ts'
 import { SophiaLight } from '../light/SophiaLight.tsx'
 import { roomForMark } from '../light/threshold.ts'
 import { followPointer } from '../resources/motion.ts'
 import { useDictation } from './dictation.ts'
-import { homeRows, notesLabel, rowNote, type HomeAction, type HomeRow, type Said, type YouDoor } from './places-view.ts'
+import { moveInIndex } from './index-keys.ts'
+import type { Need } from './needs-you.ts'
+import { NeedsYou } from './NeedsYou.tsx'
+
+/** Now on the service's clock: the needs' expiries compare on it (A15's `readAt`), not on the browser's. */
+const onService = (now: Date, skew = 0): Date => (skew === 0 ? now : new Date(now.getTime() + skew))
+import {
+  homeNextAsk,
+  homeRows,
+  notesLabel,
+  rowNote,
+  type HomeAction,
+  type HomeRow,
+  type Said,
+  type YouDoor,
+} from './places-view.ts'
 import { ReadNotes, type Read } from './ReadNotes.tsx'
 
 interface Props {
@@ -38,6 +65,15 @@ interface Props {
   locked: boolean
   /** Home is out of sight (another place is): the microphone stops and her light stops following. */
   hidden: boolean
+  /** Home is the place arrived at (not only on screen while a move runs): a visit ends when it is not. */
+  here: boolean
+  /**
+   * What needs you (needs-you.ts) and what opens one: undefined until an API serves it, and the right half is her
+   * light alone. The opener comes with the items, so no row is ever offered that leads nowhere.
+   */
+  needs?: { items: readonly Need[]; open: (need: Need) => void; skew?: number } | undefined
+  /** The invitations waiting for the person (InvitedBand, A16): right under the greeting; nothing when none waits. */
+  invited?: ReactNode
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -114,16 +150,6 @@ function Greeting({ hello, name, date, says }: Pick<Props, 'hello' | 'name' | 'd
   )
 }
 
-/** ↑ and ↓ move in the index; the first and last hold. */
-function moveInIndex(e: KeyboardEvent<HTMLOListElement>) {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-  const rows = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('.hw-row')]
-  const at = rows.findIndex((r) => r === document.activeElement)
-  if (at < 0) return
-  e.preventDefault()
-  rows[Math.min(Math.max(at + (e.key === 'ArrowDown' ? 1 : -1), 0), rows.length - 1)]?.focus()
-}
-
 const ACTION_WORDS: Record<HomeAction, string> = { open: 'Open', join: 'Join the room', back: 'Back to the room' }
 
 function Row({ row, index, onPress }: { row: HomeRow; index: number; onPress: () => void }) {
@@ -156,13 +182,7 @@ function Index(props: Pick<Props, 'projects' | 'loadingProjects' | 'now' | 'inCa
   const { projects, actions } = props
   if (!projects) {
     if (!props.loadingProjects) return null
-    return (
-      <ol className="hw-index" aria-label="Your projects" aria-busy="true">
-        {[0, 1, 2].map((i) => (
-          <li key={i} className="hw-row placeholder" style={{ '--i': i }} aria-hidden />
-        ))}
-      </ol>
-    )
+    return <Skeleton kind="row" count={3} label="Reading your projects…" />
   }
   const rows = homeRows(projects, props.now, props.inCallProject)
   return (
@@ -249,16 +269,17 @@ function useSay(say: Props['actions']['say'], hidden: boolean) {
 function Mic({ voice }: { voice: ReturnType<typeof useDictation> }) {
   if (!voice.available) return null
   return (
-    <button
-      className="hw-mic has-tip"
-      type="button"
+    <Button
+      kind="icon"
+      size="sm"
+      className="hw-mic"
       aria-pressed={voice.listening}
       aria-label="Speak instead"
       onClick={voice.listening ? voice.stop : voice.start}
+      tip={{ label: 'Speak instead. Your voice stays on this device.', side: 'top', align: 'end' }}
     >
       <Icon name={voice.listening ? 'stop' : 'mic'} />
-      <Tip label="Speak instead. Your voice stays on this device." side="top" align="end" />
-    </button>
+    </Button>
   )
 }
 
@@ -267,13 +288,53 @@ interface LineProps {
   onTalk: (t: Talk) => void
   line: RefObject<HTMLElement | null>
   hidden: boolean
+  here: boolean
+  /** The next ask the line suggests (docs/plans/next-ask-places.md), and what Tab puts in; null with none. */
+  next: { words: string; why: string; full: string } | null
+}
+
+/**
+ * The line's suggestion: shown while it is empty and she is not listening, put away for the visit by Esc; Tab or → puts
+ * it in the line. Its key cap stands while the line is focused.
+ */
+function useLineNext(
+  next: LineProps['next'],
+  text: string,
+  listening: boolean,
+  setText: (words: string) => void,
+  here: boolean,
+) {
+  const [away, setAway] = useState(false)
+  // Put away for this visit only: Home left (it stays mounted under a hidden place), the next visit offers the ask
+  // again (Codex on #268). A visit begins when Home is arrived at again, from the move's first frame: a move reversed
+  // before it settles still begins one (Codex P2 on #268), and Home fading out as it is left never shows the ask again
+  // (Codex on #276).
+  const wasHere = useRef(here)
+  useEffect(() => {
+    if (here && !wasHere.current) setAway(false)
+    wasHere.current = here
+  }, [here])
+  const [focused, setFocused] = useState(false)
+  const id = useId()
+  const shown = !away && !listening && text === '' ? next : null
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    const { key, shiftKey, altKey, ctrlKey, metaKey } = e
+    const press = { key, shiftKey, altKey, ctrlKey, metaKey, isComposing: e.nativeEvent.isComposing }
+    const move = nextAskKey(press, text, shown !== null)
+    if (!move || !shown) return
+    e.preventDefault()
+    if (move === 'accept') setText(shown.full)
+    else setAway(true)
+  }
+  return { id, shown, cap: focused ? shown : null, onKey, setFocused }
 }
 
 /** One line to write to Sophia, no box, or to speak to her. */
-function SayLine({ actions, onTalk, line, hidden }: LineProps) {
+function SayLine({ actions, onTalk, line, hidden, here, next }: LineProps) {
   const s = useSay(actions.say, hidden)
   useSlashReaches(s.field)
   const listening = s.voice.listening
+  const ask = useLineNext(next, s.text, listening, s.setText, here)
   // She listens while you speak, and until you leave the line; a dictation that heard nothing lets her rest.
   useEffect(() => {
     onTalk({ writing: listening || document.activeElement === s.field.current })
@@ -291,30 +352,53 @@ function SayLine({ actions, onTalk, line, hidden }: LineProps) {
       <input
         ref={s.field}
         aria-label="Say something to Sophia"
-        aria-describedby="hw-private-note"
-        placeholder={listening ? 'Listening…' : 'Say something to Sophia'}
+        aria-describedby={ask.cap ? `hw-private-note ${ask.id}` : 'hw-private-note'}
+        placeholder={listening ? 'Listening…' : (ask.shown?.words ?? 'Say something to Sophia')}
         value={s.text}
         readOnly={listening}
         onChange={(e) => s.setText(e.target.value)}
-        onFocus={() => onTalk({ writing: true })}
-        onBlur={() => onTalk({ writing: listening })}
+        onKeyDown={ask.onKey}
+        onFocus={() => {
+          ask.setFocused(true)
+          onTalk({ writing: true })
+        }}
+        onBlur={() => {
+          ask.setFocused(false)
+          onTalk({ writing: listening })
+        }}
       />
       <span id="hw-private-note" className="sr-only">
         Only she hears this
       </span>
       <Mic voice={s.voice} />
-      <kbd aria-hidden>{s.text ? '↵' : '/'}</kbd>
+      {ask.cap ? (
+        <NextAskHint
+          id={ask.id}
+          why={ask.cap.why}
+          description={`Suggested: ${ask.cap.words}. ${ask.cap.why}. Tab puts it in the line; Escape puts it away.`}
+        />
+      ) : (
+        <kbd aria-hidden>{s.text ? '↵' : '/'}</kbd>
+      )}
     </form>
   )
 }
 
 /** You and Sophia, private: where you left off (or the padlock), your notes, and the line to her: alone on a first visit. */
-function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' | 'locked'> & LineProps) {
+function You({ you, locked, actions, onTalk, line, hidden, here, next }: Pick<Props, 'you' | 'locked'> & LineProps) {
   return (
     <section className="hw-section hw-you" aria-labelledby="hw-you-h">
-      <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
-        You and Sophia
-      </h3>
+      {/* Your notes in the head, as Personal's head carries them (docs/plans/home-first-glance.md). */}
+      <div className="hw-label-row">
+        <h3 id="hw-you-h" className="hw-label" tabIndex={-1}>
+          You and Sophia
+        </h3>
+        {you && you.notes !== null && (
+          <button className="text-button hw-notes" type="button" onClick={actions.notes}>
+            {notesLabel(you.notes)} <span aria-hidden>→</span>
+          </button>
+        )}
+      </div>
       {you && (
         <ol className="hw-index" aria-label="You and Sophia">
           <li style={{ '--i': 0 }}>
@@ -329,20 +413,9 @@ function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' |
               </span>
             </button>
           </li>
-          {you.notes !== null && (
-            <li style={{ '--i': 1 }}>
-              <button className="hw-row hw-more" type="button" onClick={actions.notes}>
-                <span className="hw-n" aria-hidden />
-                <span className="hw-t">{notesLabel(you.notes)}</span>
-                <span className="hw-go">
-                  <span aria-hidden>→</span>
-                </span>
-              </button>
-            </li>
-          )}
         </ol>
       )}
-      {!locked && <SayLine actions={actions} onTalk={onTalk} line={line} hidden={hidden} />}
+      {!locked && <SayLine {...{ actions, onTalk, line, hidden, here, next }} />}
     </section>
   )
 }
@@ -350,24 +423,38 @@ function You({ you, locked, actions, onTalk, line, hidden }: Pick<Props, 'you' |
 /** Her light behind Umbral, formed (docs/plans/home-light-mark.md): your half rises to hers once, on arrival. */
 const FORMED = { from: null }
 
-/** Where her mark rests in the light's box, measured as the box changes: 96 px wherever there is room (threshold.ts). */
-function useMarkRest(box: RefObject<HTMLDivElement | null>): LightTarget | null {
+/** The phone's layout (personal.css): her light top right of the page, its mark the 48 px one the greeting keeps clear of. */
+const PHONE = '(max-width: 860px)'
+
+/**
+ * Where her mark rests in the light's box, measured as the box changes: 96 px wherever there is room (threshold.ts),
+ * and at a column's head on a wide screen; on a phone the column is gone and the 48 px rule stands (Codex on #237).
+ */
+function useMarkRest(box: RefObject<HTMLDivElement | null>, large: boolean): LightTarget | null {
   const [rest, setRest] = useState<LightTarget | null>(null)
   useLayoutEffect(() => {
     const b = box.current
     if (!b) return undefined
+    const phone = matchMedia(PHONE)
     const measure = () => {
       const { clientWidth: width, clientHeight: height } = b
       // Out of sight the box has no size: keep where it was, so the mark is never placed at nothing.
       if (width < 1 || height < 1) return
-      const next = roomForMark(defaultTarget(width, height), width, height)
+      const at = defaultTarget(width, height)
+      // At a column's head the box is small and the mark is still the 96 px emblem: the radius is given, not earned.
+      const emblem = large && !phone.matches
+      const next = emblem ? { ...at, radius: Math.max(at.radius, 160) } : roomForMark(at, width, height)
       setRest((was) => (was?.x === next.x && was.y === next.y && was.radius === next.radius ? was : next))
     }
     measure()
     const resized = new ResizeObserver(measure)
     resized.observe(b)
-    return () => resized.disconnect()
-  }, [box])
+    phone.addEventListener('change', measure)
+    return () => {
+      resized.disconnect()
+      phone.removeEventListener('change', measure)
+    }
+  }, [box, large])
   return rest
 }
 
@@ -375,7 +462,18 @@ function useMarkRest(box: RefObject<HTMLDivElement | null>): LightTarget | null 
  * Sophia's own light, alone on the right, standing behind the mark: its rays turn to you as you move, and to the line
  * while you write or speak to her.
  */
-function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement | null>; hidden: boolean }) {
+function Light({
+  talk,
+  line,
+  hidden,
+  large = false,
+}: {
+  talk: Talk
+  line: RefObject<HTMLElement | null>
+  hidden: boolean
+  /** At a column's head: the 96 px emblem in a small box. */
+  large?: boolean
+}) {
   const box = useRef<HTMLDivElement>(null)
   const at = usePointerIn(box, hidden)
   // While you write to her, she attends to the line you write on, measured once each time you start.
@@ -390,7 +488,7 @@ function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement
     )
   }, [talk.writing, line])
   const attention = talk.writing ? writingAt : at
-  const rest = useMarkRest(box)
+  const rest = useMarkRest(box, large)
   return (
     <div className="hw-light" ref={box} data-door="personal" aria-hidden>
       <SophiaLight
@@ -404,13 +502,28 @@ function Light({ talk, line, hidden }: { talk: Talk; line: RefObject<HTMLElement
   )
 }
 
+/** Home's one column (personal.css, ≤ 860 px): there what needs you comes right after the greeting. */
+const ONE_COLUMN = '(max-width: 860px)'
+
 export function Welcome(props: Props) {
   const [talk, setTalk] = useState<Talk>({ writing: false })
   const line = useRef<HTMLElement | null>(null)
+  // Mounted where it is read: on one column right after the greeting, in the document as on the screen, so a keyboard
+  // and a screen reader meet it where the eye does (docs/plans/home-phone-needs.md); beside the words otherwise.
+  const oneColumn = useMedia(ONE_COLUMN)
+  const needs = props.needs && (
+    <NeedsYou needs={props.needs.items} now={onService(props.now, props.needs.skew)} onOpen={props.needs.open} />
+  )
   return (
     <div className="hw">
       <div className="hw-col">
         <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
+        {props.invited}
+        {needs && oneColumn && (
+          <aside className="hw-needs-here" aria-label="What needs you">
+            {needs}
+          </aside>
+        )}
         <ReadNotes reads={props.reads} />
         <You
           you={props.you}
@@ -419,6 +532,8 @@ export function Welcome(props: Props) {
           onTalk={setTalk}
           line={line}
           hidden={props.hidden}
+          here={props.here}
+          next={homeNextAsk(props.projects, props.now)}
         />
         {(props.projects || props.loadingProjects) && (
           <section className="hw-section" aria-labelledby="hw-work-h">
@@ -436,7 +551,14 @@ export function Welcome(props: Props) {
           </section>
         )}
       </div>
-      <Light talk={talk} line={line} hidden={props.hidden} />
+      {needs && !oneColumn ? (
+        <aside className="hw-side" aria-label="What needs you">
+          <Light talk={talk} line={line} hidden={props.hidden} large />
+          {needs}
+        </aside>
+      ) : (
+        <Light talk={talk} line={line} hidden={props.hidden} />
+      )}
     </div>
   )
 }

@@ -3,6 +3,9 @@
 export {
   createPool,
   checkRoleSafety,
+  nameActor,
+  nameFromRoom,
+  rememberRoomName,
   withActor,
   withoutActor,
   withService,
@@ -24,6 +27,8 @@ export {
   decideLobbyEntry,
   knockRoom,
   listInvitations,
+  listPendingInvitations,
+  memberInvitationFor,
   previewRoomInvitation,
   readInvitation,
   readLobbyEntry,
@@ -34,6 +39,7 @@ export {
   scheduleRoomSession,
   type InvitationRecord,
   type InvitationRequest,
+  type PendingInvitationRecord,
   type LobbyRecord,
   type NewInvitation,
 } from './access.ts'

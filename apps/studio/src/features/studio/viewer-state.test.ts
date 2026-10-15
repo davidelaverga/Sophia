@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { INITIAL_VIEWER_STATE, readViewerState, storedViewerState, viewerKey, viewerReducer } from './viewer-state.ts'
+import {
+  addressLensFor,
+  INITIAL_VIEWER_STATE,
+  lensInAddress,
+  lensKept,
+  readLensWrite,
+  readViewerState,
+  storedViewerState,
+  viewerKey,
+  viewerReducer,
+  withLensInAddress,
+} from './viewer-state.ts'
 
 const P = '6f1f3a52-4b8e-4c62-9d7e-0a1b2c3d4e5f'
 
@@ -41,4 +52,53 @@ it('chat drafts survive resnapshots in memory but never storage serialization or
   assert.equal(state.drafts.converse, 'Private unsent chat')
   assert.equal(JSON.stringify(storedViewerState(state)).includes('Private unsent chat'), false)
   assert.equal(readViewerState(JSON.stringify(state)).drafts.converse, undefined)
+})
+
+/** An address: its path and search, as `window.location` gives them. */
+const at = (search: string, pathname = '/p/one') => ({ pathname, search })
+
+describe('the lens in the address', () => {
+  it('reads a lens the address names, and nothing else', () => {
+    assert.equal(lensInAddress('?lens=explore'), 'explore')
+    assert.equal(lensInAddress('?demo=1&lens=build'), 'build')
+    assert.equal(lensInAddress('?lens=kitchen'), null)
+    assert.equal(lensInAddress(''), null)
+  })
+  it('writes the lens beside the rest, Converse too; null takes it out (Codex on #242)', () => {
+    assert.equal(withLensInAddress('?demo=1', 'build'), '?demo=1&lens=build')
+    assert.equal(withLensInAddress('?demo=1&lens=build', 'converse'), '?demo=1&lens=converse')
+    assert.equal(withLensInAddress('?lens=explore', null), '')
+    assert.equal(withLensInAddress('', 'explore'), '?lens=explore')
+  })
+  it('is this viewer’s to read when fresh, written for them, or another address; another subject reads none', () => {
+    const mine = viewerKey('davide', P)
+    const wrote = { key: mine, address: '/p/one?lens=explore' }
+    assert.equal(addressLensFor(mine, at('?lens=explore'), null), 'explore') // a shared link, opened fresh
+    assert.equal(addressLensFor(mine, at('?lens=explore'), wrote), 'explore') // written by this shell
+    assert.equal(addressLensFor(viewerKey('ana', P), at('?lens=explore'), wrote), null) // another subject, same page
+    // Another project's link followed in this tab: its lens is read, whatever the tab wrote before (Codex on #242).
+    assert.equal(addressLensFor(viewerKey('davide', 'two'), at('?lens=build', '/p/two'), wrote), 'build')
+    assert.equal(addressLensFor(mine, at('?demo=1'), null), null)
+  })
+  it('reads the remembered write defensively', () => {
+    assert.deepEqual(readLensWrite('{"key":"k","address":"/p?lens=build"}'), { key: 'k', address: '/p?lens=build' })
+    assert.equal(readLensWrite('k'), null)
+    assert.equal(readLensWrite('{"key":1,"address":"/p"}'), null)
+    assert.equal(readLensWrite(null), null)
+  })
+})
+
+describe('the lens in the address, kept and owned (Codex P2s on #242)', () => {
+  it('goes along when an address is normalized: the report kept, the lens with it', () => {
+    assert.equal(lensKept('?lens=build&demo=1', ''), '?lens=build')
+    assert.equal(lensKept('?lens=build', '?report=r1'), '?report=r1&lens=build')
+    assert.equal(lensKept('?demo=1', '?report=r1'), '?report=r1')
+  })
+  it('stays the last subject’s at that address though a report opened over it since', () => {
+    const mine = viewerKey('davide', P)
+    const wrote = { key: mine, address: '/p/one?lens=explore' }
+    const here = { pathname: '/p/one', search: '?lens=explore&report=r1&version=v2' }
+    assert.equal(addressLensFor(viewerKey('ana', P), here, wrote), null)
+    assert.equal(addressLensFor(mine, here, wrote), 'explore')
+  })
 })

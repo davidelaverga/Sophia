@@ -3,7 +3,7 @@
 // at its heading), a meeting's recap, or the brief for a decision or a note. Only under the vision flag.
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import type { Membership, Snapshot } from '@sophia/contracts'
+import type { Goal, Membership, Snapshot } from '@sophia/contracts'
 import { Icon, Tip } from '@sophia/ui'
 import { listMeetings, searchProject, type SearchHit } from '../../api/vision.ts'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -11,11 +11,18 @@ import { Sheet } from '../../app/Sheet.tsx'
 import { Waiting } from '../../app/Waiting.tsx'
 import { canInvite } from '../access/useAccess.ts'
 import { useDocumentViewer } from '../artifacts/DocumentViewer.tsx'
+import { useAskSophia } from '../studio/project-go.tsx'
 import { useKnownNames } from '../studio/useKnownNames.ts'
 import { DATE_WORDS } from '../updates/UpdatesView.tsx'
 import { RecapSheet } from '../voice/MeetingRecap.tsx'
 import type { ProjectRoom } from '../voice/useProjectRoom.ts'
-import { hitRunning, hitSource } from './search-view.ts'
+import type { View } from '../../app/route.ts'
+import { GOAL, TASK } from '../resources/link.ts'
+import type { GoalPlan } from '../work/GoalList.tsx'
+import { useLedger, type NotesFor } from '../work/GoalNotes.tsx'
+import { notesRead, withNotes } from '../work/goal-notes.ts'
+import { HEALTH_LABEL, healthOf } from '../work/goals-glance.ts'
+import { around, hitRunning, hitSource, localHits, marked, TASK_LEAD, type LocalHit } from './search-view.ts'
 
 /** The head's Search: where the focus goes back to from the search and from what it opened. */
 const searchAnchor = () => document.querySelector<HTMLElement>('[data-search-anchor]')
@@ -66,15 +73,49 @@ interface Props {
   onClose: () => void
   /** A decision or a note: the room, with the brief open. */
   onBrief: () => void
+  /** The project's plans, when read: the search finds tasks in them (search-goals.md). */
+  plans: Readonly<Record<string, GoalPlan>> | undefined
+  /** The served board's first read is under way: zero found is no answer yet (search-honest.md). */
+  boardReading: boolean
+  /** A goal's or a task's sheet, in its view, named in the address. */
+  onThere: (view: View, id: string, address: string) => void
+}
+
+/** What the search finds in what the Studio holds: the goals, the board's plans and its first read, the notes. */
+function useLocal(props: Props, names: ReadonlyMap<string, string>): SheetProps['local'] {
+  const { projectId, identity, snapshot, membership, onClose } = props
+  const goToLocal = (hit: LocalHit) => {
+    searchAnchor()?.focus()
+    onClose()
+    if (hit.kind === 'goal') props.onThere('goals', hit.id, GOAL)
+    else props.onThere('work', hit.id, TASK)
+  }
+  return {
+    goals: snapshot?.goals ?? [],
+    plans: props.plans,
+    reading: props.boardReading,
+    // The goals' notes as Goals reads them (the same ledger query): a difficulty calls a goal to attention here too.
+    notes: { projectId, identity, me: membership?.actorId ?? '', names, cursor: snapshot?.cursor },
+    onLocal: goToLocal,
+  }
 }
 
 /** The search's sheet, and the meeting a recap hit opens. */
 export function ProjectSearch(props: Props) {
   const { projectId, identity, snapshot, membership, room, open, onClose, onBrief } = props
+  const names = useKnownNames(room)
+  const local = useLocal(props, names)
   const [meeting, setMeeting] = useState<string | null>(null)
   const running = useRunning(projectId, identity.token, meeting)
-  const names = useKnownNames(room)
   const viewer = useDocumentViewer()
+  const askSophia = useAskSophia()
+  // Nothing found: the words to Sophia instead, in a new conversation (docs/plans/ask-instead.md).
+  const askInstead =
+    askSophia &&
+    ((q: string) => {
+      onClose()
+      askSophia(q)
+    })
   const go = (hit: SearchHit) => {
     // What a hit opens gives the focus back to Search when it closes: the hit pressed goes with the sheet.
     searchAnchor()?.focus()
@@ -87,7 +128,16 @@ export function ProjectSearch(props: Props) {
   }
   return (
     <>
-      {open && <SearchSheet projectId={projectId} identity={identity} onClose={onClose} onHit={go} />}
+      {open && (
+        <SearchSheet
+          projectId={projectId}
+          identity={identity}
+          onClose={onClose}
+          onHit={go}
+          onAsk={askInstead}
+          local={local}
+        />
+      )}
       {meeting && snapshot && (
         <RecapSheet
           projectId={projectId}
@@ -126,9 +176,30 @@ interface SheetProps {
   identity: Identity
   onClose: () => void
   onHit: (hit: SearchHit) => void
+  /** Nothing found: the words to Sophia instead; null where she can't be asked. */
+  onAsk: ((q: string) => void) | null
+  /** The goals and tasks the Studio holds, found first (search-goals.md); the board's first read, and the notes. */
+  local: {
+    goals: readonly Goal[]
+    plans: Props['plans']
+    reading: boolean
+    notes: NotesFor
+    onLocal: (hit: LocalHit) => void
+  }
 }
 
-function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
+/**
+ * The goals and tasks found, each goal's health as Goals reads it, with its latest note; until the notes are read, or
+ * when they can't be, no health is said: one missing a difficulty is not (search-honest.md).
+ */
+function useFound(local: SheetProps['local'], q: string): LocalHit[] {
+  const ledger = useLedger(local.notes)
+  const known = notesRead(ledger) === 'read' || notesRead(ledger) === 'stale'
+  const plans = withNotes(local.goals, local.plans, ledger.data?.entries ?? [], local.notes.me, local.notes.names)
+  return localHits(local.goals, local.plans, q, (g) => (known ? HEALTH_LABEL[healthOf(g, plans[g.id])] : null))
+}
+
+function SearchSheet({ projectId, identity, onClose, onHit, onAsk, local }: SheetProps) {
   const [text, setText] = useState('')
   const q = useSettled(text.trim())
   const search = useSearch(projectId, identity.token, q)
@@ -139,6 +210,8 @@ function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
   }, [])
   const hits = search.data?.pages.flatMap((p) => p.hits) ?? []
   const asked = q.length >= MIN_QUERY
+  const found = useFound(local, q)
+  const settledText = text.trim() === q
   return (
     <Sheet id="search-title" title="Search this project" onClose={onClose} returnTo={searchAnchor}>
       <input
@@ -146,32 +219,64 @@ function SearchSheet({ projectId, identity, onClose, onHit }: SheetProps) {
         type="search"
         className="search-field"
         aria-label="Search this project"
-        placeholder="Decisions, notes, reports, meetings"
+        placeholder="Goals, tasks, decisions, notes, reports, meetings"
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
-      {asked && <SearchOutcome search={search} q={q} hits={hits.length} typing={text.trim() !== q} />}
+      {asked && (
+        <SearchOutcome
+          search={search}
+          q={q}
+          hits={hits.length + found.length}
+          typing={!settledText}
+          boardReading={local.reading}
+          onAsk={onAsk}
+        />
+      )}
       <ul className="search-hits" aria-label="Results">
         {/* The last query's hits are no answer to the next: none is offered under it until its own come. */}
+        {settledText &&
+          found.map((hit) => <Found key={`${hit.kind} ${hit.id}`} hit={hit} q={q} onOpen={local.onLocal} />)}
         {asked &&
           !search.isPlaceholderData &&
-          text.trim() === q &&
-          hits.map((hit, i) => <Hit key={`${String(i)} ${hit.kind} ${hit.id}`} hit={hit} onHit={onHit} />)}
+          settledText &&
+          hits.map((hit, i) => <Hit key={`${String(i)} ${hit.kind} ${hit.id}`} hit={hit} q={q} onHit={onHit} />)}
       </ul>
       {asked && text.trim() === q && search.hasNextPage && !search.isPlaceholderData && <MoreResults search={search} />}
     </Sheet>
   )
 }
 
+type Search = ReturnType<typeof useSearch>
+
+/**
+ * Whether the search has its answer, and whether it is still being read: while the words settle, or the board's tasks
+ * are still on their way, the count so far is no answer (search-honest.md).
+ */
+function stateOf(search: Search, typing: boolean, boardReading: boolean) {
+  const fetching = (search.isFetching || search.isPending) && !search.isFetchingNextPage
+  return {
+    settled: search.isSuccess && !search.isPlaceholderData && !typing && !boardReading,
+    reading: fetching || boardReading,
+  }
+}
+
 /** What the search says about itself: under way, failed, or found nothing. */
-function SearchOutcome(props: { search: ReturnType<typeof useSearch>; q: string; hits: number; typing: boolean }) {
+function SearchOutcome(props: {
+  search: ReturnType<typeof useSearch>
+  q: string
+  hits: number
+  typing: boolean
+  /** The board's first read under way: its tasks may still answer (search-honest.md). */
+  boardReading: boolean
+  onAsk: ((q: string) => void) | null
+}) {
   const { search, q, hits } = props
-  // While the words settle, the last query's count is no answer either.
-  const settled = search.isSuccess && !search.isPlaceholderData && !props.typing
+  const { settled, reading } = stateOf(search, props.typing, props.boardReading)
   return (
     <>
-      {/* Fetching, or waiting for the network to come back: either way the list waits for this query. */}
-      <Waiting words="Searching…" waiting={(search.isFetching || search.isPending) && !search.isFetchingNextPage} />
+      {/* Fetching, waiting for the network, or for the board: either way the list waits for this query. */}
+      <Waiting words="Searching…" waiting={reading} />
       {search.isError && (
         <p className="sheet-lead" role="alert">
           The search couldn’t be read.{' '}
@@ -184,7 +289,18 @@ function SearchOutcome(props: { search: ReturnType<typeof useSearch>; q: string;
       <p className={settled && hits === 0 ? 'sheet-lead' : 'sr-only'} role="status">
         {settled && (hits === 0 ? `Nothing in this project matches “${q}”.` : `${String(hits)} found.`)}
       </p>
+      {settled && hits === 0 && <AskInstead q={q} onAsk={props.onAsk} />}
     </>
+  )
+}
+
+/** Nothing found: the words to Sophia instead, where she can be asked (docs/plans/ask-instead.md). */
+function AskInstead({ q, onAsk }: { q: string; onAsk: ((q: string) => void) | null }) {
+  if (!onAsk) return null
+  return (
+    <button type="button" className="text-button search-ask" onClick={() => onAsk(q)}>
+      Ask Sophia about “{q}”
+    </button>
   )
 }
 
@@ -203,13 +319,53 @@ function MoreResults({ search }: { search: ReturnType<typeof useSearch> }) {
   )
 }
 
-function Hit({ hit, onHit }: { hit: SearchHit; onHit: (hit: SearchHit) => void }) {
+/** Words with the query's matches marked (search-goals.md). */
+function Marked({ text, q }: { text: string; q: string }) {
+  return <>{marked(text, q).map((piece, i) => (piece.mark ? <mark key={i}>{piece.text}</mark> : piece.text))}</>
+}
+
+/** A goal or a task the Studio holds: its title, the words that answered, what it is; a press to its sheet. */
+function Found({ hit, q, onOpen }: { hit: LocalHit; q: string; onOpen: (hit: LocalHit) => void }) {
+  return (
+    <li>
+      <button type="button" className="search-hit" data-kind={hit.kind} onClick={() => onOpen(hit)}>
+        <span className="search-hit-title">
+          <Marked text={hit.title} q={q} />
+        </span>
+        {hit.words && (
+          <span className="search-hit-snippet">
+            <Marked text={around(hit.words, q)} q={q} />
+          </span>
+        )}
+        <span className="search-hit-source">
+          {/* Found by who does it, the doer is marked as a title is (search-honest.md). */}
+          {hit.doer === undefined ? (
+            hit.source
+          ) : (
+            <>
+              {TASK_LEAD}
+              <Marked text={hit.doer} q={q} />
+            </>
+          )}
+        </span>
+      </button>
+    </li>
+  )
+}
+
+function Hit({ hit, q, onHit }: { hit: SearchHit; q: string; onHit: (hit: SearchHit) => void }) {
   return (
     <li>
       <button type="button" className="search-hit" onClick={() => onHit(hit)}>
-        <span className="search-hit-title">{hit.title}</span>
-        {/* A decision or a note is its own words: its title says them already. */}
-        {hit.snippet !== hit.title && <span className="search-hit-snippet">{hit.snippet}</span>}
+        <span className="search-hit-title">
+          <Marked text={hit.title} q={q} />
+        </span>
+        {/* A decision or a note is its own words: its title says them already; a long one is cut around the match. */}
+        {hit.snippet !== hit.title && (
+          <span className="search-hit-snippet">
+            <Marked text={around(hit.snippet, q)} q={q} />
+          </span>
+        )}
         <span className="search-hit-source">{hitSource(hit, DATE_WORDS)}</span>
       </button>
     </li>

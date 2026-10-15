@@ -30,7 +30,7 @@ import {
   idOf,
 } from './data.ts'
 import { missionWritten } from './mission-writes.ts'
-import { DEMO, DEMO_ORIGINS } from './demo.ts'
+import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -56,6 +56,7 @@ import {
 } from './report-data.ts'
 import { readingRead } from './reading-data.ts'
 import { noteKept, noteWithdrawn, withdrawalPreview, type Notes } from './brief-data.ts'
+import { invitationsAnswer, type Invitations } from './invitations-data.ts'
 import { focusRequest, focusSet, roomFocus, type Showing } from './focus-data.ts'
 import { reviewed, type Reviews } from './review-data.ts'
 import { created, finished, type Tasks } from './task-data.ts'
@@ -78,6 +79,8 @@ export const served: string[] = []
 interface Project {
   revision: number
   exchange: boolean
+  /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
+  doorShut?: boolean
   messages: (string | Said)[]
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
@@ -99,6 +102,10 @@ interface Project {
   lobbyAsked?: string | null
   /** This viewer's role in the project (`role=viewer`); the fixture's own, admin, otherwise. */
   role?: Membership['role']
+  /** A project just made (`fresh=1`, first-step.md): its ledger holds nothing yet. */
+  fresh?: boolean
+  /** The invitations made here (invitations-data.ts); absent, the list is empty and making one is unexpected. */
+  invitations?: Invitations
   /** The report's description on Knowledge (report-data.ts). */
   description: Description
   /**
@@ -170,6 +177,8 @@ interface Project {
   showing?: Showing
   /** While set, searches wait for `holdSearch(false)` (A13). */
   searchHeld?: (() => void)[] | null
+  /** While set, reads of the served board wait for `holdBoard(false)` (search-honest.md). */
+  boardHeld?: (() => void)[] | null
   /** The versions' reviews (review-data.ts, A16); absent, their requests are unexpected. */
   reviews?: Reviews
   /** What members carried in from Personal (the project list's releases, chapter 1); absent, none. */
@@ -208,6 +217,8 @@ export interface Conversations extends TalkWrites {
   failList: boolean
   /** The list says each one's last message (A18 proposed; `last=1`, and the demo). */
   lastShown?: boolean
+  /** Reads of the pages before the newest fail (`older=fail`, `window.fixture.failOlderMessages`). */
+  failOlder?: boolean
 }
 
 function hrefOf(input: RequestInfo | URL): string {
@@ -303,14 +314,17 @@ function admitted(project: Project, init: RequestInit | undefined): Response | n
   return json(receipt)
 }
 
+/** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
+function snapshotAnswer(project: Project) {
+  served.push(`snapshot:${project.revision}`)
+  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project))
+}
+
 function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  if (method === 'GET' && path === `${base}/snapshot`) {
-    served.push(`snapshot:${project.revision}`)
-    return json(snapshotOf(project))
-  }
+  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project)
   const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
@@ -337,13 +351,74 @@ function talkWritten(project: Project, path: string, init: RequestInit | undefin
   })
 }
 
+/** A need's ref, with the record that holds it when the address needs it: a version's report, a decision's work item. */
+const needRef = (kind: string, id: string, within: string | null = null, resourceId: string | null = null) => ({
+  kind,
+  id,
+  within,
+  resourceId,
+})
+
+/** What needs the viewer (A15, docs/plans/needs-api.md): one of each kind, given out of order; the Studio sorts them. */
+export function needsAnswer(now = Date.now()) {
+  const at = (minutes: number) => new Date(now + minutes * 60_000).toISOString()
+  const here = { projectId: PROJECT, projectTitle: PROJECT_NAME }
+  const need = (id: string, kind: string, title: string, over: Record<string, unknown>) => ({
+    id,
+    kind,
+    title,
+    ...here,
+    expiresAt: null,
+    detail: null,
+    ...over,
+  })
+  return {
+    readAt: new Date(now).toISOString(),
+    needs: [
+      need('permission:wait-w1', 'permission', 'Claude Code asks to run the export tests', {
+        // A wait has no expiry (A13): a permission says how long it has waited instead.
+        detail: 'Asked 10 min ago',
+        at: at(-10),
+        // The wait by its request (A13's reference, the request Resources lists), the work item that holds it, and
+        // the resource whose tool holds the request.
+        ref: needRef('work_wait', 'action-1', '00000000-0000-4000-8000-0000000000c1', 'davide-claude'),
+      }),
+      need('guest:g1', 'guest', 'Marco Pereira is in the lobby', {
+        detail: 'Waiting 2 min',
+        at: at(-2),
+        ref: needRef('lobby_entry', 'g1'),
+      }),
+      need('decision:d1', 'decision', 'Ship the retry with the hotfix?', {
+        expiresAt: at(20),
+        at: at(-60),
+        ref: needRef('work_decision', 'd1', '00000000-0000-4000-8000-0000000000c3'), // the work item that holds it
+      }),
+      need('reply:t9', 'reply', 'Sophia replied about the launch date', {
+        projectId: null,
+        projectTitle: null,
+        detail: 'Yesterday',
+        at: at(-1440),
+        ref: needRef('personal_turn', 't9'),
+      }),
+    ],
+  }
+}
+
+/** The person's own reads (the projects they are in, what needs them); undefined for any other request. */
+function ownRead(project: Project, url: URL) {
+  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  if (url.pathname === '/api/v1/me/needs') return json(needsAnswer())
+  return undefined
+}
+
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
   if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
-  if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
+  const own = ownRead(project, url)
+  if (own !== undefined) return own
   const reviews = REVIEWS_OF.exec(url.pathname)
   if (reviews?.[2]) return reviewsRead(project, reviews[2])
   const tasksOf = TASKS_OF.exec(url.pathname)?.[1]
@@ -353,7 +428,7 @@ function visionRead(project: Project, url: URL) {
   return json(roomFocus(project.showing, project.revision))
 }
 
-/** The brief, the meeting's records and the invitations sent (none) (A08, A12); undefined for any other request. */
+/** The brief, the meeting's records and the invitations sent (A08, A12); undefined for any other request. */
 function recordsAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
@@ -363,6 +438,7 @@ function recordsAnswer(project: Project, method: string, url: URL, init: Request
   if (method === 'GET' && path.startsWith(`${base}/meetings`)) return meetingAnswer(project, path)
   if (method === 'GET' && path === `${base}/since` && project.meeting)
     return json(digestOf(project.meeting, project.revision))
+  if (project.invitations) return invitationsAnswer(project.invitations, method, path, init, base) ?? undefined
   if (method === 'GET' && path === `${base}/invitations`) return json({ invitations: [] })
   return undefined
 }
@@ -472,6 +548,7 @@ function messagesRead(talk: Conversations, conversationId: string, url: URL) {
   const all = talk.messages[conversationId]
   if (!all) return null
   const before = url.searchParams.get('before')
+  if (before !== null && talk.failOlder) return unavailable()
   // A cursor this list never gave is the client's mistake: unexpected, not an empty page.
   if (before !== null && !/^[1-9][0-9]*$/u.test(before)) return null
   const end = Math.min(all.length, Number(before ?? all.length))
@@ -822,9 +899,13 @@ function workRead(project: Project, path: string) {
       coverage: 'complete',
       goals: project.servedGoals?.() ?? [],
     }
-    return json(board)
+    const held = project.boardHeld
+    return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
   }
-  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(project.review ?? REVIEW_NOT_ENABLED)
+  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) {
+    if (project.review) served.push(`review:offered:${String(project.review.sources.length)}`)
+    return json(project.review ?? REVIEW_NOT_ENABLED)
+  }
   const key = PROPOSAL_READ.exec(path)?.[1]
   if (key !== undefined && project.proposals) return proposalRead(project.proposals, decodeURIComponent(key))
   return null
@@ -901,7 +982,10 @@ function missionAnswer(project: Project, method: string, path: string, init: Req
 function missionRead(project: Project): Response {
   if (project.notes?.unread || project.missionFails) return new Response(JSON.stringify(UNAVAILABLE), { status: 503 })
   served.push(`mission:${project.revision}`)
-  return json(withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus))
+  const read = withContext(mission(project.revision, project.notes?.kept, !project.notes?.refused), project.missionPlus)
+  // Just made, nothing is recorded until its first note: the ledger reads empty (first-step.md).
+  const fresh = project.fresh && read.entries.length === 0
+  return json(fresh ? { ...read, readState: 'empty', mission: null } : read)
 }
 
 /** The brief with what the conversations' context adds (a purpose, accepted decisions, one still open), if any. */

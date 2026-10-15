@@ -1,7 +1,8 @@
 // The source-review pilot's entry under a goal (WBC-02 G5): Review sources. It offers what Sophia says may be reviewed
 // (one to three report versions, at most 32 KiB of text in all), an allowance within the project's cap, and an
 // optional purpose; proposing starts nothing: Sophia answers with a plan and a decision on the board, which the
-// proposer takes there. Shown only where Sophia has enrolled the project; nothing is said where it hasn't.
+// proposer takes there. Shown only where Sophia has enrolled the project and offers something to review, or while a
+// proposal is unanswered; nothing is said elsewhere.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import type { Goal, SourceReviewAvailability, SourceReviewProposalRequest } from '@sophia/contracts'
@@ -9,7 +10,7 @@ import { proposeReview, recordedProposal, reviewAvailability } from '../../../ap
 import type { Identity } from '../../../app/dev-identity.ts'
 import { outcomeOf } from './review-outcome.ts'
 import { EARLIER, proposals, proposalViewer, type Asked, type Sent } from './review-proposal.ts'
-import { ALLOWANCE_STEP, allowanceOk, kib, selectionOf } from './review-sources.ts'
+import { ALLOWANCE_STEP, allowanceOk, kib, offered, selectionOf } from './review-sources.ts'
 
 interface Props {
   projectId: string
@@ -122,7 +123,9 @@ function SourcesField({
 }) {
   return (
     <fieldset>
-      <legend className="field-label">Sources to review (up to {availability.limits.maxSources})</legend>
+      <legend className="field-label">
+        Sources to review (up to <span className="data">{availability.limits.maxSources}</span>)
+      </legend>
       {availability.sources.length === 0 && <p className="view-note">No report version can be reviewed yet.</p>}
       {availability.sources.map((s) => (
         <label key={s.sourceId} className="review-source">
@@ -271,6 +274,7 @@ export function ReviewSources(props: Props) {
   const a = availability.data
   if (!a?.enabled) return null
   if (!open) {
+    if (!offered(a, pending(proposal.sent))) return null
     return (
       <button
         type="button"

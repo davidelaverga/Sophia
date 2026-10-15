@@ -7,10 +7,22 @@
 // Write-once is kept by the database, not left to the service: Supabase Storage's S3 PutObject replaces an object and
 // ignores If-None-Match (upstream 307c5e31, SDD-01-CX-0015). writeOnce claims each key in the database (0044) and
 // commits the claim before a byte is sent; a key already claimed, by this API or one racing it, is refused before any
-// I/O to the store, and buildApp hands the routes no other store. The keys are fresh besides (renderer_output_slot and
-// renderer_capture_slot mint gen_random_uuid(); a retry gets a new one), and every read checks the recorded SHA-256
+// I/O to the store, and buildApp hands the routes no other store. PDFs use a fresh output slot; capture routes derive
+// one key per validated lease/name, so replay cannot consume fresh backups. A renewed lease gets a fresh capture key.
+// Every read checks the recorded SHA-256
 // (the API's fileBytes, the Studio's download.ts).
 import { amzDates, authorization, encodeKey, presignedUrl, sha256Hex, uriEncode } from './s3-sign.ts'
+import {
+  BACKUP_OBJECT_MAX_BYTES,
+  BACKUP_WRITE_MS,
+  boundedByteBackup,
+  byteWriteExpired,
+  ByteBackupError,
+  diskByteBackup,
+  type ByteBackup,
+  type ByteWriteContext,
+  type ByteWriteControl,
+} from './byte-backup.ts'
 
 /** A stored source's object path: one object per source, named by its project and id. */
 export const objectPath = (projectId: string, sourceId: string) => `${projectId}/${sourceId}`
@@ -18,12 +30,21 @@ export const objectPath = (projectId: string, sourceId: string) => `${projectId}
 /** The storage_key recorded for a stored source (an inline text's is `inline/<projectId>/<sourceId>`). */
 export const storedKey = (projectId: string, sourceId: string) => `objects/${objectPath(projectId, sourceId)}`
 
+/** Internal write cancellation: expiry cannot undo an accepted PUT, but prevents starting a later provider step. */
+export type { ByteWriteControl } from './byte-backup.ts'
+
 export interface ByteStore {
   /**
    * Store new bytes at `path`. A path written before is refused (409) and its object stays as written: writeOnce keeps
    * that for every store the API is given, whose own refusals (s3ByteStore's HEAD and If-None-Match) are a second line.
    */
-  put(path: string, bytes: Uint8Array, mime: string): Promise<void>
+  put(
+    path: string,
+    bytes: Uint8Array,
+    mime: string,
+    context?: ByteWriteContext,
+    control?: ByteWriteControl,
+  ): Promise<void>
   /** A URL that reads `path` until it expires; with a file name, opening it saves the file under that name. */
   signedUrl(path: string, expiresInSeconds: number, downloadAs: string | null): Promise<string>
   /** The bytes at `path`, read by the API itself (a render package's image for the render runner). */
@@ -39,7 +60,7 @@ export class ByteStoreError extends Error {
   }
 }
 
-/** A write's claim was not made (the database refused it or did not answer): nothing was sent to the store. */
+/** A write's claim was not confirmed; interrupted COMMIT may have claimed it. No store I/O was started. */
 export class WriteClaimError extends ByteStoreError {
   constructor(message: string, options?: { cause?: unknown }) {
     super(503, message)
@@ -82,16 +103,135 @@ export function byteStoreFromEnv(env: Record<string, string | undefined>, fetchI
     throw new Error('SOPHIA_STORAGE_URL and SOPHIA_STORAGE_KEY are retired: configure the S3 access key instead')
   }
   const values = STORAGE_SETTINGS.map(read)
-  if (values.every((v) => !v)) return null
+  if (values.every((v) => !v)) {
+    if (read('SOPHIA_STORAGE_BACKUP_ROOT')) throw new Error('report backup requires the S3 storage settings')
+    return null
+  }
   const [endpoint, region, accessKeyId, secretAccessKey, bucket] = values
   if (!endpoint || !region || !accessKeyId || !secretAccessKey || !bucket) {
     throw new Error(`${STORAGE_SETTINGS.join(', ')} are set together or not at all`)
   }
-  return s3ByteStore({ endpoint, region, accessKeyId, secretAccessKey, bucket }, fetchImpl)
+  const store = s3ByteStore({ endpoint, region, accessKeyId, secretAccessKey, bucket }, fetchImpl)
+  const backupRoot = read('SOPHIA_STORAGE_BACKUP_ROOT')
+  return withByteBackup(store, backupRoot ? diskByteBackup(backupRoot) : undefined)
+}
+
+// One API process, shared by every write wrapper, including backup-off: no queue or snapshot before admission. These are memory
+// bounds, separate from the durable disk budgets and quota-worker cap. A timed-out underlying write keeps its
+// permit until it actually settles; repeated timeouts cannot accumulate copied payloads behind returned errors.
+export const BACKUP_ACTIVE_BYTES = 32 * 1024 * 1024
+export const BACKUP_ACTIVE_WRITES = 2
+let activeBackupBytes = 0
+let activeBackupWrites = 0
+
+function admitBackupWrite(bytes: number): () => void {
+  if (activeBackupWrites >= BACKUP_ACTIVE_WRITES || activeBackupBytes + bytes > BACKUP_ACTIVE_BYTES) {
+    throw new ByteStoreError(503, 'report backup writes are busy')
+  }
+  activeBackupWrites += 1
+  activeBackupBytes += bytes
+  return () => {
+    activeBackupWrites -= 1
+    activeBackupBytes -= bytes
+  }
+}
+
+/** Bound every configured write; optionally copy first. Uncertain claims and live underlying work stay charged. */
+export function withByteBackup(store: ByteStore, backup?: ByteBackup): ByteStore {
+  return {
+    async put(path, bytes, mime, context, control) {
+      if (bytes.byteLength > BACKUP_OBJECT_MAX_BYTES)
+        throw new ByteStoreError(503, 'report backup permits at most 32 MiB')
+      if (byteWriteExpired(control)) {
+        throw new ByteStoreError(503, 'report backup timed out')
+      }
+      const deadline = Math.min(performance.now() + BACKUP_WRITE_MS, control?.deadline ?? Infinity)
+      const release = admitBackupWrite(bytes.byteLength)
+      let snapshot: Uint8Array
+      try {
+        // Buffer.slice() aliases its input; callers include the renderer's Buffer request bodies.
+        snapshot = backup ? Uint8Array.from(bytes) : bytes
+      } catch (error) {
+        release()
+        throw error
+      }
+      const state = { started: false }
+      const controller = new AbortController()
+      const signal = control ? AbortSignal.any([control.signal, controller.signal]) : controller.signal
+      const write: ByteBackup = async (key, retained, writeContext) => {
+        state.started = true
+        try {
+          if (byteWriteExpired({ signal, deadline })) throw new ByteBackupError(503, 'report backup timed out')
+          if (backup) await backup(key, retained, writeContext)
+          // The timeout answers promptly, but neither a delayed timer nor late disk completion may start S3.
+          if (byteWriteExpired({ signal, deadline })) throw new ByteBackupError(503, 'report backup timed out')
+          try {
+            await store.put(key, retained, mime, writeContext, { signal, deadline })
+          } catch (error) {
+            if (error instanceof ByteStoreError && error.status === 409) {
+              throw new ByteBackupError(409, 'report object already exists')
+            }
+            throw error
+          }
+        } finally {
+          release()
+        }
+      }
+      try {
+        await boundedByteBackup(write, path, snapshot, context, { signal, deadline })
+      } catch (error) {
+        controller.abort()
+        // A control can expire during snapshot allocation; no underlying write then owns this permit.
+        if (!state.started) release()
+        if (error instanceof ByteBackupError) throw new ByteStoreError(error.status, error.message)
+        throw error
+      }
+    },
+    signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
+    get: (path) => store.get(path),
+  }
 }
 
 /** The quoted file name a download is saved as; the API's names are ASCII slugs (reportFilename), kept as they are. */
 const attachment = (name: string) => `attachment; filename="${name.replace(/["\\\r\n]/g, '_')}"`
+
+function s3Connection(config: S3StorageConfig) {
+  const endpoint = new URL(config.endpoint.replace(/\/+$/, ''))
+  const creds = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region }
+  const pathOf = (key: string) =>
+    `${endpoint.pathname.replace(/\/+$/, '')}/${uriEncode(config.bucket)}/${encodeKey(key)}`
+
+  return { endpoint, creds, pathOf }
+}
+
+function signedS3Sender(connection: ReturnType<typeof s3Connection>, fetchImpl: Fetch, clock: () => Date) {
+  const { endpoint, creds, pathOf } = connection
+  return async function send(
+    method: string,
+    key: string,
+    body: Uint8Array | null,
+    extra: Record<string, string>,
+    control?: ByteWriteControl,
+  ) {
+    if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
+    const now = clock()
+    const payloadHash = sha256Hex(body ?? new Uint8Array())
+    const headers: Record<string, string> = {
+      ...extra,
+      'x-amz-content-sha256': payloadHash,
+      'x-amz-date': amzDates(now).amzDate,
+    }
+    const path = pathOf(key)
+    const auth = authorization({ method, host: endpoint.host, path, query: [], headers, payloadHash }, creds, now)
+    if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
+    return fetchImpl(`${endpoint.origin}${path}`, {
+      method,
+      ...(control ? { signal: control.signal } : {}),
+      headers: { ...headers, authorization: auth },
+      ...(body === null ? {} : { body }),
+    })
+  }
+}
 
 /**
  * S3-compatible object storage, signed with Signature Version 4: a put that refuses a key it finds (a HEAD first) and
@@ -105,27 +245,9 @@ export function s3ByteStore(
   fetchImpl: Fetch = fetch,
   clock: () => Date = () => new Date(),
 ): ByteStore {
-  const endpoint = new URL(config.endpoint.replace(/\/+$/, ''))
-  const creds = { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey, region: config.region }
-  const pathOf = (key: string) =>
-    `${endpoint.pathname.replace(/\/+$/, '')}/${uriEncode(config.bucket)}/${encodeKey(key)}`
-
-  async function send(method: string, key: string, body: Uint8Array | null, extra: Record<string, string>) {
-    const now = clock()
-    const payloadHash = sha256Hex(body ?? new Uint8Array())
-    const headers: Record<string, string> = {
-      ...extra,
-      'x-amz-content-sha256': payloadHash,
-      'x-amz-date': amzDates(now).amzDate,
-    }
-    const path = pathOf(key)
-    const auth = authorization({ method, host: endpoint.host, path, query: [], headers, payloadHash }, creds, now)
-    return fetchImpl(`${endpoint.origin}${path}`, {
-      method,
-      headers: { ...headers, authorization: auth },
-      ...(body === null ? {} : { body }),
-    })
-  }
+  const connection = s3Connection(config)
+  const { endpoint, creds, pathOf } = connection
+  const send = signedS3Sender(connection, fetchImpl, clock)
 
   async function failure(res: Response, what: string): Promise<ByteStoreError> {
     const text = await res.text().catch(() => '')
@@ -133,15 +255,21 @@ export function s3ByteStore(
   }
 
   return {
-    async put(path, bytes, mime) {
-      const head = await send('HEAD', path, null, {})
+    async put(path, bytes, mime, _context, control) {
+      const head = await send('HEAD', path, null, {}, control)
       if (head.ok) throw new ByteStoreError(409, `store put: ${path} exists`)
       if (head.status !== 404) throw await failure(head, 'store head')
-      const res = await send('PUT', path, bytes, {
-        'content-type': mime,
-        'cache-control': 'private, max-age=0',
-        'if-none-match': '*',
-      })
+      const res = await send(
+        'PUT',
+        path,
+        bytes,
+        {
+          'content-type': mime,
+          'cache-control': 'private, max-age=0',
+          'if-none-match': '*',
+        },
+        control,
+      )
       if (res.status === 412) throw new ByteStoreError(409, `store put: ${path} exists`)
       if (!res.ok) throw await failure(res, 'store put')
     },
@@ -160,25 +288,32 @@ export function s3ByteStore(
 }
 
 /** Claims a key's one write: true the first time, false for a key already claimed (claimObjectWrite, 0044). */
-export type WriteClaim = (path: string, sha256: string, byteLength: number) => Promise<boolean>
+export type WriteClaim = (
+  path: string,
+  sha256: string,
+  byteLength: number,
+  control?: ByteWriteControl,
+) => Promise<boolean>
 
 /**
  * The store, written once per key whatever the store itself does with a second write: each put first claims its key
  * (committed before any byte is sent) and is refused with 409 for a key already claimed, the same bytes included. A
- * claim that cannot be made refuses the write with WriteClaimError: nothing reaches the store unclaimed.
+ * claim that cannot be made refuses the write with WriteClaimError: nothing reaches the store unclaimed. An interrupted COMMIT may leave a consumed claim.
  * Reads are the store's own.
  */
 export function writeOnce(store: ByteStore, claim: WriteClaim): ByteStore {
   return {
-    async put(path, bytes, mime) {
+    async put(path, bytes, mime, context, control) {
+      if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
       let claimed: boolean
       try {
-        claimed = await claim(path, sha256Hex(bytes), bytes.byteLength)
+        claimed = await claim(path, sha256Hex(bytes), bytes.byteLength, control)
       } catch (error) {
-        throw new WriteClaimError(`store claim: ${path}: the claim was not made`, { cause: error })
+        throw new WriteClaimError(`store claim: ${path}: the claim was not confirmed`, { cause: error })
       }
       if (!claimed) throw new ByteStoreError(409, `store put: ${path} was already written`)
-      await store.put(path, bytes, mime)
+      if (byteWriteExpired(control)) throw new ByteStoreError(503, 'report upload timed out')
+      await store.put(path, bytes, mime, context, control)
     },
     signedUrl: (path, expiresInSeconds, downloadAs) => store.signedUrl(path, expiresInSeconds, downloadAs),
     get: (path) => store.get(path),

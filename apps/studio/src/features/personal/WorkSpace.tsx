@@ -2,9 +2,9 @@
 // it or a session is about to start, else open it), and the notes carried to it: yours marked as coming from your
 // personal space and yours to take back, a teammate's marked as theirs. Until the list has loaded it shows neither
 // projects nor "No projects yet"; a list that failed says so, with Try again.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { ProjectCreated, ProjectRelease, ProjectSummary } from '@sophia/contracts'
-import { Icon, Tip } from '@sophia/ui'
+import { EmptyState, Icon, Tip } from '@sophia/ui'
 import { createProject } from '../../api/client.ts'
 import { useAdmission, type AdmissionState } from '../../api/useAdmission.ts'
 import { useMounted } from '../../app/useMounted.ts'
@@ -40,6 +40,8 @@ interface Props {
     takingBack: (releaseId: string) => boolean
     cross: () => void
   }
+  /** The invitations waiting for the person (InvitedBand, A16): at the head of the list; nothing when none waits. */
+  invited?: ReactNode
 }
 
 function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void }) {
@@ -226,12 +228,16 @@ function Card({ project, props, now }: { project: ProjectSummary; props: Props; 
 
 function Empty({ onStart }: { onStart: () => void }) {
   return (
-    <div className="c3-empty">
-      <p>No projects yet. A project is where your team and Sophia build something together.</p>
-      <button className="pill primary" type="button" onClick={onStart}>
-        Start a project
-      </button>
-    </div>
+    <EmptyState
+      className="c3-empty"
+      actions={
+        <button className="pill primary" type="button" onClick={onStart}>
+          Start a project
+        </button>
+      }
+    >
+      No projects yet. A project is where your team and Sophia build something together.
+    </EmptyState>
   )
 }
 
@@ -255,6 +261,7 @@ export function WorkSpace(props: Props) {
         </div>
       </header>
       <div className="c3-projects">
+        {props.invited}
         <ReadNotes reads={[props.read]} />
         {newProject.open && (
           <NewProject

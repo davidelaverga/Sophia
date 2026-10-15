@@ -3,6 +3,7 @@
 // them to the project. The token stays in the fragment and reaches the API only in request bodies.
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
+import { Field } from '@sophia/ui'
 import type { InvitationPreview, LobbyEntry } from '@sophia/contracts'
 import { acceptInvitation, getLobbyEntry, knockRoom, previewInvitation } from '../../api/access.ts'
 import { ApiError } from '../../api/client.ts'
@@ -14,6 +15,7 @@ import { Centered, CodeForm, HomeLink, sendInTime, SlowNote } from '../../app/Si
 import { askAgainIn, clock, countdown, freshJoinToken, readJoinToken, sessionLabel } from './access-view.ts'
 import { GuestRoom, VisitEnd } from './GuestRoom.tsx'
 import { useNow } from '../../app/use-now.ts'
+import { rememberWelcome } from './welcome.ts'
 
 interface Props {
   auth: AuthState
@@ -238,7 +240,7 @@ interface KnockProps {
 function KnockForm({ name, onName, busy, error, onKnock }: KnockProps) {
   return (
     <>
-      <form className="field" onSubmit={onKnock}>
+      <Field as="form" size="lg" onSubmit={onKnock}>
         <label htmlFor="guest-name" className="sr-only">
           Your name
         </label>
@@ -254,7 +256,7 @@ function KnockForm({ name, onName, busy, error, onKnock }: KnockProps) {
         <button type="submit" className="pill primary" disabled={busy || !name.trim()}>
           {busy ? 'Knocking…' : 'Ask to come in'}
         </button>
-      </form>
+      </Field>
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -460,7 +462,7 @@ function MemberJoin({ preview, token, identity, onChooseDev, onSignOut, onOpenPr
         You’ll join as {role}, signed in as {identity.name}.
       </p>
       <SessionNote preview={preview} />
-      <Accept token={token} identity={identity} onOpenProject={onOpenProject} />
+      <Accept token={token} identity={identity} preview={preview} onOpenProject={onOpenProject} />
     </Centered>
   )
 }
@@ -468,10 +470,12 @@ function MemberJoin({ preview, token, identity, onChooseDev, onSignOut, onOpenPr
 function Accept({
   token,
   identity,
+  preview,
   onOpenProject,
 }: {
   token: string
   identity: Identity
+  preview: InvitationPreview
   onOpenProject: (projectId: string) => void
 }) {
   const [error, setError] = useState<string | null>(null)
@@ -481,6 +485,9 @@ function Accept({
     try {
       const { projectId } = await acceptInvitation(identity.token, token)
       forgetJoinToken()
+      // The project says who brought them and as what, once (newcomer-welcome.md).
+      const role = preview.role === 'viewer' ? 'viewer' : 'editor'
+      rememberWelcome({ projectId, inviter: preview.inviterName ? inviter(preview) : null, role, at: Date.now() })
       onOpenProject(projectId)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not accept the invitation.')

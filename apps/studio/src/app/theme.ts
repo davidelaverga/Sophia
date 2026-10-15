@@ -1,0 +1,102 @@
+// The Studio's appearance (docs/plans/light-mode.md): the dark room, the report's paper, or whichever the system
+// asks for. The choice is kept on this browser (`sophia.theme`); the page carries the one resolved as
+// `data-theme="light"` on its root, and nothing for the dark room, which every sheet draws by default. A fixture page
+// may ask for one in its address (`theme=light`) without keeping it.
+import { useSyncExternalStore } from 'react'
+
+export type Theme = 'dark' | 'light' | 'system'
+
+const KEY = 'sophia.theme'
+const THEMES: readonly Theme[] = ['dark', 'light', 'system']
+const listeners = new Set<() => void>()
+let asked: Theme | null = null
+
+const isTheme = (value: string | null): value is Theme => THEMES.some((theme) => theme === value)
+
+/** The appearance kept on this browser; the dark room when none is. */
+export function readTheme(): Theme {
+  if (asked) return asked
+  try {
+    const kept = localStorage.getItem(KEY)
+    return isTheme(kept) ? kept : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+/** What a choice comes to on this system now. */
+export function resolveTheme(theme: Theme, systemLight = matchMedia('(prefers-color-scheme: light)').matches) {
+  return theme === 'system' ? (systemLight ? 'light' : 'dark') : theme
+}
+
+/** The browser's chrome (a phone's bar, an installed window) in the page's ground (index.html's theme-color). */
+const CHROME = { light: '#fbf8f3', dark: '#07060b' } as const
+/**
+ * The tab's mark in the appearance shown, not the system's: favicon.svg follows only `prefers-color-scheme`, so a Light
+ * chosen on a dark system would keep the dark inks in the tab (Codex on #249). public/entry.js sets it at first paint.
+ */
+const ICON = { light: '/favicon-light.svg', dark: '/favicon-dark.svg' } as const
+
+/** Puts the resolved appearance on the page's root, and on the browser's chrome (Codex on #234). */
+export function applyTheme(theme: Theme = readTheme()): void {
+  const page = document.documentElement
+  const shown = resolveTheme(theme)
+  if (shown === 'light') page.dataset['theme'] = 'light'
+  else delete page.dataset['theme']
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', CHROME[shown])
+  document.querySelector('link[rel="icon"][type="image/svg+xml"]')?.setAttribute('href', ICON[shown])
+}
+
+/** Keeps a choice on this browser and shows it. */
+export function setTheme(theme: Theme): void {
+  asked = null
+  try {
+    localStorage.setItem(KEY, theme)
+  } catch {
+    // A browser that keeps nothing still shows the choice for this visit.
+    asked = theme
+  }
+  applyTheme(theme)
+  for (const listen of listeners) listen()
+}
+
+/**
+ * At the page's start: the kept appearance, or the one the address asks for (a fixture's `theme=`), shown before the
+ * first paint; the system's changes followed while the choice is «system».
+ */
+export function bootTheme(fromAddress: string | null = null): void {
+  if (isTheme(fromAddress)) asked = fromAddress
+  applyTheme()
+  matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => applyTheme())
+  // A choice made in another tab of the Studio is shown here too, the menu with it (Codex on #234).
+  window.addEventListener('storage', (e) => {
+    if (e.key !== KEY) return
+    applyTheme()
+    for (const listen of listeners) listen()
+  })
+}
+
+const subscribe = (listen: () => void) => {
+  listeners.add(listen)
+  return () => listeners.delete(listen)
+}
+
+/** The appearance chosen, and the way to choose another (the account menu). */
+export function useTheme(): [Theme, (theme: Theme) => void] {
+  const theme = useSyncExternalStore(subscribe, readTheme, () => 'dark' as const)
+  return [theme, setTheme]
+}
+
+const rootSubscribe = (listen: () => void) => {
+  const seen = new MutationObserver(listen)
+  seen.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+  return () => seen.disconnect()
+}
+
+/** Whether the page is on paper now (the root's `data-theme`). */
+export const onPaper = (): boolean => document.documentElement.dataset['theme'] === 'light'
+
+/** The page on paper or in the room, followed as the root changes (the account menu, the system): for what draws itself. */
+export function usePaper(): boolean {
+  return useSyncExternalStore(rootSubscribe, onPaper, () => false)
+}

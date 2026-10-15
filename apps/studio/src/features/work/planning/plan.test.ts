@@ -6,11 +6,16 @@ import type { BoardDecision, ItemView, Lifecycle, Wait } from './board-view.ts'
 import {
   actionable,
   allowed,
+  asksOf,
   boardOf,
   decidedFor,
   forViewer,
   forYou,
+  blockersOf,
+  glanceOf,
   LANE,
+  laneOf,
+  progressOf,
   latestDecisions,
   outsideOf,
   relation,
@@ -608,5 +613,219 @@ describe('decisions and a session’s last report', () => {
     assert.equal(freshness('2026-10-02T12:00:00Z', now), 1)
     assert.equal(freshness('2026-10-02T11:59:00Z', now), 0.5)
     assert.equal(freshness('2026-10-02T11:50:00Z', now), 0)
+  })
+})
+
+describe('a goal’s progress (docs/plans/goals-progress.md)', () => {
+  it('counts Complete as done and leaves closed work out of the count', () => {
+    assert.deepEqual(progressOf(['active', 'next', 'complete', 'blocked']), { done: 1, total: 4 })
+    assert.deepEqual(progressOf(['complete', 'closed', 'complete']), { done: 2, total: 2 })
+    assert.deepEqual(progressOf([]), { done: 0, total: 0 })
+  })
+})
+
+describe('a goal at a glance (docs/plans/goals-overview.md)', () => {
+  const done = { policy_ref: 'p', status: 'satisfied' as const, evidence_refs: ['e'] }
+
+  it('reads its lanes, who is on its open tasks and what waits, by kind', () => {
+    const items = [item('build'), item('ask'), item('decide'), item('done'), item('free')]
+    const views = [
+      view('build', { lifecycle: 'running', assignment: assignment('build') }),
+      view('ask', { lifecycle: 'waiting', waiting_on: [wait('native_permission', 'davide')] }),
+      view('decide', { lifecycle: 'waiting', waiting_on: [wait('product_decision', 'luis', 'resolved')] }),
+      view('done', { lifecycle: 'complete', completion: done }),
+      view('free'),
+    ]
+    const glance = glanceOf(rowsOf(goal(plan(items), views)))
+    assert.equal(glance.lanes.length, 5)
+    assert.equal(glance.lanes.filter((l) => l === 'complete').length, 1)
+    assert.deepEqual(glance.ways, { permissions: 1, decisions: 0, capacity: 0, outside: 0, blocked: 0 })
+    assert.deepEqual(
+      glance.people.map((p) => p.name),
+      ['Davide'],
+    )
+  })
+
+  it('counts its Blocked lane, and leaves the people of finished work out', () => {
+    const after = item('b', {
+      blocked_by: ['a'],
+      activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+    })
+    const views = [
+      view('a', { lifecycle: 'running' }),
+      view('b'),
+      view('c', { lifecycle: 'complete', completion: done, assignment: assignment('c') }),
+    ]
+    const glance = glanceOf(rowsOf(goal(plan([item('a'), after, item('c')]), views)))
+    assert.equal(glance.ways.blocked, 1)
+    assert.deepEqual(glance.people, [])
+  })
+
+  it('leaves out of its way what waits on the viewer: that is theirs to answer, said apart', () => {
+    const views = [view('ask', { lifecycle: 'waiting', waiting_on: [wait('native_permission', 'davide')] })]
+    const rows = rowsOf(goal(plan([item('ask')]), views), 'davide')
+    assert.equal(glanceOf(rows, 'davide').ways.permissions, 0)
+    assert.equal(glanceOf(rows, 'luis').ways.permissions, 1)
+  })
+})
+
+/** A decision Davide is asked, open until 13:00. */
+const asked = (over: Partial<BoardDecision>): BoardDecision => ({
+  decision_id: 'd',
+  revision: 1,
+  work_id: 'ask',
+  plan_id: 'plan-1',
+  plan_revision: 2,
+  candidate_version_ref: null,
+  question: 'Ship it before the review?',
+  decider_id: 'davide',
+  choices: [{ key: 'a', label: 'A' }],
+  expires_at: '2026-10-02T13:00:00Z',
+  state: 'proposed',
+  selected_choice: null,
+  choice_receipt_id: null,
+  plan_reaction: 'not_needed',
+  ...over,
+})
+
+describe('what waits on the viewer in a goal (docs/plans/goals-overview.md)', () => {
+  const now = new Date('2026-10-02T12:00:00Z')
+  const views = [
+    view('ask', {
+      lifecycle: 'waiting',
+      assignment: assignment('ask'),
+      waiting_on: [wait('native_permission', 'davide'), wait('capacity', 'luis', 'resolved')],
+    }),
+  ]
+  const decisions = [
+    asked({}),
+    asked({ decision_id: 'old', expires_at: '2026-10-02T11:00:00Z' }),
+    asked({ decision_id: 'theirs', decider_id: 'luis' }),
+  ]
+
+  it('lists the requests naming the viewer, then their decisions still open, each with where it opens', () => {
+    const rows = rowsOf(goal(plan([item('ask')]), views), 'davide')
+    assert.deepEqual(asksOf(rows, decisions, 'davide', now), [
+      {
+        id: 'ask:ref-native_permission',
+        kind: 'request',
+        words: 'About native_permission',
+        by: 'Davide’s Claude Code',
+        target: 'ask',
+      },
+      { id: 'd', kind: 'decision', words: 'Ship it before the review?', by: null, target: 'd' },
+    ])
+  })
+
+  it('holds nothing of anyone else’s, nothing answered and nothing for no one', () => {
+    const rows = rowsOf(goal(plan([item('ask')]), views), 'luis')
+    assert.deepEqual(
+      asksOf(rows, decisions, 'luis', now).map((a) => a.id),
+      ['theirs'],
+    )
+    assert.deepEqual(asksOf(rows, decisions, null, now), [])
+  })
+})
+
+describe('the Blocked lane', () => {
+  const lanes = (items: Parameters<typeof plan>[0], views: Parameters<typeof goal>[1]) => {
+    const rows = rowsOf(goal(plan(items), views))
+    return Object.fromEntries(rows.map((r) => [r.item.id, laneOf(r, rows)]))
+  }
+  const after = item('b', {
+    blocked_by: ['a'],
+    activation: { kind: 'dependencies_satisfied', producer_work_id: null },
+  })
+
+  it('holds a row up next whose blocker is still active', () => {
+    const got = lanes([item('a'), after], [view('a', { lifecycle: 'running' }), view('b')])
+    assert.deepEqual(got, { a: 'active', b: 'blocked' })
+  })
+
+  it('lets the row go up next once its blocker is complete', () => {
+    const got = lanes(
+      [item('a'), after],
+      [
+        view('a', {
+          lifecycle: 'complete',
+          completion: { policy_ref: 'policy-a', status: 'satisfied', evidence_refs: ['e-a'] },
+        }),
+        view('b'),
+      ],
+    )
+    assert.equal(got.b, 'next')
+  })
+
+  it('keeps the row blocked when its blocker closed without completing: a cancelled prerequisite satisfies nothing', () => {
+    const got = lanes([item('a'), after], [view('a', { lifecycle: 'cancelled' }), view('b')])
+    assert.deepEqual(got, { a: 'closed', b: 'blocked' })
+  })
+
+  it('does not hold a row for a blocker outside the plan, nor a review waiting for its candidate', () => {
+    const review = item('c', { activation: { kind: 'candidate_ready', producer_work_id: 'a' } })
+    const stray = item('d', { blocked_by: ['not-in-plan'] })
+    const got = lanes([item('a'), review, stray], [view('a', { lifecycle: 'running' }), view('c'), view('d')])
+    assert.deepEqual([got.c, got.d], ['next', 'next'])
+  })
+})
+
+describe('what the Blocked lane waits on', () => {
+  it('names each blocker once, in the order it came, and not one that is complete', () => {
+    const done = { policy_ref: 'policy-a', status: 'satisfied' as const, evidence_refs: ['e-a'] }
+    const rows = rowsOf(
+      goal(
+        plan([
+          item('a'),
+          item('z'),
+          item('b', { blocked_by: ['a'] }),
+          item('c', { blocked_by: ['a', 'z'] }),
+          item('d', { blocked_by: ['gone'] }),
+        ]),
+        [
+          view('a', { lifecycle: 'running' }),
+          view('z', { lifecycle: 'complete', completion: done }),
+          view('b'),
+          view('c'),
+          view('d'),
+        ],
+      ),
+    )
+    const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
+    assert.deepEqual(
+      held.map((r) => r.item.id),
+      ['b', 'c'],
+    )
+    assert.deepEqual(
+      blockersOf(held, rows, ['a', 'b', 'c']).map((r) => r.item.id),
+      ['a'],
+    )
+  })
+  it('names blockers in the plan’s order, whatever order a dependent lists them in (Codex on #244)', () => {
+    const rows = rowsOf(
+      goal(plan([item('a'), item('b'), item('c', { blocked_by: ['b', 'a'] })]), [view('a'), view('b'), view('c')]),
+    )
+    const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
+    assert.deepEqual(
+      blockersOf(held, rows, ['a', 'b', 'c']).map((r) => r.item.id),
+      ['a', 'b'],
+    )
+  })
+})
+
+describe('the blockers named, in the plan’s order, whatever the board’s (Codex P2 on #244)', () => {
+  it('keeps the plan’s order when the board sorts its rows by mark', () => {
+    // a (not started) before b (running) in the plan; the board puts b first, running ranking ahead.
+    const rows = rowsOf(
+      goal(plan([item('a'), item('b'), item('c', { blocked_by: ['a', 'b'] })]), [
+        view('a'),
+        view('b', { lifecycle: 'running' }),
+        view('c'),
+      ]),
+    )
+    const held = rows.filter((r) => laneOf(r, rows) === 'blocked')
+    assert.deepEqual(
+      blockersOf(held, rows, ['a', 'b', 'c']).map((r) => r.item.id),
+      ['a', 'b'],
+    )
   })
 })

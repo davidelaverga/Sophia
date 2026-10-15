@@ -21,7 +21,7 @@
 .direction-meta {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .direction-tiles {
   display: grid;
@@ -33,8 +33,12 @@
 }
 .candidate-tile {
   display: grid;
+  /* A row's tiles stand as tall as its tallest (a foot that wrapped), the image on top and the foot at the bottom. */
+  grid-template-rows: auto 1fr;
+  align-content: start;
   gap: 8px;
   width: 100%;
+  height: 100%;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-3);
@@ -53,20 +57,25 @@
   outline-offset: 2px;
 }
 /* One line, whatever the tags say: the route gives way, so every tile keeps the same height. */
+/* The foot wraps rather than cut: the route keeps its whole name and the state goes under it when both don't fit
+   (docs/plans/explore-route-name.md). */
 .candidate-foot {
   display: flex;
+  flex-wrap: wrap;
+  align-self: start;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
   min-width: 0;
 }
 .candidate-route {
-  min-width: 0;
+  flex-shrink: 0;
+  max-width: 100%;
   margin-right: auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   color: var(--text-2);
 }
 .candidate-image {
@@ -93,7 +102,7 @@
 .candidate-image.empty p {
   max-width: 28ch;
   color: var(--text-2);
-  font-size: 12.5px;
+  font-size: var(--type-small);
   text-align: center;
 }
 .candidate-image.mismatch p {
@@ -160,16 +169,13 @@
 }
 .direction-why {
   color: var(--text-3);
-  font-size: 12.5px;
+  font-size: var(--type-small);
 }
 /* A phone compares two at a time, side by side; the route takes its own line so nothing is cut. */
 @media (max-width: 560px) {
   .direction-tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
-  }
-  .candidate-foot {
-    flex-wrap: wrap;
   }
   .candidate-route {
     flex-basis: 100%;

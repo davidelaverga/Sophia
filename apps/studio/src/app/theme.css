@@ -2,26 +2,35 @@
    for data), small radii, one-pixel lines, fast transitions. Sophia's light is the only soft thing on the
    screen: people are warm, she is violet, everything else is quiet. The Studio is dark-only. */
 :root {
-  /* The type scale of the work views (Resources, the plan's board): four steps under a view's title (20 px).
-     Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. */
+  /* The type scale of the work views (Resources, the plan's board): four steps under a view's title.
+     Titles name a thing; body says it; small is what follows it; labels are mono, often in capitals. A view's
+     title is one step above the headings' ramp, on the grid's 32 (docs/plans/view-titles.md). */
+  --type-view: 28px;
+  /* The heads of a view's sections and tiles: one step above the body's title, under the view's (docs/plans/section-heads.md). */
+  --type-head: 15px;
   --type-title: 14px;
   --type-body: 13px;
   --type-small: 12px;
   --type-label: 10.5px;
+  /* Their leadings, on the 4 px grid: labels and small 16, body and titles 20, a lead and a heading 24. */
+  --lh-small: 16px;
+  --lh-body: 20px;
+  --lh-head: 24px;
+  --lh-view: 32px;
   color-scheme: dark;
   --void: #050408;
   --plane: #0b0a0f;
   --plane-2: #121118;
   --glass: rgba(12, 11, 17, 0.74);
   --text: #ecebf1;
-  --text-2: rgba(236, 235, 241, 0.66);
+  --text-2: rgb(var(--ink-rgb) / 0.66);
   /* The third ink still reads: 4.6:1 or more on the void, the plane and a raised plane (it was 3.8:1 at 0.44). */
-  --text-3: rgba(236, 235, 241, 0.52);
-  --text-4: rgba(236, 235, 241, 0.26);
-  --line: rgba(236, 235, 241, 0.08);
-  --line-2: rgba(236, 235, 241, 0.14);
-  --line-3: rgba(236, 235, 241, 0.22);
-  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --text-3: rgb(var(--ink-rgb) / 0.52);
+  --text-4: rgb(var(--ink-rgb) / 0.26);
+  --line: rgb(var(--ink-rgb) / 0.08);
+  --line-2: rgb(var(--ink-rgb) / 0.14);
+  --line-3: rgb(var(--ink-rgb) / 0.22);
+  --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.04);
   --halo: #9c82f5;
   --halo-text: #b9a8ff;
   --core: #f4f0ff;
@@ -29,6 +38,41 @@
   --teal: #7fd6c4;
   --amber: #efbf86;
   --rose: #ee9fb0;
+  /* The same inks as channels, for the alphas the sheets lay over the room (docs/plans/light-mode.md): a light page
+     swaps them all at once. */
+  --ink-rgb: 236 235 241;
+  --void-rgb: 5 4 8;
+  --sheen-rgb: 255 255 255;
+  --halo-rgb: 156 130 245;
+  --halo-text-rgb: 185 168 255;
+  --core-rgb: 244 240 255;
+  --warm-rgb: 241 220 199;
+  --teal-rgb: 127 214 196;
+  --amber-rgb: 239 191 134;
+  /* The inks of a state the at-rest scan does not see: a primary press hovered, the ink on the core and on the warm,
+     a note that is soon, Claude's own; each with a paper value (Codex on #234). */
+  --core-hover: #fff;
+  --on-core: #0c0a16;
+  --warm-hover: #fff4e8;
+  --on-warm: #1a1512;
+  --soon: #e8c48d;
+  --claude-ink: #b3a3f5;
+  --rose-rgb: 238 159 176;
+  /* A shadow's ink and its strength: black at full in the room; on paper the ink, a third as strong. */
+  --shadow-rgb: 0 0 0;
+  --shadow-k: 1;
+  /* The mark's two inks (Umbral, docs/plans/brand-umbral.md): you warm and Sophia core in the room; on paper the brand's
+     ink and halo-deep, the favicon's (docs/plans/light-paper-mark.md). */
+  --mark-you: var(--warm);
+  --mark-sophia: var(--core);
+  /* A box with words painted in an accent (a report's tile, a cover's tag): the accent itself in the room, with the
+     void as its ink; on paper a tint of it with the accent as the ink, as the chips do (docs/plans/light-fills.md). */
+  --teal-fill: var(--teal);
+  --on-teal: var(--void);
+  --amber-fill: var(--amber);
+  --on-amber: var(--void);
+  --rose-fill: var(--rose);
+  --on-rose: var(--void);
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --r-1: 4px;
@@ -40,9 +84,123 @@
   --base: 220ms;
   --gutter: max(16px, 3vw);
   --topbar: 48px;
+  /* The widest a page's column goes (docs/plans/widths.md): a wide screen is used, not left bare at the sides. */
+  --content: 1280px;
   /* The room's floor: the dock, the panel toggles, the chat's message bar and the mini dock of the other views all
      rest this far above the bottom. */
   --floor: calc(env(safe-area-inset-bottom, 0px) + 18px);
+}
+/* A light page (docs/plans/light-mode.md): the report's paper under the same room, chosen in the account menu
+   (theme.ts) and carried as `data-theme` on the root. The inks darken a step for contrast (4.5:1 on paper and on a
+   white plane), Sophia's light is a halo on paper, the grain goes. */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --void: #fbf8f3;
+  --plane: #f4f0ea;
+  --plane-2: #ffffff;
+  --glass: rgba(251, 248, 243, 0.8);
+  --text: #1d1b22;
+  --text-2: rgba(29, 27, 34, 0.74);
+  --text-3: rgba(29, 27, 34, 0.64);
+  --text-4: rgba(29, 27, 34, 0.34);
+  --line: rgba(29, 27, 34, 0.1);
+  --line-2: rgba(29, 27, 34, 0.16);
+  --line-3: rgba(29, 27, 34, 0.24);
+  --lift: inset 0 1px 0 rgb(var(--sheen-rgb) / 0.7);
+  --halo: #6d5bd0;
+  --halo-text: #5546b8;
+  /* The primary press and Sophia's deepest fill on paper: the brand's violet (6.7:1 under the paper's ink), not a navy. */
+  --core: #5546b8;
+  --warm: #965328;
+  --teal: #0f6b5b;
+  --amber: #8f5717;
+  --rose: #a8375a;
+  --ink-rgb: 29 27 34;
+  --void-rgb: 251 248 243;
+  --halo-rgb: 109 91 208;
+  --halo-text-rgb: 85 70 184;
+  --core-rgb: 85 70 184;
+  --warm-rgb: 150 83 40;
+  --teal-rgb: 15 107 91;
+  --amber-rgb: 143 87 23;
+  --core-hover: #4a3ca6;
+  --on-core: #fbf8f3;
+  --warm-hover: #7a4220;
+  --on-warm: #fbf8f3;
+  --soon: #8f5717;
+  --claude-ink: #5546b8;
+  --rose-rgb: 168 55 90;
+  --shadow-rgb: 29 27 34;
+  --shadow-k: 0.35;
+  --mark-you: #16151b;
+  --mark-sophia: #8468ee;
+  /* The tints are the accent at 14 % over the paper, mixed once and opaque: a tag over a cover or a plane keeps the
+     same backing and the same contrast wherever it sits (Codex on #250). */
+  --teal-fill: #dae4de;
+  --on-teal: var(--teal);
+  --amber-fill: #ece1d4;
+  --on-amber: var(--amber);
+  --rose-fill: #efddde;
+  --on-rose: var(--rose);
+}
+:root[data-theme='light'] body::after {
+  display: none;
+}
+/* Her light on paper: a violet halo, not the screen-blended canvas. */
+:root[data-theme='light'] .light-gl {
+  display: none;
+}
+/* A light with a bright heart on paper, as the canvas has in the room: white at the centre, the halo around it; and
+   it breathes, as the canvas does (docs/plans/light-breath.md). The light isolates its stacking, and the halo sits at
+   the back of it: the formed mark and the trace are its children and paint over the heart (Codex on #251). */
+:root[data-theme='light'] .light {
+  isolation: isolate;
+  /* Without WebGL the engine marks a fallback and the room paints its radial on the element; on paper the halo is the
+     pseudo-element's alone (Codex on #251). */
+  background: none;
+}
+:root[data-theme='light'] .light::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* A soft heart and a deeper ring (Luis, 2026-10-11: the halo lost itself against the white): the heart fades to
+     the deep violet at the rim, then the halo thins to nothing by 48 %. */
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgb(255 255 255 / 0.96) 0,
+    rgb(255 255 255 / 0.86) 4%,
+    rgb(85 70 184 / 0.4) 8.5%,
+    rgb(var(--halo-rgb) / 0.44) 11.5%,
+    rgb(var(--halo-rgb) / 0.24) 18%,
+    rgb(var(--halo-rgb) / 0.1) 28%,
+    transparent 48%
+  );
+  transform-origin: 50% 42%;
+  animation: paper-breathe 6s ease-in-out infinite alternate;
+}
+@keyframes paper-breathe {
+  from {
+    transform: scale(1);
+    opacity: 0.92;
+  }
+  to {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='light'] .light::after {
+    animation: none;
+  }
+}
+/* The bar's mark on paper carries no glow at rest (the brand's paper mark); live, a soft halo-deep still says so. Only
+   the bar's mark (`.umbral`): the threshold keeps its breathing halo, and its still one under reduced motion (Codex on #249). */
+:root[data-theme='light'] .umbral .umbral-sophia {
+  filter: none;
+}
+:root[data-theme='light'] .umbral[data-live] .umbral-sophia {
+  filter: drop-shadow(0 0 3px rgb(132 104 238 / 0.5));
 }
 
 *,
@@ -53,19 +211,25 @@
 html {
   -webkit-text-size-adjust: 100%;
   background: var(--void);
-  scrollbar-color: rgba(236, 235, 241, 0.12) transparent;
+  scrollbar-color: rgb(var(--ink-rgb) / 0.12) transparent;
 }
 /* Scrollbars stay thin and quiet everywhere. Chrome ignores ::-webkit-scrollbar once scrollbar-color is set (as
    above), so without this every scrolling box drew the system bar, arrows and all, on Windows. */
 * {
   scrollbar-width: thin;
 }
+/* Every size's leading on the 4 px grid (docs/plans/type-leading.md): set per element, so each size finds its own
+   step (10.5 and 12 → 16, 13 and 14 → 20, 15 → 20, 16 and 18 → 24, 22 → 32); a rule that names a leading wins. */
+/* Every word's leading on the 4 px grid; a report's page keeps its own reading voice (.md, 17/1.6). */
+:where(*:not(.md, .md *)) {
+  line-height: round(down, 1.55em, 4px);
+}
 body {
   margin: 0;
   min-height: 100dvh;
   background: var(--void);
   color: var(--text);
-  font: 400 var(--type-body) / 1.5 var(--sans);
+  font: 400 var(--type-body) / var(--lh-body) var(--sans);
   letter-spacing: -0.003em;
   font-kerning: normal;
   -webkit-font-smoothing: antialiased;
@@ -82,7 +246,7 @@ body::after {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 ::selection {
-  background: rgba(156, 130, 245, 0.35);
+  background: rgb(var(--halo-rgb) / 0.35);
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -90,8 +254,8 @@ body::after {
 }
 ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
-  border-radius: 10px;
-  background: rgba(236, 235, 241, 0.12) padding-box;
+  border-radius: 999px;
+  background: rgb(var(--ink-rgb) / 0.12) padding-box;
 }
 h1,
 h2,
@@ -117,7 +281,7 @@ a {
   text-underline-offset: 3px;
 }
 :focus-visible {
-  outline: 2px solid rgba(185, 168, 255, 0.7);
+  outline: 2px solid rgb(var(--halo-text-rgb) / 0.7);
   outline-offset: 2px;
 }
 /* `hidden` always hides. A rule that sets `display` would otherwise win over the browser's own, and the element
@@ -143,7 +307,7 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 .mono {
-  font-size: 11.5px;
+  font-size: var(--type-small);
   color: var(--text-3);
 }
 kbd {
@@ -154,17 +318,16 @@ kbd {
   padding: 0 4px;
   border-radius: var(--r-1);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
   color: var(--text-2);
   font-size: 10.5px;
   font-weight: 500;
-  line-height: 1;
 }
 /* Small labels: mono capitals, the one place letters are spaced. */
 .eyebrow,
 .field-label {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -210,12 +373,22 @@ input,
 select,
 textarea {
   font: inherit;
+  /* The shorthand inherits the parent's leading too: a control at its own size (a small ghost in a card) finds its own
+     step again (Codex on #231). */
+  line-height: round(down, 1.55em, 4px);
   color: inherit;
   letter-spacing: inherit;
 }
 button {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+/* A native disclosure is a press: under the pointer its words step up to the ink (Codex on #232). */
+summary {
+  cursor: pointer;
+}
+summary:hover {
+  color: var(--text);
 }
 /* A press that waits keeps the focus (aria-disabled) and looks as one that can't be pressed, never as a live one. */
 button:disabled,
@@ -233,7 +406,7 @@ button:disabled,
   padding: 0 12px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.04);
+  background: rgb(var(--ink-rgb) / 0.04);
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
@@ -246,7 +419,7 @@ button:disabled,
     color var(--fast) var(--ease);
 }
 .pill:hover:not(:disabled, [aria-disabled='true']) {
-  background: rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
   border-color: var(--line-3);
 }
 .pill:active:not(:disabled, [aria-disabled='true']) {
@@ -256,10 +429,10 @@ button:disabled,
   border-color: transparent;
   background: var(--core);
   color: var(--void);
-  box-shadow: inset 0 -1px 0 rgba(5, 4, 8, 0.16);
+  box-shadow: inset 0 -1px 0 rgb(var(--void-rgb) / 0.16);
 }
 .pill.primary:hover:not(:disabled, [aria-disabled='true']) {
-  background: #fff;
+  background: var(--core-hover);
 }
 /* A primary action that can't run yet (no name, nothing typed, a wait) waits as an outline, not a greyed-out block. */
 .pill.primary:disabled,
@@ -271,17 +444,17 @@ button:disabled,
   box-shadow: none;
 }
 .pill.warm {
-  border-color: rgba(241, 220, 199, 0.26);
-  background: rgba(241, 220, 199, 0.04);
+  border-color: rgb(var(--warm-rgb) / 0.26);
+  background: rgb(var(--warm-rgb) / 0.04);
   color: var(--warm);
 }
 .pill.warm:hover:not(:disabled) {
-  border-color: rgba(241, 220, 199, 0.46);
-  background: rgba(241, 220, 199, 0.08);
+  border-color: rgb(var(--warm-rgb) / 0.46);
+  background: rgb(var(--warm-rgb) / 0.08);
 }
 .pill.danger {
-  border-color: rgba(238, 159, 176, 0.4);
-  background: rgba(238, 159, 176, 0.08);
+  border-color: rgb(var(--rose-rgb) / 0.4);
+  background: rgb(var(--rose-rgb) / 0.08);
   color: var(--rose);
 }
 .pill-dot {
@@ -292,7 +465,7 @@ button:disabled,
 }
 .pill-dot[data-live] {
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
+  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
 }
 /* Keys inside buttons: quiet until they matter; on the light primary they are ink. */
 .pill kbd {
@@ -301,10 +474,10 @@ button:disabled,
   min-width: 17px;
   font-size: var(--type-label);
 }
-.pill.primary:not(:disabled, [aria-disabled='true']) kbd {
-  border-color: rgba(5, 4, 8, 0.16);
-  background: rgba(5, 4, 8, 0.06);
-  color: rgba(5, 4, 8, 0.55);
+.pill.primary:not(:disabled, [aria-disabled='true']) > kbd {
+  border-color: rgb(var(--void-rgb) / 0.16);
+  background: rgb(var(--void-rgb) / 0.06);
+  color: rgb(var(--void-rgb) / 0.55);
 }
 select.pill {
   appearance: none;
@@ -335,7 +508,13 @@ select option {
 }
 .ghost:hover {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+/* Pressed, the kit's kinds sink half a pixel, as the pill does (docs/plans/press-answers.md). */
+.ghost:active:not(:disabled, [aria-disabled='true']),
+.round:active:not(:disabled, [aria-disabled='true']),
+.text-button:active:not([aria-disabled='true'], :disabled) {
+  transform: translateY(0.5px);
 }
 /* Icon controls: squares with a small radius (the class name predates the shape). */
 .round {
@@ -346,7 +525,7 @@ select option {
   flex: none;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text-2);
   transition:
     background var(--fast) var(--ease),
@@ -356,27 +535,73 @@ select option {
 .round:hover {
   color: var(--text);
   border-color: var(--line-2);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .round[aria-pressed='true'] {
   color: var(--void);
   background: var(--core);
   border-color: transparent;
 }
+/* On, it still answers: a press would turn it off. */
+.round[aria-pressed='true']:hover {
+  background: var(--core-hover);
+}
 .round.leave:hover {
   color: var(--rose);
-  border-color: rgba(238, 159, 176, 0.4);
-  background: rgba(238, 159, 176, 0.08);
+  border-color: rgb(var(--rose-rgb) / 0.4);
+  background: rgb(var(--rose-rgb) / 0.08);
 }
 .text-button {
   border: 0;
   background: none;
   padding: 2px 0;
+  line-height: 20px; /* a control: its words centred in its 24 px box, at 13 px as at 12 (control-heights.spec) */
   color: var(--halo-text);
   font-size: 13px;
   text-decoration: underline;
-  text-decoration-color: rgba(185, 168, 255, 0.35);
+  text-decoration-color: rgb(var(--halo-text-rgb) / 0.35);
   text-underline-offset: 3px;
+  transition: text-decoration-color var(--fast) var(--ease);
+}
+/* Under the pointer the underline wakes from a third of its ink to the ink; a text button that is disabled (a command
+   sending) keeps still, as a pill does (Codex on #253). */
+.text-button:hover:not(:disabled, [aria-disabled='true']) {
+  text-decoration-color: var(--halo-text);
+}
+/* A goal's text commands, waiting while another one sends: the step of a disabled pill there. Elsewhere a disabled
+   button keeps the kit's 0.45 (Codex on #253: unscoped, it lifted every text button). */
+.controls .text-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+/* The scale of a press (docs/plans/control-heights.md): 24 · 28 · 32 · 36 px. Each kind draws its own size by its
+   class alone (a pill 32, a ghost 28, a square 36, an inline action 24); a modifier takes it one step down or up
+   (`Button` in @sophia/ui), so no feature sets a height of its own. */
+.pill.sz-sm {
+  height: 28px;
+  padding: 0 10px;
+}
+.pill.sz-lg {
+  height: 36px;
+  padding: 0 14px;
+}
+.ghost.sz-sm {
+  height: 24px;
+  padding: 0 6px;
+  font-size: var(--type-small);
+}
+.ghost.sz-lg {
+  height: 32px;
+  padding: 0 10px;
+}
+.round.sz-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-2);
+}
+.round.sz-md {
+  width: 32px;
+  height: 32px;
 }
 input,
 textarea {
@@ -385,7 +610,7 @@ textarea {
   padding: 0 11px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text);
   font-size: var(--type-body);
   transition:
@@ -404,18 +629,33 @@ textarea:hover {
 input:focus-visible,
 textarea:focus-visible {
   outline: none;
-  border-color: rgba(185, 168, 255, 0.6);
-  background: rgba(236, 235, 241, 0.05);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.14);
+  border-color: rgb(var(--halo-text-rgb) / 0.6);
+  background: rgb(var(--ink-rgb) / 0.05);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.14);
+}
+/* On paper the focus edge is the halo's ink whole: the only sign of the keyboard's place, at 3:1 and more (Codex on
+   #234). */
+:root[data-theme='light'] :is(input, textarea):focus-visible,
+:root[data-theme='light'] .field:focus-within {
+  border-color: var(--halo-text);
 }
 select {
   height: 32px;
   padding: 0 10px;
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
-  background: rgba(236, 235, 241, 0.03);
+  background: rgb(var(--ink-rgb) / 0.03);
   color: var(--text-2);
   font-size: 13px;
+}
+/* A select is a press too: under the pointer its words and its edge wake (Codex on #232). */
+select:hover:not(:disabled) {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+/* A checkbox answers the pointer: a step brighter (its box is the browser's). */
+input[type='checkbox']:hover:not(:disabled) {
+  filter: brightness(1.2);
 }
 .form-error {
   color: var(--rose);
@@ -425,6 +665,13 @@ select {
 /* Tips: what a control does and its key, after a short hover or on keyboard focus. */
 .has-tip {
   position: relative;
+}
+/* The next ask's key cap (docs/plans/next-ask.md): in the field, at the line's middle, beside what it proposes; its tip
+   says why. */
+.next-ask {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
 }
 .tip {
   position: absolute;
@@ -438,7 +685,7 @@ select {
   border-radius: var(--r-2);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   color: var(--text);
   font-size: 12px;
   font-weight: 500;
@@ -469,45 +716,64 @@ select {
 .has-tip:focus-visible .tip[data-align='end'] {
   transform: translate(0, 0);
 }
+/* The next ask's reason with the focus in its field too: the keyboard's way to see why, the cap being no stop of its
+   own (Codex P2 on #262). */
+:is(input, textarea):focus-visible ~ .next-ask .tip {
+  opacity: 1;
+  transform: translate(0, 0);
+  transition-delay: 320ms;
+}
 
-/* Status: a dot and a word in a small chip; the color only reinforces the word. */
-.tag {
+/* A chip (docs/plans/chips-radii.md): a word or two in a small box on the first radius. The state chip (the tag): 20 px,
+   the small type at 500, a dot and a tone that only reinforce the word. The data chip (a model's name): 18 px, the mono
+   label type, tinted by its own ink. A key is a `kbd`. */
+.chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 20px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
   color: var(--text-2);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   white-space: nowrap;
 }
-.tag .dot {
+.chip .dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
 }
-.tag.teal {
-  background: rgba(127, 214, 196, 0.1);
+.chip.teal {
+  background: rgb(var(--teal-rgb) / 0.1);
   color: var(--teal);
 }
-.tag.amber {
-  background: rgba(239, 191, 134, 0.1);
+.chip.amber {
+  background: rgb(var(--amber-rgb) / 0.1);
   color: var(--amber);
 }
-.tag.lav {
-  background: rgba(156, 130, 245, 0.12);
+.chip.lav {
+  background: rgb(var(--halo-rgb) / 0.12);
   color: var(--halo-text);
 }
-.tag.rose {
-  background: rgba(238, 159, 176, 0.1);
+.chip.rose {
+  background: rgb(var(--rose-rgb) / 0.1);
   color: var(--rose);
 }
-.tag.muted {
+.chip.muted {
   color: var(--text-3);
+}
+.chip-data {
+  --chip-ink: var(--text-3);
+  gap: 5px;
+  height: 18px;
+  padding: 0 6px;
+  background: color-mix(in srgb, var(--chip-ink) 7%, transparent);
+  color: color-mix(in srgb, var(--chip-ink) 30%, var(--text-2));
+  font-family: var(--mono);
+  font-size: var(--type-label);
 }
 
 /* The mark: Sophia's point of light and her name. It glows while the project is live. */
@@ -515,8 +781,9 @@ select {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 4px 6px;
-  margin: -4px -6px;
+  height: 28px;
+  padding: 0 6px;
+  margin: 0 -6px;
   border: 0;
   border-radius: var(--r-2);
   background: none;
@@ -524,7 +791,7 @@ select {
   transition: background var(--fast) var(--ease);
 }
 button.mark:hover {
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 /* Umbral (Mark.tsx): you in warm, Sophia in core with a soft halo, brighter while the feed is live. */
 .umbral {
@@ -533,15 +800,15 @@ button.mark:hover {
   overflow: visible;
 }
 .umbral-you {
-  fill: var(--warm);
+  fill: var(--mark-you);
 }
 .umbral-sophia {
-  fill: var(--core);
-  filter: drop-shadow(0 0 2px rgba(156, 130, 245, 0.45));
+  fill: var(--mark-sophia);
+  filter: drop-shadow(0 0 2px rgb(var(--halo-rgb) / 0.45));
   transition: filter 1s var(--ease);
 }
 .umbral[data-live] .umbral-sophia {
-  filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.85));
+  filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.85));
 }
 .mark-word {
   font-weight: 600;
@@ -563,19 +830,20 @@ button.mark:hover {
   height: var(--topbar);
   padding: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
-  background: rgba(5, 4, 8, 0.78);
+  background: rgb(var(--void-rgb) / 0.78);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
 }
 .crumb-sep {
   color: var(--text-4);
-  font-size: 15px;
-  font-weight: 300;
+  font-size: var(--type-body);
+  font-weight: 400;
 }
 /* Work, between the mark and the project: where the project lives, and the way back to the other projects. */
 .crumb {
-  padding: 4px 6px;
-  margin: -4px -6px;
+  height: 28px;
+  padding: 0 6px;
+  margin: 0 -6px;
   border: 0;
   border-radius: var(--r-2);
   background: none;
@@ -589,7 +857,7 @@ button.mark:hover {
 }
 .crumb:hover {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .project-name {
   min-width: 0;
@@ -614,11 +882,22 @@ button.mark:hover {
 .view-nav::-webkit-scrollbar {
   display: none;
 }
+/* Where the views don't fit (a 1024 screen, a report beside the page) the row scrolls: an edge fades only where more
+   views hide (ViewNav marks it), and the current view is scrolled into sight, never cut at a hard edge. */
+.view-nav[data-more-end] {
+  mask-image: linear-gradient(90deg, #000 82%, transparent);
+}
+.view-nav[data-more-start] {
+  mask-image: linear-gradient(90deg, transparent, #000 18%);
+}
+.view-nav[data-more-start][data-more-end] {
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+}
 .view-nav a {
   display: flex;
   align-items: center;
   flex: none;
-  padding: 0 10px;
+  padding: 0 8px; /* the seven views whole at 1280 with the room idle: 500 px in 515 (docs/plans/nav-fits-1280.md) */
   color: var(--text-3);
   font-size: 13px;
   font-weight: 500;
@@ -661,7 +940,7 @@ button.mark:hover {
   margin-right: 6px;
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -675,7 +954,7 @@ button.mark:hover {
 }
 .connection[data-state='live'] .connection-dot {
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.14);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.14);
 }
 .connection[data-state='reconnecting'] .connection-dot,
 .connection[data-state='resyncing'] .connection-dot {
@@ -697,23 +976,58 @@ button.mark:hover {
   border-radius: 50%;
   background: none;
 }
+/* Under the pointer the avatar's edge lights, as a square's does; open, it is the warm. */
+.account-btn:hover .avatar {
+  border-color: var(--line-3);
+}
 .account-btn[aria-expanded='true'] .avatar {
   border-color: var(--warm);
 }
-.account-menu {
+/* Open, under the pointer that comes back to close it: the warm edge rings out (Codex P2 on #232). */
+.account-btn[aria-expanded='true']:hover .avatar {
+  box-shadow: 0 0 0 2px rgb(var(--warm-rgb) / 0.35);
+}
+/* A menu (docs/plans/menu-scale.md): the plane a control opens, 6 px from it, aligned to its end, its start or its
+   middle, under it or (`menu-top`) over it. The account's is 230 wide. */
+.menu {
   position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  top: calc(100% + 6px);
   z-index: 30;
   display: grid;
   gap: 2px;
-  min-width: 230px;
+  min-width: 160px;
   padding: 6px;
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
   animation: arrive var(--base) var(--ease) both;
+}
+/* In a field (the resources' sort) the plane's box is the field's padding box, 1 px inside its edge: one more pixel,
+   so the 6 px are from the field as seen. (CI read 5 at rest; the runs that passed had caught the arrival mid-way.) */
+.field > .menu {
+  top: calc(100% + 7px);
+}
+.menu-top {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.menu-end {
+  right: 0;
+}
+.menu-start {
+  left: 0;
+}
+/* Centred with `translate`, which the arrival's transform leaves alone. */
+.menu-center {
+  left: 50%;
+  translate: -50%;
+}
+.account-menu {
+  min-width: 230px;
+  /* A phone held sideways: the menu scrolls inside the screen rather than running past it (Codex on #234). */
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
 }
 .menu-head {
   display: grid;
@@ -733,9 +1047,10 @@ button.mark:hover {
   height: 28px;
   border-color: var(--line);
 }
-.account-menu [role='menuitem'],
-.menu-list [role='menuitem'],
-.menu-list [role='menuitemradio'] {
+/* Its rows: 32 px in the body type, the one under the pointer or the focus lit; one that waits (aria-disabled) in
+   the third ink, unlit. */
+.menu [role='menuitem'],
+.menu [role='menuitemradio'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -746,17 +1061,101 @@ button.mark:hover {
   border-radius: var(--r-2);
   background: none;
   color: var(--text);
-  font-size: var(--type-small);
+  font-size: var(--type-body);
   text-align: left;
 }
-.account-menu [role='menuitem']:hover,
-.account-menu [role='menuitem']:focus-visible,
-.menu-list [role='menuitem']:hover,
-.menu-list [role='menuitem']:focus-visible,
-.menu-list [role='menuitemradio']:hover,
-.menu-list [role='menuitemradio']:focus-visible {
+.menu :is([role='menuitem'], [role='menuitemradio']):is(:hover, :focus-visible):not([aria-disabled='true']) {
   outline: none;
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.menu [aria-disabled='true'] {
+  color: var(--text-3);
+}
+/* How privacy works, wherever its sheet opens (at home, or over a project in the demo; account-menu.md): each rule's
+   lead on its line, the rest under it. */
+.privacy-rules {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.privacy-rules li {
+  color: var(--text-2);
+  font-size: var(--type-body);
+}
+.privacy-rules strong {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+}
+/* The account's head (account-menu.md): the picture beside the name, the email and how they signed in. */
+.account-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.account-who > .avatar {
+  width: 32px;
+  height: 32px;
+}
+.menu-head .account-names {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+.menu-head .account-name {
+  color: var(--text);
+  font-size: var(--type-body);
+  font-weight: 500;
+}
+.account-names > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A set of radio items on one row (the theme): the word, then the choices, the one on lit instead of dotted. */
+.menu-choices {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+}
+.menu-choices-label {
+  flex: 1;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.menu .menu-choices [role='menuitemradio'] {
+  padding: 0 10px;
+  color: var(--text-2);
+}
+.menu .menu-choices [role='menuitemradio'][aria-checked='true'] {
+  background: rgb(var(--ink-rgb) / 0.08);
+  color: var(--text);
+}
+.menu-choices .menu-mark {
+  display: none;
+}
+/* The one of a set that is on: the app's lavender dot at the row's end. */
+.menu-mark {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--halo-text);
+}
+/* A row's detail (a day's topics): the label type, cut at the row's end. */
+.menu-detail {
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .menu-sep {
   height: 1px;
@@ -770,7 +1169,7 @@ button.mark:hover {
   height: 24px;
   flex: none;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.4);
+  border: 1px solid rgb(var(--warm-rgb) / 0.4);
   color: var(--warm);
   font-size: var(--type-label);
   font-weight: 600;
@@ -808,24 +1207,24 @@ img.avatar {
   transform-origin: center;
 }
 .threshold .umbral-you {
-  fill: var(--warm);
+  fill: var(--mark-you);
 }
 .threshold .umbral-sophia {
-  fill: var(--core);
+  fill: var(--mark-sophia);
   animation: threshold-breathe 4.8s ease-in-out 1.2s infinite alternate;
 }
 @keyframes threshold-breathe {
   from {
-    filter: drop-shadow(0 0 4px rgba(156, 130, 245, 0.45));
+    filter: drop-shadow(0 0 4px rgb(var(--halo-rgb) / 0.45));
   }
   to {
-    filter: drop-shadow(0 0 12px rgba(156, 130, 245, 0.85));
+    filter: drop-shadow(0 0 12px rgb(var(--halo-rgb) / 0.85));
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .threshold .umbral-sophia {
     animation: none;
-    filter: drop-shadow(0 0 6px rgba(156, 130, 245, 0.6));
+    filter: drop-shadow(0 0 6px rgb(var(--halo-rgb) / 0.6));
   }
 }
 .light[data-fallback] .light-gl {
@@ -834,9 +1233,9 @@ img.avatar {
 .light[data-fallback] {
   background: radial-gradient(
     circle at 50% 42%,
-    rgba(244, 240, 255, 0.9) 0,
-    rgba(156, 130, 245, 0.45) 6%,
-    rgba(156, 130, 245, 0.12) 22%,
+    rgb(var(--core-rgb) / 0.9) 0,
+    rgb(var(--halo-rgb) / 0.45) 6%,
+    rgb(var(--halo-rgb) / 0.12) 22%,
     transparent 48%
   );
 }
@@ -890,7 +1289,7 @@ img.avatar {
 }
 .screen-title {
   font-size: clamp(22px, 2.2vw, 26px);
-  line-height: 1.2;
+  line-height: 32px;
   letter-spacing: -0.025em;
 }
 .screen-body p {
@@ -900,6 +1299,12 @@ img.avatar {
 /* A quiet screen speaks in three sizes: its title, its text (words, fields, buttons alike), and a label. */
 .screen-body :where(p, input, .pill, .text-button) {
   font-size: 14px;
+}
+/* Its label size: the note under a form and a status beside a press, a size under the text, so the lede, the text and
+   the fine print read as three levels, not one (docs/plans/signin-hierarchy.md). */
+.screen-body :is(p.muted, .send-again [role='status']) {
+  font-size: 12px;
+  line-height: 16px;
 }
 /* An error on a quiet screen still reads as one: the rule above would give it the body's grey. */
 .screen-body .form-error {
@@ -929,8 +1334,8 @@ img.avatar {
     transform 140ms;
 }
 .provider:hover:not(:disabled) {
-  border-color: rgba(185, 168, 255, 0.45);
-  background: rgba(185, 168, 255, 0.06);
+  border-color: rgb(var(--halo-text-rgb) / 0.45);
+  background: rgb(var(--halo-text-rgb) / 0.06);
 }
 .provider:active:not(:disabled) {
   transform: translateY(1px);
@@ -939,7 +1344,12 @@ img.avatar {
   opacity: 0.55;
 }
 .field:has(input[aria-invalid='true']) {
-  border-color: rgba(240, 150, 170, 0.55);
+  border-color: rgb(var(--rose-rgb) / 0.55);
+}
+/* On paper the error's rose at that alpha paled to 1.5:1 against the page: the ink itself (6:1), as a boundary a
+   person must see (Codex on #234). */
+:root[data-theme='light'] .field:has(input[aria-invalid='true']) {
+  border-color: var(--rose);
 }
 /* Send again: its countdown, then what came of it, on one quiet line; a failure in the error colour. */
 .send-again {
@@ -954,7 +1364,7 @@ img.avatar {
 }
 .provider[aria-busy='true'] {
   opacity: 1;
-  border-color: rgba(185, 168, 255, 0.55);
+  border-color: rgb(var(--halo-text-rgb) / 0.55);
 }
 /* Passkeys sheet: one row per saved passkey, the key mark leading. */
 .passkey-list {
@@ -981,7 +1391,7 @@ img.avatar {
 }
 .passkey-text strong {
   color: var(--text);
-  font-weight: 560;
+  font-weight: 600;
 }
 .or {
   display: grid;
@@ -990,7 +1400,7 @@ img.avatar {
   gap: 10px;
   width: 100%;
   color: var(--text-3);
-  font: 500 10.5px/1 var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -1004,7 +1414,8 @@ img.avatar {
   display: flex;
   gap: 4px;
   width: 100%;
-  padding: 4px;
+  min-height: 36px;
+  padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--glass);
@@ -1016,7 +1427,7 @@ img.avatar {
 /* The input takes the row's height: on touch it grows with the 40px button beside it, so their words share a line. */
 .field input {
   height: auto;
-  min-height: 32px;
+  min-height: 28px;
   border: 0;
   background: transparent;
   padding: 0 8px;
@@ -1026,16 +1437,55 @@ img.avatar {
   box-shadow: none;
 }
 .field select {
+  height: 28px;
+  padding: 0 8px;
   border: 0;
   background: transparent;
 }
 .field:focus-within {
-  border-color: rgba(185, 168, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+  border-color: rgb(var(--halo-text-rgb) / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.12);
 }
 .field.quiet {
   background: transparent;
   border-color: var(--line);
+}
+/* A field stands on two heights (docs/plans/field-scale.md): 36 px (its press 28), or 44 as a hero field (`.lg`:
+   the sign-in address and code, the door's name; its press 36). The sizes come from the field, never from the press. */
+.field > .pill {
+  height: 28px;
+  padding: 0 10px;
+}
+.field.lg {
+  min-height: 44px;
+}
+.field.lg input {
+  min-height: 36px;
+  padding: 0 10px;
+}
+.field.lg > .pill {
+  height: 36px;
+  padding: 0 14px;
+}
+/* A search (`Search` in @sophia/ui): the magnifier in the glass, the words inset past it; 36 px as any field. */
+.search {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+/* On paper the magnifier and the chevron take the light ink (3:1 and more on paper and white; Codex on #234). */
+:root[data-theme='light'] .search > input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='%236b6874' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='%236b6874' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+:root[data-theme='light'] select.pill {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236b6874' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+}
+.search > input {
+  width: 100%;
+  padding-left: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 14 14'%3E%3Ccircle cx='6' cy='6' r='4.5' fill='none' stroke='rgba(236,235,241,0.46)' stroke-width='1.4'/%3E%3Cpath d='M9.5 9.5L13 13' stroke='rgba(236,235,241,0.46)' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 11px center;
 }
 .identity-grid {
   display: grid;
@@ -1057,8 +1507,8 @@ img.avatar {
     background var(--fast) var(--ease);
 }
 .identity-grid button:hover {
-  border-color: rgba(241, 220, 199, 0.36);
-  background: rgba(241, 220, 199, 0.04);
+  border-color: rgb(var(--warm-rgb) / 0.36);
+  background: rgb(var(--warm-rgb) / 0.04);
 }
 .identity-grid strong {
   font-weight: 600;
@@ -1125,7 +1575,7 @@ img.avatar {
   transition: background var(--fast) var(--ease);
 }
 .recent button:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .home-hint {
   margin-top: -8px;
@@ -1149,6 +1599,28 @@ img.avatar {
   --ly: 42cqh;
   --lr: min(34cqmin, 320px);
 }
+/* On paper the stage is a surface the light sits on, not a hole in the page: the halo as a soft field to the edges
+   over a warm vignette, behind everything (docs/plans/light-stage.md). In the room the void and the canvas are the room. */
+:root[data-theme='light'] .room-stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 80% 70% at 50% var(--ly),
+      rgb(var(--halo-rgb) / 0.06),
+      rgb(var(--halo-rgb) / 0.025) 60%,
+      transparent 100%
+    ),
+    /* closest-side: each edge's midpoint is the ramp's end, so the warm reaches the edges, the corners past it (Codex
+       on #252: at 100% 100% an edge stood at half the radius, inside the clear 55 %). */
+    radial-gradient(ellipse closest-side at 50% 50%, transparent 55%, rgb(var(--warm-rgb) / 0.05) 100%);
+  pointer-events: none;
+}
+:root[data-theme='light'] .room-stage > .light {
+  z-index: 1;
+}
 .stage-top {
   position: absolute;
   top: 16px;
@@ -1164,6 +1636,7 @@ img.avatar {
 .segmented {
   position: relative;
   display: flex;
+  min-height: 36px;
   padding: 3px;
   border-radius: var(--r-3);
   border: 1px solid var(--line);
@@ -1175,19 +1648,20 @@ img.avatar {
 .segmented::before {
   content: '';
   position: absolute;
-  top: 3px;
-  bottom: 3px;
+  top: 0;
   left: 0;
   width: var(--thumb-w, 0);
-  transform: translateX(var(--thumb-x, 0));
+  height: var(--thumb-h, 0);
+  transform: translate(var(--thumb-x, 0), var(--thumb-y, 0));
   border-radius: var(--r-2);
-  background: rgba(236, 235, 241, 0.08);
-  box-shadow: inset 0 0 0 1px rgba(236, 235, 241, 0.08);
+  background: rgb(var(--ink-rgb) / 0.08);
+  box-shadow: inset 0 0 0 1px rgb(var(--ink-rgb) / 0.08);
 }
 .segmented[data-thumb-ready]::before {
   transition:
     transform var(--base) var(--ease),
-    width var(--base) var(--ease);
+    width var(--base) var(--ease),
+    height var(--base) var(--ease);
 }
 .segmented button {
   position: relative;
@@ -1203,12 +1677,24 @@ img.avatar {
   font-weight: 500;
   transition: color var(--fast) var(--ease);
 }
-.segmented button:hover {
-  color: var(--text-2);
+/* Under the pointer an option not yet on reads in the ink: a step above wherever its box rests it (Knowledge's filters
+   rest at the second ink already). The one on is on. */
+.segmented button:hover:not([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
+  color: var(--text);
 }
 /* The chosen one, as a tab (Resources' filters) or as a radio (the board's lenses). */
-.segmented button:is([aria-selected='true'], [aria-checked='true']) {
+.segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) {
   color: var(--text);
+}
+/* The small one (docs/plans/segmented-scale.md): 32 px with 24 px presses in the small type, as the report viewer's
+   format switch. */
+.segmented.sz-sm {
+  min-height: 32px;
+}
+.segmented.sz-sm button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: var(--type-small);
 }
 /* A filter's count reads (the third ink); the chosen one's a step up, under its word. */
 .segmented .filter-count {
@@ -1217,7 +1703,7 @@ img.avatar {
   font-size: var(--type-small);
   color: var(--text-3);
 }
-.segmented button:is([aria-selected='true'], [aria-checked='true']) > .filter-count {
+.segmented button:is([aria-selected='true'], [aria-checked='true'], [aria-pressed='true']) > .filter-count {
   color: var(--text-2);
 }
 
@@ -1254,7 +1740,7 @@ img.avatar {
   flex: none;
   border-radius: 50%;
   border: 1px solid var(--line-2);
-  background: rgba(5, 4, 8, 0.7);
+  background: rgb(var(--void-rgb) / 0.7);
   color: var(--text-2);
   font-size: 13px;
   font-weight: 600;
@@ -1265,19 +1751,19 @@ img.avatar {
 }
 .presence[data-floor] .orbit {
   color: var(--text);
-  border-color: rgba(241, 220, 199, 0.7);
-  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.08);
+  border-color: rgb(var(--warm-rgb) / 0.7);
+  box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.08);
 }
 .presence[data-speaking] .orbit {
   box-shadow:
-    0 0 0 3px rgba(241, 220, 199, 0.12),
-    0 0 24px rgba(241, 220, 199, 0.22);
+    0 0 0 3px rgb(var(--warm-rgb) / 0.12),
+    0 0 24px rgb(var(--warm-rgb) / 0.22);
 }
 .ignite {
   position: absolute;
   inset: -1px;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.8);
+  border: 1px solid rgb(var(--warm-rgb) / 0.8);
   opacity: 0;
   animation: ignite 0.9s var(--ease);
   pointer-events: none;
@@ -1317,7 +1803,11 @@ img.avatar {
   transition: color var(--base) var(--ease);
 }
 .presence[data-floor] .role {
-  color: rgba(241, 220, 199, 0.85);
+  color: rgb(var(--warm-rgb) / 0.85);
+}
+/* On paper the warm at 0.85 reads 4.1:1; at full, 5.6 (docs/plans/light-stage.md). */
+:root[data-theme='light'] .presence[data-floor] .role {
+  color: var(--warm);
 }
 .meter {
   display: flex;
@@ -1424,7 +1914,7 @@ img.avatar {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.5);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
 }
 .stage-made.born {
   animation: made-born 0.9s var(--ease) both;
@@ -1446,8 +1936,8 @@ img.avatar {
   width: 36px;
   height: 36px;
   border-radius: var(--r-2);
-  border: 1px solid rgba(156, 130, 245, 0.32);
-  background: rgba(156, 130, 245, 0.08);
+  border: 1px solid rgb(var(--halo-rgb) / 0.32);
+  background: rgb(var(--halo-rgb) / 0.08);
   color: var(--halo-text);
 }
 .made-head {
@@ -1489,7 +1979,6 @@ img.avatar {
   -webkit-line-clamp: 2;
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.5;
   text-wrap: pretty;
 }
 .made-facts {
@@ -1514,7 +2003,7 @@ img.avatar {
   font-variant-numeric: tabular-nums;
 }
 .made-fact[data-limit] {
-  border-color: rgba(239, 191, 134, 0.28);
+  border-color: rgb(var(--amber-rgb) / 0.28);
   color: var(--amber);
 }
 .made-acts {
@@ -1586,7 +2075,6 @@ img.avatar {
   margin: 0;
   color: var(--text);
   font-size: 15px;
-  line-height: 1.45;
   text-wrap: balance;
   transition: color var(--base) var(--ease);
 }
@@ -1684,8 +2172,8 @@ img.avatar {
     box-shadow var(--fast) var(--ease);
 }
 .message-bar:focus-within {
-  border-color: rgba(185, 168, 255, 0.55);
-  box-shadow: 0 0 0 3px rgba(156, 130, 245, 0.12);
+  border-color: rgb(var(--halo-text-rgb) / 0.55);
+  box-shadow: 0 0 0 3px rgb(var(--halo-rgb) / 0.12);
 }
 .message-bar textarea {
   flex: 1;
@@ -1718,7 +2206,7 @@ img.avatar {
     color var(--fast) var(--ease);
 }
 .send:hover:not(:disabled) {
-  background: #fff;
+  background: var(--core-hover);
 }
 /* Nothing to send yet: the arrow waits, quiet, like a primary button's outline. */
 .send:disabled {
@@ -1872,7 +2360,7 @@ button.contribution-quote:hover {
 }
 .view-subhead {
   margin-top: 16px;
-  font-size: 14px;
+  font-size: var(--type-head);
   color: var(--text-2);
 }
 .coming {
@@ -1914,7 +2402,7 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.5);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 @keyframes rise {
@@ -1957,7 +2445,7 @@ button.contribution-quote:hover {
     width: 42px;
     height: 42px;
     padding: 0;
-    border-radius: 10px;
+    border-radius: var(--r-3);
   }
   .dock .dock-icon {
     position: relative;
@@ -1973,7 +2461,7 @@ button.contribution-quote:hover {
     min-width: 15px;
     height: 15px;
     padding: 0 3px;
-    border-radius: 4px;
+    border-radius: var(--r-1);
     background: var(--warm);
     color: var(--void);
     font-size: 9.5px;
@@ -2041,12 +2529,22 @@ button.contribution-quote:hover {
   text-align: center;
 }
 /* The same note from other views, above the mini dock. */
-.mini-note {
+/* What the dock says, in one stack above it (below it in the header): each line takes its own height, so a note that
+   wraps never meets her looking (Codex on #254). */
+.mini-dock .dock-notes {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
+  display: grid;
+  justify-items: end;
+  gap: 8px;
   width: max-content;
   max-width: min(44ch, calc(100vw - 2 * var(--gutter)));
+}
+.mini-dock .dock-notes:empty {
+  display: none;
+}
+.mini-note {
   text-align: left;
 }
 .floor {
@@ -2069,38 +2567,55 @@ button.contribution-quote:hover {
   color: var(--warm);
   font-weight: 500;
 }
-/* Pass to…: the names open above the dock, one button each. */
+/* Pass to…: the names open over the dock, the kit's menu, in the floor's warm. */
 .pass-menu {
   position: relative;
 }
-.pass-list {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  z-index: 5;
-  display: grid;
+/* Named with the menu, so its width outweighs the plane's 160 whatever the order the sheets load in. */
+.menu.pass-list {
   min-width: 140px;
-  padding: 4px;
-  transform: translateX(-50%);
-  border-radius: var(--r-3);
-  border: 1px solid var(--line-2);
-  background: var(--plane-2);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
 }
-.pass-list button {
-  height: 32px;
-  padding: 0 10px;
+.pass-list [role='menuitem'] {
+  color: var(--warm);
+}
+/* A device opener (docs/plans/call-devices.md): a narrow tab beside the switch it serves, its chevron pointing to the
+   menu that opens over the dock; the kit's menu. On a phone the dock keeps its one row of squares without them. */
+.device-menu {
+  position: relative;
+  display: inline-flex;
+  margin-left: -2px;
+}
+.device-open {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 36px;
+  padding: 0;
   border: 0;
   border-radius: var(--r-2);
   background: none;
-  color: var(--warm);
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
+  color: var(--text-3);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
 }
-.pass-list button:hover,
-.pass-list button:focus-visible {
-  background: rgba(241, 220, 199, 0.08);
+.device-open:hover,
+.device-open[aria-expanded='true'] {
+  color: var(--text);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.device-open svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
+.menu.device-list {
+  min-width: 240px;
+}
+@media (max-width: 600px) {
+  .device-menu {
+    display: none;
+  }
 }
 /* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
 .sophia-controls {
@@ -2113,7 +2628,7 @@ button.contribution-quote:hover {
   gap: 8px;
   padding: 6px 11px;
   border-radius: 999px;
-  border: 1px solid rgba(241, 220, 199, 0.28);
+  border: 1px solid rgb(var(--warm-rgb) / 0.28);
   background: var(--glass);
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
@@ -2142,13 +2657,7 @@ button.contribution-quote:hover {
   }
 }
 .mini-dock .sophia-looking {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
   width: max-content;
-}
-.mini-dock:has(.mini-note) .sophia-looking {
-  bottom: calc(100% + 48px);
 }
 .floor-error {
   position: absolute;
@@ -2158,7 +2667,7 @@ button.contribution-quote:hover {
   max-width: 34ch;
   padding: 7px 10px;
   border-radius: var(--r-2);
-  border: 1px solid rgba(238, 159, 176, 0.3);
+  border: 1px solid rgb(var(--rose-rgb) / 0.3);
   transform: translateX(-50%);
   background: var(--plane-2);
   color: var(--rose);
@@ -2288,6 +2797,47 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+/* A card (docs/plans/card-scale.md): a raised plane with a 1 px edge, 12 px of radius and 14 of padding; the board's
+   tile 8 and 10 × 12. A live one answers: the edge lights and the plane rises a step under the pointer, a press sinks
+   it half a pixel, the keyboard draws the ring. A card names its own layout; the kit gives it its surface. */
+.card {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background-color: var(--plane-2);
+  color: var(--text);
+}
+.card-tile {
+  padding: 10px 12px;
+  border-radius: var(--r-3);
+}
+.card.live {
+  cursor: pointer;
+  transition:
+    border-color var(--fast) var(--ease),
+    background-color var(--fast) var(--ease),
+    transform var(--fast) var(--ease);
+}
+.card.live:hover {
+  border-color: var(--card-edge-hover, var(--line-2));
+  background-color: color-mix(in srgb, var(--text) 3%, var(--plane-2));
+}
+.card.live:active {
+  background-color: color-mix(in srgb, var(--text) 6%, var(--plane-2));
+  transform: translateY(0.5px);
+}
+.card.live:focus-visible {
+  outline: 2px solid var(--halo);
+  outline-offset: 2px;
+}
+/* A cover inside a card (a report's page): the deeper plane behind the card's edge, the smaller radius. */
+.card-cover {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--plane);
+}
 .tile {
   position: relative;
   display: grid;
@@ -2303,16 +2853,16 @@ button.contribution-quote:hover {
     box-shadow var(--base) var(--ease);
 }
 .tile[data-floor] {
-  border-color: rgba(241, 220, 199, 0.5);
+  border-color: rgb(var(--warm-rgb) / 0.5);
 }
 .tile[data-speaking] {
   box-shadow:
-    0 0 0 1px rgba(241, 220, 199, 0.6),
-    0 0 28px rgba(241, 220, 199, 0.16);
+    0 0 0 1px rgb(var(--warm-rgb) / 0.6),
+    0 0 28px rgb(var(--warm-rgb) / 0.16);
 }
 .sophia-tile {
   background: transparent;
-  border-color: rgba(156, 130, 245, 0.24);
+  border-color: rgb(var(--halo-rgb) / 0.24);
 }
 .tile-initial {
   display: grid;
@@ -2320,7 +2870,7 @@ button.contribution-quote:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  border: 1px solid rgba(241, 220, 199, 0.4);
+  border: 1px solid rgb(var(--warm-rgb) / 0.4);
   color: var(--warm);
   font-size: 20px;
   font-weight: 600;
@@ -2334,7 +2884,7 @@ button.contribution-quote:hover {
   height: 22px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgba(5, 4, 8, 0.62);
+  background: rgb(var(--void-rgb) / 0.62);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   color: var(--text);
@@ -2384,11 +2934,12 @@ button.contribution-quote:hover {
   height: 22px;
   padding: 0 7px;
   border-radius: var(--r-1);
-  background: rgba(5, 4, 8, 0.66);
+  background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
 }
 
-/* The room from other views: a small floating bar. */
+/* The room from other views: in the header's end cluster on a wide screen (docs/plans/dock-header.md), a small
+   floating bar on a narrow one. */
 .mini-dock {
   position: fixed;
   right: var(--gutter);
@@ -2405,7 +2956,7 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 12px 40px rgba(0, 0, 0, 0.45);
+    0 12px 40px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
   animation: rise 0.4s var(--ease) backwards;
 }
 .mini-dock .pill {
@@ -2414,11 +2965,70 @@ button.contribution-quote:hover {
   box-shadow: none;
 }
 .mini-dock .pill:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .mini-dock .round {
   width: 32px;
   height: 32px;
+}
+/* In the header: a group of controls, not a bar. Static, no glass, no shadow, no rise; the pill the ghost's height,
+   a hairline before the connection pill. */
+@media (min-width: 721px) {
+  .topbar .mini-dock {
+    position: relative; /* its notes keep it as their box (below, not above the header: Codex on #254) */
+    inset: auto; /* the floating dock's offsets mean nothing here */
+    gap: 2px;
+    padding: 0 8px 0 0;
+    margin-right: 2px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    border-radius: 0;
+    background: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    animation: none;
+  }
+  .topbar .mini-dock .pill {
+    height: 28px;
+    padding: 0 10px;
+  }
+  .topbar .mini-dock .round {
+    width: 28px;
+    height: 28px;
+  }
+  /* What the dock says (a join or device error, Sophia looking) hangs under the header, where there is page. */
+  .topbar .mini-dock .dock-notes {
+    top: calc(100% + 10px);
+    bottom: auto;
+    max-width: 240px;
+  }
+  /* Live, the dock says the room's state itself: the connection pill yields its room when it would only say «Up to
+     date», so the views' nav keeps standing at 1280 (measured: the live dock is 189 px wide, the nav needed 64 more).
+     Connecting, reconnecting or catching up is said beside the dock still: stale data in a call is not hidden (Codex
+     on #254). */
+  .topbar-end:has(.mini-dock[data-live]) .connection[data-state='live'] {
+    display: none;
+  }
+  /* The header's dock is at the top of the page: its tips open under its controls, not above the window (Codex on
+     #254). */
+  .topbar .mini-dock .tip {
+    top: calc(100% + 8px);
+    bottom: auto;
+  }
+}
+/* A finger's width in the header too: the switches keep 40 px across on a coarse pointer (Codex on #254). */
+@media (min-width: 721px) and (pointer: coarse) {
+  .topbar .mini-dock .round {
+    min-width: 40px;
+  }
+}
+/* The header of two rows (721 to 760 px: the views' row, 44 px, stands under the end cluster): what the dock says hangs
+   under both rows, not over the views (Codex on #254). */
+@media (min-width: 721px) and (max-width: 760px) {
+  .topbar .mini-dock .dock-notes {
+    top: calc(100% + 54px);
+  }
 }
 
 /* Room access: the lobby over the stage and the Invite panel. */
@@ -2427,6 +3037,46 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
 }
 /* A project that is slow to open says so where the lobby would float (it has no one waiting yet). */
+/* The newcomer's welcome (docs/plans/newcomer-welcome.md): a card under the bar, on the right as the slow opening's note,
+   over whatever view is open and moving none of it; once, until a press ends it. */
+.welcome-band {
+  position: fixed;
+  top: calc(var(--topbar) + 16px);
+  right: var(--gutter);
+  z-index: 15;
+  display: grid;
+  gap: 14px;
+  width: min(360px, calc(100% - 2 * var(--gutter)));
+  padding: 16px 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: var(--plane-2);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.32);
+}
+.welcome-words {
+  display: grid;
+  gap: 4px;
+}
+.welcome-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--type-head);
+  font-weight: 600;
+  line-height: var(--lh-body);
+}
+.welcome-line,
+.welcome-for {
+  margin: 0;
+  color: var(--text-2);
+}
+.welcome-for {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.welcome-presses {
+  display: flex;
+  gap: 8px;
+}
 .wait-note {
   position: fixed;
   top: calc(var(--topbar) + 24px);
@@ -2441,7 +3091,6 @@ button.contribution-quote:hover {
   backdrop-filter: blur(20px) saturate(140%);
   color: var(--text-2);
   font-size: var(--type-small);
-  line-height: 1.45;
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
@@ -2459,7 +3108,7 @@ button.contribution-quote:hover {
   border-radius: var(--r-3);
   border: 1px solid var(--line-2);
   background: var(--plane-2);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 12px 40px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   font-size: 13px;
   opacity: 0;
   pointer-events: none;
@@ -2472,6 +3121,35 @@ button.contribution-quote:hover {
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0);
+}
+/* While a sheet is open the notice stands clear of it (docs/plans/toast-over-sheet.md): centred in what the panel
+   (min(420px, 100%)) leaves on the left, and no wider. The command palette shares the veil's class and is no sheet
+   (Codex on #293). */
+:root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+  left: calc((100% - 420px) / 2);
+  max-width: calc(100% - 420px - 2 * var(--gutter));
+}
+/* Where that space is too narrow to read in (just above a phone), it keeps a width of its own at the bottom left,
+   under the sheet's head, the panel's lower edge at most behind it (Codex on #293). */
+@media (min-width: 561px) and (max-width: 790px) {
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+    left: var(--gutter);
+    width: min(320px, calc(100% - 2 * var(--gutter)));
+    max-width: none;
+    transform: translate(0, 8px);
+  }
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast[data-shown] {
+    transform: none;
+  }
+}
+/* On a phone, where the sheet rises from the bottom, at the top. */
+@media (max-width: 560px) {
+  :root:has(.sheet-backdrop:not(.palette-veil)) .toast {
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    bottom: auto;
+    left: 50%;
+    max-width: calc(100% - 2 * var(--gutter));
+  }
 }
 .toast-time {
   position: absolute;
@@ -2495,18 +3173,20 @@ button.contribution-quote:hover {
 /* The lobby floats under the bar on every view: the door does not depend on the page you read. */
 .lobby {
   position: fixed;
-  top: calc(var(--topbar) + 24px);
+  /* Under what the header's dock says, when it says something (a device error, Sophia looking): MiniDock keeps
+     --dock-notes-h, so the notes never cover the door's Decline and Let in (Codex on #254). */
+  top: calc(var(--topbar) + 24px + var(--dock-notes-h, 0px));
   right: var(--gutter);
   z-index: 15;
   width: min(320px, calc(100% - 2 * var(--gutter)));
   padding: 12px 14px 8px;
-  border-radius: 14px;
+  border-radius: var(--r-4);
   background: var(--glass);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.45);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.45 * var(--shadow-k)));
 }
 /* Who is at the door, in a sentence, after a warm dot that breathes. */
 .lobby-title {
@@ -2524,12 +3204,12 @@ button.contribution-quote:hover {
   height: 7px;
   border-radius: 50%;
   background: var(--warm);
-  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.16);
+  box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.16);
   animation: door-breathe 2.4s var(--ease) infinite;
 }
 @keyframes door-breathe {
   50% {
-    box-shadow: 0 0 0 6px rgba(241, 220, 199, 0.06);
+    box-shadow: 0 0 0 6px rgb(var(--warm-rgb) / 0.06);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -2597,7 +3277,7 @@ button.contribution-quote:hover {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(241, 220, 199, 0.45);
+  box-shadow: inset 0 0 0 1px rgb(var(--warm-rgb) / 0.45);
   color: var(--warm);
   font-size: var(--type-small);
   font-weight: 600;
@@ -2627,8 +3307,8 @@ button.contribution-quote:hover {
   gap: 2px;
 }
 .lobby-actions .pill {
-  height: 30px;
-  padding: 0 12px;
+  height: 28px;
+  padding: 0 10px;
 }
 /* The answer most give, filled: warm, as the one at the door is. */
 .lobby-actions .pill.warm {
@@ -2637,8 +3317,8 @@ button.contribution-quote:hover {
   color: var(--void);
 }
 .lobby-actions .pill.warm:hover:not(:disabled) {
-  background: #fff4e8;
-  box-shadow: 0 0 0 3px rgba(241, 220, 199, 0.22);
+  background: var(--warm-hover);
+  box-shadow: 0 0 0 3px rgb(var(--warm-rgb) / 0.22);
 }
 /* Asking before a Block: the question takes the row's width under the name, which stays in sight. */
 .lobby-actions:has(.confirm) {
@@ -2666,8 +3346,101 @@ button.contribution-quote:hover {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(5, 4, 8, 0.5);
+  background: rgb(var(--void-rgb) / 0.5);
   animation: veil var(--base) var(--ease) both;
+}
+/* The palette (docs/plans/commands.md): a dialog in the middle of the screen, high; the kit's search field over rows
+   with a menu's measures (32, 13 px). */
+.palette-veil {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  padding: clamp(64px, 16vh, 160px) 16px 16px;
+}
+.palette {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  width: min(560px, 100%);
+  max-height: min(480px, 100%);
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+  box-shadow: 0 18px 50px rgb(var(--shadow-rgb) / calc(0.55 * var(--shadow-k)));
+  outline: none;
+}
+/* In a call the call's row comes first: three rows, the list still the one that shrinks and scrolls (Codex on #238). */
+.palette:has(> .sheet-call) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.palette .palette-field {
+  width: 100%;
+}
+.palette .sheet-call {
+  padding: 4px 6px 8px;
+}
+.palette-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: auto;
+}
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r-2);
+  color: var(--text);
+  font-size: var(--type-body);
+  cursor: pointer;
+}
+.palette-row[aria-selected='true'] {
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.palette-group {
+  flex: none;
+  width: 72px;
+  color: var(--text-3);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.palette-words {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.palette-none {
+  margin: 0;
+  padding: 10px 8px 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+/* The index of keys: a sheet, a list per group, each row the words and the key. */
+.keys-group + .keys-group {
+  margin-top: 20px;
+}
+.keys-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.keys-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-body);
+}
+.keys-list li:last-child {
+  border-bottom: 1px solid var(--line);
 }
 .sheet {
   --sheet-top: calc(env(safe-area-inset-top, 0px) + 12px);
@@ -2681,7 +3454,7 @@ button.contribution-quote:hover {
   padding: var(--sheet-top) 20px 28px;
   border-left: 1px solid var(--line-2);
   background: var(--plane);
-  box-shadow: -24px 0 64px rgba(0, 0, 0, 0.5);
+  box-shadow: -24px 0 64px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: slide var(--base) var(--ease) both;
 }
 .sheet:focus-visible {
@@ -2719,6 +3492,12 @@ button.contribution-quote:hover {
 .sheet-head h2 {
   font-size: 15px;
 }
+/* The head's presses (steps, a copy, Close): a row of 28 px squares without the square's edge, 20 from the edge. */
+.sheet-acts {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
 .sheet-head .round {
   width: 28px;
   height: 28px;
@@ -2726,17 +3505,19 @@ button.contribution-quote:hover {
   background: transparent;
 }
 .sheet-head .round:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* Tabs as a line under words, on the panel's own hairline. */
-.sheet-tabs {
+/* A tab strip (`Tabs` in @sophia/ui, docs/plans/tabs-scale.md): 36 px tabs on the field scale, the third ink at rest,
+   the first when on, with its line under the one on. A strip's own class adds only its place: the sheet's line below,
+   the report row's borders. */
+.tabs {
   display: flex;
   gap: 16px;
-  border-bottom: 1px solid var(--line);
 }
-.sheet-tabs button {
+.tabs > button {
   position: relative;
-  height: 34px;
+  height: 36px;
   padding: 0;
   border: 0;
   background: none;
@@ -2745,13 +3526,13 @@ button.contribution-quote:hover {
   font-weight: 500;
   transition: color var(--fast) var(--ease);
 }
-.sheet-tabs button:hover {
+.tabs > button:hover {
   color: var(--text-2);
 }
-.sheet-tabs button[aria-selected='true'] {
+.tabs > button[aria-selected='true'] {
   color: var(--text);
 }
-.sheet-tabs button[aria-selected='true']::after {
+.tabs > button[aria-selected='true']::after {
   content: '';
   position: absolute;
   left: 0;
@@ -2759,6 +3540,9 @@ button.contribution-quote:hover {
   bottom: -1px;
   height: 1.5px;
   background: var(--text);
+}
+.sheet-tabs {
+  border-bottom: 1px solid var(--line);
 }
 /* One column that never grows past the sheet: a wide field shrinks instead of pushing the rest off the edge. */
 .sheet-body {
@@ -2771,10 +3555,19 @@ button.contribution-quote:hover {
 .sheet-lead {
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.55;
+}
+/* A tab's body in a sheet (the Invite's panels): the body's column and gap, without its padding or its arrival, which
+   the body around it already gives (Codex on #224: a body in the body padded and arrived twice). Not `.sheet-section`,
+   which is a titled section inside a resource's or a task's sheet. */
+.sheet-tab-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
 }
 .sheet-body > .pill,
-.sheet-body > .text-button {
+.sheet-body > .text-button,
+.sheet-tab-body > .pill,
+.sheet-tab-body > .text-button {
   justify-self: start;
 }
 .room-link {
@@ -2785,12 +3578,12 @@ button.contribution-quote:hover {
   padding: 20px 16px 14px;
   border-radius: var(--r-4);
   border: 1px solid var(--line);
-  background: radial-gradient(ellipse at 50% 0%, rgba(156, 130, 245, 0.12), transparent 70%), var(--plane-2);
+  background: radial-gradient(ellipse at 50% 0%, rgb(var(--halo-rgb) / 0.12), transparent 70%), var(--plane-2);
 }
 .qr {
   margin: 0;
   width: min(200px, 64%);
-  filter: drop-shadow(0 0 32px rgba(156, 130, 245, 0.24));
+  filter: drop-shadow(0 0 32px rgb(var(--halo-rgb) / 0.24));
 }
 .qr svg {
   display: block;
@@ -2802,7 +3595,7 @@ button.contribution-quote:hover {
   max-width: 100%;
   overflow: hidden;
   color: var(--text-3);
-  font: var(--type-label) / 1.5 var(--mono);
+  font: var(--type-label) / var(--lh-small) var(--mono);
   white-space: nowrap;
   text-overflow: ellipsis;
   -webkit-user-select: all;
@@ -2822,7 +3615,7 @@ button.contribution-quote:hover {
 }
 .link-limits {
   color: var(--text-3);
-  font: 500 10.5px/1 var(--mono);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
   letter-spacing: 0.02em;
 }
 .sheet-form {
@@ -2834,6 +3627,12 @@ button.contribution-quote:hover {
 .sheet-form .field,
 .sheet-form > input {
   width: 100%;
+}
+/* What the role chosen may do, under the member's field (docs/plans/invite-members.md). */
+.role-note {
+  margin: 0 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
 }
 .sheet-status {
   min-height: 1.3em;
@@ -2950,7 +3749,7 @@ button.contribution-quote:hover {
 /* Pages: goals, work and what is coming. Rows separated by hairlines, data in mono. */
 .page {
   width: 100%;
-  max-width: 1040px;
+  max-width: var(--content);
   margin: 0 auto;
   padding: 32px var(--gutter) 120px;
 }
@@ -2962,7 +3761,7 @@ button.contribution-quote:hover {
 }
 /* Pages stay in the same lit room: a faint trace of her light from above. */
 .shell:not([data-view='studio']) {
-  background: radial-gradient(ellipse 70% 40% at 50% -12%, rgba(156, 130, 245, 0.07), transparent 70%) fixed;
+  background: radial-gradient(ellipse 70% 40% at 50% -12%, rgb(var(--halo-rgb) / 0.07), transparent 70%) fixed;
 }
 .view-head {
   display: flex;
@@ -2972,8 +3771,8 @@ button.contribution-quote:hover {
   border-bottom: 1px solid var(--line);
 }
 .view-head h2 {
-  font-size: 20px;
-  line-height: 1.2;
+  font-size: var(--type-view);
+  line-height: var(--lh-view);
 }
 .count {
   color: var(--text-3);
@@ -2992,12 +3791,6 @@ button.contribution-quote:hover {
   border-bottom: 1px solid var(--line);
   animation: arrive 0.4s var(--ease) both;
 }
-.goal.skeleton {
-  min-height: 120px;
-  border: 0;
-  border-radius: var(--r-3);
-  background: linear-gradient(90deg, transparent, rgba(236, 235, 241, 0.03), transparent);
-}
 .goal-meta {
   display: flex;
   align-items: center;
@@ -3006,7 +3799,7 @@ button.contribution-quote:hover {
 }
 .goal-title {
   font-size: 15px;
-  line-height: 1.35;
+  font-weight: 600;
   letter-spacing: -0.015em;
 }
 .goal-outcome {
@@ -3054,8 +3847,20 @@ button.contribution-quote:hover {
   gap: 6px;
 }
 .controls .pill {
-  height: 30px;
-  padding: 0 11px;
+  height: 28px;
+  padding: 0 10px;
+}
+/* The quieter acts (Hold, Stop) stand a step further from the one filled press than from each other: a goal's
+   controls only, not every row of presses (Codex on #253). */
+.controls .control-row .pill + .text-button {
+  margin-left: 6px;
+}
+/* On a coarse pointer a text press's target reaches 4 px past each side (theme.css): two text presses side by side
+   (Hold, Stop) keep 8 px between them, so the targets never meet (Codex on #253). */
+@media (pointer: coarse) {
+  .controls .control-row {
+    gap: 8px;
+  }
 }
 /* Asking first, in place: what will happen, the safe answer, then the one that acts. */
 .confirm {
@@ -3102,19 +3907,88 @@ button.contribution-quote:hover {
   display: block;
   padding-left: 12px;
 }
-/* An empty list's sentence starts 18 px under the rule, where its first row would. */
+/* The states (docs/plans/states.md): a skeleton while a view reads, an empty state when it has nothing, a read note
+   where a line is enough. One look for the three, wherever they stand. */
+/* A skeleton's shapes: bars with a light passing over them once per 1.6 s, each shape 80 ms after the last (its
+   inline delay, which its bars inherit). The host's grid places the shapes; a skeleton names no layout. */
+.skeleton-shape {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+}
+.skeleton-shape > span {
+  height: 10px;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--line) 30%, var(--line-2) 50%, var(--line) 70%) 0 0 / 300% 100%;
+  animation: skeleton-light 1.6s linear infinite;
+  animation-delay: inherit;
+}
+.skeleton-shape > span:first-child {
+  width: 55%;
+  height: 14px;
+}
+.skeleton-shape > span:last-child {
+  width: 70%;
+}
+/* In a card: a tile's plane and edge, its last line set apart as a tile's foot is. */
+.skeleton-card .skeleton-shape {
+  min-height: 150px;
+  padding: 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-4);
+  background: var(--plane-2);
+}
+.skeleton-card .skeleton-shape > span:last-child {
+  margin-top: 28px;
+}
+/* A row: a name and a word on one line, 54 px as an index's row is. */
+.skeleton-row .skeleton-shape {
+  grid-template-columns: 40% 20%;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 54px;
+}
+.skeleton-row .skeleton-shape > span {
+  width: auto;
+}
+@keyframes skeleton-light {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+/* An empty state: the sentence where the first row would be, 18 px under the rule, in the third ink at the body
+   type; its way forward (a press or two) under it. */
 .empty {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
   padding: 18px 0 24px;
   color: var(--text-3);
+  font-size: var(--type-body);
+}
+.empty > p {
+  max-width: 60ch;
 }
 .pulse .empty {
   padding: 7px 0;
 }
-/* An empty list still leads somewhere: its way forward sits under the sentence. */
-div.empty {
-  display: grid;
-  gap: 14px;
-  justify-items: start;
+/* A slot with nothing in it (a board's lane): the sentence centred in a dashed edge. */
+.empty-slot {
+  place-items: center;
+  min-height: 56px;
+  padding: 0 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-4);
+  font-size: var(--type-small);
+  text-align: center;
+}
+/* A read note: the line that says a read is on. */
+.read-note {
+  color: var(--text-3);
+  font-size: var(--type-body);
 }
 .view-note {
   padding: 10px 0 2px;
@@ -3128,19 +4002,20 @@ div.empty {
   /* With a row's own 7 px, the first event starts 18 px under the rule, as the first goal does. */
   gap: 11px;
 }
-/* Beside the work, the pulse's head is as tall as the view's head (a 24 px title line, 12 px of air, the rule), so
-   the two rules meet in one line and the small title stands on the large one's baseline. */
+/* Beside the work, the pulse's head is as tall as the view's head (its title's line, 12 px of air, the rule), so the
+   two rules meet in one line and the small title stands on the large one's baseline. The title's line is the view's
+   (--lh-view): enlarged with it (Codex on #246). */
 .pulse-head {
   display: flex;
   align-items: flex-end;
-  min-height: 37px;
+  min-height: calc(var(--lh-view) + 13px);
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
 }
 .pulse-head h4 {
   color: var(--text-3);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--type-small);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -3184,7 +4059,7 @@ div.empty {
   height: 7px;
   border-radius: 50%;
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.12);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.12);
 }
 /* How many times a change repeated close together: quiet, in the time's own mono. */
 .event-count {
@@ -3227,6 +4102,13 @@ div.empty {
   .round {
     min-height: 40px;
   }
+  .tabs > button {
+    min-height: 44px;
+  }
+  .round.sz-sm,
+  .round.sz-md {
+    min-width: 40px;
+  }
   .ghost,
   .segmented button {
     min-height: 36px;
@@ -3249,10 +4131,9 @@ div.empty {
     min-width: 40px;
     min-height: 40px;
   }
-  .account-menu [role='menuitem'],
-  .menu-list [role='menuitem'],
-  .menu-list [role='menuitemradio'] {
-    height: 40px;
+  .menu [role='menuitem'],
+  .menu [role='menuitemradio'] {
+    height: 44px;
   }
   .sheet-head .round {
     min-width: 40px;
@@ -3279,8 +4160,32 @@ div.empty {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
+}
+/* A viewer's «Copy project link» is wider than Invite: at 1280 its words would take the views' room (Codex on #259).
+   It keeps its icon and its tip up to 1320. */
+@media (max-width: 1320px) {
   .copy-link .swap {
     display: none;
+  }
+  /* Folded to its icon, it still shows the copy landed: the teal of done, for the two seconds «Link copied» is said
+     (Codex P2 on #259). */
+  .copy-link[data-copied] {
+    border-color: var(--teal);
+    color: var(--teal);
+  }
+}
+/* With a header wide enough for the room's dock, a long project title gives way before the views: the nav keeps its
+   width and the title folds to an ellipsis first (Codex P2 on #259). */
+@media (min-width: 901px) {
+  .project-name {
+    flex-shrink: 100;
+  }
+}
+/* Where the seven views are meant to stand whole (1241 px and up: docs/plans/nav-fits-1280.md), the nav keeps its own
+   width outright and only the title gives way; under it the row may still scroll, with its fades (Codex on #259). */
+@media (min-width: 1241px) {
+  .view-nav {
+    flex-shrink: 0;
   }
 }
 
@@ -3405,19 +4310,9 @@ div.empty {
     flex-basis: 100%;
     height: 44px;
     margin: 0 calc(-1 * var(--gutter));
-    padding: 0 calc(var(--gutter) - 10px);
+    padding: 0 calc(var(--gutter) - 8px); /* the links' 8 px: the first word starts at the gutter (Codex on #259) */
   }
-  /* An edge fades only where more views hide (ViewNav marks it): the row says it scrolls, and the current view,
-     scrolled into sight, is never left under the fade. */
-  .view-nav[data-more-end] {
-    mask-image: linear-gradient(90deg, #000 82%, transparent);
-  }
-  .view-nav[data-more-start] {
-    mask-image: linear-gradient(90deg, transparent, #000 18%);
-  }
-  .view-nav[data-more-start][data-more-end] {
-    mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
-  }
+  /* The fades where more views hide are the row's at any width (above). */
   .presence {
     gap: 8px;
   }
@@ -3428,6 +4323,11 @@ div.empty {
   .presence .role,
   .presence .meter {
     display: none;
+  }
+  /* Who holds the floor keeps their role under their name: the phone's dock leaves saying it to the room
+     (docs/plans/phone-dock.md, docs/plans/room-phone-floor.md). */
+  .presence[data-floor] .role {
+    display: block;
   }
   .dock {
     flex-wrap: wrap;
@@ -3478,7 +4378,9 @@ div.empty {
     top: auto;
     left: 0;
     width: 100%;
-    max-height: 90dvh;
+    /* At most 90 % of the screen, and always 64 px short of its top: a notice (the toast) has its band there over an
+       open sheet, even in a window both narrow and short (500×400; Codex P2 on #293). */
+    max-height: min(90dvh, calc(100dvh - 64px));
     padding: var(--sheet-top) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
     border-left: 0;
     border-top: 1px solid var(--line-2);
@@ -3529,7 +4431,8 @@ div.empty {
   .presence[data-speaking] .meter i,
   .sheet,
   .sheet-backdrop,
-  .sheet-body {
+  .sheet-body,
+  .skeleton-shape > span {
     animation: none;
   }
   .swap > *,
@@ -3637,6 +4540,10 @@ div.empty {
   color: var(--text-2);
   font-size: 12px;
 }
+/* Its resting ink ties `summary:hover` and comes later: the hover is said again here (Codex on #232). */
+.mission-more > summary:hover {
+  color: var(--text);
+}
 .mission-more[open] {
   display: grid;
   gap: 8px;
@@ -3699,36 +4606,6 @@ div.empty {
   border-bottom: 1px solid var(--line);
 }
 /* Tabs as a line under words, like the Invite sheet's. */
-.side-tabs {
-  display: flex;
-  gap: 16px;
-}
-.side-tabs button {
-  position: relative;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--text-3);
-  font-size: 13px;
-  font-weight: 500;
-  transition: color var(--fast) var(--ease);
-}
-.side-tabs button:hover {
-  color: var(--text-2);
-}
-.side-tabs button[aria-selected='true'] {
-  color: var(--text);
-}
-.side-tabs button[aria-selected='true']::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 1.5px;
-  background: var(--text);
-}
 .side-panel-head > .round {
   width: 28px;
   height: 28px;
@@ -3736,7 +4613,7 @@ div.empty {
   background: transparent;
 }
 .side-panel-head > .round:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 /* The panel's top: its head, then (where the panel covers the room) the call's switches and the note. Someone at the
    door is shown under it there (--panel-top), never over the tabs or Close. */
@@ -3770,9 +4647,6 @@ div.empty {
 @media (pointer: coarse) {
   .side-panel-head {
     padding-right: calc(var(--panel-pad) - 12px);
-  }
-  .side-tabs button {
-    height: 44px;
   }
   .side-panel-head > .round {
     width: 40px;
@@ -3818,12 +4692,6 @@ div.empty {
   color: var(--text-3);
   font-size: var(--type-small);
 }
-.chat-empty {
-  padding: 24px 8px;
-  color: var(--text-3);
-  font-size: var(--type-small);
-  text-align: center;
-}
 .chat-messages {
   display: grid;
   gap: 18px;
@@ -3859,7 +4727,7 @@ div.empty {
 .chat-spoken {
   margin-left: 8px;
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--type-small);
 }
 .chat-message.spoken.user {
   border-style: dashed;
@@ -3978,7 +4846,7 @@ div.empty {
   backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     var(--lift),
-    0 16px 48px rgba(0, 0, 0, 0.5);
+    0 16px 48px rgb(var(--shadow-rgb) / calc(0.5 * var(--shadow-k)));
   animation: rise 0.45s var(--ease) 0.1s backwards;
 }
 /* Something new behind a closed panel: a dot of Sophia's violet on its toggle. */
@@ -3990,7 +4858,7 @@ div.empty {
   height: 7px;
   border-radius: 50%;
   background: var(--core);
-  box-shadow: 0 0 8px 1px rgba(156, 130, 245, 0.8);
+  box-shadow: 0 0 8px 1px rgb(var(--halo-rgb) / 0.8);
 }
 .chat-show-room {
   display: none;
@@ -4064,7 +4932,7 @@ div.empty {
 }
 .report-main-meta {
   color: var(--text-3);
-  font: 500 var(--type-label) / 1.3 var(--mono);
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -4152,7 +5020,7 @@ div.empty {
 /* Sophia's voice through the report on the stage (useVoiceTrail, docs/plans/room-voice-trail.md): her words lit in her
    colour, the block they are in marked at its edge, and the section index with her mark where she is. */
 ::highlight(sophia-spoken) {
-  background-color: rgba(156, 130, 245, 0.3);
+  background-color: rgb(var(--halo-rgb) / 0.3);
   color: var(--text);
 }
 .report-main-body .md [data-spoken] {
@@ -4190,7 +5058,7 @@ div.empty {
 }
 .report-sections a:hover {
   color: var(--text);
-  background: rgba(236, 235, 241, 0.05);
+  background: rgb(var(--ink-rgb) / 0.05);
 }
 .report-sections a[data-sophia] {
   color: var(--text);
@@ -4224,18 +5092,18 @@ div.empty {
   border-radius: var(--r-2);
   background: transparent;
   color: var(--text-2);
-  font: 500 var(--type-small) / 1 var(--sans);
+  font: 500 var(--type-small) / var(--lh-small) var(--sans);
   white-space: nowrap;
 }
 .message-bar[data-target='sophia'] .bar-target {
-  border-color: rgba(185, 168, 255, 0.4);
+  border-color: rgb(var(--halo-text-rgb) / 0.4);
   color: var(--halo-text);
 }
 .message-bar button.bar-target {
   cursor: pointer;
 }
 .message-bar button.bar-target:hover {
-  background: rgba(236, 235, 241, 0.06);
+  background: rgb(var(--ink-rgb) / 0.06);
 }
 .message-bar button.bar-target:focus-visible {
   outline: 2px solid var(--halo);
@@ -4263,7 +5131,7 @@ div.empty {
 }
 .recap-section h3 {
   color: var(--text-3);
-  font-size: 11.5px;
+  font-size: var(--type-small);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -4284,7 +5152,6 @@ div.empty {
 .recap-line {
   overflow-wrap: anywhere;
   font-size: 14px;
-  line-height: 1.5;
 }
 .recap-by {
   grid-column: 1;
@@ -4320,11 +5187,12 @@ div.empty {
   grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
   gap: 28px 56px;
   align-items: start;
-  max-width: 1040px;
+  max-width: var(--content);
 }
 .updates > h2 {
   grid-column: 1 / -1;
-  font-size: 20px;
+  font-size: var(--type-view);
+  line-height: var(--lh-view);
 }
 @media (max-width: 900px) {
   .updates {
@@ -4336,12 +5204,29 @@ div.empty {
   align-content: start;
   gap: 16px;
 }
+/* The row over the digest (docs/plans/updates-narrow.md): the kinds as a small segmented box, who as a small press
+   with a menu. */
+.updates-narrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.updates-person {
+  position: relative;
+}
+.updates-person .pill svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 2px;
+  color: var(--text-3);
+}
 .updates-part > h3,
 .updates-part > .recap-section h4 {
   margin: 0;
   color: var(--text-2);
-  font: 500 var(--type-label) / 1.2 var(--mono);
-  letter-spacing: 0.09em;
+  font: 500 var(--type-small) / var(--lh-small) var(--mono);
+  letter-spacing: 0.06em; /* the token's (docs/plans/eyebrows.md): Updates had a third more */
   text-transform: uppercase;
 }
 .updates-part > .recap-section h4 {
@@ -4421,7 +5306,7 @@ div.empty {
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--r-3);
   background: none;
   color: var(--text);
   font-size: var(--type-body);
@@ -4458,7 +5343,7 @@ div.empty {
   height: 7px;
   border-radius: 50%;
   background: var(--teal);
-  box-shadow: 0 0 0 3px rgba(127, 214, 196, 0.18);
+  box-shadow: 0 0 0 3px rgb(var(--teal-rgb) / 0.18);
 }
 .meeting-row[data-running] .meeting-bar {
   display: none;
@@ -4480,13 +5365,20 @@ div.empty {
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-2);
   background: none;
   color: var(--text);
   text-align: left;
 }
 .search-hit:hover {
   background: var(--line);
+}
+/* The words searched for, in a hit (docs/plans/search-goals.md): the ink kept, a quiet lavender behind. */
+.search-hit mark {
+  /* On the kit's radii (4 · 6 · 8 · 12), as every box. */
+  border-radius: 4px;
+  background: rgb(var(--halo-text-rgb) / 0.22);
+  color: inherit;
 }
 .search-hit-title {
   font-size: 14px;
@@ -4496,7 +5388,6 @@ div.empty {
   overflow-wrap: anywhere;
   color: var(--text-2);
   font-size: 13px;
-  line-height: 1.45;
 }
 .search-hit-source {
   color: var(--text-3);
@@ -4642,4 +5533,369 @@ div.empty {
 }
 .task-row .task-said:empty {
   height: 0;
+}
+/* Updates' kind strip: on a narrow phone, five kinds with their counts outgrow the column; the strip scrolls in it, the
+   page does not (Codex on #239). */
+.updates-narrow .segmented {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* A presented report's version and its following count: data, on the 10.5 px scale beside the «Shown by» label (Codex
+   on #241). */
+.report-main-data {
+  font-size: var(--type-label);
+}
+/* A number inside a label (the review sources' «up to N»): data, on the 10.5 px scale. */
+.field-label .data {
+  font-size: var(--type-label);
+}
+/* Goals as a briefing (docs/plans/goals-overview.md): one sentence, what waits on the viewer, then the goals by health
+   in one list; the type carries the hierarchy and the one accent, amber, marks only what waits. */
+.goals-briefing {
+  display: grid;
+  gap: 28px;
+  margin-top: 8px;
+}
+.goals-brief {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--text-3);
+  font-size: var(--type-title);
+  line-height: var(--lh-body);
+}
+.goals-brief-you {
+  color: var(--text);
+}
+/* The notes unread, said under the brief (docs/plans/notes-robust.md). */
+.goals-notes-failed {
+  margin: -16px 0 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.goal-asks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-asks li {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.goal-asks li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+.goal-ask-dot {
+  align-self: start;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+}
+.goal-ask-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-ask-text {
+  margin: 0;
+}
+.goal-ask-meta {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goals-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: -16px;
+}
+.goals-list-head .field-label {
+  margin: 0;
+}
+.goals-search {
+  width: min(280px, 100%);
+}
+.goal-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-rows > .goal {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) 112px 56px;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 12px;
+  margin: 0 -12px;
+  border-bottom: 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 0 var(--line);
+  transition: background 0.16s var(--ease);
+}
+.goal-rows > .goal:hover,
+.goal-rows > .goal:focus-within {
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+}
+.goal-row-words {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.goal-press {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: start;
+  text-decoration: underline transparent;
+  text-underline-offset: 4px;
+  cursor: pointer;
+  transition: text-decoration-color 0.16s var(--ease);
+}
+/* Under the pointer the title takes a hairline, as the row's plane lifts. */
+.goal-press:hover {
+  text-decoration-color: var(--line-2);
+}
+/* The whole row is the title's press. */
+.goal-press::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+}
+.goal-press:focus-visible {
+  outline: none;
+}
+.goal-press:focus-visible::after {
+  box-shadow: 0 0 0 2px rgb(var(--halo-text-rgb) / 0.7);
+}
+.goal-row-line {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.goal-health {
+  color: var(--text-2);
+}
+[data-health='attention'] .goal-health {
+  color: var(--amber);
+}
+.goal-meter {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.goal-track {
+  display: block;
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--line-2);
+}
+.goal-track > span {
+  display: block;
+  height: 100%;
+  background: var(--text-2);
+}
+.goal-meter-count {
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.goal-faces {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+.goal-faces .avatar {
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  background: var(--plane-2);
+  box-shadow: 0 0 0 2px var(--void);
+}
+.goal-faces .avatar:first-child {
+  margin-left: 0;
+}
+.goal-faces-more {
+  margin-left: 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goals-done-fold {
+  justify-self: start;
+  margin-top: -12px;
+  color: var(--text-3);
+}
+/* A goal's sheet. */
+.goal-sheet {
+  display: grid;
+  gap: 22px;
+}
+.goal-sheet-health {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-sheet .goal-outcome {
+  margin: -14px 0 0;
+}
+.goal-sheet .goal-asks li {
+  grid-template-columns: 6px minmax(0, 1fr) auto;
+}
+.goal-sheet-way {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--type-small);
+}
+.goal-sheet-progress {
+  display: grid;
+  gap: 8px;
+}
+.goal-sheet-progress p {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-sheet-progress b {
+  color: var(--text);
+  font-weight: 500;
+}
+.goal-sheet-section {
+  display: grid;
+  gap: 8px;
+}
+.goal-sheet-section .field-label {
+  margin: 0;
+}
+.goal-sheet-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+/* Notes on a goal, in its sheet (docs/plans/goal-notes.md): the field, then the notes, newest first. */
+.goal-note-field {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--plane-2);
+}
+.goal-note-field:focus-within {
+  border-color: rgb(var(--halo-text-rgb) / 0.5);
+}
+.goal-note-field textarea {
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.goal-note-field textarea::placeholder {
+  color: var(--text-3);
+}
+.goal-note-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.goal-note-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.goal-note-refused {
+  color: var(--rose);
+  font-size: var(--type-small);
+}
+.goal-notes {
+  display: grid;
+  gap: 14px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.goal-notes li {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 10px;
+}
+.goal-notes .avatar {
+  width: 22px;
+  height: 22px;
+}
+.goal-note-words {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.goal-note-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-note-author {
+  color: var(--text);
+  font-weight: 500;
+}
+[data-kind='blocker'] .goal-note-kind {
+  color: var(--amber);
+}
+.goal-note-text {
+  margin: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.goal-notes-none,
+.goal-notes-off {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+@media (max-width: 640px) {
+  .goal-rows > .goal {
+    grid-template-columns: minmax(0, 1fr) 56px;
+  }
+  .goal-rows > .goal .goal-faces {
+    display: none;
+  }
+}
+
+/* A new project's first step under Sophia's line (docs/plans/first-step.md): by voice or in writing, side by side. */
+.line-presses {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
 }

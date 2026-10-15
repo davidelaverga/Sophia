@@ -12,6 +12,7 @@ import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
+import { rememberDevice, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
@@ -64,6 +65,10 @@ export interface ProjectRoom {
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
+  /** The person's choice of microphone, speaker or camera: kept for their next call, and this one switched to it. */
+  switchDevice: (kind: DeviceKind, id: string) => Promise<void>
+  /** The devices of a kind, through LiveKit (loaded only now); rejects where the browser refuses access. */
+  listDevices: (kind: DeviceKind) => Promise<MediaDevice[]>
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
 }
@@ -93,6 +98,12 @@ async function openRoom(issue: IssueToken, cb: RoomCallbacks) {
   return connectRoom(issued.serverUrl, issued.token, cb)
 }
 
+/** A kind's devices, through the room's own module: the one import of LiveKit, which the fixtures replace. */
+async function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
+  const room = await import('./livekit-room.ts')
+  return room.listDevices(kind)
+}
+
 /**
  * The microphone on joining: as this device left it last time. Changed by amendment A06 (S1-05A): viewers
  * publish too, so no one is left without a microphone.
@@ -116,6 +127,29 @@ const SWITCH: Record<Device, (c: RoomConnection, on: boolean) => Promise<void>> 
  * failed and the note says so, or its call went while it was under way, and it says nothing about the next one.
  */
 type Outcome = 'took' | 'failed' | 'gone'
+
+/** What stopped a switch, in words a person can act on (call-devices.md). */
+const SWITCH_REFUSED: Record<DeviceKind, string> = {
+  audioinput: 'Couldn’t switch to that microphone. Another app may be using it.',
+  audiooutput: 'Couldn’t switch to that speaker.',
+  videoinput: 'Couldn’t switch to that camera. Another app may be using it.',
+}
+
+/** A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. */
+function deviceSwitch(connection: { current: RoomConnection | null }, say: (note: string | null) => void) {
+  return async (kind: DeviceKind, id: string) => {
+    rememberDevice(kind, id)
+    const c = connection.current
+    if (!c) return
+    try {
+      await c.switchDevice(kind, id)
+    } catch {
+      if (connection.current === c) say(SWITCH_REFUSED[kind])
+      return
+    }
+    if (connection.current === c) say(null)
+  }
+}
 
 /**
  * The call's devices: each change clears the note on success or says what stopped it. The microphone
@@ -166,6 +200,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
     setScreenShare: async (on: boolean) => {
       await media('screen', on)
     },
+    switchDevice: deviceSwitch(connection, setMediaError),
   }
 }
 
@@ -386,6 +421,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     setTextMode: typedChat.setTextMode,
     sendChat: typedChat.sendChat,
     startAudio,
+    listDevices,
     setFollowing,
     ready: issue !== null,
     leave,

@@ -3,6 +3,11 @@
 // the hard gate, the review loop and publication. The capture receipt and its PNGs here are synthetic, so the service
 // side is exercised exactly; the real confined capture kernel against this API is tests/integration's crossing.
 import { createHash, randomUUID } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { realpathSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { SignJWT } from 'jose'
 import type { AddressInfo } from 'node:net'
 import type { FastifyInstance } from 'fastify'
@@ -23,8 +28,10 @@ import {
 import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
 import { dispatchOnce } from '@sophia/worker'
 import { buildApp } from './app.ts'
+import { probeUploadDeadline } from './renderer-deadline.testing.ts'
 import { createActorVerifier } from './auth.ts'
-import { memoryByteStore } from './byte-store.ts'
+import { ByteStoreError, memoryByteStore, withByteBackup, type ByteStore } from './byte-store.ts'
+import { diskByteBackup, type ByteBackup } from './byte-backup.ts'
 
 const SECRET = 'synthetic-test-secret-at-least-32-bytes-long!!'
 const ISSUER = 'https://synthetic.supabase.test/auth/v1'
@@ -57,6 +64,11 @@ let worker: pg.Pool
 let bytes: ReturnType<typeof memoryByteStore>
 let app: FastifyInstance
 let base: string
+const chargedJob = new Map<string, string | undefined>()
+let captureBackup: ByteBackup | undefined
+let captureBackupCalls = 0
+let uncertainCapturePut = false
+let store: ByteStore
 
 // oxlint-disable-next-line typescript/no-explicit-any -- test helper over heterogeneous response bodies
 type Body = any
@@ -97,7 +109,21 @@ before(async () => {
   const verifyActor = createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET })
   const mediaBridgeTokenSha256 = createHash('sha256').update(MEDIA_TOKEN, 'utf8').digest()
   bytes = memoryByteStore()
-  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, byteStore: bytes })
+  const countedStore = {
+    ...bytes,
+    put: async (path: string, data: Uint8Array, mime: string, context?: { rendererJobId: string }) => {
+      chargedJob.set(path.split('/')[1] ?? '', context?.rendererJobId)
+      await bytes.put(path, data, mime)
+      if (uncertainCapturePut) throw new ByteStoreError(503, 'synthetic accepted PUT with uncertain answer')
+    },
+  }
+  store = withByteBackup(countedStore, async (key, data, context) => {
+    if (captureBackup) {
+      captureBackupCalls += 1
+      await captureBackup(key, data, context)
+    }
+  })
+  app = buildApp({ pool, verifyActor, mediaBridgeTokenSha256, byteStore: store })
   await app.listen({ port: 0, host: '127.0.0.1' })
   base = `http://127.0.0.1:${String((app.server.address() as AddressInfo).port)}`
   const admin = new pg.Client({ connectionString: db.ownerUrl })
@@ -308,6 +334,11 @@ async function settleCapture(job: Body, pkg: ContentPackage, sections: string[],
       headers: lease,
     })
     assert.equal(put.status, 200, JSON.stringify(put.json))
+    assert.equal(
+      chargedJob.get(String(put.json.sourceId)),
+      job.jobId,
+      'every fresh PNG key charges the validated lease job',
+    )
   }
   const receipt = {
     schema: 'sophia.html-capture-receipt.v1',
@@ -1125,7 +1156,114 @@ describe('Hold, Resume and Stop of a design (B-20, 0041)', () => {
   })
 })
 
+describe('capture upload handler database deadlines', () => {
+  for (const [name, invocation] of [
+    ['renderer_capture_slot', 2],
+    ['claim_object_write', 1],
+    ['renderer_record_capture', 1],
+  ] as const) {
+    it(`bounds real PNG ${name} SQL through the HTTP deadline`, async () => {
+      const { w, at } = await designing()
+      await drafted(w, at, { capture: false })
+      const job = await claimCapture()
+      const upload = () =>
+        runner(`/v1/renderer/jobs/${String(job.jobId)}/captures/deadline.png`, {
+          method: 'PUT',
+          raw: PNG,
+          type: 'image/png',
+          headers: { 'x-sophia-render-lease': job.leaseToken },
+        })
+      await owner((c) => probeUploadDeadline(c, name, invocation, upload))
+    })
+  }
+})
+
 describe('a capture render queued again after its lease ran out (0045)', () => {
+  it('charges one copy per lease/name across replay, concurrency, API recreation and an uncertain PUT', async () => {
+    const root = await mkdtemp(join(realpathSync(tmpdir()), 'sophia-capture-replay-'))
+    // Synthetic mount declaration for an owned local fixture; actual Linux volume fit is a deployment check.
+    captureBackup = diskByteBackup(root, `1 0 8:1 / ${root} rw - ext4 /dev/test rw`)
+    captureBackupCalls = 0
+    let recreated: FastifyInstance | undefined
+    const originalBase = base
+    try {
+      const { w, at } = await designing()
+      await drafted(w, at, { capture: false })
+      const job = await claimCapture()
+      const name = 'desktop.overview.png'
+      const path = `/v1/renderer/jobs/${String(job.jobId)}/captures/${name}`
+      const upload = (lease: string, raw = PNG) =>
+        runner(path, { method: 'PUT', raw, type: 'image/png', headers: { 'x-sophia-render-lease': lease } })
+      const first = await Promise.all([upload(String(job.leaseToken)), upload(String(job.leaseToken))])
+      assert.deepEqual(
+        first.map((r) => r.status).toSorted((a, b) => a - b),
+        [200, 409],
+        JSON.stringify(first),
+      )
+      const recorded = first.find((r) => r.status === 200)?.json
+      assert.ok(recorded?.sourceId)
+      assert.equal((await upload(String(job.leaseToken))).status, 409)
+      assert.equal((await upload(String(job.leaseToken), Buffer.concat([PNG, Buffer.from('changed')]))).status, 409)
+      recreated = buildApp({
+        pool,
+        verifyActor: createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET }),
+        byteStore: store,
+      })
+      await recreated.listen({ port: 0, host: '127.0.0.1' })
+      base = `http://127.0.0.1:${String((recreated.server.address() as AddressInfo).port)}`
+      assert.equal((await upload(String(job.leaseToken))).status, 409, 'durable claim survives API recreation')
+      await owner((c) =>
+        c.query(`UPDATE sophia.jobs SET lease_until=now()-interval '1 second' WHERE project_id=$1 AND id=$2`, [
+          w.projectId,
+          job.jobId,
+        ]),
+      )
+      const again = await claimCapture()
+      assert.equal(again.jobId, job.jobId)
+      assert.notEqual(again.leaseToken, job.leaseToken)
+      const renewed = await upload(String(again.leaseToken))
+      assert.equal(renewed.status, 200, JSON.stringify(renewed.json))
+      assert.notEqual(renewed.json.sourceId, recorded.sourceId, 'a renewed lease records its own capture')
+      uncertainCapturePut = true
+      const uncertainPath = `/v1/renderer/jobs/${String(job.jobId)}/captures/phone.overview.png`
+      const uncertain = () =>
+        runner(uncertainPath, {
+          method: 'PUT',
+          raw: PNG,
+          type: 'image/png',
+          headers: { 'x-sophia-render-lease': again.leaseToken },
+        })
+      assert.equal((await uncertain()).status, 503)
+      uncertainCapturePut = false
+      assert.equal((await uncertain()).status, 409, 'uncertain write remains claimed before another backup or PUT')
+      assert.equal(captureBackupCalls, 3, 'every replay was refused before invoking the backup')
+      const journal = new DatabaseSync(join(root, 'budget/reservations.sqlite'), { readOnly: true })
+      try {
+        assert.deepEqual(
+          { ...journal.prepare('SELECT count(*) AS count, sum(bytes) AS bytes FROM reservations').get() },
+          {
+            count: 3,
+            bytes: 3 * PNG.byteLength,
+          },
+        )
+      } finally {
+        journal.close()
+      }
+      const claims = await owner((c) =>
+        c.query('SELECT count(*)::int AS count FROM sophia.object_writes WHERE storage_key LIKE $1', [
+          `${w.projectId}/%`,
+        ]),
+      )
+      assert.equal(claims.rows[0]?.count, 3, 'replay minted no extra write claims')
+    } finally {
+      base = originalBase
+      uncertainCapturePut = false
+      captureBackup = undefined
+      await recreated?.close()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('starts with none of the lost lease’s captures: the next run’s own captures settle, a stray name gone', async () => {
     const { w, at } = await designing()
     const d = await drafted(w, at, { capture: false })

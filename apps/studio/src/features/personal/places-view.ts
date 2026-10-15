@@ -36,6 +36,7 @@ export function readState(read: { data: unknown; isFetching: boolean; isError: b
 export const READ_FAILED = {
   personal: 'Couldn’t load your personal space.',
   projects: 'Couldn’t load your projects.',
+  needs: 'Couldn’t read what needs you.',
 } as const
 
 /** The first visit's one sentence about the line between the doors. */
@@ -257,6 +258,34 @@ export function roomNames(room: NonNullable<ProjectSummary['room']>): string {
 }
 
 const peopleIn = (p: ProjectSummary) => p.room?.people.length ?? 0
+
+/**
+ * The next ask Home's line suggests (docs/plans/next-ask-places.md): a session about to start, the one thing Home's
+ * line can help with from what its words carry; nothing otherwise. Home's line goes to the companion, which never sees
+ * a project, so a room's «Catch me up» is not offered here: catching up is the project's conversation's (its own next
+ * ask, «Sum it up»), where Sophia reads the project (Codex P1 on #268).
+ */
+export function homeNextAsk(
+  projects: readonly ProjectSummary[] | undefined,
+  now: Date,
+): { words: string; why: string; full: string } | null {
+  if (!projects || projects.length === 0) return null
+  // About to start, not under way: a session that started is to join, not to get ready for (Codex on #268).
+  const ahead = (p: ProjectSummary) =>
+    p.nextSession !== null && soon(p, now) && Date.parse(p.nextSession.startsAt) > now.getTime()
+  const starting = workOrder(projects, now).find(ahead)
+  const when = starting ? sessionWhen(starting, now) : null
+  if (!starting?.nextSession || !when) return null
+  const words = `Help me get ready for ${starting.nextSession.title} in ${starting.title}`
+  // What Tab puts in the line carries the timing: she reads only the words sent, and the tip saying why is gone by then
+  // (Codex P2 on #268). The placeholder stays short.
+  return { words, why: `Because it ${when}`, full: `${words}. ${when.startsWith('starts') ? 'It' : 'It’s'} ${when}.` }
+}
+
+/** The place arrived at: the last of the places on screen, the one moved to from the first frame of the move. */
+export function placeAt<P>(shown: readonly P[]): P | undefined {
+  return shown.at(-1)
+}
 
 /** Projects with a session about to start come first, the soonest first; then the rest as listed. */
 export function workOrder(projects: readonly ProjectSummary[], now: Date): ProjectSummary[] {

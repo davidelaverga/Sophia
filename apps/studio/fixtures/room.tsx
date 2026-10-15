@@ -24,11 +24,13 @@ import { forgetKept } from '../src/features/conversations/talk-store.ts'
 import { StrictMode, useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AccountMenu } from '../src/app/AccountMenu.tsx'
+import { PrivacySheet } from '../src/features/personal/PlaceDialogs.tsx'
 import type { View } from '../src/app/route.ts'
 import { ShortcutScope } from '../src/app/shortcuts.ts'
 import { ProjectShell } from '../src/features/studio/ProjectShell.tsx'
+import { rememberWelcome } from '../src/features/access/welcome.ts'
 import '../src/app/theme.css'
-import { noteKept, type Notes } from './brief-data.ts'
+import { goalNote, noteKept, type Notes } from './brief-data.ts'
 import { noShowing, walked } from './focus-data.ts'
 import { noReviews } from './review-data.ts'
 import { noTasks, taskOf } from './task-data.ts'
@@ -36,7 +38,7 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
+import { asked, deliverCaption, deliverNotice, dropCall, joined, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -75,14 +77,28 @@ import {
   VERSIONS_HELD,
 } from './report-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
+import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
+import {
+  actions as resourceActions,
+  earlierReadings,
+  NOW as RESOURCES_READ,
+  observations as resourceObservations,
+  people as resourcePeople,
+  resources as resourceList,
+} from './resources-data.ts'
 import type { ExchangeAction } from './exchange-writes.ts'
 import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
-import { demoServedGoals } from './demo-work.ts'
+import { demoResources, demoServedGoals } from './demo-work.ts'
+import { bootTheme } from '../src/app/theme.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
   update: () => void
+  /** The door shuts under the shell: the next snapshot read is refused (403), with no move of the route. */
+  shutDoor: () => void
+  /** Sophia writes a difficulty on the demo's goal of that title, from a call, and the project's stream moves (goal-notes.md). */
+  noteOnGoal: (title: string, text: string) => void
   /** The room's recent discussion goes (it moved past what the snapshot holds): a reply to it is refused (A20). */
   forgetDiscussion: () => void
   /** The account is forgotten, as signing out or switching identity forgets it (App): reads cleared, nothing kept. */
@@ -144,8 +160,12 @@ interface Fixture {
   releaseTaskReads: () => void
   /** While on, searches wait; off, the waiting ones are answered (A13). */
   holdSearch: (on: boolean) => void
+  /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
+  holdBoard: (on: boolean) => void
   /** The conversations' list reads fail, or read again (A18). */
   failConversations: (on: boolean) => void
+  /** The reads of a conversation's older pages fail, or read again. */
+  failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
   /** The brief's reads fail, or read again. */
@@ -231,6 +251,8 @@ interface Fixture {
   floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** The devices the last call opened with (call-devices.md); null before any. */
+  readonly devicesOnJoin: Partial<Record<string, string>> | null
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
@@ -245,6 +267,29 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+bootTheme(query.get('theme'))
+// `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
+if (query.get('welcome') === '1')
+  rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })
+
+/** The demo's notes on its rollout (goal-notes.md): Sophia's difficulty from the call, and the viewer's own. */
+function demoGoalNotes() {
+  const rollout = DEMO_GOALS.find((g) => g.status === 'running')
+  if (!rollout) return []
+  return [
+    goalNote(1, rollout.id, {
+      kind: 'observation',
+      text: 'The pilot numbers hold: 2.4 days to a first shared report.',
+      hours: 72,
+    }),
+    goalNote(2, rollout.id, {
+      kind: 'blocker',
+      text: 'From the call: legal review of the translated checklist lands Thursday; nothing ships before.',
+      hours: 2,
+      sophia: true,
+    }),
+  ]
+}
 
 /** The floor's holder the page asked for: the viewer, the `n`th other person, or someone not in the room. */
 function holderAsked(floor: string | null): string | undefined {
@@ -301,6 +346,7 @@ function floorMoves(actorId: string): void {
 
 const project = {
   revision: 1,
+  doorShut: false,
   exchange: query.get('exchange') === 'open' || sophiaAsked,
   room,
   roomMoves: false,
@@ -370,6 +416,11 @@ const project = {
   waiting: query.get('lobby') === 'waiting' || query.get('lobby') === 'again' || query.get('lobby') === 'two',
   lobbyAsked: query.get('lobby'),
   ...(query.get('role') === 'viewer' ? { role: 'viewer' as const } : {}),
+  // `fresh=1`: a project just made, nothing recorded yet (first-step.md).
+  fresh: query.get('fresh') === '1',
+  ...(query.get('role') === 'editor' ? { role: 'editor' as const } : {}),
+  // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
+  invitations: { kept: [], made: 0 },
   description: SOPHIAS_DESCRIPTION,
   versionsFail: false as false | 'unavailable' | 'not_found',
   sourcesHeld: query.get('hold') === 'sources',
@@ -431,7 +482,9 @@ const project = {
   membershipHeld: query.get('membership') === 'hold' ? waiting() : null,
   // A13: searches held while the page asks (`holdSearch`).
   searchHeld: null as (() => void)[] | null,
-  missionFails: false,
+  boardHeld: null as (() => void)[] | null,
+  // `mission=fail`: the brief's reads fail from the first (notes-robust.md); `window.fixture.failMission` turns it.
+  missionFails: query.get('mission') === 'fail',
   reviews: {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
@@ -455,7 +508,7 @@ const project = {
     ...(DEMO ? { published: () => [readoutMade()] } : {}),
   },
   notes: {
-    kept: [],
+    kept: DEMO ? demoGoalNotes() : [],
     written: 0,
     receipts: new Map(),
     loseReply: false,
@@ -468,6 +521,18 @@ installFixtureApi(project)
 
 window.fixture = {
   update: () => publish(project),
+  shutDoor: () => {
+    project.doorShut = true
+    publish(project)
+  },
+  noteOnGoal: (title, text) => {
+    const goal = DEMO_GOALS.find((g) => g.title === title)
+    if (!goal) return
+    project.notes.kept.push(
+      goalNote(project.notes.kept.length + 10, goal.id, { kind: 'blocker', text, hours: 0, sophia: true }),
+    )
+    publish(project)
+  },
   say: (text) => {
     project.messages.push(text)
     publish(project)
@@ -583,6 +648,9 @@ window.fixture = {
   failConversations: (on) => {
     if (project.conversations) project.conversations.failList = on
   },
+  failOlderMessages: (on) => {
+    if (project.conversations) project.conversations.failOlder = on
+  },
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
@@ -629,6 +697,10 @@ window.fixture = {
   holdSearch: (on) => {
     if (!on) for (const answer of project.searchHeld ?? []) answer()
     project.searchHeld = on ? waiting() : null
+  },
+  holdBoard: (on) => {
+    if (!on) for (const answer of project.boardHeld ?? []) answer()
+    project.boardHeld = on ? waiting() : null
   },
   releaseTaskReads: () => {
     const held = project.tasks.heldReads ?? []
@@ -744,6 +816,9 @@ window.fixture = {
   },
   floorTo,
   asked,
+  get devicesOnJoin() {
+    return joined.devices
+  },
   served,
   unexpected,
   missionWrites,
@@ -887,6 +962,7 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
       failList: which === 'fail',
       lastShown: DEMO || query.get('last') === '1',
       failMessagesOf: failMessages ? CONVERSATION.briefs : null,
+      failOlder: query.get('older') === 'fail',
       send: sendAsked(query.get('send')),
       start: startAsked(query.get('start')),
       answerMs: query.get('answer') === 'slow' ? 10_000 : 900,
@@ -900,28 +976,60 @@ function conversationsAsked(which: string | null, failMessages: boolean) {
  * The project as the signed-in Studio shows it (SignedIn.tsx): its view moves as the person picks another (ViewNav,
  * the mini dock).
  */
+/**
+ * The account menu's actions on the fixture page (account-menu.md): How privacy works opens its sheet here; your
+ * personal data goes to the personal space, as the app goes home; signing out goes to the sign-in.
+ */
+const demoAccount = (privacy: () => void) => ({
+  data: () => window.location.assign(`personal.html${DEMO ? '?demo=1' : ''}`),
+  privacy,
+  chooseDev: nothing,
+  signOut: () => window.location.assign(`signin.html${DEMO ? '?demo=1' : ''}`),
+})
+
 function Project({ background }: { background: boolean }) {
   const [view, setView] = useState<View>(viewOf(query.get('place')))
+  const [privacy, setPrivacy] = useState(false)
   return (
-    <ProjectShell
-      projectId={PROJECT}
-      view={view}
-      identity={identity}
-      account={
-        <AccountMenu
-          identity={identity}
-          where="project"
-          actions={{ data: nothing, privacy: nothing, chooseDev: nothing, signOut: nothing }}
-        />
-      }
-      onShow={(next) => {
-        if (SERVED.includes(next)) setView(next)
-      }}
-      onLeave={nothing}
-      onWork={nothing}
-      onSignOut={nothing}
-      joinOnOpen={query.get('call') === 'on'}
-      background={background}
+    <>
+      {privacy && <PrivacySheet onClose={() => setPrivacy(false)} />}
+      <ProjectShell
+        projectId={PROJECT}
+        view={view}
+        identity={identity}
+        account={<AccountMenu identity={identity} where="project" actions={demoAccount(() => setPrivacy(true))} />}
+        onShow={(next) => {
+          if (SERVED.includes(next)) setView(next)
+        }}
+        onLeave={nothing}
+        onWork={nothing}
+        onSignOut={nothing}
+        joinOnOpen={query.get('call') === 'on'}
+        background={background}
+        resources={DEMO ? <DemoResources /> : undefined}
+      />
+    </>
+  )
+}
+
+/** The resources' labelled fixture data told in the pilot's words and cast, as the demo's board is (demo-work.ts). */
+const DEMO_RESOURCES = demoResources({ resources: resourceList, actions: resourceActions })
+
+/**
+ * The demo's Resources: the real panel over the resources' labelled fixture data (resources-data.ts), read-only (no
+ * effort, act or task link wired, so nothing offers a press that does nothing; docs/plans/demo-resources.md), told as
+ * the board is (docs/plans/demo-resources-story.md).
+ */
+function DemoResources() {
+  return (
+    <ResourcePanel
+      resources={DEMO_RESOURCES.resources}
+      observations={resourceObservations}
+      actions={DEMO_RESOURCES.actions}
+      viewerId={resourcePeople.luis.id}
+      now={RESOURCES_READ}
+      history={earlierReadings(resourceObservations)}
+      scope="demo"
     />
   )
 }

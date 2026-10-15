@@ -5,7 +5,7 @@
 // member sees it change.
 import { useEffect, useState } from 'react'
 import type { LobbyEntry } from '@sophia/contracts'
-import { ConfirmButton } from '@sophia/ui'
+import { Button, ConfirmButton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { knockNote } from './access-view.ts'
 import { useLobbyDecision } from './useAccess.ts'
@@ -168,9 +168,10 @@ function LobbyRow({ entry, now, answer }: { entry: LobbyEntry; now: number; answ
               onConfirm={answer.onBlock}
             />
           )}
-          <button type="button" className="text-button lobby-decline" disabled={answer.busy} onClick={answer.onDecline}>
+          {/* The kit's quiet press at its 28 px, as tall as Let in beside it (docs/plans/room-phone-floor.md). */}
+          <Button kind="ghost" className="lobby-decline" disabled={answer.busy} onClick={answer.onDecline}>
             Decline
-          </button>
+          </Button>
           <button type="button" className="pill warm" disabled={answer.busy} onClick={answer.onAdmit}>
             Let in
           </button>

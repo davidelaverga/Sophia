@@ -2,6 +2,7 @@
 // board as a planned goal's do. It is the board fixture's plan (work-data.ts: its shape, its sessions, its decisions,
 // exactly as the service would admit them) told in the onboarding pilot's words, and read by the board's own reader:
 // a plan the Studio would refuse fails here, never on screen. Every name and number is invented, as the rest of the demo.
+import type { RequiredAction, Resource } from '../src/features/resources/resource.ts'
 import { readBoardView, type GoalView } from '../src/features/work/planning/board-view.ts'
 import { PROJECT } from './data.ts'
 import { DEMO_GOALS } from './demo-goals.ts'
@@ -91,4 +92,41 @@ export function demoServedGoals(): GoalView[] {
   console.error(said)
   unexpected.push(said)
   return []
+}
+
+/** The demo's Marco has no picture: Tasks draws his initial, and so does Resources. */
+const MARCO = { id: 'marco', name: 'Marco', avatarUrl: null }
+
+/** A resource's owner as the demo casts them: Davide is Marco. */
+const castOwner = (owner: Resource['owner']): Resource['owner'] => (owner.id === 'davide' ? MARCO : owner)
+
+/** A resource's id as the demo names it: «davide-claude» is «marco-claude», so a copied link says whose it is. */
+const renamed = (id: string) => id.replace(/^davide-/, 'marco-')
+
+/** A session with its assignment's title in the pilot's words. */
+const toldSession = (session: Resource['sessions'][number]): Resource['sessions'][number] =>
+  session.assignment
+    ? { ...session, assignment: { ...session.assignment, title: told(session.assignment.title, 0) } }
+    : session
+
+/**
+ * The demo's Resources (docs/plans/demo-resources-story.md): the resources' fixture data told as the board is, in the
+ * pilot's words and cast. Readings join resources by account (`entitlement_id`), which doesn't change; the resources'
+ * clock is their own (NOW), so no time moves.
+ */
+export function demoResources(data: { resources: readonly Resource[]; actions: readonly RequiredAction[] }) {
+  return {
+    resources: data.resources.map((r) => ({
+      ...r,
+      id: renamed(r.id),
+      owner: castOwner(r.owner),
+      sessions: r.sessions.map(toldSession),
+    })),
+    actions: data.actions.map((a) => ({
+      ...a,
+      resourceId: renamed(a.resourceId),
+      ownerId: told(a.ownerId, 0),
+      operation: told(a.operation, 0),
+    })),
+  }
 }

@@ -49,7 +49,10 @@ export interface SdkContext {
     ): Promise<{ readonly queued: boolean }>
   }
   readonly agents: {
-    readonly managed: { reconcile(agentKey: string, companyId: string): Promise<{ readonly agentId: string | null }> }
+    readonly managed: {
+      get(agentKey: string, companyId: string): Promise<{ readonly agentId: string | null }>
+      reconcile(agentKey: string, companyId: string): Promise<{ readonly agentId: string | null }>
+    }
   }
   readonly db: {
     readonly namespace: string
@@ -152,7 +155,9 @@ export function hostOf(
         queued: (await answered(ctx.issues.requestWakeup(issueId, companyId, options))).queued,
       }),
     },
-    reviewerAgent: async (companyId) => (await ctx.agents.managed.reconcile(REVIEWER_AGENT_KEY, companyId)).agentId,
+    boundReviewerAgent: async (companyId) => (await ctx.agents.managed.get(REVIEWER_AGENT_KEY, companyId)).agentId,
+    reviewerAgent: async (companyId) =>
+      (await answered(ctx.agents.managed.reconcile(REVIEWER_AGENT_KEY, companyId))).agentId,
     namespace: ctx.db.namespace,
     query: (sql, params) => ctx.db.query(sql, [...params]),
     execute: (sql, params) => ctx.db.execute(sql, [...params]),

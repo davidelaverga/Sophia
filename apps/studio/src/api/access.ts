@@ -9,6 +9,7 @@ import type {
   LobbyDecision,
   LobbyEntry,
   Membership,
+  PendingInvitationList,
   RoomSession,
   RoomToken,
   SessionCreate,
@@ -20,6 +21,7 @@ import {
   parseInvitationPreview,
   parseLobbyEntry,
   parseMembership,
+  parsePendingInvitationList,
   parseRoomSession,
   parseRoomToken,
 } from '@sophia/contracts/validate'
@@ -50,6 +52,22 @@ export const knockRoom = (token: string, linkToken: string, displayName: string)
 
 export const acceptInvitation = (token: string, linkToken: string) =>
   callApi<InvitationAccepted>('/api/v1/join/accept', { token, body: { token: linkToken } }, parseInvitationAccepted)
+
+/** A16: the member invitations waiting for the signed-in person, by their address (no link, no token in them). */
+export const listPendingInvitations = (token: string, signal?: AbortSignal) =>
+  callApi<PendingInvitationList>(
+    '/api/v1/me/invitations',
+    { token, method: 'GET', ...(signal ? { signal } : {}) },
+    parsePendingInvitationList,
+  )
+
+/** A16: accepting one of them where the person is, with the same checks as the link's. */
+export const acceptPendingInvitation = (token: string, invitationId: string) =>
+  callApi<InvitationAccepted>(
+    `/api/v1/invitations/${invitationId}/accept`,
+    { token, body: {} },
+    parseInvitationAccepted,
+  )
 
 export const getLobbyEntry = (token: string, entryId: string) =>
   callApi<LobbyEntry>(`/api/v1/lobby/${entryId}`, { token, method: 'GET' }, parseLobbyEntry)

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { Goal } from '@sophia/contracts'
-import { Icon, Tag } from '@sophia/ui'
+import { Button, Icon, Tag } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
 import { GOAL_STATUS } from './labels.ts'
 import { WorkControls } from './WorkControls.tsx'
+import { Criteria } from './Criteria.tsx'
 
 interface Props {
   goal: Goal
@@ -22,20 +23,6 @@ interface Props {
   next?: React.ReactNode
 }
 
-/** A goal's criteria. Required unless said otherwise: the exception is marked, never the rule (goal-optional.md). */
-function Criteria({ goal }: { goal: Goal }) {
-  return (
-    <ul className="criteria">
-      {goal.criteria.map((c) => (
-        <li key={c.id}>
-          <span>{c.description}</span>
-          {!c.required && <span className="criterion-optional"> · optional</span>}
-        </li>
-      ))}
-    </ul>
-  )
-}
-
 /**
  * The goal's second line, under its title. With its plan's next checkpoint (`next`): that line, and its outcome and
  * criteria behind one quiet press. Without: its outcome, its criteria behind the press.
@@ -50,15 +37,16 @@ function SecondLine({ goal, next }: { goal: Goal; next?: React.ReactNode }) {
       <div className="goal-outcome-line">
         {next ?? <p className="goal-outcome">{goal.outcome}</p>}
         {folded && (
-          <button
-            type="button"
-            className="ghost goal-criteria-button"
+          <Button
+            kind="ghost"
+            size="sm"
+            className="goal-criteria-button"
             aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
             {folded}
             <Icon name="chevron" size={12} />
-          </button>
+          </Button>
         )}
       </div>
       {open && next && <p className="goal-outcome goal-outcome-open">{goal.outcome}</p>}

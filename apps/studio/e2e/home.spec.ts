@@ -82,17 +82,14 @@ test('home · no projects: Sophia invites, one row starts the first; loading cla
     .click()
   expect(await pressed(page)).toEqual(['new project'])
   await page.goto(`${PAGE}?projects=loading`)
-  await expect(page.locator('.hw-row.placeholder')).toHaveCount(3)
-  expect(
-    await page
-      .locator('.hw-row.placeholder')
-      .first()
-      .evaluate((el) => getComputedStyle(el).pointerEvents),
-  ).toBe('none')
+  // The kit's skeleton rows (Skeleton kind="row"): three shapes under a busy box that says what is read, no press in it.
+  const reading = page.locator('[aria-busy="true"]').filter({ hasText: 'Reading your projects…' })
+  await expect(reading.locator('.skeleton-shape')).toHaveCount(3)
+  await expect(reading.getByRole('button')).toHaveCount(0)
   await expect(page.locator('.hw-says')).toHaveCount(0)
   await page.goto(`${PAGE}?projects=failed`)
   await expect(page.getByText('Couldn’t load your projects.')).toBeVisible()
-  await expect(page.locator('.hw-row.placeholder')).toHaveCount(0)
+  await expect(page.locator('.skeleton-shape')).toHaveCount(0)
 })
 
 test('home · “/” reaches the line; your words go to her conversation, which sends them as its own', async ({
@@ -124,9 +121,13 @@ test('home · with a sheet open over Home, “/” leaves the focus where it is'
 test('home · you and Sophia: where you left off opens your conversation; your notes open them', async ({ page }) => {
   await page.goto(PAGE)
   const you = page.getByRole('list', { name: 'You and Sophia' })
-  await expect(you.getByRole('button').first()).toContainText(/Continue.*the launch pressure/)
+  await expect(you.getByRole('button').first()).toContainText(/Continue.*the launch pressure/i)
   await you.getByRole('button', { name: /Continue/ }).click()
-  await you.getByRole('button', { name: /3 notes/ }).click()
+  // Your notes are a press in the section's head (docs/plans/home-first-glance.md).
+  await page
+    .locator('.hw-you')
+    .getByRole('button', { name: /3 notes/ })
+    .click()
   expect(await pressed(page)).toEqual(['personal', 'notes'])
 })
 
@@ -179,11 +180,14 @@ test('home · stepping away from Home stops the microphone: nothing heard lands 
 test('home · pressed again, the microphone stops, and nothing it would have heard lands', async ({ page }) => {
   await page.goto(PAGE)
   const mic = page.getByRole('button', { name: 'Speak instead' })
+  await expect(mic).toBeVisible()
+  // The line's resting words: its own, or the next ask it suggests (next-ask-places.md) when a session is about to start.
+  const resting = (await line(page).getAttribute('placeholder')) ?? ''
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'true')
   await mic.click()
   await expect(mic).toHaveAttribute('aria-pressed', 'false')
-  await expect(line(page)).toHaveAttribute('placeholder', 'Say something to Sophia')
+  await expect(line(page)).toHaveAttribute('placeholder', resting)
   await hear(page)
   await expect(line(page)).toHaveValue('')
 })

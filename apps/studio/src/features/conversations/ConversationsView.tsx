@@ -7,6 +7,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { Membership } from '@sophia/contracts'
+import { Button } from '@sophia/ui'
 import {
   listConversations,
   type ConversationAsk,
@@ -17,6 +18,7 @@ import {
 import { accountOf } from '../../app/auth-callback.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { modalOnScreen } from '../../app/shortcuts.ts'
+import { WIDE } from '../../app/useMedia.ts'
 import { Waiting } from '../../app/Waiting.tsx'
 import { byActivity, listKey, messagesKey } from './conversation-list.ts'
 import { Rows } from './ConversationRows.tsx'
@@ -27,7 +29,18 @@ import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
+import { fitQuestion } from './new-conversation.ts'
 import './conversations.css'
+
+/**
+ * The new conversation's form on a question, Sophia asked; a form whose words are on their way keeps them. Words longer
+ * than a question may be are cut at a word to fit, with an ellipsis (Codex on #267).
+ */
+function beginOn(talk: ReturnType<typeof useTalk>, question: string) {
+  if (talk.kept.start.held) return
+  const title = fitQuestion(question)
+  talk.change((k) => ({ ...k, start: { ...k.start, fields: { title, text: '', askSophia: true } } }))
+}
 
 /** Newest activity first: sorted once per answer. */
 const sorted = (answer: { conversations: readonly ConversationSummary[] }) => byActivity(answer.conversations)
@@ -59,23 +72,61 @@ function useList(projectId: string, identity: Identity, cursor: string | undefin
   return { list, all: list.data ?? [], settled: list.isSuccess && !list.isFetching }
 }
 
+/** The new conversation's question, focused two frames on: after a closing sheet hands the focus back to its opener. */
+const focusQuestion = () =>
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('.conv-new .conv-question input')?.focus()),
+  )
+
+/** What another view asked Conversations to open (project-go.tsx): a conversation, or words to ask Sophia. */
+function useArrivals(
+  ask: (id: string) => void,
+  writer: boolean | undefined,
+  talk: ReturnType<typeof useTalk>,
+  start: ReturnType<typeof useStart>,
+  screen: { show: () => void; back: () => void },
+) {
+  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too. Words to ask Sophia
+  // (a search that found nothing) open the new conversation's form with them, for a member; a viewer sees the list.
+  useArrival('conversations', (to) => {
+    // Words to ask wait for the membership: a member gets the form, a confirmed viewer the list (Codex on #267).
+    if ('ask' in to && writer === undefined) return false
+    if (!('ask' in to)) ask(to.conversationId)
+    else if (writer) {
+      beginOn(talk, to.ask)
+      if (!start.starting) start.toggle()
+      // Already open, the form is not mounted anew, so its own focus does not run: its question takes the focus, after
+      // the sheet that asked has given its own back (Codex on #267).
+      else focusQuestion()
+    }
+    // A viewer's words to ask: the list, as promised, on a phone too, from a conversation already open there (Codex
+    // on #267 and #276); shown, a phone would take them into the newest conversation.
+    if (!('ask' in to) || writer) screen.show()
+    else screen.back()
+    return undefined
+  })
+}
+
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const { me, writer } = readerOf(membership)
   const { list, all, settled } = useList(projectId, identity, cursor)
   const { open, choose, ask, missing } = useChosen(all, settled)
   const panes = usePanes()
-  // One asked for from elsewhere (a report's source, project-go.tsx): open, and shown on a phone too.
-  useArrival('conversations', (to) => {
-    ask(to.conversationId)
-    panes.show()
-  })
   const talk = useTalk(projectId, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
     choose(id)
     panes.show()
   })
+  useArrivals(ask, writer, talk, start, panes)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
+  // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
+  const openOne = (id: string, fromForm = false) => {
+    start.close()
+    choose(id)
+    panes.show()
+    if (fromForm) start.arrive(id)
+  }
   return (
     <section
       ref={panes.view}
@@ -95,14 +146,19 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
         start={writer ? start : null}
         // With no conversation open (none yet, or the form for a new one), «Context» is the list's.
         context={shown ? null : { open: panes.context, toggle: panes.toggleContext, ref: panes.toggle }}
-        onOpen={(id) => {
-          start.close()
-          choose(id)
-          panes.show()
-        }}
+        onOpen={openOne}
       />
-      {start.starting && <NewConversation projectId={projectId} identity={identity} {...start.form} />}
-      {shown && <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes }} />}
+      {start.starting && (
+        <NewConversation
+          {...{ projectId, identity }}
+          {...start.form}
+          conversations={all}
+          onOpenExisting={(id) => openOne(id, true)}
+        />
+      )}
+      {shown && (
+        <Open conversation={shown} {...{ projectId, identity, me, cursor, writer, talk, start, panes, list }} />
+      )}
       <ProjectContext
         {...{ projectId, identity, cursor }}
         conversation={shown}
@@ -160,9 +216,10 @@ function ListPane(props: {
 /** New conversation: a + press beside the list's name, its words in its name and its tip. */
 function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
   return (
-    <button
+    <Button
       ref={start.button}
-      type="button"
+      kind="icon"
+      size="md"
       className="icon-button conv-start"
       aria-label="New conversation"
       title="New conversation"
@@ -172,7 +229,7 @@ function StartButton({ start }: { start: ReturnType<typeof useStart> }) {
       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
         <path d="M7 1.5v11M1.5 7h11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
-    </button>
+    </Button>
   )
 }
 
@@ -211,7 +268,7 @@ function usePanes() {
     // After the list shows again: the row of the conversation left, else the filter (that row may be filtered out).
     requestAnimationFrame(() => {
       const at = view.current?.querySelector<HTMLElement>('.conv-row[aria-pressed="true"]')
-      ;(at ?? view.current?.querySelector<HTMLElement>('.conv-filter, .conv-start'))?.focus()
+      ;(at ?? view.current?.querySelector<HTMLElement>('.conv-filter input, .conv-start'))?.focus()
     })
   }
   return {
@@ -242,11 +299,30 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
       if (e.key !== 'Escape' || e.defaultPrevented || modalOnScreen() || t?.closest('[role="dialog"]')) return
       close()
     }
-    const behind = [
-      ...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? []),
-      ...document.querySelectorAll<HTMLElement>('.mini-dock'),
-    ]
-    for (const el of behind) el.inert = true
+    const behind = [...(view.current?.querySelectorAll<HTMLElement>('.conv-list, .conv-open, .conv-new') ?? [])]
+    // The floating dock is under the panel; the header's (721 px and up) stands above it and stays in reach.
+    const docks = () => [...document.querySelectorAll<HTMLElement>('.mini-dock')].filter((el) => !el.closest('.topbar'))
+    const cover = (moved = false) => {
+      const covered = [...behind, ...docks()]
+      // The focus a control of the dock had before the move goes to the panel: restored to the dock, it would be lost
+      // once the dock is inert; lost with the dock already (the thread's screen at 720 px shows no idle dock), it is
+      // on the page (Codex on #254).
+      const at = document.activeElement
+      const lost = at === document.body || (at instanceof HTMLElement && covered.some((el) => el.contains(at)))
+      if (moved && lost) document.getElementById('conv-context')?.focus({ preventScroll: true })
+      for (const el of covered) el.inert = true
+    }
+    cover()
+    // The room's dock is mounted anew when the width crosses the header's breakpoint: covered again (Codex on #254).
+    const wide = matchMedia(WIDE)
+    // One frame queued at a time, cancelled with the panel: a frame left over would make the page inert again with no
+    // panel to clear it (Codex on #254).
+    let frame = 0
+    const coverAgain = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => cover(true))
+    }
+    wide.addEventListener('change', coverAgain)
     const width = new ResizeObserver(([entry]) => {
       if (!entry || entry.contentRect.width <= PANEL) return
       const at = document.activeElement
@@ -261,8 +337,10 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
+      wide.removeEventListener('change', coverAgain)
+      cancelAnimationFrame(frame)
       width.disconnect()
-      for (const el of behind) el.inert = false
+      for (const el of [...behind, ...docks()]) el.inert = false
     }
   }, [view, open, close, drop])
 }
@@ -271,6 +349,8 @@ function useContextPanel(view: RefObject<HTMLElement | null>, open: boolean, clo
 function Open(props: {
   projectId: string
   conversation: ConversationSummary
+  /** The list as read: being read again, or its last read failed, what it says of this conversation may be stale. */
+  list: { isError: boolean; fetchStatus: 'fetching' | 'paused' | 'idle' }
   identity: Identity
   me: string
   cursor: string | undefined
@@ -285,6 +365,7 @@ function Open(props: {
       key={c.id}
       projectId={props.projectId}
       conversation={c}
+      list={props.list}
       identity={props.identity}
       me={props.me}
       cursor={props.cursor}
@@ -423,6 +504,8 @@ function useStart(projectId: string, identity: Identity, talk: ReturnType<typeof
     starting,
     arrived,
     clearArrived,
+    /** The conversation opened from the form takes the focus on its title, as a started one does. */
+    arrive: setArrived,
     button,
     toggle: () => (starting ? cancel() : setForm(true)),
     close: () => setForm(false),
