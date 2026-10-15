@@ -172,3 +172,27 @@ describe('a query in any script (Codex on #238)', () => {
     assert.equal(matchCommands('   ', named).length, named.length)
   })
 })
+
+describe('a command offered only once typed (find-projects.md)', () => {
+  const projects = [
+    cmd('project:a', 'Open Launch plan', { typed: true }),
+    cmd('project:b', 'Open Research notes', { typed: true }),
+  ]
+
+  it('stays out of the blank palette, so dozens of projects never crowd it', () => {
+    const rows = paletteRows('', [...ROOM, ...projects], [])
+    assert.equal(
+      rows.some((r) => r.command.id.startsWith('project:')),
+      false,
+    )
+  })
+
+  it('is found by what is typed, and shows under Recent once run', () => {
+    assert.deepEqual(
+      paletteRows('launch', [...ROOM, ...projects], []).map((r) => r.command.id),
+      ['project:a'],
+    )
+    const recent = paletteRows('', [...ROOM, ...projects], ['project:b'])
+    assert.equal(recent.find((r) => r.label === 'Recent')?.command.id, 'project:b')
+  })
+})

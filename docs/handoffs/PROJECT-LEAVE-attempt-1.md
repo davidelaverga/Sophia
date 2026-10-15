@@ -56,3 +56,15 @@ commits on the branch merge its base forward or touch only this record). 26 file
 - `d31d1771`: the sanitizer knows `project.member_left` (the rename PR's CI found the same gap for `project.renamed`).
 - `9b599293` (the merge of the rename branch): the amendment was renumbered to A22, because A19 and A20 are already proposals to Davide in #105 and the rename took
   A21.
+- `82acf428`, the Codex round on #349:
+  - **P1, room access after leaving:** leaving now records a removal in `room_removals`, as A07 does for a guest
+    (reason `left`, no lobby entry). The worker settles it on the room server's evidence and keeps watch for 630 s,
+    so a token issued before can't bring them back.
+  - The API tries once right after leaving, reading the caller's own removal through `own_departure_removal`.
+  - Coming back by a new invitation cancels the removal: `accept_room_invitation` is replaced in 0052.
+    `settle_room_removal` is replaced so that only a guest's removal moves a lobby entry.
+  - **P2:** the join event carries the membership's real revision.
+  - **P2:** `project.member_left` has its own summary code and label («Member left»), which the sanitizer knows.
+  - **P2:** the Studio drops the cached membership on leaving.
+  - Tests: the DB cases assert the removal, its cancelling on return and the events' revisions; `labels.test.ts`
+    passes 4/4. Locally, the leave and rename e2e pass 6/6, and lint and typecheck are clean. The DB suites run in CI.

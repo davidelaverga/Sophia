@@ -72,3 +72,19 @@ test('earlier · with fewer than 50 messages, nothing is offered', async ({ page
   await expect(earlier(page)).toHaveCount(0)
   expect((await served(page)).some((s) => s.startsWith('discussion:'))).toBe(false)
 })
+
+test('earlier · from the keyboard the focus stays in the chat: on the button while it reads, then on the start (Codex P1 on #350)', async ({
+  page,
+}) => {
+  await enter(page, 60)
+  await page.evaluate(() => window.fixture?.failEarlier())
+  await earlier(page).focus()
+  await page.keyboard.press('Enter')
+  // Failed, the same control offers Try again, and keeps the focus.
+  const retry = page.getByRole('button', { name: 'Try again' })
+  await expect(retry).toBeFocused()
+  await page.keyboard.press('Enter')
+  const start = page.getByText('The start of the room’s chat')
+  await expect(start).toBeVisible()
+  await expect(start).toBeFocused()
+})

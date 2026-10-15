@@ -82,23 +82,49 @@ export function useEarlierDiscussion(
   return { entries, offered: !atStart && entries.length >= WINDOW, atStart, reading, load }
 }
 
-/** The discussion's top: «Earlier messages» while older ones may remain, its failure and retry, or its start. */
+/** The words the one control says, by how the read goes. */
+const EARLIER_WORDS: Record<Reading, string> = {
+  idle: 'Earlier messages',
+  loading: 'Loading…',
+  failed: 'Try again',
+}
+
+/**
+ * The discussion's top: «Earlier messages» while older ones may remain, its failure and retry, or its start. One control
+ * for all three moments, so a keyboard's focus stays on it; reaching the start, the focus goes to the start, which takes
+ * it (Codex P1 on #350).
+ */
 export function EarlierLine({ earlier }: { earlier: Earlier }) {
-  if (earlier.atStart) return <p className="discussion-start">The start of the room’s chat</p>
-  if (!earlier.offered) return null
-  if (earlier.reading === 'failed')
+  const control = useRef<HTMLButtonElement>(null)
+  const start = useRef<HTMLParagraphElement>(null)
+  const held = useRef(false)
+  useEffect(() => {
+    // Without scrolling: the reader stays where the page above put them.
+    if (earlier.atStart && held.current) start.current?.focus({ preventScroll: true })
+  }, [earlier.atStart])
+  if (earlier.atStart)
     return (
-      <div className="discussion-earlier">
-        <p role="alert">Couldn’t load earlier messages.</p>
-        <button type="button" className="text-button" onClick={earlier.load}>
-          Try again
-        </button>
-      </div>
+      <p ref={start} className="discussion-start" tabIndex={-1}>
+        The start of the room’s chat
+      </p>
     )
+  if (!earlier.offered) return null
+  const loading = earlier.reading === 'loading'
   return (
     <div className="discussion-earlier">
-      <button type="button" className="text-button" disabled={earlier.reading === 'loading'} onClick={earlier.load}>
-        {earlier.reading === 'loading' ? 'Loading…' : 'Earlier messages'}
+      {earlier.reading === 'failed' && <p role="alert">Couldn’t load earlier messages.</p>}
+      <button
+        ref={control}
+        type="button"
+        className="text-button"
+        aria-disabled={loading || undefined}
+        onClick={() => {
+          // Whether the press came with the focus here: then the start, reached, takes it.
+          held.current = document.activeElement === control.current
+          if (!loading) earlier.load()
+        }}
+      >
+        {EARLIER_WORDS[earlier.reading]}
       </button>
     </div>
   )

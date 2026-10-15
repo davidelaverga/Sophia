@@ -38,7 +38,17 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, joined, leaving, sophiaLeaves } from './fake-livekit.ts'
+import {
+  asked,
+  deliverCaption,
+  deliverNotice,
+  dropCall,
+  joined,
+  leaving,
+  reactFrom,
+  sophiaLeaves,
+  speakWhileMuted,
+} from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -47,6 +57,7 @@ import {
   others,
   personId,
   setFollowers,
+  personLeaves,
   setSophia,
   setSpeaking,
   sophiaAsked,
@@ -116,6 +127,8 @@ interface Fixture {
   failHost: () => void
   /** The next goal target saved finds someone else's first (goal-owner-date.md). */
   staleTarget: () => void
+  /** While on, host controls land but their replies wait; off, they answer. */
+  holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
@@ -199,6 +212,8 @@ interface Fixture {
   taskBy: (n: number | null) => void
   /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
   followers: (people: number[]) => void
+  /** Someone leaves the room, by name (room-pin-fullscreen.md). */
+  leaves?: (name: string) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
@@ -231,6 +246,8 @@ interface Fixture {
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
   sophiaLeaves: () => void
+  /** Speech is heard on this person's muted microphone (muted-speech.md). */
+  speakMuted: () => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -257,8 +274,12 @@ interface Fixture {
   floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** Someone in the room reacts, by name, with any emoji the check gives (call-reactions.md). */
+  reactFrom?: (name: string, emoji: string) => void
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
+  /** The camera background the last call opened with (call-backgrounds.md); null before any. */
+  readonly backgroundOnJoin: string | null
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
@@ -426,6 +447,7 @@ const project = {
       ? [['00000000-0000-4000-8000-000000009001', { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 }]]
       : [],
   ),
+  hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -589,6 +611,11 @@ window.fixture = {
   },
   staleTarget: () => {
     project.staleTarget = true
+  },
+  holdHost: (on) => {
+    const held = project.hostHeld ?? []
+    project.hostHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
@@ -818,6 +845,7 @@ window.fixture = {
   },
   caption: deliverCaption,
   sophiaLeaves,
+  speakMuted: speakWhileMuted,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
@@ -840,13 +868,18 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true
   },
   floorTo,
   asked,
+  reactFrom,
   get devicesOnJoin() {
     return joined.devices
+  },
+  get backgroundOnJoin() {
+    return joined.background
   },
   served,
   unexpected,
