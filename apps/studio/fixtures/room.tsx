@@ -121,6 +121,8 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next room token is refused, so that join fails and offers Try again. */
+  failToken: () => void
   /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
@@ -452,6 +454,7 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failToken: false,
   failEarlier: false,
   failHost: false,
   hostHeld: null as (() => void)[] | null,
@@ -613,6 +616,9 @@ window.fixture = {
   },
   failReplies: (on) => {
     project.failReplies = on
+  },
+  failToken: () => {
+    project.failToken = true
   },
   failEarlier: () => {
     project.failEarlier = true

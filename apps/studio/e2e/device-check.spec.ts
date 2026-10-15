@@ -159,6 +159,30 @@ test('check · where nothing can be kept on this device, the microphone chosen o
   )
 })
 
+test('check · a join that fails keeps the choices for Try again: muted, the camera on', async ({ page }) => {
+  // Storage refusing writes, so the retry can't fall back on a kept microphone choice (Codex P1 on #361).
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Blocked', 'SecurityError')
+    }
+  })
+  await page.goto('/room.html')
+  await page.evaluate(() => window.fixture?.failToken())
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Microphone', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Camera', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click()
+  await dock(page)
+    .getByRole('button', { name: /^Try again/ })
+    .click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+  await expect(dock(page).getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute('aria-pressed', 'true')
+})
+
 test('check · closed without joining, the camera and the microphone are let go', async ({ page }) => {
   await page.goto('/room.html')
   await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
