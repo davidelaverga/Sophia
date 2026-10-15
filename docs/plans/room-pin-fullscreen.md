@@ -11,7 +11,7 @@
 
 ## What changes
 
-- **Full screen**, from a press on the stage's main view: a shared screen, a report shown or a person pinned.
+- **Full screen**, from a press on the stage's main view: a shared screen or a person pinned.
   - The button shows under the pointer or the focus: «Full screen», then «Exit full screen».
   - Esc leaves full screen, as the browser's own does.
   - Where the browser has no full screen (`document.fullscreenEnabled`), it isn't offered.
