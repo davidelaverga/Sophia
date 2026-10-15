@@ -37,4 +37,5 @@
 - `readiness.db.test.ts`: not ready without 0051.
 - `project-rename.spec.ts`:
   - an admin renames from the header, and blank isn't offered;
+  - at 1280 an admin's long title gives way before the views do, its chevron whole;
   - an editor sees the title alone.

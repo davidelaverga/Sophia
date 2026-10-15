@@ -1,5 +1,5 @@
 import type pg from 'pg'
-import type { ProjectCreate, ProjectCreated } from '@sophia/contracts'
+import type { ProjectCreate, ProjectCreated, ProjectRenamed, ProjectRenameRequest } from '@sophia/contracts'
 import { onlyRow } from './rows.ts'
 
 /**
@@ -17,4 +17,19 @@ export async function createProject(
     idempotencyKey,
   ])
   return onlyRow(rows, 'create_project').receipt
+}
+
+/** Rename a project (A19): an admin only, idempotent per actor and key. Call inside withActor(..., "write"). */
+export async function renameProject(
+  c: pg.PoolClient,
+  projectId: string,
+  idempotencyKey: string,
+  body: ProjectRenameRequest,
+): Promise<ProjectRenamed> {
+  const { rows } = await c.query<{ receipt: ProjectRenamed }>(`SELECT sophia.rename_project($1, $2, $3) AS receipt`, [
+    projectId,
+    body.title,
+    idempotencyKey,
+  ])
+  return onlyRow(rows, 'rename_project').receipt
 }

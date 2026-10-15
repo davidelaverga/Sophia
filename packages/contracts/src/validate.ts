@@ -39,6 +39,7 @@ import {
   validatePersonalSpace,
   validatePersonalTurnPage,
   validateProjectCreated,
+  validateProjectRenamed,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -79,6 +80,7 @@ function parser<T>(schema: string, validate: ValidateFunction<T>): (value: unkno
 export const parseSnapshot = parser('Snapshot', validateSnapshot)
 export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
+export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)

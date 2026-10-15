@@ -1,0 +1,143 @@
+{
+  "id": "A19",
+  "goal": "E2E",
+  "title": "An admin renames a project",
+  "why": [
+    "The gaps report (2026-10-15, point 1): a project could be created and never changed, so a typo in its title stayed for good. Renaming is the first of the point's pieces; leaving and archiving follow, and deleting for good waits for a decision.",
+    "POST /api/v1/projects/{projectId}/title renames it: an admin only, idempotent per actor and key as createProject is, a title of 1–180 characters that isn't spaces alone. The rename emits project.renamed, so every member's feed reads the new title from its snapshot and the projects' list."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectRenameRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          }
+        },
+        "required": ["title"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectRenamed",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["projectId", "title", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1title",
+      "value": {
+        "post": {
+          "operationId": "renameProject",
+          "summary": "Rename a project: an admin only, idempotent per actor and key.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectRenameRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Renamed, or the same rename again under its key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectRenamed"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not an admin of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "Idempotency mismatch",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema, or a title of spaces alone",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

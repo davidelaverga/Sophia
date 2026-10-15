@@ -37,6 +37,30 @@ test('rename · an admin renames the project from its title: the sheet saves, an
   expect(await served(page)).toContain('rename:Launch plan, v2')
 })
 
+test('rename · at 1280 an admin’s long title gives way before the views do, its press whole', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/room.html')
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  await page.getByRole('menu', { name: 'Project' }).getByRole('menuitem', { name: 'Rename…' }).click()
+  const long = 'Quarterly onboarding pilot review with the regional partners and the platform team'
+  await page.getByRole('dialog', { name: 'Rename project' }).getByRole('textbox', { name: 'Project name' }).fill(long)
+  await page.getByRole('dialog', { name: 'Rename project' }).getByRole('button', { name: 'Save' }).click()
+  const press = header(page).getByRole('button', { name: long })
+  await expect(press).toBeVisible()
+  const measured = await page.evaluate(() => {
+    const nav = document.querySelector('.view-nav')
+    const words = document.querySelector('.project-name-text')
+    const chevron = document.querySelector('.project-name-open svg')?.getBoundingClientRect()
+    const title = document.querySelector('.project-name')?.getBoundingClientRect()
+    return {
+      navFits: !!nav && nav.scrollWidth <= nav.clientWidth,
+      wordsCut: !!words && words.scrollWidth > words.clientWidth,
+      chevronInside: !!chevron && !!title && chevron.right <= title.right + 6 && chevron.width > 0,
+    }
+  })
+  expect(measured).toEqual({ navFits: true, wordsCut: true, chevronInside: true })
+})
+
 test('rename · an editor sees the project’s title alone, nothing to press', async ({ page }) => {
   await page.goto('/room.html?role=editor')
   await expect(header(page).locator('.project-name')).toHaveText('Fixture project')

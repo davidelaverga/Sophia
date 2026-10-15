@@ -320,7 +320,7 @@ function admitted(project: Project, init: RequestInit | undefined): Response | n
 /** A rename (A19): the title the request names, for every read from now on. */
 function renamed(project: Project, init: RequestInit | undefined): Response {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
-  const title = typeof body === 'object' && body !== null ? Reflect.get(body, 'title') : null
+  const title: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'title') : null
   if (typeof title !== 'string' || !title.trim()) {
     const problem = { code: 'invalid_request', message: 'A project needs a title', requestId: PROJECT, retry: 'never' }
     return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
@@ -347,7 +347,6 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   if (method === 'GET' && path === `${base}/events`) {
     return eventStream(project, Number(url.searchParams.get('after') ?? '0'), signal)
   }
-  if (method === 'POST' && path === `${base}/title`) return renamed(project, init)
   if (method === 'POST' || method === 'PUT') return written(project, method, path, init)
   return answerReports(project, method, url, init)
 }
@@ -1105,6 +1104,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
   return exchangeWritten(project, path, init, () => publish(project))
