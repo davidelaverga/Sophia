@@ -12,7 +12,7 @@ import type { ProjectRoom } from '../voice/useProjectRoom.ts'
 import { captionText, type CaptionTurn } from './captions.ts'
 import { chatTimeline, type ChatEntryItem, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
-import { authorLabel } from './conversation-view.ts'
+import { authorLabel, withAuthors } from './conversation-view.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
@@ -217,9 +217,11 @@ interface DiscussionProps {
   onReply: ((replying: Replying) => void) | undefined
 }
 
-function Discussion({ entries, me, names, replies, onReply }: DiscussionProps) {
+function Discussion({ entries, me, names: known, replies, onReply }: DiscussionProps) {
   if (entries.length === 0) return null
   const here = new Set(entries.map((e) => e.id))
+  // Each message's own author name for an author the call doesn't know (A17): outside a call, no «A member».
+  const names = withAuthors(known, entries)
   return (
     <ol className="discussion" aria-label="Recent discussion">
       {entries.map((entry) => {

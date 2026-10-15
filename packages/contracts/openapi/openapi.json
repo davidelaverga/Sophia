@@ -16154,6 +16154,19 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "authorName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
           }
         },
         "required": [

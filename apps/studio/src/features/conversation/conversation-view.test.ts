@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import type { NativeTask } from '@sophia/contracts'
 import {
   authorLabel,
+  withAuthors,
   briefBlocks,
   visibleBriefBlocks,
   currentTask,
@@ -132,4 +133,29 @@ it('brief metadata filtering keeps ordinary authored Source and Drafted by sente
       { kind: 'paragraph', text: 'Drafted by the team after the discussion.' },
     ],
   )
+})
+
+describe('an author the call does not know (e2e chat «A member»)', () => {
+  it('names them from the message’s own author name, as the room names an address', () => {
+    const names = new Map([['b', 'Luis']])
+    assert.equal(authorLabel('c', 'me', names, 'davide@sophia.test'), 'Davide')
+    assert.equal(authorLabel('c', 'me', names, null), 'A member')
+    assert.equal(authorLabel('b', 'me', names, 'luis@sophia.test'), 'Luis') // what the room knows wins
+  })
+  it('adds each message’s author name to what the room knows, and keeps what it knows', () => {
+    const known = new Map([['b', 'Luis']])
+    const named = withAuthors(known, [
+      { actorId: 'c', authorName: 'davide@sophia.test' },
+      { actorId: 'b', authorName: 'someone@else.test' },
+      { actorId: 'd', authorName: null },
+    ])
+    assert.deepEqual(
+      [...named.entries()],
+      [
+        ['b', 'Luis'],
+        ['c', 'davide@sophia.test'],
+      ],
+    )
+    assert.equal(withAuthors(known, [{ actorId: 'b', authorName: 'x@y.test' }]), known)
+  })
 })

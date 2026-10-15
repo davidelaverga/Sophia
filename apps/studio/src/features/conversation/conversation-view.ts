@@ -62,13 +62,34 @@ export function workHeading(work: readonly Pick<NativeTask, 'kind'>[]): string {
 }
 
 /** Who said it: "You", a name the room knows, or a neutral word (the snapshot carries actor ids only). */
-export function authorLabel(actorId: string, me: string, names: ReadonlyMap<string, string>): string {
+export function authorLabel(
+  actorId: string,
+  me: string,
+  names: ReadonlyMap<string, string>,
+  /** The message's own author name (A17), for an author the room doesn't know: outside a call it knows no one. */
+  fallback: string | null = null,
+): string {
   if (actorId === me) return 'You'
-  const name = names.get(actorId)
+  const name = names.get(actorId) ?? fallback ?? undefined
   if (name === undefined) return 'A member'
   // An address is no name: the person, as the stage names them (e2e-real Q1); a name given stays whole, an at sign in it
   // or not (a guest's «@alice», «Ana @ Acme»: Codex P2 on #330).
   return ADDRESS.test(name) ? shortName(name) : name
+}
+
+/**
+ * The names the room knows, with each message's own author name (A17) for an author it doesn't know: outside a call it
+ * knows no one, and every line would read «A member». What the room knows wins. The same map serves quotes.
+ */
+export function withAuthors(
+  names: ReadonlyMap<string, string>,
+  entries: readonly { actorId: string; authorName?: string | null | undefined }[],
+): ReadonlyMap<string, string> {
+  const missing = entries.filter((e) => e.authorName && !names.has(e.actorId))
+  if (missing.length === 0) return names
+  const next = new Map(names)
+  for (const e of missing) if (e.authorName && !next.has(e.actorId)) next.set(e.actorId, e.authorName)
+  return next
 }
 
 /** An email address, as an account's name falls back to one: one word, an at sign, a domain with a dot. */
