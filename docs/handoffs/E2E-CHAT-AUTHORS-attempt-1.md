@@ -7,7 +7,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `api/discu
 Writable scope: this worktree only (`db/migrations`, `packages/contracts`, `packages/persistence`, `apps/api`, `apps/studio`, `docs/plans`, `docs/handoffs`); no deploy.
 Runtime unit: Luis's Windows host (the database suites through `scripts/with-postgres.ts`; the real dev stack for the browser check); CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `846c0a08f402` (tree `0b5057d030e0`), the last commit of `api/discussion-author-names`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 14 files changed against
+`origin/main` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/media-tools.ts`, `apps/api/src/routes/conversations.ts`, `src/features/conversation/Conversation.tsx`, `src/features/conversation/conversation-view.test.ts`, `src/features/conversation/conversation-view.ts`, `db/migrations/0048_discussion_author_name.sql`, `docs/plans/discussion-author-names.md`, `packages/contracts/amendments/A17-discussion-author-name.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.js`, `packages/persistence/src/design.ts`, `packages/persistence/src/native-tasks.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
