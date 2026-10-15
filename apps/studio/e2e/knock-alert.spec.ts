@@ -18,19 +18,21 @@ async function standIns(page: Page, { permission, hidden }: { permission: string
     ({ permission: given, hidden: away }) => {
       const alerts = { chimes: 0, notified: [] as { title: string; body: string }[], asked: 0 }
       window.alerts = alerts
-      const node = () => ({
-        connect: (n: unknown) => n,
-        gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
-      })
       class FakeContext {
         currentTime = 0
         destination = {}
         state = 'running'
         createGain() {
-          return node()
+          return { connect: (n: unknown) => n, gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} } }
         }
         createOscillator() {
-          return { ...node(), frequency: { value: 0 }, type: 'sine', start: () => (alerts.chimes += 1), stop() {} }
+          return {
+            connect: (n: unknown) => n,
+            frequency: { value: 0 },
+            type: 'sine',
+            start: () => (alerts.chimes += 1),
+            stop() {},
+          }
         }
         resume() {
           return Promise.resolve()
@@ -40,17 +42,17 @@ async function standIns(page: Page, { permission, hidden }: { permission: string
         }
       }
       Object.defineProperty(window, 'AudioContext', { value: FakeContext })
-      let permission = given
+      let allowed = given
       class FakeNotification {
         static get permission() {
-          return permission
+          return allowed
         }
         static requestPermission() {
           alerts.asked += 1
-          permission = 'granted'
-          return Promise.resolve(permission)
+          allowed = 'granted'
+          return Promise.resolve(allowed)
         }
-        onclick: (() => void) | null = null
+        addEventListener() {}
         constructor(title: string, options?: { body?: string }) {
           alerts.notified.push({ title, body: options?.body ?? '' })
         }

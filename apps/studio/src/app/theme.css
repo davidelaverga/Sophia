@@ -3317,6 +3317,11 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: 12px;
 }
+/* One offer to hear of the next knock in another tab (docs/plans/knock-alert.md). */
+.lobby-notify {
+  margin-bottom: 6px;
+  font-size: 12px;
+}
 /* The count, and with several waiting, one answer for all. */
 .lobby-head {
   display: flex;
