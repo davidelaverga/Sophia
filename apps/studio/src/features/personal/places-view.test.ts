@@ -4,6 +4,9 @@ import type { PersonalExport, PersonalTurn, ProjectSummary } from '@sophia/contr
 import { confirmsErasure, exportText, factsOf } from './data-view.ts'
 import { NOTICE } from './notice-view.ts'
 import {
+  FIND_FROM,
+  findProjects,
+  orderProjects,
   codeButton,
   EDGE_TIP,
   LOCK_TIP,
@@ -373,5 +376,52 @@ describe('the place arrived at (Codex P2 on #268)', () => {
     assert.equal(placeAt(['home', 'personal']), 'personal')
     // Back before the move settles: the reversed move goes straight to [personal, home].
     assert.equal(placeAt(['personal', 'home']), 'home')
+  })
+})
+
+/** A project known by its title alone (find-projects.md). */
+const titled = (projectId: string, title: string): ProjectSummary => ({
+  projectId,
+  title,
+  role: 'admin',
+  members: 1,
+  room: null,
+  nextSession: null,
+  releases: [],
+})
+
+describe('finding a project in Work (find-projects.md)', () => {
+  const list = [titled('1', 'Research notes'), titled('2', 'Ébano launch'), titled('3', 'atlas')]
+
+  it('finds by any part of the title, whatever its case or accents', () => {
+    assert.deepEqual(
+      findProjects(list, 'LAUNCH').map((p) => p.projectId),
+      ['2'],
+    )
+    assert.deepEqual(
+      findProjects(list, 'ebano').map((p) => p.projectId),
+      ['2'],
+    )
+    assert.deepEqual(
+      findProjects(list, '  ').map((p) => p.projectId),
+      ['1', '2', '3'],
+    )
+    assert.deepEqual(findProjects(list, 'zzz'), [])
+  })
+
+  it('orders A–Z by title as a person reads it, or as Work orders them (Next)', () => {
+    const now = new Date('2026-10-15T12:00:00Z')
+    assert.deepEqual(
+      orderProjects(list, 'az', now).map((p) => p.title),
+      ['atlas', 'Ébano launch', 'Research notes'],
+    )
+    assert.deepEqual(
+      orderProjects(list, 'next', now).map((p) => p.projectId),
+      ['1', '2', '3'],
+    )
+  })
+
+  it('offers finding past five projects', () => {
+    assert.equal(FIND_FROM, 6)
   })
 })

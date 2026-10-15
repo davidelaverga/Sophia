@@ -23,6 +23,8 @@ export interface TileOrder {
   spokeAt: ReadonlyMap<string, number>
   /** Identities in the order they came (`arrivalOrder`); absent, the order of the list. */
   arrived?: readonly string[]
+  /** Whom this viewer pinned (room-pin-fullscreen.md): they keep a tile before anyone. */
+  pinned?: string | null
 }
 
 /**
@@ -37,6 +39,7 @@ export function arrivalOrder(people: readonly { identity: string; joinedAt?: num
 
 /** What keeps a tile first: lower goes first. */
 function standing(p: Person, order: TileOrder): number {
+  if (p.identity === order.pinned) return -1
   if (p.identity === order.floor) return 0
   if (p.identity === order.showing) return 1
   if (p.speaking) return 2

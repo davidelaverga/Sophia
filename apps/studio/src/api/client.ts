@@ -217,7 +217,7 @@ export async function actInCall(
     })
     if (!res.ok) throw await toError(res)
   }
-  return inTime(READ_TIMEOUT_MS, send)
+  return inTime(WRITE_TIMEOUT_MS, send)
 }
 
 /**

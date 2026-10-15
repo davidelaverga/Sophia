@@ -1,0 +1,104 @@
+# Implementation-session handoff
+
+Goal and attempt: CALL-BACKGROUNDS (a person puts a background behind them on camera; Luis: «Opción A, procede»),
+attempt 1
+Human owner / executor resource: Luis (merge) / Claude Code session in worktree `Sophia-docs`
+Native session: unknown
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-docs`, branch `ui/call-backgrounds` from `ui/device-check`
+(#341, on #340), which it builds on
+Writable scope: this worktree only (`apps/studio`, `config/runtime-unit.json` for the lock's digest, `pnpm-lock.yaml`,
+`docs/plans`, `docs/handoffs`); no deploy.
+Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
+record.
+Existing authority: Luis's instruction (option A: MediaPipe from the Studio's own origin, `'wasm-unsafe-eval'`, no third
+party); merges on green with no open P1.
+Ending commit/tree: `73ea80425075` (tree `938b7e783ea9`), the last commit of `ui/call-backgrounds`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 21 files changed against
+`origin/ui/device-check` at that commit: `e2e/call-backgrounds.spec.ts`, `e2e/call-devices.spec.ts`, `fixtures/fake-livekit.ts`, `fixtures/room.tsx`, `mediapipe-assets.ts`, `mediapipe/selfie_segmenter.tflite`, `package.json`, `public/vercel.json`, `src/features/voice/DeviceMenu.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/background-pictures.ts`, `src/features/voice/background-preference.test.ts`, `src/features/voice/background-preference.ts`, `src/features/voice/livekit-room.ts`, `src/features/voice/mediapipe-path.ts`, `src/features/voice/useProjectRoom.ts`, `tsconfig.json`, `vite.config.ts`, `config/runtime-unit.json`, `docs/plans/call-backgrounds.md`, `pnpm-lock.yaml`. The review notes below name the commit of each later change.
+
+## Outcome
+
+- **Choosing and keeping:**
+  - `background-preference.ts`: the six backgrounds, the choice kept (`sophia.background.v1`), and each one as the
+    processor takes it.
+  - `background-pictures.ts`: Sophia's lights drawn once as data URLs.
+- **Drawing (`livekit-room.ts`):**
+  - `cameraBackground(room)` draws the choice on the camera, now or when it turns on.
+  - `@livekit/track-processors` is imported only when a background other than None is drawn. A build confirms it is
+    its own chunk (160 KB), imported dynamically and not preloaded.
+  - `backgroundsSupported()` asks what the library asks without loading it.
+- **Hook and menu:**
+  - `useProjectRoom.ts`: `setBackground`, which keeps the choice and puts a refusal in the dock's note, and
+    `backgroundsSupported`.
+  - `DeviceMenu.tsx`: a Background section in Video settings.
+- **MediaPipe from the Studio's own origin:**
+  - `mediapipe-assets.ts` (in `vite.config.ts`) emits the installed `@mediapipe/tasks-vision` 0.10.14 wasm and the
+    model under `assets/mediapipe-0.10.14/`, and the dev server serves the same files. The build checks the installed
+    version against `mediapipe-path.ts`.
+  - Model: `apps/studio/mediapipe/selfie_segmenter.tflite` (249,537 bytes, Apache-2.0), from
+    `storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/1/`, sha256
+    `191ac9529ae506ee0beefa6b2c945a172dab9d07d1e802a290a4e4038226658b`.
+  - Under `/assets/` because `public/vercel.json` rewrites any other address to the page.
+- **Policy, dependencies, lock:**
+  - `public/vercel.json`: `'wasm-unsafe-eval'` in `script-src`. The policy is still report-only.
+  - Dependencies: `@livekit/track-processors` 0.8.1, the September release (0.8.2 was three days old), and
+    `@mediapipe/tasks-vision` 0.10.14 directly, so the build can find its wasm.
+  - `config/runtime-unit.json`: `workspace_lock_sha256` matches the new lock.
+- **Fixture:** the fake LiveKit records `background:<id>`.
+  - `backgrounds=unsupported` and `refuse=background` stand in for a device that can't draw one or refuses.
+  - `window.fixture.backgroundOnJoin` says what the last call opened with.
+
+## Evidence
+
+- Plan: `docs/plans/call-backgrounds.md`.
+- Written first and failing (commit `79cd4ed4`): `background-preference.test.ts`, `call-backgrounds.spec.ts`, and the
+  Video settings menu's heads in `call-devices.spec.ts`. Two later changes to the new checks, said here:
+  - the unit test's picture helper moved to module scope (lint);
+  - the reload step expects the page to join again on its own (`call=on`) instead of pressing Join.
+- After the change:
+  - Unit tests 1229/1229.
+  - `call-backgrounds`, `call-devices`, `device-check` and the room, dock, call, keys, control-height, menu, join,
+    light-stage and voice-chat specs pass 377/377 locally.
+  - Type-aware lint over the whole repo, typecheck and Prettier are clean.
+  - The Studio's build emits the five MediaPipe files.
+- **Not verified:** the blur itself, on a real camera with a GPU. The checks here run Chromium in software and stand in
+  for LiveKit. It is to be tried on a device; the plan says so.
+
+## Remaining obligations
+
+- CI; Codex with no open P1. Retarget once #340 and #341 merge.
+- Davide should see the policy change, since it touches security.
+- Left: a background in the check before joining; a person's own picture.
+
+## Review notes
+
+- **Codex on #342: one P1, two P2s.** Answered in one commit after a failing one (`033ec675`):
+  - **P1:** the processor goes with the camera's capture, so the first published frame is drawn.
+  - **P2:** a background that fails keeps the camera off, and the dock says why.
+  - **P2:** the latest choice wins over a slow load.
+  - The rules live in `camera-background.ts`, unit-tested: `camera-background.test.ts`, 5 cases.
+- After the fix:
+  - Studio unit tests: 1234 pass.
+  - Lint, typecheck and Prettier are clean.
+- The local browser suites weren't run again: the machine's guard refused (`safe-run.ps1` exit 90: a game open, 6.8 GB
+  free). CI is the run on record.
+- **Codex on #342, second round: two P1s and two P2s.** One fix commit after a failing one (`53986c05`):
+  - **P1, the processor's raw first frame:** a camera with a background is made unpublished, drawn, and published only
+    after `onFrameProcessed`. A muted camera is let go first.
+  - **P1:** `docs/SOURCE_MAP.md` gains rows for `@livekit/track-processors` 0.8.1, `@mediapipe/tasks-vision` 0.10.14
+    and the selfie segmenter, with their digests.
+  - **P2:** None stays actionable where backgrounds can't be drawn.
+  - **P2:** background changes are serialized, and superseded work is dropped before it switches the processor.
+  - The two new ordering cases in `camera-background.test.ts` were adjusted after the failing commit: the test waits
+    until the queued change reaches what it holds, since changes now take their turns a tick later.
+- After the second round:
+  - `camera-background.test.ts` passes 6/6, and Studio unit tests pass.
+  - Lint, typecheck and Prettier are clean.
+  - The browser suites can't run here while a game is open (the guard refuses); CI is the run on record.
+- Third round, `ecd7fd07` (Codex P1, «Serialize camera startup with background changes»):
+  - The camera's own on and off now take their turns in the same queue as background choices. A choice made while a
+    plain camera starts lands on it.
+  - A choice changed while the remembered one loads is followed: the camera is drawn with the latest choice, and
+    `turnOn` no longer reads it as «no background». If None is chosen meanwhile, the camera starts plain.
+  - `camera-background.test.ts` passes 9/9 with three new cases.
+  - Locally, the backgrounds, devices and call-keys specs pass 14/14. Lint and typecheck are clean.

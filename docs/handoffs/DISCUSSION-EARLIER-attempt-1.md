@@ -52,3 +52,10 @@ commits on the branch merge its base forward or touch only this record). 20 file
 ## Remaining obligations
 
 - CI; Codex with no open P1. It merges after the leave PR, retargeted to `main`.
+
+## Review notes
+
+- `43cc628a`, the Codex P1 on #350, focus lost when the control changed: one control now serves reading, failure and
+  retry, and is `aria-disabled` while it reads, so the focus stays on it. Reaching the first message, the start
+  takes the focus without scrolling. The test, written first (`77052860`), presses it from the keyboard through a
+  failure and on to the start. Locally, `discussion-earlier.spec.ts` passes 5/5 and the replies spec passes.
