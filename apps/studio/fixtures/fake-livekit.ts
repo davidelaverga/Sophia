@@ -11,6 +11,8 @@ import { chosenBackground, type BackgroundId } from '../src/features/voice/backg
 import { chosenDevices, type DeviceKind, type MediaDevice } from '../src/features/voice/device-preference.ts'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
+import { listenToReactions } from '../src/features/voice/reaction-channel.ts'
+import { REACTION_TOPIC } from '../src/features/voice/reactions.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
 import {
   allowSound,
@@ -127,6 +129,21 @@ export function deliverCaption(packet: Parameters<NonNullable<RoomCallbacks['onC
   fromSophia(packet)
 }
 
+/**
+ * Someone in the room reacts (`window.fixture.reactFrom`): the bytes their browser would publish on the reaction topic,
+ * whatever emoji the check gives, so the Studio's own listener decides what shows (reaction-channel.ts).
+ */
+export function reactFrom(name: string, emoji: string): void {
+  const bytes = new TextEncoder().encode(JSON.stringify({ kind: 'reaction', emoji }))
+  emit(RoomEvent.DataReceived, bytes, { identity: `person-${name}`, name, metadata: '{}' }, undefined, REACTION_TOPIC)
+}
+
+/** A reaction sent, as the connection records it. */
+function sendReaction(emoji: string): Promise<void> {
+  asked.push(`reaction:${emoji}`)
+  return Promise.resolve()
+}
+
 /** Sophia's participant leaves the room, as when her bridge lost its link or restarted. */
 export function sophiaLeaves(): void {
   setSophia(null)
@@ -171,6 +188,8 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a fake of the one method the listener uses
   listenToSophia(room as unknown as Pick<Room, 'on'>, cb)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the same fake of the one method the listener uses
+  listenToReactions(room as unknown as Pick<Room, 'on'>, (heard) => cb.onReaction?.(heard))
   // Nothing more is heard from a room this connection left or lost, as LiveKit emits nothing after a disconnect.
   onPeopleChange(() => {
     if (open) cb.onChange()
@@ -208,6 +227,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     setScreenShare: device('screen', 'screenOn'),
     switchDevice,
     setBackground,
+    sendReaction,
     setFollowing: sayFollowing,
     leave: () => {
       asked.push('leave')
