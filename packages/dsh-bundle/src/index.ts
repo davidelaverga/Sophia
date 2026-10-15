@@ -258,6 +258,7 @@ export function apply(ctx: Context, config: unknown): void {
     routes: settings.routes,
     roleRoutes: settings.roleRoutes,
     research: researchSources(settings.sources),
+    replies: null, // Qualified host/profile/route composition is not installed yet.
     log,
   })
   current = bridge

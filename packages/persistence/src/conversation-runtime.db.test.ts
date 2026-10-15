@@ -413,6 +413,29 @@ async function receipt(s: NativeScene, kind: string, stage: string) {
   ])
 }
 
+const isProjectionRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/** Synthetic native intake uses the closed child projection; malformed overrides remain malformed. */
+function projectedFixture(type: string, value: unknown): unknown {
+  if (!isProjectionRecord(value)) return value
+  const usage = { provider: null, model: null, inputTokens: null, outputTokens: null, ordinal: 1 }
+  if (type === 'compaction/summary') return { compactionId: null, ...usage, ...value }
+  if (type !== 'assistant/message') return value
+  const text = typeof value.text === 'string' ? value.text : ''
+  const length = Array.from(text).length
+  return {
+    text: '',
+    oversize: false,
+    invalidText: false,
+    length,
+    interrupted: false,
+    ...usage,
+    ...value,
+    ...(length > 16000 ? { text: null, oversize: true, length } : {}),
+  }
+}
+
 function observation(
   s: Pick<NativeScene, 'rt' | 'attempt_id' | 'native_session_id'>,
   seq: number,
@@ -425,7 +448,8 @@ function observation(
     nativeSessionId: s.native_session_id,
     nativeSeq: seq,
     type,
-    data,
+    durable: true,
+    data: projectedFixture(type, data),
   }
 }
 
@@ -468,8 +492,8 @@ describe('CON capture privacy amendment (L1 SQL, no native/provider)', () => {
   for (const reason of ['asker_removed', 'audience_changed']) {
     for (const output of [
       { label: 'empty', data: { text: '' }, kind: 'completed' },
-      { label: 'invalid', data: { invalidText: true }, kind: 'completed' },
-      { label: 'oversized', data: { oversize: true, length: 16001 }, kind: 'completed' },
+      { label: 'invalid', data: { text: null, invalidText: true, length: 5 }, kind: 'completed' },
+      { label: 'oversized', data: { text: null, oversize: true, length: 16001 }, kind: 'completed' },
       { label: 'failed', data: { text: 'must be scrubbed' }, kind: 'error' },
     ]) {
       it(`capture privacy ${reason} precedes ${output.label} output with actual immutable end provenance`, async () => {
@@ -642,12 +666,22 @@ describe('CON admitted runtime path (L1 SQL, synthetic route; no provider)', () 
       const s = await nativeScene()
       await go(s)
       await receipt(s, 'create', 'delivered')
-      await call(s.rt, 'record_observations', [
-        observation(s, 1, 'assistant/message', data),
-        observation(s, 2, 'turn/end', { reason: { kind: 'completed' } }),
-      ])
-      assert.deepEqual(await reply(s), { state: 'failed', reason: 'answer_invalid_text', answer_id: null })
-      assert.equal((await acknowledge(s)).predicates.terminalWriter?.key?.kind, 'capture')
+      await assert.rejects(
+        call(s.rt, 'record_observations', [
+          observation(s, 1, 'assistant/message', data),
+          observation(s, 2, 'turn/end', { reason: { kind: 'completed' } }),
+        ]),
+        { code: '22023' },
+      )
+      assert.deepEqual(await reply(s), { state: 'running', reason: null, answer_id: null })
+      assert.equal(
+        (
+          await owner.query('SELECT count(*)::int AS n FROM sophia.native_observations WHERE binding_id=$1', [
+            s.binding_id,
+          ])
+        ).rows[0]?.n,
+        0,
+      )
     })
   }
 
@@ -773,6 +807,7 @@ describe('CON admitted runtime path (L1 SQL, synthetic route; no provider)', () 
       inputTokens: 3,
       outputTokens: 2,
       textLength: 29,
+      ordinal: 1,
     })
     assert.deepEqual(
       (
@@ -786,12 +821,12 @@ describe('CON admitted runtime path (L1 SQL, synthetic route; no provider)', () 
   })
 
   for (const kind of ['completed', 'blocked', 'error']) {
-    it(`privacy cancellation takes precedence over a scrubbed or malformed ${kind} result`, async () => {
+    it(`privacy cancellation takes precedence over a scrubbed or invalid projected ${kind} result`, async () => {
       const s = await nativeScene()
       await go(s)
       await owner.query('UPDATE sophia.projects SET audience_revision=audience_revision+1 WHERE id=$1', [s.projectId])
       await call(s.rt, 'record_observations', [
-        observation(s, 1, 'assistant/message', { invalidText: true }),
+        observation(s, 1, 'assistant/message', { text: null, invalidText: true, length: 5 }),
         observation(s, 2, 'turn/end', { reason: { kind } }),
       ])
       assert.deepEqual(await reply(s), { state: 'cancelled', reason: 'audience_changed', answer_id: null })
@@ -815,15 +850,21 @@ describe('CON admitted runtime path (L1 SQL, synthetic route; no provider)', () 
       textLength: hidden,
       privateExtra: hidden,
     }
-    await call(s.rt, 'record_observations', [observation(s, 1, 'debug', data)])
+    await assert.rejects(call(s.rt, 'record_observations', [observation(s, 1, 'debug', data)]), { code: '22023' })
+    // A pre-existing corrupt/legacy row is deliberate owner setup, not normal intake. Withdrawal must still scrub it.
+    const legacy = await seedCaptureObservation(s, 'debug', 1)
+    await owner.query('UPDATE sophia.native_observations SET data=$2::jsonb WHERE id=$1', [
+      legacy,
+      JSON.stringify(data),
+    ])
     await withActor(api, E, 'write', (c) => withdrawConversationMessage(c, s.conversationId, s.firstId, randomUUID()))
-    await call(s.rt, 'record_observations', [observation(s, 2, 'debug', data)])
+    await assert.rejects(call(s.rt, 'record_observations', [observation(s, 2, 'debug', data)]), { code: '22023' })
     const stored = (
       await owner.query('SELECT data FROM sophia.native_observations WHERE binding_id=$1 ORDER BY native_seq', [
         s.binding_id,
       ])
     ).rows
-    assert.deepEqual(stored, [{ data: { scrubbed: true, textLength: 7 } }, { data: { scrubbed: true, textLength: 7 } }])
+    assert.deepEqual(stored, [{ data: { scrubbed: true, textLength: 7 } }])
   })
 
   it('usage keeps numeric accounting but never nested private text in provider/model metadata', async () => {
@@ -837,9 +878,16 @@ describe('CON admitted runtime path (L1 SQL, synthetic route; no provider)', () 
       outputTokens: 2,
       ordinal: 1,
     }
-    await call(s.rt, 'record_observations', [observation(s, 1, 'assistant/message', data)])
+    await assert.rejects(call(s.rt, 'record_observations', [observation(s, 1, 'assistant/message', data)]), {
+      code: '22023',
+    })
+    const projected = { ...data, provider: null, model: null }
+    await call(s.rt, 'record_observations', [observation(s, 1, 'assistant/message', projected)])
     await withActor(api, E, 'write', (c) => withdrawConversationMessage(c, s.conversationId, s.firstId, randomUUID()))
-    await call(s.rt, 'record_observations', [observation(s, 2, 'assistant/message', data)])
+    await assert.rejects(call(s.rt, 'record_observations', [observation(s, 2, 'assistant/message', data)]), {
+      code: '22023',
+    })
+    await call(s.rt, 'record_observations', [observation(s, 2, 'assistant/message', projected)])
     assert.deepEqual(
       (
         await owner.query(
@@ -1148,6 +1196,12 @@ describe('CON mixed goal/reply intake preservation (real SQL, synthetic native d
       const goal = await goalScene(s.rt)
       const beforeReply = await reply(s)
       const beforeAllowance = await counters(s)
+      const priorUsage = (
+        await owner.query(
+          'SELECT attempt_id,provider,input_tokens,output_tokens FROM sophia.usage_records WHERE project_id=$1 ORDER BY provider',
+          [s.projectId],
+        )
+      ).rows
       const markdown = '## Intended outcome\nSynthetic preserved goal result\n## Cited inputs\n- synthetic'
       const batch = [
         observation(s, 3, 'assistant/message', {
@@ -1186,6 +1240,7 @@ describe('CON mixed goal/reply intake preservation (real SQL, synthetic native d
       assert.deepEqual(usage, [
         { attempt_id: goal.attempt_id, provider: 'synthetic-goal', input_tokens: '11', output_tokens: '3' },
         { attempt_id: s.attempt_id, provider: 'synthetic-reply', input_tokens: '7', output_tokens: '2' },
+        ...priorUsage,
       ])
       assert.equal(
         (
@@ -1652,10 +1707,14 @@ describe('CON admission and durable accounting (L1 SQL only)', () => {
       assert.deepEqual(appended.map((b) => b.attemptId).toSorted(), replies.map((r) => r.attempt_id).toSorted())
       assert.ok(appended.every((b) => b.state === 'active' && b.authorityEpoch === 1))
       assert.ok(
-        appended.every((b) => Object.keys(b).toSorted().join(',') === 'attemptId,authorityEpoch,nativeSessionId,state'),
+        appended.every(
+          (b) =>
+            Object.keys(b).toSorted().join(',') ===
+            'attemptId,authorityEpoch,conversationReplyId,create,nativeSessionId,state',
+        ),
       )
     }
-    // Wire maxItems stays500 until the separately ordered Step3 pin. This proves SQL composition only.
+    // Step3 wire and SQL both carry the complete500goal+2CON report; native recovery qualification stays separate.
   })
 
   it('a new runtime instance cannot hide two old slots or reset an uncertain reservation', async () => {
@@ -2886,4 +2945,431 @@ describe('CON runtime persistence wrappers (L1 actual API login; no model)', () 
       await assert.rejects(calls[operation](), wrappedDenial('40001'))
     })
   }
+})
+
+describe('closed reply projection intake', () => {
+  it('refuses raw/unlisted reply payloads before storage and accepts the bounded projection', async () => {
+    const s = await nativeScene()
+    await go(s)
+    const valid = { ...observation(s, 991, 'user/message', { id: 'synthetic-user', length: 1 }), durable: true }
+    const bad = [
+      { ...valid, data: { id: 'synthetic-user', length: 1, text: 'SYNTHETIC PRIVATE CANARY' } },
+      { ...valid, type: 'system/message', data: { text: 'SYNTHETIC PRIVATE CANARY' } },
+      { ...valid, type: 'turn/start', data: { prompt: 'SYNTHETIC PRIVATE CANARY' } },
+      { ...valid, data: { id: 42, length: 1 } },
+      { ...valid, data: { id: 'synthetic-user', length: -1 } },
+      { ...valid, extra: 'SYNTHETIC PRIVATE CANARY' },
+      { ...valid, durable: false },
+    ]
+    for (const value of bad) {
+      await assert.rejects(call(s.rt, 'record_observations', [value]), { code: '22023' })
+      assert.equal(
+        (
+          await owner.query('SELECT count(*)::int AS n FROM sophia.native_observations WHERE binding_id=$1', [
+            s.binding_id,
+          ])
+        ).rows[0]?.n,
+        0,
+      )
+    }
+    assert.equal(await call(s.rt, 'record_observations', [valid]), 1)
+    assert.deepEqual(
+      (await owner.query('SELECT data FROM sophia.native_observations WHERE binding_id=$1', [s.binding_id])).rows[0]
+        ?.data,
+      valid.data,
+    )
+  })
+})
+
+async function projectionSnapshot(s: NativeScene): Promise<unknown> {
+  return (
+    await owner.query<{ v: unknown }>(
+      `SELECT jsonb_build_object(
+   'observations',(SELECT count(*) FROM sophia.native_observations WHERE binding_id=$1),
+   'usage',(SELECT count(*) FROM sophia.usage_records WHERE attempt_id=$2),
+   'messages',(SELECT count(*) FROM sophia.conversation_messages WHERE conversation_id=$3),
+   'reply',(SELECT to_jsonb(r) FROM sophia.conversation_replies r WHERE id=$4),
+   'grant',(SELECT jsonb_agg(to_jsonb(g)) FROM sophia.conversation_grants g WHERE project_id=$5)) AS v`,
+      [s.binding_id, s.attempt_id, s.conversationId, s.replyId, s.projectId],
+    )
+  ).rows[0]?.v
+}
+
+describe('closed reply projection value boundaries', () => {
+  it('enforces UTF16 label limits, safe integer counts and exact required fields without partial effects', async () => {
+    const s = await nativeScene()
+    await go(s)
+    const base = {
+      text: 'ok',
+      length: 2,
+      oversize: false,
+      invalidText: false,
+      interrupted: false,
+      provider: 'synthetic',
+      model: 'synthetic',
+      inputTokens: 1,
+      outputTokens: 2,
+      ordinal: 1,
+    }
+    const invalid = [
+      { provider: 'x'.repeat(201) },
+      { model: '😀'.repeat(101) },
+      { provider: { text: 'PRIVATE' } },
+      { inputTokens: Number.MAX_SAFE_INTEGER + 1 },
+      { outputTokens: 0.5 },
+      { inputTokens: -1 },
+      { length: null },
+      { cacheReadTokens: '1' },
+      { ordinal: 0 },
+      { ordinal: 1.5 },
+      { interrupted: 'false' },
+      { oversize: null },
+      { text: null },
+      { length: 3 },
+      { privateExtra: 'PRIVATE' },
+      { text: 'x'.repeat(16001), length: 16001 },
+    ]
+    const beforeSnapshot = await projectionSnapshot(s)
+    for (const override of invalid) {
+      await assert.rejects(
+        call(s.rt, 'record_observations', [
+          { ...observation(s, 1001, 'assistant/message', base), data: { ...base, ...override } },
+        ]),
+        { code: '22023' },
+      )
+      assert.deepEqual(await projectionSnapshot(s), beforeSnapshot)
+    }
+    const missing = { ...base }
+    Reflect.deleteProperty(missing, 'provider')
+    await assert.rejects(
+      call(s.rt, 'record_observations', [{ ...observation(s, 1001, 'assistant/message', base), data: missing }]),
+      { code: '22023' },
+    )
+    assert.deepEqual(await projectionSnapshot(s), beforeSnapshot)
+    for (const [i, override] of [
+      { provider: 'x'.repeat(200), model: '😀'.repeat(100), inputTokens: Number.MAX_SAFE_INTEGER, outputTokens: 0 },
+      { provider: null, model: null, inputTokens: null, outputTokens: null, cacheReadTokens: null },
+    ].entries()) {
+      assert.equal(
+        await call(s.rt, 'record_observations', [
+          observation(s, 1001 + i, 'assistant/message', { ...base, ...override }),
+        ]),
+        1,
+      )
+    }
+    assert.equal((await reply(s))?.answer_id, null, 'an observation alone never publishes an answer')
+  })
+
+  it('rejects hidden compaction and turn content, missing envelopes and invalid ordinals with no effects', async () => {
+    const s = await nativeScene()
+    await go(s)
+    const summary = {
+      compactionId: 'synthetic',
+      provider: null,
+      model: null,
+      inputTokens: null,
+      outputTokens: null,
+      ordinal: 2,
+    }
+    const missingEnvelope = observation(s, 1101, 'turn/start', {})
+    Reflect.deleteProperty(missingEnvelope, 'durable')
+    const values = [
+      missingEnvelope,
+      observation(s, 1101, 'compaction/summary', { ...summary, summary: 'PRIVATE' }),
+      observation(s, 1101, 'compaction/summary', { ...summary, ordinal: null }),
+      observation(s, 1101, 'compaction/summary', { ...summary, compactionId: '😀'.repeat(101) }),
+      observation(s, 1101, 'turn/end', { reason: { kind: 'completed', text: 'PRIVATE' } }),
+      observation(s, 1101, 'turn/end', { reason: { kind: 'invented' } }),
+    ]
+    const beforeSnapshot = await projectionSnapshot(s)
+    for (const value of values) {
+      await assert.rejects(call(s.rt, 'record_observations', [value]), { code: '22023' })
+      assert.deepEqual(await projectionSnapshot(s), beforeSnapshot)
+    }
+    assert.equal(await call(s.rt, 'record_observations', [observation(s, 1101, 'compaction/summary', summary)]), 1)
+  })
+})
+
+describe('closed scrubbed reply projection recovery', () => {
+  it('persists late usage once while keeping uncertain accounting and never publishing', async () => {
+    const s = await nativeScene()
+    await go(s)
+    await call(s.rt, 'conversation_reserve', { ...(await request(s)), ordinal: 1, call: callBound })
+    await receipt(s, 'create', 'outcome_unknown')
+    const data = {
+      scrubbed: true,
+      provider: 'synthetic',
+      model: 'synthetic',
+      inputTokens: 10,
+      outputTokens: 2,
+      ordinal: 1,
+      textLength: 6,
+    }
+    const beforeSnapshot = await projectionSnapshot(s)
+    for (const override of [
+      { text: 'PRIVATE' },
+      { ordinal: null },
+      { scrubbed: false },
+      { cacheReadTokens: { text: 'PRIVATE' } },
+    ]) {
+      await assert.rejects(
+        call(s.rt, 'record_observations', [
+          { ...observation(s, 1, 'assistant/message', {}), data: { ...data, ...override } },
+        ]),
+        { code: '22023' },
+      )
+      assert.deepEqual(await projectionSnapshot(s), beforeSnapshot)
+    }
+    const grant = (
+      await owner.query('SELECT to_jsonb(g) AS v FROM sophia.conversation_grants g WHERE project_id=$1', [s.projectId])
+    ).rows
+    const batch = [
+      { ...observation(s, 1, 'assistant/message', {}), data },
+      { ...observation(s, 2, 'turn/end', {}), data: { scrubbed: true } },
+    ]
+    assert.equal(await call(s.rt, 'record_observations', batch), 2)
+    assert.equal(await call(s.rt, 'record_observations', batch), 0)
+    assert.deepEqual(
+      (
+        await owner.query('SELECT to_jsonb(g) AS v FROM sophia.conversation_grants g WHERE project_id=$1', [
+          s.projectId,
+        ])
+      ).rows,
+      grant,
+    )
+    assert.deepEqual(
+      (await owner.query('SELECT state FROM sophia.conversation_reservations WHERE reply_id=$1', [s.replyId])).rows,
+      [{ state: 'uncertain' }],
+    )
+    assert.deepEqual(
+      (
+        await owner.query('SELECT input_tokens,output_tokens FROM sophia.usage_records WHERE attempt_id=$1', [
+          s.attempt_id,
+        ])
+      ).rows,
+      [{ input_tokens: '10', output_tokens: '2' }],
+    )
+    assert.deepEqual(await reply(s), { state: 'outcome_unknown', reason: 'runtime_outcome_unknown', answer_id: null })
+    const keys = {
+      observations: [1, 2].map((seq) => `${s.rt.runtimeUnitId}:${s.native_session_id}:${seq}`),
+      usage: [{ providerCallId: `${s.native_session_id}#1`, ordinal: 1 }],
+      ordinals: [1],
+      hasTurnEnd: true,
+    }
+    const predicates = (await acknowledge(s, keys)).predicates
+    assert.ok(Object.values(predicates).every((p) => p.met))
+  })
+
+  it('accepts a parent fence before database termination but cannot publish an earlier intact answer', async () => {
+    const s = await nativeScene()
+    await go(s)
+    await call(s.rt, 'record_observations', [observation(s, 1, 'assistant/message', { text: 'MUST NOT PUBLISH' })])
+    assert.equal(
+      await call(s.rt, 'record_observations', [{ ...observation(s, 2, 'turn/end', {}), data: { scrubbed: true } }]),
+      1,
+    )
+    assert.deepEqual(await reply(s), { state: 'failed', reason: 'turn_error', answer_id: null })
+    assert.equal(
+      JSON.stringify(
+        (await owner.query('SELECT data FROM sophia.native_observations WHERE binding_id=$1', [s.binding_id])).rows,
+      ).includes('MUST NOT PUBLISH'),
+      false,
+    )
+  })
+})
+
+describe('trusted CON hello recovery metadata', () => {
+  it('distinguishes predispatch, original create identity, cancellation epoch and replacement runtime authority', async () => {
+    const s = await nativeScene()
+    const hello = () =>
+      call<{
+        bindings: { attemptId: string; conversationReplyId?: string; authorityEpoch: number; create?: unknown }[]
+      }>(s.rt, 'hello', {
+        protocolVersion: 1,
+        roles: [{ id: 'sophia-conversation-v1', route: 'route-test', presetDigest: 'synthetic' }],
+      })
+    const pending = (await hello()).bindings.find((b) => b.attemptId === s.attempt_id)
+    assert.equal(pending?.conversationReplyId, s.replyId)
+    assert.equal(pending?.create, null)
+    await call(s.rt, 'record_ready', { state: 'ready', reason: null, unrecovered: [] })
+    await go(s)
+    const body = await request(s)
+    const running = (await hello()).bindings.find((b) => b.attemptId === s.attempt_id)
+    assert.deepEqual(running?.create, { state: 'current', commandId: body.commandId, authorityEpoch: 1 })
+    await withActor(api, E, 'write', (c) => withdrawConversationMessage(c, s.conversationId, s.firstId, randomUUID()))
+    const cancelled = (await hello()).bindings.find((b) => b.attemptId === s.attempt_id)
+    assert.equal(cancelled?.authorityEpoch, 2)
+    assert.deepEqual(cancelled?.create, running?.create)
+    await assert.rejects(
+      call(s.rt, 'conversation_acknowledged', {
+        ...body,
+        authorityEpoch: 2,
+        keys: { observations: [], usage: [], ordinals: [], hasTurnEnd: false },
+      }),
+      { code: '42501' },
+    )
+    const acknowledged = (await acknowledge(s)).predicates
+    assert.equal(Object.keys(acknowledged).length, 8)
+    assert.equal(acknowledged.terminalState?.met, true)
+    assert.equal(acknowledged.createAnswered?.met, false, 'metadata is not a terminal receipt or host cleanup proof')
+    const rt = await registerRuntime(db.ownerUrl, {
+      projectId: s.projectId,
+      admin: A,
+      runtimeUnitId: s.rt.runtimeUnitId,
+    })
+    const replacement = {
+      ...rt,
+      projectId: s.projectId,
+      bridge: randomUUID(),
+      hash: createHash('sha256').update(rt.token).digest(),
+    }
+    assert.notEqual(replacement.runtimeId, s.rt.runtimeId)
+    const changed = await call<{ bindings: { attemptId: string; create: unknown }[] }>(replacement, 'hello', {
+      protocolVersion: 1,
+    })
+    assert.deepEqual(changed.bindings.find((b) => b.attemptId === s.attempt_id)?.create, {
+      state: 'unresolved',
+      reason: 'different_runtime',
+    })
+    await assert.rejects(
+      call(replacement, 'conversation_acknowledged', {
+        ...body,
+        leaseId: replacement.bridge,
+        keys: { observations: [], usage: [], ordinals: [], hasTurnEnd: false },
+      }),
+      { code: '42501' },
+    )
+  })
+})
+
+describe('CON partial and unknown usage correlation', () => {
+  for (const sample of [
+    { label: 'full output-only', type: 'assistant/message', reduced: false, counts: { outputTokens: 2 } },
+    { label: 'full cache-only', type: 'assistant/message', reduced: false, counts: { cacheReadTokens: 4 } },
+    { label: 'reduced output-only', type: 'compaction/summary', reduced: true, counts: { outputTokens: 3 } },
+    { label: 'reduced cache-only', type: 'compaction/summary', reduced: true, counts: { cacheWriteTokens: 5 } },
+    { label: 'reduced all-unknown', type: 'assistant/message', reduced: true, counts: {} },
+  ]) {
+    it(`persists ${sample.label} once without inventing zeros or settling uncertain allowance`, async () => {
+      const s = await nativeScene()
+      await go(s)
+      await call(s.rt, 'conversation_reserve', { ...(await request(s)), ordinal: 1, call: callBound })
+      if (sample.reduced) await receipt(s, 'create', 'outcome_unknown')
+      const grant = (
+        await owner.query('SELECT to_jsonb(g) AS v FROM sophia.conversation_grants g WHERE project_id=$1', [
+          s.projectId,
+        ])
+      ).rows
+      const data = sample.reduced
+        ? { scrubbed: true, ordinal: 1, textLength: 9, ...sample.counts }
+        : projectedFixture('assistant/message', { text: 'synthetic', ...sample.counts })
+      const item = { ...observation(s, 1, sample.type, {}), data }
+      assert.equal(await call(s.rt, 'record_observations', [item]), 1)
+      assert.equal(await call(s.rt, 'record_observations', [item]), 0)
+      const rows = (
+        await owner.query(
+          'SELECT input_tokens,output_tokens,cache_read_tokens,cache_write_tokens FROM sophia.usage_records WHERE attempt_id=$1',
+          [s.attempt_id],
+        )
+      ).rows
+      assert.deepEqual(rows, [
+        {
+          input_tokens: null,
+          output_tokens: 'outputTokens' in sample.counts ? String(sample.counts.outputTokens) : null,
+          cache_read_tokens: 'cacheReadTokens' in sample.counts ? String(sample.counts.cacheReadTokens) : null,
+          cache_write_tokens: 'cacheWriteTokens' in sample.counts ? String(sample.counts.cacheWriteTokens) : null,
+        },
+      ])
+      assert.deepEqual(
+        (
+          await owner.query('SELECT to_jsonb(g) AS v FROM sophia.conversation_grants g WHERE project_id=$1', [
+            s.projectId,
+          ])
+        ).rows,
+        grant,
+      )
+      assert.deepEqual(
+        (await owner.query('SELECT state FROM sophia.conversation_reservations WHERE reply_id=$1', [s.replyId])).rows,
+        [{ state: sample.reduced ? 'uncertain' : 'reserved' }],
+      )
+      const ack = await acknowledge(s, {
+        observations: [`${s.rt.runtimeUnitId}:${s.native_session_id}:1`],
+        usage: [{ providerCallId: `${s.native_session_id}#1`, ordinal: 1 }],
+        ordinals: [1],
+        hasTurnEnd: false,
+      })
+      assert.equal(ack.predicates.usage?.met, true)
+      assert.equal(ack.predicates.reservations?.met, sample.reduced)
+      assert.equal((await reply(s))?.answer_id, null)
+    })
+  }
+})
+
+async function ownedHelloCreate(s: NativeScene): Promise<unknown> {
+  await owner.query('SET LOCAL ROLE sophia_api')
+  const value = (
+    await owner.query<{ v: { bindings: { attemptId: string; create?: unknown }[] } }>(
+      'SELECT sophia.runtime_hello($1,$2,$3,$4::jsonb) AS v',
+      [s.rt.hash, s.rt.runtimeUnitId, s.rt.bridge, JSON.stringify({ protocolVersion: 1 })],
+    )
+  ).rows[0]?.v
+  await owner.query('RESET ROLE')
+  return value?.bindings.find((b) => b.attemptId === s.attempt_id)?.create
+}
+
+describe('trusted CON hello contradictory predispatch evidence', () => {
+  it('reports reservations, non-create commands and invalid original commands as unresolved under the API role', async () => {
+    const s = await nativeScene()
+    for (const evidence of ['reserved', 'uncertain', 'non-create', 'acknowledged', 'wrong-actor', 'wrong-semantic']) {
+      await owner.query('BEGIN')
+      try {
+        if (evidence === 'reserved' || evidence === 'uncertain') {
+          await owner.query(
+            `INSERT INTO sophia.conversation_reply_allowances(project_id,reply_id,lineage_id,unit)
+            SELECT project_id,$2,lineage_id,unit FROM sophia.conversation_grants WHERE project_id=$1 AND current`,
+            [s.projectId, s.replyId],
+          )
+          await owner.query(
+            `INSERT INTO sophia.conversation_reservations(project_id,reply_id,call_ordinal,lineage_id,grant_revision,unit,route_id,credential_ref,owner_resource_ref,amount_tokens,amount_price_micros,state)
+            SELECT a.project_id,a.reply_id,1,a.lineage_id,g.grant_revision,a.unit,g.route_id,g.credential_ref,g.owner_resource_ref,100,0,$3
+            FROM sophia.conversation_reply_allowances a JOIN sophia.conversation_grants g USING(project_id,lineage_id)
+            WHERE a.project_id=$1 AND a.reply_id=$2`,
+            [s.projectId, s.replyId, evidence],
+          )
+        } else if (evidence === 'non-create') {
+          await owner.query(
+            `INSERT INTO sophia.runtime_commands(project_id,runtime_id,seq,outbox_id,command_id,binding_id,attempt_id,kind,authority_epoch,body)
+            SELECT o.project_id,$3,1,o.id,o.command_id,o.binding_id,b.attempt_id,'inspect',o.authority_epoch,'{}'
+            FROM sophia.outbox o JOIN sophia.execution_bindings b ON b.project_id=o.project_id AND b.id=o.binding_id
+            WHERE o.project_id=$1 AND o.conversation_reply_id=$2 AND o.destination='native.create'`,
+            [s.projectId, s.replyId, s.rt.runtimeId],
+          )
+        } else if (evidence === 'acknowledged') {
+          await owner.query(
+            "UPDATE sophia.outbox SET state='acknowledged' WHERE project_id=$1 AND conversation_reply_id=$2 AND destination='native.create'",
+            [s.projectId, s.replyId],
+          )
+        } else if (evidence === 'wrong-actor') {
+          await owner.query(
+            'UPDATE sophia.commands SET actor_id=$3 WHERE project_id=$1 AND id IN (SELECT command_id FROM sophia.outbox WHERE project_id=$1 AND conversation_reply_id=$2)',
+            [s.projectId, s.replyId, A],
+          )
+        } else {
+          await owner.query(
+            "UPDATE sophia.commands SET semantic_request=jsonb_set(semantic_request,'{replyId}',to_jsonb($3::text)) WHERE project_id=$1 AND id IN (SELECT command_id FROM sophia.outbox WHERE project_id=$1 AND conversation_reply_id=$2)",
+            [s.projectId, s.replyId, randomUUID()],
+          )
+        }
+        assert.deepEqual(await ownedHelloCreate(s), { state: 'unresolved', reason: 'correlation_invalid' }, evidence)
+      } finally {
+        await owner.query('ROLLBACK')
+      }
+    }
+    await owner.query('BEGIN')
+    try {
+      assert.equal(await ownedHelloCreate(s), null)
+    } finally {
+      await owner.query('ROLLBACK')
+    }
+  })
 })

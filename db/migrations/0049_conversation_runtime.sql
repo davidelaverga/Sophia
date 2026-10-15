@@ -2135,9 +2135,10 @@ BEGIN
   RETURN sophia.defer_native_delivery(o,NULL::sophia.commands,'waiting for ready reply runtime'); END IF;
  kind:=substr(o.destination,8);
  IF kind='create' THEN
-  payload:=jsonb_build_object('role','sophia-conversation-v1','route',
-   (SELECT route_id FROM sophia.conversation_grants WHERE project_id=o.project_id AND current),
-   'text',sophia.conversation_reply_statement(o.project_id,r.id));
+  SELECT jsonb_build_object('role','sophia-conversation-v1','route',g.route_id,
+   'conversation',jsonb_build_object('credentialRef',g.credential_ref,'ownerResourceRef',g.owner_resource_ref,'unit',g.unit),
+   'text',sophia.conversation_reply_statement(o.project_id,r.id)) INTO STRICT payload
+  FROM sophia.conversation_grants g WHERE g.project_id=o.project_id AND g.current;
   IF NOT rt.roles @> jsonb_build_array(jsonb_build_object('id','sophia-conversation-v1','route',payload->>'route')) THEN
    RETURN sophia.defer_native_delivery(o,NULL::sophia.commands,'waiting for compatible reply role'); END IF;
  END IF;
@@ -2728,7 +2729,34 @@ BEGIN
    AND b.state IN ('running','idle','stopping');
  -- CON-HELLO-BINDINGS-BEGIN
  bindings:=bindings||coalesce((SELECT jsonb_agg(jsonb_build_object('attemptId',b.attempt_id,'nativeSessionId',b.native_session_id,
-  'authorityEpoch',a.authority_epoch,'state',CASE WHEN r.state IN ('pending','running') THEN 'active' ELSE 'stopped' END)
+  'authorityEpoch',a.authority_epoch,'state',CASE WHEN r.state IN ('pending','running') THEN 'active' ELSE 'stopped' END,
+  'conversationReplyId',a.conversation_reply_id,'create',CASE
+   WHEN EXISTS(SELECT 1 FROM sophia.runtime_commands rc WHERE rc.project_id=b.project_id AND rc.binding_id=b.id AND rc.kind='create') THEN (
+    SELECT CASE WHEN (rc.attempt_id=a.id AND o.command_id=rc.command_id AND o.binding_id=b.id AND o.authority_epoch=rc.authority_epoch
+      AND o.conversation_reply_id=a.conversation_reply_id AND o.destination='native.create' AND NOT o.cleanup
+      AND c.kind='create' AND c.semantic_request->>'operation'='conversation-create'
+      AND c.semantic_request->>'replyId'=r.id::text AND c.semantic_request->>'attemptId'=a.id::text
+      AND c.actor_id=r.asked_by AND c.authority_epoch=rc.authority_epoch) IS NOT TRUE
+     THEN jsonb_build_object('state','unresolved','reason','correlation_invalid')
+     WHEN rc.runtime_id IS DISTINCT FROM rt.id THEN jsonb_build_object('state','unresolved','reason','different_runtime')
+     ELSE jsonb_build_object('state','current','commandId',rc.id,'authorityEpoch',rc.authority_epoch) END
+    FROM sophia.runtime_commands rc LEFT JOIN sophia.outbox o ON o.project_id=rc.project_id AND o.id=rc.outbox_id
+     LEFT JOIN sophia.commands c ON c.project_id=rc.project_id AND c.id=rc.command_id
+    WHERE rc.project_id=b.project_id AND rc.binding_id=b.id AND rc.kind='create')
+   ELSE coalesce((SELECT CASE WHEN (o.conversation_reply_id=a.conversation_reply_id AND NOT o.cleanup
+     AND c.kind='create' AND c.semantic_request->>'operation'='conversation-create'
+     AND c.semantic_request->>'replyId'=r.id::text AND c.semantic_request->>'attemptId'=a.id::text
+     AND c.actor_id=r.asked_by AND c.authority_epoch=o.authority_epoch
+     AND o.state IN ('pending','dispatching','outcome_unknown','superseded','denied')
+     AND NOT EXISTS(SELECT 1 FROM sophia.runtime_commands rc WHERE rc.project_id=b.project_id AND rc.binding_id=b.id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.conversation_reservations cr WHERE cr.project_id=b.project_id AND cr.reply_id=a.conversation_reply_id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.conversation_executions e WHERE e.project_id=b.project_id AND e.attempt_id=a.id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.native_observations n WHERE n.project_id=b.project_id AND n.binding_id=b.id)
+     AND NOT EXISTS(SELECT 1 FROM sophia.usage_records u WHERE u.project_id=b.project_id AND u.attempt_id=a.id)) IS TRUE
+     THEN 'null'::jsonb ELSE jsonb_build_object('state','unresolved','reason','correlation_invalid') END
+    FROM sophia.outbox o JOIN sophia.commands c ON c.project_id=o.project_id AND c.id=o.command_id
+    WHERE o.project_id=b.project_id AND o.binding_id=b.id AND o.destination='native.create'),
+    jsonb_build_object('state','unresolved','reason','correlation_invalid')) END)
   ORDER BY b.attempt_id) FROM sophia.execution_bindings b JOIN sophia.work_attempts a ON a.project_id=b.project_id AND a.id=b.attempt_id
   JOIN sophia.conversation_replies r ON r.project_id=a.project_id AND r.id=a.conversation_reply_id
   WHERE b.project_id=rt.project_id AND b.resource_id=rt.resource_id AND b.runtime_unit_id=rt.runtime_unit_id AND b.state<>'retired'),'[]');
@@ -2771,10 +2799,76 @@ BEGIN
   seq:=(o->>'nativeSeq')::bigint;
   -- CON-OBS-REPLY-BEGIN
   IF EXISTS(SELECT 1 FROM sophia.work_attempts WHERE project_id=rt.project_id AND id=b.attempt_id AND conversation_reply_id IS NOT NULL) THEN
-   DECLARE r sophia.conversation_replies; fenced boolean; stored jsonb;
+   DECLARE r sophia.conversation_replies; fenced boolean; stored jsonb; allowed text[]; required text[]; entry record; reduced boolean;
    BEGIN
     SELECT r2.* INTO STRICT r FROM sophia.conversation_replies r2 JOIN sophia.work_attempts a
      ON a.project_id=r2.project_id AND a.conversation_reply_id=r2.id WHERE a.project_id=rt.project_id AND a.id=b.attempt_id;
+    -- CON-OBS-PROJECTION-BEGIN: authenticated ownership is checked above; reject malformed reply data before storage.
+    d:=o->'data';
+    IF jsonb_typeof(d) IS DISTINCT FROM 'object' OR o->'durable' IS DISTINCT FROM 'true'::jsonb
+     OR NOT o ?& ARRAY['runtimeUnitId','attemptId','nativeSessionId','nativeSeq','type','durable','data']
+     OR jsonb_typeof(o->'nativeSeq') IS DISTINCT FROM 'number'
+     OR EXISTS(SELECT 1 FROM unnest(ARRAY['runtimeUnitId','attemptId','nativeSessionId','type']) k
+      WHERE jsonb_typeof(o->k) IS DISTINCT FROM 'string')
+     OR seq<0 OR seq>9007199254740991 OR EXISTS(SELECT 1 FROM jsonb_object_keys(o) k
+      WHERE k<>ALL(ARRAY['runtimeUnitId','attemptId','nativeSessionId','nativeSeq','type','durable','data'])) THEN
+     RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+    CASE o->>'type'
+     WHEN 'user/message' THEN required:=ARRAY['id','length']; allowed:=required;
+     WHEN 'assistant/message' THEN
+      required:=ARRAY['text','oversize','invalidText','length','provider','model','inputTokens','outputTokens','interrupted','ordinal'];
+      allowed:=required||ARRAY['cacheReadTokens','cacheWriteTokens'];
+     WHEN 'compaction/summary' THEN
+      required:=ARRAY['compactionId','provider','model','inputTokens','outputTokens','ordinal'];
+      allowed:=required||ARRAY['cacheReadTokens','cacheWriteTokens'];
+     WHEN 'turn/start' THEN required:=ARRAY[]::text[]; allowed:=required;
+     WHEN 'turn/end' THEN required:=ARRAY['reason']; allowed:=required;
+     ELSE RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023';
+    END CASE;
+    -- Fenced and recovered relays carry only this closed accounting form; accepting it cannot restore text.
+    reduced:=coalesce(d->'scrubbed'='true'::jsonb,false);
+    IF d ? 'scrubbed' THEN
+     IF NOT reduced THEN RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+     required:=ARRAY['scrubbed'];
+     IF o->>'type' IN ('assistant/message','compaction/summary') THEN required:=required||ARRAY['ordinal']; END IF;
+     IF o->>'type' IN ('assistant/message','user/message') THEN required:=required||ARRAY['textLength']; END IF;
+     allowed:=ARRAY['scrubbed','provider','model','inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens','ordinal','textLength'];
+    END IF;
+    IF NOT d ?& required OR EXISTS(SELECT 1 FROM jsonb_object_keys(d) k WHERE k<>ALL(allowed)) THEN
+     RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+    FOR entry IN SELECT key,value FROM jsonb_each(d) LOOP
+     IF entry.key=ANY(ARRAY['length','textLength','inputTokens','outputTokens','cacheReadTokens','cacheWriteTokens']) THEN
+      IF NOT (CASE WHEN entry.value='null'::jsonb THEN entry.key NOT IN ('length','textLength')
+       WHEN jsonb_typeof(entry.value)='number' THEN entry.value::text::numeric BETWEEN 0 AND 9007199254740991
+        AND mod(entry.value::text::numeric,1)=0 ELSE false END) THEN
+       RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+     ELSIF entry.key=ANY(ARRAY['provider','model','compactionId']) THEN
+      IF NOT (CASE WHEN entry.value='null'::jsonb THEN true WHEN jsonb_typeof(entry.value)='string' THEN
+       length(entry.value#>>'{}')+regexp_count(entry.value#>>'{}',U&'[\+010000-\+10FFFF]')<=200 ELSE false END) THEN
+       RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+     END IF;
+    END LOOP;
+    IF NOT reduced AND o->>'type'='user/message' AND (jsonb_typeof(d->'id') IS DISTINCT FROM 'string'
+     OR (d->>'id') !~ '^[A-Za-z0-9._:-]{1,64}$') THEN
+     RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+    IF d ? 'ordinal' AND d->'ordinal' NOT IN ('1'::jsonb,'2'::jsonb) THEN
+     RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+    IF NOT reduced AND o->>'type'='assistant/message' THEN
+     IF EXISTS(SELECT 1 FROM unnest(ARRAY['oversize','invalidText','interrupted']) flag
+      WHERE jsonb_typeof(d->flag) IS DISTINCT FROM 'boolean') OR jsonb_typeof(d->'text') NOT IN ('string','null')
+      OR d->'oversize' IS DISTINCT FROM to_jsonb((d->>'length')::numeric>16000)
+      OR (d->'text'='null'::jsonb AND d->'oversize'='false'::jsonb AND d->'invalidText'='false'::jsonb)
+      OR (jsonb_typeof(d->'text')='string' AND (d->'oversize'<>'false'::jsonb OR d->'invalidText'<>'false'::jsonb
+       OR length(d->>'text')<>(d->>'length')::numeric)) THEN
+      RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+    ELSIF NOT reduced AND o->>'type'='turn/end' THEN
+     IF jsonb_typeof(d->'reason') IS DISTINCT FROM 'object' THEN
+      RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+     IF d->'reason' NOT IN ('{"kind":"completed"}'::jsonb,'{"kind":"error"}'::jsonb,
+      '{"kind":"max-tokens"}'::jsonb,'{"kind":"blocked"}'::jsonb) THEN
+      RAISE EXCEPTION 'reply_projection_invalid' USING ERRCODE='22023'; END IF;
+    END IF;
+    -- CON-OBS-PROJECTION-END
     fenced:=r.state<>'running' OR NOT EXISTS(SELECT 1 FROM sophia.conversations WHERE project_id=rt.project_id AND id=r.conversation_id AND state='open')
      OR NOT EXISTS(SELECT 1 FROM sophia.conversation_reply_contexts x
       WHERE x.project_id=r.project_id AND x.reply_id=r.id AND x.state='recorded'
@@ -2795,8 +2889,9 @@ BEGIN
     ON CONFLICT (project_id,binding_id,upstream_key) DO NOTHING RETURNING id INTO obs_id;
     IF obs_id IS NOT NULL THEN
      n:=n+1;
-  IF o->>'type' IN ('assistant/message','compaction/summary') AND jsonb_typeof(d)='object'
-     AND (d->>'model' IS NOT NULL OR d->>'inputTokens' IS NOT NULL) THEN
+  -- Every validated usage-bearing item keeps a correlated row, including partially or wholly unknown counts.
+  -- NULL stays unknown; observation intake never settles, releases or resets the reply's reservation.
+  IF o->>'type' IN ('assistant/message','compaction/summary') THEN
    INSERT INTO sophia.usage_records(project_id,attempt_id,provider_call_id,billing_kind,input_tokens,output_tokens,
      cache_read_tokens,cache_write_tokens,provider,model,purpose)
    VALUES(rt.project_id,b.attempt_id,b.native_session_id||'#'||seq,'api',(d->>'inputTokens')::bigint,(d->>'outputTokens')::bigint,
@@ -2955,7 +3050,8 @@ BEGIN
  SELECT rr.stage INTO create_answer FROM sophia.runtime_receipts rr WHERE rr.project_id=a.project_id AND rr.runtime_command_id=rc.id
   AND rr.stage=rc.answered_stage AND rr.stage IN ('delivered','checked','rejected','failed','outcome_unknown');
  payload_met:=rc.body->'payload'='{"scrubbed":true}'::jsonb;
- SELECT coalesce(jsonb_agg(jsonb_build_object('ordinal',v.call_ordinal,'state',v.state) ORDER BY v.call_ordinal),'[]') INTO states
+ SELECT coalesce(jsonb_agg(jsonb_build_object('ordinal',v.call_ordinal,'state',v.state,'unit',v.unit,
+   'used',CASE WHEN v.state='settled' THEN jsonb_build_object('calls',v.used_calls,'tokens',v.used_tokens,'priceMicros',v.used_price_micros) ELSE NULL END) ORDER BY v.call_ordinal),'[]') INTO states
   FROM sophia.conversation_reservations v WHERE v.project_id=a.project_id AND v.reply_id=r.id;
  RETURN jsonb_build_object('predicates',jsonb_build_object(
   'observations',jsonb_build_object('met',observations_met,'keys',p_keys->'observations'),

@@ -8,6 +8,7 @@ interface Schema {
   const?: unknown
   enum?: unknown[]
   anyOf?: Schema[]
+  oneOf?: Schema[]
   type?: 'null' | 'string' | 'integer' | 'number' | 'boolean' | 'array' | 'object'
   items?: Schema
   properties?: Record<string, Schema>
@@ -54,12 +55,16 @@ const PRIMITIVES: Partial<Record<NonNullable<Schema['type']>, string>> = {
 /** `{}`: any JSON value (a runtime observation's data, a batch item validated on its own). */
 const isAny = (s: Schema) => Object.keys(s).length === 0
 
+/** Exclusive alternatives stay exclusive in JSON Schema; their TypeScript representation is a union. */
+const unionMembers = (s: Schema) => s.oneOf ?? s.anyOf
+
 function typeOf(s: Schema): string {
   if (isAny(s)) return 'unknown'
   if (s.$ref) return s.$ref.split('/').at(-1) ?? s.$ref
   if ('const' in s) return dumps(s.const)
   if (s.enum) return s.enum.map(dumps).join(' | ')
-  if (s.anyOf) return s.anyOf.map(typeOf).join(' | ')
+  const alternatives = unionMembers(s)
+  if (alternatives) return alternatives.map(typeOf).join(' | ')
   const primitive = s.type && PRIMITIVES[s.type]
   if (primitive) return primitive
   if (s.type === 'array' && s.items) return `ReadonlyArray<${typeOf(s.items)}>`

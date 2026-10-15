@@ -1,0 +1,38 @@
+# CON-01 takeover 78 — actual retirement gap and next integration boundary
+
+Same sole-Codex session/worktree, published273457053b3fe/treeec71aa3a. Current source child52c4efcb/tests2cb6941e/bridge6b9cc730/index34119ded and launcher39d3768c unchanged from Handoff77. Source-only approval ends18:00Z/20:00Rome14October. This checkpoint changes evidence and the next implementation boundary, not executable source or authority.
+
+## Actual negative crossing
+
+Private retirement-audit-20261014-1350/probe.test.mjs loads actual ControlBridge/ReplyController/ReplyChildren/ServiceTransport with an owned synthetic HTTP server. Two create commands complete with claim refusal; both entries remain. An actual retire command returns no receipt and records reply_command_unqualified, retaining both entries. A third create is answered runtime_busy without a third claim. Test terminal0:1pass/0fail/cancel/skip; synthetic listener/scratch use awaited fixture cleanup. The test asserts the observed omission, not acceptance. Current production index is disabled, so this is unfinished integration, not an enabled regression. No process/native/provider or hosted effect.
+
+Source confirms the boundaries: controller.refusal accepts only create/stop; registry.command/retainControl do not accept retire; no successful retirement/prune method exists. ReplyHomeChecks collapses complete checker output to a boolean, losing absent/empty/gone and location facts. preflightJournal requires a matching prepared child, frozen original reply/unit/scope and closed relay; it cannot serve the never-launched/absent case by inventing a journal. API0049 only transitions execution_bindings to retired on retire checked; its two-binding admission cap therefore also needs the real retirement crossing, not only local slot deletion.
+
+## Next integrated source slice
+
+The independent audit agrees that pending27 blocks erased-payload restart reconstruction, not an already retained live attempt whose original validated create/reply/unit/private bridge-instance binding remains available. The next complete bounded crossing is controller retire for a known retained attempt with explicit proof that its launch/acquisition was never entered and every inventoried root is absent. This is one lifecycle case within full retirement, not a substitute release scope.
+
+Required source composition:
+
+1. Preserve typed complete checker reports, current-root inclusion, unique roots and exact attempt; distinguish absent from empty/gone. Every old generation must actually be sealed/drained by the qualified supervisor/checker. A report supplied by a synthetic callback is L1 only.
+2. Retain the validated retire command and per-attempt serialization before entering I/O. Fence the exact admission synchronously, preserve Stop, and exclude factory/adoption/launch uncertainty. ReplyAdmission.point is set to spawn before the callback; process:null alone is insufficient because acquisition can fail after a launcher exists. Late claim completion must never launch after fencing.
+3. Wait for all original create, terminal and Stop receipt senders and current receipt proof. Do not await the new retire's own not-yet-created success sender. If inspect delivery is later added, its sender belongs in this barrier too.
+4. With complete absence and no launched child, request the actual authenticated all-eight ACK with original create command/epoch/private instance and empty inventory. Require correctly correlated fields, all predicates, states=[] and no invented journal/usage/accounting. A missing home after an executed child is not an empty inventory.
+5. Revalidate epoch, Stop/disposal, no-spawn fact, receipt proof and physical absence after awaits. Keep cancelled/timed-out I/O owned until it actually settles; no second overlapping pass or late cleanup.
+6. Only after proof, free the active local slot and retain/send checked(home_absent) under the immutable retire command. Preserve collision-safe tombstones and original receipt retry budgets/late ACKs. Lost retire response must replay the same body without re-execution, duplicate reply or allowance reset. Local capacity and actual API binding retirement must both be tested.
+
+Adverse crossing: two refused/never-launched attempts → all eight actual API/PG conditions plus separately labelled physical absence fixture → immutable retire checked → local and durable capacity available for the next admitted request. Negatives: wrong actor/project/unit/attempt/retire ID; claim held then Stop; launch callback entered but no child returned; absent vs empty/gone/multiple roots; old root not drained; reserved/uncertain/settled rows despite empty inventory; changed command/epoch; unacknowledged original sender; late ACK/check after timeout/disposal; lost retire response; duplicate retire and create after pruning. None may delete a home, infer absence from null handles, or release uncertain spending.
+
+## Remaining full retirement work
+
+Nonempty homes need concrete caller-owned no-follow root/home/journal descriptors and locks, settled process/no-future-writer proof, a closed relay, full bounded journal inventory/recovery and final authenticated accounting/receipt revalidation, then no-follow deletion and actual ENOENT before prune/checked. Locks and namespace identity must survive the mutation continuation; booleans and an API ACK do not grant deletion authority. This source assembly remains required. Restart27, poll36, Q8/P7/system-read trace, exact host/profile/runtime binding and shared current-main integration remain open. Actual launcher run/probe remain69; do not invent a read list or activate the runtime to escape a gate.
+
+## Fresh coordination and handoff
+
+Retained owner14/6132091412 and31/6132091149 were refreshed and unchanged; no new owner handback inferred. Maine2da7d89/tree930c188b remains current at the latest fetch. Luis199/6165765212 preservation and exact published automatic273/6144338846 remain applicable only to their recorded pins. No new push/merge/reset/artifact record; whole dirty Step3/4 review remains owed before publication.
+
+No hosted migration/configuration/deployment/account/grant/credential/provider effect. OP0002r6 and OP0001r4 remain draft/not authorized/not approval-ready. No serving app/API/runtime tuple or signed-in two-account native episode verified. Acceptance ledger unchanged18partialL1/3passedL1/15not_run. Component Handoff77 reviewed; combined source_ready/reviewed, authorized, deployed, app_verified and owner_accepted remain unestablished. Product provider usage0; coding consumption unknown. No live rollback or destructive cleanup performed; existing source/receipts remain recoverable and governed data untouched.
+
+Next bounded action: implement the above no-launch/absent controller retirement crossing in approved reply-child.ts/controller insertion and existing tests, with actual API/PG verification and independent exact-pin review. Continue nonempty/restart retirement afterward; do not promote this one case into full acceptance. No new permission request for low-level implementation choices; existing separate source amendments and operations remain pending.
+
+Independent read-only receipt independent-retirement-audit-20261014/review.safe.json was read in full at completion. It confirms the above provenance and exact boundaries; no source defect, new permission or physical proof is inferred. Reviewer started no resources and has no source hold. Author private author.safe.json records unchanged full source hashes and the terminal negative crossing. Both records distinguish absent/never-launched source work from later executed/nonempty/restart retirement.

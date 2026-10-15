@@ -1,0 +1,27 @@
+# CON-01 takeover64 — durable child registration and retained pidfd
+
+Codex sole implementer; Claude stopped. Source-only expiry remains20:00Rome14October2026/18:00Z, existing scope/privacy/spending restrictions retained. Checkpoint198/6166566231; final reviewed component record198/6166780356. Pending27/36/Q8/shared integration and operations remain held.
+
+## Candidate and behavior
+
+Published HEAD457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c unchanged. Unpublished launcher SHA256d3e25934430e78f077fb7ef8dfe15efb77762a80abdc06432a8c6b36cfe543da/testsd8850e505033697e53ae01f44ff9ad1a36e599885604505970c8be1c14449543. Prior source components/wrapper unchanged. CLI69/Askoff, no operational caller.
+
+record_reply_child reads the original matching whole launcher+fork lease, verifies the current parent identity, and checks a live owned unreaped child with WEXITED/WNOHANG/WNOWAIT around the pre-exec process identity read. It requires inherited launcher executable/nonce/boot identity, derives the future Node identity using the same child PID/start time, verifies append position and limit, writes one child line and fsyncs under the original setup deadline, then rereads the exact expected bytes and rechecks child/namespace state. Old setup signature stays frozen; recording/recorded states prevent the old setup checkpoint or a retry from resetting it. Partial/uncertain bytes remain for governed recovery.
+
+RecordedReplyChild captures the pre-exec identity, future executable identity and completed lease signature. retained_reply_pidfd rechecks original namespace/control/lease and owned pre-exec child before and after pidfd_open, retaining the fd across its caller and closing it once. Uncertain close stays failure. No signal, reap, gate opening or settlement verdict occurs here. The future caller still owns its fresh fork, held gate, original inputs/life lock and bounded settlement. The pre-exec check must not be reused after exec.
+
+## Verification
+
+Author204 Python tests and wrapper1 pass: python3 -I -B -m unittest discover -s apps/execution-host/reply -p 'test_*.py'; node --test --test-timeout=40000 tests/unit/reply-launch.test.mjs. Actual writes/reads/fsync/flock use owned synthetic temporary lease files; every proc/wait/pidfd operation is mocked. Foreign/dead/changed child, wrong offset, duplicate child, torn append, failed fsync, expired original deadline, late child change and uncertain pidfd close refuse. Original signature and single child line are checked.
+
+Four isolated mutants assertion-fail: remove WNOWAIT, omit fsync, permit existing child record, omit sticky recording state. Mutation trees and owned fixture files removed. Size/arity and git diff --check pass. Initial ordinary90681 and corrected ordinary74989 each passed2604/70existing skips,0fail/cancel; corrected run33.3s. Independent corrected204 Python/wrapper/four additional adverse groups pass. The original unchanged successful ABA probe now refuses reuse, as expected. One isolated no-latch mutant produces a genuine assertion failure with zero test errors. Structure bounds pass; no remaining actionable component finding; source/test hold released. This is bounded component review, not full Step4 or push clearance. Private child-record-20261014-1250 retains logs/receipts. No actual fork/native/provider/signal/reaping effects. Assistant compute unknown.
+
+Independent review of the initial40194341 candidate found P2: a recorded namespace refusal could be retried after restoring the original directory. The correction latches child_record_fence_unconfirmed on namespace, lease and control failures. Regression cases restore the owned directory and named lease, clear a mock control failure, and truncate the changed lease back; none may reopen a pidfd. The original signature/deadline are not reset. Initial independent200 tests/wrapper/four adverse groups passed; clearance was withheld for this finding. Corrected exact pins were independently cleared in independent-step4-child-record-20261014/after-review.safe.json; original deadline/signature remain unchanged across all refusal siblings. Reviewer scratch trees and all runs are terminal/removed; zero live resources remain.
+
+## Remaining gates and recovery
+
+No push/merge/hosted migration/config/deployment/account/grant/credential/spending effects. Latest actual automatic273/6144338846 covers published457053b3fe only; whole-diff independent review and required gates before any push, actual automatic review after every push. Last main fetch in handoff63 remains e2da7d89/tree930c188b; Studio and held owner boundaries preserved, no new ACK/combined candidate inferred.
+
+Actual serving tuple and two-account/provider-backed app episode remain unverified. OP0002r6 setup/human-chat and OP0001r4 Ask remain unapproved/not ready.36-case ledger unchanged18partial_L1/3passed_L1/15not_run,A30not_run. Full source_ready/combined reviewed/authorized/deployed/app_verified/owner_accepted remain unmet. No governed data changed or live rollback needed. Source pins and retained receipts preserve recovery; uncertain record/close states are not settlement/deletion receipts.
+
+Next bounded action: compose parent-owned fork/pipe allocation, durable registration/pidfd gate ordering and status/death/cancellation reaping. Actual Linux/readlist/pinned-runtime qualification and operation authority remain separate. No broader mission completion or autonomous monitor.

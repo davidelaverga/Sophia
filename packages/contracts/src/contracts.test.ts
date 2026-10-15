@@ -47,3 +47,65 @@ describe('@sophia/contracts', () => {
     }
   })
 })
+
+describe('exclusive oneOf type generation (CON approved source amendment)', () => {
+  it('generates the goal or reply alternatives without changing JSON Schema exclusivity', () => {
+    const doc: OpenApi = {
+      components: {
+        schemas: {
+          Binding: {
+            oneOf: [
+              {
+                type: 'object',
+                additionalProperties: false,
+                properties: { goalId: { type: 'string' }, goalRevision: { type: 'integer' } },
+                required: ['goalId', 'goalRevision'],
+              },
+              {
+                type: 'object',
+                additionalProperties: false,
+                properties: { conversationReplyId: { type: 'string' } },
+                required: ['conversationReplyId'],
+              },
+            ],
+          },
+        },
+      },
+      paths: {},
+    }
+    const before = structuredClone(doc)
+    const generated = typesFromOpenApi(doc, '// test')
+    assert.match(
+      generated,
+      /export type Binding = \{ "goalId": string; "goalRevision": number; \} \| \{ "conversationReplyId": string; \};/,
+    )
+    assert.deepEqual(doc, before, 'type generation never rewrites exclusive runtime validation to anyOf')
+  })
+
+  it('preserves oneOf references inside arrays and nullable object fields', () => {
+    const doc: OpenApi = {
+      components: {
+        schemas: {
+          Goal: { type: 'string' },
+          Reply: { type: 'string' },
+          Records: {
+            type: 'object',
+            properties: {
+              bindings: {
+                type: 'array',
+                items: { oneOf: [{ $ref: '#/components/schemas/Goal' }, { $ref: '#/components/schemas/Reply' }] },
+              },
+              selected: { oneOf: [{ $ref: '#/components/schemas/Reply' }, { type: 'null' }] },
+            },
+            required: ['bindings'],
+          },
+        },
+      },
+      paths: {},
+    }
+    assert.match(
+      typesFromOpenApi(doc, '// test'),
+      /"bindings": ReadonlyArray<Goal \| Reply>; "selected"\?: Reply \| null;/,
+    )
+  })
+})

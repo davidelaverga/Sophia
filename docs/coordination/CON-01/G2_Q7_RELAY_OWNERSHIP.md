@@ -534,6 +534,9 @@ The seccomp filter is installed in the child after the gate, after Landlock and 
 | `kill`, `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` | allowed only when the target is the process's own pid (a constant in the filter); else `EPERM` | Signals reach only itself (CX-0142's containment detail) |
 | `tkill`, `pidfd_open`, `pidfd_send_signal`, `pidfd_getfd` | `EPERM` | No other way to signal or reach another process |
 | `socket`, `socketpair` with `AF_UNIX` | `EPERM` | No new local socket, abstract or by path; the inherited fd 3 is unaffected |
+| `io_uring_setup`, `io_uring_enter`, `io_uring_register` | `EPERM` | SQE socket creation must not bypass the socket syscall predicates |
+
+Approved CON01-FILTER-AMENDMENT (14 October 2026): the child inherits no ring descriptors. Only the already specified standard descriptors, relay and pre-exec close-on-exec status/lease descriptors are allowed. The syscall filter alone does not prove descriptor closure. This source-only amendment does not authorize installation or provider execution.
 
 ptrace stays confined by Landlock's own domain scoping.
 
@@ -1007,6 +1010,7 @@ Codex read them without re-running them. They are author evidence only, and the 
     - an 8-second boot: bridge loaded, `not_ready`, never ready, status 0.
 
     It too is the Darwin baseline only. It is not P1's Linux template, P7, P8, the copy's completeness, or provider acceptance. (Comparing a template and its copy with the existing `sophia-tree-v2` worked there. The reply recipe differs in also listing directories and excluding nothing, and either must be one implementation used at both ends.)
+- **P7 ring-path qualification (approved amendment):** prove EPERM for all three io_uring entrypoints and absence of inherited ring descriptors on the actual target, then qualify the pinned Node/dsh under that policy. A compatibility failure is reported with its call site; no fallback, policy relaxation or provider switch. Pure bytecode and mocked syscalls cannot close this gate.
 - **P7:** dsh `0.2.0-rc.2` boots a copy of the reply template under the real launcher: Landlock, the full filter, four descriptors, and fd 3 opened by `sophia-reply-child`. It then completes one stub reply:
   - no step and no call before `go`;
   - every model call reserved over fd 3, and each `assistant/message` and `compaction/summary` carrying its `ordinal`;

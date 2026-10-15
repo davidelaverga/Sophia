@@ -1,0 +1,39 @@
+# CON-01 takeover52 — canonical argv and durable pre-fork lease
+
+Same mission/session/worktree, Codex sole implementer, Claude stopped. Previous goal turn made verified progress in handoff51. Source authority handoff24/r12 section3.4 remains valid through2026-10-14T10:00Z/noon Rome. Before-write198/6160447554. Only approved launcher/tests changed. Pending27/36, Q8/profile, shared owner handbacks/integration and operations remain separate and unapplied.
+
+## Candidate and behavior
+
+Published PR273 remains457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c. Corrected unpublished launcher SHA256cea1e8abf95618ae35f6c6d3b7665d6097f26e72e59bb6c20321228ec0835483; tests0530e353873356452b663e537694edeb6d79205aa2b69cb76b35445ee0e22710. Wrapperf513bedcf811dbf912e515e0e4205c7e41c07f9f3218eb88d0173aa90b8001e9 unchanged. Initial03d18d0d/tests0fb36b0d superseded. No bridge/SQL/contract/profile/artifact change.
+
+`parse_run_arguments` accepts only the complete closed set of paired options after run; no duplicates, equals aliases, abbreviations or option terminator. Validates canonical absolute paths, gen-root basename, runtime entry inside runtime directory, lower-case UUID attempt,64-hex nonce, positive canonical parent pid, profile/unit grammar and selected local template digest spelling sophia-reply-tree-v1:sha256:<64hex>. Returns frozen RunArguments; prepare revalidates even manually constructed values. These are syntax checks, not installed artifact/profile/route/credential authority.
+
+`prepare_lease` is a source-only pre-fork context. Actual self-identity path refuses unsupported platforms before filesystem mutation, checks parent and reads its own process identity/nonce. In tests this identity is injected; no actual proc read occurred. One30s absolute setup clock and required checkpoint callback cover shared-lock retry and boundaries between operations. Future fd0 adapter must raise on TERM/KILL/EOF; actual parent-death, channel validation and alarm are not installed. The clock rejects late results but cannot preempt a stuck syscall.
+
+The helper takes shared admission, verifies root and lock by name, creates the attempt home exclusively, then creates lease.json first/exclusively/no-follow/0600. It immediately takes the lease life lock, writes complete launcher+fork records with partial-write handling, fsyncs the lease then the home directory while admission remains held, and verifies named lease/admission identities before releasing admission. Persistent descriptors across setup steps are admission and lease; directory descriptors are temporary for by-name operations. The life lock stays held through the caller context and is close-on-exec. Future launcher must retain that context until any child is settled. No fork/exec exists here.
+
+An existing home is never opened as a new lease. Cancellation, write/fsync failure, sealing or deadline expiry never yields success and never deletes partial state; governed recovery owns those homes. A replaced named lease refuses. No transcript, prompt, provider credential or runtime content is written by this metadata helper. CLI remains69 with empty stdout; no installed serving caller, containment, sweep, termination or deletion is enabled.
+
+## Failure, correction and verification
+
+Author reproduced P2 in initial03d18d0d: calling successful prepare_lease from inside a caller's except handler inherits its active sys.exc_info, closes the lease before yield (EBADF9), then double-closes on exit. Recorded198/6160505148. Independent reviewer reproduced the same failure and released the source/test hold for correction after ordinary76463 terminated. No installed runtime was affected.
+
+Correction uses explicit local exception cleanup, independent of caller exception context. New regression checks a valid held lease inside a caller's except, held life lock and clean close afterward. It fails against an isolated original source copy and passes corrected. No feature edits occurred under active ordinary test runs or reviewer holds.
+
+Actual commands: python3 -I -m unittest discover -s apps/execution-host/reply -p 'test_*.py'; node --test tests/unit/reply-launch.test.mjs; pnpm test; Python AST function-size/arity audit; git diff --check. This is the stdlib launcher, not the legacy backend; no backend tests used system Python.
+
+Initial83 Python/wrapper pass, ordinary76463 terminal0=2604passed/70existing skips/0fail/cancel. Four isolated-copy mutants fail: omit file fsync, omit life lock, omit named-lease verification, use exclusive instead of shared admission (bounded test sentinel). Final84 Python/wrapper and ordinary26670 terminal0=2604passed/70existing skips/0fail/cancel. Original regression-before.log records EBADF failure. Size/arity and diff check pass; not a full structural-gate claim.
+
+Independent corrected-pin review:84 Python, wrapper, unchanged original reproducer and six additional groups pass: file→home sync under admission with life-lock retention, cancel after lease creation, fsync failure, root seal after file sync, late home sync beyond original deadline, and existing occupant preservation. P2 cleared; no remaining actionable finding, holds released. Temporary trees/descriptors cleaned, all check handles terminal. Local tests use owned lock-holder processes; no actual Linux proc/environment/pidfd, native fork/exec, signal or provider path exercised.
+
+Private author evidence: prepare-20261014-0552/author.safe.json, focused/wrapper/ordinary and final logs, mutations.safe.json, ambient-exception-before.safe.json, before-exception-fix.py and regression-before.log. Independent receipt independent-step4-prepare-20261014/review.safe.json read in full. These support locally_verified/reviewed for this L1 component only; actual Linux and whole-Step4/pre-push qualification remain open.
+
+## Coordination, operations and acceptance
+
+Actual PR273 refresh: unchanged457053b3, open draft, unmerged, mergeablefalse. Automatic review273/6144338846 covers published Step2 only. No push; every future push requires actual automatic Codex review. Recorded owners refreshed:14 latest6132091412 and31 latest6132091149, no new handback. Last fetched main764137645bbfde737f0c033cfc7b18ccff1ad979/tree7cb7ffefd019d8f523252647aed5809d7c55a088 and11 held conflicts remain as handoff51; preserve #308 welcome and prior #306/#287/#299–301/#304. No merge/rebase/reset/conflict/artifact writes or ownership inference.
+
+No hosted migration/configuration/deployment, accounts/members, grants/connection effects, credential access or provider/subscription execution. Product provider use0; assistant/reviewer compute unknown. OP0002r6 setup/human-chat and OP0001r4 Ask remain unapproved/not ready. Ask disabled. Privacy/withdrawal/throwaway-home and cumulative/uncertain accounting limits unchanged. No serving app/API/runtime tuple established; last actual CUA observation is handoff51's accessible Resources COMING/no Conversations, not CON app verification.
+
+Acceptance ledger unchanged36cases:18partial_L1/3passed_L1/15not_run; A30not_run. No whole-source_ready, combined reviewed, operational authorized, deployed, app_verified or owner_accepted promotion. Existing PostgreSQL and runtime evidence retains its scope; these filesystem tests do not replace real provider/two-account product acceptance. Broader product and other missions remain open.
+
+All owned author/reviewer runners and temporary resources settled/clean. No unresolved external effect or live rollback required. Prior source copies/published HEAD remain recovery references; eventual rollback preserves governed data, withdrawal and cumulative/uncertain accounting. Next bounded action: implement parent-death and control-channel/setup-alarm handling in the approved launcher, with synthetic/owned local tests and independent review before Linux execution qualification. No autonomous monitoring or work-after-session promise.

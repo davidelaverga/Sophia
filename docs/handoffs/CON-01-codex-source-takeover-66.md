@@ -1,0 +1,25 @@
+# CON-01 takeover66 — parent-owned pipes and one-shot gate
+
+Codex sole implementer; Claude stopped. Source-only expiry remains20:00Rome14October2026/18:00Z. Checkpoint198/6166937187; final component record198/6167056792. Pending27/36/Q8/shared integration/operations remain held. This change authorizes no actual fork, signal, native/provider or hosted effect.
+
+## Candidate and behavior
+
+Published PR273 HEAD457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c unchanged. Unpublished launcher SHA256aebdb2a01ae36b3411779da1fe05f18fec55702ab1c92afd2b8c216d48bef1ff/tests8d1a8d488e2ac0a962e02be17ae2a35bcb453d4ee03018a854f42d009e588d03. Prior components/wrapper unchanged; CLI69/Askoff, no operational caller.
+
+ReplyParentPipes owns two fresh CLOEXEC pipe pairs, validates FIFO/access and descriptor range, and makes only the gate writer nonblocking. Partial allocation cleans up all known owned ends. Closing forgets each descriptor before attempting its close, visits every end even after failure, and never retries an uncertain close. The parent branch closes its gate reader and status writer immediately after its future fork; the existing child branch closes its inherited opposite ends.
+
+One gate attempt checks the actual recorded child/reaper relationship, retained pidfd/nonterminal state, lease/status binding, original relay descriptor role, current recorded namespace/control/lease and original gate writer identity. It closes the parent's fd3 before a second recorded checkpoint and a single G byte, then closes the gate writer. Every refusal, short/uncertain write or uncertain close prevents replay. G may already have reached the child before a final close fails; unconfirmed state must never be interpreted as proof of no execution. No gate success is a settlement receipt. Caller must still own the fresh child/pipe association, original retained pidfd, setup life-lock and bounded reaping; fresh fork, exec-status/control handling and CLI remain unassembled.
+
+## Verification
+
+Author224 Python tests and wrapper1 pass after correcting a missing stat name in the initial test fixture; the failed fixture run was not product evidence. The test class reuses only the owned recording fixture, without rerunning inherited tests. Commands: python3 -I -B -m unittest discover -s apps/execution-host/reply -p 'test_*.py'; node --test --test-timeout=40000 tests/unit/reply-launch.test.mjs; git diff --check. Real owned os.pipe descriptors exercise flags, byte/EOF, original end closure and cleanup. Test readers are nonblocking so a broken gate cannot hang a check. fd3/process operations are mocked, no actual runtime fork.
+
+Cases include required relay-close-before-byte order, one-shot use, fence refusal, invalid child/pidfd/lease/status/relay binding, partial pipe allocation, uncertain relay/gate write/close, all-end cleanup after error, and cancellation after relay close. Ordinary79481 terminal0:2604pass/70existing skips/0fail/cancel,33.4s. Independent224 Python/wrapper/four owned-pipe adverse groups pass, no actionable component finding. Exact prior source preserved; complexity7/6/8/1/3/2/4/3/6 and size/arity within bounds. Binding-removal mutation produces one genuine assertion failure/zero errors after correcting the private probe to retain a child-reader stand-in (initial EPIPE had masked that mutant; no source change). Independent review.safe.json read in full; source/test hold released. This is bounded component clearance, not fullStep4/push acceptance. Private parent-pipes-20261014-1310 holds evidence; no new retained process/service or hosted effect. Assistant compute deduction unknown.
+
+## Integration, operations and recovery
+
+Last read-only main e2da7d89/tree930c188b unchanged,11 held Studio conflicts and owner boundaries preserved; no merge/rebase/reset/artifact edits. Fresh14latest6132091412/31latest6132091149 still contain requests, not new handbacks.199latest6165765212 and actual automatic273/6144338846 remain as handoff65; automatic review explicitly covers only published457053b3fe. No push; whole-diff independent review and required gates precede any future push, actual automatic review follows every push.
+
+Hosted browser currently shows signed out (handoff65); browser control exists but no current signed-in app proof or observed serving tuple. Setup/human-chat OP0002r6 and Ask OP0001r4 remain unapproved/not ready; no migration/config/deployment/account/grant/credential/provider operation.36-case ledger remains18partial_L1/3passed_L1/15not_run,A30not_run. Full source_ready/combined reviewed/authorized/deployed/app_verified/owner_accepted unmet. Governed data unchanged; no live rollback required. Retained source pins/private receipts preserve recovery; uncertain gate/close is never claimed as settlement or deletion.
+
+Next bounded action: parent fresh-fork/record/pidfd/gate orchestration and exec-status/control loop, then qualification on the intended Linux/runtime under its separate authority. No broader mission completion or autonomous monitor.

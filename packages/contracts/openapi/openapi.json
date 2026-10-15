@@ -16668,126 +16668,468 @@
         ]
       },
       "RuntimeWorkBinding": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "projectId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-          },
-          "goalId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-          },
-          "goalRevision": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "attemptId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-          },
-          "resourceId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-          },
-          "authorityEpoch": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "runtimeUnitId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
-          }
-        },
-        "required": [
-          "projectId",
-          "goalId",
-          "goalRevision",
-          "attemptId",
-          "resourceId",
-          "authorityEpoch",
-          "runtimeUnitId"
-        ]
-      },
-      "RuntimeCommand": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "schema": {
-            "const": "sophia.runtime-command.v1"
-          },
-          "commandId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
-          },
-          "binding": {
-            "$ref": "#/components/schemas/RuntimeWorkBinding"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "create",
-              "resume",
-              "input",
-              "steer",
-              "hold",
-              "stop",
-              "inspect"
-            ]
-          },
-          "expectedNativeSessionId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "contextPacketId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 64
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "payload": {
+        "oneOf": [
+          {
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "text": {
+              "projectId": {
                 "type": "string",
-                "maxLength": 200000
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
               },
-              "role": {
+              "goalId": {
                 "type": "string",
-                "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
               },
-              "route": {
+              "goalRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "attemptId": {
                 "type": "string",
-                "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
-                "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "runtimeUnitId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
               }
-            }
+            },
+            "required": [
+              "projectId",
+              "goalId",
+              "goalRevision",
+              "attemptId",
+              "resourceId",
+              "authorityEpoch",
+              "runtimeUnitId"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "runtimeUnitId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+              },
+              "conversationReplyId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "projectId",
+              "attemptId",
+              "resourceId",
+              "authorityEpoch",
+              "runtimeUnitId",
+              "conversationReplyId"
+            ]
           }
-        },
-        "required": [
-          "schema",
-          "commandId",
-          "binding",
-          "kind",
-          "expectedNativeSessionId",
-          "contextPacketId",
-          "payload"
+        ]
+      },
+      "RuntimeCommand": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {
+                "const": "sophia.runtime-command.v1"
+              },
+              "commandId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "goalId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "goalRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "authorityEpoch": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "runtimeUnitId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "goalId",
+                  "goalRevision",
+                  "attemptId",
+                  "resourceId",
+                  "authorityEpoch",
+                  "runtimeUnitId"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "resume",
+                  "input",
+                  "steer",
+                  "hold",
+                  "stop",
+                  "inspect",
+                  "retire"
+                ]
+              },
+              "expectedNativeSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contextPacketId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200000
+                  },
+                  "role": {
+                    "type": "string",
+                    "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                    "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                  }
+                }
+              }
+            },
+            "required": [
+              "schema",
+              "commandId",
+              "binding",
+              "kind",
+              "expectedNativeSessionId",
+              "contextPacketId",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {
+                "const": "sophia.runtime-command.v1"
+              },
+              "commandId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "authorityEpoch": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "runtimeUnitId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+                  },
+                  "conversationReplyId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "attemptId",
+                  "resourceId",
+                  "authorityEpoch",
+                  "runtimeUnitId",
+                  "conversationReplyId"
+                ]
+              },
+              "kind": {
+                "const": "create"
+              },
+              "expectedNativeSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contextPacketId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200000
+                  },
+                  "role": {
+                    "const": "sophia-conversation-v1"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                    "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                  },
+                  "conversation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "credentialRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "ownerResourceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "unit": {
+                        "type": "string",
+                        "enum": [
+                          "calls_tokens",
+                          "usd"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "credentialRef",
+                      "ownerResourceRef",
+                      "unit"
+                    ]
+                  }
+                },
+                "required": [
+                  "role",
+                  "route",
+                  "text",
+                  "conversation"
+                ]
+              }
+            },
+            "required": [
+              "schema",
+              "commandId",
+              "binding",
+              "kind",
+              "expectedNativeSessionId",
+              "contextPacketId",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {
+                "const": "sophia.runtime-command.v1"
+              },
+              "commandId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "authorityEpoch": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "runtimeUnitId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+                  },
+                  "conversationReplyId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "attemptId",
+                  "resourceId",
+                  "authorityEpoch",
+                  "runtimeUnitId",
+                  "conversationReplyId"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "resume",
+                  "input",
+                  "steer",
+                  "hold",
+                  "stop",
+                  "inspect",
+                  "retire"
+                ]
+              },
+              "expectedNativeSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contextPacketId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200000
+                  },
+                  "role": {
+                    "type": "string",
+                    "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                    "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                  }
+                }
+              }
+            },
+            "required": [
+              "schema",
+              "commandId",
+              "binding",
+              "kind",
+              "expectedNativeSessionId",
+              "contextPacketId",
+              "payload"
+            ]
+          }
         ]
       },
       "RuntimeReceipt": {
@@ -16942,36 +17284,129 @@
         ]
       },
       "RuntimeServiceBinding": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "attemptId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "nativeSessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "held",
+                  "stopped"
+                ]
+              }
+            },
+            "required": [
+              "attemptId",
+              "nativeSessionId",
+              "authorityEpoch",
+              "state"
+            ]
           },
-          "nativeSessionId": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
-          },
-          "authorityEpoch": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 9007199254740991
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "active",
-              "held",
-              "stopped"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "nativeSessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "held",
+                  "stopped"
+                ]
+              },
+              "conversationReplyId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "create": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "authorityEpoch": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "state": {
+                        "const": "current"
+                      }
+                    },
+                    "required": [
+                      "commandId",
+                      "authorityEpoch",
+                      "state"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "state": {
+                        "const": "unresolved"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": [
+                          "different_runtime",
+                          "correlation_invalid"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "state",
+                      "reason"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "attemptId",
+              "nativeSessionId",
+              "authorityEpoch",
+              "state",
+              "conversationReplyId",
+              "create"
             ]
           }
-        },
-        "required": [
-          "attemptId",
-          "nativeSessionId",
-          "authorityEpoch",
-          "state"
         ]
       },
       "RuntimeHelloReply": {
@@ -16993,7 +17428,7 @@
           },
           "bindings": {
             "type": "array",
-            "maxItems": 500,
+            "maxItems": 502,
             "items": {
               "$ref": "#/components/schemas/RuntimeServiceBinding"
             }
@@ -17105,7 +17540,7 @@
           },
           "unrecovered": {
             "type": "array",
-            "maxItems": 500,
+            "maxItems": 502,
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -31160,29 +31595,99 @@
                   "states": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "ordinal": {
-                          "type": "integer",
-                          "enum": [
-                            1,
-                            2
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "ordinal": {
+                              "type": "integer",
+                              "enum": [
+                                1,
+                                2
+                              ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "const": "settled"
+                            },
+                            "used": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "calls": {
+                                  "type": "integer",
+                                  "const": 1
+                                },
+                                "tokens": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "priceMicros": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": [
+                                "calls",
+                                "tokens",
+                                "priceMicros"
+                              ]
+                            },
+                            "unit": {
+                              "type": "string",
+                              "enum": [
+                                "calls_tokens",
+                                "usd"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "ordinal",
+                            "state",
+                            "used",
+                            "unit"
                           ]
                         },
-                        "state": {
-                          "type": "string",
-                          "enum": [
-                            "reserved",
-                            "settled",
-                            "released",
-                            "uncertain"
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "ordinal": {
+                              "type": "integer",
+                              "enum": [
+                                1,
+                                2
+                              ]
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": [
+                                "reserved",
+                                "released",
+                                "uncertain"
+                              ]
+                            },
+                            "used": {
+                              "type": "null"
+                            },
+                            "unit": {
+                              "type": "string",
+                              "enum": [
+                                "calls_tokens",
+                                "usd"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "ordinal",
+                            "state",
+                            "used",
+                            "unit"
                           ]
                         }
-                      },
-                      "required": [
-                        "ordinal",
-                        "state"
                       ]
                     }
                   }

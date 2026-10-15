@@ -378,6 +378,40 @@ const operationBody = (w: ConversationWorld, operation: (typeof CONVERSATION_OPE
 })
 
 describe('CON runtime HTTP routes (L1, actual capability/lease/PG; no model)', () => {
+  it('dispatch stores original reserve references and ACK reads actual settled amounts', async (t) => {
+    const w = await conversationWorld(t)
+    const stored = await w.owner.query<{ payload: { conversation: unknown } }>(
+      "SELECT body->'payload' AS payload FROM sophia.runtime_commands WHERE project_id=$1 AND id=$2",
+      [w.projectId, w.command.id],
+    )
+    assert.deepEqual(stored.rows[0]?.payload.conversation, {
+      credentialRef: syntheticCall.credentialRef,
+      ownerResourceRef: syntheticCall.ownerResourceRef,
+      unit: syntheticCall.unit,
+    })
+    assert.equal((await conversationCall(w, 'claim', w.request)).status, 200)
+    assert.equal((await conversationCall(w, 'go', w.request)).status, 200)
+    for (const field of ['credentialRef', 'ownerResourceRef']) {
+      const forged = { ...operationBody(w, 'reserve'), call: { ...syntheticCall, [field]: 'another-reference' } }
+      assert.equal((await conversationCall(w, 'reserve', forged)).status, 403)
+    }
+    assert.equal((await conversationCall(w, 'reserve', operationBody(w, 'reserve'))).status, 200)
+    const pending = await conversationCall(w, 'acknowledged', operationBody(w, 'acknowledged'))
+    assert.deepEqual(pending.json.predicates.reservations.states, [
+      { ordinal: 1, state: 'reserved', unit: 'calls_tokens', used: null },
+    ])
+    assert.equal((await conversationCall(w, 'settle', operationBody(w, 'settle'))).status, 200)
+    const settled = await conversationCall(w, 'acknowledged', operationBody(w, 'acknowledged'))
+    assert.deepEqual(settled.json.predicates.reservations.states, [
+      { ordinal: 1, state: 'settled', unit: 'calls_tokens', used: { calls: 1, tokens: 10, priceMicros: 0 } },
+    ])
+    const actual = await w.owner.query<{ used_tokens: string }>(
+      'SELECT used_tokens FROM sophia.conversation_reservations WHERE project_id=$1 AND reply_id=$2',
+      [w.projectId, w.replyId],
+    )
+    assert.equal(actual.rows[0]?.used_tokens, '10')
+  })
+
   it('claims/goes once, reserves/settles idempotently and returns all eight actual durable predicates', async (t) => {
     const w = await conversationWorld(t)
     assert.deepEqual(await conversationCall(w, 'claim', w.request), { status: 200, json: { result: 'first' } })
@@ -480,7 +514,18 @@ async function conversationAnswer(w: ConversationWorld) {
               nativeSeq: 1,
               durable: true,
               type: 'assistant/message',
-              data: { text: 'Synthetic native intake answer' },
+              data: {
+                text: 'Synthetic native intake answer',
+                length: 30,
+                oversize: false,
+                invalidText: false,
+                interrupted: false,
+                provider: null,
+                model: null,
+                inputTokens: null,
+                outputTokens: null,
+                ordinal: 1,
+              },
             },
             {
               runtimeUnitId: w.runtime.runtimeUnitId,
@@ -574,4 +619,65 @@ describe('CON runtime HTTP durable ACK variants (L1 actual intake, no model)', (
       assert.deepEqual(ack.json, expected)
     })
   }
+})
+
+describe('CON runtime HTTP closed projection', () => {
+  it('refuses raw native content at real HTTP/SQL intake, then captures a valid bounded answer', async (t) => {
+    const w = await conversationWorld(t)
+    assert.equal((await conversationCall(w, 'claim', w.request)).status, 200)
+    assert.equal((await conversationCall(w, 'go', w.request)).status, 200)
+    const session = (
+      await w.owner.query<{ native_session_id: string }>(
+        'SELECT native_session_id FROM sophia.execution_bindings WHERE id=$1',
+        [w.command.binding_id],
+      )
+    ).rows[0]
+    assert.ok(session)
+    for (const [type, data] of [
+      ['system/message', { text: 'SYNTHETIC PRIVATE CANARY' }],
+      ['user/message', { id: 'synthetic', length: 1, text: 'SYNTHETIC PRIVATE CANARY' }],
+      ['assistant/message', { text: 'prefix', interrupted: 'true' }],
+    ]) {
+      const result = await call('/v1/runtime/observations', {
+        method: 'POST',
+        bearer: w.runtime.token,
+        headers: w.headers,
+        body: {
+          observations: [
+            {
+              runtimeUnitId: w.runtime.runtimeUnitId,
+              attemptId: w.command.attempt_id,
+              nativeSessionId: session.native_session_id,
+              nativeSeq: 1,
+              durable: true,
+              type,
+              data,
+            },
+          ],
+        },
+      })
+      assert.equal(result.status, 422)
+      assert.equal(
+        (
+          await w.owner.query('SELECT count(*)::int AS n FROM sophia.native_observations WHERE binding_id=$1', [
+            w.command.binding_id,
+          ])
+        ).rows[0]?.n,
+        0,
+      )
+      assert.equal(
+        (
+          await w.owner.query('SELECT count(*)::int AS n FROM sophia.usage_records WHERE attempt_id=$1', [
+            w.command.attempt_id,
+          ])
+        ).rows[0]?.n,
+        0,
+      )
+    }
+    await conversationAnswer(w)
+    assert.equal(
+      (await w.owner.query('SELECT state FROM sophia.conversation_replies WHERE id=$1', [w.replyId])).rows[0]?.state,
+      'answered',
+    )
+  })
 })

@@ -1,0 +1,33 @@
+# CON-01 C0 — recovered source checkpoint,15October2026
+
+Owner Davide / sole source author and operator Codex session01a1224a-32b4-7222-a017-50a277572d95; retained independent reviewer takeover_diff_review. Claude remains stopped. Davide’s directly supplied bounded C0/C1/C2 continuation replaces expired source micro-windows for its stated scope. It does not authorize production, provider/account/credential effects or another writer’s paths.
+
+Canonical branchcodex/con01-takeover-source-20261013, draft273; starting published457053b3fe619631f0d2e2fcc1e3edc98cfc5348/treeec71aa3a83e6208ff559d075a881b374fdb8593c. No reset. Complete recovered/private candidate inventories include untracked source and tests. Final publication commit/tree are recorded by the actual push receipt and linked issue198 handback, not invented in a self-referential source file.
+
+## Source recovered and qualified
+
+This publishes the accumulated unpublished checkpoint once: reply-child.ts, reply-plugin.ts and Python launcher/tests; control bridge/protocol/transport and default-disabled index; supervisor’s optional reply generation lifecycle; approved runtime SQL/schema/type generation/ACK metadata; corresponding API/persistence/Node/integration tests; retained handoffs11–92 and current maps. Main source and in-flight R1 work are untouched. Private journals and credentials are not included. C0_CONTINUATION_20261015.md gives implementation inventory and critical path.
+
+Exact core SHA256: childcad817ba63c379c18635765245bc34a65b0745e612039036dd5c5f583b2a27d8; bridge339ffac21f2255a59f132e542011c61205c9d06fdb97f2ba889dafe6b4f3d527; plugin7444b8994224eb3baeddfeef5d93bfbea34c8b26e920cbd9bbe0d36af9263d09; launcher39d3768c11fb02bb9bc7499e4517b34d662b27faf53323e266c71a06fe1ca9e5; supervisor225fe6ed7220e190bb2590d79ed8a99912be79cc9817af4d238945c8d7b4b258. None was changed for this closeout. Two formatting-only corrections: API runtime test and A16 amendment.
+
+Author build and artifacts:record succeeded; bundle archive8ff293c96b744e38b22763a06d97fa2c02bb8dac561f5b80de19762c789e6b38 and matching profile integrity recorded. Complete pnpm check then passed:2686unit/70existing skips,99integration/2existing skips,0fail/cancel. Format/lint/build/types/contracts/artifacts all pass. First attempt stopped at two Prettier files before tests; corrected only formatting and reran required check. Existing real PostgreSQL/API component receipts remain applicable and attributed, not regenerated as a broad campaign.
+
+Independent review receipt252d73159ce7ea0b74ad29528308a24afbafebdd372636e94d21df8750216147 read in full. It covers118unpublished files (15source/9test/2artifactmetadata/92docs), entire changed product/test delta, untracked modules, disabled startup/privilege boundaries, artifact contents and applicable exact-pin component evidence. No draft-publication blocker; hold released. No unconditional goal/startup/filesystem/process/credential acquisition or SQL privilege widening established. Reviewer did not rerun author checks or interrupted executable tests. New handoff/status prose does not trigger another full audit. Fresh automatic Codex review must cover the actual new pushed head.
+
+## Integration and native-route handback
+
+Observed main1e323dc934e2bec326a17809c94943efc71e6ecd. R1 operator confirms sole256integration, main-based selected release and no full190/273import. CON consumes256once later. Agreed ordering: after R1 candidate integration is pinned, propose one120minute CON source slot on a separate branch; Luis accepts shared Studio resolutions. Exact start/end and Luis acceptance pending. No repeated conflict-preview or changes to an active deployment candidate.
+
+C1 source-merge blockers: actual0048/0049migration andA16contract collisions; current-main Studio/author-name/tolerant-reader compatibility and integrated storage/API/browser qualification. Reconcile against actual applied ledgers with one writer; never rewrite an applied migration. Dormant compatible reply machinery may remain. Ask unavailable is honest C1 behavior, not completion of CON.
+
+Ask-only blockers: complete native launcher/context/receipt/retained cleanup crossing, Linux/profile/readlist/FD/no-submount/Q13target admission, and supported same-owner subscription route. H92 retained-session proposal is acknowledged but unimplemented. Further unprovable recovery remains explicit unresolved; do not silently weaken accepted automatic behavior.
+
+Pinned openai-codex defaults to backend-api and/codex/responses; current official SIWC flow requires public Responses. Normal openai-responses can omit unsupported max_output_tokens, but that alone is not a finite execution bound. Need compatible serialization/connection lifecycle and one narrowly approved owner-native probe with real requesting account/workspace, model, target, credential reference, allowance/payer/expiry. No credential read/transfer or provider request performed. Official links and retained source hashes are in C0 checkpoint/private route-status.safe.json. No PAYG, provider/account rotation, borrowed teammate subscription or hidden reset.
+
+## Readiness, resources and recovery
+
+C0 locally_verified/reviewed for honest draft publication. C1 merge-ready/deployed and C2 activation/app_verified/owner_accepted unproven. Original36acceptance verdicts remain18partial_L1/3passed_L1/15not_run. No new Studio interaction tested; no native or signed-in two-member episode claimed. run/probe69 and production indexreplies:null preserved.
+
+No operation batch approved/executed: no deployment/configuration/hosted migration/account/grant/connection termination/provider effect. R1 owns production queue. Owned check handles82424(build),99933(artifact record),38194(initial format-failed check),75085(final check) all settled; standard keyless integration resources use their existing cleanup. No new persistent service or credential created. Provider spend0; coding/reviewer compute unmeasured. No optional CON recurring qualification job exists; discovered R1 heartbeat alreadyPAUSED, untouched. Required CI/safety/worker jobs preserved.
+
+Public source remains recoverable/revertible; no live rollback needed. Eventual rollback must retain saved data, withdrawals, cleanup and cumulative/uncertain accounting. Immediate next bounded action: push this cleared coherent checkpoint to273 and inspect its exact automatic review; then resolve C1 in the agreed R1/Luis integration slot while continuing non-overlapping selected C2 source. Human-chat/setup and native Ask operations remain separately reviewable batches. No broader product or other mission completion.

@@ -7,7 +7,8 @@
     "The four proposed operations keep their paths and meanings. Added: an order (seq) and a cursor bound to its conversation; a reply request on the message that asked, and the request an answer settles (never 'any later Sophia message'); the saved-text policy and the reader's capability; coverage for the summary and the recorded open questions; withdrawal and erasure (CON-01 binding map \u00a73-\u00a77).",
     "The actor, the author's name and the project are the server's: a body naming them is refused (additionalProperties false).",
     "Added after PR #199's review (CON-01-CC-0072, CX-0074): getConversationMessages answers not_found alike to a member reading an erased conversation and to a reader no longer in the project, so the Studio can't tell them apart. getProjectConversationMessages reads within the project in one snapshot: a non-member is refused (403) before anything of the conversation is read; to a current member, not_found means none open in that project. The earlier path keeps its meaning.",
-    "CON-01 PhaseB Step2: five capability-only runtime operations bind the actual reply-owned create command and current bridge lease. No body-supplied actor/project/resource, provider execution permission or allowance reset. Amounts use safe JSON integers; actual finite grants and provider bounds remain separately qualified. Acknowledgements report eight durable predicates, never host/process cleanup proof. A04 bindings/commands and other mission schemas are unchanged at this step."
+    "CON-01 PhaseB Step2: five capability-only runtime operations bind the actual reply-owned create command and current bridge lease. No body-supplied actor/project/resource, provider execution permission or allowance reset. Amounts use safe JSON integers; actual finite grants and provider bounds remain separately qualified. Acknowledgements report eight durable predicates, never host/process cleanup proof. A04 bindings/commands and other mission schemas are unchanged at this step.",
+    "CON-01 Step3 source: exclusive reply ownership, reply-only retire and complete500goal+2reply hello/readiness. Handoff11 approved source-only recovery metadata preserves original goal rows, reports original current-runtime create identity or explicit unresolved state, and cannot expand runtime ACK authority. Native child/process/provider qualification and activation remain separate."
   ],
   "patch": [
     {
@@ -1892,19 +1893,70 @@
                   "states": {
                     "type": "array",
                     "items": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "ordinal": {
-                          "type": "integer",
-                          "enum": [1, 2]
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "ordinal": {
+                              "type": "integer",
+                              "enum": [1, 2]
+                            },
+                            "state": {
+                              "type": "string",
+                              "const": "settled"
+                            },
+                            "used": {
+                              "type": "object",
+                              "additionalProperties": false,
+                              "properties": {
+                                "calls": {
+                                  "type": "integer",
+                                  "const": 1
+                                },
+                                "tokens": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "priceMicros": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "required": ["calls", "tokens", "priceMicros"]
+                            },
+                            "unit": {
+                              "type": "string",
+                              "enum": ["calls_tokens", "usd"]
+                            }
+                          },
+                          "required": ["ordinal", "state", "used", "unit"]
                         },
-                        "state": {
-                          "type": "string",
-                          "enum": ["reserved", "settled", "released", "uncertain"]
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "ordinal": {
+                              "type": "integer",
+                              "enum": [1, 2]
+                            },
+                            "state": {
+                              "type": "string",
+                              "enum": ["reserved", "released", "uncertain"]
+                            },
+                            "used": {
+                              "type": "null"
+                            },
+                            "unit": {
+                              "type": "string",
+                              "enum": ["calls_tokens", "usd"]
+                            }
+                          },
+                          "required": ["ordinal", "state", "used", "unit"]
                         }
-                      },
-                      "required": ["ordinal", "state"]
+                      ]
                     }
                   }
                 },
@@ -2732,6 +2784,565 @@
           "x-sophia-implementation": "contract_only",
           "x-sophia-release-goal": "CON-01"
         }
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/RuntimeWorkBinding",
+      "value": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "goalId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "goalRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "runtimeUnitId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+              }
+            },
+            "required": [
+              "projectId",
+              "goalId",
+              "goalRevision",
+              "attemptId",
+              "resourceId",
+              "authorityEpoch",
+              "runtimeUnitId"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "projectId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "resourceId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "runtimeUnitId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+              },
+              "conversationReplyId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "projectId",
+              "attemptId",
+              "resourceId",
+              "authorityEpoch",
+              "runtimeUnitId",
+              "conversationReplyId"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/RuntimeCommand/properties/kind/enum/-",
+      "value": "retire"
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/RuntimeHelloReply/properties/bindings/maxItems",
+      "value": 502
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/RuntimeReady/properties/unrecovered/maxItems",
+      "value": 502
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/RuntimeServiceBinding",
+      "value": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "nativeSessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": ["active", "held", "stopped"]
+              }
+            },
+            "required": ["attemptId", "nativeSessionId", "authorityEpoch", "state"]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "nativeSessionId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              "authorityEpoch": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "state": {
+                "type": "string",
+                "enum": ["active", "held", "stopped"]
+              },
+              "conversationReplyId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              "create": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "commandId": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      "authorityEpoch": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      "state": {
+                        "const": "current"
+                      }
+                    },
+                    "required": ["commandId", "authorityEpoch", "state"]
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "state": {
+                        "const": "unresolved"
+                      },
+                      "reason": {
+                        "type": "string",
+                        "enum": ["different_runtime", "correlation_invalid"]
+                      }
+                    },
+                    "required": ["state", "reason"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["attemptId", "nativeSessionId", "authorityEpoch", "state", "conversationReplyId", "create"]
+          }
+        ]
+      }
+    },
+    {
+      "op": "replace",
+      "path": "/components/schemas/RuntimeCommand",
+      "value": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {
+                "const": "sophia.runtime-command.v1"
+              },
+              "commandId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "goalId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "goalRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "authorityEpoch": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "runtimeUnitId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "goalId",
+                  "goalRevision",
+                  "attemptId",
+                  "resourceId",
+                  "authorityEpoch",
+                  "runtimeUnitId"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["create", "resume", "input", "steer", "hold", "stop", "inspect", "retire"]
+              },
+              "expectedNativeSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contextPacketId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200000
+                  },
+                  "role": {
+                    "type": "string",
+                    "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                    "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                  }
+                }
+              }
+            },
+            "required": [
+              "schema",
+              "commandId",
+              "binding",
+              "kind",
+              "expectedNativeSessionId",
+              "contextPacketId",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {
+                "const": "sophia.runtime-command.v1"
+              },
+              "commandId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "authorityEpoch": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "runtimeUnitId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+                  },
+                  "conversationReplyId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "attemptId",
+                  "resourceId",
+                  "authorityEpoch",
+                  "runtimeUnitId",
+                  "conversationReplyId"
+                ]
+              },
+              "kind": {
+                "const": "create"
+              },
+              "expectedNativeSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contextPacketId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200000
+                  },
+                  "role": {
+                    "const": "sophia-conversation-v1"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                    "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                  },
+                  "conversation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "credentialRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "ownerResourceRef": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      },
+                      "unit": {
+                        "type": "string",
+                        "enum": ["calls_tokens", "usd"]
+                      }
+                    },
+                    "required": ["credentialRef", "ownerResourceRef", "unit"]
+                  }
+                },
+                "required": ["role", "route", "text", "conversation"]
+              }
+            },
+            "required": [
+              "schema",
+              "commandId",
+              "binding",
+              "kind",
+              "expectedNativeSessionId",
+              "contextPacketId",
+              "payload"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schema": {
+                "const": "sophia.runtime-command.v1"
+              },
+              "commandId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "attemptId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "resourceId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+                  },
+                  "authorityEpoch": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "runtimeUnitId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$"
+                  },
+                  "conversationReplyId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "required": [
+                  "projectId",
+                  "attemptId",
+                  "resourceId",
+                  "authorityEpoch",
+                  "runtimeUnitId",
+                  "conversationReplyId"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["resume", "input", "steer", "hold", "stop", "inspect", "retire"]
+              },
+              "expectedNativeSessionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "contextPacketId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 64
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "maxLength": 200000
+                  },
+                  "role": {
+                    "type": "string",
+                    "pattern": "^sophia-[a-z]+(-[a-z]+)*-v[0-9]+$"
+                  },
+                  "route": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]{0,62}[a-z0-9]$",
+                    "description": "The route admission chose (a create only). The bridge requires it to be the route its runtime unit maps to the role."
+                  }
+                }
+              }
+            },
+            "required": [
+              "schema",
+              "commandId",
+              "binding",
+              "kind",
+              "expectedNativeSessionId",
+              "contextPacketId",
+              "payload"
+            ]
+          }
+        ]
       }
     }
   ]

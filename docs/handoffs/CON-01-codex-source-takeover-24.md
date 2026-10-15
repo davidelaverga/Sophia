@@ -1,0 +1,34 @@
+# CON-01 takeover24 — subscription qualification and next source request
+
+Observed 2026-10-13 21:55Z. Same mission/session, Codex sole implementer; Claude stopped. This checkpoint adds documentation only. Published PR273 remains `457053b3fe619631f0d2e2fcc1e3edc98cfc5348`, tree `ec71aa3a83e6208ff559d075a881b374fdb8593c`. Unpublished reply-child source remains `a2b6a620ee123969f61bf2e4ac0eb59c059704590673cf2adeda4f915ae0396e`; tests `ece685ba6e08ea933e7caaf92f01c7a9ce13530d0b83c1c96a042ce8bd4d5702`. Handoff23's 65 independent focused passes and 2470 ordinary passes/70 skips are retained evidence, not new runs. No new push: automatic review273/6144338846 still covers only the published head.
+
+## Read-only findings
+
+Refreshed actual issue198 and PR199 comments: no newer owner handback after199/6150077353. Latest observed main remains240386d5; ten held conflicts and #287 preservation requirements remain as recorded in handoff23. No integration or shared-file authority inferred.
+
+Using the OpenAI Docs skill, refreshed official documentation and compared it with the existing pinned serializer receipt. This establishes a candidate qualification path, not a working Sophia subscription connection:
+
+- The OSS flow binds a registration to a user and workspace. Its overview directs paid/remotely hosted applications to a separate interest process. Sophia's exact deployed topology must be qualified; an owner's plan is not evidence for another account's Ask. [Official overview](https://developers.openai.com/siwc/token-sharing-open-source).
+- The self-hosted VM guide documents the same user/workspace, a stable VM host ID and protected session transfer. It explicitly lacks host-specific usage attribution and revocation for transferred sessions. No transfer or credential access was performed. [VM guide](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms).
+- Requests require streaming, no provider storage, and developer/instructions rather than explicit system input. `max_output_tokens` is unsupported. Existing local serializer proof shows the default emits that field; a compatibility setting omits it, while the nonreasoning negative emits a system role. Omitting the field does not qualify a hard provider token ceiling. No provider was called. [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations).
+- Registration identities and credentials must remain separate even for equal emails; refreshes must serialize and retain rotated credentials. Usage guidance links to ChatGPT Settings Usage. These pages do not establish a numerical remaining-quota API that Sophia can display. Desktop Codex quota is not proof of a Sophia integration. No assertion is made that no such API exists elsewhere. [Accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions).
+
+Existing serializer evidence, read but not rerun: private `subscription-serialization-20261013-1204/receipt.safe.json`, serializer SHA256`3e95145f94ac2a255d1adc0ae65cf02c2e6d479f7a2dbf5c466db21885c29ec6`. Three intercepted synthetic denials; zero real network/provider calls or credential reads. Its zero usage is not real metering proof. Route and finite provider token ceiling remain unqualified. No second harness, PAYG, credits, account rotation or allowance reset proposed.
+
+## Concrete source-only approval request
+
+The current R3 window ends **2026-10-13T22:00:00Z / midnight Rome**. It has not been extended by this record. For the next bounded implementation, request these separately identifiable approvals together:
+
+1. Approve the exact [handoff13](CON-01-codex-source-takeover-13.md) amendment, SHA256`85476cfd700c75e98220a839b8d9195edcdf7c64980c01255efee1113169c02d`: retain original trusted credential/owner-resource/unit references in the CON create contract and consume those references for reservation. Its independently reviewed wire/SQL proposals remain the implementation boundary.
+2. Approve the exact [handoff19](CON-01-codex-source-takeover-19.md) amendment, SHA256`ce1a01b2d4b11128f4d19e312ebc5c9f2762e6f6c875a991b032c1bf07659f56`: return settled used amounts for strict recovery comparison, preserving authorization and accounting. No fabricated zero or second settlement to query a value.
+3. Renew the existing source-only window through **2026-10-14T10:00:00Z / 12:00 Rome on 14 October** for approved r12 plus5/6/generator/11 and, only if approved above,13/19. Codex remains sole writer. This does not approve Q8/profile/image changes, held Studio/shared integration, merge, hosted migrations/config/deployment, accounts/members/grants/connection effects, credential access/transfer/use or native/provider/subscription execution/spending. Existing owner handbacks are not extended. Independent exact-pin/whole-diff review before any push and actual automatic Codex review after every push remain mandatory.
+
+Reason: approved r12 section3 says, “Nothing outside these lists is written. An unlisted need stops the writer, and the list is amended and acknowledged again.” These two contract additions exceed that list. R3 is a fixed expiry, not an ongoing operational grant. No new low-level product choice is requested. The user may approve only the renewal and retain both amendments pending; that permits disjoint listed registry work but not complete reservation/recovery integration.
+
+## Effects, acceptance and recovery
+
+Actions in this checkpoint: git status and source/handoff reads, actual GitHub comment refresh, official documentation reads, and these documentation updates. No feature source changed or tests rerun. No provider/hosted/account/credential effects; no new fixtures or resources to clean up. Product provider use0; assistant/reviewer compute unknown. Nothing deployed, so no hosted rollback required; unpublished source remains separable. Eventual rollback must preserve governed records and uncertain accounting.
+
+The serving app/API/runtime tuple remains unverified. OP0002r6 and OP0001r4 remain unapproved and not ready for approval. The existing browser path is available but the designated cohort and real Ask are unqualified; CON01-A30 remains not_run. The36-case ledger remains18partial_L1/3passed_L1/15not_run. No source_ready, whole-candidate reviewed, operational authorized, deployed, app_verified or owner_accepted promotion. Ask remains disabled; broader product and other missions stay open.
+
+Next bounded action after the applicable approvals: apply the two exact contract amendments with real local PostgreSQL/HTTP and recovery comparison tests, then independently review affected source before assembling delivery. Until then, do not substitute current configuration for original request identity or infer settled amounts. Stop source writes at R3 expiry absent renewed approval; read-only discovery remains permitted. No autonomous monitor or promise of work after this session.
