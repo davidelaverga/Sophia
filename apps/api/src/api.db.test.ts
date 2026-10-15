@@ -518,6 +518,26 @@ describe('reading the room’s earlier discussion (A23)', () => {
   })
 })
 
+describe('host controls (A24)', () => {
+  // This suite has no LiveKit server: every check before the room server's is proven here, and the room server's own
+  // part in host-controls.livekit.test.ts.
+  const act = (actor: string, projectId: string, identity: string, what: 'mute' | 'remove') =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/room/people/${identity}/${what}`, {})
+
+  it('an admin only; never at themselves or at Sophia; past those, the room server answers', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    for (const what of ['mute', 'remove'] as const) {
+      assert.equal((await act(B, projectId, V, what)).status, 403, `an editor may not ${what}`)
+      assert.equal((await act(C, projectId, V, what)).status, 403, `an outsider may not ${what}`)
+      const self = await act(A, projectId, A, what)
+      assert.deepEqual([self.status, self.json.code], [422, 'invalid_request'])
+      assert.equal((await act(A, projectId, 'sophia', what)).status, 422)
+      const reached = await act(A, projectId, B, what)
+      assert.deepEqual([reached.status, reached.json.code], [503, 'unavailable'])
+    }
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)

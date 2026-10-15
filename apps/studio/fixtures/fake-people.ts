@@ -87,13 +87,29 @@ export function onPeopleChange(fn: () => void): void {
   changed = fn
 }
 
+/** Who an admin muted, and who they took out of the call (host-controls.md), by identity. */
+const muted = new Set<string>()
+const removed = new Set<string>()
+
+/** An admin's act lands, as LiveKit's server applies it: the microphone goes off, or the person leaves. */
+export function hostActed(what: 'mute' | 'remove', identity: string): void {
+  ;(what === 'mute' ? muted : removed).add(identity)
+  changed()
+}
+
 /** The others in the room, as LiveKit lists remote participants. */
 export function others(): RoomParticipant[] {
-  return NAMES.slice(0, count).map((name, i) => ({
+  return NAMES.slice(0, count)
+    .map((name, i) => person(name, i))
+    .filter((p) => !removed.has(p.identity))
+}
+
+function person(name: string, i: number): RoomParticipant {
+  return {
     identity: personId(i + 1),
     name,
     speaking: now.speaking.includes(i + 1),
-    micOn: true,
+    micOn: !muted.has(personId(i + 1)),
     cameraOn: video === 'camera',
     screenOn: video === 'screen' && i === screenBy - 1,
     local: false,
@@ -102,7 +118,7 @@ export function others(): RoomParticipant[] {
     following: followingBy.get(i + 1) ?? null,
     // They came in the order of NAMES, a minute apart.
     joinedAt: Date.UTC(2026, 9, 6, 15) + i * 60_000,
-  }))
+  }
 }
 
 /** A name for an actor id, as the room shows it: the viewer's own, an other's, or nobody's. */

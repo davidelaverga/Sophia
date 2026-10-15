@@ -1,0 +1,77 @@
+import { expect, test, type Page } from '@playwright/test'
+
+// An admin mutes or removes someone in the call (docs/plans/host-controls.md, A24): the side panel's People lists
+// everyone, you first, and an admin's menu on each other member mutes their microphone while it is on, or takes them
+// out of the call. A guest leaves by the door's Deny, so their row offers nothing. Every name is synthetic.
+
+const MARCO = '00000000-0000-4000-8000-0000000000b1'
+const LUCIA = '00000000-0000-4000-8000-0000000000b2'
+const leave = (page: Page) => page.getByRole('button', { name: 'Leave the room' })
+const list = (page: Page) => page.getByRole('list', { name: 'People in the call' })
+const actions = (page: Page, name: string) => list(page).getByRole('button', { name: `Actions for ${name}` })
+const menu = (page: Page, name: string) => page.getByRole('menu', { name: `Actions for ${name}` })
+const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
+
+async function enter(page: Page, query = '') {
+  await page.goto(`/room.html?call=on&people=2${query}`)
+  await expect(leave(page).first()).toBeVisible()
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await expect(list(page)).toBeVisible()
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.route(
+    (url) => url.origin !== 'http://127.0.0.1:5199',
+    (route) => route.abort(),
+  )
+})
+
+test.afterEach(async ({ page }) => {
+  expect(await page.evaluate(() => [...(window.fixture?.unexpected ?? [])])).toEqual([])
+})
+
+test('host · People lists everyone in the call, you first, with whether each microphone is on', async ({ page }) => {
+  await enter(page)
+  await expect(list(page).locator('.person-name')).toHaveText(['Fixture · you', 'Marco', 'Lucía'])
+  await expect(list(page).getByRole('img', { name: 'Microphone on' })).toHaveCount(3)
+})
+
+test('host · an admin mutes a member whose microphone is on, and takes another out of the call', async ({ page }) => {
+  await enter(page)
+  await actions(page, 'Marco').click()
+  await expect(menu(page, 'Marco').getByRole('menuitem')).toHaveText(['Mute microphone', 'Remove from call'])
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect.poll(() => served(page)).toContain(`mute:${MARCO}`)
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await actions(page, 'Marco').click()
+  await expect(menu(page, 'Marco').getByRole('menuitem')).toHaveText(['Remove from call'])
+  await page.keyboard.press('Escape')
+  await actions(page, 'Lucía').click()
+  await menu(page, 'Lucía').getByRole('menuitem', { name: 'Remove from call' }).click()
+  await expect.poll(() => served(page)).toContain(`remove:${LUCIA}`)
+  await expect(list(page).locator('.person-name')).toHaveText(['Fixture · you', 'Marco'])
+})
+
+test('host · an editor sees the people, and no actions', async ({ page }) => {
+  await enter(page, '&role=editor')
+  await expect(list(page).locator('.person-name')).toHaveCount(3)
+  await expect(list(page).getByRole('button', { name: /^Actions for/ })).toHaveCount(0)
+})
+
+test('host · a guest’s row offers nothing: a guest leaves by the door', async ({ page }) => {
+  await enter(page, '&guest=1')
+  await expect(list(page).locator('li', { hasText: 'Lucía' })).toContainText('Guest')
+  await expect(actions(page, 'Lucía')).toHaveCount(0)
+  await expect(actions(page, 'Marco')).toHaveCount(1)
+})
+
+test('host · a refusal is said in the panel, and nothing changes', async ({ page }) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.failHost())
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(list(page).getByRole('alert')).toContainText('Couldn’t mute Marco')
+  await expect(list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone on' })).toBeVisible()
+})

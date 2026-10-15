@@ -112,6 +112,8 @@ interface Fixture {
   failReplies: (on: boolean) => void
   /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
   failEarlier: () => void
+  /** The next host control fails, as an unreachable room server's (host-controls.md). */
+  failHost: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
@@ -414,6 +416,7 @@ const project = {
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failEarlier: false,
+  failHost: false,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -571,6 +574,9 @@ window.fixture = {
   },
   failEarlier: () => {
     project.failEarlier = true
+  },
+  failHost: () => {
+    project.failHost = true
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
