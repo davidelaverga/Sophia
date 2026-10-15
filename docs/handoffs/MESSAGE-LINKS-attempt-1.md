@@ -9,7 +9,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `91677bdea366` (tree `e59638c14163`), the last commit of `ui/clickable-links`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `e2e/message-links.spec.ts`, `src/app/LinkedText.tsx`, `src/app/links.test.ts`, `src/app/links.ts`, `src/app/theme.css`, `src/features/conversation/Conversation.tsx`, `src/features/conversations/OpenConversation.tsx`, `src/features/personal/Conversation.tsx`, `src/features/personal/Find.tsx`, `docs/plans/message-links.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
