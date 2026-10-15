@@ -2,8 +2,9 @@
 // keeps a tile of her own: it is transparent, and her light shines in it from behind. A report shown to everyone takes
 // the shared screen's place (PresentedReport, docs/plans/room-present.md). Past a few people the tiles stop, and «+N»
 // opens everyone in the call (tile-view.ts, docs/plans/room-tiles-overflow.md).
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { Icon, Tip } from '@sophia/ui'
 import type { VideoFeed } from './livekit-room.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import {
@@ -33,6 +34,72 @@ interface TileProps {
   person: RoomParticipant
   camera: VideoFeed | undefined
   holds: boolean
+  /** Pin this person (the gallery's tiles): they take the stage for this viewer alone. */
+  onPin?: (() => void) | undefined
+}
+
+/**
+ * Full screen for the stage's main view (room-pin-fullscreen.md): a shared screen or a person pinned. Esc leaves it as
+ * the browser's own does; where the browser has none it isn't offered.
+ */
+function FullScreen({ target }: { target: RefObject<HTMLElement | null> }) {
+  const [full, setFull] = useState(false)
+  useEffect(() => {
+    const said = () => setFull(target.current !== null && document.fullscreenElement === target.current)
+    document.addEventListener('fullscreenchange', said)
+    return () => document.removeEventListener('fullscreenchange', said)
+  }, [target])
+  if (!document.fullscreenEnabled) return null
+  const label = full ? 'Exit full screen' : 'Full screen'
+  return (
+    <button
+      type="button"
+      className="round has-tip"
+      aria-label={label}
+      onClick={() => void (full ? document.exitFullscreen() : target.current?.requestFullscreen())}
+    >
+      <Icon name={full ? 'collapse' : 'expand'} />
+      <Tip label={label} align="end" />
+    </button>
+  )
+}
+
+/** A person pinned, on the stage: their camera or their initial, their name, Unpin and full screen. */
+function Spotlight(props: { person: RoomParticipant; camera: VideoFeed | undefined; onUnpin: () => void }) {
+  const { person, camera, onUnpin } = props
+  const figure = useRef<HTMLElement>(null)
+  const name = shortName(person.name)
+  return (
+    <figure ref={figure} className="screen-main spotlight-main">
+      {camera ? (
+        <VideoView feed={camera} fit="contain" />
+      ) : (
+        <span className="tile-initial spotlight-initial">{name.charAt(0)}</span>
+      )}
+      <figcaption>{person.local ? `${name} · you` : name}</figcaption>
+      <span className="stage-acts">
+        <button type="button" className="round has-tip" aria-label={`Unpin ${name}`} onClick={onUnpin}>
+          <Icon name="close" />
+          <Tip label={`Unpin ${name}`} align="end" />
+        </button>
+        <FullScreen target={figure} />
+      </span>
+    </figure>
+  )
+}
+
+/** A shared screen, on the stage, with full screen. */
+function SharedScreen({ feed, caption }: { feed: VideoFeed; caption: string }) {
+  const figure = useRef<HTMLElement>(null)
+  return (
+    <figure ref={figure} className="screen-main">
+      <VideoView feed={feed} fit="contain" />
+      <figcaption>{caption}</figcaption>
+      <span className="stage-acts">
+        <FullScreen target={figure} />
+      </span>
+    </figure>
+  )
 }
 
 /** What sets someone apart, after their name: « · you», « · guest», « · floor» (on a phone, theme.css). */
@@ -45,7 +112,7 @@ function TileMark({ mark }: { mark: 'you' | 'guest' | 'floor' }) {
   )
 }
 
-function PersonTile({ person, camera, holds }: TileProps) {
+function PersonTile({ person, camera, holds, onPin }: TileProps) {
   return (
     <li
       className="tile"
@@ -65,6 +132,17 @@ function PersonTile({ person, camera, holds }: TileProps) {
         {person.standing === 'guest' && <TileMark mark="guest" />}
         {holds && <TileMark mark="floor" />}
       </span>
+      {onPin && (
+        <button
+          type="button"
+          className="round tile-pin has-tip"
+          aria-label={`Pin ${shortName(person.name)}`}
+          onClick={onPin}
+        >
+          <Icon name="expand" />
+          <Tip label={`Pin ${shortName(person.name)}`} align="end" />
+        </button>
+      )}
     </li>
   )
 }
@@ -82,8 +160,15 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
   const screen = feeds.find((f) => f.source === 'screen')
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
   const present = mode === 'present' && (screen !== undefined || shown !== undefined)
+  const [pinned, setPinned] = usePin(people, present)
   const arrived = arrivalOrder(people)
-  const { kept, more, count } = useKeptTiles(people, { floor, showing: screen?.identity ?? null, arrived }, present)
+  const stage = { floor, showing: screen?.identity ?? null, arrived, pinned: pinned?.identity }
+  const strip = present || pinned !== undefined
+  const { kept, more, count } = useKeptTiles(
+    people.filter((p) => p !== pinned),
+    stage,
+    strip,
+  )
   // Held here, not in «+N»: the tiles move between the strip and the gallery, and the sheet stays open across.
   const [everyone, setEveryone] = useState(false)
   const tiles = (
@@ -97,46 +182,76 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
           person={p}
           camera={cameraOf(p.identity)}
           holds={floor.holder?.identity === p.identity}
+          onPin={present ? undefined : () => setPinned(p.identity)}
         />
       ))}
       {more.length > 0 && <MoreTile count={more.length} onOpen={() => setEveryone(true)} />}
     </>
   )
-  if (present) {
-    const presenter = screen ? people.find((p) => p.identity === screen.identity) : undefined
+  const sheet = everyone && <InTheCall people={people} floor={floor} onClose={() => setEveryone(false)} />
+  if (!strip) {
     return (
-      <div className="present">
-        {screen ? (
-          <figure className="screen-main">
-            <VideoView feed={screen} fit="contain" />
-            <figcaption>{screenCaption(presenter)}</figcaption>
-          </figure>
-        ) : (
-          shown
-        )}
-        <ul className="tile-strip" aria-label="In the room">
-          {tiles}
-        </ul>
-        {everyone && <InTheCall people={people} floor={floor} onClose={() => setEveryone(false)} />}
-      </div>
+      <ul className="gallery" data-count={count} aria-label="In the room">
+        {tiles}
+        {sheet}
+      </ul>
     )
   }
   return (
-    <ul className="gallery" data-count={count} aria-label="In the room">
-      {tiles}
-      {everyone && <InTheCall people={people} floor={floor} onClose={() => setEveryone(false)} />}
-    </ul>
+    <div className={pinned ? 'present spotlight' : 'present'}>
+      <StageMain
+        pinned={pinned}
+        cameraOf={cameraOf}
+        onUnpin={() => setPinned(null)}
+        screen={screen}
+        people={people}
+        shown={shown}
+      />
+      <ul className="tile-strip" aria-label="In the room">
+        {tiles}
+      </ul>
+      {sheet}
+    </div>
   )
+}
+
+/** What takes the stage: a person pinned, else a shared screen, else a report shown. */
+function StageMain(props: {
+  pinned: RoomParticipant | undefined
+  cameraOf: (identity: string) => VideoFeed | undefined
+  onUnpin: () => void
+  screen: VideoFeed | undefined
+  people: readonly RoomParticipant[]
+  shown: ReactNode
+}) {
+  const { pinned, screen } = props
+  if (pinned) return <Spotlight person={pinned} camera={props.cameraOf(pinned.identity)} onUnpin={props.onUnpin} />
+  if (!screen) return props.shown
+  const presenter = props.people.find((p) => p.identity === screen.identity)
+  return <SharedScreen feed={screen} caption={screenCaption(presenter)} />
+}
+
+/** Whom this viewer pinned, while they are here and no screen or report takes the stage; this viewer's alone. */
+function usePin(people: readonly RoomParticipant[], present: boolean) {
+  const [pinnedId, setPinned] = useState<string | null>(null)
+  const pinned = present ? undefined : people.find((p) => p.identity === pinnedId)
+  return [pinned, setPinned] as const
 }
 
 /** The people with a tile, the rest past them («+N»), and how many tiles the gallery lays out (Sophia's too). */
 function useKeptTiles(
   people: RoomParticipant[],
-  stage: { floor: FloorView; showing: string | null; arrived: readonly string[] },
+  stage: { floor: FloorView; showing: string | null; arrived: readonly string[]; pinned: string | undefined },
   present: boolean,
 ) {
   const spokeAt = useSpokeAt(people)
-  const order = { floor: stage.floor.holder?.identity ?? null, showing: stage.showing, spokeAt, arrived: stage.arrived }
+  const order = {
+    floor: stage.floor.holder?.identity ?? null,
+    showing: stage.showing,
+    spokeAt,
+    arrived: stage.arrived,
+    pinned: stage.pinned ?? null,
+  }
   const { shown: kept, more } = tilesFor(people, order, present ? STRIP_TILES : GALLERY_TILES)
   return { kept, more, count: kept.length + 1 + (more.length > 0 ? 1 : 0) }
 }
