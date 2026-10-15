@@ -9,7 +9,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `43fd580a5cfb` (tree `924213e679a1`), the last commit of `ui/forget-personal-note`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 6 files changed against
+`origin/main` at that commit: `e2e/personal-forget-note.spec.ts`, `fixtures/personal.tsx`, `src/features/personal/NotesPanel.tsx`, `src/features/personal/PersonalSpace.tsx`, `src/features/personal/notice-view.ts`, `docs/plans/personal-forget-note.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
