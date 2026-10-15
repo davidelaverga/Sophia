@@ -6,6 +6,7 @@
 // read separately through `sophia()`, from the attributes the bridge sets and from whether her sound actually
 // reaches this browser (S1-05A §6.5).
 import {
+  ConnectionState,
   DisconnectReason,
   LocalVideoTrack,
   Room,
@@ -33,6 +34,7 @@ import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
 import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
+import { hearWhileMuted } from './muted-speech.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
@@ -104,6 +106,8 @@ export interface RoomCallbacks {
   onCaptionsLost?: () => void
   /** Someone in the room reacted (call-reactions.md). */
   onReaction?: (heard: Heard) => void
+  /** Speech heard on this person's microphone while it is off (muted-speech.md). */
+  onSpeakingMuted?: () => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -341,12 +345,40 @@ type DeviceControls = Pick<
   'setMicrophone' | 'setCamera' | 'setBackground' | 'setScreenShare' | 'switchDevice'
 >
 
+/**
+ * While this person's microphone is off in the call, listen for speech on it, to say «You're muted»
+ * (muted-speech.md): on any change of the microphone, a host's mute included, and never once the call is over.
+ */
+function mutedMicrophone(room: Room, onSpeaking: () => void): () => void {
+  let stop: (() => void) | null = null
+  const sync = () => {
+    const off = room.state === ConnectionState.Connected && !room.localParticipant.isMicrophoneEnabled
+    if (off && !stop) stop = hearWhileMuted(room.getActiveDevice('audioinput'), onSpeaking)
+    if (!off && stop) {
+      stop()
+      stop = null
+    }
+  }
+  for (const event of [RoomEvent.TrackMuted, RoomEvent.TrackUnmuted, RoomEvent.LocalTrackPublished])
+    room.on(event, sync)
+  room.on(RoomEvent.Disconnected, () => {
+    stop?.()
+    stop = null
+  })
+  return sync
+}
+
 /** This person's devices in the call, each as LiveKit leaves it, not as its answer says (deviceChange). */
-function deviceControls(room: Room, after: (change: Promise<unknown>) => Promise<void>): DeviceControls {
+function deviceControls(
+  room: Room,
+  after: (change: Promise<unknown>) => Promise<void>,
+  micChanged: () => void,
+): DeviceControls {
   const me = room.localParticipant
   const drawn = background(room)
   return {
-    setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
+    setMicrophone: (on) =>
+      after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)).finally(micChanged),
     // The chosen background goes with the capture, so the room never sees what is behind (camera-background.ts).
     // With a background, the camera is made, drawn and only then published (camera-background.ts).
     // The camera's own on and off take their turns with background choices, so neither races the other (Codex on #342).
@@ -409,7 +441,11 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     audioBlocked: () => !room.canPlaybackAudio,
     startAudio: () => after(room.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
-    ...deviceControls(room, after),
+    ...deviceControls(
+      room,
+      after,
+      mutedMicrophone(room, () => cb.onSpeakingMuted?.()),
+    ),
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     sendReaction: (emoji) =>
       room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),

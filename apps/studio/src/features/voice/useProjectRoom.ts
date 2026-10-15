@@ -78,6 +78,8 @@ export interface ProjectRoom {
   backgroundsSupported: () => Promise<boolean>
   /** Reactions on screen, this person's own and the room's, each for a few seconds (call-reactions.md). */
   reactions: Reaction[]
+  /** Speech was just heard on this person's muted microphone: «You're muted», for a few seconds (muted-speech.md). */
+  mutedHint: boolean
   /** React: shown here at once and sent to everyone in the call; at most one every 400 ms. */
   react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
@@ -283,6 +285,9 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
       onReaction: (heard) => {
         if (calls.isCurrent(call)) typedChat.onReaction(heard)
       },
+      onSpeakingMuted: () => {
+        if (calls.isCurrent(call)) typedChat.onSpeakingMuted()
+      },
       onStatus: (s) => {
         if (calls.isCurrent(call)) setStatus(s)
       },
@@ -354,6 +359,7 @@ function useConversation(connection: { current: RoomConnection | null }, silence
   const typedChat = useTypedChat(connection, silence, arrival)
   const live = useCaptions(arrival)
   const reacting = useReactions(connection)
+  const muted = useMutedHint()
   const interrupted = () => {
     typedChat.interrupted()
     live.interrupted()
@@ -367,14 +373,32 @@ function useConversation(connection: { current: RoomConnection | null }, silence
     reactions: reacting.reactions,
     onReaction: reacting.onReaction,
     react: reacting.react,
+    mutedHint: muted.shown,
+    onSpeakingMuted: muted.heard,
     interrupted,
   }
 }
 
+/** How long «You're muted» stays said. */
+const MUTED_HINT_MS = 5000
+
+/** «You're muted» for a few seconds after speech was heard on the muted microphone (muted-speech.md). */
+function useMutedHint() {
+  const [shown, setShown] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const heard = () => {
+    clearTimeout(timer.current)
+    setShown(true)
+    timer.current = setTimeout(() => setShown(false), MUTED_HINT_MS)
+  }
+  return { shown, heard }
+}
+
 /** What the conversation gives the room: the chat, the notices, the captions, the reactions, and text mode. */
 function conversationParts(c: ReturnType<typeof useConversation>) {
-  const { chat, notices, captions, reactions, react, textMode, textModeNow, setTextMode, sendChat } = c
-  return { chat, notices, captions, reactions, react, textMode, textModeNow, setTextMode, sendChat }
+  const { chat, notices, captions, reactions, react, mutedHint, textMode, textModeNow, setTextMode, sendChat } = c
+  return { chat, notices, captions, reactions, react, mutedHint, textMode, textModeNow, setTextMode, sendChat }
 }
 
 /** Reactions on screen (call-reactions.md): this person's own and the room's, each for a few seconds, the newest twelve. */
