@@ -52,6 +52,8 @@ interface Props {
   }
   /** The invitations waiting for the person (InvitedBand, A16): at the head of the list; nothing when none waits. */
   invited?: ReactNode
+  /** The person's archived projects (A30), folded after the list, and how an admin brings one back. */
+  archived?: { projects: readonly ProjectSummary[] | undefined; onUnarchive: (projectId: string) => void }
 }
 
 function Edge({ lock, onCross }: { lock: LockedBy | null; onCross: () => void }) {
@@ -294,6 +296,44 @@ function NoneFound({ typed, onClear }: { typed: string; onClear: () => void }) {
   )
 }
 
+/**
+ * «Archived (n)» after the list (archive-project.md): folded, as a finished project should be; each opens, and an admin
+ * brings one back. Nothing while none is archived.
+ */
+function ArchivedFold({ archived, onOpen }: { archived: Props['archived']; onOpen: (projectId: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const projects = archived?.projects ?? []
+  if (!archived || projects.length === 0) return null
+  return (
+    <section className="c3-archived" aria-label="Archived projects">
+      <button
+        type="button"
+        className="text-button c3-archived-fold"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+      >
+        {`Archived (${String(projects.length)})`}
+      </button>
+      {open && (
+        <ul className="c3-archived-list">
+          {projects.map((p) => (
+            <li key={p.projectId}>
+              <button type="button" className="text-button" onClick={() => onOpen(p.projectId)}>
+                {p.title}
+              </button>
+              {p.role === 'admin' && (
+                <button type="button" className="ghost" onClick={() => archived.onUnarchive(p.projectId)}>
+                  Unarchive
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 export function WorkSpace(props: Props) {
   const { token, projects, newProject, personalLock, actions } = props
   const now = useNow(20_000)
@@ -341,6 +381,7 @@ export function WorkSpace(props: Props) {
         {list.map((p) => (
           <Card key={p.projectId} project={p} props={props} now={now} />
         ))}
+        <ArchivedFold archived={props.archived} onOpen={actions.open} />
       </div>
     </section>
   )
