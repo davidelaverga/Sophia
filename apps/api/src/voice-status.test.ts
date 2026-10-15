@@ -409,3 +409,75 @@ describe('project_status for a v1.3 guide: the designed page and its edit (SDD-0
     assert.equal('revise_html_page' in operations('editor', { guide: 'v1.2', pdf: true, researchGate: true }), false)
   })
 })
+
+describe('project_status names no one (e2e brief «A member»)', () => {
+  it('says who wrote or decided only as who they are to the speaker, never by the name the brief keeps', () => {
+    const ctx = missionContext('editor')
+    const at = { sourceId: PROJECT, sha256: '0'.repeat(64) }
+    const status = voiceStatus({
+      context: {
+        ...ctx,
+        entries: [
+          {
+            ...at,
+            id: '00000000-0000-4000-8000-0000000000e1',
+            kind: 'observation',
+            epistemic: 'observed',
+            state: 'current',
+            text: 'Three of five got lost at the door.',
+            textKind: 'member_text',
+            authoredBy: 'member',
+            actorId: '00000000-0000-4000-8000-0000000000a2',
+            authorName: 'davide@sophia.test',
+            origin: 'studio',
+            exchangeId: null,
+            inputEpoch: null,
+            relatedEntryId: null,
+            supersedesEntryId: null,
+            supersededById: null,
+            goalId: null,
+            decisionId: null,
+            ledgerRevision: 1,
+            observedAt: AT,
+            recordedAt: AT,
+            changedAt: null,
+          },
+        ],
+        pending: [
+          {
+            ...at,
+            id: '00000000-0000-4000-8000-0000000000e2',
+            revision: 1,
+            kind: 'constraint',
+            state: 'proposed',
+            statement: 'Signs at the door.',
+            purpose: null,
+            destination: null,
+            origin: null,
+            textKind: 'member_text',
+            proposedBy: '00000000-0000-4000-8000-0000000000a2',
+            proposedByName: 'davide@sophia.test',
+            proposedVia: 'studio',
+            createdAt: AT,
+            baseMissionRevision: 1,
+            stale: false,
+            supersedesDecisionId: null,
+            supportingEntryIds: [],
+            decidedBy: null,
+            decidedByName: null,
+            decidedAt: null,
+            decidedVia: null,
+          },
+        ],
+      },
+      speakerId: SPEAKER,
+      discussion: [],
+      target: null,
+      now: Date.parse(AT),
+      guide: 'v1.1',
+    })
+    const said = JSON.stringify(status)
+    assert.ok(said.includes('Three of five got lost'), 'the note itself is said')
+    assert.ok(!said.includes('sophia.test'), 'no member’s name or address reaches the guide')
+  })
+})

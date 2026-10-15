@@ -364,3 +364,31 @@ describe('who accepts a direction (e2e-real S1)', () => {
     assert.doesNotMatch(SAVE_DIRECTION_NOTE, /the team to accept/)
   })
 })
+
+describe('who wrote a note or decided, outside a call (e2e brief «A member»)', () => {
+  const decided = (over: Partial<MissionDecision>): MissionDecision => ({
+    ...proposal('d1'),
+    state: 'accepted',
+    decidedBy: 'l',
+    decidedAt: '2026-09-29T00:00:00.000Z',
+    decidedVia: 'studio',
+    ...over,
+  })
+
+  it('names the decider by the name the decision kept when the call does not know them', () => {
+    assert.equal(decidedBy(decided({ decidedByName: 'luis@sophia.test' }), 'me', new Map()), 'Luis, in the Studio')
+    assert.equal(decidedBy(decided({ decidedByName: null }), 'me', new Map()), 'A member, in the Studio')
+  })
+
+  it('keeps each record’s own name: one actor renamed between two decisions reads as each one kept it', () => {
+    const before = decided({ id: 'd1', decidedByName: 'luis@old.test' })
+    const after = decided({ id: 'd2', decidedByName: 'Luis Ortega' })
+    assert.equal(decidedBy(before, 'me', new Map()), 'Luis, in the Studio')
+    assert.equal(decidedBy(after, 'me', new Map()), 'Luis Ortega, in the Studio')
+  })
+
+  it('what the call knows wins', () => {
+    const known = new Map([['l', 'Luis R.']])
+    assert.equal(decidedBy(decided({ decidedByName: 'luis@sophia.test' }), 'me', known), 'Luis R., in the Studio')
+  })
+})

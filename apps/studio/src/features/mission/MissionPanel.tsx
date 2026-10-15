@@ -253,7 +253,7 @@ function PendingDecision({ ctx, projectId, identity, me, names }: PartProps) {
       <p>{proposal.statement}</p>
       {cites && <p className="muted">{cites}</p>}
       <p className="muted">
-        Proposed by {authorLabel(proposal.proposedBy, me, names)}
+        Proposed by {authorLabel(proposal.proposedBy, me, names, proposal.proposedByName ?? null)}
         {alternatives > 0 ? `; ${String(alternatives)} other proposal${alternatives > 1 ? 's' : ''} pending` : ''}.
         {proposal.stale ? ' The accepted direction changed since; it can’t be accepted as it is.' : ''}
       </p>

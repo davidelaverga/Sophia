@@ -1,0 +1,77 @@
+{
+  "id": "A18",
+  "goal": "E2E",
+  "title": "The brief names who wrote a note and who decided, in a call or not",
+  "why": [
+    "Left by A17 (2026-10-14): the brief's notes and decisions named their authors from the call's participants, so with nobody in the call each read «A member». A MissionEntry carries only its author's actorId, and a MissionDecision only its proposer's and decider's.",
+    "MissionEntry gains authorName, and MissionDecision proposedByName and decidedByName: the name each one's token carried when they wrote or decided (an address when the account has no other name), kept by the service for the transaction's own actor. None is ever taken from a request (MissionEntryRequest, MissionProposalRequest and MissionDecisionRequest have no such field). Each is null for what was written before this, by voice or for anyone else; optional, so a reader that does not know them is unchanged. The voice guide's project_status does not pass them on: it names people only as who they are to the speaker.",
+    "The names are sent only to a reader that asks for them (getMission's names=1), as the media bridge names its guide version: a Studio still open from before this asks without it, and its validator refuses a property it doesn't know, so it reads the brief it always read (Codex P1 on #336). The voice guide's context never carries them."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1mission/get/parameters/-",
+      "value": {
+        "name": "names",
+        "in": "query",
+        "required": false,
+        "description": "1 to read the authors' names (authorName, proposedByName, decidedByName); without it they are left out, so a reader from before them reads what it always read.",
+        "schema": {
+          "type": "string",
+          "enum": ["1"]
+        }
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionEntry/properties/authorName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision/properties/proposedByName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who proposed it, as their account named them then; null when unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision/properties/decidedByName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who decided it, as their account named them then; null while undecided or when unknown."
+      }
+    }
+  ]
+}

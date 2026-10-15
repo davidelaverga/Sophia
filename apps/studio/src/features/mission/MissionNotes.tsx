@@ -102,7 +102,8 @@ function Note({ entry, ctx, projectId, identity, me, names, onEditing }: Props &
       <span className="mission-note-meta">
         <Tag tone="lav">{ENTRY_KIND[entry.kind]}</Tag>
         <span className="muted">
-          {EPISTEMIC[entry.epistemic]} · {wording(entry)} · {authorLabel(entry.actorId, me, names)}
+          {EPISTEMIC[entry.epistemic]} · {wording(entry)} ·{' '}
+          {authorLabel(entry.actorId, me, names, entry.authorName ?? null)}
         </span>
       </span>
       {editing ? (

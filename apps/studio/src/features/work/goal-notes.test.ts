@@ -70,6 +70,8 @@ describe('a goal’s notes (docs/plans/goal-notes.md)', () => {
     assert.equal(noteAuthor(entry('a'), 'luis', names), 'You')
     assert.equal(noteAuthor(entry('a', { actorId: 'marco' }), 'luis', names), 'Marco')
     assert.equal(noteAuthor(entry('a', { actorId: 'ana' }), 'luis', names), 'A member')
+    // Outside a call: the name the note kept (A18).
+    assert.equal(noteAuthor(entry('a', { actorId: 'ana', authorName: 'ana@sophia.test' }), 'luis', names), 'Ana')
   })
 
   it('says the latest note as who said what', () => {
