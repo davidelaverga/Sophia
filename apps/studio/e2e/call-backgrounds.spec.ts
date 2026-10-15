@@ -43,12 +43,18 @@ test('backgrounds · under the cameras, the backgrounds, none marked; a choice a
   expect(await page.evaluate(() => window.fixture?.backgroundOnJoin)).toBe('blur')
 })
 
-test('backgrounds · where the device can’t draw one, the menu says so and offers none to press', async ({ page }) => {
+test('backgrounds · where the device can’t draw one, None still answers and the rest are said unavailable', async ({
+  page,
+}) => {
+  // A blur kept from a device that could draw it: None must still clear it (Codex P2 on #342).
+  await page.addInitScript(() => localStorage.setItem('sophia.background.v1', 'blur'))
   await page.goto('/room.html?call=on&backgrounds=unsupported')
   await open(page)
   await expect(video(page).locator('.menu-head')).toHaveText(['Camera', 'Background'])
   await expect(video(page).getByRole('menuitemradio', { name: 'Blur', exact: true })).toHaveCount(0)
   await expect(video(page).getByRole('menuitem').last()).toHaveText('This browser can’t draw a background')
+  await video(page).getByRole('menuitemradio', { name: 'None', exact: true }).click()
+  await expect.poll(() => asked(page)).toContain('background:none')
 })
 
 test('backgrounds · a background the device refuses says so in the dock', async ({ page }) => {
