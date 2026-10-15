@@ -82,9 +82,24 @@ export function setFollowers(people: readonly number[], versionId: string): void
   changed()
 }
 
+/** The others still here, each with their place among the page's people. */
+const here = () =>
+  NAMES.slice(0, count)
+    .map((name, i) => ({ name, i }))
+    .filter(({ name }) => !left.has(name))
+
 /** The room's connection hears of a change here as LiveKit's events tell it: it reads its participants again. */
 export function onPeopleChange(fn: () => void): void {
   changed = fn
+}
+
+/** Those who left the room, by name (`window.fixture.leaves`). */
+const left = new Set<string>()
+
+/** Someone leaves the room, as LiveKit's participant leaving: gone from the people and their feeds. */
+export function personLeaves(name: string): void {
+  left.add(name)
+  changed()
 }
 
 /** Who an admin muted, and who they took out of the call (host-controls.md), by identity. */
@@ -99,8 +114,8 @@ export function hostActed(what: 'mute' | 'remove', identity: string): void {
 
 /** The others in the room, as LiveKit lists remote participants. */
 export function others(): RoomParticipant[] {
-  return NAMES.slice(0, count)
-    .map((name, i) => person(name, i))
+  return here()
+    .map(({ name, i }) => person(name, i))
     .filter((p) => !removed.has(p.identity))
 }
 
@@ -111,7 +126,8 @@ function person(name: string, i: number): RoomParticipant {
     speaking: now.speaking.includes(i + 1),
     micOn: !muted.has(personId(i + 1)),
     cameraOn: video === 'camera',
-    screenOn: video === 'screen' && i === screenBy - 1,
+    // `video=screens`: the first two share at once (two-screens.md).
+    screenOn: (video === 'screen' && i === screenBy - 1) || (video === 'screens' && i < 2),
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',
@@ -235,7 +251,8 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
 
 /** The cameras on (`video=camera`), or one person's shared screen (`video=screen`, `screenBy`). */
 export function feeds(): VideoFeed[] {
-  if (video === 'camera') return others().map((_, i) => feed(i + 1, 'camera'))
+  if (video === 'camera') return here().map(({ i }) => feed(i + 1, 'camera'))
   if (video === 'screen' && count > 0) return [feed(screenBy, 'screen')]
+  if (video === 'screens' && count > 1) return [feed(1, 'screen'), feed(2, 'screen')]
   return []
 }

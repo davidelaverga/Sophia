@@ -51,6 +51,14 @@ describe('tilesFor', () => {
   })
 })
 
+describe('a tile pinned (room-pin-fullscreen.md)', () => {
+  it('the person pinned keeps a tile before anyone, whoever holds the floor or speaks', () => {
+    const order = { ...nobody, floor: 'a', showing: 'b', pinned: 'i' }
+    const { shown } = tilesFor(nine, order, 2)
+    assert.deepEqual(ids(shown), ['i'])
+  })
+})
+
 describe('arrivalOrder', () => {
   it('by when they joined, unknown last, ties by identity, whatever order LiveKit lists them in', () => {
     const people = [

@@ -10,6 +10,7 @@ import { Button, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
 import { leaveProject, renameProject } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { membershipKey } from '../access/useAccess.ts'
 import { snapshotKey } from './useProjectFeed.ts'
 
 interface Props {
@@ -102,6 +103,8 @@ function LeaveSheet({ title, projectId, identity, onClose, onLeft }: SheetProps 
     }
     onClose()
     await onLeft()
+    // The role held here is gone: a new invitation is read afresh, never from this cache (Codex P2 on #349).
+    client.removeQueries({ queryKey: membershipKey(projectId, identity.name) })
     await client.invalidateQueries({ queryKey: ['projects', identity.name] })
   }
   return (
