@@ -365,8 +365,6 @@ function projectWritten(project: Project, path: string, init: RequestInit | unde
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/leave`) return departed(project)
-  const target = GOAL_TARGET.exec(path)?.[1]
-  if (target) return goalTargetPut(project, target, init)
   const host = HOST_ACT.exec(path)
   return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
 }
@@ -897,6 +895,8 @@ function written(project: Project, method: string, path: string, init: RequestIn
   const receipt = answered(project, method, path, init)
   if (receipt) return receipt
   if (method === 'PUT' && path === `/api/v1/projects/${PROJECT}/seen`) return seenPut(project, init)
+  const target = method === 'PUT' ? GOAL_TARGET.exec(path)?.[1] : undefined
+  if (target) return goalTargetPut(project, target, init)
   if (method === 'PUT') return path === `/api/v1/rooms/${ROOM}/focus` ? focusPut(project, init) : null
   return posted(project, path, init)
 }

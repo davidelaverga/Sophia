@@ -6128,3 +6128,23 @@ button.contribution-quote:hover {
   color: var(--rose);
   font-size: var(--type-small);
 }
+
+/* A goal's owner and target date (docs/plans/goal-owner-date.md): on its row, and in its sheet. */
+.goal-row-target {
+  margin: 2px 0 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.goal-target-form {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px 12px;
+}
+.goal-target-form button {
+  grid-column: 2;
+  justify-self: start;
+}
+.goal-target p {
+  margin: 0;
+}

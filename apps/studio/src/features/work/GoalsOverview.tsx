@@ -13,6 +13,7 @@ import { useLedger, type NotesFor } from './GoalNotes.tsx'
 import { notesRead, withNotes } from './goal-notes.ts'
 import { Asks, Faces, Meter, type Asked } from './GoalParts.tsx'
 import { GoalSheet } from './GoalSheet.tsx'
+import { targetLine, useGoalTargets, useMembers } from './GoalTargets.tsx'
 import {
   briefOf,
   canOpenInTasks,
@@ -38,8 +39,12 @@ interface Props {
   onOpenGoal: ((id: string, address?: string) => void) | undefined
 }
 
-/** One goal: its title (the press that opens its sheet), its health and what matters now, its progress, its people. */
-function GoalRow({ goal, plan, onOpen }: { goal: Goal; plan: Glanced | undefined; onOpen: () => void }) {
+/**
+ * One goal: its title (the press that opens its sheet), its health and what matters now, its owner and date
+ * (goal-owner-date.md), its progress, its people.
+ */
+function GoalRow(props: { goal: Goal; plan: Glanced | undefined; target: string | null; onOpen: () => void }) {
+  const { goal, plan, target, onOpen } = props
   const health = healthOf(goal, plan)
   const line = rowLine(goal, plan)
   return (
@@ -55,6 +60,7 @@ function GoalRow({ goal, plan, onOpen }: { goal: Goal; plan: Glanced | undefined
           <span className="goal-health">{health === 'paused' ? line : HEALTH_LABEL[health]}</span>
           {health !== 'paused' && line && ` · ${line}`}
         </p>
+        {target && <p className="goal-row-target">{target}</p>}
       </div>
       <Meter glance={plan?.glance} />
       <Faces glance={plan?.glance} />
@@ -190,6 +196,7 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
   const openAsk = askOpener(onOpenGoal)
   const opened = goals.find((g) => g.id === open)
   const health = healthLine(goals, plans)
+  const [targets, members] = [useGoalTargets(notes), useMembers(notes)]
   return (
     <div className="goals-briefing">
       <p className="goals-brief">
@@ -207,7 +214,13 @@ export function GoalsOverview({ goals, plans: served, notes, onOpenGoal }: Props
       {shown.length === 0 && <NoAnswer query={query} onClear={() => setQuery('')} />}
       <ul className="goal-rows" onKeyDown={moveAlong}>
         {listed.map((g) => (
-          <GoalRow key={g.id} goal={g} plan={plans[g.id]} onOpen={() => setOpen(g.id)} />
+          <GoalRow
+            key={g.id}
+            goal={g}
+            plan={plans[g.id]}
+            target={targetLine(targets.get(g.id), members)}
+            onOpen={() => setOpen(g.id)}
+          />
         ))}
       </ul>
       <DoneFold done={folded} onOpen={unfold} />

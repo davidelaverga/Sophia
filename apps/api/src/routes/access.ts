@@ -30,9 +30,11 @@ import {
   quiesceAcked,
   readInvitation,
   readLobbyEntry,
+  nameActor,
   readMembership,
   readRemoval,
   recordInvitationEmail,
+  rememberRoomName,
   reissueRoomInvitation,
   requestGuestQuiesce,
   revokeRoomInvitation,
@@ -400,7 +402,16 @@ function sessionRoutes(app: FastifyInstance, deps: AccessDeps): void {
     '/api/v1/projects/:projectId/membership',
     { schema: { params: projectParams, response: { 200: ref('Membership') } } },
     async (req) => {
-      const membership = await withActor(deps.pool, req.actorId, 'read', (c) => readMembership(c, req.params.projectId))
+      // Opening a project keeps the reader's name for the room (0050), as joining the call does: the project's members
+      // are named to each other once they opened it (A25's members).
+      const membership = await withActor(deps.pool, req.actorId, 'write', async (c) => {
+        const mine = await readMembership(c, req.params.projectId)
+        if (mine) {
+          await nameActor(c, req.actorName)
+          await rememberRoomName(c, req.params.projectId)
+        }
+        return mine
+      })
       if (!membership) throw new DomainError('forbidden', 'Not permitted')
       return membership
     },
