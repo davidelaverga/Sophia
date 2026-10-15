@@ -9,7 +9,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `b07cc41d4f67` (tree `b4307d2addfa`), the last commit of `ui/call-devices`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 11 files changed against
+`origin/main` at that commit: `e2e/call-devices.spec.ts`, `fixtures/fake-livekit.ts`, `fixtures/room.tsx`, `src/app/theme.css`, `src/features/voice/DeviceMenu.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/device-preference.test.ts`, `src/features/voice/device-preference.ts`, `src/features/voice/livekit-room.ts`, `src/features/voice/useProjectRoom.ts`, `docs/plans/call-devices.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
