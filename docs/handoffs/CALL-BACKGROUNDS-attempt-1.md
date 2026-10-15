@@ -82,3 +82,16 @@ commits on the branch merge its base forward or touch only this record). 21 file
   - Lint, typecheck and Prettier are clean.
 - The local browser suites weren't run again: the machine's guard refused (`safe-run.ps1` exit 90: a game open, 6.8 GB
   free). CI is the run on record.
+- **Codex on #342, second round: two P1s and two P2s.** One fix commit after a failing one (`53986c05`):
+  - **P1, the processor's raw first frame:** a camera with a background is made unpublished, drawn, and published only
+    after `onFrameProcessed`. A muted camera is let go first.
+  - **P1:** `docs/SOURCE_MAP.md` gains rows for `@livekit/track-processors` 0.8.1, `@mediapipe/tasks-vision` 0.10.14
+    and the selfie segmenter, with their digests.
+  - **P2:** None stays actionable where backgrounds can't be drawn.
+  - **P2:** background changes are serialized, and superseded work is dropped before it switches the processor.
+  - The two new ordering cases in `camera-background.test.ts` were adjusted after the failing commit: the test waits
+    until the queued change reaches what it holds, since changes now take their turns a tick later.
+- After the second round:
+  - `camera-background.test.ts` passes 6/6, and Studio unit tests pass.
+  - Lint, typecheck and Prettier are clean.
+  - The browser suites can't run here while a game is open (the guard refuses); CI is the run on record.

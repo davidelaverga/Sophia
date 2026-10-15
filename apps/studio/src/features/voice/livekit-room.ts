@@ -9,6 +9,7 @@ import {
   DisconnectReason,
   LocalVideoTrack,
   Room,
+  createLocalVideoTrack,
   RoomEvent,
   Track,
   VideoPresets,
@@ -231,6 +232,12 @@ export async function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
   return devices.map((d, i) => ({ id: d.deviceId, label: deviceName(kind, d.label, i) }))
 }
 
+/** The camera's capture: 720p, from the camera chosen for calls on this device (wanted, not required). */
+function cameraCapture() {
+  const camera = chosenDevices().videoinput
+  return { resolution: VideoPresets.h720.resolution, ...(camera && { deviceId: camera }) }
+}
+
 /**
  * The room's options, with the devices chosen for calls on this device (call-devices.md): wanted, not required, so a
  * device unplugged since gives way to another.
@@ -241,10 +248,7 @@ function roomOptions(): RoomOptions {
     adaptiveStream: true,
     dynacast: true,
     // 720p cameras and simulcast keep a small room light on bandwidth; tiles receive only what they show.
-    videoCaptureDefaults: {
-      resolution: VideoPresets.h720.resolution,
-      ...(chosen.videoinput && { deviceId: chosen.videoinput }),
-    },
+    videoCaptureDefaults: cameraCapture(),
     ...(chosen.audioinput && { audioCaptureDefaults: { deviceId: chosen.audioinput } }),
     ...(chosen.audiooutput && { audioOutput: { deviceId: chosen.audiooutput } }),
     publishDefaults: { simulcast: true },
@@ -277,18 +281,52 @@ export function backgroundsSupported(): boolean {
 const MEDIAPIPE = { tasksVisionFileSet: MEDIAPIPE_BASE, modelAssetPath: `${MEDIAPIPE_BASE}/${SEGMENTER_FILE}` }
 
 /** The camera's background (camera-background.ts), drawn by LiveKit's processor loaded on first use. */
+/** How long a camera with a background waits for its processor's first drawn frame before it stays off. */
+const FIRST_FRAME_MS = 10_000
+
+/**
+ * The camera's background (camera-background.ts), drawn by LiveKit's processor loaded on first use. A camera with one is
+ * made unpublished and published once a frame is drawn, so the processor's first raw frame never leaves.
+ */
 function background(room: Room) {
-  return cameraBackground<BackgroundProcessorWrapper>({
+  const drawn = new WeakMap<object, Set<() => void>>()
+  return cameraBackground<BackgroundProcessorWrapper, LocalVideoTrack>({
     camera: () => {
       const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track
       return track instanceof LocalVideoTrack ? track : null
     },
     make: async (effect) => {
       const { BackgroundProcessor } = await import('@livekit/track-processors')
-      return BackgroundProcessor({ ...effect, assetPaths: MEDIAPIPE })
+      const waiting = new Set<() => void>()
+      const processor = BackgroundProcessor({
+        ...effect,
+        assetPaths: MEDIAPIPE,
+        // Each frame drawn tells whoever waits for one.
+        onFrameProcessed: () => {
+          for (const told of waiting) told()
+          waiting.clear()
+        },
+      })
+      drawn.set(processor, waiting)
+      return processor
     },
     chosen: chosenBackground(),
     picture: backgroundPicture,
+    create: (processor) => createLocalVideoTrack({ ...cameraCapture(), processor }),
+    publish: async (track) => {
+      await room.localParticipant.publishTrack(track, { source: Track.Source.Camera, simulcast: true })
+    },
+    unpublish: async (track) => {
+      await room.localParticipant.unpublishTrack(track, true)
+    },
+    drawnFrame: (processor) =>
+      new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('No frame drawn')), FIRST_FRAME_MS)
+        drawn.get(processor)?.add(() => {
+          clearTimeout(timer)
+          resolve()
+        })
+      }),
   })
 }
 
@@ -304,9 +342,10 @@ function deviceControls(room: Room, after: (change: Promise<unknown>) => Promise
   return {
     setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
     // The chosen background goes with the capture, so the room never sees what is behind (camera-background.ts).
+    // With a background, the camera is made, drawn and only then published (camera-background.ts).
     setCamera: async (on) => {
-      const options = on ? await drawn.captureOptions() : undefined
-      await after(deviceChange(me.setCameraEnabled(on, options), () => me.isCameraEnabled === on))
+      if (await (on ? drawn.turnOn() : drawn.turnOff())) return after(Promise.resolve())
+      await after(deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on))
     },
     setBackground: (id) => after(drawn.set(id)),
     // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.

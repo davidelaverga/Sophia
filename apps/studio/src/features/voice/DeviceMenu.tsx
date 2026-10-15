@@ -104,15 +104,24 @@ function useCanDraw(open: boolean, background: BackgroundChoice | undefined): bo
   return can
 }
 
+/**
+ * The backgrounds, the one in use marked. Where the device can't draw one, None still answers, so a background kept
+ * from a device that could is always cleared (Codex P2 on #342); the rest are said unavailable.
+ */
 function BackgroundItems({ can, onChoose }: { can: boolean | null; onChoose: (id: BackgroundId) => void }) {
   if (can === null) return <Said>Checking this device…</Said>
-  if (!can) return <Said>This browser can’t draw a background</Said>
   const chosen = chosenBackground()
-  return BACKGROUNDS.map((b) => (
-    <MenuItem key={b.id} checked={b.id === chosen} onClick={() => onChoose(b.id)}>
-      {b.label}
-    </MenuItem>
-  ))
+  const offered = can ? BACKGROUNDS : BACKGROUNDS.filter((b) => b.id === 'none')
+  return (
+    <>
+      {offered.map((b) => (
+        <MenuItem key={b.id} checked={b.id === chosen} onClick={() => onChoose(b.id)}>
+          {b.label}
+        </MenuItem>
+      ))}
+      {!can && <Said>This browser can’t draw a background</Said>}
+    </>
+  )
 }
 
 interface Props {

@@ -45,8 +45,20 @@
   camera off, and the note says why (`BackgroundUnavailable`). Nothing is sent without it.
 - **P2, the latest choice wins.** Each choice takes a turn number, and work superseded across a slow load is
   discarded, so an earlier choice never takes effect after a later one.
-- The logic lives in `camera-background.ts`, with the camera and the loader passed in, so these rules are unit-tested
-  without LiveKit.
+- **Second round, two P1s and two P2s:**
+  - **P1:** the processor 0.8.1 passes its first frame through raw before it segments. With a background, the camera
+    is now made unpublished (`createLocalVideoTrack` with the processor), waits for a drawn frame
+    (`onFrameProcessed`), and only then is published. A camera only muted is let go first, so it is never unmuted raw,
+    and a camera drawn this way turns off by being let go. If no frame is drawn in 10 s, the camera stays off and says
+    why.
+  - **P1:** the upstream files are recorded in `docs/SOURCE_MAP.md`: the processor's bundle, MediaPipe's runtime and
+    the model, with their digests.
+  - **P2:** where the device can't draw a background, None still answers, so one kept from a device that could is
+    always cleared.
+  - **P2:** changes take their turns, one at a time, and work a later choice superseded is let go before it touches the
+    processor.
+- The logic lives in `camera-background.ts`, with the camera, the loader and the publication passed in, so these rules
+  are unit-tested without LiveKit.
 
 ## Checks
 

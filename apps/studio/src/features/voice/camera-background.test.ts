@@ -49,6 +49,12 @@ type Track = ReturnType<typeof track>
 
 const picture = (id: string) => `data:${id}`
 
+/** Until a queued change reaches the point the test holds: changes take their turns a tick later. */
+async function reached(held: readonly unknown[]) {
+  for (let i = 0; i < 100 && held.length === 0; i++) await new Promise((tick) => setTimeout(tick, 0))
+  assert.ok(held.length > 0, 'the change reached what the test holds')
+}
+
 /** The camera as LiveKit holds it: one published track or none, and each step said in `told`, in order. */
 function room(options: { published?: boolean; drawn?: () => Promise<void>; make?: () => Promise<Drawer> } = {}) {
   const told: string[] = []
@@ -135,6 +141,7 @@ describe('the camera’s background, as LiveKit draws it (call-backgrounds.md)',
     assert.ok(drawer)
     drawer.holdNext = true
     const dusk = drawing.set('dusk')
+    await reached(drawer.held)
     const dawn = drawing.set('dawn')
     drawer.held.shift()?.()
     await Promise.all([dusk, dawn])
@@ -149,6 +156,7 @@ describe('the camera’s background, as LiveKit draws it (call-backgrounds.md)',
     })
     const drawing = cameraBackground({ ...r.ports, chosen: 'none' })
     const blur = drawing.set('blur')
+    await reached(waiting)
     const none = drawing.set('none')
     waiting.shift()?.()
     await Promise.all([blur, none])
