@@ -3,7 +3,8 @@
 // functions: not ready. Once 0043 is applied, ready. The previous API requires nothing of 0043, so during a rolling
 // deployment it stays ready on either database. An API given a byte store also requires 0044's write claim
 // (writeOnce): not ready without it, and an API without a store requires nothing of 0044. The brief and the room's
-// chat read the authors' names of 0048 and 0049 (Codex P1 on #336): not ready on a database short of either.
+// chat read the authors' names of 0048 and 0049 (Codex P1 on #336), and a voice write the room names of 0050: not
+// ready on a database short of any.
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -23,6 +24,7 @@ const DELIVERY = '0043_design_delivery.sql'
 const WRITE_ONCE = '0044_object_write_once.sql'
 const DISCUSSION_NAMES = '0048_discussion_author_name.sql'
 const MISSION_NAMES = '0049_mission_author_names.sql'
+const ROOM_NAMES = '0050_room_names.sql'
 
 let dir: string
 let db: TestDatabase
@@ -89,7 +91,7 @@ async function current() {
 }
 
 describe('readiness across 0043', () => {
-  it('is not ready on a database migrated through 0042, nor short of 0048 or 0049; ready with all', async () => {
+  it('is not ready on a database migrated through 0042, nor short of 0048, 0049 or 0050; ready with all', async () => {
     assert.ok(readdirSync(dir).includes('0042_source_review_coordination.sql'), 'migrated through 0042')
     assert.ok(!readdirSync(dir).includes(DELIVERY))
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0043')
@@ -99,6 +101,8 @@ describe('readiness across 0043', () => {
     await migrate(DISCUSSION_NAMES)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0049')
     await migrate(MISSION_NAMES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0050')
+    await migrate(ROOM_NAMES)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
   })

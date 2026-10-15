@@ -144,6 +144,22 @@ export async function nameActor(c: pg.PoolClient, name: string | null): Promise<
 }
 
 /**
+ * Keep the name the transaction carries (nameActor) as the actor's in this project, for their voice writes (0050):
+ * called when the member joins the call, as the API signs their room token with it. A non-member keeps nothing.
+ */
+export async function rememberRoomName(c: pg.PoolClient, projectId: string): Promise<void> {
+  await c.query('SELECT sophia.remember_room_name($1)', [projectId])
+}
+
+/**
+ * Put the actor's kept name (0050) in the transaction for a voice write, unless it carries one already: the bridge
+ * names the speaker by id only. Call inside withActor as the speaker; nothing leaves the database.
+ */
+export async function nameFromRoom(c: pg.PoolClient, projectId: string): Promise<void> {
+  await c.query('SELECT sophia.name_from_room($1)', [projectId])
+}
+
+/**
  * One connection, one transaction, the verified actor set transaction-locally
  * (`set_config(..., true)`), so a pooled connection never carries a previous actor.
  */

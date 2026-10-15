@@ -172,6 +172,8 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.runtime_source_review_submit(bytea,text,text,jsonb)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_capture_issue(bytea,text,text,jsonb,text)') IS NOT NULL
   AND to_regprocedure('sophia.runtime_capture_delivered(bytea,text,text,jsonb,text)') IS NOT NULL
+  AND to_regprocedure('sophia.remember_room_name(uuid)') IS NOT NULL
+  AND to_regprocedure('sophia.name_from_room(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**

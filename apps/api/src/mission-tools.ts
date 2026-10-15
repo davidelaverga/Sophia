@@ -22,6 +22,7 @@ import {
   readResearchVersion,
   readResearchVersions,
   recordMissionEntry,
+  nameFromRoom,
   researchGateOpen,
   withActor,
   type MissionTurn,
@@ -43,6 +44,17 @@ export interface ToolContext {
   call: MediaToolCall
   /** The call's arguments, as the model sent them: data to check, never trusted. */
   args: Record<string, unknown>
+}
+
+/**
+ * A voice write as the speaker, named by the name they joined the call with (0050), so what it keeps names them outside
+ * a call; the bridge names no one.
+ */
+export function asSpeaker<T>(ctx: ToolContext, write: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  return withActor(ctx.pool, ctx.actorId, 'write', async (c) => {
+    await nameFromRoom(c, ctx.projectId)
+    return write(c)
+  })
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -322,7 +334,7 @@ export async function recordMissionNote(ctx: ToolContext): Promise<MediaToolResu
       'What kind of note is it (observation, expectation, outcome, blocker, explanation, lesson candidate or continuity), and what should it say?',
     )
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
+    const r = await asSpeaker(ctx, (c) =>
       recordMissionEntry(c, ctx.projectId, ctx.key, { ...write, turn: turnOf(ctx.call, false) }),
     )
     return {
@@ -366,7 +378,7 @@ export async function proposeChange(ctx: ToolContext): Promise<MediaToolResult> 
   const write = proposalWrite(ctx.args)
   if (!write) return clarify('What exactly is proposed (a mission, constraint or lesson), in one clear statement?')
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
+    const r = await asSpeaker(ctx, (c) =>
       proposeMissionChange(c, ctx.projectId, ctx.key, { ...write, turn: turnOf(ctx.call, true) }),
     )
     return {
@@ -395,7 +407,7 @@ export async function decideChange(ctx: ToolContext): Promise<MediaToolResult> {
     return clarify('Which proposal, at which revision, and is the answer to accept or reject it?')
   const proposalId = args.proposalId
   try {
-    const r = await withActor(ctx.pool, ctx.actorId, 'write', (c) =>
+    const r = await asSpeaker(ctx, (c) =>
       decideMissionChange(c, ctx.projectId, proposalId, ctx.key, {
         decision,
         expectedRevision: revision,
