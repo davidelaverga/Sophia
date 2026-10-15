@@ -6041,6 +6041,8 @@ button.contribution-quote:hover {
   .tile-pin {
     opacity: 1;
   }
+}
+
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
