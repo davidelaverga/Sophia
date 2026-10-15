@@ -90,7 +90,7 @@ function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose:
         <label className="field-label" htmlFor="revise-instruction">
           What to change
         </label>
-        <div className="field">
+        <div className="field revise-words">
           <textarea
             id="revise-instruction"
             rows={4}

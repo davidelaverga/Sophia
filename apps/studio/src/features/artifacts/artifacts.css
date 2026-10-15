@@ -1163,6 +1163,10 @@
   min-height: 24px;
   font-size: var(--type-body);
 }
+.revise-words textarea {
+  min-height: 96px;
+  resize: vertical;
+}
 .revise-section input {
   flex: none;
   width: 16px;
