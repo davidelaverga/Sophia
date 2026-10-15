@@ -5994,3 +5994,19 @@ button.contribution-quote:hover {
   justify-content: center;
   gap: 8px;
 }
+
+/* Work past five projects (docs/plans/find-projects.md): a field that finds one by its title, and the order beside. */
+.c3-find {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.c3-find-field {
+  flex: 1;
+  min-width: 0;
+}
+.c3-none {
+  color: var(--text-2);
+  font-size: 13px;
+}

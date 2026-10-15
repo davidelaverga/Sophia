@@ -379,17 +379,19 @@ describe('the place arrived at (Codex P2 on #268)', () => {
   })
 })
 
+/** A project known by its title alone (find-projects.md). */
+const titled = (projectId: string, title: string): ProjectSummary => ({
+  projectId,
+  title,
+  role: 'admin',
+  members: 1,
+  room: null,
+  nextSession: null,
+  releases: [],
+})
+
 describe('finding a project in Work (find-projects.md)', () => {
-  const project = (projectId: string, title: string): ProjectSummary => ({
-    projectId,
-    title,
-    role: 'admin',
-    members: 1,
-    room: null,
-    nextSession: null,
-    releases: [],
-  })
-  const list = [project('1', 'Research notes'), project('2', 'Ébano launch'), project('3', 'atlas')]
+  const list = [titled('1', 'Research notes'), titled('2', 'Ébano launch'), titled('3', 'atlas')]
 
   it('finds by any part of the title, whatever its case or accents', () => {
     assert.deepEqual(
