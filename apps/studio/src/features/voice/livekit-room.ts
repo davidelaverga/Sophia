@@ -28,8 +28,9 @@ import {
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
-import { backgroundEffect, chosenBackground, type BackgroundId } from './background-preference.ts'
+import { chosenBackground, type BackgroundId } from './background-preference.ts'
 import { backgroundPicture } from './background-pictures.ts'
+import { cameraBackground } from './camera-background.ts'
 import { deviceChange } from './device-change.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
@@ -275,39 +276,20 @@ export function backgroundsSupported(): boolean {
 /** Where the processor finds MediaPipe: the Studio's own copy (mediapipe-assets.ts), never a third party's. */
 const MEDIAPIPE = { tasksVisionFileSet: MEDIAPIPE_BASE, modelAssetPath: `${MEDIAPIPE_BASE}/${SEGMENTER_FILE}` }
 
-/**
- * The camera's background (call-backgrounds.md): the chosen one, drawn on the camera while it is on and again when it
- * turns on. The processor, and MediaPipe with it, load only once a background other than none is drawn.
- */
-function cameraBackground(room: Room) {
-  let chosen = chosenBackground()
-  let drawing: BackgroundProcessorWrapper | null = null
-  const camera = () => {
-    const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track
-    return track instanceof LocalVideoTrack ? track : null
-  }
-  const draw = async () => {
-    const track = camera()
-    if (!track) return
-    if (chosen === 'none') {
-      if (drawing) await track.stopProcessor()
-      drawing = null
-      return
-    }
-    const effect = backgroundEffect(chosen, backgroundPicture)
-    if (drawing && track.getProcessor() === drawing) return drawing.switchTo(effect)
-    const { BackgroundProcessor } = await import('@livekit/track-processors')
-    drawing = BackgroundProcessor({ ...effect, assetPaths: MEDIAPIPE })
-    await track.setProcessor(drawing)
-  }
-  return {
-    set: (id: BackgroundId) => {
-      chosen = id
-      return draw()
+/** The camera's background (camera-background.ts), drawn by LiveKit's processor loaded on first use. */
+function background(room: Room) {
+  return cameraBackground<BackgroundProcessorWrapper>({
+    camera: () => {
+      const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track
+      return track instanceof LocalVideoTrack ? track : null
     },
-    // A camera turned on gets the background chosen; one it can't draw leaves the camera as it is (a new choice says why).
-    cameraOn: () => draw().catch(() => undefined),
-  }
+    make: async (effect) => {
+      const { BackgroundProcessor } = await import('@livekit/track-processors')
+      return BackgroundProcessor({ ...effect, assetPaths: MEDIAPIPE })
+    },
+    chosen: chosenBackground(),
+    picture: backgroundPicture,
+  })
 }
 
 type DeviceControls = Pick<
@@ -318,16 +300,15 @@ type DeviceControls = Pick<
 /** This person's devices in the call, each as LiveKit leaves it, not as its answer says (deviceChange). */
 function deviceControls(room: Room, after: (change: Promise<unknown>) => Promise<void>): DeviceControls {
   const me = room.localParticipant
-  const background = cameraBackground(room)
+  const drawn = background(room)
   return {
     setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
-    setCamera: (on) =>
-      after(
-        deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on).then(() =>
-          on ? background.cameraOn() : undefined,
-        ),
-      ),
-    setBackground: (id) => after(background.set(id)),
+    // The chosen background goes with the capture, so the room never sees what is behind (camera-background.ts).
+    setCamera: async (on) => {
+      const options = on ? await drawn.captureOptions() : undefined
+      await after(deviceChange(me.setCameraEnabled(on, options), () => me.isCameraEnabled === on))
+    },
+    setBackground: (id) => after(drawn.set(id)),
     // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.
     setScreenShare: (on) =>
       after(
