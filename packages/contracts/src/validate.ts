@@ -1,4 +1,6 @@
 // Runtime validation of what a client reads from the Sophia API (published as "@sophia/contracts/validate").
+// A property the contract doesn't list is dropped, not refused: a client built before an additive amendment reads
+// a newer API as the shape it knows (docs/plans/tolerant-readers.md). Anything else off the contract is refused.
 // Browser-safe: the validators are generated ahead of time (scripts/generate-validators.ts), so there is
 // no Ajv compiler and no eval at runtime. A body that breaks the contract throws; it is never cast.
 import type { ErrorObject, ValidateFunction } from 'ajv'
