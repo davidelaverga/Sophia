@@ -29,7 +29,7 @@ test('revise · an admin asks Sophia to revise a section of the page, with what 
   // Not yet askable, and still in reach: a press that waits stays focusable (Codex P1 on #359).
   const ask = sheet(page).getByRole('button', { name: 'Ask Sophia' })
   await expect(ask).toHaveAttribute('aria-disabled', 'true')
-  await expect(ask).toBeEnabled()
+  await expect(ask).not.toHaveAttribute('disabled')
   await sheet(page).getByRole('checkbox', { name: 'A labelled fixture designed page' }).check()
   await sheet(page).getByLabel('What to change').fill('Make the opening shorter')
   await ask.focus()

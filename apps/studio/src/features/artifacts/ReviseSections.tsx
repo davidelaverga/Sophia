@@ -1,7 +1,7 @@
 // Ask Sophia to revise sections of a report's designed page (docs/plans/revise-section.md): «Revise with Sophia…» over
 // the page, for editors and admins on the current version. The sheet lists the page's sections (page-sections.ts),
 // takes what to change, and sends requestDesignEdit; the next version is Sophia's to publish, and the room hears of it.
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button, Icon } from '@sophia/ui'
 import { requestDesignEdit } from '../../api/artifacts.ts'
@@ -77,6 +77,11 @@ function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose:
   const { sections, onClose } = props
   const { chosen, toggle, instruction, setInstruction, sending, offered, ask } = useAsk(props)
   const sent = sending.state === 'sent'
+  // Admitted, Ask Sophia goes with the request: the focus it held goes on to Done.
+  const done = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (sent) done.current?.focus()
+  }, [sent])
   return (
     <Sheet id="revise-page-title" title="Revise the page" onClose={onClose}>
       <form
@@ -106,7 +111,7 @@ function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose:
         {sending.failed && <p role="alert">{sending.failed}</p>}
         <div className="rename-acts">
           {sent ? (
-            <Button kind="primary" onClick={onClose}>
+            <Button ref={done} kind="primary" onClick={onClose}>
               Done
             </Button>
           ) : (
@@ -114,7 +119,8 @@ function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose:
               <Button kind="ghost" onClick={onClose}>
                 Cancel
               </Button>
-              <Button kind="primary" type="submit" disabled={!offered}>
+              {/* Waiting, it stays focusable: aria-disabled, and ask() guards the press (Codex P1 on #359). */}
+              <Button kind="primary" type="submit" aria-disabled={!offered || undefined}>
                 {sending.state === 'sending' ? 'Asking…' : 'Ask Sophia'}
               </Button>
             </>

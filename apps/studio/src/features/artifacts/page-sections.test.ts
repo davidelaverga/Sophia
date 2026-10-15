@@ -18,6 +18,17 @@ describe('a designed page’s sections (revise-section.md)', () => {
     ])
   })
 
+  it('reads character references and keeps words apart where a break or a block divides them', () => {
+    const html = [
+      '<section data-section="rd" aria-label="Research &amp; Development">',
+      '<section data-section="q"><h2>&quot;Why&quot;&#160;now<br>&#x2014; and how</h2></section>',
+    ].join('\n')
+    assert.deepEqual(pageSections(html), [
+      { id: 'rd', label: 'Research & Development' },
+      { id: 'q', label: '"Why" now — and how' },
+    ])
+  })
+
   it('a page with no named section has none to offer', () => {
     assert.deepEqual(pageSections('<main><h1>Untitled</h1></main>'), [])
   })
