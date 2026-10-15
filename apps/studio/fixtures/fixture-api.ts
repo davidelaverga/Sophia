@@ -98,6 +98,8 @@ interface Project {
   messagesHeld?: (() => void)[] | null
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
+  /** While set, host controls land but their replies wait for `holdHost(false)` (`window.fixture.holdHost`). */
+  hostHeld?: (() => void)[] | null
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
   failEarlier?: boolean
   /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
@@ -357,7 +359,11 @@ function departed(project: Project): Response {
 }
 
 /** The project's own writes: its rename (A21), a member leaving it (A22), an admin's host controls (A24). */
-function projectWritten(project: Project, path: string, init: RequestInit | undefined): Response | null {
+function projectWritten(
+  project: Project,
+  path: string,
+  init: RequestInit | undefined,
+): Response | Promise<Response> | null {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/leave`) return departed(project)
@@ -368,14 +374,18 @@ function projectWritten(project: Project, path: string, init: RequestInit | unde
 const HOST_ACT = new RegExp(`^/api/v1/projects/${PROJECT}/room/people/([0-9a-f-]+)/(mute|remove)$`)
 
 /** An admin mutes or removes someone (A24): recorded, and LiveKit's server applies it to the fake room. */
-function hostAct(project: Project, what: 'mute' | 'remove', identity: string): Response {
+function hostAct(project: Project, what: 'mute' | 'remove', identity: string): Response | Promise<Response> {
   if (project.failHost) {
     project.failHost = false
     return unavailable()
   }
   served.push(`${what}:${identity}`)
-  hostActed(what, identity)
-  return new Response(null, { status: 204 })
+  const done = () => {
+    hostActed(what, identity)
+    return new Response(null, { status: 204 })
+  }
+  const held = project.hostHeld
+  return held ? new Promise((resolve) => held.push(() => resolve(done()))) : done()
 }
 
 /** The room's discussion read: A20's replies (proposed), or a page of it (A23). */

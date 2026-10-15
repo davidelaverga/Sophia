@@ -75,3 +75,23 @@ test('host · a refusal is said in the panel, and nothing changes', async ({ pag
   await expect(list(page).getByRole('alert')).toContainText('Couldn’t mute Marco')
   await expect(list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone on' })).toBeVisible()
 })
+
+test('host · while a control is on its way, its row waits; the menu hands focus back to its opener', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).press('Enter')
+  await expect(actions(page, 'Marco')).toBeFocused()
+  const row = list(page).locator('li', { hasText: 'Marco' })
+  await expect(row.getByRole('status')).toHaveText('Muting Marco…')
+  await expect(actions(page, 'Marco')).toHaveAttribute('aria-disabled', 'true')
+  await actions(page, 'Marco').click()
+  await expect(menu(page, 'Marco')).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.holdHost(false))
+  await expect(row.getByRole('img', { name: 'Microphone off' })).toBeVisible()
+  await expect(row.getByRole('status')).toHaveCount(0)
+  await expect(actions(page, 'Marco')).not.toHaveAttribute('aria-disabled', 'true')
+  expect((await served(page)).filter((s) => s === `mute:${MARCO}`)).toHaveLength(1)
+})

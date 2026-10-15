@@ -114,6 +114,8 @@ interface Fixture {
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
   failHost: () => void
+  /** While on, host controls land but their replies wait; off, they answer. */
+  holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
@@ -417,6 +419,7 @@ const project = {
   failReplies: false,
   failEarlier: false,
   failHost: false,
+  hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -577,6 +580,11 @@ window.fixture = {
   },
   failHost: () => {
     project.failHost = true
+  },
+  holdHost: (on) => {
+    const held = project.hostHeld ?? []
+    project.hostHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
