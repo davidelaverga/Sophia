@@ -2,6 +2,8 @@
 // as text (inline) or a URL that expires within minutes: fetch them when they are needed, never keep the URL.
 import type {
   ArtifactVersion,
+  DesignEditReceipt,
+  DesignEditRequest,
   ReportList,
   ReportSourceList,
   ReportSummary,
@@ -10,6 +12,7 @@ import type {
 } from '@sophia/contracts'
 import {
   parseArtifactVersionList,
+  parseDesignEditReceipt,
   parseReportList,
   parseReportSourceList,
   parseReportSummary,
@@ -64,3 +67,15 @@ export const listReportSources = (token: string, artifactId: string, versionId: 
  */
 export const editReportSummary = (token: string, artifactId: string, edit: ReportSummaryEdit): Promise<ReportSummary> =>
   callApi(`/api/v1/artifacts/${artifactId}/summary`, { token, method: 'PATCH', body: edit }, parseReportSummary)
+
+/**
+ * Asks Sophia to revise sections of a report's designed page (SDD-01 G5). One key per edit, so a retry is the same
+ * edit; the next version is Sophia's to publish, and the room hears of it.
+ */
+export const requestDesignEdit = (
+  token: string,
+  projectId: string,
+  key: string,
+  body: DesignEditRequest,
+): Promise<DesignEditReceipt> =>
+  callApi(`/api/v1/projects/${projectId}/html-edits`, { token, body, key }, parseDesignEditReceipt)

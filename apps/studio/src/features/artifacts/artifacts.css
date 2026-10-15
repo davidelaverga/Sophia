@@ -1133,6 +1133,44 @@
   flex-direction: column;
   min-height: 0;
 }
+/* The review's sentence, and beside it «Revise with Sophia…» for those who may ask (revise-section.md). */
+.report-html-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.report-html-head .report-format-note {
+  margin-bottom: 0;
+}
+.report-revise {
+  flex: none;
+}
+.revise-sections {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+}
+.revise-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-size: var(--type-body);
+}
+.revise-section input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--halo);
+}
 .report-html-frame {
   flex: 1;
   width: 100%;
