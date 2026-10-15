@@ -1146,7 +1146,15 @@
   margin-bottom: 0;
 }
 .report-revise {
+  display: flex;
   flex: none;
+  align-items: center;
+  gap: 8px;
+}
+/* With the sheet closed, how the request stands, beside the button (Codex P1 on #359). */
+.report-revise-note {
+  color: var(--text-3);
+  font-size: var(--type-small);
 }
 .revise-sections {
   display: grid;

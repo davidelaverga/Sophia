@@ -42,9 +42,16 @@ function labelOf(id: string, attributes: string, after: string): string {
   return (heading && words(heading)) || id
 }
 
-export function pageSections(html: string): PageSection[] {
+/**
+ * What no element is: comments, and the raw text of script, style, textarea and title, where markup is only words. The
+ * compiler reads elements (sectionsOf), so a section only there would be refused (Codex on #359).
+ */
+const NOT_ELEMENTS = /<!--[\s\S]*?-->|<(script|style|textarea|title)\b[^>]*>[\s\S]*?<\/\1\s*>/gi
+
+export function pageSections(page: string): PageSection[] {
   const found: PageSection[] = []
   const seen = new Set<string>()
+  const html = page.replaceAll(NOT_ELEMENTS, ' ')
   for (const match of html.matchAll(OPENING)) {
     const [whole, , attributes = '', id = ''] = match
     if (!VALID.test(id) || seen.has(id)) continue

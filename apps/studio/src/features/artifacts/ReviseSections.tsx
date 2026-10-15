@@ -7,6 +7,7 @@ import { Button, Icon } from '@sophia/ui'
 import { requestDesignEdit } from '../../api/artifacts.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { pageSections, type PageSection } from './page-sections.ts'
 
 /** DesignEditRequest's bounds. */
@@ -24,6 +25,9 @@ interface Props {
 export function ReviseSections(props: Props) {
   const sections = useMemo(() => pageSections(props.html), [props.html])
   const [open, setOpen] = useState(false)
+  // The request lives here, not in the sheet: closed while it goes, it carries on, and its outcome is said beside the
+  // button and in the sheet opened again, with the same key for a retry (Codex P1 on #359).
+  const asked = useAsk({ ...props, sections })
   if (sections.length === 0) return null
   return (
     <div className="report-revise">
@@ -31,10 +35,30 @@ export function ReviseSections(props: Props) {
         <Icon name="sophia" />
         Revise with Sophia…
       </Button>
+      {!open && <OutOfSight sending={asked.sending} />}
       {open &&
-        createPortal(<ReviseSheet {...props} sections={sections} onClose={() => setOpen(false)} />, document.body)}
+        createPortal(<ReviseSheet sections={sections} asked={asked} onClose={() => setOpen(false)} />, document.body)}
     </div>
   )
+}
+
+/** With the sheet closed, how the request stands, beside the button. */
+function OutOfSight({ sending }: { sending: Sending }) {
+  if (sending.state === 'sent') {
+    return (
+      <span className="report-revise-note" role="status">
+        Sophia is revising the page.
+      </span>
+    )
+  }
+  if (sending.failed) {
+    return (
+      <span className="report-revise-note" role="alert">
+        {sending.failed}
+      </span>
+    )
+  }
+  return null
 }
 
 type Sending = { state: 'idle' | 'sending' | 'sent'; failed: string | null }
@@ -73,10 +97,22 @@ function useAsk(props: Props & { sections: readonly PageSection[] }) {
   return { chosen, toggle, instruction, setInstruction, sending, offered, ask }
 }
 
-function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose: () => void }) {
-  const { sections, onClose } = props
-  const { chosen, toggle, instruction, setInstruction, sending, offered, ask } = useAsk(props)
+type Asked = ReturnType<typeof useAsk>
+
+function ReviseSheet({
+  sections,
+  asked,
+  onClose,
+}: {
+  sections: readonly PageSection[]
+  asked: Asked
+  onClose: () => void
+}) {
+  const { chosen, toggle, instruction, setInstruction, sending, offered, ask } = asked
   const sent = sending.state === 'sent'
+  // Asked, what went is what stays on screen: the words and the sections hold still until the answer.
+  const held = sending.state !== 'idle'
+  const slow = useSlow(sending.state === 'sending')
   // Admitted, Ask Sophia goes with the request: the focus it held goes on to Done.
   const done = useRef<HTMLButtonElement>(null)
   useEffect(() => {
@@ -91,7 +127,7 @@ function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose:
           void ask()
         }}
       >
-        <SectionChoice sections={sections} chosen={chosen} toggle={toggle} disabled={sent} />
+        <SectionChoice sections={sections} chosen={chosen} toggle={toggle} disabled={held} />
         <label className="field-label" htmlFor="revise-instruction">
           What to change
         </label>
@@ -101,33 +137,46 @@ function ReviseSheet(props: Props & { sections: readonly PageSection[]; onClose:
             rows={4}
             maxLength={MOST_WORDS}
             value={instruction}
-            disabled={sent}
+            readOnly={held}
             onChange={(e) => setInstruction(e.target.value)}
           />
         </div>
         <p className="sheet-status" role="status">
-          {sent ? 'Sophia is revising the page. Its next version will appear here.' : ''}
+          {sent ? 'Sophia is revising the page. Its next version will appear here.' : slow ? SLOW_NOTE : ''}
         </p>
         {sending.failed && <p role="alert">{sending.failed}</p>}
-        <div className="rename-acts">
-          {sent ? (
-            <Button ref={done} kind="primary" onClick={onClose}>
-              Done
-            </Button>
-          ) : (
-            <>
-              <Button kind="ghost" onClick={onClose}>
-                Cancel
-              </Button>
-              {/* Waiting, it stays focusable: aria-disabled, and ask() guards the press (Codex P1 on #359). */}
-              <Button kind="primary" type="submit" aria-disabled={!offered || undefined}>
-                {sending.state === 'sending' ? 'Asking…' : 'Ask Sophia'}
-              </Button>
-            </>
-          )}
-        </div>
+        <ReviseActs sending={sending.state} offered={offered} done={done} onClose={onClose} />
       </form>
     </Sheet>
+  )
+}
+
+/** Done once admitted; else Cancel, and Ask Sophia, which waits focusable while it goes. */
+function ReviseActs(props: {
+  sending: Sending['state']
+  offered: boolean
+  done: React.RefObject<HTMLButtonElement | null>
+  onClose: () => void
+}) {
+  const { sending, offered, done, onClose } = props
+  return (
+    <div className="rename-acts">
+      {sending === 'sent' ? (
+        <Button ref={done} kind="primary" onClick={onClose}>
+          Done
+        </Button>
+      ) : (
+        <>
+          <Button kind="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          {/* Waiting, it stays focusable: aria-disabled, and ask() guards the press (Codex P1 on #359). */}
+          <Button kind="primary" type="submit" aria-disabled={!offered || undefined}>
+            {sending === 'sending' ? 'Asking…' : 'Ask Sophia'}
+          </Button>
+        </>
+      )}
+    </div>
   )
 }
 
