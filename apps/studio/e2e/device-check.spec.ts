@@ -139,6 +139,26 @@ test('check · the microphone and the camera are chosen on the picture, and Join
   await expect(dock(page).getByRole('button', { name: 'Camera', exact: true })).toHaveAttribute('aria-pressed', 'true')
 })
 
+test('check · where nothing can be kept on this device, the microphone chosen off still joins off', async ({
+  page,
+}) => {
+  // Storage refusing writes: the choice can't be remembered, so the join must carry it (Codex P1 on #361).
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('Blocked', 'SecurityError')
+    }
+  })
+  await page.goto('/room.html')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Microphone', exact: true }).click()
+  await sheet(page).getByRole('button', { name: 'Join the room' }).click()
+  await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
+  await expect(dock(page).getByRole('button', { name: 'Microphone', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  )
+})
+
 test('check · closed without joining, the camera and the microphone are let go', async ({ page }) => {
   await page.goto('/room.html')
   await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
