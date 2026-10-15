@@ -102,6 +102,7 @@ import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
+import { startCrashReports } from '../src/app/crash-report.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -289,6 +290,8 @@ declare global {
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
+// As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
+startCrashReports()
 // `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
 if (query.get('welcome') === '1')
   rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })

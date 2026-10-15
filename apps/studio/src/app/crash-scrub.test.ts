@@ -25,9 +25,10 @@ describe('what a crash report may carry (crash-feedback.md)', () => {
 
   it('leaves no user, headers or cookies on an event, and scrubs its address', () => {
     const event = scrubEvent({
+      type: undefined,
       user: { email: 'a@b.c' },
       request: { url: 'https://sophia.app/join#t', headers: { Authorization: 'x' }, cookies: { a: 'b' } },
     })
-    assert.deepEqual(event, { request: { url: 'https://sophia.app/join' } })
+    assert.deepEqual(event, { type: undefined, request: { url: 'https://sophia.app/join' } })
   })
 })

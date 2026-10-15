@@ -6292,3 +6292,9 @@ button.contribution-quote:hover {
 .legal-foot a {
   color: var(--text-2);
 }
+
+/* Room to write feedback (docs/plans/crash-feedback.md). */
+.feedback-words textarea {
+  min-height: 120px;
+  resize: vertical;
+}

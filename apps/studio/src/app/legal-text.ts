@@ -103,6 +103,7 @@ export const PRIVACY: readonly LegalSection[] = [
       '· Google (Gemini) and OpenAI: the AI models behind Sophia’s voice, answers and research.',
       '· Resend: the emails Sophia sends, such as sign-in links and invitations.',
       '· Vercel and Render: hosting the app and its server.',
+      '· Sentry: reports of errors in the app, and the feedback you send. A report carries the page’s address without its query or link part, and is built to leave your content and account out.',
     ],
   },
   {
