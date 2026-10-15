@@ -6122,6 +6122,16 @@ button.contribution-quote:hover {
   position: relative;
   grid-column: 4;
 }
+.person-pending {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.person-actions .round[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: progress;
+}
 .person-failed {
   grid-column: 1 / -1;
   margin: 0 0 6px;
