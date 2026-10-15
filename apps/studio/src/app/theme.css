@@ -6135,7 +6135,6 @@ button.contribution-quote:hover {
   grid-row: 3;
 }
 
-
 /* The project's title for an admin (docs/plans/project-rename.md): the same words, a press that opens the project's
    menu; Rename… opens its sheet. */
 .project-name:has(.project-name-menu) {
