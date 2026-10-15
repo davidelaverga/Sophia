@@ -38,7 +38,16 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, joined, leaving, sophiaLeaves } from './fake-livekit.ts'
+import {
+  asked,
+  deliverCaption,
+  deliverNotice,
+  dropCall,
+  joined,
+  leaving,
+  reactFrom,
+  sophiaLeaves,
+} from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -251,6 +260,8 @@ interface Fixture {
   floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** Someone in the room reacts, by name, with any emoji the check gives (call-reactions.md). */
+  reactFrom?: (name: string, emoji: string) => void
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
   /** The camera background the last call opened with (call-backgrounds.md); null before any. */
@@ -818,6 +829,7 @@ window.fixture = {
   },
   floorTo,
   asked,
+  reactFrom,
   get devicesOnJoin() {
     return joined.devices
   },

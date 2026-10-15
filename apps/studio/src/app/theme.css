@@ -5994,3 +5994,57 @@ button.contribution-quote:hover {
   justify-content: center;
   gap: 8px;
 }
+
+/* Reactions in the call (docs/plans/call-reactions.md): each floats up the room's left side over the dock for a few
+   seconds, with who sent it; with less motion asked for, it appears without moving. */
+.reactions {
+  position: absolute;
+  left: var(--gutter, 16px);
+  bottom: calc(var(--dock-h, 64px) + 24px);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  z-index: 3;
+}
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  border-radius: var(--r-4);
+  background: var(--glass);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  animation: reaction-rise 4s var(--ease) both;
+}
+.reaction-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+@keyframes reaction-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction {
+    animation: none;
+  }
+}
+.menu.react-list {
+  min-width: 180px;
+}

@@ -37,6 +37,8 @@ import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
 import { MEDIAPIPE_BASE, SEGMENTER_FILE } from './mediapipe-path.ts'
+import { listenToReactions, type Heard } from './reaction-channel.ts'
+import { encodeReaction, REACTION_TOPIC, type ReactionEmoji } from './reactions.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -86,6 +88,8 @@ export interface RoomConnection {
   switchDevice: (kind: DeviceKind, id: string) => Promise<void>
   /** What this person follows, said to the members in the call (following-signal.ts); sent only when it changes. */
   setFollowing: (versionId: string | null) => Promise<void>
+  /** A reaction to everyone in the call, on its own topic (call-reactions.md). */
+  sendReaction: (emoji: ReactionEmoji) => Promise<void>
   leave: () => Promise<void>
 }
 
@@ -97,6 +101,8 @@ export interface RoomCallbacks {
   onCaption?: (packet: ChatCaption) => void
   /** Captions under way may never get their end here: Sophia left or joined again, or this connection is reconnecting. */
   onCaptionsLost?: () => void
+  /** Someone in the room reacted (call-reactions.md). */
+  onReaction?: (heard: Heard) => void
   /** Someone joined, left, spoke, muted or shared video: re-read `participants()` and `feeds()`. */
   onChange: () => void
   onStatus: (status: RoomStatus) => void
@@ -334,6 +340,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     cb.onEnded((reason !== undefined && ENDS[reason]) || 'dropped')
   })
   listenToSophia(room, cb)
+  listenToReactions(room, (heard) => cb.onReaction?.(heard))
   const signalMode = modeSignal(room, () => textOnly)
   const following = followingSignal(room, cb.onChange, { resync: VISION })
   await room.connect(serverUrl, token)
@@ -364,6 +371,8 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
     ...deviceControls(room, after),
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
+    sendReaction: (emoji) =>
+      room.localParticipant.publishData(encodeReaction(emoji), { reliable: true, topic: REACTION_TOPIC }),
     leave: () => room.disconnect(),
   }
 }

@@ -14,6 +14,7 @@ export type IconName =
   | 'quote'
   | 'invite'
   | 'chevron'
+  | 'react'
   | 'close'
   | 'calendar'
   | 'chat'
@@ -98,6 +99,12 @@ const PATHS: Record<IconName, ReactNode> = {
     </>
   ),
   chevron: <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />,
+  react: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.5 14a4 4 0 0 0 7 0M9.5 9.5h.01M14.5 9.5h.01" />
+    </>
+  ),
   close: <path d="M6 6l12 12M18 6L6 18" />,
   calendar: (
     <>

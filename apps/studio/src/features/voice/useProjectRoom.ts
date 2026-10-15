@@ -15,6 +15,8 @@ import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts
 import { rememberBackground, type BackgroundId } from './background-preference.ts'
 import { rememberDevice, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
+import type { Heard } from './reaction-channel.ts'
+import { paced, shownAfter, SHOWN_FOR_MS, type Reaction, type ReactionEmoji } from './reactions.ts'
 import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -74,6 +76,10 @@ export interface ProjectRoom {
   setBackground: (id: BackgroundId) => Promise<void>
   /** Whether this device can draw a camera background. */
   backgroundsSupported: () => Promise<boolean>
+  /** Reactions on screen, this person's own and the room's, each for a few seconds (call-reactions.md). */
+  reactions: Reaction[]
+  /** React: shown here at once and sent to everyone in the call; at most one every 400 ms. */
+  react: (emoji: ReactionEmoji) => void
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
 }
@@ -274,6 +280,9 @@ async function joinConnection(ports: JoinPorts, options?: { textOnly?: boolean }
       onCaptionsLost: () => {
         if (calls.isCurrent(call)) typedChat.captionsLost()
       },
+      onReaction: (heard) => {
+        if (calls.isCurrent(call)) typedChat.onReaction(heard)
+      },
       onStatus: (s) => {
         if (calls.isCurrent(call)) setStatus(s)
       },
@@ -344,16 +353,52 @@ function useConversation(connection: { current: RoomConnection | null }, silence
   const [arrival] = useState(arrivals)
   const typedChat = useTypedChat(connection, silence, arrival)
   const live = useCaptions(arrival)
+  const reacting = useReactions(connection)
   const interrupted = () => {
     typedChat.interrupted()
     live.interrupted()
+    reacting.clear()
   }
   return {
     ...typedChat,
     captions: live.captions,
     onCaption: live.onCaption,
     captionsLost: live.interrupted,
+    reactions: reacting.reactions,
+    onReaction: reacting.onReaction,
+    react: reacting.react,
     interrupted,
+  }
+}
+
+/** What the conversation gives the room: the chat, the notices, the captions, the reactions, and text mode. */
+function conversationParts(c: ReturnType<typeof useConversation>) {
+  const { chat, notices, captions, reactions, react, textMode, textModeNow, setTextMode, sendChat } = c
+  return { chat, notices, captions, reactions, react, textMode, textModeNow, setTextMode, sendChat }
+}
+
+/** Reactions on screen (call-reactions.md): this person's own and the room's, each for a few seconds, the newest twelve. */
+function useReactions(connection: { current: RoomConnection | null }) {
+  const [reactions, setReactions] = useState<Reaction[]>([])
+  const last = useRef<number | null>(null)
+  const show = (reaction: Omit<Reaction, 'id'>) => {
+    const id = crypto.randomUUID()
+    setReactions((now) => shownAfter(now, { ...reaction, id }))
+    setTimeout(() => setReactions((now) => now.filter((r) => r.id !== id)), SHOWN_FOR_MS)
+  }
+  return {
+    reactions,
+    onReaction: (heard: Heard) => show({ name: heard.name, emoji: heard.emoji, local: false }),
+    react: (emoji: ReactionEmoji) => {
+      const c = connection.current
+      const now = Date.now()
+      if (!c || !paced(now, last.current)) return
+      last.current = now
+      show({ name: 'You', emoji, local: true })
+      // Best effort, as a typing signal: a reaction lost on the way is gone with its few seconds.
+      c.sendReaction(emoji).catch(() => undefined)
+    },
+    clear: () => setReactions([]),
   }
 }
 
@@ -441,13 +486,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     ...people,
     ...devices,
     setMicrophone,
-    chat: typedChat.chat,
-    notices: typedChat.notices,
-    captions: typedChat.captions,
-    textMode: typedChat.textMode,
-    textModeNow: typedChat.textModeNow,
-    setTextMode: typedChat.setTextMode,
-    sendChat: typedChat.sendChat,
+    ...conversationParts(typedChat),
     startAudio,
     listDevices,
     backgroundsSupported,

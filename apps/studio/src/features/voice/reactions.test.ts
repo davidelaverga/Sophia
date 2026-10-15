@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { encodeReaction, paced, parseReaction, REACTIONS, shownAfter } from './reactions.ts'
 
+/** A packet as anyone in the room could publish it. */
+const raw = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
+
 describe('reactions in the call (call-reactions.md)', () => {
   it('offers Meet’s six, each named', () => {
     assert.deepEqual(
@@ -19,7 +22,6 @@ describe('reactions in the call (call-reactions.md)', () => {
 
   it('travels as a small packet, and reads back only one of the six', () => {
     assert.equal(parseReaction(encodeReaction('🎉')), '🎉')
-    const raw = (value: unknown) => new TextEncoder().encode(JSON.stringify(value))
     assert.equal(parseReaction(raw({ kind: 'reaction', emoji: '💣' })), null, 'not one of the six')
     assert.equal(parseReaction(raw({ kind: 'reaction', emoji: '<img src=x>' })), null)
     assert.equal(parseReaction(raw({ kind: 'chat', emoji: '👍' })), null)
