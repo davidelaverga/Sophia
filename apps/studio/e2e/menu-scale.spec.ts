@@ -135,6 +135,11 @@ test('menu · the personal space’s days: the same plane 6 px under the day pil
 }) => {
   // Short enough for the conversation to scroll, so the day pill shows.
   await page.setViewportSize({ width: 1280, height: 480 })
+  // Half past midnight, when CI once ran it (#334): the page's clock is the browser's, so the days still read
+  // «Yesterday» and «Today» at any hour.
+  const halfPastMidnight = new Date()
+  halfPastMidnight.setHours(0, 30, 0, 0)
+  await page.clock.setFixedTime(halfPastMidnight)
   await page.goto('/personal.html?demo=1&earlier=1&readSlow=1')
   await drawn(page, DRAWN.personal)
   // Scrolled until today's divider sits 120 px under the top, yesterday's above it: the pill names yesterday, with no
