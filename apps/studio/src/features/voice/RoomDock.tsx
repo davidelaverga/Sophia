@@ -126,9 +126,9 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
             list={room.listDevices}
             onChoose={(kind, id) => void room.switchDevice(kind, id)}
             onClose={() => setOpen(false)}
-            onJoin={({ camera }) => {
+            onJoin={({ mic, camera }) => {
               setOpen(false)
-              void room.join().then(async (joined) => {
+              void room.join({ mic }).then(async (joined) => {
                 if (joined && camera) await room.setCamera(true)
               })
             }}

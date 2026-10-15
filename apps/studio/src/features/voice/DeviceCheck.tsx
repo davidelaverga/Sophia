@@ -17,8 +17,8 @@ interface Props {
   list: List
   /** A device chosen: kept for the next call (the room's own switch). */
   onChoose: (kind: DeviceKind, id: string) => void
-  /** Join, with the camera on when it was chosen; the microphone's choice is already kept (rememberMic). */
-  onJoin: (options: { camera: boolean }) => void
+  /** Join with the microphone and the camera chosen here; the microphone's choice is also kept (rememberMic). */
+  onJoin: (options: { mic: boolean; camera: boolean }) => void
   onClose: () => void
 }
 
@@ -139,7 +139,7 @@ export function DeviceCheck({ list, onChoose, onJoin, onClose }: Props) {
           ))}
         </div>
         <div className="device-check-foot">
-          <Button kind="primary" onClick={() => onJoin({ camera: media.camera })}>
+          <Button kind="primary" onClick={() => onJoin(media)}>
             Join the room
           </Button>
         </div>
