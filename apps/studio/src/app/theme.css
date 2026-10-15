@@ -6161,3 +6161,24 @@ button.contribution-quote:hover {
   margin: 0;
   color: var(--text-2);
 }
+
+/* The room's chat further back (docs/plans/discussion-earlier.md): «Earlier messages» at its top, or where it starts. */
+.discussion-earlier {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+  font-size: var(--type-small);
+}
+.discussion-earlier p {
+  margin: 0;
+  color: var(--text-2);
+}
+.discussion-start {
+  margin: 0;
+  padding: 8px 0 4px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
