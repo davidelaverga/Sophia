@@ -3,7 +3,8 @@
 // and leave. Nothing here changes project work. Its height (a note, a second row on a phone) is the room's
 // --dock-h, so the words and the video above always clear it.
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { ExchangeReceipt, Snapshot } from '@sophia/contracts'
 import { Icon, SwapLabel, Tip, type IconName } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
@@ -11,6 +12,7 @@ import { transferInputFloor, type ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
 import type { DeviceKind } from './device-preference.ts'
+import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
@@ -39,7 +41,6 @@ export const canShareScreen = 'mediaDevices' in navigator && 'getDisplayMedia' i
 /** What each device opener lists (call-devices.md): beside the microphone, the camera, and Join. */
 const AUDIO: readonly DeviceKind[] = ['audioinput', 'audiooutput']
 const VIDEO: readonly DeviceKind[] = ['videoinput']
-const EVERY_DEVICE: readonly DeviceKind[] = ['audioinput', 'audiooutput', 'videoinput']
 
 /** The dock's height, notes included, as --dock-h on the room around it. */
 function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
@@ -78,12 +79,7 @@ export function RoomDock(props: Props) {
         ) : (
           <>
             <JoinButton room={room} />
-            <DeviceMenu
-              kinds={EVERY_DEVICE}
-              label="Audio and video settings"
-              list={room.listDevices}
-              onChoose={(kind, id) => void room.switchDevice(kind, id)}
-            />
+            <CheckOpener room={room} />
             <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
           </>
         )}
@@ -99,6 +95,41 @@ export const joinTip = (textMode: boolean) =>
     : micOnJoin()
       ? 'You join with your microphone on'
       : 'You join with your microphone off'
+
+/**
+ * Beside Join: the check before joining (device-check.md), the camera's picture, the voice's meter and the devices.
+ * Its sheet goes over the page, not inside the dock, whose blur would hold a fixed sheet within its own box.
+ */
+function CheckOpener({ room }: { room: ProjectRoom }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="device-menu">
+      <button
+        type="button"
+        className="device-open has-tip"
+        aria-label="Check audio and video"
+        aria-haspopup="dialog"
+        onClick={() => setOpen(true)}
+      >
+        <Icon name="chevron" />
+        <Tip label="Check audio and video" />
+      </button>
+      {open &&
+        createPortal(
+          <DeviceCheck
+            list={room.listDevices}
+            onChoose={(kind, id) => void room.switchDevice(kind, id)}
+            onClose={() => setOpen(false)}
+            onJoin={() => {
+              setOpen(false)
+              void room.join()
+            }}
+          />,
+          document.body,
+        )}
+    </span>
+  )
+}
 
 function JoinButton({ room }: { room: ProjectRoom }) {
   const label = room.status === 'joining' ? 'joining' : room.status === 'failed' ? 'retry' : 'join'
