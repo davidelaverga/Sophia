@@ -30,9 +30,9 @@ import {
   idOf,
   said,
 } from './data.ts'
-import { hostActed } from './fake-people.ts'
+import { hostActed, personId } from './fake-people.ts'
 import { missionWritten } from './mission-writes.ts'
-import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
+import { DEMO, DEMO_ORIGINS, PROJECT_NAME, VIEWER_NAME } from './demo.ts'
 import { exchangeWritten, type ExchangeAction } from './exchange-writes.ts'
 import { libraryVersions } from './demo-library.ts'
 import {
@@ -96,6 +96,10 @@ interface Project {
   loseContributionReply?: boolean
   /** While set, messages land but their replies wait for `releaseMessages` (`window.fixture.holdMessages`). */
   messagesHeld?: (() => void)[] | null
+  /** The goals' owners and dates (A25), by goal id; `targets=1` gives the rollout one. */
+  goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
+  /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
+  staleTarget?: boolean
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
   failHost?: boolean
   /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
@@ -361,6 +365,8 @@ function projectWritten(project: Project, path: string, init: RequestInit | unde
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/leave`) return departed(project)
+  const target = GOAL_TARGET.exec(path)?.[1]
+  if (target) return goalTargetPut(project, target, init)
   const host = HOST_ACT.exec(path)
   return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
 }
@@ -376,6 +382,59 @@ function hostAct(project: Project, what: 'mute' | 'remove', identity: string): R
   served.push(`${what}:${identity}`)
   hostActed(what, identity)
   return new Response(null, { status: 204 })
+}
+
+/** The project's own reads: its discussion (A20 proposed, A23), its goals' targets and its members (A25). */
+function projectRead(project: Project, url: URL): Response | null {
+  const base = `/api/v1/projects/${PROJECT}`
+  if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
+  if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
+  return url.pathname === `${base}/members` ? membersRead(project) : null
+}
+
+/** The goals' owners and dates (A25). */
+function goalTargetsRead(project: Project): Response {
+  const targets = [...(project.goalTargets?.entries() ?? [])].map(([goalId, t]) => ({ goalId, ...t }))
+  return json({ targets })
+}
+
+/** The project's members (A25): the viewer and the two others the room fixture names. */
+function membersRead(project: Project): Response {
+  return json({
+    members: [
+      { actorId: membership.actorId, role: project.role ?? membership.role, name: VIEWER_NAME },
+      { actorId: personId(1), role: 'editor', name: 'Marco' },
+      { actorId: personId(2), role: 'viewer', name: 'Lucía' },
+    ],
+  })
+}
+
+const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
+
+/** A goal's owner and date set (A25): an editor's or an admin's, compare-and-set on its revision. */
+function goalTargetPut(project: Project, goalId: string, init: RequestInit | undefined): Response {
+  if (project.role === 'viewer') return refused('Only editors and admins set a goal’s owner and date')
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const field = (k: string): unknown => (typeof body === 'object' && body !== null ? Reflect.get(body, k) : undefined)
+  const [ownerId, targetDate, expected] = [field('ownerId'), field('targetDate'), field('expectedRevision')]
+  const targets = (project.goalTargets ??= new Map())
+  const now = targets.get(goalId)
+  if (project.staleTarget) {
+    project.staleTarget = false
+    targets.set(goalId, { ownerId: personId(2), targetDate: '2026-12-01', revision: (now?.revision ?? 0) + 1 })
+    publish(project)
+    const problem = { code: 'stale_revision', message: 'The goal’s target changed', requestId: PROJECT, retry: 'never' }
+    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
+  }
+  served.push(`target:${String(ownerId)}:${String(targetDate)}:${String(expected)}`)
+  const next = {
+    ownerId: typeof ownerId === 'string' ? ownerId : null,
+    targetDate: typeof targetDate === 'string' ? targetDate : null,
+    revision: (now?.revision ?? 0) + 1,
+  }
+  targets.set(goalId, next)
+  publish(project)
+  return json({ goalId, ...next, cursor: String(project.revision) })
 }
 
 /** The room's discussion read: A20's replies (proposed), or a page of it (A23). */
@@ -506,7 +565,8 @@ function ownRead(project: Project, url: URL) {
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
-  if (url.pathname.startsWith(`/api/v1/projects/${PROJECT}/discussion`)) return discussionRead(project, url)
+  const read = projectRead(project, url)
+  if (read) return read
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
   const own = ownRead(project, url)

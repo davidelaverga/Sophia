@@ -114,6 +114,8 @@ interface Fixture {
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
   failHost: () => void
+  /** The next goal target saved finds someone else's first (goal-owner-date.md). */
+  staleTarget: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
@@ -417,6 +419,13 @@ const project = {
   failReplies: false,
   failEarlier: false,
   failHost: false,
+  staleTarget: false,
+  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md).
+  goalTargets: new Map(
+    query.get('targets') === '1'
+      ? [['00000000-0000-4000-8000-000000009001', { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 }]]
+      : [],
+  ),
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -577,6 +586,9 @@ window.fixture = {
   },
   failHost: () => {
     project.failHost = true
+  },
+  staleTarget: () => {
+    project.staleTarget = true
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
