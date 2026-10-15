@@ -6013,6 +6013,54 @@ button.contribution-quote:hover {
   font-size: 13px;
 }
 
+/* The stage's main view, under the pointer or the focus (docs/plans/room-pin-fullscreen.md): full screen, and Unpin for
+   a person pinned. Full screen keeps the picture whole on black. */
+.stage-acts {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.screen-main:hover .stage-acts,
+.screen-main:focus-within .stage-acts {
+  opacity: 1;
+}
+.screen-main:fullscreen {
+  border: 0;
+  border-radius: 0;
+}
+.spotlight-main {
+  display: grid;
+  place-items: center;
+  background: var(--plane);
+}
+.spotlight-initial {
+  font-size: 64px;
+}
+/* A tile's Pin, in the gallery, under the pointer or the focus. */
+.tile-pin {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  opacity: 0;
+  transition: opacity var(--fast) var(--ease);
+}
+.tile:hover .tile-pin,
+.tile:focus-within .tile-pin {
+  opacity: 1;
+}
+@media (hover: none) {
+  .stage-acts,
+  .tile-pin {
+    opacity: 1;
+  }
+}
+
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
