@@ -282,8 +282,15 @@ export function usePersonalWrites(identity: Identity, locked: boolean) {
     retry: (turnId: string) => run((k, at) => retryPersonalTurn(token, k, at, turnId)),
     decide: (suggestionId: string, decision: 'keep' | 'dismiss') =>
       run((k, at) => decidePersonalSuggestion(token, k, at, suggestionId, decision)),
-    keep: (text: string, fromTurnId: string, suggestionId: string | null) =>
-      run((k, at) => keepPersonalNote(token, k, at, { text, fromTurnId, ...(suggestionId ? { suggestionId } : {}) })),
+    // A note written straight into the notes has no turn behind it (personal-notes-write-find.md).
+    keep: (text: string, fromTurnId: string | null, suggestionId: string | null) =>
+      run((k, at) =>
+        keepPersonalNote(token, k, at, {
+          text,
+          ...(fromTurnId ? { fromTurnId } : {}),
+          ...(suggestionId ? { suggestionId } : {}),
+        }),
+      ),
     forget: (noteId: string) => run((k, at) => forgetPersonalNote(token, k, at, noteId)),
     carry: (noteId: string, projectId: string) =>
       run((k, at) => carryPersonalNote(token, k, at, noteId, projectId), true),

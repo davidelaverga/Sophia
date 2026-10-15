@@ -1,13 +1,14 @@
 // The notes slide out of the edge, next to the line they may cross (direction C), with a sheet's head (the title and
 // Close). Each note can be carried, one at a time, to one of the person's projects, exactly as written; the panel says
-// so before it happens.
+// so before it happens. A note can be written straight in, and from six of them Find narrows them by their words
+// (personal-notes-write-find.md).
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { PersonalNote, ProjectSummary } from '@sophia/contracts'
-import { ConfirmButton, EmptyState, Icon, Tip } from '@sophia/ui'
+import { ConfirmButton, EmptyState, Field, Icon, Search, Tip } from '@sophia/ui'
 import type { Memory as Remembered } from './extras.ts'
 import { focusSoon } from './focus.ts'
 import { Memory } from './Memory.tsx'
-import { membersLabel } from './places-view.ts'
+import { FIND_FROM, findNotes, membersLabel } from './places-view.ts'
 import type { Read } from './ReadNotes.tsx'
 import { CarryPackage, type PackWrites } from './CarryPackage.tsx'
 
@@ -22,6 +23,8 @@ interface Props {
   onCarry: (note: PersonalNote, project: ProjectSummary) => void
   /** Forget a note for good; resolves once it is gone (personal-forget-note.md). */
   onForget: (noteId: string) => Promise<boolean>
+  /** Keep a note written straight in; resolves to whether it was kept. */
+  onWrite: (text: string) => Promise<boolean>
   /** Whether a note's carry is on its way: it stays crossed, out of reach, until it settles (back if it failed). */
   carrying: (noteId: string) => boolean
   onStartProject: () => void
@@ -38,7 +41,42 @@ interface Props {
 /** How long a carried note takes to slide across before it leaves the list. */
 const CROSSING_MS = 440
 
-const NOTES_EMPTY = 'No notes yet. Note something from the conversation, or keep what Sophia suggests.'
+const NOTES_EMPTY = 'No notes yet. Write one above, note something from the conversation, or keep what Sophia suggests.'
+
+/** A note's most, as the API keeps one (PersonalNoteRequest). */
+const NOTE_MOST = 90
+
+/** One line at the top of the notes: Enter keeps it; refused, its words stay. */
+function WriteNote({ onWrite }: { onWrite: (text: string) => Promise<boolean> }) {
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
+  const keep = async () => {
+    if (text.trim() === '' || sending) return
+    setSending(true)
+    const kept = await onWrite(text.trim())
+    setSending(false)
+    if (kept) setText('')
+  }
+  return (
+    <Field
+      as="form"
+      className="c3-write-note"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void keep()
+      }}
+    >
+      <input
+        aria-label="Write a note"
+        placeholder="Write a note…"
+        maxLength={NOTE_MOST}
+        value={text}
+        readOnly={sending}
+        onChange={(e) => setText(e.target.value)}
+      />
+    </Field>
+  )
+}
 
 function Where({
   projects,
@@ -160,6 +198,7 @@ export function NotesPanel(props: Props) {
   // (carrying, taking back), the notes stay open, so what it says stays in sight.
   const [packing, setPacking] = useState(false)
   const [packBusy, setPackBusy] = useState(false)
+  const find = useFind(notes)
   // Focus the panel itself: a tip should appear when you reach a control, not the moment the notes open.
   useEffect(() => panel.current?.focus({ preventScroll: true }), [])
   return (
@@ -173,9 +212,9 @@ export function NotesPanel(props: Props) {
       {!packing && props.memory && props.memory.items.length > 0 && notes !== undefined && (
         <h3 className="c3-label">Your notes</h3>
       )}
-      {notes?.length === 0 && <EmptyState className="ps-empty">{NOTES_EMPTY}</EmptyState>}
+      <NotesTop packing={packing} notes={notes} onWrite={props.onWrite} find={find} />
       {!packing &&
-        notes?.map((note) => (
+        find.shown.map((note) => (
           <div key={note.id} className={`c2-t${crossed(note.id) ? ' crossing' : ''}`} inert={crossed(note.id)}>
             <p>
               {note.text}
@@ -203,6 +242,50 @@ export function NotesPanel(props: Props) {
           </div>
         ))}
     </aside>
+  )
+}
+
+type Find = ReturnType<typeof useFind>
+
+/** What is typed in Find, and the notes it leaves; from six notes only, all of them before. */
+function useFind(notes: readonly PersonalNote[] | undefined) {
+  const [typed, setTyped] = useState('')
+  const all = notes ?? []
+  const offered = all.length >= FIND_FROM
+  return { offered, typed, setTyped, shown: findNotes(all, offered ? typed : '') }
+}
+
+/** Above the notes: the line to write one, none yet said, and Find; out of the way while a package is reviewed. */
+function NotesTop(props: {
+  packing: boolean
+  notes: readonly PersonalNote[] | undefined
+  onWrite: (text: string) => Promise<boolean>
+  find: Find
+}) {
+  const { packing, notes, find } = props
+  return (
+    <>
+      {!packing && <WriteNote onWrite={props.onWrite} />}
+      {notes?.length === 0 && <EmptyState className="ps-empty">{NOTES_EMPTY}</EmptyState>}
+      {!packing && find.offered && <FindNotes typed={find.typed} onTyped={find.setTyped} found={find.shown.length} />}
+    </>
+  )
+}
+
+/** From six notes, Find narrows them by their words; none holding them is said. */
+function FindNotes(props: { typed: string; onTyped: (typed: string) => void; found: number }) {
+  return (
+    <>
+      <Search
+        className="c3-find-notes"
+        placeholder="Find in notes"
+        aria-label="Find in notes"
+        maxLength={NOTE_MOST}
+        value={props.typed}
+        onChange={(e) => props.onTyped(e.target.value)}
+      />
+      {props.found === 0 && <p className="c3-find-none">{`No notes hold “${props.typed.trim()}”.`}</p>}
+    </>
   )
 }
 
