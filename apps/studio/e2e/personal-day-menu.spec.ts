@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 
 test('@phone · personal · the day menu keeps each date on one line', async ({ page }) => {
   await page.setViewportSize({ width: 350, height: 760 })
-  await page.goto('/personal.html')
+  // At noon, so the fixture's days are «Yesterday» and «Today» whenever it runs (#334's half past midnight).
+  await page.goto('/personal.html?at=12:00')
   // Scrolled until today's divider sits 120 px under the top, yesterday's above it: the pill names yesterday (and has
   // no divider right under it to step aside for) and opens the days.
   await page.locator('.msgs').evaluate((m) => {
