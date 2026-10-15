@@ -402,9 +402,9 @@ function activityRead(url: URL): Response {
     const kind =
       sequence === 1
         ? { type: 'project.created', summaryCode: 'project.created', onMember: false }
-        : kinds[sequence % 4]
-    const actor = people[sequence % 3] ?? people[0]
-    const target = kind?.onMember ? (people[(sequence + 1) % 3] ?? null) : null
+        : kinds[(sequence + 3) % 4]
+    const actor = people[(sequence + 1) % 3] ?? people[0]
+    const target = kind?.onMember ? (people[(sequence + 2) % 3] ?? null) : null
     return {
       sequence: String(sequence),
       occurredAt: new Date(Date.UTC(2026, 9, 15, 9, sequence)).toISOString(),

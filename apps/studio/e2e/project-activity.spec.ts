@@ -30,9 +30,9 @@ test('activity · an admin reads who did what, on whom and when, newest first', 
   await open(page)
   await expect(rows(page)).toHaveCount(50)
   await expect(rows(page).first()).toContainText('Marco')
-  await expect(rows(page).first()).toContainText('Taken out of the call by an admin')
+  await expect(rows(page).first()).toContainText('Took out of the call')
   await expect(rows(page).first()).toContainText('Lucía')
-  await expect(rows(page).nth(1)).toContainText('Role changed')
+  await expect(rows(page).nth(1)).toContainText('Changed the role of')
 })
 
 test('activity · a person filter keeps what that person did', async ({ page }) => {

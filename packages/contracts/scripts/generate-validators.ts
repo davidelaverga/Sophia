@@ -27,6 +27,7 @@ const EXPORTS = [
   'ProjectMembers',
   'InvitablePeople',
   'MemberRoleSet',
+  'ActivityPage',
   'Error',
   'Event',
   'CursorAdvance',

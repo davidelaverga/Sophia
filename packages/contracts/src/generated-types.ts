@@ -258,6 +258,8 @@ export type InvitablePerson = { "actorId": string; "email": string; };
 export type InvitablePeople = { "people": ReadonlyArray<InvitablePerson>; };
 export type MemberRoleRequest = { "role": "admin" | "editor" | "viewer"; };
 export type MemberRoleSet = { "actorId": string; "role": "admin" | "editor" | "viewer"; "revision": number; "cursor": string; };
+export type ActivityEntry = { "sequence": string; "occurredAt": string; "type": string; "summaryCode": string; "actor": { "id": string; "name": string | null; }; "target": { "id": string; "name": string | null; } | null; };
+export type ActivityPage = { "entries": ReadonlyArray<ActivityEntry>; "before": string | null; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -411,4 +413,5 @@ export interface Operations {
   "listProjectMembers": { method: "GET"; path: "/api/v1/projects/{projectId}/members"; request: undefined; response: ProjectMembers; };
   "listInvitablePeople": { method: "GET"; path: "/api/v1/projects/{projectId}/invitable"; request: undefined; response: InvitablePeople; };
   "changeMemberRole": { method: "PUT"; path: "/api/v1/projects/{projectId}/members/{actorId}/role"; request: MemberRoleRequest; response: MemberRoleSet; };
+  "readProjectActivity": { method: "GET"; path: "/api/v1/projects/{projectId}/activity"; request: undefined; response: ActivityPage; };
 }

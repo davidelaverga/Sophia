@@ -6,6 +6,7 @@ import {
   authorizeRoomJoin,
   hostedRoom,
   nameActor,
+  recordHostAct,
   rememberRoomName,
   transferInputFloor,
   withActor,
@@ -111,6 +112,10 @@ function hostControls(app: FastifyInstance, { pool, livekit }: Deps): void {
         if (!(await memberInRoom(livekit, roomId, req.params.identity)))
           throw new DomainError('invalid_request', 'They aren’t a member in the call')
         await (what === 'mute' ? muteMicrophone : removeFromCall)(livekit, roomId, req.params.identity)
+        // Evidence of who did it, once it is done (project-activity.md): the project's activity lists it.
+        await withActor(pool, req.actorId, 'write', (c) =>
+          recordHostAct(c, req.params.projectId, req.params.identity, what),
+        )
         return reply.code(204).send()
       },
     )
