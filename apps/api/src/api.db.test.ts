@@ -448,6 +448,21 @@ describe('leaving a project (A22)', () => {
       [projectId],
     )
     assert.equal(heard, 1)
+    // Said as a departure, never as «Member joined» (Codex P2 on #349).
+    const said = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_left' AND summary_code = 'project.member_left'`,
+      [projectId],
+    )
+    assert.equal(said, 1)
+    // Out of the call too: a removal the worker keeps until any token they hold has expired (Codex P1 on #349).
+    const removal = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.room_removals
+        WHERE project_id = $1 AND identity = $2 AND reason = 'left' AND lobby_entry_id IS NULL
+          AND state <> 'cancelled' AND guard_until > now() + interval '9 minutes'`,
+      [projectId, B],
+    )
+    assert.equal(removal, 1)
     // A retry after a lost reply answers the same receipt, though the person is no longer a member.
     const again = await leave(B, projectId, key)
     assert.deepEqual([again.status, again.json], [200, left.json])

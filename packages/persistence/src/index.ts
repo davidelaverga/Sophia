@@ -142,6 +142,7 @@ export {
 } from './exchange.ts'
 export {
   claimRoomRemovals,
+  pendingDeparture,
   pendingRemoval,
   readRemoval,
   settleRoomRemoval,
