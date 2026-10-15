@@ -47,6 +47,9 @@ test('times · a typed turn with Sophia says when, and its link opens in a new t
   await bar.press('Enter')
   const mine = withSophia(page).locator('.chat-message.user').last()
   await expect(mine.locator('time')).toHaveText(/^\d{2}:\d{2}$/)
+  // When it was sent, by the clock: not its place among the chat's arrivals (Codex P1 on #360).
+  const sent = Date.parse((await mine.locator('time').getAttribute('datetime')) ?? '')
+  expect(Math.abs(sent - (await page.evaluate(() => Date.now())))).toBeLessThan(5 * 60_000)
   const link = mine.getByRole('link', { name: 'https://example.org/notes' })
   await expect(link).toHaveAttribute('target', '_blank')
   await expect(link).toHaveAttribute('rel', /noopener/)
