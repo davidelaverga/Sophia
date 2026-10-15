@@ -34,6 +34,20 @@
 - **Version:** `@livekit/track-processors` 0.8.1 (September 16). 0.8.2 was three days old; it brings
   `@mediapipe/tasks-vision` 0.10.14.
 
+## Codex on #342
+
+- **P1, a camera must not show what is behind before its background is drawn.** LiveKit creates and publishes the
+  camera track inside `setCameraEnabled(true)`. Before, the processor was set after that, so the room could see
+  unprocessed frames while MediaPipe loaded. Now:
+  - The processor goes with the capture (`setCameraEnabled(true, { processor })`), so the first frame is drawn.
+  - A camera that is only muted gets it on its own track before it is unmuted.
+- **P2, a background that fails isn't swallowed.** A background that can't load when the camera turns on keeps the
+  camera off, and the note says why (`BackgroundUnavailable`). Nothing is sent without it.
+- **P2, the latest choice wins.** Each choice takes a turn number, and work superseded across a slow load is
+  discarded, so an earlier choice never takes effect after a later one.
+- The logic lives in `camera-background.ts`, with the camera and the loader passed in, so these rules are unit-tested
+  without LiveKit.
+
 ## Checks
 
 - `background-preference.test.ts`: the list; the choice kept, with anything unknown read as None; each background
