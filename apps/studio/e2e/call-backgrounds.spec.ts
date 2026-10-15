@@ -37,11 +37,8 @@ test('backgrounds · under the cameras, the backgrounds, none marked; a choice a
     'aria-checked',
     'true',
   )
-  // Kept for the next call: it opens with it.
+  // Kept for the next call: it opens with it (the page joins again on its own, `call=on`).
   await page.reload()
-  await dock(page)
-    .getByRole('button', { name: /^Join the room/ })
-    .click()
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   expect(await page.evaluate(() => window.fixture?.backgroundOnJoin)).toBe('blur')
 })

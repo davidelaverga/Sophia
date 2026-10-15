@@ -5,6 +5,7 @@
 // it, with nothing to press.
 import { Fragment, useEffect, useState } from 'react'
 import { Icon, Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
+import { BACKGROUNDS, chosenBackground, type BackgroundId } from './background-preference.ts'
 import {
   canChooseOutput,
   chosenDevices,
@@ -79,6 +80,41 @@ function KindItems({ kind, found, chosen, onChoose }: KindProps) {
   ))
 }
 
+/** A camera background chosen beside the cameras (call-backgrounds.md): whether the device can draw one, and the choice. */
+interface BackgroundChoice {
+  supported: () => Promise<boolean>
+  onChoose: (id: BackgroundId) => void
+}
+
+/** Whether the device can draw a background, asked while the menu is open; null until it answers. */
+function useCanDraw(open: boolean, background: BackgroundChoice | undefined): boolean | null {
+  const [can, setCan] = useState<boolean | null>(null)
+  const supported = background?.supported
+  useEffect(() => {
+    if (!open || !supported) return undefined
+    let live = true
+    void supported().then((ok) => {
+      if (live) setCan(ok)
+    })
+    return () => {
+      live = false
+      setCan(null)
+    }
+  }, [open, supported])
+  return can
+}
+
+function BackgroundItems({ can, onChoose }: { can: boolean | null; onChoose: (id: BackgroundId) => void }) {
+  if (can === null) return <Said>Checking this device…</Said>
+  if (!can) return <Said>This browser can’t draw a background</Said>
+  const chosen = chosenBackground()
+  return BACKGROUNDS.map((b) => (
+    <MenuItem key={b.id} checked={b.id === chosen} onClick={() => onChoose(b.id)}>
+      {b.label}
+    </MenuItem>
+  ))
+}
+
 interface Props {
   /** The kinds it lists, in order; a speaker only where the browser can choose one. */
   kinds: readonly DeviceKind[]
@@ -86,25 +122,29 @@ interface Props {
   label: string
   list: List
   onChoose: (kind: DeviceKind, id: string) => void
+  /** Under the cameras, the camera's background. */
+  background?: BackgroundChoice
 }
 
-export function DeviceMenu({ kinds, label, list, onChoose }: Props) {
+export function DeviceMenu({ kinds, label, list, onChoose, background }: Props) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   const shown = kinds.filter((k) => k !== 'audiooutput' || canChooseOutput())
   const found = useDevices(open, kinds, list)
+  const can = useCanDraw(open, background)
   // The devices arrive after the menu opened on «Finding devices…», which goes with the focus it held: it moves to the
   // device in use, so the arrows and Escape still work from the menu.
   useEffect(() => {
     const panel = menu.panel.current
     if (!panel || found.state === 'reading' || panel.contains(document.activeElement)) return
     panel.querySelector<HTMLElement>('[aria-checked="true"], [role^="menuitem"]')?.focus()
-  }, [found, menu.panel])
-  const choose = (kind: DeviceKind, id: string) => {
+  }, [found, can, menu.panel])
+  const closeThen = (act: () => void) => {
     menu.opener.current?.focus()
     setOpen(false)
-    onChoose(kind, id)
+    act()
   }
+  const choose = (kind: DeviceKind, id: string) => closeThen(() => onChoose(kind, id))
   return (
     <div ref={menu.wrap} className="device-menu">
       <button
@@ -128,6 +168,13 @@ export function DeviceMenu({ kinds, label, list, onChoose }: Props) {
               <KindItems kind={kind} found={found} chosen={chosenDevices()[kind]} onChoose={(id) => choose(kind, id)} />
             </Fragment>
           ))}
+          {background && (
+            <>
+              <MenuSep />
+              <MenuHead>Background</MenuHead>
+              <BackgroundItems can={can} onChoose={(id) => closeThen(() => background.onChoose(id))} />
+            </>
+          )}
         </Menu>
       )}
     </div>

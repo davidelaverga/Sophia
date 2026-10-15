@@ -7,6 +7,7 @@
 // reaches this browser (S1-05A §6.5).
 import {
   DisconnectReason,
+  LocalVideoTrack,
   Room,
   RoomEvent,
   Track,
@@ -26,11 +27,15 @@ import {
   type ChatReply,
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
+import type { BackgroundProcessorWrapper } from '@livekit/track-processors'
+import { backgroundEffect, chosenBackground, type BackgroundId } from './background-preference.ts'
+import { backgroundPicture } from './background-pictures.ts'
 import { deviceChange } from './device-change.ts'
 import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
+import { MEDIAPIPE_BASE, SEGMENTER_FILE } from './mediapipe-path.ts'
 import { isSophia, listenToSophia } from './sophia-channel.ts'
 import type { SophiaSignal } from './sophia-view.ts'
 
@@ -74,6 +79,8 @@ export interface RoomConnection {
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
+  /** Draw a background behind this person on camera, now or when it next turns on (call-backgrounds.md). */
+  setBackground: (id: BackgroundId) => Promise<void>
   /** Switch the call's microphone, speaker or camera to a listed device (call-devices.md). */
   switchDevice: (kind: DeviceKind, id: string) => Promise<void>
   /** What this person follows, said to the members in the call (following-signal.ts); sent only when it changes. */
@@ -249,6 +256,90 @@ const switchTo = (room: Room, kind: DeviceKind, id: string) =>
     if (!took) throw new Error(`The ${kind} didn’t switch`)
   })
 
+/**
+ * Whether this device can draw a camera background: what @livekit/track-processors 0.8.1 asks of it (WebGL2, offscreen
+ * canvases and video frames, and a way to process a track), asked without loading it.
+ */
+export function backgroundsSupported(): boolean {
+  const transformer =
+    typeof OffscreenCanvas !== 'undefined' &&
+    typeof VideoFrame !== 'undefined' &&
+    typeof createImageBitmap !== 'undefined' &&
+    !!document.createElement('canvas').getContext('webgl2')
+  const processing =
+    ('MediaStreamTrackGenerator' in globalThis && 'MediaStreamTrackProcessor' in globalThis) ||
+    'captureStream' in HTMLCanvasElement.prototype
+  return transformer && processing
+}
+
+/** Where the processor finds MediaPipe: the Studio's own copy (mediapipe-assets.ts), never a third party's. */
+const MEDIAPIPE = { tasksVisionFileSet: MEDIAPIPE_BASE, modelAssetPath: `${MEDIAPIPE_BASE}/${SEGMENTER_FILE}` }
+
+/**
+ * The camera's background (call-backgrounds.md): the chosen one, drawn on the camera while it is on and again when it
+ * turns on. The processor, and MediaPipe with it, load only once a background other than none is drawn.
+ */
+function cameraBackground(room: Room) {
+  let chosen = chosenBackground()
+  let drawing: BackgroundProcessorWrapper | null = null
+  const camera = () => {
+    const track = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track
+    return track instanceof LocalVideoTrack ? track : null
+  }
+  const draw = async () => {
+    const track = camera()
+    if (!track) return
+    if (chosen === 'none') {
+      if (drawing) await track.stopProcessor()
+      drawing = null
+      return
+    }
+    const effect = backgroundEffect(chosen, backgroundPicture)
+    if (drawing && track.getProcessor() === drawing) return drawing.switchTo(effect)
+    const { BackgroundProcessor } = await import('@livekit/track-processors')
+    drawing = BackgroundProcessor({ ...effect, assetPaths: MEDIAPIPE })
+    await track.setProcessor(drawing)
+  }
+  return {
+    set: (id: BackgroundId) => {
+      chosen = id
+      return draw()
+    },
+    // A camera turned on gets the background chosen; one it can't draw leaves the camera as it is (a new choice says why).
+    cameraOn: () => draw().catch(() => undefined),
+  }
+}
+
+type DeviceControls = Pick<
+  RoomConnection,
+  'setMicrophone' | 'setCamera' | 'setBackground' | 'setScreenShare' | 'switchDevice'
+>
+
+/** This person's devices in the call, each as LiveKit leaves it, not as its answer says (deviceChange). */
+function deviceControls(room: Room, after: (change: Promise<unknown>) => Promise<void>): DeviceControls {
+  const me = room.localParticipant
+  const background = cameraBackground(room)
+  return {
+    setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
+    setCamera: (on) =>
+      after(
+        deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on).then(() =>
+          on ? background.cameraOn() : undefined,
+        ),
+      ),
+    setBackground: (id) => after(background.set(id)),
+    // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.
+    setScreenShare: (on) =>
+      after(
+        deviceChange(
+          me.setScreenShareEnabled(on, { audio: true, selfBrowserSurface: 'exclude' }),
+          () => me.isScreenShareEnabled === on,
+        ),
+      ),
+    switchDevice: (kind, id) => after(switchTo(room, kind, id)),
+  }
+}
+
 export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
   const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
@@ -272,7 +363,6 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
   }
   const people = () => [...room.remoteParticipants.values()].filter((p) => !isSophia(p))
   const other = (p: Participant) => ({ ...toView(p, false), following: following.of(p.identity) })
-  const me = room.localParticipant
   return {
     sendChat: (packet) =>
       room.localParticipant.publishData(encodeChatPacket(packet), {
@@ -291,18 +381,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
     audioBlocked: () => !room.canPlaybackAudio,
     startAudio: () => after(room.startAudio()),
     feeds: () => [...feedsOf(room.localParticipant, true), ...people().flatMap((p) => feedsOf(p, false))],
-    // Each device as LiveKit leaves it, not as its answer says (deviceChange).
-    setMicrophone: (on) => after(deviceChange(me.setMicrophoneEnabled(on), () => me.isMicrophoneEnabled === on)),
-    setCamera: (on) => after(deviceChange(me.setCameraEnabled(on), () => me.isCameraEnabled === on)),
-    // The browser asks which screen, window or tab; its own "Stop sharing" ends the share too.
-    setScreenShare: (on) =>
-      after(
-        deviceChange(
-          me.setScreenShareEnabled(on, { audio: true, selfBrowserSurface: 'exclude' }),
-          () => me.isScreenShareEnabled === on,
-        ),
-      ),
-    switchDevice: (kind, id) => after(switchTo(room, kind, id)),
+    ...deviceControls(room, after),
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     leave: () => room.disconnect(),
   }

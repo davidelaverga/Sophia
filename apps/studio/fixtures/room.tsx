@@ -253,6 +253,8 @@ interface Fixture {
   asked: readonly string[]
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
+  /** The camera background the last call opened with (call-backgrounds.md); null before any. */
+  readonly backgroundOnJoin: string | null
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
@@ -818,6 +820,9 @@ window.fixture = {
   asked,
   get devicesOnJoin() {
     return joined.devices
+  },
+  get backgroundOnJoin() {
+    return joined.background
   },
   served,
   unexpected,

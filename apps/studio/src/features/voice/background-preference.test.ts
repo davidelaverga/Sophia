@@ -16,6 +16,9 @@ function storage(): Storage {
   }
 }
 
+/** A picture as the browser would give it: its URL. */
+const picture = (id: string) => `blob:${id}`
+
 describe('the background a person chose for their camera (call-backgrounds.md)', () => {
   beforeEach(() => {
     Object.defineProperty(globalThis, 'localStorage', { value: storage(), configurable: true })
@@ -52,7 +55,6 @@ describe('the background a person chose for their camera (call-backgrounds.md)',
   })
 
   it('says each as the processor takes it: off, a blur of its strength, or a picture behind the person', () => {
-    const picture = (id: string) => `blob:${id}`
     assert.deepEqual(backgroundEffect('none', picture), { mode: 'disabled' })
     assert.deepEqual(backgroundEffect('blur-light', picture), { mode: 'background-blur', blurRadius: 4 })
     assert.deepEqual(backgroundEffect('blur', picture), { mode: 'background-blur', blurRadius: 12 })
