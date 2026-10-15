@@ -10,9 +10,9 @@ Writable scope: this worktree only (`db/migrations`, `packages/contracts`, `pack
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record (Docker Desktop doesn't start on the host, so the DB suites run in CI only).
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: `c888bfec4e67` (tree `e0a4f077fbc0`), the last commit of `api/project-rename`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 21 files changed against
-`origin/main` at that commit: `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/projects.ts`, `e2e/project-rename.spec.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ProjectName.tsx`, `src/features/studio/ProjectShell.tsx`, `db/migrations/0051_project_rename.sql`, `docs/plans/project-rename.md`, `packages/contracts/amendments/A19-project-rename.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/projects.ts`. The review notes below name the commit of each later change.
+Ending commit/tree: `85f336aac07e` (tree `dc91b86b0b89`), the last commit of `api/project-rename`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 23 files changed against
+`origin/main` at that commit: `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/projects.ts`, `e2e/project-rename.spec.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ProjectName.tsx`, `src/features/studio/ProjectShell.tsx`, `db/migrations/0051_project_rename.sql`, `docs/handoffs/PROJECT-RENAME-attempt-1.md`, `docs/plans/project-rename.md`, `packages/contracts/amendments/A19-project-rename.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/projects.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -49,3 +49,9 @@ commits on the branch merge its base forward or touch only this record). 21 file
 - CI; Codex with no open P1.
 - Next pieces of point 1: leaving a project, then archiving and unarchiving it. Deleting for good waits for a decision
   with Davide.
+
+## Review notes
+
+- `85f336aa`: CI's runtime-unit refused `project.renamed` as an unknown event type (`diagnostics/sanitize.test.ts`, run
+  only in CI here). The sanitizer now knows it, and the event's summary code is `project.renamed`, dotted like the
+  others.
