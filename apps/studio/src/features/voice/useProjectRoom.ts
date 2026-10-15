@@ -12,6 +12,7 @@ import { ApiError, issueRoomToken } from '../../api/client.ts'
 import { CALL_END, keepsTextMode, type CallEnd } from './call-end.ts'
 import { CallFence } from './call-fence.ts'
 import type { RoomCallbacks, RoomConnection, VideoFeed } from './livekit-room.ts'
+import { rememberBackground, type BackgroundId } from './background-preference.ts'
 import { rememberDevice, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { micOnJoin, rememberMic } from './mic-preference.ts'
 import { mediaMessage, type Device, type DockStatus, type RoomParticipant } from './room-view.ts'
@@ -69,6 +70,10 @@ export interface ProjectRoom {
   switchDevice: (kind: DeviceKind, id: string) => Promise<void>
   /** The devices of a kind, through LiveKit (loaded only now); rejects where the browser refuses access. */
   listDevices: (kind: DeviceKind) => Promise<MediaDevice[]>
+  /** The person's camera background: kept for their next call, and drawn in this one (call-backgrounds.md). */
+  setBackground: (id: BackgroundId) => Promise<void>
+  /** Whether this device can draw a camera background. */
+  backgroundsSupported: () => Promise<boolean>
   /** What this person follows, said to the members in the call (A14, following-signal.ts); null for nothing. */
   setFollowing: (versionId: string | null) => Promise<void>
 }
@@ -104,6 +109,12 @@ async function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
   return room.listDevices(kind)
 }
 
+/** Whether this device can draw a camera background, as the room's module asks it (call-backgrounds.md). */
+async function backgroundsSupported(): Promise<boolean> {
+  const room = await import('./livekit-room.ts')
+  return room.backgroundsSupported()
+}
+
 /**
  * The microphone on joining: as this device left it last time. Changed by amendment A06 (S1-05A): viewers
  * publish too, so no one is left without a microphone.
@@ -133,6 +144,22 @@ const SWITCH_REFUSED: Record<DeviceKind, string> = {
   audioinput: 'Couldn’t switch to that microphone. Another app may be using it.',
   audiooutput: 'Couldn’t switch to that speaker.',
   videoinput: 'Couldn’t switch to that camera. Another app may be using it.',
+}
+
+/** A background chosen: kept for the next call; in this one, drawn, the note saying it if the device refused. */
+function backgroundSwitch(connection: { current: RoomConnection | null }, say: (note: string | null) => void) {
+  return async (id: BackgroundId) => {
+    rememberBackground(id)
+    const c = connection.current
+    if (!c) return
+    try {
+      await c.setBackground(id)
+    } catch {
+      if (connection.current === c) say('Couldn’t draw that background on this device.')
+      return
+    }
+    if (connection.current === c) say(null)
+  }
 }
 
 /** A device chosen: kept for the next call; in this one, switched, the note saying it if the browser refused. */
@@ -201,6 +228,7 @@ function useDevices(connection: { current: RoomConnection | null }, refresh: () 
       await media('screen', on)
     },
     switchDevice: deviceSwitch(connection, setMediaError),
+    setBackground: backgroundSwitch(connection, setMediaError),
   }
 }
 
@@ -422,6 +450,7 @@ export function useRoomConnection(issue: IssueToken | null): ProjectRoom {
     sendChat: typedChat.sendChat,
     startAudio,
     listDevices,
+    backgroundsSupported,
     setFollowing,
     ready: issue !== null,
     leave,
