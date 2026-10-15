@@ -2,9 +2,16 @@
 // Kept beside the goal: nothing here moves a goal's revision or authority.
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { GoalTargetRequest } from '@sophia/contracts'
+import type { GoalTargetRequest, ProjectMember } from '@sophia/contracts'
 import { DomainError } from '@sophia/domain'
-import { readGoalTargets, readInvitablePeople, readProjectMembers, setGoalTarget, withActor } from '@sophia/persistence'
+import {
+  changeMemberRole,
+  readGoalTargets,
+  readInvitablePeople,
+  readProjectMembers,
+  setGoalTarget,
+  withActor,
+} from '@sophia/persistence'
 import { projectParams } from './schemas.ts'
 
 const goalParams = {
@@ -14,7 +21,33 @@ const goalParams = {
   required: ['projectId', 'goalId'],
 } as const
 
+const memberParams = {
+  type: 'object',
+  additionalProperties: false,
+  properties: { projectId: { type: 'string', format: 'uuid' }, actorId: { type: 'string', format: 'uuid' } },
+  required: ['projectId', 'actorId'],
+} as const
+
+/** changeMemberRole (A27): admins only; a project keeps at least one admin; a role already held changes nothing. */
+function memberRoleRoute(app: FastifyInstance, pool: pg.Pool): void {
+  app.put<{ Params: { projectId: string; actorId: string }; Body: { role: ProjectMember['role'] } }>(
+    '/api/v1/projects/:projectId/members/:actorId/role',
+    {
+      schema: {
+        params: memberParams,
+        body: { $ref: 'MemberRoleRequest#' },
+        response: { 200: { $ref: 'MemberRoleSet#' } },
+      },
+    },
+    async (req) =>
+      withActor(pool, req.actorId, 'write', (c) =>
+        changeMemberRole(c, req.params.projectId, req.params.actorId, req.body.role),
+      ),
+  )
+}
+
 export function goalTargetRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
+  memberRoleRoute(app, pool)
   app.get<{ Params: { projectId: string } }>(
     '/api/v1/projects/:projectId/goal-targets',
     { schema: { params: projectParams, response: { 200: { $ref: 'GoalTargetList#' } } } },

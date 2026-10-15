@@ -14,6 +14,7 @@ import type {
   GoalTargetRequest,
   GoalTargetSet,
   ProjectMembers,
+  MemberRoleSet,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -29,6 +30,7 @@ import {
   parseGoalTargetList,
   parseGoalTargetSet,
   parseProjectMembers,
+  parseMemberRoleSet,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -160,6 +162,26 @@ export async function setGoalTarget(
     })
     if (!res.ok) throw await toError(res)
     return readBody(res, parseGoalTargetSet, 'never')
+  }
+  return inTime(READ_TIMEOUT_MS, send)
+}
+
+/** changeMemberRole (A27): admins only; a project keeps an admin; a role already held changes nothing. */
+export async function changeMemberRole(
+  token: string,
+  projectId: string,
+  actorId: string,
+  role: 'admin' | 'editor' | 'viewer',
+): Promise<MemberRoleSet> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/members/${actorId}/role`), {
+      method: 'PUT',
+      headers: { ...auth(token), 'content-type': 'application/json' },
+      body: JSON.stringify({ role }),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseMemberRoleSet, 'never')
   }
   return inTime(READ_TIMEOUT_MS, send)
 }

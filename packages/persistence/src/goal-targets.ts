@@ -1,7 +1,14 @@
 // A goal's owner and target date, kept beside it (db/migrations/0053, contract amendment A25), and a project's members
 // with the names the room keeps. Reads run under the member's RLS; the write goes through sophia.set_goal_target.
 import type pg from 'pg'
-import type { GoalTarget, GoalTargetRequest, GoalTargetSet, InvitablePerson, ProjectMember } from '@sophia/contracts'
+import type {
+  GoalTarget,
+  GoalTargetRequest,
+  GoalTargetSet,
+  InvitablePerson,
+  MemberRoleSet,
+  ProjectMember,
+} from '@sophia/contracts'
 import { safeInt } from './bigint.ts'
 import { onlyRow } from './rows.ts'
 
@@ -68,4 +75,18 @@ export async function readInvitablePeople(c: pg.PoolClient, projectId: string): 
     [projectId],
   )
   return rows.map((r) => ({ actorId: r.actor_id, email: r.email }))
+}
+
+/** Change a member's role (A27, 0055): admins only; a project keeps an admin. Call inside withActor(..., "write"). */
+export async function changeMemberRole(
+  c: pg.PoolClient,
+  projectId: string,
+  actorId: string,
+  role: ProjectMember['role'],
+): Promise<MemberRoleSet> {
+  const { rows } = await c.query<{ receipt: MemberRoleSet }>(
+    `SELECT sophia.change_member_role($1, $2, $3) AS receipt`,
+    [projectId, actorId, role],
+  )
+  return onlyRow(rows, 'change_member_role').receipt
 }

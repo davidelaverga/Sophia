@@ -9,6 +9,7 @@ describe('event words in the work pulse', () => {
     assert.equal(summaryLabel('project.member', 'project.member_joined'), 'Member joined')
     // A departure is said as one, and a rename as one (project-leave.md; Codex P2 on #349).
     assert.equal(summaryLabel('project.member_left', 'project.member_left'), 'Member left')
+    assert.equal(summaryLabel('project.member_role', 'project.member_role_changed'), 'Role changed')
     assert.equal(summaryLabel('project.renamed', 'project.renamed'), 'Project renamed')
   })
 

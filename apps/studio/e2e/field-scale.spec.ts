@@ -85,7 +85,7 @@ test('fields · the Invite sheet’s fields, guests and members, stand on 36 px'
   await expect(page.getByRole('tab', { name: 'Guests' })).toBeVisible()
   expect(await offScale(page)).toEqual([])
   await page.getByRole('tab', { name: 'Members' }).click()
-  await expect(page.getByLabel('Role')).toBeVisible()
+  await expect(page.getByLabel('Role', { exact: true })).toBeVisible()
   expect(await offScale(page)).toEqual([])
 })
 
