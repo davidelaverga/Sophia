@@ -1,24 +1,31 @@
 {
   "id": "A21",
   "goal": "E2E",
-  "title": "A member leaves a project",
+  "title": "An admin renames a project",
   "why": [
-    "The gaps report (2026-10-15, point 1): someone invited to a project could never step out of it; it stayed on their Work list for good. Leaving is the second of the point's pieces, after renaming (A19). A20 is the proposed room-chat replies (#105), so this takes A21.",
-    "POST /api/v1/projects/{projectId}/leave: any active member, except the project's only admin (409), idempotent per actor and key. The membership goes inactive, as a new invitation sets it active again; project.member_left is emitted."
+    "The gaps report (2026-10-15, point 1): a project could be created and never changed, so a typo in its title stayed for good. Renaming is the first of the point's pieces; leaving and archiving follow, and deleting for good waits for a decision. A19 and A20 are proposals to Davide (#105), so this takes A21.",
+    "POST /api/v1/projects/{projectId}/title renames it: an admin only, idempotent per actor and key as createProject is, a title of 1–180 characters that isn't spaces alone. The rename emits project.renamed, so every member's feed reads the new title from its snapshot and the projects' list."
   ],
   "patch": [
     {
       "op": "add",
-      "path": "/components/schemas/ProjectLeaveRequest",
+      "path": "/components/schemas/ProjectRenameRequest",
       "value": {
         "type": "object",
         "additionalProperties": false,
-        "properties": {}
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          }
+        },
+        "required": ["title"]
       }
     },
     {
       "op": "add",
-      "path": "/components/schemas/ProjectLeft",
+      "path": "/components/schemas/ProjectRenamed",
       "value": {
         "type": "object",
         "additionalProperties": false,
@@ -27,21 +34,26 @@
             "type": "string",
             "format": "uuid"
           },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 180
+          },
           "cursor": {
             "type": "string",
             "pattern": "^(0|[1-9][0-9]*)$"
           }
         },
-        "required": ["projectId", "cursor"]
+        "required": ["projectId", "title", "cursor"]
       }
     },
     {
       "op": "add",
-      "path": "/paths/~1api~1v1~1projects~1{projectId}~1leave",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1title",
       "value": {
         "post": {
-          "operationId": "leaveProject",
-          "summary": "Leave a project: any member but its only admin, idempotent per actor and key.",
+          "operationId": "renameProject",
+          "summary": "Rename a project: an admin only, idempotent per actor and key.",
           "tags": ["projects"],
           "security": [
             {
@@ -74,18 +86,18 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectLeaveRequest"
+                  "$ref": "#/components/schemas/ProjectRenameRequest"
                 }
               }
             }
           },
           "responses": {
             "200": {
-              "description": "Left, or the same leave again under its key",
+              "description": "Renamed, or the same rename again under its key",
               "content": {
                 "application/json": {
                   "schema": {
-                    "$ref": "#/components/schemas/ProjectLeft"
+                    "$ref": "#/components/schemas/ProjectRenamed"
                   }
                 }
               }
@@ -94,7 +106,7 @@
               "description": "Unauthenticated"
             },
             "403": {
-              "description": "Not a member of the project",
+              "description": "Not an admin of the project",
               "content": {
                 "application/json": {
                   "schema": {
@@ -104,7 +116,7 @@
               }
             },
             "409": {
-              "description": "The project's only admin, or the key reused for another project",
+              "description": "Idempotency mismatch",
               "content": {
                 "application/json": {
                   "schema": {
@@ -114,7 +126,7 @@
               }
             },
             "422": {
-              "description": "Request fails the declared schema",
+              "description": "Request fails the declared schema, or a title of spaces alone",
               "content": {
                 "application/json": {
                   "schema": {

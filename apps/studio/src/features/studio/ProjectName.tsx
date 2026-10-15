@@ -1,6 +1,6 @@
 // The project's title in the header (docs/plans/project-rename.md, project-leave.md): for a member, a press that opens
 // the kit's menu «Project»: Rename… for an admin, Leave project… for anyone. Each opens its sheet. Both writes are
-// idempotent per key (A19, A21): a retry after an unknown outcome sends the same key, so it is never a second write.
+// idempotent per key (A21, A22): a retry after an unknown outcome sends the same key, so it is never a second write.
 // Renamed, the snapshot and the projects' list are read again; left, the call ends and the person goes to Work.
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
@@ -24,7 +24,7 @@ interface Props {
 
 type SheetProps = Pick<Props, 'title' | 'projectId' | 'identity'> & { onClose: () => void }
 
-/** The most a title holds (A19), counted as the API counts it. */
+/** The most a title holds (A21), counted as the API counts it. */
 const TITLE_MOST = 180
 
 const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)

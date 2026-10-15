@@ -95,7 +95,7 @@ export function projectRoutes(
     },
   )
 
-  // renameProject (A19): an admin only, idempotent per actor and key; the rename's event reaches every member's feed.
+  // renameProject (A21): an admin only, idempotent per actor and key; the rename's event reaches every member's feed.
   app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ProjectRenameRequest }>(
     '/api/v1/projects/:projectId/title',
     {
@@ -112,7 +112,7 @@ export function projectRoutes(
       ),
   )
 
-  // leaveProject (A21): any member but the project's only admin, idempotent per actor and key.
+  // leaveProject (A22): any member but the project's only admin, idempotent per actor and key.
   app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ProjectLeaveRequest }>(
     '/api/v1/projects/:projectId/leave',
     {

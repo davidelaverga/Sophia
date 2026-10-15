@@ -25,7 +25,7 @@ export async function createProject(
   return onlyRow(rows, 'create_project').receipt
 }
 
-/** Rename a project (A19): an admin only, idempotent per actor and key. Call inside withActor(..., "write"). */
+/** Rename a project (A21): an admin only, idempotent per actor and key. Call inside withActor(..., "write"). */
 export async function renameProject(
   c: pg.PoolClient,
   projectId: string,
@@ -40,7 +40,7 @@ export async function renameProject(
   return onlyRow(rows, 'rename_project').receipt
 }
 
-/** Leave a project (A21): any member but its only admin, idempotent per actor and key. Call inside withActor(..., "write"). */
+/** Leave a project (A22): any member but its only admin, idempotent per actor and key. Call inside withActor(..., "write"). */
 export async function leaveProject(c: pg.PoolClient, projectId: string, idempotencyKey: string): Promise<ProjectLeft> {
   const { rows } = await c.query<{ receipt: ProjectLeft }>(`SELECT sophia.leave_project($1, $2) AS receipt`, [
     projectId,

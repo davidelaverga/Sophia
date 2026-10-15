@@ -82,7 +82,7 @@ interface Project {
   title?: string
   /** The viewer is the project's only admin (`admins=1`): leaving is refused (project-leave.md). */
   soleAdmin?: boolean
-  /** The viewer left the project (A21): it leaves their list. */
+  /** The viewer left the project (A22): it leaves their list. */
   left?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
@@ -321,7 +321,7 @@ function admitted(project: Project, init: RequestInit | undefined): Response | n
   return json(receipt)
 }
 
-/** A rename (A19): the title the request names, for every read from now on. */
+/** A rename (A21): the title the request names, for every read from now on. */
 function renamed(project: Project, init: RequestInit | undefined): Response {
   const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
   const title: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'title') : null
@@ -334,7 +334,7 @@ function renamed(project: Project, init: RequestInit | undefined): Response {
   return json({ projectId: PROJECT, title, cursor: String(project.revision) })
 }
 
-/** Leaving (A21): recorded, and the project leaves the list; the only admin is refused as the API refuses them. */
+/** Leaving (A22): recorded, and the project leaves the list; the only admin is refused as the API refuses them. */
 function departed(project: Project): Response {
   if (project.soleAdmin && (project.role ?? membership.role) === 'admin') {
     const problem = {
@@ -350,7 +350,7 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
-/** The project's own writes: its rename (A19) and a member leaving it (A21); null for any other path. */
+/** The project's own writes: its rename (A21) and a member leaving it (A22); null for any other path. */
 function projectWritten(project: Project, path: string, init: RequestInit | undefined): Response | null {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)

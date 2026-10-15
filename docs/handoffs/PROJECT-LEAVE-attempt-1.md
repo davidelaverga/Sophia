@@ -24,8 +24,8 @@ commits on the branch merge its base forward or touch only this record). 26 file
   - It sets the membership inactive (its revision bumped), bumps `audience_revision`, and emits
     `project.member_left`.
   - A new invitation sets the membership active again: accepting an invitation already does this since 0010.
-- **A21:** `POST /api/v1/projects/{projectId}/leave`, with `ProjectLeaveRequest` `{}` and `ProjectLeft`. A20 is the
-  proposed room-chat replies (#105), so A21 was taken. `/ready` requires the function.
+- **A22:** `POST /api/v1/projects/{projectId}/leave`, with `ProjectLeaveRequest` `{}` and `ProjectLeft`. A19 and A20
+  are proposals to Davide in #105, and the rename took A21. `/ready` requires the function.
 - **Studio:**
   - The header's menu «Project» opens for every member: «Rename…» for an admin, «Leave project…» for anyone.
   - The sheet «Leave project» says what leaving means, with the focus on Cancel.
@@ -36,7 +36,7 @@ commits on the branch merge its base forward or touch only this record). 26 file
 
 - Plan: `docs/plans/project-leave.md`.
 - Written first and failing (commit `41393520`):
-  - `api.db.test.ts` «leaving a project (A21)»;
+  - `api.db.test.ts` «leaving a project (A22)»;
   - `access.db.test.ts`: someone who left comes back by invitation;
   - readiness «without 0052»;
   - `project-leave.spec.ts`. Run without the change, all 3 cases failed (no «Leave project…»).
@@ -54,3 +54,5 @@ commits on the branch merge its base forward or touch only this record). 26 file
 ## Review notes
 
 - `d31d1771`: the sanitizer knows `project.member_left` (the rename PR's CI found the same gap for `project.renamed`).
+- The amendment was renumbered to A22, because A19 and A20 are already proposals to Davide in #105 and the rename took
+  A21.

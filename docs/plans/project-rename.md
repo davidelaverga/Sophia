@@ -19,7 +19,7 @@
     receipt, and with another title it is a conflict (409).
   - It holds the project's row, bumps `projects.title_revision`, and emits `project.renamed`, so every member's feed
     reads the new title.
-- **Contract amendment A19:** `POST /api/v1/projects/{projectId}/title`, with `ProjectRenameRequest` `{ title }` and
+- **Contract amendment A21 (A19 and A20 are proposals to Davide in #105):** `POST /api/v1/projects/{projectId}/title`, with `ProjectRenameRequest` `{ title }` and
   `ProjectRenamed` `{ projectId, title, cursor }`. `/ready` requires the function.
 - **Studio:**
   - For an admin, the header's title is a press that opens the kit's menu «Project». Its «Rename…» opens a sheet,

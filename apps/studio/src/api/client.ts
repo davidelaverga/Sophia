@@ -184,11 +184,11 @@ export const admitGoalCommand = (token: string, projectId: string, key: string, 
 export const createProject = (token: string, key: string, title: string): Promise<ProjectCreated> =>
   postIdempotent(token, '/api/v1/projects', key, { title }, parseProjectCreated)
 
-/** renameProject (A19): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
+/** renameProject (A21): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
 export const renameProject = (token: string, projectId: string, key: string, title: string): Promise<ProjectRenamed> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/title`, key, { title }, parseProjectRenamed)
 
-/** leaveProject (A21): any member but the only admin, idempotent per person and key. */
+/** leaveProject (A22): any member but the only admin, idempotent per person and key. */
 export const leaveProject = (token: string, projectId: string, key: string): Promise<ProjectLeft> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/leave`, key, {}, parseProjectLeft)
 

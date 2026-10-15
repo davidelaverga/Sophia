@@ -244,7 +244,7 @@ describe('member invitations', () => {
     assert.deepEqual(me, { actorId: M, role: 'editor' })
   })
 
-  it('bring back someone who left (A21): their membership is active again, with the new role', async () => {
+  it('bring back someone who left (A22): their membership is active again, with the new role', async () => {
     const first = parseInvitation((await invite(A, { kind: 'member', role: 'editor', email: 'lena@example.com' })).json)
     const L = randomUUID()
     const bearer = await token(L, { email: 'lena@example.com' })
