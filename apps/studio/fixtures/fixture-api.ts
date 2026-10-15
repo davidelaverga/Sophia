@@ -384,9 +384,46 @@ function hostAct(project: Project, what: 'mute' | 'remove', identity: string): R
   return new Response(null, { status: 204 })
 }
 
+/** The project's activity (A28): sixty acts, the oldest its creation; 50 a page, newest first. */
+function activityRead(url: URL): Response {
+  const people = [
+    { id: membership.actorId, name: VIEWER_NAME },
+    { id: personId(1), name: 'Marco' },
+    { id: personId(2), name: 'Lucía' },
+  ]
+  const kinds = [
+    { type: 'project.renamed', summaryCode: 'project.renamed', onMember: false },
+    { type: 'goal.target_set', summaryCode: 'goal.target', onMember: false },
+    { type: 'project.member_role_changed', summaryCode: 'project.member_role', onMember: true },
+    { type: 'room.host_removed', summaryCode: 'room.host_removed', onMember: true },
+  ]
+  const all = Array.from({ length: 60 }, (_, i) => {
+    const sequence = i + 1
+    const kind =
+      sequence === 1
+        ? { type: 'project.created', summaryCode: 'project.created', onMember: false }
+        : kinds[sequence % 4]
+    const actor = people[sequence % 3] ?? people[0]
+    const target = kind?.onMember ? (people[(sequence + 1) % 3] ?? null) : null
+    return {
+      sequence: String(sequence),
+      occurredAt: new Date(Date.UTC(2026, 9, 15, 9, sequence)).toISOString(),
+      type: kind?.type ?? 'project.renamed',
+      summaryCode: kind?.summaryCode ?? 'project.renamed',
+      actor,
+      target,
+    }
+  }).toReversed()
+  const before = Number(url.searchParams.get('before') ?? '61')
+  const page = all.filter((e) => Number(e.sequence) < before).slice(0, 50)
+  const more = all.some((e) => Number(e.sequence) < Number(page.at(-1)?.sequence ?? '0'))
+  return json({ entries: page, before: more ? (page.at(-1)?.sequence ?? null) : null })
+}
+
 /** The project's own reads: its discussion (A20 proposed, A23), its goals' targets and its members (A25). */
 function projectRead(project: Project, url: URL): Response | null {
   const base = `/api/v1/projects/${PROJECT}`
+  if (url.pathname === `${base}/activity`) return activityRead(url)
   if (url.pathname.startsWith(`${base}/discussion`)) return discussionRead(project, url)
   if (url.pathname === `${base}/goal-targets`) return goalTargetsRead(project)
   return url.pathname === `${base}/members` ? membersRead(project) : null
