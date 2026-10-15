@@ -7,6 +7,7 @@ import type {
   Contribution,
   ContributionReceipt,
   DiscussionEntry,
+  DiscussionPage,
   NativeTask,
   NativeTaskDetail,
   NativeTaskReceipt,
@@ -69,20 +70,54 @@ interface DiscussionRow {
   created_at: Date
 }
 
+/** A page of the discussion: the newest `limit`, or the `limit` just older than an entry (A23), oldest first. */
+const DISCUSSION_PAGE = `SELECT * FROM (
+     SELECT ct.id, ct.actor_id, ct.author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
+       FROM sophia.contributions ct
+       JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id
+       JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
+      WHERE ct.project_id = $1
+        AND ($2::uuid IS NULL OR (ct.created_at, ct.id) <
+             (SELECT a.created_at, a.id FROM sophia.contributions a WHERE a.project_id = $1 AND a.id = $2))
+      ORDER BY ct.created_at DESC, ct.id DESC LIMIT $3) page
+    ORDER BY created_at, id`
+
+/** How many entries the snapshot and each page hold. */
+const DISCUSSION_PAGE_SIZE = 50
+
 /** The latest discussion, oldest first (at most 50). Call inside withActor(..., "read"). */
 export async function readDiscussion(c: pg.PoolClient, projectId: string): Promise<DiscussionEntry[]> {
-  const { rows } = await c.query<DiscussionRow>(
-    `SELECT * FROM (
-       SELECT ct.id, ct.actor_id, ct.author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
-         FROM sophia.contributions ct
-         JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id
-         JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
-        WHERE ct.project_id = $1
-        ORDER BY ct.created_at DESC, ct.id DESC LIMIT 50) latest
-      ORDER BY created_at, id`,
-    [projectId],
-  )
-  return rows.map((r) => ({
+  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [projectId, null, DISCUSSION_PAGE_SIZE])
+  return rows.map(discussionEntry)
+}
+
+/**
+ * A page of the discussion (A23), oldest first: the newest 50, or the 50 before `before`; its `before` while older
+ * entries remain. Null when the project isn't the caller's to read (RLS). Call inside withActor(..., "read").
+ */
+export async function readDiscussionPage(
+  c: pg.PoolClient,
+  projectId: string,
+  before: string | null,
+): Promise<DiscussionPage | null> {
+  const { rows: project } = await c.query(`SELECT 1 FROM sophia.projects WHERE id = $1`, [projectId])
+  if (project.length === 0) return null
+  if (before) {
+    const { rows: anchor } = await c.query(`SELECT 1 FROM sophia.contributions WHERE project_id = $1 AND id = $2`, [
+      projectId,
+      before,
+    ])
+    if (anchor.length === 0) throw new DomainError('not_found', 'That message is not in the discussion')
+  }
+  // One more than a page says whether older entries remain.
+  const { rows } = await c.query<DiscussionRow>(DISCUSSION_PAGE, [projectId, before, DISCUSSION_PAGE_SIZE + 1])
+  const more = rows.length > DISCUSSION_PAGE_SIZE
+  const entries = (more ? rows.slice(1) : rows).map(discussionEntry)
+  return { entries, before: more ? (entries[0]?.id ?? null) : null }
+}
+
+function discussionEntry(r: DiscussionRow): DiscussionEntry {
+  return {
     id: r.id,
     actorId: r.actor_id,
     authorName: r.author_name,
@@ -92,7 +127,7 @@ export async function readDiscussion(c: pg.PoolClient, projectId: string): Promi
     sourceId: r.source_id,
     sha256: r.sha256,
     createdAt: iso(r.created_at),
-  }))
+  }
 }
 
 interface TaskRow {

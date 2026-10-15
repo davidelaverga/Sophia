@@ -41,6 +41,7 @@ import {
   validateProjectCreated,
   validateProjectRenamed,
   validateProjectLeft,
+  validateDiscussionPage,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -83,6 +84,7 @@ export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
 export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
 export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
+export const parseDiscussionPage = parser('DiscussionPage', validateDiscussionPage)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)

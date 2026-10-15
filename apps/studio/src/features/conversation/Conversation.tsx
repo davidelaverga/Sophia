@@ -13,6 +13,7 @@ import { captionText, type CaptionTurn } from './captions.ts'
 import { chatTimeline, type ChatEntryItem, type ChatTurn } from './chat-view.ts'
 import { Composer } from './Composer.tsx'
 import { authorLabel, withAuthors } from './conversation-view.ts'
+import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
 import type { Replying } from './ReplyingTo.tsx'
@@ -46,31 +47,39 @@ function useFollowOnResize(history: RefObject<HTMLDivElement | null>, following:
   }, [history, following])
 }
 
-export function Conversation(props: Props) {
-  const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
-  const discussion = snapshot?.discussion ?? []
+/** The history follows the newest line while the reader is at the bottom; scrolled up, it stays where they read. */
+function useFollowing(room: ProjectRoom, discussion: Snapshot['discussion'] | undefined) {
   const history = useRef<HTMLDivElement>(null)
   const following = useRef(true)
   useLayoutEffect(() => {
     if (history.current && following.current) history.current.scrollTop = history.current.scrollHeight
-  }, [room.chat, room.notices, room.captions, snapshot?.discussion])
+  }, [room.chat, room.notices, room.captions, discussion])
   useFollowOnResize(history, following)
   const onScroll = () => {
     const el = history.current
     if (el) following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 64
   }
+  return { history, onScroll }
+}
+
+export function Conversation(props: Props) {
+  const { projectId, identity, snapshot, me, names, room, draft, onDraft, onShowRoom } = props
+  const discussion = snapshot?.discussion ?? []
+  const { history, onScroll } = useFollowing(room, snapshot?.discussion)
   const timeline = chatTimeline(room.chat, room.notices, room.captions)
   const empty = discussion.length === 0 && timeline.length === 0
   const [replying, setReplying] = useState<Replying | null>(null)
   const replies = useReplies(projectId, identity, snapshot?.cursor)
+  const earlier = useEarlierDiscussion(projectId, identity, discussion, history)
   return (
     <div className="conversation">
       <div className="conversation-history" ref={history} onScroll={onScroll}>
         {empty && (
           <EmptyState className="chat-empty">Messages stay in this conversation. Notes live in the brief.</EmptyState>
         )}
+        <EarlierLine earlier={earlier} />
         <Discussion
-          entries={discussion}
+          entries={earlier.entries}
           me={me}
           names={names}
           replies={replies.of}
