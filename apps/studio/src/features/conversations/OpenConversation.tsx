@@ -39,6 +39,7 @@ import { MessageActs } from './MessageActs.tsx'
 import { withQuote } from './message-acts.ts'
 import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
+import { LinkedText } from '../../app/LinkedText.tsx'
 
 interface Props {
   projectId: string
@@ -576,7 +577,13 @@ function Turn({ m, side, acts }: { m: ConversationMessage; side: boolean; acts: 
   return (
     <div className="conv-turn">
       <div className="conv-msg-body">
-        {sophia ? <SophiaText text={m.text} /> : <p>{m.text}</p>}
+        {sophia ? (
+          <SophiaText text={m.text} />
+        ) : (
+          <p>
+            <LinkedText text={m.text} />
+          </p>
+        )}
         {sophia && at}
         {side && acts}
       </div>
@@ -592,18 +599,23 @@ function SophiaText({ text }: { text: string }) {
     if (block.kind === 'lead') {
       return (
         <p key={i} className="sophia-lead">
-          {block.text}
+          <LinkedText text={block.text} />
         </p>
       )
     }
-    if (block.kind === 'p') return <p key={i}>{block.text}</p>
+    if (block.kind === 'p')
+      return (
+        <p key={i}>
+          <LinkedText text={block.text} />
+        </p>
+      )
     return (
       // A list styled without marks keeps its role (Safari drops it otherwise).
       <ul key={i} className="sophia-list" role="list">
         {block.items.map((item, j) => (
           <li key={j}>
             {item.who && <span className="sophia-who">{`${item.who}: `}</span>}
-            {item.text}
+            <LinkedText text={item.text} />
           </li>
         ))}
       </ul>
