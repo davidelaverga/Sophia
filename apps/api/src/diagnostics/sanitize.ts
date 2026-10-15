@@ -209,7 +209,7 @@ export const SUMMARY_CODES = [
   ...suffixed('room.sophia_', VOICE_STATES),
   ...suffixed('room.', ['session', 'session_canceled', 'invitation', 'invitation_revoked']),
   ...suffixed('room.', ['input_floor', 'input_floor_released']),
-  ...suffixed('project.', ['member', 'renamed']),
+  ...suffixed('project.', ['member', 'member_left', 'renamed']),
   ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work']),
   ...suffixed('native_task.', [...TASK_SUMMARIES, ...TASK_ENDINGS]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready', 'unrecovered']),
