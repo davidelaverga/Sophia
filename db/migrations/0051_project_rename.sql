@@ -36,7 +36,7 @@ BEGIN
  IF btrim(p_title)='' THEN RAISE EXCEPTION 'A project needs a title' USING ERRCODE='22023'; END IF;
  UPDATE sophia.projects SET title=p_title, title_revision=title_revision+1 WHERE id=p_project
   RETURNING title_revision INTO revision_value;
- cursor_value:=sophia.emit_project_event(p_project,'project.renamed','project',p_project,revision_value,'project_renamed');
+ cursor_value:=sophia.emit_project_event(p_project,'project.renamed','project',p_project,revision_value,'project.renamed');
  receipt_value:=jsonb_build_object('projectId',p_project,'title',p_title,'cursor',cursor_value::text);
  UPDATE sophia.project_renames SET receipt=receipt_value WHERE actor_id=a AND idempotency_key=p_key;
  RETURN receipt_value;
