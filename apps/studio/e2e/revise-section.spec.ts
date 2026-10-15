@@ -26,12 +26,19 @@ test.beforeEach(async ({ page }) => {
 test('revise · an admin asks Sophia to revise a section of the page, with what to change', async ({ page }) => {
   await openPage(page)
   await pane(page).getByRole('button', { name: 'Revise with Sophia…' }).click()
+  // Not yet askable, and still in reach: a press that waits stays focusable (Codex P1 on #359).
+  const ask = sheet(page).getByRole('button', { name: 'Ask Sophia' })
+  await expect(ask).toHaveAttribute('aria-disabled', 'true')
+  await expect(ask).toBeEnabled()
   await sheet(page).getByRole('checkbox', { name: 'A labelled fixture designed page' }).check()
   await sheet(page).getByLabel('What to change').fill('Make the opening shorter')
-  await sheet(page).getByRole('button', { name: 'Ask Sophia' }).click()
+  await ask.focus()
+  await page.keyboard.press('Enter')
   await expect(sheet(page).getByRole('status')).toHaveText(
     'Sophia is revising the page. Its next version will appear here.',
   )
+  // The press went with the request: the focus goes on to Done, never to the page.
+  await expect(sheet(page).getByRole('button', { name: 'Done' })).toBeFocused()
   expect(await served(page)).toContain('html-edit:s1:Make the opening shorter')
 })
 
