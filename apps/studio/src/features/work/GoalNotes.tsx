@@ -11,7 +11,7 @@ import { useAdmission } from '../../api/useAdmission.ts'
 import { Avatar } from '../../app/Avatar.tsx'
 import type { Identity } from '../../app/dev-identity.ts'
 import { ago } from '../../app/time-words.ts'
-import { missionKey, writeControls } from '../mission/mission-view.ts'
+import { missionKey, missionNames, writeControls } from '../mission/mission-view.ts'
 import { goalNotes, keptAfter, NOTE_KINDS, noteAuthor, notesRead, noteWord, type NoteKind } from './goal-notes.ts'
 
 export interface NotesFor {
@@ -163,6 +163,7 @@ function Note({
 
 function Notes({ ctx, goalId, ...who }: { ctx: MissionContext; goalId: string } & NotesFor) {
   const notes = goalNotes(ctx.entries, goalId)
+  const names = missionNames(who.names, ctx)
   const now = Date.now()
   const write = ctx.capabilities.recordNote
   return (
@@ -177,7 +178,7 @@ function Notes({ ctx, goalId, ...who }: { ctx: MissionContext; goalId: string } 
       ) : (
         <ol className="goal-notes">
           {notes.map((entry) => (
-            <Note key={entry.id} entry={entry} now={now} me={who.me} names={who.names} identity={who.identity} />
+            <Note key={entry.id} entry={entry} now={now} me={who.me} names={names} identity={who.identity} />
           ))}
         </ol>
       )}

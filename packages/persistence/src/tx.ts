@@ -136,6 +136,14 @@ export function withService<T>(
 }
 
 /**
+ * The verified actor's name, from their own token and never from a request, put in the transaction for the rows that
+ * keep it (0048: a room message; 0049: a note, a proposal, a decision). Call inside withActor; no name, nothing is set.
+ */
+export async function nameActor(c: pg.PoolClient, name: string | null): Promise<void> {
+  if (name) await c.query("SELECT set_config('sophia.actor_name', $1, true)", [name])
+}
+
+/**
  * One connection, one transaction, the verified actor set transaction-locally
  * (`set_config(..., true)`), so a pooled connection never carries a previous actor.
  */

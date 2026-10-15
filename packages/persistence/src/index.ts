@@ -3,6 +3,7 @@
 export {
   createPool,
   checkRoleSafety,
+  nameActor,
   withActor,
   withoutActor,
   withService,

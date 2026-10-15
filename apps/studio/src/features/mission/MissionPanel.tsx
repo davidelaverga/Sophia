@@ -23,6 +23,7 @@ import {
   decidedBy,
   direction,
   missionKey,
+  missionNames,
   notesLine,
   OUTCOME,
   pendingFocus,
@@ -65,7 +66,8 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
   // Unavailable is said as such: it is never shown as an empty mission.
   if (mission.isError) return <p className="mission muted">The mission couldn’t be read just now.</p>
   const ctx = frozen ?? mission.data
-  const parts = { ctx, projectId, identity, me, names, onEditing: editing }
+  const named = missionNames(names, ctx)
+  const parts = { ctx, projectId, identity, me, names: named, onEditing: editing }
   return (
     <section className="mission" aria-label="Mission">
       <DirectionLine ctx={ctx} />
@@ -90,7 +92,7 @@ export function MissionPanel({ projectId, identity, cursor, me, names, onRevisio
       <NewestNotes {...parts} />
       {ctx.capabilities.recordNote.available && <AddNote {...parts} />}
       <NoteConsent ctx={ctx} projectId={projectId} identity={identity} />
-      <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={names} />}>
+      <MoreNotes {...parts} decisions={<Decided ctx={ctx} me={me} names={named} />}>
         <CaptureOff ctx={ctx} projectId={projectId} identity={identity} />
       </MoreNotes>
     </section>

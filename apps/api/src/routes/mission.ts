@@ -1,7 +1,7 @@
 // The mission ledger for members (contract amendment A08). One read, the same MissionContext the voice guide's
 // project_status uses; writes under the member's own identity, each idempotent per member and Idempotency-Key and
 // answered with a receipt. A stale revision is a 409, never a silent overwrite. Nothing here reaches a model.
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, FastifyRequest } from 'fastify'
 import type pg from 'pg'
 import type {
   MissionCorrectionRequest,
@@ -21,6 +21,7 @@ import {
   recordMissionEntry,
   setMissionNoteConsent,
   setMissionNotePolicy,
+  nameActor,
   withActor,
   withdrawMissionEntry,
 } from '@sophia/persistence'
@@ -56,12 +57,23 @@ async function readContext(pool: pg.Pool, actorId: string, projectId: string) {
   return context
 }
 
+/**
+ * A brief write as the member, named from their own token so the note, proposal or decision keeps who wrote it
+ * (0049); the request never names anyone.
+ */
+function asMember<T>(pool: pg.Pool, req: FastifyRequest, write: (c: pg.PoolClient) => Promise<T>): Promise<T> {
+  return withActor(pool, req.actorId, 'write', async (c) => {
+    await nameActor(c, req.actorName)
+    return write(c)
+  })
+}
+
 function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
   app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: MissionEntryRequest }>(
     '/api/v1/projects/:projectId/mission/entries',
     { schema: writeSchema(projectParams, 'MissionEntryRequest') },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         recordMissionEntry(c, req.params.projectId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
@@ -77,7 +89,7 @@ function entryRoutes(app: FastifyInstance, { pool }: Deps): void {
     { schema: writeSchema(withId('entryId'), 'MissionCorrectionRequest') },
     async (req, reply) => {
       const write = { ...req.body, correctsEntryId: req.params.entryId }
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         recordMissionEntry(c, req.params.projectId, req.headers['idempotency-key'], write),
       )
       return reply.status(202).send(receipt)
@@ -116,7 +128,7 @@ function proposalRoutes(app: FastifyInstance, { pool }: Deps): void {
     '/api/v1/projects/:projectId/mission/proposals',
     { schema: writeSchema(projectParams, 'MissionProposalRequest') },
     async (req, reply) => {
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         proposeMissionChange(c, req.params.projectId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)
@@ -132,7 +144,7 @@ function proposalRoutes(app: FastifyInstance, { pool }: Deps): void {
     { schema: writeSchema(withId('proposalId'), 'MissionDecisionRequest') },
     async (req, reply) => {
       const { projectId, proposalId } = req.params
-      const receipt = await withActor(pool, req.actorId, 'write', (c) =>
+      const receipt = await asMember(pool, req, (c) =>
         decideMissionChange(c, projectId, proposalId, req.headers['idempotency-key'], req.body),
       )
       return reply.status(202).send(receipt)

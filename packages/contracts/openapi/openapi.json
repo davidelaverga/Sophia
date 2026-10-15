@@ -17515,6 +17515,19 @@
                 "type": "null"
               }
             ]
+          },
+          "authorName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
           }
         },
         "required": [
@@ -17706,6 +17719,32 @@
           "sha256": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          },
+          "proposedByName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who proposed it, as their account named them then; null when unknown."
+          },
+          "decidedByName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who decided it, as their account named them then; null while undecided or when unknown."
           }
         },
         "required": [

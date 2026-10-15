@@ -1,0 +1,62 @@
+{
+  "id": "A18",
+  "goal": "E2E",
+  "title": "The brief names who wrote a note and who decided, in a call or not",
+  "why": [
+    "Left by A17 (2026-10-14): the brief's notes and decisions named their authors from the call's participants, so with nobody in the call each read «A member». A MissionEntry carries only its author's actorId, and a MissionDecision only its proposer's and decider's.",
+    "MissionEntry gains authorName, and MissionDecision proposedByName and decidedByName: the name each one's token carried when they wrote or decided (an address when the account has no other name), kept by the service for the transaction's own actor. None is ever taken from a request (MissionEntryRequest, MissionProposalRequest and MissionDecisionRequest have no such field). Each is null for what was written before this, by voice or for anyone else; optional, so a reader that does not know them is unchanged. The voice guide's project_status does not pass them on: it names people only as who they are to the speaker."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionEntry/properties/authorName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who wrote it, as their account named them then (an address when it gave no other name); null when unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision/properties/proposedByName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who proposed it, as their account named them then; null when unknown."
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/MissionDecision/properties/decidedByName",
+      "value": {
+        "anyOf": [
+          {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 320
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Who decided it, as their account named them then; null while undecided or when unknown."
+      }
+    }
+  ]
+}
