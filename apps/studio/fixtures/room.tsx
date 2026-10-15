@@ -47,6 +47,7 @@ import {
   leaving,
   reactFrom,
   sophiaLeaves,
+  speakWhileMuted,
 } from './fake-livekit.ts'
 import {
   count,
@@ -237,6 +238,8 @@ interface Fixture {
   caption: (packet: ChatCaption) => void
   /** Sophia's participant leaves the room (her bridge lost its link, or restarted). */
   sophiaLeaves: () => void
+  /** Speech is heard on this person's muted microphone (muted-speech.md). */
+  speakMuted: () => void
   /** A teammate edits the report's description elsewhere (the page learns of it when it reads the cards again). */
   describeElsewhere: (text: string) => void
   /** Reads of the report's versions fail from now on: unavailable, or refused (`not_found`); given false, they succeed. */
@@ -807,6 +810,7 @@ window.fixture = {
   },
   caption: deliverCaption,
   sophiaLeaves,
+  speakMuted: speakWhileMuted,
   describeElsewhere: (text) => {
     project.description = { text, revision: project.description.revision + 1, author: TEAMMATE }
   },
