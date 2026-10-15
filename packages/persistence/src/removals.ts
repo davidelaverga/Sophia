@@ -96,3 +96,12 @@ export async function readRemoval(c: pg.PoolClient, entryId: string): Promise<Lo
   const r = rows[0]
   return r ? { state: r.state, attempts: r.attempts, lastError: r.last_error } : null
 }
+
+/**
+ * The open removal the caller's leaving left (0052), for the API's immediate attempt. They are no longer a member, so
+ * RLS would hide it: sophia.own_departure_removal reads their own only. Call inside withActor.
+ */
+export async function pendingDeparture(c: pg.PoolClient, projectId: string): Promise<RemovalClaim | null> {
+  const { rows } = await c.query<ClaimRow>(`SELECT * FROM sophia.own_departure_removal($1)`, [projectId])
+  return rows[0] ? toClaim(rows[0]) : null
+}
