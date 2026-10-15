@@ -362,6 +362,19 @@ function floorMoves(actorId: string): void {
   floorTo.push(nameOf(actorId))
 }
 
+/** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
+function overTwoDays(): Said[] {
+  const day = new Date()
+  const at = (back: number, hour: number, minute: number) =>
+    new Date(day.getFullYear(), day.getMonth(), day.getDate() - back, hour, minute).toISOString()
+  return [
+    { text: 'The deck is in Resources.', at: at(1, 17, 40) },
+    { text: 'I’ll read it tonight.', me: true, at: at(1, 18, 5) },
+    { text: 'Morning. Comments are in.', at: at(0, 8, 10) },
+    { text: 'Thanks, reading them now.', me: true, at: at(0, 8, 25) },
+  ]
+}
+
 const project = {
   revision: 1,
   doorShut: false,
@@ -421,10 +434,11 @@ const project = {
       })
     }
   },
-  // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md).
-  messages: Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`) as (
-    string | Said
-  )[],
+  // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
+  // `discussion=days`: two from yesterday and two from today (chat-times.md).
+  messages: (query.get('discussion') === 'days'
+    ? overTwoDays()
+    : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
