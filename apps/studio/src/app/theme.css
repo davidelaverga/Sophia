@@ -6054,3 +6054,52 @@ button.contribution-quote:hover {
 .msg-link:hover {
   color: var(--text);
 }
+
+/* The project's title for an admin (docs/plans/project-rename.md): the same words, a press that opens the project's
+   menu; Rename… opens its sheet. */
+.project-name:has(.project-name-menu) {
+  overflow: visible;
+}
+.project-name-menu {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.project-name-open {
+  display: inline-flex;
+  min-width: 0;
+  max-width: calc(100% + 12px);
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.project-name-open:hover,
+.project-name-open[aria-expanded='true'] {
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.project-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-name-open svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.rename-acts {
+  justify-self: stretch;
+  margin-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -1,10 +1,17 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { ProjectCreate, ProjectSummary } from '@sophia/contracts'
-import { createProject, listProjects, readPersonalEpoch, withActor, type ProjectListing } from '@sophia/persistence'
+import type { ProjectCreate, ProjectRenameRequest, ProjectSummary } from '@sophia/contracts'
+import {
+  createProject,
+  listProjects,
+  readPersonalEpoch,
+  renameProject,
+  withActor,
+  type ProjectListing,
+} from '@sophia/persistence'
 import { liveRooms, roomParticipants, type LiveKitConfig } from '../livekit.ts'
 import { lookupAll } from '../presence.ts'
-import { idempotencyHeader } from './schemas.ts'
+import { idempotencyHeader, projectParams } from './schemas.ts'
 
 /** How many people a room lists (A10's maxItems). */
 const ROOM_PEOPLE = 100
@@ -85,6 +92,23 @@ export function projectRoutes(
       )
       return reply.status(201).send(created)
     },
+  )
+
+  // renameProject (A21): an admin only, idempotent per actor and key; the rename's event reaches every member's feed.
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ProjectRenameRequest }>(
+    '/api/v1/projects/:projectId/title',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'ProjectRenameRequest#' },
+        response: { 200: { $ref: 'ProjectRenamed#' } },
+      },
+    },
+    async (req) =>
+      withActor(pool, req.actorId, 'write', (c) =>
+        renameProject(c, req.params.projectId, req.headers['idempotency-key'], req.body),
+      ),
   )
 
   app.get('/api/v1/projects', { schema: { response: { 200: { $ref: 'ProjectList#' } } } }, async (req) => {
