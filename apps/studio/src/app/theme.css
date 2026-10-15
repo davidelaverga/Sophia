@@ -6013,6 +6013,60 @@ button.contribution-quote:hover {
   font-size: 13px;
 }
 
+/* Reactions in the call (docs/plans/call-reactions.md): each floats up the room's left side over the dock for a few
+   seconds, with who sent it; with less motion asked for, it appears without moving. */
+.reactions {
+  position: absolute;
+  left: var(--gutter, 16px);
+  bottom: calc(var(--dock-h, 64px) + 24px);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  z-index: 3;
+}
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 6px;
+  border-radius: var(--r-4);
+  background: var(--glass);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  animation: reaction-rise 4s var(--ease) both;
+}
+.reaction-emoji {
+  font-size: 22px;
+  line-height: 1;
+}
+@keyframes reaction-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reaction {
+    animation: none;
+  }
+}
+.menu.react-list {
+  min-width: 180px;
+}
+
 /* The stage's main view, under the pointer or the focus (docs/plans/room-pin-fullscreen.md): full screen, and Unpin for
    a person pinned. Full screen keeps the picture whole on black. */
 .stage-acts {
@@ -6079,4 +6133,54 @@ button.contribution-quote:hover {
 }
 .places .c3-space[data-place-view='work'] > .c3-projects {
   grid-row: 3;
+}
+
+
+/* The project's title for an admin (docs/plans/project-rename.md): the same words, a press that opens the project's
+   menu; Rename… opens its sheet. */
+.project-name:has(.project-name-menu) {
+  overflow: visible;
+}
+.project-name-menu {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.project-name-open {
+  display: inline-flex;
+  min-width: 0;
+  max-width: calc(100% + 12px);
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  margin: -2px -6px;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.project-name-open:hover,
+.project-name-open[aria-expanded='true'] {
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.project-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-name-open svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--text-3);
+}
+.rename-acts {
+  justify-self: stretch;
+  margin-top: 4px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }

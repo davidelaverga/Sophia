@@ -78,6 +78,8 @@ export const served: string[] = []
 /** The project as the API holds it now: the revision moves with each event. */
 interface Project {
   revision: number
+  /** The project's title once renamed (project-rename.md); absent, the snapshot's own. */
+  title?: string
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -272,7 +274,8 @@ function snapshotOf(project: Project) {
     : project.work
       ? { ...now, work: [researchTaskAt(project.taskRevision ?? 1, project.designed, project.designing).task] }
       : now
-  return withFocus(project, project.waiting ? { ...work, lobby: lobbyOf(project.lobbyAsked) } : work)
+  const titled = project.title ? { ...work, title: project.title } : work
+  return withFocus(project, project.waiting ? { ...titled, lobby: lobbyOf(project.lobbyAsked) } : titled)
 }
 
 /** What the room shows, as the snapshot carries it, with the report's current version among its artifacts. */
@@ -312,6 +315,19 @@ function admitted(project: Project, init: RequestInit | undefined): Response | n
     authorityEpoch: command.expectedAuthorityEpoch,
   }
   return json(receipt)
+}
+
+/** A rename (A21): the title the request names, for every read from now on. */
+function renamed(project: Project, init: RequestInit | undefined): Response {
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const title: unknown = typeof body === 'object' && body !== null ? Reflect.get(body, 'title') : null
+  if (typeof title !== 'string' || !title.trim()) {
+    const problem = { code: 'invalid_request', message: 'A project needs a title', requestId: PROJECT, retry: 'never' }
+    return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
+  }
+  project.title = title
+  served.push(`rename:${title}`)
+  return json({ projectId: PROJECT, title, cursor: String(project.revision) })
 }
 
 /** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
@@ -1088,6 +1104,7 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
+  if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
   return exchangeWritten(project, path, init, () => publish(project))

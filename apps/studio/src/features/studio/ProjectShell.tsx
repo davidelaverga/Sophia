@@ -52,6 +52,7 @@ import { ViewNav } from './ViewNav.tsx'
 import { useServedWork, type ServedWork } from '../work/planning/ServedWork.tsx'
 import type { Feed } from '../../projectors/projection.ts'
 import { Mark } from '../../app/Mark.tsx'
+import { ProjectName } from './ProjectName.tsx'
 
 // The Invite sheet (and its QR encoder) loads the first time someone opens it.
 const InviteSheet = lazy(() => import('../access/InviteSheet.tsx').then((m) => ({ default: m.InviteSheet })))
@@ -440,6 +441,19 @@ function useDockPlace(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen:
   return wide ? { inHeader: dock, floating: null } : { inHeader: null, floating: dock }
 }
 
+/** The header's title: the project's name once read, and for an admin the press that opens its menu. */
+function ShellTitle(p: {
+  snapshot: Snapshot | undefined
+  blocked: boolean
+  membership: Membership | undefined
+  projectId: string
+  identity: Identity
+}) {
+  const title = p.snapshot?.title ?? (p.blocked ? 'Unavailable' : 'Loading…')
+  const admin = !!p.snapshot && p.membership?.role === 'admin'
+  return <ProjectName title={title} admin={admin} projectId={p.projectId} identity={p.identity} />
+}
+
 export function ProjectShell(props: Props) {
   const { projectId, view, identity, account, onShow, onLeave, onWork, onSignOut } = props
   const { snapshot, feed, connection, room, membership } = useProject(projectId, identity)
@@ -454,7 +468,7 @@ export function ProjectShell(props: Props) {
     <CallKeptInReach room={room} background={!!props.background}>
       <div className="shell" data-view={view}>
         <ProjectHeader
-          title={snapshot.data?.title ?? (blocked ? 'Unavailable' : 'Loading…')}
+          title={<ShellTitle {...{ snapshot: snapshot.data, blocked: !!blocked, membership, projectId, identity }} />}
           connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
           nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
           dock={dockAt.inHeader}
@@ -499,7 +513,8 @@ export function ProjectShell(props: Props) {
 }
 
 interface HeaderProps {
-  title: string
+  /** The project's title: words, or for an admin a press that opens the project's menu (ProjectName). */
+  title: React.ReactNode
   /** The feed's state; null while the project can't be shown, where the notice below says why. */
   connection: Connection | null
   nav: React.ReactNode

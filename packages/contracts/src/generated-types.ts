@@ -243,6 +243,8 @@ export type Need = { "id": string; "kind": "decision" | "permission" | "guest" |
 export type NeedList = { "needs": ReadonlyArray<Need>; "readAt": string; };
 export type PendingInvitation = { "id": string; "projectId": string; "projectTitle": string; "inviter": string | null; "role": "editor" | "viewer"; "expiresAt": string; };
 export type PendingInvitationList = { "invitations": ReadonlyArray<PendingInvitation>; };
+export type ProjectRenameRequest = { "title": string; };
+export type ProjectRenamed = { "projectId": string; "title": string; "cursor": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -386,4 +388,5 @@ export interface Operations {
   "markNeedSeen": { method: "POST"; path: "/api/v1/me/needs/{id}/seen"; request: undefined; response: undefined; };
   "listPendingInvitations": { method: "GET"; path: "/api/v1/me/invitations"; request: undefined; response: PendingInvitationList; };
   "acceptPendingInvitation": { method: "POST"; path: "/api/v1/invitations/{invitationId}/accept"; request: undefined; response: InvitationAccepted; };
+  "renameProject": { method: "POST"; path: "/api/v1/projects/{projectId}/title"; request: ProjectRenameRequest; response: ProjectRenamed; };
 }
