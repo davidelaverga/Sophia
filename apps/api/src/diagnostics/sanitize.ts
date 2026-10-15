@@ -145,7 +145,7 @@ export const EVENT_TYPES = [
   ...suffixed('room.', ['session_scheduled', 'session_canceled', 'lobby_changed', 'input_floor_changed']),
   ...suffixed('room.', ['invitation_created', 'invitation_reissued', 'invitation_revoked']),
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence']),
-  ...suffixed('project.', ['member_joined', 'renamed']),
+  ...suffixed('project.', ['member_joined', 'member_left', 'renamed']),
   'contribution.recorded',
   ...suffixed('native_task.', [
     'admitted',
