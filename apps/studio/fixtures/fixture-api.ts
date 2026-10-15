@@ -28,6 +28,7 @@ import {
   authorOf,
   entryIdOf,
   idOf,
+  said,
 } from './data.ts'
 import { missionWritten } from './mission-writes.ts'
 import { DEMO, DEMO_ORIGINS, PROJECT_NAME } from './demo.ts'
@@ -94,6 +95,8 @@ interface Project {
   loseContributionReply?: boolean
   /** While set, messages land but their replies wait for `releaseMessages` (`window.fixture.holdMessages`). */
   messagesHeld?: (() => void)[] | null
+  /** The next read of the earlier discussion fails as the API's `unavailable` (`window.fixture.failEarlier`). */
+  failEarlier?: boolean
   /** A20's replies read fails as the API's `unavailable` (`window.fixture.failReplies`). */
   failReplies?: boolean
   /** How many versions of the fixture report are published (report-data.ts). */
@@ -357,6 +360,34 @@ function projectWritten(project: Project, path: string, init: RequestInit | unde
   return path === `${base}/leave` ? departed(project) : null
 }
 
+/** The room's discussion read: A20's replies (proposed), or a page of it (A23). */
+const discussionRead = (project: Project, url: URL) =>
+  url.pathname.endsWith('/replies') ? repliesRead(project) : discussionPage(project, url)
+
+/** A page of the room's discussion (A23): the 50 before `before`, oldest first; `before` again while older ones remain. */
+function discussionPage(project: Project, url: URL): Response {
+  const anchor = url.searchParams.get('before')
+  served.push(`discussion:${anchor ?? 'newest'}`)
+  if (project.failEarlier) {
+    project.failEarlier = false
+    return unavailable()
+  }
+  const all = project.messages.map(said)
+  const end = anchor ? all.findIndex((e) => e.id === anchor) : all.length
+  if (end < 0) {
+    const problem = {
+      code: 'not_found',
+      message: 'That message is no longer in the discussion.',
+      requestId: PROJECT,
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
+  }
+  const start = Math.max(0, end - 50)
+  const entries = all.slice(start, end)
+  return json({ entries, before: start > 0 ? (entries[0]?.id ?? null) : null })
+}
+
 /** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
 function snapshotAnswer(project: Project) {
   served.push(`snapshot:${project.revision}`)
@@ -457,7 +488,7 @@ function ownRead(project: Project, url: URL) {
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */
 function visionRead(project: Project, url: URL) {
   if (url.pathname === `/api/v1/projects/${PROJECT}/search`) return searchAnswer(project, url)
-  if (url.pathname === `/api/v1/projects/${PROJECT}/discussion/replies`) return repliesRead(project)
+  if (url.pathname.startsWith(`/api/v1/projects/${PROJECT}/discussion`)) return discussionRead(project, url)
   const talk = project.conversations && conversationRead(project.conversations, url)
   if (talk !== undefined) return talk
   const own = ownRead(project, url)

@@ -473,6 +473,51 @@ describe('leaving a project (A22)', () => {
   })
 })
 
+/** A page's texts, oldest first (A23). */
+const pageTexts = (res: { json: { entries: { text: string }[] } }) => res.json.entries.map((e) => e.text)
+/** «Message from» to «Message to», as seeded. */
+const numbered = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => `Message ${from + i}`)
+
+describe('reading the room’s earlier discussion (A23)', () => {
+  const page = (actor: string, projectId: string, anchor?: string) =>
+    call(actor, 'GET', `/api/v1/projects/${projectId}/discussion${anchor ? `?before=${anchor}` : ''}`)
+
+  it('pages back 50 at a time, oldest first, to the first message; the newest page is the snapshot’s', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    for (let i = 1; i <= 120; i++) {
+      const said = await call(
+        B,
+        'POST',
+        `/api/v1/projects/${projectId}/contributions`,
+        { source: null, threadId: null, artifactVersionId: null, intent: 'discuss', text: `Message ${i}` },
+        { 'idempotency-key': randomUUID() },
+      )
+      assert.equal(said.status, 202)
+    }
+    const newest = await page(V, projectId)
+    assert.equal(newest.status, 200)
+    assert.deepEqual(pageTexts(newest), numbered(71, 120))
+    assert.equal(newest.json.before, newest.json.entries[0].id)
+    const snap = parseSnapshot((await call(V, 'GET', `/api/v1/projects/${projectId}/snapshot`)).json)
+    assert.deepEqual(
+      snap.discussion.map((e) => e.id),
+      (newest.json.entries as { id: string }[]).map((e) => e.id),
+    )
+    const middle = await page(V, projectId, newest.json.before)
+    assert.deepEqual(pageTexts(middle), numbered(21, 70))
+    const first = await page(V, projectId, middle.json.before)
+    assert.deepEqual([pageTexts(first), first.json.before], [numbered(1, 20), null])
+  })
+
+  it('members only, as the snapshot; an anchor the discussion doesn’t hold is refused', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await page(C, projectId)).status, 403)
+    assert.equal((await page(V, projectId, randomUUID())).status, 422)
+    const empty = await page(V, projectId)
+    assert.deepEqual([empty.status, empty.json], [200, { entries: [], before: null }])
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)
