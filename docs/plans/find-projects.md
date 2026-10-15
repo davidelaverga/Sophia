@@ -19,7 +19,7 @@
   - The field finds by any part of the title, whatever its case or accents.
   - Next is Work's own order, sessions soon first. A–Z is by title as a person reads it.
   - Nothing found says so («No project is called «x»»), with Clear.
-- Fixture: `projects=many` on the app's page serves seven projects.
+- The app's checks (`app-auth.spec.ts`) answer seven projects in place of their unavailable API.
 
 ## Checks
 

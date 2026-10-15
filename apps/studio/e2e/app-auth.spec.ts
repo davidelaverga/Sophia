@@ -687,12 +687,44 @@ test('browser-account · at Home the palette’s veil covers the page, not the b
   expect(veil?.width).toBe(size?.width)
 })
 
+/** A project as the list reads it, known by its title. */
+const listed = (projectId: string, title: string) => ({
+  projectId,
+  title,
+  role: 'editor',
+  members: 3,
+  room: null,
+  nextSession: null,
+  releases: [],
+})
+
+/**
+ * Seven projects, past the five where Work offers finding one (find-projects.md): the one check here that has a project
+ * list, answered in place of serve()'s unavailable API (a later route wins).
+ */
+async function sevenProjects(context: BrowserContext) {
+  const titles = [
+    'Copper launch',
+    'Fixture project',
+    'Another project',
+    'Atlas',
+    'Beacon',
+    'Delta pitch',
+    'Ember notes',
+  ]
+  const projects = titles.map((title, i) =>
+    listed(title === 'Fixture project' ? WORK_PROJECT : `00000000-0000-4000-8000-0000000000c${String(i)}`, title),
+  )
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects, personalEpoch: 1 } }))
+}
+
 test('browser-account · past five projects, Work finds one by its title and orders them A–Z (find-projects.md)', async ({
   context,
 }) => {
   await serve(context)
+  await sevenProjects(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html?projects=many`)
+  await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await page.keyboard.press('w')
   const work = page.locator('section[data-place-view="work"]')
@@ -718,8 +750,9 @@ test('browser-account · past five projects, Work finds one by its title and ord
 
 test('browser-account · ⌘K opens a project by its name (find-projects.md)', async ({ context }) => {
   await serve(context)
+  await sevenProjects(context)
   const page = await signedInTab(context, DAVIDE)
-  await page.goto(`${APP}/app.html?projects=many`)
+  await page.goto(`${APP}/app.html`)
   await expect(account(page)).toBeVisible()
   await page.keyboard.press('Control+k')
   const palette = page.getByRole('dialog', { name: 'Commands' })
