@@ -6161,3 +6161,11 @@ button.contribution-quote:hover {
   margin: 0;
   color: var(--text-2);
 }
+
+/* The other screens shared (docs/plans/two-screens.md): beside the caption, each a press that shows it. */
+.screen-also {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-left: 10px;
+}

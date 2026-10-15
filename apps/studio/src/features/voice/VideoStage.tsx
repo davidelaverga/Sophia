@@ -88,13 +88,37 @@ function Spotlight(props: { person: RoomParticipant; camera: VideoFeed | undefin
   )
 }
 
-/** A shared screen, on the stage, with full screen. */
-function SharedScreen({ feed, caption }: { feed: VideoFeed; caption: string }) {
+/** The other screens shared, each a press that puts it on the stage, for this viewer (two-screens.md). */
+function AlsoSharing(props: {
+  others: readonly VideoFeed[]
+  people: readonly RoomParticipant[]
+  onShow: (id: string) => void
+}) {
+  if (props.others.length === 0) return null
+  return (
+    <span className="screen-also" role="group" aria-label="Also sharing">
+      {props.others.map((s) => {
+        const name = shortName(props.people.find((p) => p.identity === s.identity)?.name ?? 'Someone')
+        return (
+          <button key={s.identity} type="button" className="text-button" onClick={() => props.onShow(s.identity)}>
+            {`Show ${name}’s screen`}
+          </button>
+        )
+      })}
+    </span>
+  )
+}
+
+/** A shared screen, on the stage, with full screen; and the others shared, a press away. */
+function SharedScreen({ feed, caption, also }: { feed: VideoFeed; caption: string; also: React.ReactNode }) {
   const figure = useRef<HTMLElement>(null)
   return (
     <figure ref={figure} className="screen-main">
       <VideoView feed={feed} fit="contain" />
-      <figcaption>{caption}</figcaption>
+      <figcaption>
+        {caption}
+        {also}
+      </figcaption>
       <span className="stage-acts">
         <FullScreen target={figure} />
       </span>
@@ -156,8 +180,25 @@ interface Props {
   shown?: ReactNode
 }
 
+/**
+ * The screens shared and the one on the stage (two-screens.md): the newest, as this browser saw them begin, unless this
+ * viewer chose another that still shares.
+ */
+function useScreenChoice(feeds: readonly VideoFeed[]) {
+  const screens = feeds.filter((f) => f.source === 'screen')
+  const ids = screens.map((s) => s.identity)
+  const [seen, setSeen] = useState<readonly string[]>([])
+  const order = [...seen.filter((id) => ids.includes(id)), ...ids.filter((id) => !seen.includes(id))]
+  // Stamped in the render that sees the change, as the tiles' order is (useSpokeAt).
+  if (order.join(' ') !== seen.join(' ')) setSeen(order)
+  const [chosen, choose] = useState<string | null>(null)
+  const shownId = chosen !== null && ids.includes(chosen) ? chosen : order.at(-1)
+  const screen = screens.find((s) => s.identity === shownId)
+  return { screen, others: screens.filter((s) => s !== screen), choose }
+}
+
 export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
-  const screen = feeds.find((f) => f.source === 'screen')
+  const { screen, others, choose } = useScreenChoice(feeds)
   const cameraOf = (identity: string) => feeds.find((f) => f.identity === identity && f.source === 'camera')
   const present = mode === 'present' && (screen !== undefined || shown !== undefined)
   const [pinned, setPinned] = usePin(people, present)
@@ -206,6 +247,7 @@ export function VideoStage({ mode, people, feeds, floor, shown }: Props) {
         screen={screen}
         people={people}
         shown={shown}
+        also={<AlsoSharing others={others} people={people} onShow={choose} />}
       />
       <ul className="tile-strip" aria-label="In the room">
         {tiles}
@@ -223,12 +265,13 @@ function StageMain(props: {
   screen: VideoFeed | undefined
   people: readonly RoomParticipant[]
   shown: ReactNode
+  also: ReactNode
 }) {
   const { pinned, screen } = props
   if (pinned) return <Spotlight person={pinned} camera={props.cameraOf(pinned.identity)} onUnpin={props.onUnpin} />
   if (!screen) return props.shown
   const presenter = props.people.find((p) => p.identity === screen.identity)
-  return <SharedScreen feed={screen} caption={screenCaption(presenter)} />
+  return <SharedScreen feed={screen} caption={screenCaption(presenter)} also={props.also} />
 }
 
 /** Whom this viewer pinned, while they are here and no screen or report takes the stage; this viewer's alone. */
