@@ -13,6 +13,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   type RefObject,
 } from 'react'
 import { modalOnScreen, onScreen } from '../../app/shortcuts.ts'
@@ -71,6 +72,8 @@ interface Props {
    * light alone. The opener comes with the items, so no row is ever offered that leads nowhere.
    */
   needs?: { items: readonly Need[]; open: (need: Need) => void; skew?: number } | undefined
+  /** The invitations waiting for the person (InvitedBand, A16): right under the greeting; nothing when none waits. */
+  invited?: ReactNode
   actions: {
     /** Into your conversation with her (unlocking it first, when locked). */
     personal: () => void
@@ -515,6 +518,7 @@ export function Welcome(props: Props) {
     <div className="hw">
       <div className="hw-col">
         <Greeting hello={props.hello} name={props.name} date={props.date} says={props.says} />
+        {props.invited}
         {needs && oneColumn && (
           <aside className="hw-needs-here" aria-label="What needs you">
             {needs}

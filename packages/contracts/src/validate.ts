@@ -12,6 +12,7 @@ import {
   validateInvitation,
   validateInvitationAccepted,
   validateInvitationList,
+  validatePendingInvitationList,
   validateInvitationPreview,
   validateLobbyEntry,
   validateMediaAssignmentBatch,
@@ -82,6 +83,7 @@ export const parseRoomToken = parser('RoomToken', validateRoomToken)
 export const parseExchangeReceipt = parser('ExchangeReceipt', validateExchangeReceipt)
 export const parseInvitation = parser('Invitation', validateInvitation)
 export const parseInvitationList = parser('InvitationList', validateInvitationList)
+export const parsePendingInvitationList = parser('PendingInvitationList', validatePendingInvitationList)
 export const parseInvitationPreview = parser('InvitationPreview', validateInvitationPreview)
 export const parseInvitationAccepted = parser('InvitationAccepted', validateInvitationAccepted)
 export const parseLobbyEntry = parser('LobbyEntry', validateLobbyEntry)

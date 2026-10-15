@@ -3,6 +3,7 @@
 // the hairline with the lock is always at the edge you crossed. This component owns what is open over the places (the
 // notes, the sheets, the small menus) and wires the keys; the places render; the words come from the view modules. The
 // toast is the app's (SignedIn), so a result is said the same way in a project and here.
+import { InvitedBand } from '../access/InvitedBand.tsx'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersonalSpace as Space, ProjectRelease, ProjectSummary } from '@sophia/contracts'
 import { accountOf, tokenSubject } from '../../app/auth-callback.ts'
@@ -423,6 +424,7 @@ function Home({ v }: { v: View }) {
         you={youDoor({ locked: lockedBy(props.lock), turns: data?.turns, notes: data?.notes.length ?? 0, now })}
         reads={needsRead ? [personalRead(v), projectsRead(v), needsRead] : [personalRead(v), projectsRead(v)]}
         needs={needs}
+        invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
         projects={projects}
         loadingProjects={readState(v.projects) === 'loading'}
         now={now}
@@ -488,6 +490,7 @@ function Work({ v }: { v: View }) {
       hidden={!v.shown.includes('work')}
       token={props.identity.token}
       projects={v.projects.data?.projects}
+      invited={<InvitedBand identity={props.identity} onOpen={(id) => props.onOpenProject(id, false)} />}
       read={projectsRead(v)}
       fresh={v.carried.fresh}
       inCallProject={props.call?.projectId ?? null}
