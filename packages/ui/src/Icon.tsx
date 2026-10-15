@@ -42,6 +42,8 @@ export type IconName =
   | 'keyboard'
   | 'pass'
   | 'decide'
+  | 'people'
+  | 'more'
 
 const slash = <path d="M4 4l16 16" />
 const mic = (
@@ -206,6 +208,19 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="8.5" />
       <path d="M8.5 12.2l2.4 2.4 4.6-4.9" />
+    </>
+  ),
+  people: (
+    <>
+      <circle cx="9" cy="8.5" r="3.2" />
+      <path d="M3.5 19.5a5.5 5.5 0 0 1 11 0M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.3a5.5 5.5 0 0 1 3 5.2" />
+    </>
+  ),
+  more: (
+    <>
+      <circle cx="6" cy="12" r="1.2" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="18" cy="12" r="1.2" />
     </>
   ),
 }

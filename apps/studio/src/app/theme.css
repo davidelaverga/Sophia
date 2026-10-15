@@ -6080,3 +6080,51 @@ button.contribution-quote:hover {
   color: var(--text-3);
   font-size: var(--type-small);
 }
+
+/* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
+.people {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+}
+.person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 20px 32px;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--r-2);
+}
+.person:hover {
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.person-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-role {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.person-mic {
+  display: inline-flex;
+  color: var(--text-2);
+}
+.person-mic svg {
+  width: 16px;
+  height: 16px;
+}
+.person-actions {
+  position: relative;
+  grid-column: 4;
+}
+.person-failed {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: var(--rose);
+  font-size: var(--type-small);
+}

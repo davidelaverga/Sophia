@@ -13,6 +13,8 @@ interface PanelProps {
   /** A tab inside the panel, its Close or Esc. */
   onOpen: (panel: Panel | null) => void
   chat: ReactNode
+  /** Everyone in the call, with an admin's acts on each (host-controls.md). */
+  people: ReactNode
   brief: ReactNode
   /**
    * The call's switches (microphone, and camera or screen while on). The head shows them where the panel covers
@@ -97,8 +99,8 @@ function usePanelTop(open: Panel | null, top: RefObject<HTMLElement | null>) {
   }, [open, top])
 }
 
-export function SidePanel({ open, opener, onOpen, chat, brief, call, note }: PanelProps) {
-  const body: Record<Panel, ReactNode> = { chat, brief }
+export function SidePanel({ open, opener, onOpen, chat, people, brief, call, note }: PanelProps) {
+  const body: Record<Panel, ReactNode> = { chat, people, brief }
   const panel = useRef<HTMLElement>(null)
   const top = useRef<HTMLDivElement>(null)
   usePanelFocus(open, opener, panel)
@@ -177,12 +179,12 @@ interface ToggleProps {
   updated: boolean
 }
 
-const ICON: Record<Panel, IconName> = { chat: 'chat', brief: 'brief' }
-const KEY: Record<Panel, string> = { chat: 'C', brief: 'B' }
+const ICON: Record<Panel, IconName> = { chat: 'chat', people: 'people', brief: 'brief' }
+const KEY: Record<Panel, string> = { chat: 'C', people: 'P', brief: 'B' }
 
 /** The stage's corner: the chat and the brief, each a toggle, with a dot for what is new. */
 export function PanelToggles({ open, onToggle, unread, updated }: ToggleProps) {
-  const dot: Record<Panel, boolean> = { chat: unread, brief: updated }
+  const dot: Record<Panel, boolean> = { chat: unread, people: false, brief: updated }
   return (
     <div className="panel-toggles">
       {PANELS.map((p) => (

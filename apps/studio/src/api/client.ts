@@ -119,6 +119,24 @@ export function getDiscussionPage(token: string, projectId: string, before: stri
   return inTime(READ_TIMEOUT_MS, read)
 }
 
+/** An admin's act on a member in the call (A24): mute their microphone, or take them out. No key: twice is once. */
+export async function actInCall(
+  token: string,
+  projectId: string,
+  identity: string,
+  what: 'mute' | 'remove',
+): Promise<void> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+      method: 'POST',
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+  }
+  return inTime(READ_TIMEOUT_MS, send)
+}
+
 /**
  * One idempotent write: POST with the caller's Idempotency-Key, the reply validated as `parse`. No reply
  * at all, or none in time, is outcome_unknown (the write may have committed), so the caller retries with the same

@@ -394,4 +394,6 @@ export interface Operations {
   "renameProject": { method: "POST"; path: "/api/v1/projects/{projectId}/title"; request: ProjectRenameRequest; response: ProjectRenamed; };
   "leaveProject": { method: "POST"; path: "/api/v1/projects/{projectId}/leave"; request: ProjectLeaveRequest; response: ProjectLeft; };
   "readDiscussion": { method: "GET"; path: "/api/v1/projects/{projectId}/discussion"; request: undefined; response: DiscussionPage; };
+  "muteInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/mute"; request: undefined; response: undefined; };
+  "removeFromCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/remove"; request: undefined; response: undefined; };
 }
