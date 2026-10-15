@@ -5995,6 +5995,24 @@ button.contribution-quote:hover {
   gap: 8px;
 }
 
+/* Work past five projects (docs/plans/find-projects.md): a field that finds one by its title, and the order beside. */
+.c3-find {
+  width: min(760px, 100%);
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.c3-find-field {
+  flex: 1;
+  min-width: 0;
+}
+.c3-none {
+  color: var(--text-2);
+  font-size: 13px;
+}
+
 /* Reactions in the call (docs/plans/call-reactions.md): each floats up the room's left side over the dock for a few
    seconds, with who sent it; with less motion asked for, it appears without moving. */
 .reactions {
@@ -6107,6 +6125,14 @@ button.contribution-quote:hover {
 }
 .msg-link:hover {
   color: var(--text);
+}
+/* With the finder, Work's column has three rows: the head, the finder, and the list, which keeps the scroll (Codex P1
+   on #347). Without it the list still takes the last row; the empty middle one is nothing. */
+.places .c3-space[data-place-view='work'] {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.places .c3-space[data-place-view='work'] > .c3-projects {
+  grid-row: 3;
 }
 
 /* The project's title for an admin (docs/plans/project-rename.md): the same words, a press that opens the project's

@@ -595,6 +595,25 @@ function useUnlockedElsewhere(locked: boolean, layers: Layers) {
   }, [locked, unlock, setUnlock])
 }
 
+/**
+ * Each project as a command, «Open <title>», with no key (find-projects.md): offered once what is typed names it, so
+ * the blank palette stays as it was however many projects there are.
+ */
+function useProjectCommands(
+  projects: readonly { projectId: string; title: string }[] | undefined,
+  open: PlacesProps['onOpenProject'],
+) {
+  useCommands(
+    (projects ?? []).map((p) => ({
+      id: `project:${p.projectId}`,
+      words: `Open ${p.title}`,
+      group: 'go' as const,
+      typed: true,
+      run: () => open(p.projectId, false),
+    })),
+  )
+}
+
 export function Places(props: PlacesProps) {
   const { place, identity, lock } = props
   const root = useRef<HTMLDivElement>(null)
@@ -620,6 +639,7 @@ export function Places(props: PlacesProps) {
   }
   useArrival(place)
   usePlaceKeys(props, layers, nav)
+  useProjectCommands(projects.data?.projects, props.onOpenProject)
   useOpening(props, layers)
   useDocumentTitle(PLACE_TITLE[place])
   useShutSpace(props, layers.setNotes)
