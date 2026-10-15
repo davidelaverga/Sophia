@@ -178,6 +178,14 @@ const two = six || query.get('two') === '1'
 const served = query.get('served') === '1'
 /** `cap=<usd>`: the project's cap for one review, in place of the pilot's half a dollar (a sub-cent one, Codex on #107). */
 const cap = query.get('cap')
+/** `sources=0`: the pilot enabled with no report version to review yet (the real stack's first goal, E2E-Q3). */
+const unsourced = query.get('sources') === '0'
+/** What the pilot offers on this page: the fixture's sources, or none; under the page's cap, if it sets one. */
+const offer = {
+  ...SOURCE_REVIEW,
+  ...(cap !== null && { maxAllowanceUsd: Number(cap) }),
+  ...(unsourced && { sources: [] }),
+}
 /**
  * `proposed=lost|unreadable`: the first proposal's reply is lost, or a success that cannot be read; the next is answered.
  * `proposed=held`: the first is recorded and its answer waits for `workFixture.releaseProposal`; the second's reply is
@@ -339,7 +347,7 @@ installFixtureApi({
   textHeld: false,
   textTampered: false,
   work: false,
-  ...(served && { review: cap === null ? SOURCE_REVIEW : { ...SOURCE_REVIEW, maxAllowanceUsd: Number(cap) } }),
+  ...(served && { review: offer }),
   ...(proposals && { proposals }),
   ...(admits && { servedGoals, onAnswer: answerAdmission }),
   // A12: a call left from here has a meeting that left nothing (MeetingRecap's empty recap).
