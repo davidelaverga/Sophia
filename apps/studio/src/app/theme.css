@@ -2578,6 +2578,45 @@ button.contribution-quote:hover {
 .pass-list [role='menuitem'] {
   color: var(--warm);
 }
+/* A device opener (docs/plans/call-devices.md): a narrow tab beside the switch it serves, its chevron pointing to the
+   menu that opens over the dock; the kit's menu. On a phone the dock keeps its one row of squares without them. */
+.device-menu {
+  position: relative;
+  display: inline-flex;
+  margin-left: -2px;
+}
+.device-open {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--text-3);
+  transition:
+    background var(--fast) var(--ease),
+    color var(--fast) var(--ease);
+}
+.device-open:hover,
+.device-open[aria-expanded='true'] {
+  color: var(--text);
+  background: rgb(var(--ink-rgb) / 0.06);
+}
+.device-open svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(180deg);
+}
+.menu.device-list {
+  min-width: 240px;
+}
+@media (max-width: 600px) {
+  .device-menu {
+    display: none;
+  }
+}
 /* Sophia's controls in the dock (S1-05A): conversation only; work carries on whatever is pressed. */
 .sophia-controls {
   gap: 6px;

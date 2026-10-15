@@ -38,7 +38,7 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, leaving, sophiaLeaves } from './fake-livekit.ts'
+import { asked, deliverCaption, deliverNotice, dropCall, joined, leaving, sophiaLeaves } from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -251,6 +251,8 @@ interface Fixture {
   floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** The devices the last call opened with (call-devices.md); null before any. */
+  readonly devicesOnJoin: Partial<Record<string, string>> | null
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
@@ -814,6 +816,9 @@ window.fixture = {
   },
   floorTo,
   asked,
+  get devicesOnJoin() {
+    return joined.devices
+  },
   served,
   unexpected,
   missionWrites,
