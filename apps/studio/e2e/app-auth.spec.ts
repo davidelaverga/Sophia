@@ -733,17 +733,19 @@ test('browser-account · past five projects, Work finds one by its title and ord
   await expect(titles).toHaveCount(7)
   // The list keeps the row that scrolls, under the finder, and the finder keeps the column (Codex on #347).
   await page.setViewportSize({ width: 1280, height: 560 })
-  const laid = await work.evaluate((section) => {
-    const box = (s: string) => section.querySelector(s)?.getBoundingClientRect()
-    const list = section.querySelector('.c3-projects')
-    const [head, find, all] = [box('.c3-head'), box('.c3-find'), section.getBoundingClientRect()]
-    return {
-      scrolls: !!list && list.scrollHeight > list.clientHeight,
-      inside: !!list && list.getBoundingClientRect().bottom <= all.bottom + 1,
-      column: !!head && !!find && Math.abs(head.left - find.left) < 1 && Math.abs(head.width - find.width) < 1,
-    }
-  })
-  expect(laid).toEqual({ scrolls: true, inside: true, column: true })
+  // Polled: the view's entrance moves the column a few pixels until it settles.
+  const laid = () =>
+    work.evaluate((section) => {
+      const box = (s: string) => section.querySelector(s)?.getBoundingClientRect()
+      const list = section.querySelector('.c3-projects')
+      const [head, find, all] = [box('.c3-head'), box('.c3-find'), section.getBoundingClientRect()]
+      return {
+        scrolls: !!list && list.scrollHeight > list.clientHeight,
+        inside: !!list && list.getBoundingClientRect().bottom <= all.bottom + 1,
+        column: !!head && !!find && Math.abs(head.left - find.left) < 1 && Math.abs(head.width - find.width) < 1,
+      }
+    })
+  await expect.poll(laid).toEqual({ scrolls: true, inside: true, column: true })
   await field.fill('copper')
   await expect(titles).toHaveText(['Copper launch'])
   await field.fill('nothing like it')
