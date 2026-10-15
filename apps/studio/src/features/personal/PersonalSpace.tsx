@@ -118,6 +118,28 @@ function useNotesCover(open: boolean): boolean {
   return open && narrow
 }
 
+/** A keep said as kept, with Undo; resolves to whether it was. */
+function keptSaid(
+  keeping: Promise<{ noteId?: string | null }>,
+  {
+    toast,
+    onFailed,
+    undo,
+  }: { toast: Props['toast']; onFailed: (err: unknown) => void; undo: (noteId: string) => void },
+): Promise<boolean> {
+  return keeping.then(
+    (receipt) => {
+      const noteId = receipt.noteId
+      if (noteId) toast(NOTICE.kept, () => undo(noteId))
+      return true
+    },
+    (err: unknown) => {
+      onFailed(err)
+      return false
+    },
+  )
+}
+
 /** Writes that say what happened, and offer Undo where it can be undone. */
 function useActions(
   props: Props,
@@ -125,6 +147,8 @@ function useActions(
 ): ConversationActions & {
   carry: (note: PersonalNote, project: ProjectSummary) => void
   forget: (noteId: string) => Promise<boolean>
+  /** A note written straight into the notes; whether it was kept (its words stay in the field when not). */
+  write: (text: string) => Promise<boolean>
   /** Where the composer puts its send for a way to start. */
   starter: RefObject<((words: string) => Promise<boolean>) | null>
 } {
@@ -137,6 +161,8 @@ function useActions(
     },
     [onFailed],
   )
+  const kept = (keeping: ReturnType<typeof writes.keep>) =>
+    keptSaid(keeping, { toast, onFailed, undo: (noteId) => attempt(() => writes.forget(noteId)) })
   return {
     starter,
     waits: presses.waits,
@@ -148,18 +174,8 @@ function useActions(
     retry: (turnId) => presses.press(turnId, () => writes.retry(turnId).catch(onFailed)),
     readEarlier: () => props.readBack.readMore().catch(onFailed),
     // Whether it was kept: a refused note's words go back into its form.
-    keepNote: (text, turnId, suggestion) =>
-      writes.keep(text, turnId, suggestion?.id ?? null).then(
-        (kept) => {
-          const noteId = kept.noteId
-          if (noteId) toast(NOTICE.kept, () => attempt(() => writes.forget(noteId)))
-          return true
-        },
-        (err: unknown) => {
-          onFailed(err)
-          return false
-        },
-      ),
+    keepNote: (text, turnId, suggestion) => kept(writes.keep(text, turnId, suggestion?.id ?? null)),
+    write: (text) => kept(writes.keep(text, null, null)),
     // A note forgotten from the notes: gone for good, so the toast offers no Undo (personal-forget-note.md).
     forget: (noteId) =>
       writes.forget(noteId).then(
@@ -595,6 +611,7 @@ function Notes({ props, actions, under }: { props: Props; actions: ReturnType<ty
       }}
       onCarry={actions.carry}
       onForget={actions.forget}
+      onWrite={actions.write}
       carrying={actions.waits}
       memory={props.extras?.memory}
       under={under}

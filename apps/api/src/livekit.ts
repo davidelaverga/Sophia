@@ -165,3 +165,29 @@ export async function removeParticipant(cfg: LiveKitConfig, roomId: string, iden
     return { outcome: 'failed', error: err instanceof Error ? err.message.slice(0, 300) : 'removal failed' }
   }
 }
+
+const MEMBERS: ReadonlySet<Standing> = new Set(['admin', 'editor', 'viewer'])
+
+/** Whether `identity` is in the room as a member, by the standing the API signed into their token (A24). */
+export async function memberInRoom(cfg: LiveKitConfig, roomId: string, identity: string): Promise<boolean> {
+  const people = await roomParticipants(cfg, roomId)
+  const them = people.find((p) => p.identity === identity)
+  return !!them && MEMBERS.has(them.standing)
+}
+
+/**
+ * Mute someone's microphone (A24), as the room server does it: their published microphone track, muted; only they
+ * can turn it on again. True once it is muted, or already was; false when they publish no microphone.
+ */
+export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identity: string): Promise<boolean> {
+  const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
+  const mic = (await rooms.getParticipant(roomId, identity)).tracks.find((t) => t.source === TrackSource.MICROPHONE)
+  if (!mic) return false
+  if (!mic.muted) await rooms.mutePublishedTrack(roomId, identity, mic.sid, true)
+  return true
+}
+
+/** Take a member out of the call (A24): disconnected now; as a member, they may join again. */
+export async function removeFromCall(cfg: LiveKitConfig, roomId: string, identity: string): Promise<void> {
+  await new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret).removeParticipant(roomId, identity)
+}

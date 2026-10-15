@@ -123,8 +123,14 @@ interface Fixture {
   failReplies: (on: boolean) => void
   /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
   failEarlier: () => void
+  /** The next host control fails, as an unreachable room server's (host-controls.md). */
+  failHost: () => void
+  /** While on, host controls land but their replies wait; off, they answer. */
+  holdHost: (on: boolean) => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
+  knock: () => void
   /** The call's connection is lost. */
   drop: (why?: CallEnd) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
@@ -365,6 +371,19 @@ function floorMoves(actorId: string): void {
   floorTo.push(nameOf(actorId))
 }
 
+/** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
+function overTwoDays(): Said[] {
+  const day = new Date()
+  const at = (back: number, hour: number, minute: number) =>
+    new Date(day.getFullYear(), day.getMonth(), day.getDate() - back, hour, minute).toISOString()
+  return [
+    { text: 'The deck is in Resources.', at: at(1, 17, 40) },
+    { text: 'I’ll read it tonight.', me: true, at: at(1, 18, 5) },
+    { text: 'Morning. Comments are in.', at: at(0, 8, 10) },
+    { text: 'Thanks, reading them now.', me: true, at: at(0, 8, 25) },
+  ]
+}
+
 const project = {
   revision: 1,
   doorShut: false,
@@ -424,15 +443,18 @@ const project = {
       })
     }
   },
-  // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md).
-  messages: Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`) as (
-    string | Said
-  )[],
+  // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
+  // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
+  messages: (query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+    ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+    : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (string | Said)[],
   contributions: new Map(),
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failEarlier: false,
+  failHost: false,
+  hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -564,6 +586,10 @@ window.fixture = {
     project.messages.push(text)
     publish(project)
   },
+  knock: () => {
+    project.waiting = true
+    publish(project)
+  },
   forgetAccount: () => {
     queryClient.clear()
     forgetKept()
@@ -590,6 +616,14 @@ window.fixture = {
   },
   failEarlier: () => {
     project.failEarlier = true
+  },
+  failHost: () => {
+    project.failHost = true
+  },
+  holdHost: (on) => {
+    const held = project.hostHeld ?? []
+    project.hostHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
