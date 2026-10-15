@@ -10,7 +10,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `8223974c803a` (tree `6b10842af6e9`), the last commit of `ui/review-sources-when-offered`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 7 files changed against
+`origin/main` at that commit: `e2e/work.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/work.tsx`, `src/features/work/planning/ReviewSources.tsx`, `src/features/work/planning/review-sources.test.ts`, `src/features/work/planning/review-sources.ts`, `docs/plans/review-sources-when-offered.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
