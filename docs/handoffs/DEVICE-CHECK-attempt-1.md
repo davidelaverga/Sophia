@@ -10,7 +10,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `e4efc93effe8` (tree `0ace7c8c8eef`), the last commit of `ui/device-check`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/ui/call-devices` at that commit: `e2e/call-devices.spec.ts`, `e2e/device-check.spec.ts`, `src/app/theme.css`, `src/features/voice/DeviceCheck.tsx`, `src/features/voice/DeviceMenu.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/device-check.test.ts`, `src/features/voice/device-check.ts`, `src/features/voice/useDevicePreview.ts`, `docs/plans/device-check.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
