@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// The call's devices (docs/plans/call-devices.md): beside the microphone, the camera and Join, a narrow opener lists
+// The call's devices (docs/plans/call-devices.md): beside the microphone and the camera, a narrow opener lists
 // the microphones, speakers and cameras, the one in use marked; a choice switches the call at once and is kept for
 // the next one. The fake LiveKit lists two of each (fake-livekit.ts). Every name and stream is synthetic.
 
@@ -50,17 +50,19 @@ test('devices · in a call, the audio opener lists the microphones and speakers,
   await expect(opener).toBeFocused()
 })
 
-test('devices · the video opener lists the cameras; a choice made before joining is kept for the call and after a reload', async ({
+test('devices · the video opener lists the cameras; a camera chosen before joining is kept for the call and after a reload', async ({
   page,
 }) => {
   await page.goto('/room.html')
-  const before = dock(page).getByRole('button', { name: 'Audio and video settings', exact: true })
-  await before.click()
-  const all = menu(page, 'Audio and video settings')
-  await expect(all.locator('.menu-head')).toHaveText(['Microphone', 'Speaker', 'Camera'])
-  await all.getByRole('menuitemradio', { name: 'Desk camera' }).click()
+  // Before joining, the devices are chosen in the check beside Join (device-check.md).
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  const check = page.getByRole('dialog', { name: 'Check your audio and video' })
+  await check.getByRole('button', { name: 'Camera: FaceTime HD Camera' }).click()
+  await menu(page, 'Camera').getByRole('menuitemradio', { name: 'Desk camera' }).click()
   // Out of a call nothing switches: the choice waits for the next join.
   expect((await asked(page)).filter((a) => a.startsWith('device:'))).toEqual([])
+  await page.keyboard.press('Escape')
+  await expect(check).toHaveCount(0)
   await page.reload()
   await dock(page)
     .getByRole('button', { name: /^Join the room/ })
