@@ -80,6 +80,10 @@ interface Project {
   revision: number
   /** The project's title once renamed (project-rename.md); absent, the snapshot's own. */
   title?: string
+  /** The viewer is the project's only admin (`admins=1`): leaving is refused (project-leave.md). */
+  soleAdmin?: boolean
+  /** The viewer left the project (A20): it leaves their list. */
+  left?: boolean
   exchange: boolean
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
@@ -328,6 +332,29 @@ function renamed(project: Project, init: RequestInit | undefined): Response {
   project.title = title
   served.push(`rename:${title}`)
   return json({ projectId: PROJECT, title, cursor: String(project.revision) })
+}
+
+/** Leaving (A20): recorded, and the project leaves the list; the only admin is refused as the API refuses them. */
+function departed(project: Project): Response {
+  if (project.soleAdmin && (project.role ?? membership.role) === 'admin') {
+    const problem = {
+      code: 'invalid_state',
+      message: 'You’re the project’s only admin, so you can’t leave it yet',
+      requestId: PROJECT,
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
+  }
+  project.left = true
+  served.push('leave')
+  return json({ projectId: PROJECT, cursor: String(project.revision) })
+}
+
+/** The project's own writes: its rename (A19) and a member leaving it (A20); null for any other path. */
+function projectWritten(project: Project, path: string, init: RequestInit | undefined): Response | null {
+  const base = `/api/v1/projects/${PROJECT}`
+  if (path === `${base}/title`) return renamed(project, init)
+  return path === `${base}/leave` ? departed(project) : null
 }
 
 /** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
@@ -602,7 +629,8 @@ function projectListAnswer(project: Project): Response | Promise<Response> {
     releases: project.carriedIn ?? [],
   }
   const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
-  return json({ projects: project.carriedElsewhere ? [other] : [listed], personalEpoch: 1 })
+  const mine = project.left ? [] : [listed]
+  return json({ projects: project.carriedElsewhere ? [other] : mine, personalEpoch: 1 })
 }
 
 /** A version's reviews as read (A16): none where the page keeps none, and then the read isn't counted. */
@@ -1104,7 +1132,8 @@ function posted(project: Project, path: string, init: RequestInit | undefined) {
   if (doneOf) return taskDone(project, doneOf, init)
   if (path === `/api/v1/rooms/${ROOM}/meetings/${MEETING}/close`) return meetingClosed(project, init)
   if (path === `${base}/room-token`) return json(roomToken)
-  if (path === `${base}/title`) return renamed(project, init)
+  const own = projectWritten(project, path, init)
+  if (own) return own
   if (path === `${base}/commands`) return admitted(project, init)
   if (path === `/api/v1/rooms/${ROOM}/input-floor`) return floorPassed(project, init)
   return exchangeWritten(project, path, init, () => publish(project))

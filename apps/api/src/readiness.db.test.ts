@@ -26,6 +26,7 @@ const DISCUSSION_NAMES = '0048_discussion_author_name.sql'
 const MISSION_NAMES = '0049_mission_author_names.sql'
 const ROOM_NAMES = '0050_room_names.sql'
 const PROJECT_RENAME = '0051_project_rename.sql'
+const PROJECT_LEAVE = '0052_project_leave.sql'
 
 let dir: string
 let db: TestDatabase
@@ -106,6 +107,8 @@ describe('readiness across 0043', () => {
     await migrate(ROOM_NAMES)
     assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0051')
     await migrate(PROJECT_RENAME)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0052')
+    await migrate(PROJECT_LEAVE)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
   })

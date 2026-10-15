@@ -61,8 +61,10 @@ test('rename · at 1280 an admin’s long title gives way before the views do, i
   expect(measured).toEqual({ navFits: true, wordsCut: true, chevronInside: true })
 })
 
-test('rename · an editor sees the project’s title alone, nothing to press', async ({ page }) => {
+test('rename · an editor’s project menu offers no Rename…', async ({ page }) => {
   await page.goto('/room.html?role=editor')
-  await expect(header(page).locator('.project-name')).toHaveText('Fixture project')
-  await expect(header(page).getByRole('button', { name: 'Fixture project' })).toHaveCount(0)
+  await header(page).getByRole('button', { name: 'Fixture project' }).click()
+  const menu = page.getByRole('menu', { name: 'Project' })
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: 'Rename…' })).toHaveCount(0)
 })

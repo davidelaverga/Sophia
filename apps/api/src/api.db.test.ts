@@ -423,6 +423,56 @@ describe('renaming a project (A19)', () => {
   })
 })
 
+describe('leaving a project (A20)', () => {
+  const leave = (actor: string, projectId: string, key = randomUUID()) =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': key })
+  const listed = async (actor: string) =>
+    (await call(actor, 'GET', '/api/v1/projects')).json.projects as { projectId: string; members: number }[]
+
+  it('an editor leaves: it leaves their list and their reads, the others count one fewer, and the room hears of it', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await listed(V)).find((p) => p.projectId === projectId)?.members, 3)
+    const key = randomUUID()
+    const left = await leave(B, projectId, key)
+    assert.equal(left.status, 200)
+    assert.equal(left.json.projectId, projectId)
+    assert.equal(typeof left.json.cursor, 'string')
+    assert.equal((await call(B, 'GET', `/api/v1/projects/${projectId}/snapshot`)).status, 403)
+    assert.equal(
+      (await listed(B)).some((p) => p.projectId === projectId),
+      false,
+    )
+    assert.equal((await listed(V)).find((p) => p.projectId === projectId)?.members, 2)
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id = $1 AND type = 'project.member_left'`,
+      [projectId],
+    )
+    assert.equal(heard, 1)
+    // A retry after a lost reply answers the same receipt, though the person is no longer a member.
+    const again = await leave(B, projectId, key)
+    assert.deepEqual([again.status, again.json], [200, left.json])
+  })
+
+  it('an outsider is refused; the only admin stays until a second admin exists; a key is needed', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await leave(C, projectId)).status, 403)
+    const alone = await leave(A, projectId)
+    assert.deepEqual([alone.status, alone.json.code], [409, 'invalid_state'])
+    assert.equal(
+      (await listed(A)).some((p) => p.projectId === projectId),
+      true,
+    )
+    const promoted = await ownerCount(
+      `WITH u AS (UPDATE sophia.project_members SET role = 'admin' WHERE project_id = $1 AND actor_id = $2 RETURNING 1)
+       SELECT count(*)::int AS n FROM u`,
+      [projectId, V],
+    )
+    assert.equal(promoted, 1)
+    assert.equal((await leave(A, projectId)).status, 200)
+    assert.equal((await call(A, 'POST', `/api/v1/projects/${projectId}/leave`, {})).status, 422)
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)
