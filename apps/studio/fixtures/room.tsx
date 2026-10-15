@@ -124,6 +124,8 @@ interface Fixture {
   failEarlier: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
+  /** Someone starts waiting at the door, and the event saying so goes out (knock-alert.md). */
+  knock: () => void
   /** The call's connection is lost. */
   drop: (why?: CallEnd) => void
   /** The fixture report's next version is published (the viewer learns of it when it reads the list again). */
@@ -559,6 +561,10 @@ window.fixture = {
   },
   say: (text) => {
     project.messages.push(text)
+    publish(project)
+  },
+  knock: () => {
+    project.waiting = true
     publish(project)
   },
   forgetAccount: () => {
