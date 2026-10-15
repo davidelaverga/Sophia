@@ -71,8 +71,8 @@ test('devices · the video opener lists the cameras; a camera chosen before join
   expect(await page.evaluate(() => window.fixture?.devicesOnJoin)).toEqual({ videoinput: 'cam-desk' })
   await dock(page).getByRole('button', { name: 'Video settings', exact: true }).click()
   const video = menu(page, 'Video settings')
-  await expect(video.locator('.menu-head')).toHaveText(['Camera'])
-  await expect(video.getByRole('menuitemradio', { checked: true })).toHaveText(['Desk camera'])
+  await expect(video.locator('.menu-head')).toHaveText(['Camera', 'Background'])
+  await expect(video.getByRole('menuitemradio', { checked: true })).toHaveText(['Desk camera', 'None'])
 })
 
 test('devices · where the browser can’t choose a speaker, none is offered rather than one that does nothing', async ({
