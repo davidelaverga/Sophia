@@ -17,6 +17,7 @@ import {
   readEventFrames,
   readSnapshot,
   recordHostAct,
+  recordRoomAct,
   withActor,
 } from './index.ts'
 
@@ -312,6 +313,34 @@ describe('host acts (migration 0056)', () => {
     await assert.rejects(
       withActor(pool, B, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'remove')),
       (err: unknown) => err instanceof DomainError && err.code === 'forbidden',
+    )
+  })
+})
+
+describe('room acts (migration 0059)', () => {
+  it('a camera, a screen and everyone muted are recorded with their target, or none; an editor can’t record one', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'camera'))
+    await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, B, 'screen'))
+    await withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, null, 'mute_all'))
+    const rows = await owner((c) =>
+      c.query(
+        `SELECT type, entity_type, entity_id FROM sophia.project_events WHERE project_id = $1 ORDER BY sequence`,
+        [fresh.projectId],
+      ),
+    )
+    assert.deepEqual(rows.rows, [
+      { type: 'room.host_camera_off', entity_type: 'project_member', entity_id: V },
+      { type: 'room.host_screen_off', entity_type: 'project_member', entity_id: B },
+      { type: 'room.host_muted_all', entity_type: 'project', entity_id: fresh.projectId },
+    ])
+    await assert.rejects(
+      withActor(pool, B, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'camera')),
+      (err: unknown) => err instanceof DomainError && err.code === 'forbidden',
+    )
+    await assert.rejects(
+      withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'dance')),
+      (err: unknown) => err instanceof DomainError && err.code === 'invalid_request',
     )
   })
 })

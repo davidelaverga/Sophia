@@ -102,13 +102,16 @@ export function personLeaves(name: string): void {
   changed()
 }
 
-/** Who an admin muted, and who they took out of the call (host-controls.md), by identity. */
+/** Who an admin muted, took out of the call, or whose camera or screen they stopped (host-controls.md, host-more.md). */
 const muted = new Set<string>()
 const removed = new Set<string>()
+const cameraOff = new Set<string>()
+const screenOff = new Set<string>()
+const ACTED = { mute: muted, remove: removed, 'stop-camera': cameraOff, 'stop-screen': screenOff }
 
-/** An admin's act lands, as LiveKit's server applies it: the microphone goes off, or the person leaves. */
-export function hostActed(what: 'mute' | 'remove', identity: string): void {
-  ;(what === 'mute' ? muted : removed).add(identity)
+/** An admin's act lands, as LiveKit's server applies it: a microphone, camera or screen goes off, or the person leaves. */
+export function hostActed(what: keyof typeof ACTED, identity: string): void {
+  ACTED[what].add(identity)
   changed()
 }
 
@@ -125,9 +128,10 @@ function person(name: string, i: number): RoomParticipant {
     name,
     speaking: now.speaking.includes(i + 1),
     micOn: !muted.has(personId(i + 1)),
-    cameraOn: video === 'camera',
+    cameraOn: video === 'camera' && !cameraOff.has(personId(i + 1)),
     // `video=screens`: the first two share at once (two-screens.md).
-    screenOn: (video === 'screen' && i === screenBy - 1) || (video === 'screens' && i < 2),
+    screenOn:
+      ((video === 'screen' && i === screenBy - 1) || (video === 'screens' && i < 2)) && !screenOff.has(personId(i + 1)),
     local: false,
     // `guest=1`: the last of the others came in as a guest.
     standing: query.has('guest') && i === count - 1 ? 'guest' : 'editor',

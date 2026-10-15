@@ -96,3 +96,40 @@ test('host · while a control is on its way, its row waits; the menu hands focus
   await expect(actions(page, 'Marco')).not.toHaveAttribute('aria-disabled', 'true')
   expect((await served(page)).filter((s) => s === `mute:${MARCO}`)).toHaveLength(1)
 })
+
+test('host · an admin turns a member’s camera off, and stops a member’s screen', async ({ page }) => {
+  await enter(page, '&video=camera')
+  await actions(page, 'Marco').click()
+  await expect(menu(page, 'Marco').getByRole('menuitem')).toHaveText([
+    'Mute microphone',
+    'Turn off camera',
+    'Remove from call',
+  ])
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Turn off camera' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-camera:${MARCO}`)
+  await page.goto('/room.html?call=on&people=2&video=screen')
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Stop screen sharing' }).click()
+  await expect.poll(() => served(page)).toContain(`stop-screen:${MARCO}`)
+})
+
+test('host · «Mute everyone» asks first, then every other microphone is off', async ({ page }) => {
+  await enter(page)
+  await page.getByRole('button', { name: 'Mute everyone' }).click()
+  await expect(page.getByText('Everyone else’s microphone goes off')).toBeVisible()
+  await page.getByRole('button', { name: 'Mute them' }).click()
+  await expect.poll(() => served(page)).toContain('mute-all')
+  await expect(
+    list(page).locator('li', { hasText: 'Marco' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+  await expect(
+    list(page).locator('li', { hasText: 'Lucía' }).getByRole('img', { name: 'Microphone off' }),
+  ).toBeVisible()
+})
+
+test('host · an editor has no «Mute everyone»', async ({ page }) => {
+  await enter(page, '&role=editor')
+  await expect(list(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mute everyone' })).toHaveCount(0)
+})
