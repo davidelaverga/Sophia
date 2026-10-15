@@ -686,3 +686,47 @@ test('browser-account · at Home the palette’s veil covers the page, not the b
   expect(veil?.height).toBe(size?.height)
   expect(veil?.width).toBe(size?.width)
 })
+
+test('browser-account · past five projects, Work finds one by its title and orders them A–Z (find-projects.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html?projects=many`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  const titles = work.locator('.c3-proj h3')
+  await expect(titles).toHaveCount(7)
+  await work.getByRole('searchbox', { name: 'Find a project' }).fill('copper')
+  await expect(titles).toHaveText(['Copper launch'])
+  await work.getByRole('searchbox', { name: 'Find a project' }).fill('nothing like it')
+  await expect(work.locator('.c3-none')).toContainText('No project is called «nothing like it»')
+  await work.locator('.c3-none').getByRole('button', { name: 'Clear' }).click()
+  await expect(titles).toHaveCount(7)
+  await work.getByRole('radio', { name: 'A–Z' }).click()
+  await expect(titles).toHaveText([
+    'Another project',
+    'Atlas',
+    'Beacon',
+    'Copper launch',
+    'Delta pitch',
+    'Ember notes',
+    'Fixture project',
+  ])
+})
+
+test('browser-account · ⌘K opens a project by its name (find-projects.md)', async ({ context }) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html?projects=many`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  // Blank, the palette names no project.
+  expect((await palette.getByRole('option').allInnerTexts()).join('\n')).not.toContain('Open Fixture project')
+  await page.keyboard.type('fixture')
+  await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})

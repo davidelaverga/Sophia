@@ -586,6 +586,15 @@ function projectListAnswer(project: Project): Response | Promise<Response> {
     releases: project.carriedIn ?? [],
   }
   const other = { ...listed, projectId: '00000000-0000-4000-8000-0000000000a9', title: 'Another project', releases: [] }
+  // `projects=many`: seven projects, past the five where Work offers finding one (find-projects.md).
+  if (new URLSearchParams(window.location.search).get('projects') === 'many') {
+    const more = ['Atlas', 'Beacon', 'Copper launch', 'Delta pitch', 'Ember notes'].map((title, i) => ({
+      ...other,
+      projectId: `00000000-0000-4000-8000-0000000000c${String(i)}`,
+      title,
+    }))
+    return json({ projects: [more[2], listed, other, ...more.filter((_, i) => i !== 2)], personalEpoch: 1 })
+  }
   return json({ projects: project.carriedElsewhere ? [other] : [listed], personalEpoch: 1 })
 }
 
