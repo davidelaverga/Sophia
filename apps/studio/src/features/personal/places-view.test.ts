@@ -5,6 +5,7 @@ import { confirmsErasure, exportText, factsOf } from './data-view.ts'
 import { NOTICE } from './notice-view.ts'
 import {
   FIND_FROM,
+  findNotes,
   findProjects,
   orderProjects,
   codeButton,
@@ -423,5 +424,25 @@ describe('finding a project in Work (find-projects.md)', () => {
 
   it('offers finding past five projects', () => {
     assert.equal(FIND_FROM, 6)
+  })
+})
+
+describe('finding a note (personal-notes-write-find.md)', () => {
+  const note = (id: string, text: string) => ({ id, text, keptBy: 'person' as const, fromTurnId: null, createdAt: '' })
+  const notes = [note('a', 'Revisar el número de marzo'), note('b', 'Call Ana'), note('c', 'NUMBERS for the deck')]
+
+  it('narrows them by their words, whatever the case or accents, in their order', () => {
+    assert.deepEqual(
+      findNotes(notes, 'numero').map((n) => n.id),
+      ['a'],
+    )
+    assert.deepEqual(
+      findNotes(notes, ' num ').map((n) => n.id),
+      ['a', 'c'],
+    )
+  })
+
+  it('keeps them all for nothing typed', () => {
+    assert.equal(findNotes(notes, '  ').length, 3)
   })
 })
