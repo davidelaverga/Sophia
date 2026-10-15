@@ -51,7 +51,10 @@ export function conversationRoutes(app: FastifyInstance, { pool }: { pool: pg.Po
     },
     async (req, reply) => {
       const receipt = await withActor(pool, req.actorId, 'write', (c) =>
-        submitContribution(c, req.params.projectId, req.headers['idempotency-key'], req.body),
+        // The author's name from their token, kept with the message: the room names them outside a call too.
+        submitContribution(c, req.params.projectId, req.headers['idempotency-key'], req.body, {
+          authorName: req.actorName ?? null,
+        }),
       )
       return reply.status(202).send(receipt)
     },

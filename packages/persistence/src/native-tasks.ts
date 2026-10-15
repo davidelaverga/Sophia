@@ -28,8 +28,13 @@ export async function submitContribution(
   projectId: string,
   idempotencyKey: string,
   body: Contribution,
-  origin: ContributionOrigin = 'composer',
+  /**
+   * Where it came from (the composer by default), and the author's name from their token, kept with the message so the
+   * room names them outside a call (0048).
+   */
+  { origin = 'composer', authorName = null }: { origin?: ContributionOrigin; authorName?: string | null } = {},
 ): Promise<ContributionReceipt> {
+  if (authorName) await c.query(`SELECT set_config('sophia.actor_name', $1, true)`, [authorName])
   const { rows } = await c.query<{ receipt: ContributionReceipt }>(
     `SELECT sophia.submit_contribution($1, $2, $3, $4) AS receipt`,
     [projectId, idempotencyKey, JSON.stringify(body), origin],
@@ -54,6 +59,7 @@ export async function admitNativeTask(
 interface DiscussionRow {
   id: string
   actor_id: string
+  author_name: string | null
   intent: DiscussionEntry['intent']
   origin: DiscussionEntry['origin']
   body: string
@@ -66,7 +72,7 @@ interface DiscussionRow {
 export async function readDiscussion(c: pg.PoolClient, projectId: string): Promise<DiscussionEntry[]> {
   const { rows } = await c.query<DiscussionRow>(
     `SELECT * FROM (
-       SELECT ct.id, ct.actor_id, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
+       SELECT ct.id, ct.actor_id, ct.author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at
          FROM sophia.contributions ct
          JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id
          JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
@@ -78,6 +84,7 @@ export async function readDiscussion(c: pg.PoolClient, projectId: string): Promi
   return rows.map((r) => ({
     id: r.id,
     actorId: r.actor_id,
+    authorName: r.author_name,
     intent: r.intent,
     origin: r.origin,
     text: r.body,

@@ -130,7 +130,7 @@ async function admitControl(c: pg.PoolClient, ctx: ToolContext, req: ControlRequ
         ctx.projectId,
         `${ctx.key}:steer`,
         { source: null, text: req.brief, threadId: null, artifactVersionId: null, intent: 'discuss' },
-        'voice',
+        { origin: 'voice' },
       )
     : null
   const receipt = await admitGoalCommand(c, ctx.projectId, ctx.key, {
