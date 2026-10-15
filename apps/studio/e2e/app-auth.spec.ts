@@ -729,13 +729,30 @@ test('browser-account · past five projects, Work finds one by its title and ord
   await page.keyboard.press('w')
   const work = page.locator('section[data-place-view="work"]')
   const titles = work.locator('.c3-proj h3')
+  const field = work.getByRole('searchbox', { name: 'Find a project' })
   await expect(titles).toHaveCount(7)
-  await work.getByRole('searchbox', { name: 'Find a project' }).fill('copper')
+  // The list keeps the row that scrolls, under the finder, and the finder keeps the column (Codex on #347).
+  await page.setViewportSize({ width: 1280, height: 560 })
+  const laid = await work.evaluate((section) => {
+    const box = (s: string) => section.querySelector(s)?.getBoundingClientRect()
+    const list = section.querySelector('.c3-projects')
+    const [head, find, all] = [box('.c3-head'), box('.c3-find'), section.getBoundingClientRect()]
+    return {
+      scrolls: !!list && list.scrollHeight > list.clientHeight,
+      inside: !!list && list.getBoundingClientRect().bottom <= all.bottom + 1,
+      column: !!head && !!find && Math.abs(head.left - find.left) < 1 && Math.abs(head.width - find.width) < 1,
+    }
+  })
+  expect(laid).toEqual({ scrolls: true, inside: true, column: true })
+  await field.fill('copper')
   await expect(titles).toHaveText(['Copper launch'])
-  await work.getByRole('searchbox', { name: 'Find a project' }).fill('nothing like it')
-  await expect(work.locator('.c3-none')).toContainText('No project is called «nothing like it»')
+  await field.fill('nothing like it')
+  // Said to a screen reader too; New project stays, for the project not made yet (Codex on #347).
+  await expect(work.getByRole('status')).toContainText('No project is called «nothing like it»')
+  await expect(work.getByRole('button', { name: 'New project' })).toBeVisible()
   await work.locator('.c3-none').getByRole('button', { name: 'Clear' }).click()
   await expect(titles).toHaveCount(7)
+  await expect(field).toBeFocused()
   await work.getByRole('radio', { name: 'A–Z' }).click()
   await expect(titles).toHaveText([
     'Another project',
