@@ -26,3 +26,11 @@ export function allowanceOk(usd: number, max: number): boolean {
   const micros = usd * 1_000_000
   return usd > 0 && usd <= max && Math.abs(micros - Math.round(micros)) < 0.001
 }
+
+/**
+ * Whether a goal offers Review sources: where Sophia enables the pilot and offers something to review (E2E-Q3), or
+ * while a proposal is unanswered, since the form is where it is asked about again.
+ */
+export function offered(pilot: { enabled: boolean; sources: readonly unknown[] }, unanswered: boolean): boolean {
+  return pilot.enabled && (pilot.sources.length > 0 || unanswered)
+}

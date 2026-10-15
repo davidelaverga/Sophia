@@ -902,7 +902,10 @@ function workRead(project: Project, path: string) {
     const held = project.boardHeld
     return held ? new Promise<Response>((resolve) => held.push(() => resolve(json(board)))) : json(board)
   }
-  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) return json(project.review ?? REVIEW_NOT_ENABLED)
+  if (path === `/api/v1/projects/${PROJECT}/plans/source-review`) {
+    if (project.review) served.push(`review:offered:${String(project.review.sources.length)}`)
+    return json(project.review ?? REVIEW_NOT_ENABLED)
+  }
   const key = PROPOSAL_READ.exec(path)?.[1]
   if (key !== undefined && project.proposals) return proposalRead(project.proposals, decodeURIComponent(key))
   return null

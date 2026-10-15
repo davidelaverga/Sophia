@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { cacheFor, cacheOf, forgetPersonalReads } from './account-cache.ts'
+import { ApiError } from '../api/client.ts'
+import { cacheFor, cacheOf, forgetPersonalReads, retryRead } from './account-cache.ts'
 
 const DAVIDE = '00000000-0000-4000-8000-00000000d001'
 const OTHER = '00000000-0000-4000-8000-00000000d002'
@@ -30,5 +31,20 @@ describe('each account has its own cache (Codex’s review of a06db118)', () => 
     assert.equal(client.getQueryData(['personal', 'davide@sophia.test']), undefined)
     assert.equal(client.getQueryData(['personal', 'davide.new@sophia.test']), undefined)
     assert.deepEqual(client.getQueryData(['projects', 'davide.new@sophia.test']), { projects: [] })
+  })
+})
+
+describe('a refusal that will not change is not asked again (e2e-real Q2)', () => {
+  const forbidden = new ApiError(403, 'forbidden', 'Not permitted', 'never')
+  const unavailable = new ApiError(503, 'unavailable', 'Try again', 'safe_read')
+  it('a refusal the API marks retry never is not retried; anything else, three times as before', () => {
+    assert.equal(retryRead(0, forbidden), false)
+    assert.equal(retryRead(0, unavailable), true)
+    assert.equal(retryRead(2, unavailable), true)
+    assert.equal(retryRead(3, unavailable), false)
+    assert.equal(retryRead(0, new TypeError('Failed to fetch')), true)
+  })
+  it('every account’s cache asks its reads that way', () => {
+    assert.equal(cacheOf(DAVIDE).client.getDefaultOptions().queries?.retry, retryRead)
   })
 })
