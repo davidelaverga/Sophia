@@ -11,7 +11,9 @@ Writable scope: this worktree only (`db/migrations`, `packages/contracts`, `pack
 Runtime unit: Luis's Windows host (the database suites through `scripts/with-postgres.ts`; the real dev stack for the
 browser check); CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `b6489625cd86` (tree `0e26ef891139`), the last commit of `api/mission-author-names`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 18 files changed against
+`origin/api/discussion-author-names` at that commit: `apps/api/src/mission.db.test.ts`, `apps/api/src/routes/mission.ts`, `apps/api/src/voice-status.test.ts`, `src/features/mission/MissionPanel.tsx`, `src/features/mission/mission-view.test.ts`, `src/features/mission/mission-view.ts`, `src/features/work/GoalNotes.tsx`, `db/migrations/0049_mission_author_names.sql`, `docs/plans/mission-author-names.md`, `packages/contracts/amendments/A18-mission-author-names.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.js`, `packages/persistence/src/index.ts`, `packages/persistence/src/mission-context.ts`, `packages/persistence/src/mission-rollout.db.test.ts`, `packages/persistence/src/native-tasks.ts`, `packages/persistence/src/tx.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
