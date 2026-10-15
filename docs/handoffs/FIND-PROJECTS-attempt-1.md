@@ -20,7 +20,7 @@ commits on the branch merge its base forward or touch only this record). 10 file
   (Next is `workOrder`; A–Z by title).
 - **Work:** `WorkSpace.tsx` gains `useFinder`, `Finder` (the kit's Search and Segmented) and `NoneFound` with Clear.
   The empty state still follows the projects themselves, not what was found.
-- **Fixture:** `projects=many` on the app's page serves seven projects.
+- **The app's checks** answer seven projects in place of their unavailable API (`sevenProjects` in `app-auth.spec.ts`).
 
 ## Evidence
 
@@ -36,3 +36,11 @@ commits on the branch merge its base forward or touch only this record). 10 file
 ## Remaining obligations
 
 - CI, the two new e2e cases above all; Codex with no open P1.
+
+## Review notes
+
+- **Local browser run (2026-10-15, after the game closed):** the two new cases failed. `serve()` answers every
+  `/api/**` with 503, so Work listed nothing and the palette named no project. Fixed in the test: `sevenProjects`
+  routes the list, a later route winning, and the fixture's `projects=many` is gone.
+  - Before the fix, `app-auth`, `commands` and `home` ran 51/53, the two new cases failing.
+  - After it, the two cases pass.
