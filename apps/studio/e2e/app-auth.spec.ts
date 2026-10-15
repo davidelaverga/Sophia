@@ -686,3 +686,99 @@ test('browser-account · at Home the palette’s veil covers the page, not the b
   expect(veil?.height).toBe(size?.height)
   expect(veil?.width).toBe(size?.width)
 })
+
+/** A project as the list reads it, known by its title. */
+const listed = (projectId: string, title: string) => ({
+  projectId,
+  title,
+  role: 'editor',
+  members: 3,
+  room: null,
+  nextSession: null,
+  releases: [],
+})
+
+/**
+ * Seven projects, past the five where Work offers finding one (find-projects.md): the one check here that has a project
+ * list, answered in place of serve()'s unavailable API (a later route wins).
+ */
+async function sevenProjects(context: BrowserContext) {
+  const titles = [
+    'Copper launch',
+    'Fixture project',
+    'Another project',
+    'Atlas',
+    'Beacon',
+    'Delta pitch',
+    'Ember notes',
+  ]
+  const projects = titles.map((title, i) =>
+    listed(title === 'Fixture project' ? WORK_PROJECT : `00000000-0000-4000-8000-0000000000c${String(i)}`, title),
+  )
+  await context.route(`${APP}/api/v1/projects`, (route) => route.fulfill({ json: { projects, personalEpoch: 1 } }))
+}
+
+test('browser-account · past five projects, Work finds one by its title and orders them A–Z (find-projects.md)', async ({
+  context,
+}) => {
+  await serve(context)
+  await sevenProjects(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('w')
+  const work = page.locator('section[data-place-view="work"]')
+  const titles = work.locator('.c3-proj h3')
+  const field = work.getByRole('searchbox', { name: 'Find a project' })
+  await expect(titles).toHaveCount(7)
+  // The list keeps the row that scrolls, under the finder, and the finder keeps the column (Codex on #347).
+  await page.setViewportSize({ width: 1280, height: 560 })
+  // Polled: the view's entrance moves the column a few pixels until it settles.
+  const laid = () =>
+    work.evaluate((section) => {
+      const box = (s: string) => section.querySelector(s)?.getBoundingClientRect()
+      const list = section.querySelector('.c3-projects')
+      const [head, find, all] = [box('.c3-head'), box('.c3-find'), section.getBoundingClientRect()]
+      return {
+        scrolls: !!list && list.scrollHeight > list.clientHeight,
+        inside: !!list && list.getBoundingClientRect().bottom <= all.bottom + 1,
+        column: !!head && !!find && Math.abs(head.left - find.left) < 1 && Math.abs(head.width - find.width) < 1,
+      }
+    })
+  await expect.poll(laid).toEqual({ scrolls: true, inside: true, column: true })
+  await field.fill('copper')
+  await expect(titles).toHaveText(['Copper launch'])
+  await field.fill('nothing like it')
+  // Said to a screen reader too; New project stays, for the project not made yet (Codex on #347).
+  await expect(work.getByRole('status')).toContainText('No project is called «nothing like it»')
+  await expect(work.getByRole('button', { name: 'New project' })).toBeVisible()
+  await work.locator('.c3-none').getByRole('button', { name: 'Clear' }).click()
+  await expect(titles).toHaveCount(7)
+  await expect(field).toBeFocused()
+  await work.getByRole('radio', { name: 'A–Z' }).click()
+  await expect(titles).toHaveText([
+    'Another project',
+    'Atlas',
+    'Beacon',
+    'Copper launch',
+    'Delta pitch',
+    'Ember notes',
+    'Fixture project',
+  ])
+})
+
+test('browser-account · ⌘K opens a project by its name (find-projects.md)', async ({ context }) => {
+  await serve(context)
+  await sevenProjects(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  await page.keyboard.press('Control+k')
+  const palette = page.getByRole('dialog', { name: 'Commands' })
+  // Blank, the palette names no project.
+  expect((await palette.getByRole('option').allInnerTexts()).join('\n')).not.toContain('Open Fixture project')
+  await page.keyboard.type('fixture')
+  await expect(palette.getByRole('option').first()).toContainText('Open Fixture project')
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
+})
