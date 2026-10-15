@@ -8,7 +8,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `ui/room-pi
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `f8d24acee4cf` (tree `64a94000bff9`), the last commit of `ui/room-pin-fullscreen`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 8 files changed against
+`origin/main` at that commit: `e2e/room-pin-fullscreen.spec.ts`, `fixtures/fake-people.ts`, `fixtures/room.tsx`, `src/app/theme.css`, `src/features/voice/VideoStage.tsx`, `src/features/voice/tile-view.test.ts`, `src/features/voice/tile-view.ts`, `docs/plans/room-pin-fullscreen.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
