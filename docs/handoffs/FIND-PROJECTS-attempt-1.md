@@ -8,7 +8,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `ui/find-pr
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `a26dd7d054a1` (tree `e0e49f3b0aa2`), the last commit of `ui/find-projects`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 10 files changed against
+`origin/main` at that commit: `e2e/app-auth.spec.ts`, `fixtures/fixture-api.ts`, `src/app/commands.test.ts`, `src/app/commands.ts`, `src/app/theme.css`, `src/features/personal/Places.tsx`, `src/features/personal/WorkSpace.tsx`, `src/features/personal/places-view.test.ts`, `src/features/personal/places-view.ts`, `docs/plans/find-projects.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
