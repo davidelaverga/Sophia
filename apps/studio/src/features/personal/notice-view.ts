@@ -7,6 +7,8 @@ export const NOTICE = {
   kept: 'Kept',
   carried: (project: string) => `Carried to ${project}`,
   takenBack: 'Back in your notes',
+  /** A note forgotten from the notes (personal-forget-note.md): its words are gone, so there is no Undo. */
+  forgotten: 'Forgotten',
   copied: 'Copied to your clipboard',
   clipboardBlocked: 'Couldn’t copy here. Your browser blocked the clipboard.',
   erased: 'Deleted. Sophia starts fresh.',

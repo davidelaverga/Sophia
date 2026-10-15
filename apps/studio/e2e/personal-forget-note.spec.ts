@@ -25,7 +25,7 @@ test('notes · Forget asks first; confirmed, the note goes for good, said so, an
   await first.getByRole('button', { name: 'Forget it' }).click()
   await expect(note(page, 'Start the deck from one number I trust')).toHaveCount(0)
   expect(await forgotten(page)).toEqual(['note-1'])
-  await expect(page.getByRole('status').filter({ hasText: 'Forgotten' })).toBeVisible()
+  expect(await page.evaluate(() => window.personalFixture?.toasts.at(-1))).toBe('Forgotten')
   await expect(panel(page).locator('.c2-t').first().getByRole('button', { name: 'Carry' })).toBeFocused()
 })
 
