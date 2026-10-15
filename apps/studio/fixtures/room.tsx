@@ -38,7 +38,16 @@ import { finishedAfter, newMeeting, type Meeting } from './meeting-data.ts'
 import { ABSENT, identity, membership, PROJECT, type RoomAsked, type Said } from './data.ts'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
 import { CONVERSATION, conversationMission, conversations, messagesOf, quietConversation } from './conversation-data.ts'
-import { asked, deliverCaption, deliverNotice, dropCall, joined, leaving, sophiaLeaves } from './fake-livekit.ts'
+import {
+  asked,
+  deliverCaption,
+  deliverNotice,
+  dropCall,
+  joined,
+  leaving,
+  reactFrom,
+  sophiaLeaves,
+} from './fake-livekit.ts'
 import {
   count,
   endPause,
@@ -47,6 +56,7 @@ import {
   others,
   personId,
   setFollowers,
+  personLeaves,
   setSophia,
   setSpeaking,
   sophiaAsked,
@@ -199,6 +209,8 @@ interface Fixture {
   taskBy: (n: number | null) => void
   /** These others follow the shown version (their `sophia.following`, A14); the rest follow nothing. */
   followers: (people: number[]) => void
+  /** Someone leaves the room, by name (room-pin-fullscreen.md). */
+  leaves?: (name: string) => void
   /** Sophia moves the shown report's focus to a section, as her `present_section` would (A14). */
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
@@ -257,8 +269,12 @@ interface Fixture {
   floorTo: readonly string[]
   /** What the room's connection was asked (fake-livekit.ts). */
   asked: readonly string[]
+  /** Someone in the room reacts, by name, with any emoji the check gives (call-reactions.md). */
+  reactFrom?: (name: string, emoji: string) => void
   /** The devices the last call opened with (call-devices.md); null before any. */
   readonly devicesOnJoin: Partial<Record<string, string>> | null
+  /** The camera background the last call opened with (call-backgrounds.md); null before any. */
+  readonly backgroundOnJoin: string | null
   /** What the API answered, as `snapshot:2` (fixture-api.ts). */
   served: readonly string[]
   unexpected: readonly string[]
@@ -836,13 +852,18 @@ window.fixture = {
   },
   sophia: setSophia,
   speaking: setSpeaking,
+  leaves: personLeaves,
   moveRoom: () => {
     project.roomMoves = true
   },
   floorTo,
   asked,
+  reactFrom,
   get devicesOnJoin() {
     return joined.devices
+  },
+  get backgroundOnJoin() {
+    return joined.background
   },
   served,
   unexpected,

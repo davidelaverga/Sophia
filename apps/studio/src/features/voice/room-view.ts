@@ -2,6 +2,7 @@
 // video LiveKit reports. Pure, so the rules are unit-tested; React only renders the result.
 import type { ReactNode } from 'react'
 import type { NativeTask, Snapshot } from '@sophia/contracts'
+import { BackgroundUnavailable } from './camera-background.ts'
 
 export type DockStatus = 'idle' | 'joining' | 'live' | 'reconnecting' | 'failed'
 
@@ -21,6 +22,9 @@ const STILL_ON: Record<Device, string> = {
  */
 export function mediaMessage(err: unknown, device: Device, on: boolean): string | null {
   if (!on) return STILL_ON[device]
+  // The chosen background couldn't be drawn, so the camera stayed off rather than show what is behind (Codex on #342).
+  if (err instanceof BackgroundUnavailable)
+    return 'Couldn’t draw your background, so the camera stayed off. Choose None or try again.'
   const name = err instanceof Error ? err.name : ''
   if (device === 'screen') {
     return name === 'NotAllowedError' || name === 'AbortError' ? null : 'Screen sharing couldn’t start. Try again.'

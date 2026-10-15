@@ -257,6 +257,32 @@ describe('member invitations', () => {
       (await invite(A, { kind: 'member', role: 'viewer', email: 'lena@example.com' })).json,
     )
     assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(second.url) } })).status, 200)
+    // Back in, the removal their leaving left is cancelled: the call isn't taken from them again (Codex P1 on #349).
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const open = await owner.query(
+        `SELECT 1 FROM sophia.room_removals WHERE project_id = $1 AND identity = $2 AND state <> 'cancelled'`,
+        [seed.projectId, L],
+      )
+      assert.equal(open.rowCount, 0)
+      // The join event carries the membership's revision now, after the leave's (Codex P2 on #349).
+      const { rows } = await owner.query<{ type: string; entity_revision: string }>(
+        `SELECT type, entity_revision FROM sophia.project_events
+          WHERE project_id = $1 AND entity_id = $2 ORDER BY sequence`,
+        [seed.projectId, L],
+      )
+      assert.deepEqual(
+        rows.map((r) => [r.type, Number(r.entity_revision)]),
+        [
+          ['project.member_joined', 1],
+          ['project.member_left', 2],
+          ['project.member_joined', 3],
+        ],
+      )
+    } finally {
+      await owner.end()
+    }
     const me = parseMembership(
       (await call(`/api/v1/projects/${seed.projectId}/membership`, { method: 'GET', bearer })).json,
     )

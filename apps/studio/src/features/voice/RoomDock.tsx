@@ -16,6 +16,8 @@ import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
+import { ReactMenu } from './ReactMenu.tsx'
+import { Reactions } from './Reactions.tsx'
 import { roomKey } from './room-keys.ts'
 import { shortName, type FloorView, type RoomParticipant } from './room-view.ts'
 import { LookingIndicator, SophiaControls } from './SophiaControls.tsx'
@@ -65,26 +67,30 @@ export function RoomDock(props: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
   return (
-    <div ref={wrap} className="dock-wrap">
-      <LookingIndicator text={props.sophia.looking} />
-      {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
-      {(room.mediaError ?? room.error) && (
-        <p className="dock-note" role="alert">
-          {room.mediaError ?? room.error}
-        </p>
-      )}
-      <nav className="dock" aria-label="Room controls">
-        {live ? (
-          <LiveControls {...props} />
-        ) : (
-          <>
-            <JoinButton room={room} />
-            <CheckOpener room={room} />
-            <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
-          </>
+    <>
+      {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
+      <Reactions shown={room.reactions} />
+      <div ref={wrap} className="dock-wrap">
+        <LookingIndicator text={props.sophia.looking} />
+        {/* What stopped a device, or why this person is out of the call: a failed join, or a call that ended. */}
+        {(room.mediaError ?? room.error) && (
+          <p className="dock-note" role="alert">
+            {room.mediaError ?? room.error}
+          </p>
         )}
-      </nav>
-    </div>
+        <nav className="dock" aria-label="Room controls">
+          {live ? (
+            <LiveControls {...props} />
+          ) : (
+            <>
+              <JoinButton room={room} />
+              <CheckOpener room={room} />
+              <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
+            </>
+          )}
+        </nav>
+      </div>
+    </>
   )
 }
 
@@ -230,6 +236,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         label="Video settings"
         list={room.listDevices}
         onChoose={(kind, id) => void room.switchDevice(kind, id)}
+        background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
       />
       {canShareScreen && (
         <Toggle
@@ -249,6 +256,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
   return (
     <>
       <MediaToggles room={room} me={me} />
+      <ReactMenu onReact={room.react} />
       <span className="dock-sep" aria-hidden />
       {snapshot && me && (
         <FloorControl floor={floor} me={me.identity} context={{ projectId, identity, snapshot }} onPassed={onPassed} />

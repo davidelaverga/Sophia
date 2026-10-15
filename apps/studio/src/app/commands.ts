@@ -33,6 +33,11 @@ export interface Command {
   also?: readonly string[] | undefined
   /** Runs it; undefined while the page cannot (the room not joined): then it is not offered. */
   run?: (() => void) | undefined
+  /**
+   * Offered only once something typed names it, and under Recent once run (a project by its name, find-projects.md):
+   * one of many that would crowd the blank palette.
+   */
+  typed?: boolean | undefined
 }
 
 /** A command the page offers now. */
@@ -140,7 +145,7 @@ export function paletteRows(query: string, commands: readonly Offered[], recent:
     .map((id) => commands.find((c) => c.id === id && c.group !== 'you'))
     .filter((c): c is Offered => c !== undefined)
     .slice(0, RECENT_SHOWN)
-  const rest = matchCommands('', commands).filter((c) => c.group !== 'you' && !last.includes(c))
+  const rest = matchCommands('', commands).filter((c) => c.group !== 'you' && !c.typed && !last.includes(c))
   return [...yours.map(withGroup), ...last.map((command) => ({ command, label: 'Recent' })), ...rest.map(withGroup)]
 }
 
