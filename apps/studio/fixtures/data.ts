@@ -55,7 +55,7 @@ export const idOf = (message: string | Said, n: number) =>
 /** Who wrote a message: the viewer's own, or another member's. */
 export const authorOf = (message: string | Said) => (typeof message === 'string' || !message.me ? OTHER : ME)
 
-const said = (message: string | Said, n: number): DiscussionEntry => ({
+export const said = (message: string | Said, n: number): DiscussionEntry => ({
   id: idOf(message, n),
   actorId: authorOf(message),
   intent: 'discuss',
@@ -156,7 +156,8 @@ export function snapshot(
     room: { id: ROOM, revision, inputActorId: holder, mode: 'invoked', sophia: presenceOf(exchange, holder, room) },
     lobby: [],
     sessions: room.sessions ?? [],
-    discussion: messages.map(said),
+    // The last 50, as the API holds them (A23 reads further back).
+    discussion: messages.map(said).slice(-50),
     work: [],
   }
 }

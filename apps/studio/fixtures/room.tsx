@@ -122,6 +122,8 @@ interface Fixture {
   failReplies: (on: boolean) => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
+  /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
+  failEarlier: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
@@ -421,12 +423,16 @@ const project = {
       })
     }
   },
-  messages: [] as (string | Said)[],
+  // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md).
+  messages: Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`) as (
+    string | Said
+  )[],
   contributions: new Map(),
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
   failEdit: false,
+  failEarlier: false,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
   reportTitle: query.get('title') === 'long' ? LONG_TITLE : TITLE,
@@ -584,6 +590,9 @@ window.fixture = {
   },
   failEdit: () => {
     project.failEdit = true
+  },
+  failEarlier: () => {
+    project.failEarlier = true
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.

@@ -21,6 +21,7 @@ const EXPORTS = [
   'ProjectCreated',
   'ProjectRenamed',
   'ProjectLeft',
+  'DiscussionPage',
   'Error',
   'Event',
   'CursorAdvance',
