@@ -12,7 +12,9 @@ Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.p
 record.
 Existing authority: Luis's instruction (option A: MediaPipe from the Studio's own origin, `'wasm-unsafe-eval'`, no third
 party); merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `73ea80425075` (tree `938b7e783ea9`), the last commit of `ui/call-backgrounds`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 21 files changed against
+`origin/ui/device-check` at that commit: `e2e/call-backgrounds.spec.ts`, `e2e/call-devices.spec.ts`, `fixtures/fake-livekit.ts`, `fixtures/room.tsx`, `mediapipe-assets.ts`, `mediapipe/selfie_segmenter.tflite`, `package.json`, `public/vercel.json`, `src/features/voice/DeviceMenu.tsx`, `src/features/voice/RoomDock.tsx`, `src/features/voice/background-pictures.ts`, `src/features/voice/background-preference.test.ts`, `src/features/voice/background-preference.ts`, `src/features/voice/livekit-room.ts`, `src/features/voice/mediapipe-path.ts`, `src/features/voice/useProjectRoom.ts`, `tsconfig.json`, `vite.config.ts`, `config/runtime-unit.json`, `docs/plans/call-backgrounds.md`, `pnpm-lock.yaml`. The review notes below name the commit of each later change.
 
 ## Outcome
 
