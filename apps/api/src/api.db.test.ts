@@ -384,6 +384,45 @@ describe('createProject', () => {
   })
 })
 
+describe('renaming a project (A19)', () => {
+  const rename = (actor: string, projectId: string, title: unknown, key = randomUUID()) =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/title`, { title }, { 'idempotency-key': key })
+
+  it('an admin renames it: every member reads the new title, and the room hears of it', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const renamed = await rename(A, projectId, 'Launch plan, v2')
+    assert.equal(renamed.status, 200)
+    assert.deepEqual([renamed.json.projectId, renamed.json.title], [projectId, 'Launch plan, v2'])
+    assert.equal(typeof renamed.json.cursor, 'string')
+    const theirs = parseSnapshot((await call(B, 'GET', `/api/v1/projects/${projectId}/snapshot`)).json)
+    assert.equal(theirs.title, 'Launch plan, v2')
+    const listed = (await call(V, 'GET', '/api/v1/projects')).json.projects as { projectId: string; title: string }[]
+    assert.equal(listed.find((p) => p.projectId === projectId)?.title, 'Launch plan, v2')
+    const heard = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events WHERE project_id = $1 AND type = 'project.renamed'`,
+      [projectId],
+    )
+    assert.equal(heard, 1)
+  })
+
+  it('only an admin may; a title of spaces is no title; a key answers once, and only for its own title', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.deepEqual([(await rename(B, projectId, 'Editor title')).status], [403])
+    assert.deepEqual([(await rename(C, projectId, 'Outsider title')).status], [403])
+    const blank = await rename(A, projectId, '   ')
+    assert.deepEqual([blank.status, blank.json.code], [422, 'invalid_request'])
+    assert.equal((await rename(A, projectId, 'x'.repeat(181))).status, 422)
+    assert.equal((await rename(A, projectId, '')).status, 422)
+    const key = randomUUID()
+    const first = await rename(A, projectId, 'Once', key)
+    const again = await rename(A, projectId, 'Once', key)
+    assert.deepEqual([again.status, again.json], [200, first.json])
+    const other = await rename(A, projectId, 'Twice', key)
+    assert.deepEqual([other.status, other.json.code], [409, 'idempotency_conflict'])
+    assert.equal((await call(A, 'POST', `/api/v1/projects/${projectId}/title`, { title: 'No key' })).status, 422)
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)
