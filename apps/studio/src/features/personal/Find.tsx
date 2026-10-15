@@ -2,7 +2,7 @@
 // opens a line under the head. The turns mark what matches, the current match in sight; Enter goes on, Shift Enter
 // back, round at either end; Esc closes it and gives the focus back to where it was. It looks in what is read, and
 // "Look further back" reads earlier days.
-import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Icon, Tip } from '@sophia/ui'
 import { keyLabel, onMac } from '../../app/shortcuts.ts'
@@ -11,6 +11,7 @@ import { askAbout, type Row } from './conversation-view.ts'
 import { focusConversation } from './focus.ts'
 import { useEscape } from './useEscape.ts'
 import { foundIn, pieces, type Found } from './find-view.ts'
+import { LinkedText } from '../../app/LinkedText.tsx'
 
 /** What the turns mark: the query, and the match that is current. */
 export interface Lens {
@@ -26,16 +27,10 @@ export const FIND_KEYS = keyLabel('mod+f', onMac)
 /** A turn's words, what matches the lens marked, the current match set apart. */
 export function Marked({ rowKey, text }: { rowKey: string; text: string }) {
   const lens = useContext(FindLens)
-  if (!lens) return text
-  return pieces(text, lens.query).map((p, i) => {
-    if (p.n === null) return <Fragment key={i}>{p.text}</Fragment>
-    const current = lens.current?.key === rowKey && lens.current.n === p.n
-    return (
-      <mark key={i} className={current ? 'current' : undefined}>
-        {p.text}
-      </mark>
-    )
-  })
+  // Its web addresses are links, a mark inside one kept inside it (message-links.md).
+  if (!lens) return <LinkedText text={text} />
+  const current = lens.current?.key === rowKey ? lens.current.n : null
+  return <LinkedText text={text} marks={pieces(text, lens.query)} current={current} />
 }
 
 interface BarProps {
