@@ -126,9 +126,11 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
             list={room.listDevices}
             onChoose={(kind, id) => void room.switchDevice(kind, id)}
             onClose={() => setOpen(false)}
-            onJoin={() => {
+            onJoin={({ camera }) => {
               setOpen(false)
-              void room.join()
+              void room.join().then(async (joined) => {
+                if (joined && camera) await room.setCamera(true)
+              })
             }}
           />,
           document.body,

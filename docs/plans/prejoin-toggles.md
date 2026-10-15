@@ -14,6 +14,8 @@
   - The preview follows them: an off track is disabled, so the meter rests and the picture says «Your camera is off».
     Nothing is asked of the browser again.
   - The microphone's choice is kept as the dock's own is (`rememberMic`), so the next join and the Join tip follow it.
+  - With access refused, the picture only says how to give it: there is nothing to check, and the join keeps the
+    last microphone choice.
 - **Join** from the sheet enters with that microphone, then turns the camera on when it was chosen.
 
 ## Checks
