@@ -3269,13 +3269,13 @@ test('codex · #107 · sources over a review’s limit together are said so and 
 
 // ---- E2E-Q3 (real stack, 2026-10-14): Review sources is offered only where there is something to review. ----
 
-const offered = (page: Page) =>
-  page.evaluate(() => (window.fixture?.served ?? []).filter((s) => s.startsWith('review:offered')))
+const offersRead = (page: Page) =>
+  page.evaluate(() => (window.workFixture?.served ?? []).filter((s) => s.startsWith('review:offered')))
 
 test('e2e · Q3 · with no report version to review, the goal offers no Review sources', async ({ page }) => {
   await page.goto(`${PAGE}?served=1&sources=0`)
   // Sophia has answered what it offers: enabled, with nothing to review yet.
-  await expect.poll(() => offered(page)).toContain('review:offered:0')
+  await expect.poll(() => offersRead(page)).toContain('review:offered:0')
   await expect(page.getByRole('button', { name: 'Review sources' })).toHaveCount(0)
 })
 
@@ -3290,7 +3290,7 @@ test('e2e · Q3 · a proposal still unanswered keeps its way back, sources or no
   )
   // The page comes back with nothing to review: the kept proposal is still reachable, to be asked about again.
   await page.goto(`${PAGE}?served=1&proposed=lost&sources=0`)
-  await expect.poll(() => offered(page)).toContain('review:offered:0')
+  await expect.poll(() => offersRead(page)).toContain('review:offered:0')
   await page.getByRole('button', { name: 'Review sources' }).first().click()
   await expect(form.getByRole('alert')).toHaveText(
     'An earlier proposal may already be recorded. Propose again to check; it is the same proposal, never a second one.',

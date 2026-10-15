@@ -55,7 +55,7 @@ import { accepted, boardOf, forYou, glancedOf, shownPlan } from '../src/features
 import '../src/app/theme.css'
 import { identity, membership, PROJECT } from './data.ts'
 import { newMeeting } from './meeting-data.ts'
-import { installFixtureApi, unexpected } from './fixture-api.ts'
+import { installFixtureApi, served as readOut, unexpected } from './fixture-api.ts'
 import { SOPHIAS_DESCRIPTION, TITLE } from './report-data.ts'
 import { actions as requests, NOW, observations, resources as owned, tightClaude } from './resources-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
@@ -105,6 +105,8 @@ declare global {
   interface Window {
     workFixture?: {
       unexpected: readonly string[]
+      /** What the simulated service read out, in order (fixture-api.ts): `review:offered:<n>`, the pilot's offer read. */
+      served?: readonly string[]
       /** Each answer a decider gave, in order, and each command and receipt: for the checks to read. */
       answered?: readonly DecisionAnswer[]
       /** Each question sent to the conversation, each send of it included. */
@@ -367,6 +369,7 @@ installFixtureApi({
 })
 window.workFixture = {
   unexpected,
+  served: readOut,
   answered: answers,
   commands,
   receipts,
@@ -908,6 +911,7 @@ function Tasks() {
         { commands: lead.commands, again },
       ),
       complete: (workId: string) => update(completeWith(workId)),
+      served: readOut,
       ...(proposals && { proposals: proposals.sent, proposalReads: proposals.reads }),
       ...(proposals && { releaseProposal: () => new Promise<void>((read) => proposals.held.shift()?.(read)) }),
       ...(admits && { admissions: admission.answers }),
