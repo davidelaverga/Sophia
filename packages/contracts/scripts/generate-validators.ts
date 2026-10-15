@@ -20,6 +20,7 @@ const EXPORTS = [
   'Receipt',
   'ProjectCreated',
   'ProjectRenamed',
+  'ProjectLeft',
   'Error',
   'Event',
   'CursorAdvance',

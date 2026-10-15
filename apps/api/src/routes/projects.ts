@@ -1,8 +1,9 @@
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { ProjectCreate, ProjectRenameRequest, ProjectSummary } from '@sophia/contracts'
+import type { ProjectCreate, ProjectLeaveRequest, ProjectRenameRequest, ProjectSummary } from '@sophia/contracts'
 import {
   createProject,
+  leaveProject,
   listProjects,
   readPersonalEpoch,
   renameProject,
@@ -108,6 +109,23 @@ export function projectRoutes(
     async (req) =>
       withActor(pool, req.actorId, 'write', (c) =>
         renameProject(c, req.params.projectId, req.headers['idempotency-key'], req.body),
+      ),
+  )
+
+  // leaveProject (A21): any member but the project's only admin, idempotent per actor and key.
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ProjectLeaveRequest }>(
+    '/api/v1/projects/:projectId/leave',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'ProjectLeaveRequest#' },
+        response: { 200: { $ref: 'ProjectLeft#' } },
+      },
+    },
+    async (req) =>
+      withActor(pool, req.actorId, 'write', (c) =>
+        leaveProject(c, req.params.projectId, req.headers['idempotency-key']),
       ),
   )
 

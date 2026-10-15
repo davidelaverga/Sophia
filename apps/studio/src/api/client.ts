@@ -8,6 +8,7 @@ import type {
   GoalCommand,
   ProjectCreated,
   ProjectRenamed,
+  ProjectLeft,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -18,6 +19,7 @@ import {
   parseExchangeReceipt,
   parseProjectCreated,
   parseProjectRenamed,
+  parseProjectLeft,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -185,6 +187,10 @@ export const createProject = (token: string, key: string, title: string): Promis
 /** renameProject (A19): an admin only, idempotent per person and key; reuse the key when retrying an unknown outcome. */
 export const renameProject = (token: string, projectId: string, key: string, title: string): Promise<ProjectRenamed> =>
   postIdempotent(token, `/api/v1/projects/${projectId}/title`, key, { title }, parseProjectRenamed)
+
+/** leaveProject (A21): any member but the only admin, idempotent per person and key. */
+export const leaveProject = (token: string, projectId: string, key: string): Promise<ProjectLeft> =>
+  postIdempotent(token, `/api/v1/projects/${projectId}/leave`, key, {}, parseProjectLeft)
 
 /** A short-lived token for this project's LiveKit room; issuing it changes nothing, so a retry is harmless. */
 export const issueRoomToken = (

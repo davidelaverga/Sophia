@@ -21,7 +21,7 @@
     receipt, though the person is no longer a member.
   - It holds the project's row, sets the membership inactive (its revision bumped) and bumps `audience_revision`, as
     joining does. It emits `project.member_left`, so the others' feeds read the smaller audience.
-- **Contract amendment A20:** `POST /api/v1/projects/{projectId}/leave`, with `ProjectLeaveRequest` `{}` and
+- **Contract amendment A21 (A20 is the proposed room-chat replies, #105):** `POST /api/v1/projects/{projectId}/leave`, with `ProjectLeaveRequest` `{}` and
   `ProjectLeft` `{ projectId, cursor }`. `/ready` requires the function.
 - **Studio:**
   - The header's title opens the menu «Project» for every member now: «Rename…» for an admin, and «Leave project…»

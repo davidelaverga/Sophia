@@ -40,6 +40,7 @@ import {
   validatePersonalTurnPage,
   validateProjectCreated,
   validateProjectRenamed,
+  validateProjectLeft,
   validateProjectList,
   validateWorkBoardView,
   validateWorkReceipt,
@@ -81,6 +82,7 @@ export const parseSnapshot = parser('Snapshot', validateSnapshot)
 export const parseReceipt = parser('Receipt', validateReceipt)
 export const parseProjectCreated = parser('ProjectCreated', validateProjectCreated)
 export const parseProjectRenamed = parser('ProjectRenamed', validateProjectRenamed)
+export const parseProjectLeft = parser('ProjectLeft', validateProjectLeft)
 export const parseEvent = parser('Event', validateEvent)
 export const parseCursorAdvance = parser('CursorAdvance', validateCursorAdvance)
 export const parseRoomToken = parser('RoomToken', validateRoomToken)

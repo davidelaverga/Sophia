@@ -423,7 +423,7 @@ describe('renaming a project (A19)', () => {
   })
 })
 
-describe('leaving a project (A20)', () => {
+describe('leaving a project (A21)', () => {
   const leave = (actor: string, projectId: string, key = randomUUID()) =>
     call(actor, 'POST', `/api/v1/projects/${projectId}/leave`, {}, { 'idempotency-key': key })
   const listed = async (actor: string) =>

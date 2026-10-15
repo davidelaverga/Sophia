@@ -1,35 +1,42 @@
-// The project's title in the header (docs/plans/project-rename.md): words for everyone; for an admin, a press that
-// opens the kit's menu «Project», whose Rename… opens a sheet. The rename is idempotent per key (A19): a retry after an
-// unknown outcome sends the same key, so it is never a second rename. Saved, the snapshot and the projects' list are
-// read again, and the header says the new name.
+// The project's title in the header (docs/plans/project-rename.md, project-leave.md): for a member, a press that opens
+// the kit's menu «Project»: Rename… for an admin, Leave project… for anyone. Each opens its sheet. Both writes are
+// idempotent per key (A19, A21): a retry after an unknown outcome sends the same key, so it is never a second write.
+// Renamed, the snapshot and the projects' list are read again; left, the call ends and the person goes to Work.
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import type { Membership } from '@sophia/contracts'
 import { Button, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
-import { renameProject } from '../../api/client.ts'
+import { leaveProject, renameProject } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
 import { snapshotKey } from './useProjectFeed.ts'
 
 interface Props {
   title: string
-  admin: boolean
+  /** The viewer's role once the project is read; null while it isn't, and the title is words alone. */
+  role: Membership['role'] | null
   projectId: string
   identity: Identity
+  /** Left: end a call in the project's room and go to Work. */
+  onLeft: () => Promise<void>
 }
+
+type SheetProps = Pick<Props, 'title' | 'projectId' | 'identity'> & { onClose: () => void }
 
 /** The most a title holds (A19), counted as the API counts it. */
 const TITLE_MOST = 180
 
-function RenameSheet({ title, projectId, identity, onClose }: Omit<Props, 'admin'> & { onClose: () => void }) {
+const failure = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
+
+function RenameSheet({ title, projectId, identity, onClose }: SheetProps) {
   const [name, setName] = useState(title)
   const [key] = useState(() => crypto.randomUUID())
   const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
   const field = useRef<HTMLInputElement>(null)
   const client = useQueryClient()
   useEffect(() => field.current?.select(), [])
-  const next = name.trim()
-  const offered = next !== '' && name !== title && !state.sending
+  const offered = name.trim() !== '' && name !== title && !state.sending
   const save = async () => {
     if (!offered) return
     setState({ sending: true, failed: null })
@@ -41,10 +48,7 @@ function RenameSheet({ title, projectId, identity, onClose }: Omit<Props, 'admin
       ])
       onClose()
     } catch (err: unknown) {
-      setState({
-        sending: false,
-        failed: err instanceof Error ? err.message : 'Couldn’t rename the project. Try again.',
-      })
+      setState({ sending: false, failed: failure(err, 'Couldn’t rename the project. Try again.') })
     }
   }
   return (
@@ -82,11 +86,60 @@ function RenameSheet({ title, projectId, identity, onClose }: Omit<Props, 'admin
   )
 }
 
+function LeaveSheet({ title, projectId, identity, onClose, onLeft }: SheetProps & Pick<Props, 'onLeft'>) {
+  const [key] = useState(() => crypto.randomUUID())
+  const [state, setState] = useState<{ sending: boolean; failed: string | null }>({ sending: false, failed: null })
+  const cancel = useRef<HTMLButtonElement>(null)
+  const client = useQueryClient()
+  useEffect(() => cancel.current?.focus(), [])
+  const leave = async () => {
+    setState({ sending: true, failed: null })
+    try {
+      await leaveProject(identity.token, projectId, key)
+    } catch (err: unknown) {
+      setState({ sending: false, failed: failure(err, 'Couldn’t leave the project. Try again.') })
+      return
+    }
+    onClose()
+    await onLeft()
+    await client.invalidateQueries({ queryKey: ['projects', identity.name] })
+  }
+  return (
+    <Sheet id="leave-project-title" title="Leave project" onClose={onClose}>
+      <div className="sheet-form">
+        <p className="leave-note">
+          You’ll leave «{title}» and its room, and it leaves your list. To come back, someone sends you a new
+          invitation.
+        </p>
+        {state.failed && <p role="alert">{state.failed}</p>}
+        <div className="rename-acts">
+          <Button ref={cancel} kind="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button kind="danger" disabled={state.sending} onClick={() => void leave()}>
+            {state.sending ? 'Leaving…' : 'Leave project'}
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  )
+}
+
 export function ProjectName(props: Props) {
   const [open, setOpen] = useState(false)
-  const [renaming, setRenaming] = useState(false)
+  const [sheet, setSheet] = useState<'rename' | 'leave' | null>(null)
   const menu = usePopover(open, () => setOpen(false))
-  if (!props.admin) return props.title
+  if (!props.role) return props.title
+  const choose = (next: 'rename' | 'leave') => () => {
+    setOpen(false)
+    setSheet(next)
+  }
+  const shared = {
+    title: props.title,
+    projectId: props.projectId,
+    identity: props.identity,
+    onClose: () => setSheet(null),
+  }
   return (
     <span ref={menu.wrap} className="project-name-menu">
       <button
@@ -102,26 +155,12 @@ export function ProjectName(props: Props) {
       </button>
       {open && (
         <Menu popover={menu} label="Project" side="bottom" align="start">
-          <MenuItem
-            onClick={() => {
-              setOpen(false)
-              setRenaming(true)
-            }}
-          >
-            Rename…
-          </MenuItem>
+          {props.role === 'admin' && <MenuItem onClick={choose('rename')}>Rename…</MenuItem>}
+          <MenuItem onClick={choose('leave')}>Leave project…</MenuItem>
         </Menu>
       )}
-      {renaming &&
-        createPortal(
-          <RenameSheet
-            title={props.title}
-            projectId={props.projectId}
-            identity={props.identity}
-            onClose={() => setRenaming(false)}
-          />,
-          document.body,
-        )}
+      {sheet === 'rename' && createPortal(<RenameSheet {...shared} />, document.body)}
+      {sheet === 'leave' && createPortal(<LeaveSheet {...shared} onLeft={props.onLeft} />, document.body)}
     </span>
   )
 }
