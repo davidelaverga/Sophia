@@ -80,6 +80,8 @@ interface Project {
   revision: number
   /** The project's title once renamed (project-rename.md); absent, the snapshot's own. */
   title?: string
+  /** The next request to revise the page is refused, a design under way (`window.fixture.failEdit`). */
+  failEdit?: boolean
   /** The viewer is the project's only admin (`admins=1`): leaving is refused (project-leave.md). */
   soleAdmin?: boolean
   /** The viewer left the project (A22): it leaves their list. */
@@ -350,10 +352,43 @@ function departed(project: Project): Response {
   return json({ projectId: PROJECT, cursor: String(project.revision) })
 }
 
+/** A request to revise the page's sections (requestDesignEdit): recorded; refused once as a design under way. */
+function designEdited(project: Project, init: RequestInit | undefined): Response {
+  if (project.failEdit) {
+    project.failEdit = false
+    const problem = {
+      code: 'invalid_state',
+      message: 'A design of this page is under way',
+      requestId: PROJECT,
+      retry: 'never',
+    }
+    return new Response(JSON.stringify(problem), { status: 409, headers: { 'content-type': 'application/json' } })
+  }
+  const body: unknown = typeof init?.body === 'string' ? JSON.parse(init.body) : null
+  const field = (k: string): unknown => (typeof body === 'object' && body !== null ? Reflect.get(body, k) : undefined)
+  const sections = field('sections')
+  const versionId = field('versionId')
+  served.push(`html-edit:${Array.isArray(sections) ? sections.join(',') : ''}:${String(field('instruction'))}`)
+  const id = '00000000-0000-4000-8000-0000000009e1'
+  return new Response(
+    JSON.stringify({
+      taskId: id,
+      state: 'designing',
+      versionId,
+      baseCandidateId: id,
+      sections,
+      shell: false,
+      styles: false,
+    }),
+    { status: 202, headers: { 'content-type': 'application/json' } },
+  )
+}
+
 /** The project's own writes: its rename (A21) and a member leaving it (A22); null for any other path. */
 function projectWritten(project: Project, path: string, init: RequestInit | undefined): Response | null {
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
+  if (path === `${base}/html-edits`) return designEdited(project, init)
   return path === `${base}/leave` ? departed(project) : null
 }
 

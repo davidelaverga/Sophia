@@ -120,6 +120,8 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next request to revise the page is refused, a design under way (revise-section.md). */
+  failEdit: () => void
   /** Another member writes in the room's discussion, and the event saying so goes out. */
   say: (text: string) => void
   /** The call's connection is lost. */
@@ -578,6 +580,9 @@ window.fixture = {
   },
   failReplies: (on) => {
     project.failReplies = on
+  },
+  failEdit: () => {
+    project.failEdit = true
   },
   drop: dropCall,
   // Never past the versions the fixture holds (the demo's two): a further publish changes nothing.
