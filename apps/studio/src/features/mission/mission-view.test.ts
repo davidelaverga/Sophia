@@ -16,6 +16,7 @@ import {
   forgetReach,
   forgetRefusal,
   historyText,
+  missionNames,
   noteActions,
   notesLine,
   omittedLine,
@@ -24,6 +25,7 @@ import {
   wording,
   writeControls,
 } from './mission-view.ts'
+import { authorLabel } from '../conversation/conversation-view.ts'
 
 const cap = (available: boolean) => ({ available, reason: available ? null : 'no' })
 const policy = (over: Partial<MissionNotePolicy> = {}): MissionNotePolicy => ({
@@ -362,5 +364,38 @@ describe('who accepts a direction (e2e-real S1)', () => {
     assert.match(SAVE_DIRECTION_NOTE, /any editor or admin/i)
     assert.match(SAVE_DIRECTION_NOTE, /you included/i)
     assert.doesNotMatch(SAVE_DIRECTION_NOTE, /the team to accept/)
+  })
+})
+
+describe('who wrote a note or decided, outside a call (e2e brief «A member»)', () => {
+  const brief = context({
+    entries: [entry('n1', { actorId: 'e', authorName: 'davide@sophia.test' })],
+    history: [entry('n0', { actorId: 'h', authorName: 'mara@sophia.test' })],
+    pending: [{ ...proposal('p1'), proposedBy: 'e', proposedByName: 'davide@sophia.test' }],
+    decided: [
+      {
+        ...proposal('d1'),
+        state: 'accepted',
+        proposedBy: 'h',
+        proposedByName: 'mara@sophia.test',
+        decidedBy: 'l',
+        decidedByName: 'luis@sophia.test',
+        decidedAt: '2026-09-29T00:00:00.000Z',
+        decidedVia: 'studio',
+      },
+    ],
+  })
+
+  it('names each author the call does not know from the brief itself', () => {
+    const names = missionNames(new Map(), brief)
+    assert.equal(authorLabel('e', 'me', names), 'Davide')
+    assert.equal(authorLabel('h', 'me', names), 'Mara')
+    assert.equal(decidedBy(brief.decided[0] as MissionDecision, 'me', names), 'Luis, in the Studio')
+  })
+
+  it('what the call knows wins, and a brief that names no one adds nothing', () => {
+    const known = new Map([['e', 'Davide R.']])
+    assert.equal(missionNames(known, brief).get('e'), 'Davide R.')
+    assert.equal(missionNames(known, context({ entries: [entry('n1')] })), known)
   })
 })

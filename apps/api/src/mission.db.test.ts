@@ -42,8 +42,10 @@ let pool: pg.Pool
 let app: FastifyInstance
 let base: string
 
+/** Each member's token names them by an address, as Supabase's do; the brief keeps it with what they write. */
+const named = (sub: string) => `${sub.slice(0, 8)}@sophia.test`
 const token = (sub: string) =>
-  new SignJWT({ role: 'authenticated' })
+  new SignJWT({ role: 'authenticated', email: named(sub) })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sub)
     .setIssuer(ISSUER)
@@ -91,6 +93,48 @@ const missionOf = async (projectId: string, as = A) =>
 
 const typed = (projectId: string, as: string, body: unknown, key = randomUUID()) =>
   call(`/api/v1/projects/${projectId}/mission/entries`, { as, body, key })
+
+describe('who wrote a note and who decided, as the brief shows it (e2e brief «A member»)', () => {
+  // A note and a decision keep their authors' names from the tokens that wrote them, so the brief names them outside a
+  // call; the client cannot name itself (the requests have no such field).
+  it('keeps each author’s name with the note and the decision, and refuses a name sent by the client', async () => {
+    const { projectId } = await project()
+    const note = { kind: 'observation', epistemic: 'observed', text: 'Three of five got lost at the door.' }
+    const noted = parseMissionReceipt((await typed(projectId, E, note)).json)
+    const propose = (statement: string) =>
+      call(`/api/v1/projects/${projectId}/mission/proposals`, {
+        as: E,
+        key: randomUUID(),
+        body: { kind: 'constraint', statement },
+      }).then((r) => parseMissionReceipt(r.json))
+    const decided = await propose('Signs at the door.')
+    const waiting = await propose('A host at the door.')
+    const decisionPath = `/api/v1/projects/${projectId}/mission/proposals/${String(decided.decisionId)}/decision`
+    const decision = await call(decisionPath, {
+      as: A,
+      key: randomUUID(),
+      body: { decision: 'accept', expectedRevision: 1 },
+    })
+    assert.equal(decision.status, 202)
+    const ctx = await missionOf(projectId, V)
+    const entry = ctx.entries.find((e) => e.id === noted.entryId)
+    assert.deepEqual([entry?.actorId, entry?.authorName], [E, named(E)])
+    const agreed = [...ctx.constraints, ...ctx.decided].find((d) => d.id === decided.decisionId)
+    assert.deepEqual(
+      [agreed?.proposedBy, agreed?.proposedByName, agreed?.decidedBy, agreed?.decidedByName],
+      [E, named(E), A, named(A)],
+    )
+    const pending = ctx.pending.find((d) => d.id === waiting.decisionId)
+    assert.deepEqual([pending?.proposedByName, pending?.decidedByName ?? null], [named(E), null])
+    assert.equal((await typed(projectId, E, { ...note, authorName: 'Luis' })).status, 422)
+    const spoofed = await call(`/api/v1/projects/${projectId}/mission/proposals`, {
+      as: E,
+      key: randomUUID(),
+      body: { kind: 'constraint', statement: 'Spoofed', proposedByName: 'Luis' },
+    })
+    assert.equal(spoofed.status, 422)
+  })
+})
 
 describe('mission routes for members (A08)', () => {
   it('a member reads the mission context; an outsider is refused', async () => {
