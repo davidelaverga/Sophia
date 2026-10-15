@@ -343,6 +343,34 @@ describe('member invitations', () => {
     assert.deepEqual(me, { actorId: L, role: 'viewer' })
   })
 
+  it('bring back someone an admin removed (A29): the removal is cancelled, so the call isn’t taken from them again', async () => {
+    const first = parseInvitation((await invite(A, { kind: 'member', role: 'editor', email: 'rafa@example.com' })).json)
+    const R = randomUUID()
+    const bearer = await token(R, { email: 'rafa@example.com' })
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(first.url) } })).status, 200)
+    const removed = await call(`/api/v1/projects/${seed.projectId}/members/${R}/removal`, {
+      bearer: await token(A),
+      body: {},
+      key: true,
+    })
+    assert.equal(removed.status, 200)
+    const second = parseInvitation(
+      (await invite(A, { kind: 'member', role: 'viewer', email: 'rafa@example.com' })).json,
+    )
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(second.url) } })).status, 200)
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const open = await owner.query(
+        `SELECT 1 FROM sophia.room_removals WHERE project_id = $1 AND identity = $2 AND state <> 'cancelled'`,
+        [seed.projectId, R],
+      )
+      assert.equal(open.rowCount, 0)
+    } finally {
+      await owner.end()
+    }
+  })
+
   it('are admin-only', async () => {
     assert.equal((await invite(B, { kind: 'member', role: 'viewer', email: 'beto@example.com' })).status, 403)
   })

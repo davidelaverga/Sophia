@@ -100,6 +100,8 @@ interface Project {
   goalTargets?: Map<string, { ownerId: string | null; targetDate: string | null; revision: number }>
   /** The next target saved finds someone else's first (`window.fixture.staleTarget`). */
   staleTarget?: boolean
+  /** Members an admin removed (A29), by actor id. */
+  removedMembers?: Set<string>
   /** Members' roles as an admin changed them (A27), by actor id. */
   memberRoles?: Map<string, Membership['role']>
   /** The next host control is refused as an unreachable room server's (`window.fixture.failHost`). */
@@ -367,6 +369,8 @@ function projectWritten(project: Project, path: string, init: RequestInit | unde
   const base = `/api/v1/projects/${PROJECT}`
   if (path === `${base}/title`) return renamed(project, init)
   if (path === `${base}/leave`) return departed(project)
+  const removal = MEMBER_REMOVAL.exec(path)?.[1]
+  if (removal) return memberRemoved(project, removal)
   const host = HOST_ACT.exec(path)
   return host?.[1] && (host[2] === 'mute' || host[2] === 'remove') ? hostAct(project, host[2], host[1]) : null
 }
@@ -438,21 +442,33 @@ function goalTargetsRead(project: Project): Response {
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
+  const gone = project.removedMembers ?? new Set<string>()
   return json({
-    members: [
-      {
-        actorId: membership.actorId,
-        role: roleOf(membership.actorId, project.role ?? membership.role),
-        name: VIEWER_NAME,
-      },
-      { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
-      { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
-    ],
+    members: (
+      [
+        {
+          actorId: membership.actorId,
+          role: roleOf(membership.actorId, project.role ?? membership.role),
+          name: VIEWER_NAME,
+        },
+        { actorId: personId(1), role: roleOf(personId(1), 'editor'), name: 'Marco' },
+        { actorId: personId(2), role: roleOf(personId(2), 'viewer'), name: 'Lucía' },
+      ] as const
+    ).filter((m) => !gone.has(m.actorId)),
   })
 }
 
 const GOAL_TARGET = new RegExp(`^/api/v1/projects/${PROJECT}/goals/([0-9a-f-]+)/target$`)
 const MEMBER_ROLE = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/role$`)
+const MEMBER_REMOVAL = new RegExp(`^/api/v1/projects/${PROJECT}/members/([0-9a-f-]+)/removal$`)
+
+/** A member removed (A29): an admin's; recorded, and the member leaves the list. */
+function memberRemoved(project: Project, actorId: string): Response {
+  if ((project.role ?? membership.role) !== 'admin') return refused('Only an admin removes members')
+  ;(project.removedMembers ??= new Set()).add(actorId)
+  served.push(`remove-member:${actorId}`)
+  return json({ actorId, cursor: String(project.revision) })
+}
 
 /** The project's own PUTs: a goal's owner and date (A25), a member's role (A27); null for any other path. */
 function projectPut(project: Project, path: string, init: RequestInit | undefined): Response | null {
