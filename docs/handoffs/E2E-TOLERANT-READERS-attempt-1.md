@@ -9,7 +9,9 @@ Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `contracts/
 Writable scope: this worktree only (`packages/contracts`, `docs/plans`, `docs/handoffs`); no deploy.
 Runtime unit: Luis's Windows host; CI as the run on record.
 Existing authority: Luis's instruction; merges on green with no open P1.
-Ending commit/tree: pending
+Ending commit/tree: `1cf6ebef3405` (tree `0763e80c60e2`), the last commit of `contracts/tolerant-readers`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 5 files changed against
+`origin/main` at that commit: `docs/plans/tolerant-readers.md`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.test.ts`, `packages/contracts/src/validate.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
