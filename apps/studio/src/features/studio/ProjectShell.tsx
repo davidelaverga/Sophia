@@ -443,15 +443,22 @@ function useDockPlace(room: ProjectRoom, snapshot: Snapshot | undefined, onOpen:
 
 /** The header's title: the project's name once read, and for an admin the press that opens its menu. */
 function ShellTitle(p: {
-  snapshot: Snapshot | undefined
-  blocked: boolean
+  snapshot: ReturnType<typeof useProjectFeed>['snapshot']
   membership: Membership | undefined
   projectId: string
   identity: Identity
+  room: ProjectRoom
+  onWork: () => void
 }) {
-  const title = p.snapshot?.title ?? (p.blocked ? 'Unavailable' : 'Loading…')
-  const admin = !!p.snapshot && p.membership?.role === 'admin'
-  return <ProjectName title={title} admin={admin} projectId={p.projectId} identity={p.identity} />
+  const read = p.snapshot.data
+  const title = read?.title ?? (doorOf(p.snapshot).blocked ? 'Unavailable' : 'Loading…')
+  const role = read ? (p.membership?.role ?? null) : null
+  // Left (project-leave.md): the call in this project's room ends, as the person is no longer in it, then Work.
+  const onLeft = async () => {
+    await p.room.leave()
+    p.onWork()
+  }
+  return <ProjectName title={title} role={role} projectId={p.projectId} identity={p.identity} onLeft={onLeft} />
 }
 
 export function ProjectShell(props: Props) {
@@ -468,7 +475,7 @@ export function ProjectShell(props: Props) {
     <CallKeptInReach room={room} background={!!props.background}>
       <div className="shell" data-view={view}>
         <ProjectHeader
-          title={<ShellTitle {...{ snapshot: snapshot.data, blocked: !!blocked, membership, projectId, identity }} />}
+          title={<ShellTitle {...{ snapshot, membership, projectId, identity, room, onWork }} />}
           connection={shownConnection(connection, blocked, isStale(snapshot.error, loaded))}
           nav={blocked ? null : <ViewNav projectId={projectId} view={view} onShow={onShow} />}
           dock={dockAt.inHeader}

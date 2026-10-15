@@ -6157,3 +6157,7 @@ button.contribution-quote:hover {
   justify-content: flex-end;
   gap: 8px;
 }
+.leave-note {
+  margin: 0;
+  color: var(--text-2);
+}

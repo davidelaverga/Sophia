@@ -1,0 +1,131 @@
+{
+  "id": "A22",
+  "goal": "E2E",
+  "title": "A member leaves a project",
+  "why": [
+    "The gaps report (2026-10-15, point 1): someone invited to a project could never step out of it; it stayed on their Work list for good. Leaving is the second of the point's pieces, after renaming (A21). A19 and A20 are proposals to Davide (#105).",
+    "POST /api/v1/projects/{projectId}/leave: any active member, except the project's only admin (409), idempotent per actor and key. The membership goes inactive, as a new invitation sets it active again; project.member_left is emitted."
+  ],
+  "patch": [
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectLeaveRequest",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "op": "add",
+      "path": "/components/schemas/ProjectLeft",
+      "value": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cursor": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          }
+        },
+        "required": ["projectId", "cursor"]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/paths/~1api~1v1~1projects~1{projectId}~1leave",
+      "value": {
+        "post": {
+          "operationId": "leaveProject",
+          "summary": "Leave a project: any member but its only admin, idempotent per actor and key.",
+          "tags": ["projects"],
+          "security": [
+            {
+              "supabaseBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "projectId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            {
+              "name": "Idempotency-Key",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectLeaveRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Left, or the same leave again under its key",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/ProjectLeft"
+                  }
+                }
+              }
+            },
+            "401": {
+              "description": "Unauthenticated"
+            },
+            "403": {
+              "description": "Not a member of the project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "409": {
+              "description": "The project's only admin, or the key reused for another project",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Request fails the declared schema",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/Error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

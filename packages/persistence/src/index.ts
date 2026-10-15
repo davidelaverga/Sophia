@@ -16,7 +16,7 @@ export { classifyDbError } from './errors.ts'
 export { migrate, readMigrations, MigrationDrift, type MigrationReport } from './migrate.ts'
 export { readSnapshot } from './snapshot.ts'
 export { admitGoalCommand, canCommand, sentCommand, type SentCommand } from './commands.ts'
-export { createProject, renameProject } from './projects.ts'
+export { createProject, renameProject, leaveProject } from './projects.ts'
 export { authorizeRoomJoin, transferInputFloor, type MemberRole } from './room.ts'
 export {
   acceptRoomInvitation,
@@ -142,6 +142,7 @@ export {
 } from './exchange.ts'
 export {
   claimRoomRemovals,
+  pendingDeparture,
   pendingRemoval,
   readRemoval,
   settleRoomRemoval,

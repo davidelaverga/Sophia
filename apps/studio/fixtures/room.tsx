@@ -435,6 +435,8 @@ const project = {
   // `fresh=1`: a project just made, nothing recorded yet (first-step.md).
   fresh: query.get('fresh') === '1',
   ...(query.get('role') === 'editor' ? { role: 'editor' as const } : {}),
+  // `admins=1`: the viewer is the project's only admin, so leaving is refused (project-leave.md).
+  soleAdmin: query.get('admins') === '1',
   // The invitations made here, kept as the API keeps them (invitations-data.ts): the demo's Invite has no dead end.
   invitations: { kept: [], made: 0 },
   description: SOPHIAS_DESCRIPTION,
@@ -1023,7 +1025,7 @@ function Project({ background }: { background: boolean }) {
           if (SERVED.includes(next)) setView(next)
         }}
         onLeave={nothing}
-        onWork={nothing}
+        onWork={() => served.push('went:work')}
         onSignOut={nothing}
         joinOnOpen={query.get('call') === 'on'}
         background={background}

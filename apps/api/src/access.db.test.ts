@@ -244,6 +244,51 @@ describe('member invitations', () => {
     assert.deepEqual(me, { actorId: M, role: 'editor' })
   })
 
+  it('bring back someone who left (A22): their membership is active again, with the new role', async () => {
+    const first = parseInvitation((await invite(A, { kind: 'member', role: 'editor', email: 'lena@example.com' })).json)
+    const L = randomUUID()
+    const bearer = await token(L, { email: 'lena@example.com' })
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(first.url) } })).status, 200)
+    const left = await call(`/api/v1/projects/${seed.projectId}/leave`, { bearer, body: {}, key: true })
+    assert.equal(left.status, 200)
+    const gone = await call(`/api/v1/projects/${seed.projectId}/membership`, { method: 'GET', bearer })
+    assert.equal(gone.status, 403)
+    const second = parseInvitation(
+      (await invite(A, { kind: 'member', role: 'viewer', email: 'lena@example.com' })).json,
+    )
+    assert.equal((await call('/api/v1/join/accept', { bearer, body: { token: tokenOf(second.url) } })).status, 200)
+    // Back in, the removal their leaving left is cancelled: the call isn't taken from them again (Codex P1 on #349).
+    const owner = new pg.Client({ connectionString: db.ownerUrl })
+    await owner.connect()
+    try {
+      const open = await owner.query(
+        `SELECT 1 FROM sophia.room_removals WHERE project_id = $1 AND identity = $2 AND state <> 'cancelled'`,
+        [seed.projectId, L],
+      )
+      assert.equal(open.rowCount, 0)
+      // The join event carries the membership's revision now, after the leave's (Codex P2 on #349).
+      const { rows } = await owner.query<{ type: string; entity_revision: string }>(
+        `SELECT type, entity_revision FROM sophia.project_events
+          WHERE project_id = $1 AND entity_id = $2 ORDER BY sequence`,
+        [seed.projectId, L],
+      )
+      assert.deepEqual(
+        rows.map((r) => [r.type, Number(r.entity_revision)]),
+        [
+          ['project.member_joined', 1],
+          ['project.member_left', 2],
+          ['project.member_joined', 3],
+        ],
+      )
+    } finally {
+      await owner.end()
+    }
+    const me = parseMembership(
+      (await call(`/api/v1/projects/${seed.projectId}/membership`, { method: 'GET', bearer })).json,
+    )
+    assert.deepEqual(me, { actorId: L, role: 'viewer' })
+  })
+
   it('are admin-only', async () => {
     assert.equal((await invite(B, { kind: 'member', role: 'viewer', email: 'beto@example.com' })).status, 403)
   })

@@ -1,5 +1,11 @@
 import type pg from 'pg'
-import type { ProjectCreate, ProjectCreated, ProjectRenamed, ProjectRenameRequest } from '@sophia/contracts'
+import type {
+  ProjectCreate,
+  ProjectCreated,
+  ProjectLeft,
+  ProjectRenamed,
+  ProjectRenameRequest,
+} from '@sophia/contracts'
 import { onlyRow } from './rows.ts'
 
 /**
@@ -32,4 +38,13 @@ export async function renameProject(
     idempotencyKey,
   ])
   return onlyRow(rows, 'rename_project').receipt
+}
+
+/** Leave a project (A22): any member but its only admin, idempotent per actor and key. Call inside withActor(..., "write"). */
+export async function leaveProject(c: pg.PoolClient, projectId: string, idempotencyKey: string): Promise<ProjectLeft> {
+  const { rows } = await c.query<{ receipt: ProjectLeft }>(`SELECT sophia.leave_project($1, $2) AS receipt`, [
+    projectId,
+    idempotencyKey,
+  ])
+  return onlyRow(rows, 'leave_project').receipt
 }

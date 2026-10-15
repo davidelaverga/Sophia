@@ -145,7 +145,7 @@ export const EVENT_TYPES = [
   ...suffixed('room.', ['session_scheduled', 'session_canceled', 'lobby_changed', 'input_floor_changed']),
   ...suffixed('room.', ['invitation_created', 'invitation_reissued', 'invitation_revoked']),
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence']),
-  ...suffixed('project.', ['member_joined', 'renamed']),
+  ...suffixed('project.', ['member_joined', 'member_left', 'renamed']),
   'contribution.recorded',
   ...suffixed('native_task.', [
     'admitted',
@@ -209,7 +209,7 @@ export const SUMMARY_CODES = [
   ...suffixed('room.sophia_', VOICE_STATES),
   ...suffixed('room.', ['session', 'session_canceled', 'invitation', 'invitation_revoked']),
   ...suffixed('room.', ['input_floor', 'input_floor_released']),
-  ...suffixed('project.', ['member', 'renamed']),
+  ...suffixed('project.', ['member', 'member_left', 'renamed']),
   ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work']),
   ...suffixed('native_task.', [...TASK_SUMMARIES, ...TASK_ENDINGS]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready', 'unrecovered']),

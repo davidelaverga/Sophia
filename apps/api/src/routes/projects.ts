@@ -1,15 +1,20 @@
+import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type pg from 'pg'
-import type { ProjectCreate, ProjectRenameRequest, ProjectSummary } from '@sophia/contracts'
+import type { ProjectCreate, ProjectLeaveRequest, ProjectRenameRequest, ProjectSummary } from '@sophia/contracts'
 import {
   createProject,
+  leaveProject,
+  pendingDeparture,
   listProjects,
   readPersonalEpoch,
   renameProject,
+  settleRoomRemoval,
   withActor,
+  withService,
   type ProjectListing,
 } from '@sophia/persistence'
-import { liveRooms, roomParticipants, type LiveKitConfig } from '../livekit.ts'
+import { liveRooms, removeParticipant, roomParticipants, type LiveKitConfig } from '../livekit.ts'
 import { lookupAll } from '../presence.ts'
 import { idempotencyHeader, projectParams } from './schemas.ts'
 
@@ -111,6 +116,8 @@ export function projectRoutes(
       ),
   )
 
+  leaveRoute(app, { pool, livekit })
+
   app.get('/api/v1/projects', { schema: { response: { 200: { $ref: 'ProjectList#' } } } }, async (req) => {
     // With the reader's personal epoch: Work's writes to their notes (taking one back) are fenced to it too.
     const { listed, personalEpoch } = await withActor(pool, req.actorId, 'read', async (c) => ({
@@ -121,4 +128,45 @@ export function projectRoutes(
     const projects = listed.map(({ roomId: _room, ...rest }, i) => ({ ...rest, room: rooms[i] ?? null }))
     return { projects, personalEpoch }
   })
+}
+
+/**
+ * One attempt to take a member who left out of the call, right after (Codex P1 on #349). Leaving recorded the removal
+ * (0052); this settles it only on the room server's evidence. A failure, or no LiveKit here, leaves it pending for the
+ * worker, which also keeps watch while a token issued before could bring them back.
+ */
+async function leavesTheCall(
+  deps: { pool: pg.Pool; livekit: LiveKitConfig | undefined },
+  projectId: string,
+  actorId: string,
+): Promise<void> {
+  const { livekit } = deps
+  if (!livekit) return
+  const open = await withActor(deps.pool, actorId, 'read', (c) => pendingDeparture(c, projectId))
+  if (!open) return
+  const result = await removeParticipant(livekit, open.roomId, open.identity)
+  await withService(deps.pool, (c) => settleRoomRemoval(c, open.id, `api:${randomUUID()}`, result))
+}
+
+/** leaveProject (A22): any member but the project's only admin, idempotent per actor and key; out of the call too. */
+function leaveRoute(app: FastifyInstance, deps: { pool: pg.Pool; livekit: LiveKitConfig | undefined }): void {
+  const { pool, livekit } = deps
+  app.post<{ Params: { projectId: string }; Headers: { 'idempotency-key': string }; Body: ProjectLeaveRequest }>(
+    '/api/v1/projects/:projectId/leave',
+    {
+      schema: {
+        params: projectParams,
+        headers: idempotencyHeader,
+        body: { $ref: 'ProjectLeaveRequest#' },
+        response: { 200: { $ref: 'ProjectLeft#' } },
+      },
+    },
+    async (req) => {
+      const left = await withActor(pool, req.actorId, 'write', (c) =>
+        leaveProject(c, req.params.projectId, req.headers['idempotency-key']),
+      )
+      await leavesTheCall({ pool, livekit }, req.params.projectId, req.actorId)
+      return left
+    },
+  )
 }
