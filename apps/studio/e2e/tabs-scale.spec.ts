@@ -66,6 +66,9 @@ test('tabs · the room’s side panel: 36 px, the line under the tab that is on,
   await expect(strip).toBeVisible()
   expect(await offScale(page)).toEqual([])
   await strip.getByRole('tab', { name: 'Chat' }).focus()
+  // People stands between Chat and the brief (host-controls.md).
+  await page.keyboard.press('ArrowRight')
+  await expect(strip.getByRole('tab', { name: 'People' })).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('ArrowRight')
   await expect(strip.getByRole('tab', { name: 'Brief' })).toHaveAttribute('aria-selected', 'true')
   await expect(strip.getByRole('tab', { name: 'Brief' })).toBeFocused()

@@ -13325,6 +13325,152 @@
           }
         }
       }
+    },
+    "/api/v1/projects/{projectId}/room/people/{identity}/mute": {
+      "post": {
+        "operationId": "muteInCall",
+        "summary": "Mute a member's microphone in the project's call: an admin only.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "description": "The member's actor id, their identity in the call.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done, or already so"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Their own call, or they aren't a member in the call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No room server is configured, or it could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{projectId}/room/people/{identity}/remove": {
+      "post": {
+        "operationId": "removeFromCall",
+        "summary": "Take a member out of the project's call: an admin only.",
+        "tags": [
+          "rooms"
+        ],
+        "security": [
+          {
+            "supabaseBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "identity",
+            "in": "path",
+            "required": true,
+            "description": "The member's actor id, their identity in the call.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Done, or already so"
+          },
+          "401": {
+            "description": "Unauthenticated"
+          },
+          "403": {
+            "description": "Not an admin of the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Their own call, or they aren't a member in the call",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No room server is configured, or it could not be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

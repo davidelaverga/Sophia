@@ -2265,6 +2265,24 @@ img.avatar {
   color: var(--text-2);
   font-size: 12px;
 }
+/* When each message was said (docs/plans/chat-times.md): its time by the author, and a day line above each day's first
+   message, as the conversations' day line is set. */
+.contribution-at,
+.chat-at {
+  margin-right: 8px;
+  color: var(--text-3);
+  font: 500 var(--type-label) / var(--lh-small) var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.chat-day {
+  display: block;
+  margin: 10px 0 8px;
+  text-align: center;
+  color: var(--text-2);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
 /* Replies (A20, the vision flag's): Reply after a message's words, the quote of what a reply answers above them, and
    above the bar what is being answered, with ✕. */
 .contribution:focus-visible {
@@ -3329,6 +3347,11 @@ button.contribution-quote:hover {
 .lobby-note {
   padding-bottom: 6px;
   color: var(--text-3);
+  font-size: 12px;
+}
+/* One offer to hear of the next knock in another tab (docs/plans/knock-alert.md). */
+.lobby-notify {
+  margin-bottom: 6px;
   font-size: 12px;
 }
 /* The count, and with several waiting, one answer for all. */
@@ -6202,6 +6225,14 @@ button.contribution-quote:hover {
   color: var(--text-2);
 }
 
+/* The other screens shared (docs/plans/two-screens.md): beside the caption, each a press that shows it. */
+.screen-also {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-left: 10px;
+}
+
 /* The room's chat further back (docs/plans/discussion-earlier.md): «Earlier messages» at its top, or where it starts. */
 .discussion-earlier {
   display: flex;
@@ -6220,5 +6251,63 @@ button.contribution-quote:hover {
   padding: 8px 0 4px;
   text-align: center;
   color: var(--text-3);
+  font-size: var(--type-small);
+}
+
+/* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
+.people {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+}
+.person {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 20px 32px;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 4px 0 8px;
+  border-radius: var(--r-2);
+}
+.person:hover {
+  background: rgb(var(--ink-rgb) / 0.04);
+}
+.person-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.person-role {
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.person-mic {
+  display: inline-flex;
+  color: var(--text-2);
+}
+.person-mic svg {
+  width: 16px;
+  height: 16px;
+}
+.person-actions {
+  position: relative;
+  grid-column: 4;
+}
+.person-pending {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.person-actions .round[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: progress;
+}
+.person-failed {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  color: var(--rose);
   font-size: var(--type-small);
 }
