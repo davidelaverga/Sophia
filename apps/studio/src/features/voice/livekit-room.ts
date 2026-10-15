@@ -12,6 +12,7 @@ import {
   Track,
   VideoPresets,
   setLogLevel,
+  type RoomOptions,
   type Participant,
   type RemoteTrack,
   type TrackPublication,
@@ -26,6 +27,7 @@ import {
 } from '@sophia/contracts/room-chat'
 import type { CallEnd } from './call-end.ts'
 import { deviceChange } from './device-change.ts'
+import { chosenDevices, deviceName, type DeviceKind, type MediaDevice } from './device-preference.ts'
 import { followingSignal } from './following-signal.ts'
 import { VISION } from '../../app/vision.ts'
 import { standingOf, type RoomParticipant } from './room-view.ts'
@@ -72,6 +74,8 @@ export interface RoomConnection {
   setMicrophone: (on: boolean) => Promise<void>
   setCamera: (on: boolean) => Promise<void>
   setScreenShare: (on: boolean) => Promise<void>
+  /** Switch the call's microphone, speaker or camera to a listed device (call-devices.md). */
+  switchDevice: (kind: DeviceKind, id: string) => Promise<void>
   /** What this person follows, said to the members in the call (following-signal.ts); sent only when it changes. */
   setFollowing: (versionId: string | null) => Promise<void>
   leave: () => Promise<void>
@@ -210,14 +214,43 @@ function modeSignal(room: Room, textOnly: () => boolean): () => void {
   return send
 }
 
-export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  const room = new Room({
+/**
+ * The devices of each kind, for a menu (call-devices.md). LiveKit asks for access first where the browser keeps the
+ * names back; a refusal rejects, and the menu says how to give it.
+ */
+export async function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
+  const devices = await Room.getLocalDevices(kind, true)
+  return devices.map((d, i) => ({ id: d.deviceId, label: deviceName(kind, d.label, i) }))
+}
+
+/**
+ * The room's options, with the devices chosen for calls on this device (call-devices.md): wanted, not required, so a
+ * device unplugged since gives way to another.
+ */
+function roomOptions(): RoomOptions {
+  const chosen = chosenDevices()
+  return {
     adaptiveStream: true,
     dynacast: true,
     // 720p cameras and simulcast keep a small room light on bandwidth; tiles receive only what they show.
-    videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+    videoCaptureDefaults: {
+      resolution: VideoPresets.h720.resolution,
+      ...(chosen.videoinput && { deviceId: chosen.videoinput }),
+    },
+    ...(chosen.audioinput && { audioCaptureDefaults: { deviceId: chosen.audioinput } }),
+    ...(chosen.audiooutput && { audioOutput: { deviceId: chosen.audiooutput } }),
     publishDefaults: { simulcast: true },
+  }
+}
+
+/** A device switch, as LiveKit answers it: false for one that didn't take, which the person hears of as a refusal. */
+const switchTo = (room: Room, kind: DeviceKind, id: string) =>
+  room.switchActiveDevice(kind, id).then((took) => {
+    if (!took) throw new Error(`The ${kind} didn’t switch`)
   })
+
+export async function connectRoom(serverUrl: string, token: string, cb: RoomCallbacks): Promise<RoomConnection> {
+  const room = new Room(roomOptions())
   for (const event of CHANGES) room.on(event, cb.onChange)
   room.on(RoomEvent.Reconnecting, () => cb.onStatus('reconnecting'))
   room.on(RoomEvent.Reconnected, () => cb.onStatus('live'))
@@ -269,6 +302,7 @@ export async function connectRoom(serverUrl: string, token: string, cb: RoomCall
           () => me.isScreenShareEnabled === on,
         ),
       ),
+    switchDevice: (kind, id) => after(switchTo(room, kind, id)),
     setFollowing: (versionId) => Promise.resolve(following.set(versionId)),
     leave: () => room.disconnect(),
   }

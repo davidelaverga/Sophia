@@ -7,6 +7,7 @@
 import { RoomEvent, type Room } from 'livekit-client'
 import { CHAT_REPLY_TOPIC, encodeChatPacket, type ChatPacket } from '@sophia/contracts/room-chat'
 import type { CallEnd } from '../src/features/voice/call-end.ts'
+import { chosenDevices, type DeviceKind, type MediaDevice } from '../src/features/voice/device-preference.ts'
 import type { RoomCallbacks, RoomConnection } from '../src/features/voice/livekit-room.ts'
 import type { RoomParticipant } from '../src/features/voice/room-view.ts'
 import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
@@ -32,8 +33,46 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
   waiting: [],
 }
 
-/** `refuse=camera`: the browser refuses the camera, as a blocked permission does. */
+/** `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch. */
 const refused = new URLSearchParams(window.location.search).get('refuse')
+/** `devices=blocked`: the browser refuses access, so no device can be listed (call-devices.md). */
+const devicesBlocked = new URLSearchParams(window.location.search).get('devices') === 'blocked'
+
+/** Two of each kind, the browser's default first where it has one, as Chrome lists them. */
+const DEVICES: Record<DeviceKind, MediaDevice[]> = {
+  audioinput: [
+    { id: 'default', label: 'Default — MacBook Microphone' },
+    { id: 'usb-mic', label: 'USB headset' },
+  ],
+  audiooutput: [
+    { id: 'default', label: 'Default — MacBook Speakers' },
+    { id: 'usb-out', label: 'USB headset' },
+  ],
+  videoinput: [
+    { id: 'cam-built-in', label: 'FaceTime HD Camera' },
+    { id: 'cam-desk', label: 'Desk camera' },
+  ],
+}
+
+/** The devices of a kind, as LiveKit lists them; refused, as a blocked permission rejects. */
+export function listDevices(kind: DeviceKind): Promise<MediaDevice[]> {
+  return devicesBlocked ? Promise.reject(blocked()) : Promise.resolve(DEVICES[kind])
+}
+
+/** A device switch, as the connection records it; `refuse=switch` refuses it, as a device in use does. */
+function switchDevice(kind: DeviceKind, id: string): Promise<void> {
+  asked.push(`device:${kind}:${id}`)
+  return refused === 'switch' ? Promise.reject(blocked()) : Promise.resolve()
+}
+
+/** The devices the last call opened with, as LiveKit was given them (`window.fixture.devicesOnJoin`). */
+export const joined: { devices: Partial<Record<DeviceKind, string>> | null } = { devices: null }
+
+/** A connection made: recorded, with the devices it opens with (roomOptions in livekit-room.ts reads the same). */
+function connected(): void {
+  asked.push('connect')
+  joined.devices = chosenDevices()
+}
 
 let ended: RoomCallbacks['onEnded'] | null = null
 /** The room events this call's Sophia listener waits on, by name. */
@@ -96,7 +135,7 @@ function sayFollowing(versionId: string | null): Promise<void> {
 }
 
 export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallbacks): Promise<RoomConnection> {
-  asked.push('connect')
+  connected()
   said = null // a new connection has said nothing yet, as following-signal.ts starts each one
   const me = viewer()
   let textOnly = false
@@ -147,6 +186,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
+    switchDevice,
     setFollowing: sayFollowing,
     leave: () => {
       asked.push('leave')

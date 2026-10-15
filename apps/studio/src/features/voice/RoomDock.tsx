@@ -10,6 +10,8 @@ import type { Identity } from '../../app/dev-identity.ts'
 import { transferInputFloor, type ApiError } from '../../api/client.ts'
 import { useAdmission } from '../../api/useAdmission.ts'
 import { snapshotKey } from '../studio/useProjectFeed.ts'
+import type { DeviceKind } from './device-preference.ts'
+import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { roomKey } from './room-keys.ts'
@@ -33,6 +35,11 @@ interface Props {
 
 /** Screen sharing needs getDisplayMedia, which phones do not offer; an insecure page has no mediaDevices. */
 export const canShareScreen = 'mediaDevices' in navigator && 'getDisplayMedia' in navigator.mediaDevices
+
+/** What each device opener lists (call-devices.md): beside the microphone, the camera, and Join. */
+const AUDIO: readonly DeviceKind[] = ['audioinput', 'audiooutput']
+const VIDEO: readonly DeviceKind[] = ['videoinput']
+const EVERY_DEVICE: readonly DeviceKind[] = ['audioinput', 'audiooutput', 'videoinput']
 
 /** The dock's height, notes included, as --dock-h on the room around it. */
 function useDockHeight(ref: RefObject<HTMLDivElement | null>) {
@@ -71,6 +78,12 @@ export function RoomDock(props: Props) {
         ) : (
           <>
             <JoinButton room={room} />
+            <DeviceMenu
+              kinds={EVERY_DEVICE}
+              label="Audio and video settings"
+              list={room.listDevices}
+              onChoose={(kind, id) => void room.switchDevice(kind, id)}
+            />
             <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
           </>
         )}
@@ -167,6 +180,12 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         anchor
         onToggle={() => void room.setMicrophone(!me?.micOn)}
       />
+      <DeviceMenu
+        kinds={AUDIO}
+        label="Audio settings"
+        list={room.listDevices}
+        onChoose={(kind, id) => void room.switchDevice(kind, id)}
+      />
       <TextMode on={room.textMode} onVoice={() => void room.setTextMode(false)} />
       <Toggle
         on={!!me?.cameraOn}
@@ -174,6 +193,12 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         keys={roomKey('camera')}
         icons={['camera', 'cameraOff']}
         onToggle={() => void room.setCamera(!me?.cameraOn)}
+      />
+      <DeviceMenu
+        kinds={VIDEO}
+        label="Video settings"
+        list={room.listDevices}
+        onChoose={(kind, id) => void room.switchDevice(kind, id)}
       />
       {canShareScreen && (
         <Toggle
