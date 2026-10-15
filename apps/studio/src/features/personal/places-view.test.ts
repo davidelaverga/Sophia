@@ -427,8 +427,16 @@ describe('finding a project in Work (find-projects.md)', () => {
   })
 })
 
+const noteOf = (noteId: string, text: string) => ({
+  id: noteId,
+  text,
+  keptBy: 'person' as const,
+  fromTurnId: null,
+  createdAt: '',
+})
+
 describe('finding a note (personal-notes-write-find.md)', () => {
-  const note = (id: string, text: string) => ({ id, text, keptBy: 'person' as const, fromTurnId: null, createdAt: '' })
+  const note = noteOf
   const notes = [note('a', 'Revisar el número de marzo'), note('b', 'Call Ana'), note('c', 'NUMBERS for the deck')]
 
   it('narrows them by their words, whatever the case or accents, in their order', () => {
