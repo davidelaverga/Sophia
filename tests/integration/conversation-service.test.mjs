@@ -7,8 +7,10 @@
  * The provider is a local Responses test double (tests/support/mock-responses.mjs) on the route's own provider alias,
  * reached with a dummy key: this is evidence for the crossing and for what the adapter sends, never for a live
  * provider. The service mode is enabled only here, by a test overlay naming the operator's digest variable; the
- * committed bridge row enables no reply mode. The context is assembled by owner-run setup through the S3 compiler
- * (as the runtime DB tests do): there is no production assembler driver yet, and nothing here claims one.
+ * committed bridge row enables no reply mode. The context is recorded on the ordinary path, with the dispatcher never
+ * paused: the Ask's create is deferred while it has none (0071), the worker's same pass calls assembleReply through the
+ * fixture's synthetic assembler login (0070), and a later pass dispatches. That login is a test binding, not a Q13
+ * admission (the exclusive admission test owns that proof).
  *
  * Needs SOPHIA_DISPOSABLE_DATABASE_URL; skipped without one.
  */
@@ -49,14 +51,13 @@ function serviceOverlay(baseURL) {
 }
 
 async function modules() {
-  const [{ buildApp }, persistence, assembly, testSupport, worker] = await Promise.all([
+  const [{ buildApp }, persistence, testSupport, worker] = await Promise.all([
     import('../../apps/api/src/app.ts'),
     import('../../packages/persistence/src/index.ts'),
-    import('../../packages/persistence/src/conversation-assembly.ts'),
     import('../../packages/test-support/src/index.ts'),
     import('../../apps/worker/src/index.ts'),
   ])
-  return { buildApp, persistence, assembly, testSupport, worker }
+  return { buildApp, persistence, testSupport, worker }
 }
 
 /** Every file under `dir` (bounded), for privacy scans of the runtime's home. */
@@ -91,7 +92,8 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     app = m.buildApp({ pool, verifyActor, conversations: true })
     await app.listen({ host: '127.0.0.1', port: 0 })
     base = `http://127.0.0.1:${app.server.address().port}`
-    dispatcher = new m.worker.RuntimeDispatcher(workerPool, { workerId: 'conversation-crossing', idleMs: 200 })
+    assert.ok(db.assemblerUrl, 'the fixture binds a synthetic assembler login')
+    dispatcher = new m.worker.RuntimeDispatcher(workerPool, { workerId: 'conversation-crossing', idleMs: 200, assemblerUrl: db.assemblerUrl })
     dispatcher.start()
     scratch = mkdtempSync(join(tmpdir(), 'sophia-con-service-'))
     pristine = homeLayout(join(scratch, 'pristine'))
@@ -187,30 +189,19 @@ describe('conversation service crossing (real dsh service executor, API, worker,
           await sleep(150)
         }
       },
-      /** E asks Sophia in a new conversation; the owner-run S3 compiler records its context (no production driver). */
+      /** E asks Sophia in a new conversation over the API; the worker records its context and dispatches it. */
       async ask(text = `Please summarize. ${CONTEXT_CANARY}`) {
         const started = await api(E, 'POST', `/api/v1/projects/${projectId}/conversations`, { title: 'Crossing', text: 'Opening note.', askSophia: false })
         assert.equal(started.status, 202, JSON.stringify(started.json))
         const conversationId = started.json.conversation.id
-        // 0064 denies (never defers) a create whose context is not yet recorded, and the ask writes that create's outbox
-        // row at once. Without a production assembler driver ordered before dispatch (Q13, not built), the dispatcher is
-        // paused while the owner-run assembly records the context, and resumed after. Reported, not changed here.
-        await dispatcher.stop()
-        let replyId
-        let sent
-        try {
-          sent = await api(E, 'POST', `/api/v1/conversations/${conversationId}/messages`, { text, askSophia: true })
-          assert.equal(sent.status, 202, JSON.stringify(sent.json))
-          replyId = sent.json.reply.id
-          await recordContext(replyId)
-        } finally {
-          dispatcher = new m.worker.RuntimeDispatcher(workerPool, { workerId: 'conversation-crossing', idleMs: 200 })
-          dispatcher.start()
-        }
+        const sent = await api(E, 'POST', `/api/v1/conversations/${conversationId}/messages`, { text, askSophia: true })
+        assert.equal(sent.status, 202, JSON.stringify(sent.json))
+        const replyId = sent.json.reply.id
+        assert.equal(sent.json.reply.state, 'pending', 'admitted: an assembler login is bound')
         const [attempt] = await owner(
           `SELECT a.id AS attempt_id,b.id AS binding_id FROM sophia.work_attempts a JOIN sophia.execution_bindings b
             ON b.project_id=a.project_id AND b.attempt_id=a.id WHERE a.project_id=$1 AND a.conversation_reply_id=$2`, [projectId, replyId])
-        assert.ok(attempt, 'the recorded context admits one reply-owned attempt')
+        assert.ok(attempt, 'the Ask admits one reply-owned attempt')
         return { conversationId, messageId: sent.json.message.id, replyId, ...attempt }
       },
       reply: async (r) => (await owner('SELECT state,reason,answer_id FROM sophia.conversation_replies WHERE id=$1', [r.replyId]))[0],
@@ -245,42 +236,6 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     return w
   }
 
-  /**
-   * Migration-owner setup of the S3 record (the runtime DB tests' recordScene): claim, begin, render, record. Begin runs
-   * under REPEATABLE READ and locks the project row, which the live runtime and worker keep updating: a serialization
-   * failure is retried as the design says, by a new claim once the short lease has passed (the claims count it).
-   */
-  async function recordContext(replyId) {
-    for (let attempt = 1; ; attempt++) {
-      const c = await ownerPool.connect()
-      try {
-        const claim = (await c.query('SELECT sophia.conversation_assembly_claim($1,1500) AS v', [replyId])).rows[0].v
-        if (claim.verdict === 'assembly_in_progress') {
-          await sleep(500)
-          continue
-        }
-        if (claim.verdict !== 'claimed') {
-          const why = await owner('SELECT state,reason FROM sophia.conversation_replies WHERE id=$1', [replyId])
-          const claims = await owner('SELECT attempt,outcome,outcome_reason FROM sophia.conversation_assembly_claims WHERE reply_id=$1', [replyId])
-          assert.fail(`assembly claim ${JSON.stringify(claim)} at try ${attempt}: ${JSON.stringify(why)} ${JSON.stringify(claims)}`)
-        }
-        await c.query('BEGIN ISOLATION LEVEL REPEATABLE READ')
-        const binding = (await c.query('SELECT sophia.conversation_assembly_begin($1,$2,$3) AS v', [replyId, claim.attempt, claim.token])).rows[0].v
-        assert.equal(binding.verdict, 'begun')
-        const rendered = await m.assembly.renderBound(c, binding)
-        await c.query('SELECT sophia.conversation_record_context($1,$2,$3,$4::jsonb)', [replyId, claim.attempt, claim.token, m.assembly.recordPayload(rendered)])
-        await c.query('COMMIT')
-        return
-      } catch (error) {
-        await c.query('ROLLBACK')
-        if (error.code !== '40001' || attempt >= 4) throw error
-        await sleep(1600)
-      } finally {
-        c.release()
-      }
-    }
-  }
-
   const SERVICE_TUPLE = { execution: 'service', routeId: ROUTE, executorArtifactDigest: DIGEST }
 
   test('a complete allowed answer: one request on the pinned route, no session or tools, settled, published once, retired', async (t) => {
@@ -294,6 +249,14 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     await w.until(async () => (await w.reply(r)).state === 'answered', 'the published answer')
     const answers = await w.answers(r)
     assert.equal(answers.length, 1)
+    // The worker recorded the context on the ordinary path: a counted claim, a recorded context with its hash, and the
+    // create deferred while it waited rather than denied.
+    const [context] = await owner(
+      `SELECT x.state,length(x.context_hash) AS hash FROM sophia.conversation_reply_contexts x WHERE x.reply_id=$1 AND x.state='recorded'`, [r.replyId])
+    assert.deepEqual([context?.state, context?.hash], ['recorded', 64])
+    const claims = await owner('SELECT attempt,outcome FROM sophia.conversation_assembly_claims WHERE reply_id=$1 ORDER BY attempt', [r.replyId])
+    assert.ok(claims.length >= 1 && claims.length <= 3 && claims.at(-1).outcome === 'recorded', JSON.stringify(claims))
+    assert.notEqual((await w.reply(r)).reason, 'not_dispatched')
     assert.equal(answers[0].body, `The summary. ${ANSWER_CANARY}`)
     // One HTTP request, exactly the pinned route, carrying the recorded context and nothing of a session or tool.
     assert.equal(w.llm.requests.length, 1)

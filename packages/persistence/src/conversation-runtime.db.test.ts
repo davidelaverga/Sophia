@@ -10,7 +10,13 @@ import { after, before, describe, it } from 'node:test'
 import pg from 'pg'
 import { DomainError } from '@sophia/domain'
 import type { MissionProposalRequest } from '@sophia/contracts'
-import { createTestDatabase, registerRuntime, seedProject, type TestDatabase } from '@sophia/test-support'
+import {
+  createTestDatabase,
+  registerRuntime,
+  seedProject,
+  withClusterMigrationLock,
+  type TestDatabase,
+} from '@sophia/test-support'
 import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
 import { renderBound, recordPayload, type Binding } from './conversation-assembly.ts'
 import {
@@ -159,19 +165,40 @@ describe('CON reply ownership (L1 SQL, no runtime execution)', () => {
     assert.ok(constraints.rows.every((r) => r.convalidated))
   })
 
-  it('does not install an assembler role or give the API assembly privileges', async () => {
-    assert.equal(
-      (await owner.query("SELECT count(*)::int AS n FROM pg_roles WHERE rolname='sophia_conversation_assembler'"))
-        .rows[0]?.n,
-      0,
+  it('0064 installs no assembler role; 0070 adds it bare, and the API and worker still have no assembly privilege', async () => {
+    // 0064's own footprint: no role and no grant to one (its source, unchanged).
+    const runtime = readFileSync(
+      new URL('../../../db/migrations/0064_conversation_runtime.sql', import.meta.url),
+      'utf8',
     )
-    assert.equal(
-      (
-        await owner.query(`SELECT has_function_privilege('sophia_api',
-          'sophia.conversation_assembly_claim(uuid,integer)','EXECUTE') AS allowed`)
-      ).rows[0]?.allowed,
-      false,
-    )
+    assert.doesNotMatch(runtime, /CREATE ROLE|TO sophia_conversation_assembler/)
+    // 0070's: NOLOGIN, a member of no role, and here only this fixture's synthetic login as its member.
+    const role = (
+      await owner.query<{ login: boolean; memberOf: number; members: string[] }>(
+        `SELECT r.rolcanlogin AS login,
+           (SELECT count(*)::int FROM pg_auth_members m WHERE m.member=r.oid) AS "memberOf",
+           coalesce((SELECT array_agg(x.rolname::text ORDER BY x.rolname) FROM pg_auth_members m
+             JOIN pg_roles x ON x.oid=m.member WHERE m.roleid=r.oid),'{}'::text[]) AS members
+         FROM pg_roles r WHERE r.rolname='sophia_conversation_assembler'`,
+      )
+    ).rows[0]
+    assert.deepEqual(role, { login: false, memberOf: 0, members: [db.assemblerRole] })
+    for (const login of ['sophia_api', 'sophia_worker'])
+      for (const entry of [
+        'sophia.conversation_assembly_claim(uuid,integer)',
+        'sophia.conversation_record_context(uuid,integer,uuid,jsonb)',
+        'sophia.conversation_assembly_project()',
+      ])
+        assert.equal(
+          (
+            await owner.query<{ allowed: boolean }>(`SELECT has_function_privilege($1,$2,'EXECUTE') AS allowed`, [
+              login,
+              entry,
+            ])
+          ).rows[0]?.allowed,
+          false,
+          `${login} ${entry}`,
+        )
   })
 
   it('enforces the runtime-entrypoint-only grants through the actual API and worker logins', async () => {
@@ -2326,6 +2353,17 @@ function restoredShared(identity: FunctionIdentity) {
 
 // Immutable 7d8f415f S1-S4 function bodies (S4 deliberately supersedes S3 context_kept).
 // These hashes come from the approved frozen inputs, not the authored migration.
+/** What 0070 lets the assembler execute, of 0064's functions: the S3 candidate's own grants. */
+const ASSEMBLER_EXECUTES = new Set([
+  'conversation_assembly_claim',
+  'conversation_assembly_begin',
+  'conversation_assembly_close',
+  'conversation_assembly_fail',
+  'conversation_record_context',
+  'conversation_assembly_project',
+  'conversation_actor_label',
+])
+
 const frozenFunctions: Record<string, readonly [string, boolean, string]> = {
   conversation_withdrawn_from: [
     '789e613fb43a412d792ac32734ab0e080fa63a86483752429f4ee0ca00c1505d',
@@ -2761,20 +2799,23 @@ describe('CON migration preservation (real PostgreSQL)', () => {
     const baseline = await createConversationCandidateDatabase()
     const c = new pg.Client({ connectionString: baseline.ownerUrl })
     await c.connect()
-    let roleWasAbsent = false
     try {
-      assert.equal(
-        (await roleLock.query("SELECT count(*)::int AS n FROM pg_roles WHERE rolname='sophia_conversation_assembler'"))
-          .rows[0]?.n,
-        0,
-      )
-      roleWasAbsent = true
-      await applySealedCandidates(c)
-      assert.deepEqual(await promotedRelations(owner), await promotedRelations(c))
+      // Q13 forbids adopting the installed role's authority in another database: this cluster's role (0070, with this
+      // file's synthetic login) is parked under a test-only name, and the sealed candidate creates a fresh bare role,
+      // all in one transaction rolled back before the case ends (the pattern of conversation-fences.db.test.ts).
+      await withClusterMigrationLock(async () => {
+        await c.query('BEGIN')
+        try {
+          await c.query('ALTER ROLE sophia_conversation_assembler RENAME TO con01_runtime_installed')
+          await applySealedCandidates(c)
+          assert.deepEqual(await promotedRelations(owner), await promotedRelations(c))
+        } finally {
+          await c.query('ROLLBACK')
+        }
+      })
     } finally {
       await c.end()
       await baseline.drop()
-      if (roleWasAbsent) await roleLock.query('DROP ROLE IF EXISTS sophia_conversation_assembler')
     }
   })
 
@@ -2860,7 +2901,11 @@ describe('CON migration preservation (real PostgreSQL)', () => {
       assert.equal(identity.secdef, frozen[1], identity.proname)
       assert.deepEqual(identity.config, [`search_path=${frozen[2]}`], identity.proname)
       assert.equal(identity.owner, currentUser, identity.proname)
-      assert.deepEqual(identity.acl, [`${currentUser}=X/${currentUser}`], identity.proname)
+      // 0070 grants the assembler exactly the five entry points and the two claim-bound helpers; nothing else.
+      const assembler = ASSEMBLER_EXECUTES.has(identity.proname)
+        ? [`sophia_conversation_assembler=X/${currentUser}`]
+        : []
+      assert.deepEqual(identity.acl, [`${currentUser}=X/${currentUser}`, ...assembler], identity.proname)
     }
   })
 

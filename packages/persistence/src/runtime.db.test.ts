@@ -46,16 +46,22 @@ let db: TestDatabase
 let pool: pg.Pool
 let worker: pg.Pool
 
+/** Close this file's current fixture: its pools, then its database and logins. Each fixture is closed once. */
+let closed = false
+async function closeFixture() {
+  if (closed) return
+  closed = true
+  await pool.end()
+  await worker.end()
+  await db.drop()
+}
+
 before(async () => {
   db = await createTestDatabase()
   pool = createPool(db.apiUrl, { max: 4 })
   worker = createPool(db.workerUrl, { max: 2 })
 })
-after(async () => {
-  await pool.end()
-  await worker.end()
-  await db.drop()
-})
+after(closeFixture)
 
 async function codeOf(p: Promise<unknown>): Promise<string> {
   try {
@@ -840,19 +846,15 @@ describe('the runtime service', () => {
 // CON-01 Phase A (0053; Q12, CX-0116 and its recheck): the reconcile pass counts only the rows it changes, and rows it
 // can't change (a command answered failed or outcome_unknown) never fill its window ahead of one it can. On a database
 // of its own: the pass is global, so no other test's rows share its window.
+// It is the file's last group: the file's fixture is closed before this one is made, so two migrated installations of
+// the cluster-global assembler role (0070) never overlap.
 describe('reconcile: an honest count, and no row starved behind rows it cannot change', () => {
-  let saved: { db: TestDatabase; pool: pg.Pool; worker: pg.Pool }
   before(async () => {
-    saved = { db, pool, worker }
+    await closeFixture()
     db = await createTestDatabase()
     pool = createPool(db.apiUrl, { max: 4 })
     worker = createPool(db.workerUrl, { max: 2 })
-  })
-  after(async () => {
-    await pool.end()
-    await worker.end()
-    await db.drop()
-    ;({ db, pool, worker } = saved)
+    closed = false
   })
 
   type Stage = RuntimeReceipt['stage']

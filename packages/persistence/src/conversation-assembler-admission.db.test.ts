@@ -8,7 +8,7 @@ import { basename, dirname } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import pg from 'pg'
 import { createConversationCandidateDatabase } from './conversation-candidate-fixture.ts'
-import { type TestDatabase } from '@sophia/test-support'
+import { createTestDatabase, type TestDatabase } from '@sophia/test-support'
 
 const adminUrl = process.env.SOPHIA_DISPOSABLE_DATABASE_URL ?? ''
 const enabled = process.env.SOPHIA_Q13_OWNED_CLUSTER === 'con01-q13-exclusive-v1'
@@ -352,5 +352,69 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
       ],
     ]
     for (const [setup, expected] of cases) await activationCase(setup, expected)
+  })
+})
+
+// The same admission over the MIGRATED schema: the role and its surface installed by 0070 (not by the candidate), after
+// the candidate group above has closed every client and dropped its role. One owned NOINHERIT login is admitted only by
+// the activation check's own holds and fresh denials, never by a fixture helper.
+describe('Q13 exclusive admission over the migrated schema (0070; L1, no hosted effects)', { skip: !enabled }, () => {
+  const admitted = `con01_q13_m_${suffix}`
+  let owner: pg.Client
+  let migrated: TestDatabase | undefined
+  let name: string
+
+  before(async () => {
+    admin = await connect('postgres', 'postgres')
+    await requireOwned()
+    migrated = await createTestDatabase(undefined, { assembler: false })
+    name = new URL(migrated.ownerUrl).pathname.slice(1)
+    owner = await connect('postgres', name)
+    await owner.query(`CREATE ROLE ${admitted} LOGIN NOINHERIT; GRANT ${ROLE} TO ${admitted};
+      GRANT CONNECT ON DATABASE ${name} TO ${admitted}`)
+  })
+
+  after(async () => {
+    for (const c of clients) {
+      await c.query('ROLLBACK').catch(() => undefined)
+      await end(c)
+    }
+    if (migrated) await migrated.drop()
+    const cleanup = await connect('postgres', 'postgres')
+    try {
+      await cleanup.query(`DROP ROLE IF EXISTS ${admitted}`)
+    } finally {
+      await end(cleanup)
+    }
+  })
+
+  it('holds while other databases are connectable; with them denied, the 0070 installation qualifies with no hold', async () => {
+    await owner.query('SET search_path=pg_catalog')
+    const holdsFor = async () => (await owner.query<{ what: string }>(activation, [admitted])).rows.map((r) => r.what)
+    const outside = (
+      await admin.query<{ datname: string }>(
+        `SELECT datname FROM pg_database WHERE datallowconn AND datname<>$1 AND has_database_privilege($2,oid,'CONNECT')`,
+        [name, admitted],
+      )
+    ).rows.map((r) => r.datname)
+    const initial = await holdsFor()
+    for (const other of outside)
+      assert.ok(
+        initial.some((h) => h.startsWith(`admitted to ${other} `)),
+        other,
+      )
+    // Only this exclusively owned throwaway cluster: no hosted or shared permission mutation is permitted here.
+    for (const other of outside) await admin.query(`REVOKE CONNECT ON DATABASE ${other} FROM PUBLIC`)
+    await owner.query(`REVOKE TEMPORARY ON DATABASE ${name} FROM PUBLIC`)
+    for (const other of outside)
+      await assert.rejects(
+        connect(admitted, other),
+        (err: unknown) => err instanceof pg.DatabaseError && err.code === '42501',
+      )
+    assert.deepEqual(await holdsFor(), [], "0070's installed surface passes the reviewed activation check")
+    const intended = await connect(admitted, name)
+    await intended.query(`SET ROLE ${ROLE}`)
+    assert.equal((await intended.query('SELECT sophia.conversation_assembly_project() AS p')).rows[0]?.p, null)
+    await end(intended)
   })
 })

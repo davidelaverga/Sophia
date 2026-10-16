@@ -72,6 +72,39 @@ Existing authority: P's FND-B2 packets (implementation, phase 2, service review 
 - The fixed `SERVICE_SYSTEM` wording needs product review. No `sophia-conversation-v1` role asset exists; it is needed only for the native path.
 - At most one more review exchange on #393 under the two-exchange rule.
 
+## Ordinary Ask binding (FND-B2-ORDINARY-ASK-ASSEMBLY-01, FND-B2-Q13-FIXTURE-LIFETIME-01)
+
+- **0070_conversation_assembler_role_binding.sql** is role, grants and policies only, by exact diff against 0064. It contains:
+  - the S3 candidate's role block with its ORIGINAL Q13 guard, byte for byte: no member, and nothing of its own anywhere in the cluster, so a second installation in one cluster is refused;
+  - EXECUTE on the five entry points and the two claim-bound helpers;
+  - the Q13 read-identity check, unchanged;
+  - the read grants;
+  - 19 ALTER POLICY and 19 restrictive claim-bound policies.
+  - No object is created or replaced; no login or credential is made.
+- **0071_conversation_context_before_dispatch.sql:**
+  - `conversation_dispatch` defers a pending create whose only ineligibility is a context not yet recorded, until `created_at + conversation_context_wait()` (120 s). After that it is denied with `context_unavailable`. Every other denial is unchanged.
+  - `conversation_ask` refuses at once (`blocked`, `context_assembler_unbound`) when the role has no admitted login.
+  - The wait is derived from the worker's limits and pinned by `apps/worker/src/assembly-wait.test.ts`: 2 + 3×30 + 2×7 + 7 = 113 s ≤ 120 s.
+- **Worker:** after a committed `waiting for reply context` deferral, the same pass calls `assembleReply` once through the optional `SOPHIA_ASSEMBLER_DATABASE_URL`, with `ASSEMBLY_LIMITS` held to `checkedLimits`. There is no new loop.
+- **Tests and fixtures:**
+  - `test:db` serializes its files.
+  - test-support gives each migrated fixture one synthetic, bare assembler login, or none on request. It cleans up even after a failed setup, and `drop` may repeat. These logins are test bindings, not Q13 admissions.
+  - persistence `runtime.db.test` closes its file fixture before the reconcile group makes its own.
+  - `conversation-runtime` parks the installed role in a rolled-back transaction to install the sealed candidate fresh, asserts 0064's own footprint and 0070's grant isolation, and expects 0070's ACLs on exactly the seven functions.
+  - `db-test` drops its database in `finally`.
+  - New `conversation-assembler-install.db.test.ts`: the guard refuses a second installation (dependencies only, member only, both). CONNECT is not assembly authority. A fresh install succeeds after teardown.
+  - New `conversation-context-dispatch.db.test.ts`: unbound refusal; deferral then dispatch after a real `assembleReply`; `context_unavailable` once the wait has run out; other denials unchanged; a withdrawn question is never dispatched.
+  - The exclusive admission test gains a migrated-schema (0070) case.
+  - `conversation-service.test.mjs` runs unpaused through the ordinary worker path. CI's PostgreSQL job runs it after the native crossing.
+- **Evidence** (private PostgreSQL 17.11):
+  - `test:db` 991/991;
+  - SQL 67 migrations;
+  - crossings 17/17 (12 service + 5 native);
+  - exclusive Q13 admission 6/6 on an owned cluster;
+  - `pnpm check` 0.
+  - PostgreSQL 16: only the ordinary suites through CI. The exclusive admission on 16 is not run (no local 16 binary; the CI service is not an owned cluster).
+- **Limits:** the CI database job keeps its 20-minute deadline; serialized `test:db` took about 4–5 min locally. The production login, its activation and service mode stay off.
+
 ## Next bounded action
 
 Check the automatic review on #393's repair head once. Then implement the assembly binding exactly as P/V triage it, in this worktree, with its census-numbered migration.

@@ -14,7 +14,9 @@ await checkRoleSafety(pool, 'sophia_worker') // refuse to run as an owner, super
 
 const log = (line: string) => console.log(`[sophia-worker] ${line}`)
 const workerId = `${hostname()}:${process.pid}`
-const dispatcher = new RuntimeDispatcher(pool, { workerId, log })
+// Optional: a login admitted to the conversation assembler role (Q13). Without it no reply context is recorded here.
+const assemblerUrl = process.env.SOPHIA_ASSEMBLER_DATABASE_URL?.trim() || null
+const dispatcher = new RuntimeDispatcher(pool, { workerId, log, assemblerUrl })
 dispatcher.start()
 log('runtime dispatch started')
 
