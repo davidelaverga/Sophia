@@ -104,6 +104,7 @@ import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
 import { startCrashReports } from '../src/app/crash-report.ts'
+import { SkipLink } from '../src/app/SkipLink.tsx'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -1186,6 +1187,8 @@ const queryClient = new QueryClient()
 
 createRoot(root).render(
   <StrictMode>
+    {/* As main.tsx renders it beside the App (skip-link.md). */}
+    <SkipLink />
     <QueryClientProvider client={queryClient}>
       <p className="fixture-label" role="note" data-demo={DEMO || undefined}>
         {DEMO ? DEMO_LABEL : 'Fixture — no API, no call'}

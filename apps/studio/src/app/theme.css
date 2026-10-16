@@ -3244,6 +3244,27 @@ button.contribution-quote:hover {
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
+/* Skip to content (skip-link.md): out of sight until focused, then at the top left on the raised plane. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 90;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-3);
+  background: var(--plane-2);
+  color: var(--text);
+  font-size: 13px;
+  transform: translateY(calc(-100% - 16px));
+}
+.skip-link:focus {
+  transform: none;
+}
+/* The content it lands on takes the focus without a ring around the whole page. */
+[data-content]:focus {
+  outline: none;
+}
 .toast {
   position: fixed;
   left: 50%;

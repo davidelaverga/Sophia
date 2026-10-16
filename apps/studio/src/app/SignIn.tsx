@@ -50,7 +50,7 @@ export function Centered({
   light?: ScreenLight
 }) {
   return (
-    <main className="screen" aria-busy={busy}>
+    <main className="screen" aria-busy={busy} data-content>
       <SophiaLight
         mode={light.mode}
         target={null}

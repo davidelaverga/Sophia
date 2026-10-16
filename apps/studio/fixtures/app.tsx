@@ -12,6 +12,7 @@ import '@fontsource-variable/geist-mono/wght.css'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from '../src/app/App.tsx'
+import { SkipLink } from '../src/app/SkipLink.tsx'
 import { begin } from '../src/app/entry.ts'
 import '../src/app/theme.css'
 import { conversations, conversationMission, messagesOf } from './conversation-data.ts'
@@ -161,6 +162,7 @@ if (!root) throw new Error('index.html must contain #root')
 
 createRoot(root).render(
   <StrictMode>
+    <SkipLink />
     <p className="fixture-label" role="note">
       Simulated — the Studio app, signed in by a synthetic Auth service, no account
     </p>

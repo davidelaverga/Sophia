@@ -8,11 +8,13 @@ const skip = (page: Page) => page.getByRole('link', { name: 'Skip to content' })
 const focusedContent = (page: Page) =>
   page.evaluate(() => document.activeElement?.hasAttribute('data-content') === true)
 
-test('skip · signed out, the first Tab shows Skip to content, and Enter goes to the sign-in, the address unchanged', async ({
+// The sign-in focuses its email field as it opens, so its content has the focus already: the link is one Shift+Tab back.
+test('skip · signed out, Skip to content stands first, and Enter goes to the sign-in, the address unchanged', async ({
   page,
 }) => {
   await page.goto(`${APP}/app.html`)
-  await page.keyboard.press('Tab')
+  await expect(page.getByRole('textbox').first()).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
   await expect(skip(page)).toBeFocused()
   await expect(skip(page)).toBeInViewport()
   const before = page.url()
