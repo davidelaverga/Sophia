@@ -9,9 +9,9 @@ const board = (page: Page) => page.locator('.board').first()
 async function save(page: Page, which: 'Download CSV' | 'Download Markdown') {
   await page.goto('/work.html')
   await expect(board(page)).toBeVisible()
-  await board(page).getByRole('button', { name: 'Export' }).click()
+  await board(page).getByRole('button', { name: 'Export', exact: true }).click()
   const saved = page.waitForEvent('download')
-  await page.getByRole('menu', { name: 'Export' }).getByRole('menuitem', { name: which }).click()
+  await page.getByRole('menu', { name: 'Export', exact: true }).getByRole('menuitem', { name: which }).click()
   const file = await saved
   return { name: file.suggestedFilename(), text: readFileSync(await file.path(), 'utf8') }
 }
