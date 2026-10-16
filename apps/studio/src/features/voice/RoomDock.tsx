@@ -15,6 +15,7 @@ import type { DeviceKind } from './device-preference.ts'
 import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
+import { usePushToTalk } from './usePushToTalk.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
 import { Reactions } from './Reactions.tsx'
@@ -66,6 +67,8 @@ export function RoomDock(props: Props) {
   const live = room.status === 'live' || room.status === 'reconnecting'
   const wrap = useRef<HTMLDivElement>(null)
   useDockHeight(wrap)
+  const micOn = !!room.participants.find((p) => p.local)?.micOn
+  const talking = usePushToTalk(micOn, (on) => void room.setMicrophone(on), live)
   return (
     <>
       {/* Beside the dock, not in it: the dock's measured height (--dock-h) is the dock's alone. */}
@@ -79,9 +82,15 @@ export function RoomDock(props: Props) {
           </p>
         )}
         {/* Speech on a muted microphone (muted-speech.md): said while it is still off. */}
-        {live && room.mutedHint && !room.participants.find((p) => p.local)?.micOn && (
+        {live && room.mutedHint && !micOn && (
           <p className="dock-note" role="status">
-            You’re muted. Turn the microphone on to be heard.
+            You’re muted. Hold Space to talk, or turn the microphone on.
+          </p>
+        )}
+        {/* Space held while muted (push-to-talk.md): said while it lasts. */}
+        {talking && (
+          <p className="dock-note" role="status">
+            Talking. Let go of Space to mute again.
           </p>
         )}
         <nav className="dock" aria-label="Room controls">

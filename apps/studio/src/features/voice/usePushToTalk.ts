@@ -1,0 +1,54 @@
+// Push to talk in the room (docs/plans/push-to-talk.md): listens in the capture phase, so Space held from nowhere is
+// the microphone's before stray typing takes it, and lets go when the key does, or when the window loses focus.
+import { useEffect, useRef, useState } from 'react'
+import { modalOnScreen } from '../../app/shortcuts.ts'
+import { pushToTalk } from './push-to-talk.ts'
+
+const nowhere = (target: EventTarget | null) => target === document.body || target === document.documentElement
+
+/** Whether Space is held to talk now. `setMicrophone` and `micOn` are the call's. */
+export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => void, enabled: boolean): boolean {
+  const [holding, setHolding] = useState(false)
+  const now = useRef({ micOn, holding, setMicrophone })
+  useEffect(() => {
+    now.current = { micOn, holding, setMicrophone }
+  })
+  useEffect(() => {
+    if (!enabled) return undefined
+    const stop = () => {
+      if (!now.current.holding) return
+      now.current.holding = false
+      setHolding(false)
+      now.current.setMicrophone(false)
+    }
+    const onKey = (phase: 'down' | 'up') => (e: KeyboardEvent) => {
+      const key = {
+        key: e.key,
+        repeat: e.repeat,
+        modified: e.shiftKey || e.ctrlKey || e.altKey || e.metaKey,
+        fromNowhere: nowhere(e.target),
+        modal: modalOnScreen(),
+      }
+      const act = pushToTalk(phase, key, now.current)
+      if (act === null) return
+      e.preventDefault()
+      if (act === 'start') {
+        now.current.holding = true
+        setHolding(true)
+        now.current.setMicrophone(true)
+      } else if (act === 'stop') stop()
+    }
+    const down = onKey('down')
+    const up = onKey('up')
+    window.addEventListener('keydown', down, true)
+    window.addEventListener('keyup', up, true)
+    window.addEventListener('blur', stop)
+    return () => {
+      window.removeEventListener('keydown', down, true)
+      window.removeEventListener('keyup', up, true)
+      window.removeEventListener('blur', stop)
+      stop()
+    }
+  }, [enabled])
+  return holding
+}

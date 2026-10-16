@@ -6,7 +6,10 @@ import { expect, test, type Page } from '@playwright/test'
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
 const mic = (page: Page) => dock(page).getByRole('button', { name: 'Microphone', exact: true })
 const talking = (page: Page) => page.getByRole('status').filter({ hasText: 'Talking' })
-const nowhere = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+const nowhere = (page: Page) =>
+  page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+  })
 
 test.beforeEach(async ({ page }) => {
   await page.route(
