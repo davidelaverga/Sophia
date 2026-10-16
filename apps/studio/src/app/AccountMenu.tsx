@@ -110,7 +110,7 @@ interface Props {
   actions: AccountActions
 }
 
-/** The sheet the menu opened, one at a time: Settings hands over to Passkeys or feedback, your data or privacy. */
+/** The sheet the menu opened, one at a time: Settings hands over to Passkeys or feedback, your data or privacy, the keys. */
 type SheetName = 'passkeys' | 'feedback' | 'settings' | null
 
 function AccountSheet(props: {
@@ -135,6 +135,7 @@ function AccountSheet(props: {
       onSignOutEverywhere={leaveFor(actions.signOutEverywhere)}
       onPasskeys={() => onSheet('passkeys')}
       onFeedback={() => onSheet('feedback')}
+      onShortcuts={leaveFor(() => askCommands('index'))}
       onClose={close}
     />
   )

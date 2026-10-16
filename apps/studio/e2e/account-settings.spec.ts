@@ -46,10 +46,20 @@ test('settings · a call’s defaults: the microphone on joining, and the mirror
   await expect(sheet(page).getByRole('checkbox', { name: 'Mirror my video' })).not.toBeChecked()
 })
 
-test('settings · Keyboard shortcuts there opens the index', async ({ page }) => {
+test('settings · Keyboard shortcuts there hands over to the index, one sheet at a time (Codex P1 on #398)', async ({
+  page,
+}) => {
   await openSettings(page)
   await sheet(page).getByRole('button', { name: 'Keyboard shortcuts' }).click()
-  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible()
+  const index = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
+  await expect(index).toBeVisible()
+  await expect(sheet(page)).toHaveCount(0)
+  // Nothing covers it, and the keys are in it.
+  const box = await index.boundingBox()
+  if (!box) throw new Error('the index has no box')
+  const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+  expect(await index.evaluate((el, p) => el.contains(document.elementFromPoint(p.x, p.y)), at)).toBe(true)
+  expect(await index.evaluate((el) => el.contains(document.activeElement))).toBe(true)
 })
 
 test('settings · a choice is a small box beside its words on one line, and the account says each thing on its line', async ({
