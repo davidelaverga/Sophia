@@ -31,6 +31,15 @@ commits on the branch merge its base forward or touch only this record). 6 files
   - Then the settings and menu specs passed 30/30 with `--repeat-each=2`.
   - Desktop and phone captures are clean; the phone has no sideways scroll at 390 px.
 
+## Decisions and changes
+
+- **The menu's sheets are one state** (AccountSheet): Settings hands over to Passkeys, feedback, your data or privacy,
+  and none of them reopens Settings when it closes.
+- **Codex P1 on #398, after the ending commit:** «Keyboard shortcuts» opened the index while Settings stayed mounted.
+  - A check came first (`6340947a`): Settings gone, nothing over the index's middle, the focus in it. It failed.
+  - The fix (`4a1dcea9`) hands the press over through the menu's `leaveFor`, as your data and privacy do.
+  - `account-settings`, `account-menu` and `commands` passed 20/20.
+
 ## Remaining obligations
 
 - None: the local run and the captures are done, and the PR is ready for review.
