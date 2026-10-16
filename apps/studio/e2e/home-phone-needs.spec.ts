@@ -80,8 +80,11 @@ test('home · crossing 860 px leaves a focus outside the list where it was', asy
   await page.setViewportSize({ width: 1000, height: 900 })
   await page.goto(PAGE)
   await page.locator('.hw-side button').nth(1).focus()
-  const outside = page.locator('.hw-col button').first()
+  // The control itself (your notes), not «the column's first button»: on one column the list of what needs you is
+  // mounted first in that column, and a first-button locator would then name one of its needs instead.
+  const outside = page.locator('.hw-col .hw-notes')
   await outside.focus()
   await page.setViewportSize({ width: 800, height: 900 })
+  await expect(page.locator('.hw-col .hw-needs-here')).toBeVisible()
   await expect(outside).toBeFocused()
 })
