@@ -131,6 +131,10 @@ export function presenceRole(person: RoomParticipant, holds: boolean): string | 
 }
 
 /** Whose shared screen is on the stage; a guest's says so, as their tile does. */
+/** The press that puts another shared screen on the stage, in the caption's words (Codex P2 on #358). */
+export const showScreenLabel = (presenter: RoomParticipant | undefined): string =>
+  presenter ? `Show ${screenCaption(presenter)}` : 'Show the other shared screen'
+
 export function screenCaption(presenter: RoomParticipant | undefined): string {
   if (!presenter) return 'Shared screen'
   return `${shortName(presenter.name)}’s screen${presenter.standing === 'guest' ? ' · guest' : ''}`
