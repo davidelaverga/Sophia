@@ -56,10 +56,22 @@ commits on the branch merge its base forward or touch only this record). 12 file
     devices may still be signed in.
   - This device's own sign-out has nothing more to say: its session is gone either way.
   - `app-auth`, `account-settings`, `account-menu` and the sign-in specs passed 65/65.
+- **#398's base merged in (`30b0b80d`):** Settings keeps both its new props, `onSignOutEverywhere` and #398's
+  `onShortcuts`.
+- **Codex P1 on #410, second: a failure that removed nothing.** An expired token whose refresh failed makes
+  `_signOut` return that error before removing the session. So a failed call doesn't always mean this device is out.
+  - The unit check came first (`397bfe59`) and failed.
+  - The fix (`62a7f3cb`): `endSession` listens, while the call runs, for supabase-js's `SIGNED_OUT`. supabase-js says
+    it before the call resolves, once it has removed the session.
+  - A failed call that removed the session is `here-only` when every device was asked.
+  - One that removed nothing throws, and App keeps the person in, as for any sign-out that fails.
+  - `app-auth`, `account-settings` and `account-menu`: 34/34.
 
 ## Remaining obligations
 
 - Stacked on #398 (Settings). Once #398 merges, this PR moves to main.
+- **A follow-up:** a sign-out that fails keeps the person in but says nothing. A toast there needs App's `leaving`,
+  outside React, to reach `useToast`.
 
 ## Next bounded action
 
