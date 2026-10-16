@@ -107,9 +107,29 @@ test('devices · a switch the browser refuses says so in the dock', async ({ pag
   )
 })
 
-test('@phone · devices · on a phone the dock keeps its one row: no device openers', async ({ page }) => {
+// On a phone one opener beside the camera lists every device, a phone's front and back cameras among them, and the dock
+// keeps its one row (phone-devices.md); the desktop's two openers don't show there.
+test('@phone · devices · in the call one opener lists the microphones, the cameras and the speakers; one row', async ({
+  page,
+}) => {
   await page.goto('/room.html?call=on')
   await expect(dock(page).getByRole('button', { name: 'Leave the room' })).toBeVisible()
   await expect(dock(page).getByRole('button', { name: 'Audio settings', exact: true })).toBeHidden()
   await expect(dock(page).getByRole('button', { name: 'Video settings', exact: true })).toBeHidden()
+  const opener = dock(page).getByRole('button', { name: 'Device settings', exact: true })
+  await opener.click()
+  const devices = menu(page, 'Device settings')
+  await expect(devices.locator('.menu-head')).toHaveText(['Microphone', 'Camera', 'Speaker', 'Background'])
+  await devices.getByRole('menuitemradio', { name: 'Desk camera' }).click()
+  await expect.poll(() => asked(page)).toContain('device:videoinput:cam-desk')
+  const rows = await dock(page)
+    .locator('button:visible')
+    .evaluateAll((presses) => new Set(presses.map((p) => Math.round(p.getBoundingClientRect().top))).size)
+  expect(rows).toBe(1)
+})
+
+test('@phone · devices · before joining, Check audio and video stands beside Join', async ({ page }) => {
+  await page.goto('/room.html')
+  await dock(page).getByRole('button', { name: 'Check audio and video', exact: true }).click()
+  await expect(page.getByRole('dialog', { name: 'Check your audio and video' })).toBeVisible()
 })
