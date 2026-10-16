@@ -104,6 +104,7 @@ export const PRIVACY: readonly LegalSection[] = [
       '· Tavily and Jina: when Sophia researches, the words she searches for go to Tavily and the pages she reads to Jina.',
       '· Resend: the emails Sophia sends, such as sign-in links and invitations.',
       '· Vercel and Render: hosting the app and its server.',
+      '· Sentry: reports of errors in the app, and the feedback you send. A report carries the page’s address without its query or link part, and is built to leave your content and account out.',
     ],
   },
   {

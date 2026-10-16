@@ -6338,6 +6338,13 @@ button.contribution-quote:hover {
 .legal-foot a {
   color: var(--text-2);
 }
+
+/* Room to write feedback (docs/plans/crash-feedback.md). */
+.feedback-words textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
 /* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
 .people {
   display: grid;
