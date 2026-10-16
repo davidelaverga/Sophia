@@ -23,13 +23,22 @@ Main's required browser job failed intermittently on `e2e/home-phone-needs.spec.
 - **DOM-identity proof**, 5/5 runs, using a throwaway diagnostic spec that was not committed. Before the resize, the focused control was tagged «3 notes →» (`text-button hw-notes`). After the resize to 800 px:
   - `document.activeElement` was still that same tagged element;
   - `.hw-col button` `.first()` resolved to `hw-row` «Ship the retry with the hotfix?…» in `.hw-needs-here`.
-- **After the repair:** `home-phone-needs.spec.ts` and `home.spec.ts` with `--repeat-each=3`, cold servers (CI=1), desktop and phone: 87/87.
+- **After the repair**, at `f374b528`:
+  1. From the worktree root: `pnpm exec oxlint --type-aware apps/studio/e2e/home-phone-needs.spec.ts`, no error. Then `pnpm exec prettier --check apps/studio/e2e/home-phone-needs.spec.ts`, which passed.
+  2. From `apps/studio`: `CI=1 pnpm exec playwright test e2e/home-phone-needs.spec.ts e2e/home.spec.ts --repeat-each=3 --reporter=line --output=<private scratch>/pw-home`.
+     - Exit 0: 87 passed.
+     - Both config projects ran (desktop, and phone for the `@phone` cases). CI=1 starts cold fixture servers on 5198/5199 and stops them at exit.
+  3. Slot release: `lsof -nP -iTCP:5198 -iTCP:5199 -sTCP:LISTEN` found no listener, and no Playwright process of this session remained.
 
 ## Current main integration (FND-B-CURRENT-MAIN-01)
 
 - Merge commit `e44d4494bde4ea2e741a72f08007d5a0e9d4c015` (tree `2e92bdbcaca272bd41ba18bd19f805b57446319e`), parents `20172ea3` (this branch) and main `330407e4969699e030606d714db6513561a05c9d` (tree `b21ad955`: Luis's #380 room basics and #383 report origin). No conflict.
 - Main's 23 changed paths do not touch Home or this spec; the only shared file is the global `theme.css`.
-- Local, without a browser slot: format, lint and typecheck pass; unit tests 2437, 2367 pass, 0 fail, 70 skipped. The Home browser case runs only in the required CI.
+- Local, without a browser slot, from the worktree root at `e44d4494`:
+  - `pnpm -s format:check`, `pnpm -s lint` and `pnpm -s typecheck`: each exit 0.
+  - `pnpm --filter ./packages/dsh-bundle build`, then `pnpm test`: exit 0. 2437 tests: 2367 pass, 0 fail, 70 skipped.
+  - A first `pnpm test` before that build exited 1: 13 files failed with ERR_MODULE_NOT_FOUND, because `packages/dsh-bundle/dist` was not built in this worktree.
+  - The Home browser case runs only in the required CI.
 
 ## Remaining obligations
 
