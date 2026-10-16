@@ -9,9 +9,9 @@ Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.p
 record.
 Existing authority: Luis 2026-10-16, «Procede»; merges on green with no open P1. Main's browser job is red, which
 blocks every merge.
-Ending commit/tree: `724006827c36` (tree `47e9e81c2795`), the last commit of `test/passage-task-writes`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 2 files changed against
-`origin/main` at that commit: `e2e/room-passage-task.spec.ts`, `docs/plans/passage-task-writes.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `177cfde287dd` (tree `9d87be3c4ed4`), the last commit of `HEAD`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 5 files changed against
+`origin/main` at that commit: `.github/workflows/ci.yml`, `e2e/room-passage-task.spec.ts`, `docs/handoffs/PASSAGE-TASK-WRITES-attempt-1.md`, `docs/plans/browser-job-timeout.md`, `docs/plans/passage-task-writes.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
