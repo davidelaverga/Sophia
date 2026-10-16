@@ -44,6 +44,12 @@ commits on the branch merge its base forward or touch only this record). 6 files
     (`data-view-boundary`) in a box that draws nothing (`display: contents`), so the page's grid is unchanged.
   - The boundary's, Tasks', Goals', Conversations', Knowledge's, Updates', Resources' and the cards' specs, with
     `view-titles`: 269/269.
+- **Main merged in (`9c2c5e50`):** #417's `data-content` sits on the same `<main>`, and both sides' styles stay. The
+  toast's comment, which both PRs had pushed away from its rule, is back above `.toast`.
+- **Codex P1 on #416, second: the boundary's words in the component.** They now live in `view-failed-view.ts`.
+  - The unit check came first (`70ee86f2`) and failed.
+  - The fix (`1eabc87b`): `ViewFailed` draws `VIEW_FAILED`.
+  - `view-boundary`, `skip-link` and `view-titles`: 18/18.
 
 ## Remaining obligations
 
