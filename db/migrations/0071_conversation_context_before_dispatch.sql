@@ -10,13 +10,18 @@
 -- * conversation_ask (0064), replaced: the same, refusing at once (reply blocked, context_assembler_unbound, no attempt
 --   or outbox) when the assembler role has no admitted execution login: a LOGIN member of it alone, itself bare
 --   (0070's member rule) and allowed to connect here. Whether that login's worker is running is not knowable here; a
---   bound login whose worker is absent ends in context_unavailable within the wait.
--- * conversation_context_wait() = 120 s, derived from the worker's assembly limits (apps/worker, ASSEMBLY_LIMITS:
---   deadline 10 s, lease 30 s = checkedLimits' floor of three deadlines, and at least statement + idle-in-transaction
---   10 s), the dispatcher's idle pass 2 s and the 5 s defer: the first claim starts within 2 s of the Ask; at most three
---   claims (conversation_assembly_claim) each end or lapse within one 30 s lease, the next starting within one further
---   defer pass (5 s + 2 s); the dispatch pass after the last sees the record within one more (7 s):
---   2 + 3 x 30 + 2 x 7 + 7 = 113 s <= 120 s. A test pins the derivation against both constants.
+--   bound login whose worker is absent leaves the context unrecorded, and the create is denied context_unavailable by
+--   the first dispatch pass that processes it after the wait.
+-- * conversation_context_wait() = 120 s: the deadline until which a create may wait for its context, not a latency
+--   guarantee. It is sized from ONE reply's uncontended worst case under the worker's assembly limits (apps/worker,
+--   ASSEMBLY_LIMITS: deadline 10 s, lease 30 s = checkedLimits' floor of three deadlines, and at least statement +
+--   idle-in-transaction 10 s), the dispatcher's idle pass 2 s and the 5 s defer: on an otherwise idle worker the first
+--   claim starts within 2 s of the Ask; at most three claims (conversation_assembly_claim) each end or lapse within one
+--   30 s lease, the next starting within one further defer pass (5 s + 2 s); the dispatch pass after the last sees the
+--   record within one more (7 s): 2 + 3 x 30 + 2 x 7 + 7 = 113 s <= 120 s. A test pins that arithmetic against both
+--   constants. A pass claims up to 10 rows and assembles them one after another, so behind other assemblies a reply can
+--   start later and run out of the wait; it then fails truthfully with context_unavailable, recorded when a dispatch
+--   pass next processes the row, not at 120 s exactly. Nothing measured that under load.
 BEGIN;
 
 CREATE FUNCTION sophia.conversation_context_wait() RETURNS interval LANGUAGE sql IMMUTABLE

@@ -1,5 +1,7 @@
 // The context wait the database gives a reply create (0071, conversation_context_wait) against what the worker can
-// take to record it (ASSEMBLY_LIMITS): the two are derived from each other, and drifting either one breaks this.
+// take to record ONE reply's context on an otherwise idle worker (ASSEMBLY_LIMITS): drifting either one breaks this.
+// Arithmetic only, not a measured or whole-queue latency: a pass claims up to 10 rows and assembles them serially, so
+// a contended reply can exceed it, and then fails context_unavailable when a pass next processes it.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
@@ -13,7 +15,7 @@ const seconds = (text: string, pattern: RegExp): number => {
   return Number(match[1]) * 1000
 }
 
-test('the context wait covers three claims, each within its lease, and the dispatcher passes between them', () => {
+test("one reply's uncontended worst case, three claims within their leases and the passes between them, fits the context wait", () => {
   const context = migration('0071_conversation_context_before_dispatch.sql')
   const waitMs = seconds(context, /conversation_context_wait\(\) RETURNS interval[\s\S]*?interval '(\d+) seconds'/)
   const deferMs = seconds(migration('0012_runtime_service.sql'), /available_at=now\(\)\+interval '(\d+) seconds'/)

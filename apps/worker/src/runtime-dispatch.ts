@@ -21,8 +21,11 @@ import {
 /**
  * The assembly bounds the worker records a reply's context under. checkedLimits holds them to its rules: a lease of at
  * least three deadlines and at least what a failed client can hold its locks for (statement + idle-in-transaction). The
- * database's conversation_context_wait (0071) is derived from these: 2 s first pass + 3 claims x 30 s lease + 2 x 7 s
- * re-offers + one 7 s final pass = 113 s <= 120 s. A unit test pins the two together.
+ * database's conversation_context_wait (0071) is sized from one reply's uncontended worst case under these: 2 s first
+ * pass + 3 claims x 30 s lease + 2 x 7 s re-offers + one 7 s final pass = 113 s <= 120 s. A unit test pins that
+ * arithmetic. It is not a latency guarantee: dispatchOnce claims up to 10 rows and assembles them one after another, so
+ * a reply behind others can run out of the 120 s and fail, truthfully, with context_unavailable when a pass next
+ * processes it.
  */
 export const ASSEMBLY_LIMITS: AssemblyLimits = checkedLimits({
   leaseMs: 30_000,

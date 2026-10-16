@@ -356,13 +356,24 @@ describe('Q13 exclusive owned-cluster admission and activation (L1, no hosted ef
 })
 
 // The same admission over the MIGRATED schema: the role and its surface installed by 0070 (not by the candidate), after
-// the candidate group above has closed every client and dropped its role. One owned NOINHERIT login is admitted only by
-// the activation check's own holds and fresh denials, never by a fixture helper.
+// the candidate group above has closed every client, dropped its role and left PUBLIC CONNECT revoked on postgres and
+// template1. One owned NOINHERIT login is admitted only by the activation check's own holds and actual connections,
+// never by a fixture helper. Its outside database is this group's own: empty, created with PUBLIC CONNECT, so the
+// admission, the old session and the fresh denial are each observed rather than found absent.
 describe('Q13 exclusive admission over the migrated schema (0070; L1, no hosted effects)', { skip: !enabled }, () => {
   const admitted = `con01_q13_m_${suffix}`
+  const outside = `con01_q13_m_out_${suffix}`
   let owner: pg.Client
   let migrated: TestDatabase | undefined
+  let outsideMade = false
   let name: string
+
+  const deniedTo = (other: string) =>
+    assert.rejects(
+      connect(admitted, other),
+      (err: unknown) => err instanceof pg.DatabaseError && err.code === '42501',
+      `fresh connection of ${admitted} to ${other}`,
+    )
 
   before(async () => {
     admin = await connect('postgres', 'postgres')
@@ -372,6 +383,9 @@ describe('Q13 exclusive admission over the migrated schema (0070; L1, no hosted 
     owner = await connect('postgres', name)
     await owner.query(`CREATE ROLE ${admitted} LOGIN NOINHERIT; GRANT ${ROLE} TO ${admitted};
       GRANT CONNECT ON DATABASE ${name} TO ${admitted}`)
+    // template0 is never connectable, so the copy holds no object; a new database's default ACL grants PUBLIC CONNECT.
+    await admin.query(`CREATE DATABASE ${outside} TEMPLATE template0`)
+    outsideMade = true
   })
 
   after(async () => {
@@ -382,36 +396,71 @@ describe('Q13 exclusive admission over the migrated schema (0070; L1, no hosted 
     if (migrated) await migrated.drop()
     const cleanup = await connect('postgres', 'postgres')
     try {
+      if (outsideMade) await cleanup.query(`DROP DATABASE IF EXISTS ${outside}`)
       await cleanup.query(`DROP ROLE IF EXISTS ${admitted}`)
     } finally {
       await end(cleanup)
     }
   })
 
-  it('holds while other databases are connectable; with them denied, the 0070 installation qualifies with no hold', async () => {
+  it('admits, then denies an outside database by actual fresh connections; its old session holds until the client closes', async (t) => {
     await owner.query('SET search_path=pg_catalog')
     const holdsFor = async () => (await owner.query<{ what: string }>(activation, [admitted])).rows.map((r) => r.what)
-    const outside = (
-      await admin.query<{ datname: string }>(
-        `SELECT datname FROM pg_database WHERE datallowconn AND datname<>$1 AND has_database_privilege($2,oid,'CONNECT')`,
-        [name, admitted],
-      )
-    ).rows.map((r) => r.datname)
-    const initial = await holdsFor()
-    for (const other of outside)
-      assert.ok(
-        initial.some((h) => h.startsWith(`admitted to ${other} `)),
-        other,
-      )
+    const stage = async (label: string) => {
+      const now = await holdsFor()
+      t.diagnostic(`${label}: ${JSON.stringify(now)}`)
+      return now
+    }
+    // Denied before this group: a fresh login of the 0070 installation is refused there too, unconditionally.
+    for (const other of ['postgres', 'template1']) await deniedTo(other)
+
+    const admittedHolds = await stage('admitted, no session')
+    assert.ok(admittedHolds.includes(`admitted to ${outside} (PUBLIC CONNECT)`), 'initial admission hold')
+    assert.ok(!admittedHolds.some((h) => h.startsWith('session open in ')))
+    const old = await connect(admitted, outside)
+    assert.deepEqual((await old.query('SELECT current_database() AS d, current_user AS u')).rows[0], {
+      d: outside,
+      u: admitted,
+    })
+    assert.equal(
+      (
+        await old.query<{ n: number }>(
+          `SELECT count(*)::int AS n FROM pg_class c JOIN pg_namespace s ON s.oid=c.relnamespace
+          WHERE s.nspname NOT IN ('pg_catalog','information_schema') AND s.nspname NOT LIKE 'pg_toast%'`,
+        )
+      ).rows[0]?.n,
+      0,
+      'the owned outside database is empty',
+    )
+    const opened = await stage('admitted, old session open')
+    assert.ok(opened.includes(`admitted to ${outside} (PUBLIC CONNECT)`))
+    assert.ok(
+      opened.some((h) => h.startsWith(`session open in ${outside} `)),
+      'initial session hold',
+    )
+
     // Only this exclusively owned throwaway cluster: no hosted or shared permission mutation is permitted here.
-    for (const other of outside) await admin.query(`REVOKE CONNECT ON DATABASE ${other} FROM PUBLIC`)
+    await admin.query(`REVOKE CONNECT ON DATABASE ${outside} FROM PUBLIC`)
     await owner.query(`REVOKE TEMPORARY ON DATABASE ${name} FROM PUBLIC`)
-    for (const other of outside)
-      await assert.rejects(
-        connect(admitted, other),
-        (err: unknown) => err instanceof pg.DatabaseError && err.code === '42501',
-      )
-    assert.deepEqual(await holdsFor(), [], "0070's installed surface passes the reviewed activation check")
+    for (const other of [outside, 'postgres', 'template1']) await deniedTo(other)
+    assert.equal(
+      (await old.query('SELECT 42 AS alive')).rows[0]?.alive,
+      42,
+      'revocation did not settle the old session',
+    )
+    const revoked = await stage('revoked, old session open')
+    assert.ok(!revoked.some((h) => h.startsWith('admitted to ')))
+    assert.ok(
+      revoked.some((h) => h.startsWith(`session open in ${outside} `)),
+      'the old session still holds',
+    )
+
+    await end(old)
+    assert.deepEqual(
+      await stage('revoked, old session closed'),
+      [],
+      "0070's installed surface passes the reviewed activation check",
+    )
     const intended = await connect(admitted, name)
     await intended.query(`SET ROLE ${ROLE}`)
     assert.equal((await intended.query('SELECT sophia.conversation_assembly_project() AS p')).rows[0]?.p, null)

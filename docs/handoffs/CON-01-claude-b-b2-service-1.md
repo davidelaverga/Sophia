@@ -82,9 +82,10 @@ Existing authority: P's FND-B2 packets (implementation, phase 2, service review 
   - 19 ALTER POLICY and 19 restrictive claim-bound policies.
   - No object is created or replaced; no login or credential is made.
 - **0071_conversation_context_before_dispatch.sql:**
-  - `conversation_dispatch` defers a pending create whose only ineligibility is a context not yet recorded, until `created_at + conversation_context_wait()` (120 s). After that it is denied with `context_unavailable`. Every other denial is unchanged.
+  - `conversation_dispatch` defers a pending create whose only ineligibility is a context not yet recorded, until `created_at + conversation_context_wait()` (120 s). After that deadline, the next dispatch pass that processes the row denies it with `context_unavailable`: the denial is recorded then, not at 120 s exactly. Every other denial is unchanged.
   - `conversation_ask` refuses at once (`blocked`, `context_assembler_unbound`) when the role has no admitted login.
-  - The wait is derived from the worker's limits and pinned by `apps/worker/src/assembly-wait.test.ts`: 2 + 3×30 + 2×7 + 7 = 113 s ≤ 120 s.
+  - The wait is sized from ONE reply's uncontended worst case under the worker's limits, and `apps/worker/src/assembly-wait.test.ts` pins that arithmetic: 2 + 3×30 + 2×7 + 7 = 113 s ≤ 120 s.
+  - It is not a latency guarantee (V-B2-TIMING-CLAIM-01). `dispatchOnce` claims up to 10 rows and awaits each assembly in turn, so behind other assemblies a reply's first claim can start later than 2 s. Completion within 120 s across the queue is not proved, and no load was measured. A reply that runs out of the wait fails truthfully with `context_unavailable`.
 - **Worker:** after a committed `waiting for reply context` deferral, the same pass calls `assembleReply` once through the optional `SOPHIA_ASSEMBLER_DATABASE_URL`, with `ASSEMBLY_LIMITS` held to `checkedLimits`. There is no new loop.
 - **Tests and fixtures:**
   - `test:db` serializes its files.
@@ -94,13 +95,20 @@ Existing authority: P's FND-B2 packets (implementation, phase 2, service review 
   - `db-test` drops its database in `finally`.
   - New `conversation-assembler-install.db.test.ts`: the guard refuses a second installation (dependencies only, member only, both). CONNECT is not assembly authority. A fresh install succeeds after teardown.
   - New `conversation-context-dispatch.db.test.ts`: unbound refusal; deferral then dispatch after a real `assembleReply`; `context_unavailable` once the wait has run out; other denials unchanged; a withdrawn question is never dispatched.
-  - The exclusive admission test gains a migrated-schema (0070) case.
+  - The exclusive admission test gains a migrated-schema (0070) case on the owned cluster (R-B2-Q13-01 repair):
+    - an owned empty outside database with PUBLIC CONNECT is held as an admission, actually connected and held as a session;
+    - after its CONNECT is revoked, a fresh connection gets 42501, while the old client stays live and still holds;
+    - once that client closes, `holds=[]`;
+    - postgres and template1 are fresh-denied unconditionally.
   - `conversation-service.test.mjs` runs unpaused through the ordinary worker path. CI's PostgreSQL job runs it after the native crossing.
 - **Evidence** (private PostgreSQL 17.11):
   - `test:db` 991/991;
   - SQL 67 migrations;
   - crossings 17/17 (12 service + 5 native);
-  - exclusive Q13 admission 6/6 on an owned cluster;
+  - exclusive Q13 admission on an owned cluster:
+    - 6/6 at `3d9ba235`, where the migrated case was vacuous (no outside database was connectable, R-B2-Q13-01);
+    - 6/6 after its repair, with the migrated case's holds observed at each step: admitted, session open, revoked with the old session holding, then `[]`.
+    - After the run, the cluster had no test database, test login or client left. Only the migrations' own NOLOGIN group roles remained, with no member and no dependency. Then the cluster was removed;
   - `pnpm check` 0.
   - PostgreSQL 16: only the ordinary suites through CI. The exclusive admission on 16 is not run (no local 16 binary; the CI service is not an owned cluster).
 - **Limits:** the CI database job keeps its 20-minute deadline; serialized `test:db` took about 4–5 min locally. The production login, its activation and service mode stay off.
