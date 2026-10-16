@@ -69,6 +69,7 @@ import type { ProjectRelease, ReportList } from '@sophia/contracts'
 import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
+import { profileAnswer } from './profile-data.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -1711,6 +1712,9 @@ export function installFixtureApi(project: Project): void {
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase()
     const url = new URL(hrefOf(input), window.location.href)
+    // The person's own profile (A32): one per token, whatever the page shows (profile-data.ts).
+    const profile = profileAnswer(method, url.pathname, init)
+    if (profile) return Promise.resolve(profile)
     const response = answer(project, method, url, init)
     if (response) return Promise.resolve(response)
     unexpected.push(`${method} ${url.pathname}`)
