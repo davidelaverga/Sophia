@@ -25,6 +25,7 @@ import {
   withActor,
   withdrawMissionEntry,
 } from '@sophia/persistence'
+import { namesOf } from './profile.ts'
 import { idempotencyHeader, projectParams, UUID_PATTERN } from './schemas.ts'
 
 const withId = (name: string) =>
@@ -58,12 +59,12 @@ async function readContext(pool: pg.Pool, actorId: string, projectId: string, na
 }
 
 /**
- * A brief write as the member, named from their own token so the note, proposal or decision keeps who wrote it
- * (0049); the request never names anyone.
+ * A brief write as the member, named from their own token (their display name, 0062) so the note, proposal or decision
+ * keeps who wrote it (0049); the request never names anyone.
  */
 function asMember<T>(pool: pg.Pool, req: FastifyRequest, write: (c: pg.PoolClient) => Promise<T>): Promise<T> {
   return withActor(pool, req.actorId, 'write', async (c) => {
-    await nameActor(c, req.actorName)
+    await nameActor(c, namesOf(req))
     return write(c)
   })
 }

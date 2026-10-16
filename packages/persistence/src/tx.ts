@@ -135,24 +135,38 @@ export function withService<T>(
   return transaction(pool, { mode: 'write', actorId: null }, fn, control)
 }
 
-/**
- * The verified actor's name, from their own token and never from a request, put in the transaction for the rows that
- * keep it (0048: a room message; 0049: a note, a proposal, a decision). Call inside withActor; no name, nothing is set.
- */
-export async function nameActor(c: pg.PoolClient, name: string | null): Promise<void> {
-  if (name) await c.query("SELECT set_config('sophia.actor_name', $1, true)", [name])
+/** What the verified token says about its subject (never a request): the provider's name, and the verified email. */
+export interface ActorNames {
+  /** Seeds a display name the person hasn't chosen (0062); never an address. */
+  seed: string | null
+  /** The address invitations are matched by; the room keeps it (0050, 0055), and it is never shown as a name. */
+  contact: string | null
 }
 
 /**
- * Keep the name the transaction carries (nameActor) as the actor's in this project, for their voice writes (0050):
- * called when the member joins the call, as the API signs their room token with it. A non-member keeps nothing.
+ * Put the verified actor's names in the transaction (0062's name_actor), for the rows that keep a name (0048: a room
+ * message; 0049: a note, a proposal, a decision) and the room's address book (0050): the provider's name seeds a display
+ * name the person hasn't chosen, which never replaces one they chose. Answers their display name, or null. Call inside
+ * withActor(..., "write").
+ */
+export async function nameActor(c: pg.PoolClient, names: ActorNames): Promise<string | null> {
+  const { rows } = await c.query<{ shown: string | null }>('SELECT sophia.name_actor($1, $2) AS shown', [
+    names.seed,
+    names.contact,
+  ])
+  return rows[0]?.shown ?? null
+}
+
+/**
+ * Keep the address the transaction carries (nameActor) as the actor's in this project (0050, 0062), for an admin to
+ * invite them elsewhere (0055): called when the member opens the project or joins its call. A non-member keeps nothing.
  */
 export async function rememberRoomName(c: pg.PoolClient, projectId: string): Promise<void> {
   await c.query('SELECT sophia.remember_room_name($1)', [projectId])
 }
 
 /**
- * Put the actor's kept name (0050) in the transaction for a voice write, unless it carries one already: the bridge
+ * Put the speaker's display name (0062) in the transaction for a voice write, unless it carries one already: the bridge
  * names the speaker by id only. Call inside withActor as the speaker; nothing leaves the database.
  */
 export async function nameFromRoom(c: pg.PoolClient, projectId: string): Promise<void> {

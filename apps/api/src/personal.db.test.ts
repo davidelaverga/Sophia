@@ -55,10 +55,14 @@ const token = (sub: string, claims: Record<string, unknown>) =>
     .setExpirationTime('5m')
     .sign(new TextEncoder().encode(SECRET))
 
+/** Ana's account gives a name (a Google account's full name); the others only an address. */
 const claimsOf = (sub: string) =>
   sub === GUEST
     ? { is_anonymous: true }
-    : { email: `${sub === ANA ? 'ana' : sub === LEAD ? 'lead' : 'out'}@sophia.test` }
+    : {
+        email: `${sub === ANA ? 'ana' : sub === LEAD ? 'lead' : 'out'}@sophia.test`,
+        ...(sub === ANA ? { user_metadata: { full_name: 'Ana Prieto' } } : {}),
+      }
 
 async function call(path: string, init: { as: string; body?: unknown; key?: string; at?: string; epoch?: number }) {
   const res = await fetch(`${init.at ?? base}${path}`, {
@@ -166,7 +170,8 @@ describe('personal routes', () => {
     const lead = parseProjectList((await call('/api/v1/projects', { as: LEAD })).json)
     assert.deepEqual(
       lead.projects[0]?.releases.map((r) => [r.text, r.ownerName, r.mine]),
-      [['Preparing a pitch for Friday', 'ana@sophia.test', false]],
+      // Hers by her display name, never her address (0062).
+      [['Preparing a pitch for Friday', 'Ana Prieto', false]],
     )
     assert.deepEqual(parseProjectList((await call('/api/v1/projects', { as: OUT })).json).projects, [])
     const hers = parseProjectList((await call('/api/v1/projects', { as: ANA })).json).projects[0]
