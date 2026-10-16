@@ -8,6 +8,7 @@ import { ConfirmButton } from '@sophia/ui'
 import { changeMemberRole, removeMember } from '../../api/client.ts'
 import { useMembers } from '../work/GoalTargets.tsx'
 import { membershipKey, type SheetContext } from './useAccess.ts'
+import { removalKeys } from './removal-keys.ts'
 
 type Role = ProjectMember['role']
 
@@ -57,14 +58,14 @@ function useRoleChange({ projectId, identity }: SheetContext) {
         }),
     )
   }
-  // One key per member removed: a retry after an unknown outcome is the same removal (A29).
-  const keys = useRef(new Map<string, string>())
+  // One key per member removal: a retry after an unknown outcome is the same removal (A29); confirmed, it is retired.
+  const keys = useRef(removalKeys())
   const remove = (member: ProjectMember) => () => {
-    const key = keys.current.get(member.actorId) ?? crypto.randomUUID()
-    keys.current.set(member.actorId, key)
+    const key = keys.current.keyFor(member.actorId)
     setState({ busy: member.actorId, failed: null })
     removeMember(identity.token, projectId, member.actorId, key).then(
       async () => {
+        keys.current.confirmed(member.actorId)
         setState({ busy: null, failed: null })
         await client.invalidateQueries({ queryKey: ['members', projectId, identity.name] })
       },

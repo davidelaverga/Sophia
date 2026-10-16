@@ -176,23 +176,42 @@ export async function memberInRoom(cfg: LiveKitConfig, roomId: string, identity:
 }
 
 /**
+ * Mute those of these published tracks that are on; how many it muted. One already muted is left as it is and not
+ * counted, so a repeated or retried act that changes nothing is not recorded as done (Codex P2 on #385).
+ */
+export async function muteUnmuted(
+  rooms: Pick<RoomServiceClient, 'mutePublishedTrack'>,
+  roomId: string,
+  identity: string,
+  tracks: readonly { sid: string; muted: boolean }[],
+): Promise<number> {
+  let muted = 0
+  for (const t of tracks) {
+    if (t.muted) continue
+    await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
+    muted += 1
+  }
+  return muted
+}
+
+/**
  * Mute someone's microphone (A24), as the room server does it: their published microphone track, muted; only they
- * can turn it on again. True once it is muted, or already was; false when they publish no microphone.
+ * can turn it on again. True when it muted it; false when it already was muted or they publish no microphone.
  */
 export async function muteMicrophone(cfg: LiveKitConfig, roomId: string, identity: string): Promise<boolean> {
   const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
   const mic = (await rooms.getParticipant(roomId, identity)).tracks.find((t) => t.source === TrackSource.MICROPHONE)
-  if (!mic) return false
-  if (!mic.muted) await rooms.mutePublishedTrack(roomId, identity, mic.sid, true)
-  return true
+  return (await muteUnmuted(rooms, roomId, identity, mic ? [mic] : [])) > 0
 }
 
-/** Mute every published track of these sources of theirs (A31); only they turn them on again. False when they publish none. */
+/**
+ * Mute every published track of these sources of theirs (A31); only they turn them on again. True when it muted one;
+ * false when they publish none, or every one was already muted.
+ */
 async function muteSources(cfg: LiveKitConfig, roomId: string, identity: string, sources: readonly TrackSource[]) {
   const rooms = new RoomServiceClient(apiUrl(cfg), cfg.apiKey, cfg.apiSecret)
   const tracks = (await rooms.getParticipant(roomId, identity)).tracks.filter((t) => sources.includes(t.source))
-  for (const t of tracks) if (!t.muted) await rooms.mutePublishedTrack(roomId, identity, t.sid, true)
-  return tracks.length > 0
+  return (await muteUnmuted(rooms, roomId, identity, tracks)) > 0
 }
 
 /** Stop someone's camera (A31): their published camera track, muted. */

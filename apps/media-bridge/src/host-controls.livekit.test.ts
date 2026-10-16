@@ -69,7 +69,11 @@ describe(
           (t) => t.source === ServerSource.MICROPHONE,
         )
         assert.equal(mic?.muted, true)
-        assert.equal(await muteMicrophone(server, roomId, member), true, 'muted again, nothing changes')
+        assert.equal(
+          await muteMicrophone(server, roomId, member),
+          false,
+          'muted again: nothing changed, nothing recorded',
+        )
         await removeFromCall(server, roomId, member)
         await within('the member was not disconnected', them.left)
         assert.equal(await memberInRoom(server, roomId, member), false)
