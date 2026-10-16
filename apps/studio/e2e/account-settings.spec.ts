@@ -88,7 +88,7 @@ test('settings · Sign out of all devices asks first; staying keeps you; confirm
   const everywhere = sheet(page).getByRole('button', { name: 'Sign out of all devices' })
   await everywhere.click()
   await expect(
-    sheet(page).getByText('Every device signed in to this account is signed out, this one too.'),
+    sheet(page).getByText('This one signs out now. Your other devices are signed out within an hour', { exact: false }),
   ).toBeVisible()
   await expect(sheet(page).getByRole('button', { name: 'Stay signed in' })).toBeFocused()
   await sheet(page).getByRole('button', { name: 'Stay signed in' }).click()

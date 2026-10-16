@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { draftKey, forgetDrafts } from '../features/personal/draft.ts'
-import { endSession, NOT_EVERYWHERE, signedOutAfter, signOutForgetting } from './sign-out.ts'
+import { endSession, EVERYWHERE, NOT_EVERYWHERE, signedOutAfter, signOutForgetting } from './sign-out.ts'
 
 /** A browser's localStorage, as forgetDrafts lists it. */
 function storage() {
@@ -87,5 +87,19 @@ describe('a sign-out everywhere that only signs out here (Codex P1 on #410)', ()
     assert.deepEqual(signedOutAfter('ended'), { status: 'signed_out' })
     assert.deepEqual(signedOutAfter('here-only'), { status: 'signed_out', notice: NOT_EVERYWHERE })
     assert.match(NOT_EVERYWHERE, /other devices may still be signed in/)
+  })
+})
+
+describe('what «Sign out of all devices» says (Codex P1 on #410, third)', () => {
+  it('says the other devices go within the hour, not at once: their access token lives until it expires', () => {
+    // A global sign-out revokes the refresh tokens; an access token already given lives to its expiry (jwt_expiry
+    // 3600 s in supabase/config.toml, Supabase's default), and the API checks only its signature and expiry.
+    assert.deepEqual(EVERYWHERE, {
+      label: 'Sign out of all devices',
+      warning:
+        'This one signs out now. Your other devices are signed out within an hour, when their sign-in next renews.',
+      confirm: 'Sign out everywhere',
+      keep: 'Stay signed in',
+    })
   })
 })
