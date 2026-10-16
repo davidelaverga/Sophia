@@ -3,12 +3,12 @@
 Goal and attempt: LEGAL-CONTACT (a contact address in the terms and the privacy notice; Codex P2 on #366), attempt 1
 Human owner / executor resource: Luis (merge, the address) / Claude Code session in worktree `Sophia-e2e`
 Native session: unknown
-Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `legal/contact-email` from `origin/main` (`9b984ea0`)
+Starting worktree/commit: `D:\Descargas\SophiaV4\Sophia-e2e`, branch `legal/contact-sophia` from `origin/main` (`9b984ea0`)
 Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`); no deploy.
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-16, «Usamos uno de Sophia»: a Sophia address, not a personal one; merges on green with no open P1.
-Ending commit/tree: `5950532bc70c` (tree `13ebafc03a2e`), the last commit of `legal/contact-email`'s own that changes code (later
+Ending commit/tree: `5950532bc70c` (tree `13ebafc03a2e`), the last commit of `legal/contact-sophia`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 4 files changed against
 `origin/main` at that commit: `e2e/terms-privacy.spec.ts`, `src/app/Legal.tsx`, `src/app/legal-text.ts`, `docs/plans/legal-contact.md`. The review notes below name the commit of each later change.
 
