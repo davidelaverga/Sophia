@@ -4,8 +4,8 @@
 // so their row offers nothing. What changed shows as the call itself changes; a refusal is said on the row. While a
 // control is on its way its row says so and its menu waits, so one press is one act.
 import { useState } from 'react'
-import { EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
-import { actInCall } from '../../api/client.ts'
+import { ConfirmButton, EmptyState, Icon, Menu, MenuItem, usePopover } from '@sophia/ui'
+import { actInCall, muteEveryoneInCall } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useMembership } from '../access/useAccess.ts'
 import { shortName, type RoomParticipant, type Standing } from '../voice/room-view.ts'
@@ -17,7 +17,7 @@ interface Props {
   identity: Identity
 }
 
-type Act = 'mute' | 'remove'
+type Act = 'mute' | 'remove' | 'stop-camera' | 'stop-screen'
 
 const STANDING: Record<Standing, string> = {
   admin: 'Admin',
@@ -28,11 +28,22 @@ const STANDING: Record<Standing, string> = {
 }
 
 /** What a refusal says, by the act and the person. */
-const refusal = (what: Act, name: string) =>
-  what === 'mute' ? `Couldn’t mute ${name}. Try again.` : `Couldn’t remove ${name} from the call. Try again.`
+const REFUSAL: Record<Act, (name: string) => string> = {
+  mute: (name) => `Couldn’t mute ${name}. Try again.`,
+  remove: (name) => `Couldn’t remove ${name} from the call. Try again.`,
+  'stop-camera': (name) => `Couldn’t turn off ${name}’s camera. Try again.`,
+  'stop-screen': (name) => `Couldn’t stop ${name}’s screen sharing. Try again.`,
+}
+const refusal = (what: Act, name: string) => REFUSAL[what](name)
 
 /** What the row says while a control is on its way. */
-const underWay = (what: Act, name: string) => (what === 'mute' ? `Muting ${name}…` : `Removing ${name} from the call…`)
+const UNDER_WAY: Record<Act, (name: string) => string> = {
+  mute: (name) => `Muting ${name}…`,
+  remove: (name) => `Removing ${name} from the call…`,
+  'stop-camera': (name) => `Turning off ${name}’s camera…`,
+  'stop-screen': (name) => `Stopping ${name}’s screen sharing…`,
+}
+const underWay = (what: Act, name: string) => UNDER_WAY[what](name)
 
 interface ActionsProps {
   person: RoomParticipant
@@ -42,7 +53,7 @@ interface ActionsProps {
   onAct: (what: Act) => void
 }
 
-/** An admin's menu on one member: Mute while their microphone is on, and Remove. */
+/** An admin's menu on one member: Mute, Turn off camera and Stop screen sharing while each is on, and Remove. */
 function Actions({ person, name, busy, onAct }: ActionsProps) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
@@ -79,6 +90,8 @@ function Actions({ person, name, busy, onAct }: ActionsProps) {
       {open && (
         <Menu popover={menu} label={label} side="bottom" align="end">
           {person.micOn && <MenuItem onClick={choose('mute')}>Mute microphone</MenuItem>}
+          {person.cameraOn && <MenuItem onClick={choose('stop-camera')}>Turn off camera</MenuItem>}
+          {person.screenOn && <MenuItem onClick={choose('stop-screen')}>Stop screen sharing</MenuItem>}
           <MenuItem onClick={choose('remove')}>Remove from call</MenuItem>
         </Menu>
       )}
@@ -108,28 +121,72 @@ export function PeoplePanel({ room, projectId, identity }: Props) {
       )
   }
   return (
-    <ul className="people" aria-label="People in the call">
-      {people.map((p) => {
-        const name = shortName(p.name)
-        const acts = host && !p.local && p.standing !== 'guest' && p.standing !== 'unknown'
-        return (
-          <li key={p.identity} className="person">
-            <span className="person-name">{`${name}${p.local ? ' · you' : ''}`}</span>
-            <span className="person-role">{STANDING[p.standing]}</span>
-            <span role="img" className="person-mic" aria-label={p.micOn ? 'Microphone on' : 'Microphone off'}>
-              <Icon name={p.micOn ? 'mic' : 'micOff'} />
-            </span>
-            {acts && <Actions person={p} name={name} busy={pending.has(p.identity)} onAct={act(p, name)} />}
-            <Pending what={pending.get(p.identity)} name={name} />
-            {failed?.identity === p.identity && (
-              <p role="alert" className="person-failed">
-                {failed.text}
-              </p>
-            )}
-          </li>
-        )
-      })}
-    </ul>
+    <>
+      {host && <MuteEveryone people={people} projectId={projectId} identity={identity} />}
+      <ul className="people" aria-label="People in the call">
+        {people.map((p) => {
+          const name = shortName(p.name)
+          const acts = host && !p.local && p.standing !== 'guest' && p.standing !== 'unknown'
+          return (
+            <li key={p.identity} className="person">
+              <span className="person-name">{`${name}${p.local ? ' · you' : ''}`}</span>
+              <span className="person-role">{STANDING[p.standing]}</span>
+              <span role="img" className="person-mic" aria-label={p.micOn ? 'Microphone on' : 'Microphone off'}>
+                <Icon name={p.micOn ? 'mic' : 'micOff'} />
+              </span>
+              {acts && <Actions person={p} name={name} busy={pending.has(p.identity)} onAct={act(p, name)} />}
+              <Pending what={pending.get(p.identity)} name={name} />
+              {failed?.identity === p.identity && (
+                <p role="alert" className="person-failed">
+                  {failed.text}
+                </p>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </>
+  )
+}
+
+/**
+ * «Mute everyone» (host-more.md, A31), for an admin while someone else's microphone is on: it asks first, then every
+ * other microphone in the call goes off, guests' too; each turns their own back on.
+ */
+function MuteEveryone({
+  people,
+  projectId,
+  identity,
+}: {
+  people: readonly RoomParticipant[]
+  projectId: string
+  identity: Identity
+}) {
+  const [state, setState] = useState<'idle' | 'sending' | 'failed'>('idle')
+  if (!people.some((p) => !p.local && p.micOn)) return null
+  const mute = () => {
+    setState('sending')
+    muteEveryoneInCall(identity.token, projectId).then(
+      () => setState('idle'),
+      () => setState('failed'),
+    )
+  }
+  return (
+    <div className="people-head">
+      <ConfirmButton
+        label={state === 'sending' ? 'Muting everyone…' : 'Mute everyone'}
+        warning="Everyone else’s microphone goes off; each turns their own back on."
+        confirm="Mute them"
+        keep="Cancel"
+        disabled={state === 'sending'}
+        onConfirm={mute}
+      />
+      {state === 'failed' && (
+        <p role="alert" className="person-failed">
+          Couldn’t mute everyone. Try again.
+        </p>
+      )}
+    </div>
   )
 }
 

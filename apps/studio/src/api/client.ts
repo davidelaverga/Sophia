@@ -215,10 +215,23 @@ export async function actInCall(
   token: string,
   projectId: string,
   identity: string,
-  what: 'mute' | 'remove',
+  what: 'mute' | 'remove' | 'stop-camera' | 'stop-screen',
 ): Promise<void> {
   const send = async (limit: AbortSignal) => {
     const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/people/${identity}/${what}`), {
+      method: 'POST',
+      headers: auth(token),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+  }
+  return inTime(WRITE_TIMEOUT_MS, send)
+}
+
+/** An admin mutes everyone else in the call (A31): members and guests. No key: twice is once. */
+export async function muteEveryoneInCall(token: string, projectId: string): Promise<void> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/room/mute-all`), {
       method: 'POST',
       headers: auth(token),
       signal: limit,

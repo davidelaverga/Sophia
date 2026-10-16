@@ -145,6 +145,7 @@ export const EVENT_TYPES = [
   ...suffixed('room.', ['session_scheduled', 'session_canceled', 'lobby_changed', 'input_floor_changed']),
   ...suffixed('room.', ['invitation_created', 'invitation_reissued', 'invitation_revoked']),
   ...suffixed('room.', ['exchange_opened', 'exchange_changed', 'sophia_presence', 'host_muted', 'host_removed']),
+  ...suffixed('room.', ['host_camera_off', 'host_screen_off', 'host_muted_all']),
   ...suffixed('project.', [
     'created',
     'member_joined',
@@ -218,6 +219,7 @@ export const SUMMARY_CODES = [
   ...suffixed('room.sophia_', VOICE_STATES),
   ...suffixed('room.', ['session', 'session_canceled', 'invitation', 'invitation_revoked']),
   ...suffixed('room.', ['input_floor', 'input_floor_released', 'host_muted', 'host_removed']),
+  ...suffixed('room.', ['host_camera_off', 'host_screen_off', 'host_muted_all']),
   ...suffixed('project.', [
     'created',
     'member',

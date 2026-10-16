@@ -339,7 +339,9 @@ describe('room acts (migration 0059)', () => {
       (err: unknown) => err instanceof DomainError && err.code === 'forbidden',
     )
     await assert.rejects(
-      withActor(pool, A, 'write', (c) => recordRoomAct(c, fresh.projectId, V, 'dance')),
+      withActor(pool, A, 'write', (c) =>
+        c.query(`SELECT sophia.record_room_act($1, $2, 'dance')`, [fresh.projectId, V]),
+      ),
       (err: unknown) => err instanceof DomainError && err.code === 'invalid_request',
     )
   })

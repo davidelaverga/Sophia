@@ -421,4 +421,7 @@ export interface Operations {
   "removeMember": { method: "POST"; path: "/api/v1/projects/{projectId}/members/{actorId}/removal"; request: MemberRemoveRequest; response: MemberRemoved; };
   "archiveProject": { method: "POST"; path: "/api/v1/projects/{projectId}/archive"; request: ProjectArchiveRequest; response: ProjectArchived; };
   "listArchivedProjects": { method: "GET"; path: "/api/v1/projects/archived"; request: undefined; response: ProjectList; };
+  "stopCameraInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/stop-camera"; request: undefined; response: undefined; };
+  "stopScreenInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/people/{identity}/stop-screen"; request: undefined; response: undefined; };
+  "muteEveryoneInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/mute-all"; request: undefined; response: undefined; };
 }

@@ -45,6 +45,24 @@ export async function readProjectActivity(
 }
 
 /** Record an admin's act on a member in the call (A24, 0056); returns the event's cursor. Inside withActor("write"). */
+/**
+ * An admin's camera stop, screen stop, or everyone muted (A31, 0059), recorded once the room server has done it; the
+ * target is the member, or null for everyone. Call inside withActor(..., "write").
+ */
+export async function recordRoomAct(
+  c: pg.PoolClient,
+  projectId: string,
+  target: string | null,
+  act: 'camera' | 'screen' | 'mute_all',
+): Promise<string> {
+  const { rows } = await c.query<{ cursor: string }>(`SELECT sophia.record_room_act($1, $2, $3)::text AS cursor`, [
+    projectId,
+    target,
+    act,
+  ])
+  return onlyRow(rows, 'record_room_act').cursor
+}
+
 export async function recordHostAct(
   c: pg.PoolClient,
   projectId: string,

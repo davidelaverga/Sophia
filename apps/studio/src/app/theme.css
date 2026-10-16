@@ -6423,3 +6423,14 @@ button.contribution-quote:hover {
   color: var(--text-2);
   font-size: var(--type-small);
 }
+
+/* «Mute everyone» at the People panel's head, for an admin (docs/plans/host-more.md). */
+.people-head {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  padding: 12px 0 8px;
+}
+.people-head .confirm {
+  justify-self: stretch;
+}
