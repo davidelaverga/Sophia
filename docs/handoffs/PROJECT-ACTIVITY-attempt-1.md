@@ -13,11 +13,11 @@ record (Docker Desktop doesn't start on the host, so the DB suites run in CI onl
 Existing authority: Luis's instruction; merges on green with no open P1.
 Ending commit/tree: `ab51a25f04ee` (tree `01c9250abae6`), the last commit of `api/project-activity`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 27 files changed against
-`api/member-roles` at that commit: `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/activity.ts`, `apps/api/src/routes/rooms.ts`, `e2e/project-activity.spec.ts`, `e2e/project-leave.spec.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ActivitySheet.tsx`, `src/features/studio/ProjectName.tsx`, `src/features/work/labels.test.ts`, `src/features/work/labels.ts`, `db/migrations/0056_project_activity.sql`, `docs/plans/project-activity.md`, `packages/contracts/amendments/A28-project-activity.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/activity.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/persistence.db.test.ts`. The review notes below name the commit of each later change.
+`api/member-roles` at that commit: `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/activity.ts`, `apps/api/src/routes/rooms.ts`, `e2e/project-activity.spec.ts`, `e2e/project-leave.spec.ts`, `fixtures/fixture-api.ts`, `src/api/client.ts`, `src/app/theme.css`, `src/features/studio/ActivitySheet.tsx`, `src/features/studio/ProjectName.tsx`, `src/features/work/labels.test.ts`, `src/features/work/labels.ts`, `db/migrations/0057_project_activity.sql`, `docs/plans/project-activity.md`, `packages/contracts/amendments/A28-project-activity.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/activity.ts`, `packages/persistence/src/index.ts`, `packages/persistence/src/persistence.db.test.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
-- **The gaps closed (migration 0056):**
+- **The gaps closed (migration 0057):**
   - `create_project` (0047) is replaced to emit `project.created`. A new project's receipt cursor is that event's,
     `'1'` rather than `'0'`, and the two tests that pinned `'0'` say why.
   - `sophia.record_host_act` records an admin's mute or removal in the call. The A24 route calls it once the room
@@ -28,7 +28,7 @@ commits on the branch merge its base forward or touch only this record). 27 file
   - newest first, 50 a page;
   - people's acts only, each with its actor and the member acted on, named as the room keeps them;
   - no chat messages and nothing Sophia or the runtime did; codes and names, never content.
-- **A28:** `GET /api/v1/projects/{projectId}/activity?before=`. `/ready` requires 0056. The sanitizer and the Work
+- **A28:** `GET /api/v1/projects/{projectId}/activity?before=`. `/ready` requires 0057. The sanitizer and the Work
   pulse labels know the new codes.
 - **Studio:**
   - The project menu gains «Activity» for admins. The sheet «Project activity» lists who, what and when.
@@ -41,7 +41,7 @@ commits on the branch merge its base forward or touch only this record). 27 file
 - Written first and failing (commit `6c5f8dc5`):
   - `api.db.test.ts` «project activity (A28)», plus the creation cursor;
   - `persistence.db.test.ts` «host acts», plus the creation cursor;
-  - readiness «without 0056»;
+  - readiness «without 0057»;
   - `project-activity.spec.ts`. Run without the change, 3 of its 4 cases failed (no Activity); the editor's case
     passes either way.
 - **After the change, locally:**

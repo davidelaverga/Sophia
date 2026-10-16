@@ -14,17 +14,17 @@ record (Docker Desktop doesn't start on the host, so the DB suites run in CI onl
 Existing authority: Luis's instruction; merges on green with no open P1.
 Ending commit/tree: `af29e4fa7eb9` (tree `b651d6a7c2d0`), the last commit of `api/invite-from-projects`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 22 files changed against
-`api/goal-owner-date` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/goal-targets.ts`, `e2e/invite-from-projects.spec.ts`, `fixtures/invitations-data.ts`, `fixtures/room.tsx`, `src/api/access.ts`, `src/app/theme.css`, `src/features/access/FromYourProjects.tsx`, `src/features/access/InviteSheet.tsx`, `db/migrations/0054_invitable_people.sql`, `docs/plans/invite-from-projects.md`, `packages/contracts/amendments/A26-invite-from-projects.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/goal-targets.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
+`api/goal-owner-date` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/goal-targets.ts`, `e2e/invite-from-projects.spec.ts`, `fixtures/invitations-data.ts`, `fixtures/room.tsx`, `src/api/access.ts`, `src/app/theme.css`, `src/features/access/FromYourProjects.tsx`, `src/features/access/InviteSheet.tsx`, `db/migrations/0055_invitable_people.sql`, `docs/plans/invite-from-projects.md`, `packages/contracts/amendments/A26-invite-from-projects.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/goal-targets.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
-- **Migration 0054:** `sophia.invitable_people(project)`.
+- **Migration 0055:** `sophia.invitable_people(project)`.
   - It is for an admin only (42501).
   - It lists everyone in the admin's other projects, with the latest address the room keeps for them (their verified
     account name, 0050).
   - It leaves out the admin, the project's members, anyone an open member invitation already reaches, and unknown
     addresses.
-- **A26:** `GET /api/v1/projects/{projectId}/invitable`. `/ready` requires 0054.
+- **A26:** `GET /api/v1/projects/{projectId}/invitable`. `/ready` requires 0055.
 - **No new write:** each chosen person gets the existing `createInvitation`, with its email, mail and in-app list,
   and only they can accept it.
 - **Studio** (`FromYourProjects.tsx`, in the Members tab above the email field):
@@ -38,7 +38,7 @@ commits on the branch merge its base forward or touch only this record). 22 file
 - Plan: `docs/plans/invite-from-projects.md`.
 - Written first and failing (commit `ebe902dd`):
   - `access.db.test.ts` «people to invite from other projects (A26)»;
-  - readiness «without 0054»;
+  - readiness «without 0055»;
   - `invite-from-projects.spec.ts`. Run without the change, 2 of its 3 cases failed (no list); the third checks
     there's no section when there's nobody to offer.
 - **After the change, locally:**

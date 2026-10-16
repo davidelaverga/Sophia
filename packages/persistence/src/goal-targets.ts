@@ -1,4 +1,4 @@
-// A goal's owner and target date, kept beside it (db/migrations/0053, contract amendment A25), and a project's members
+// A goal's owner and target date, kept beside it (db/migrations/0054, contract amendment A25), and a project's members
 // with the names the room keeps. Reads run under the member's RLS; the write goes through sophia.set_goal_target.
 import type pg from 'pg'
 import type {
@@ -66,7 +66,7 @@ export async function readProjectMembers(c: pg.PoolClient, projectId: string): P
 }
 
 /**
- * The people an admin shares other projects with, to invite here by address (A26, 0054); an admin only (42501, so
+ * The people an admin shares other projects with, to invite here by address (A26, 0055); an admin only (42501, so
  * 403). Call inside withActor(..., "read").
  */
 export async function readInvitablePeople(c: pg.PoolClient, projectId: string): Promise<InvitablePerson[]> {
@@ -77,7 +77,7 @@ export async function readInvitablePeople(c: pg.PoolClient, projectId: string): 
   return rows.map((r) => ({ actorId: r.actor_id, email: r.email }))
 }
 
-/** Change a member's role (A27, 0055): admins only; a project keeps an admin. Call inside withActor(..., "write"). */
+/** Change a member's role (A27, 0056): admins only; a project keeps an admin. Call inside withActor(..., "write"). */
 export async function changeMemberRole(
   c: pg.PoolClient,
   projectId: string,

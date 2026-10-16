@@ -3,7 +3,7 @@
   "goal": "E2E",
   "title": "A project's activity, for its admins",
   "why": [
-    "Luis (2026-10-15): keep evidence of who did what, and show it. The project's events already keep their actor (0001), but nothing exposed it; creating a project and an admin's acts in the call left no event at all (closed in 0056).",
+    "Luis (2026-10-15): keep evidence of who did what, and show it. The project's events already keep their actor (0001), but nothing exposed it; creating a project and an admin's acts in the call left no event at all (closed in 0057).",
     "GET /api/v1/projects/{projectId}/activity, for admins: people's acts, newest first, 50 a page before a sequence, each with its actor and, for an act on a member, that member, named as the room keeps them. Codes and names only, never content; chat messages and Sophia's work are left out."
   ],
   "patch": [
