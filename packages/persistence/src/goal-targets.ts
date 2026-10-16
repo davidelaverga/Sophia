@@ -1,4 +1,4 @@
-// A goal's owner and target date, kept beside it (db/migrations/0053, contract amendment A25), and a project's members
+// A goal's owner and target date, kept beside it (db/migrations/0054, contract amendment A25), and a project's members
 // with the names the room keeps. Reads run under the member's RLS; the write goes through sophia.set_goal_target.
 import type pg from 'pg'
 import type { GoalTarget, GoalTargetRequest, GoalTargetSet, ProjectMember } from '@sophia/contracts'

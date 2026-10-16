@@ -13,11 +13,11 @@ record (Docker Desktop doesn't start on the host, so the DB suites run in CI onl
 Existing authority: Luis's instruction; merges on green with no open P1.
 Ending commit/tree: `1ffdd62114a2` (tree `65ba50e06d57`), the last commit of `api/goal-owner-date`'s own that changes code (later
 commits on the branch merge its base forward or touch only this record). 26 files changed against
-`api/host-controls` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/access.ts`, `apps/api/src/routes/goal-targets.ts`, `e2e/goal-owner-date.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/api/client.ts`, `src/app/theme.css`, `src/features/work/GoalSheet.tsx`, `src/features/work/GoalTargets.tsx`, `src/features/work/GoalsOverview.tsx`, `db/migrations/0053_goal_targets.sql`, `docs/plans/goal-owner-date.md`, `packages/contracts/amendments/A25-goal-owner-date.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/goal-targets.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
+`api/host-controls` at that commit: `apps/api/src/access.db.test.ts`, `apps/api/src/api.db.test.ts`, `apps/api/src/app.ts`, `apps/api/src/diagnostics/sanitize.ts`, `apps/api/src/readiness.db.test.ts`, `apps/api/src/routes/access.ts`, `apps/api/src/routes/goal-targets.ts`, `e2e/goal-owner-date.spec.ts`, `fixtures/fixture-api.ts`, `fixtures/room.tsx`, `src/api/client.ts`, `src/app/theme.css`, `src/features/work/GoalSheet.tsx`, `src/features/work/GoalTargets.tsx`, `src/features/work/GoalsOverview.tsx`, `db/migrations/0054_goal_targets.sql`, `docs/plans/goal-owner-date.md`, `packages/contracts/amendments/A25-goal-owner-date.json`, `packages/contracts/openapi/openapi.json`, `packages/contracts/scripts/generate-validators.ts`, `packages/contracts/src/generated-types.ts`, `packages/contracts/src/generated/validators.d.ts`, `packages/contracts/src/generated/validators.js`, `packages/contracts/src/validate.ts`, `packages/persistence/src/goal-targets.ts`, `packages/persistence/src/index.ts`. The review notes below name the commit of each later change.
 
 ## Outcome
 
-- **Kept beside the goal (migration 0053, `sophia.goal_targets`):** `Goal`, its revision and its authority are
+- **Kept beside the goal (migration 0054, `sophia.goal_targets`):** `Goal`, its revision and its authority are
   untouched, so the mission's commands, Sophia's tools and the runtime wire module see nothing new.
 - **`sophia.set_goal_target`:**
   - editors and admins only (42501);
@@ -33,7 +33,7 @@ commits on the branch merge its base forward or touch only this record). 26 file
   - `GET /api/v1/projects/{projectId}/goal-targets`;
   - `PUT /api/v1/projects/{projectId}/goals/{goalId}/target`;
   - `GET /api/v1/projects/{projectId}/members`.
-  - `/ready` requires 0053.
+  - `/ready` requires 0054.
 - **Studio** (`GoalTargets.tsx`):
   - A goal's row says «Marco · due 30 Oct 2026».
   - Its sheet has Owner (the members, or «No owner») and Target date with Save, for editors and admins. A stale save
@@ -46,7 +46,7 @@ commits on the branch merge its base forward or touch only this record). 26 file
 - Written first and failing (commit `ac4dbf26`):
   - `api.db.test.ts` «goal targets (A25)»;
   - `access.db.test.ts` «a project's members (A25)», named by the email tokens there;
-  - readiness «without 0053»;
+  - readiness «without 0054»;
   - `goal-owner-date.spec.ts`. Run without the change, all 3 cases failed (no Owner field).
 - **After the change, locally:**
   - goal owner, goals overview, notes, controls, views, search goals and goal address specs: 9 + 25 in all.
