@@ -3470,6 +3470,16 @@ async function helloBinding(s: NativeScene) {
   return hello.bindings.find((b) => b.attemptId === s.attempt_id)
 }
 
+/** Whether `p` settles within `ms`: a transaction waiting on a lock does not. */
+const settledWithin = async (p: Promise<unknown>, ms: number) =>
+  Promise.race([
+    p.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms)),
+  ])
+
 describe('conversation execution provenance (0067, A35)', () => {
   it('pins a lineage to service once, before it dispatches; the tuple and a service route never change after', async () => {
     const rt = await runtimeProject()
@@ -3507,6 +3517,46 @@ describe('conversation execution provenance (0067, A35)', () => {
     const native = await nativeScene()
     assert.equal((await dispatch(native))?.result, 'dispatched')
     await assert.rejects(pin(native.projectId), denied('55000'))
+  })
+
+  it('serializes a pin with a dispatch of its lineage, either way round (Codex P1 on #393)', async () => {
+    // A pin first, uncommitted: the dispatch waits for it, then records the service tuple the lineage now has.
+    const first = await nativeScene()
+    const pinning = new pg.Client({ connectionString: db.ownerUrl })
+    await pinning.connect()
+    try {
+      await pinning.query('BEGIN')
+      await pinning.query('SELECT sophia.conversation_pin_execution($1,$2::jsonb)', [
+        first.projectId,
+        { lineageId: await lineageOf(first.projectId), approvalRef: `pin-${randomUUID()}`, ...SERVICE },
+      ])
+      const dispatching = dispatch(first)
+      assert.equal(await settledWithin(dispatching, 400), false, 'the dispatch waits for the pin')
+      await pinning.query('COMMIT')
+      assert.equal((await dispatching)?.result, 'dispatched')
+      assert.equal((await provenanceOf(first))?.execution, 'service')
+    } finally {
+      await pinning.end()
+    }
+    // A dispatch first, uncommitted: the pin waits for it, then finds the lineage has dispatched.
+    const second = await nativeScene()
+    const lease = await dispatchLease(second)
+    const dispatcher = await worker.connect()
+    try {
+      await dispatcher.query('BEGIN')
+      await dispatcher.query('SELECT sophia.dispatch_runtime_outbox($1,$2,$3)', [
+        second.projectId,
+        lease.id,
+        lease.lease,
+      ])
+      const pinned = pin(second.projectId)
+      assert.equal(await settledWithin(pinned, 400), false, 'the pin waits for the dispatch')
+      await dispatcher.query('COMMIT')
+      await assert.rejects(pinned, denied('55000'))
+      assert.equal((await provenanceOf(second))?.execution, 'native')
+    } finally {
+      dispatcher.release()
+    }
   })
 
   it('copies the tuple at dispatch, before anything runs; a service create carries it, a native one does not', async () => {

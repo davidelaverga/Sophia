@@ -80,6 +80,9 @@ CREATE FUNCTION sophia.conversation_pin_execution(p_project uuid, p_spec jsonb) 
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE g sophia.conversation_grants;
 BEGIN
+ -- The project first, as a dispatch holds it (project → grant): a pin and a dispatch of the lineage never interleave, so
+ -- an attempt is dispatched under the tuple its row records, and a lineage that has dispatched is seen as such.
+ PERFORM 1 FROM sophia.projects WHERE id=p_project FOR UPDATE;
  SELECT * INTO g FROM sophia.conversation_grants WHERE project_id=p_project AND current FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'no_grant' USING ERRCODE='55000'; END IF;
  IF p_spec->>'lineageId' IS DISTINCT FROM g.lineage_id::text THEN RAISE EXCEPTION 'lineage_changed' USING ERRCODE='55000'; END IF;
@@ -205,8 +208,9 @@ BEGIN
   RETURN sophia.defer_native_delivery(o,NULL::sophia.commands,'waiting for ready reply runtime'); END IF;
  kind:=substr(o.destination,8);
  IF kind='create' THEN
-  -- 0067: the grant row is kept (g): its pinned execution tuple is what this attempt is dispatched under.
-  SELECT * INTO STRICT g FROM sophia.conversation_grants WHERE project_id=o.project_id AND current;
+  -- 0067: the grant row is kept (g), held against a pin until this transaction ends (the project is already held, in
+  -- the same order a pin takes): its execution tuple is what this attempt is dispatched under.
+  SELECT * INTO STRICT g FROM sophia.conversation_grants WHERE project_id=o.project_id AND current FOR SHARE;
   payload:=jsonb_build_object('role','sophia-conversation-v1','route',g.route_id,
    'conversation',jsonb_build_object('credentialRef',g.credential_ref,'ownerResourceRef',g.owner_resource_ref,'unit',g.unit)
     ||CASE WHEN g.execution='service' THEN jsonb_build_object('execution',jsonb_build_object('execution','service',
