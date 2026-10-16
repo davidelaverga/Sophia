@@ -173,6 +173,33 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   )
 }
 
+const STEP: Readonly<Record<string, number>> = { ArrowDown: 1, ArrowUp: -1 }
+
+/**
+ * Alt+↑/↓ (conversation-moves.md): the conversation above or below the open one, in the list as shown, its filter
+ * applied; from anywhere in the view but a sheet. The focus goes where it was: a field to the new field, else the row.
+ */
+function useAltMoves(view: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const step = STEP[e.key]
+      if (!step || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || modalOnScreen()) return
+      const rows = [...(view.current?.querySelectorAll<HTMLButtonElement>('.conv-row') ?? [])]
+      const at = rows.findIndex((r) => r.getAttribute('aria-pressed') === 'true')
+      const next = at < 0 ? undefined : rows[at + step]
+      if (!next) return
+      e.preventDefault()
+      const writing = document.activeElement?.closest('.conv-open textarea') instanceof HTMLTextAreaElement
+      next.click()
+      requestAnimationFrame(() =>
+        (writing ? view.current?.querySelector<HTMLElement>('.conv-open textarea') : next)?.focus(),
+      )
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view])
+}
+
 /** The left pane: the list's name and New conversation (for members), the list's state, and its rows. */
 function ListPane(props: {
   projectId: string
@@ -257,6 +284,7 @@ function usePanes() {
   }, [])
   const dropContext = useCallback(() => setContext(false), [])
   useContextPanel(view, context, closeContext, dropContext)
+  useAltMoves(view)
   const show = () => {
     setScreen('thread')
     // Shown now (a phone kept it hidden): it opens at its newest message.

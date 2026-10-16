@@ -64,6 +64,7 @@ import {
   sophiaAsked,
   type SophiaState,
 } from './fake-people.ts'
+import type { ConversationMessage } from '../src/api/vision.ts'
 import {
   installFixtureApi,
   publish,
@@ -795,7 +796,8 @@ window.fixture = {
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
   },
   conversationMessage: (name, text) => {
-    const thread = project.conversations?.messages[CONVERSATION.reading]
+    const all: Partial<Record<string, ConversationMessage[]>> | undefined = project.conversations?.messages
+    const thread = all?.[CONVERSATION.reading]
     if (!thread) return
     const at = new Date().toISOString()
     thread.push({ id: `m-${String(thread.length + 1)}`, author: 'member', actorId: personId(1), name, text, at })
