@@ -236,6 +236,8 @@ interface Fixture {
   loseNextCloseReply: () => void
   /** A note is kept in the brief, as by this viewer's Keep in another tab: the project moves. */
   keep: (text: string) => void
+  /** The goals arrive well shaped again (`goals=broken` healed), and the project moves (view-boundary.md). */
+  healGoals: () => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
@@ -306,6 +308,18 @@ declare global {
 }
 
 const query = new URLSearchParams(window.location.search)
+
+/**
+ * `goals=broken`: the first goal arrives with no criteria, data shaped other than the contract, as a view must survive it
+ * (view-boundary.md). Set past the types, as a malformed answer would be.
+ */
+function servedGoals(goals: Goal[]): Goal[] {
+  if (query.get('goals') !== 'broken' || goals.length === 0) return goals
+  const [first, ...rest] = goals
+  const broken: Goal = { ...first }
+  Reflect.set(broken, 'criteria', null)
+  return [broken, ...rest]
+}
 bootTheme(query.get('theme'))
 // As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
 startCrashReports()
@@ -441,7 +455,7 @@ const project = {
   },
   // The demo's goals (demo-goals.ts): Goals reads them; Tasks acts on them. A command moves its goal as the API admits
   // it, and a moment later the runtime confirms where it settles.
-  goals: DEMO ? [...DEMO_GOALS] : ([] as Goal[]),
+  goals: DEMO ? servedGoals([...DEMO_GOALS]) : ([] as Goal[]),
   // The demo's board (demo-work.ts): the rollout's plan, so its Tasks draw a board as a planned goal's do.
   ...(DEMO && { servedGoals: demoServedGoals }),
   ...(DEMO
@@ -892,6 +906,10 @@ window.fixture = {
       project.revision,
       `keep-${text}`,
     )
+    publish(project)
+  },
+  healGoals: () => {
+    project.goals = project.goals.map((g) => (Array.isArray(g.criteria) ? g : { ...g, criteria: [] }))
     publish(project)
   },
   loseNextSeenReply: () => {
