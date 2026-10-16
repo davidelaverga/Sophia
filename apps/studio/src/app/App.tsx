@@ -12,6 +12,7 @@ import { forgetRecent, recentFor } from './palette-recent.ts'
 import { forgetPendingUnlock } from './provider-leave.ts'
 import { opensJoinPage } from './route.ts'
 import { legalDoc } from './legal.ts'
+import { forgetViewerDrafts } from '../features/studio/viewer-state.ts'
 import { LegalPage } from './Legal.tsx'
 import { signOutForgetting } from './sign-out.ts'
 import { Centered, LinkOffer, SignIn } from './SignIn.tsx'
@@ -141,6 +142,12 @@ function useOwnPage(state: AuthState) {
   return { joinPage, legal }
 }
 
+/** Every unsent word this device keeps: Personal's, and each project view's (terms-privacy.md). */
+const forgetAllDrafts = () => {
+  forgetDrafts()
+  forgetViewerDrafts()
+}
+
 export function App() {
   const { state, chooseDev, signOut, acceptLink, declineLink } = useAuth()
   const routing = useProjectRoute()
@@ -170,7 +177,7 @@ export function App() {
     forgetUnderWay()
     forgetPendingUnlock()
     // A sign-out that fails leaves the person in: their writes are theirs again.
-    void signOutForgetting(signOut, forgetDrafts).catch(() => setSignedIn(signedInAs))
+    void signOutForgetting(signOut, forgetAllDrafts).catch(() => setSignedIn(signedInAs))
   }
 
   if (legal) return <LegalPage doc={legal} />

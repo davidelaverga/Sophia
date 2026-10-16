@@ -33,7 +33,7 @@ for (const [asked, title, other] of [
 
 test('legal · the privacy notice names who processes what, and that calls aren’t recorded', async ({ page }) => {
   await page.goto('/legal.html?doc=privacy')
-  for (const name of ['Supabase', 'LiveKit', 'Google', 'OpenAI', 'Resend', 'Vercel', 'Render']) {
+  for (const name of ['Supabase', 'LiveKit', 'Google', 'OpenAI', 'Tavily', 'Jina', 'Resend', 'Vercel', 'Render']) {
     await expect(doc(page)).toContainText(name)
   }
   await expect(doc(page)).toContainText('Calls aren’t recorded.')
