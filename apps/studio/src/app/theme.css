@@ -6429,3 +6429,8 @@ button.contribution-quote:hover {
 .activity-earlier {
   justify-self: center;
 }
+.activity-reading {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
