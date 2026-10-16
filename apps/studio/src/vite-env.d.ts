@@ -13,6 +13,8 @@ interface ImportMetaEnv {
   readonly VITE_API_URL?: string
   /** "1" where the APIs proposed in issue #105 are answered (the fixture pages): their controls show (app/vision.ts). */
   readonly VITE_SOPHIA_VISION?: string
+  /** "1" once A36's message corrections and withdrawals are deployed: the chat offers them (app/message-acts.ts). */
+  readonly VITE_SOPHIA_MESSAGE_ACTS?: string
 }
 
 interface ImportMeta {

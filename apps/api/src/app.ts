@@ -29,6 +29,7 @@ import { missionRoutes } from './routes/mission.ts'
 import { personalRoutes } from './routes/personal.ts'
 import { needsRoutes } from './routes/needs.ts'
 import { updatesRoutes } from './routes/updates.ts'
+import { contributionActRoutes } from './routes/contribution-acts.ts'
 import { profileRoutes } from './routes/profile.ts'
 import { eventRoutes } from './routes/events.ts'
 import { projectionRoutes } from './routes/projections.ts'
@@ -202,6 +203,9 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.mark_reply_seen(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.project_updates(uuid,integer)') IS NOT NULL
   AND to_regprocedure('sophia.mark_project_seen(uuid,bigint)') IS NOT NULL
+  AND to_regprocedure('sophia.preview_contribution_act(uuid,uuid,text)') IS NOT NULL
+  AND to_regprocedure('sophia.correct_contribution(uuid,uuid,text,jsonb)') IS NOT NULL
+  AND to_regprocedure('sophia.withdraw_contribution(uuid,uuid,text,jsonb)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
 /**
@@ -259,6 +263,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   profileRoutes(app, { pool: deps.pool })
   needsRoutes(app, { pool: deps.pool })
   updatesRoutes(app, { pool: deps.pool })
+  contributionActRoutes(app, { pool: deps.pool })
   activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
