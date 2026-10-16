@@ -133,3 +133,39 @@ test('host · an editor has no «Mute everyone»', async ({ page }) => {
   await expect(list(page)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Mute everyone' })).toHaveCount(0)
 })
+
+test('host · a control past six seconds says it is slow, as every Studio write does (Codex P2 on #351)', async ({
+  page,
+}) => {
+  await enter(page)
+  await page.evaluate(() => window.fixture?.holdHost(true))
+  await actions(page, 'Marco').click()
+  await menu(page, 'Marco').getByRole('menuitem', { name: 'Mute microphone' }).click()
+  const row = list(page).locator('li', { hasText: 'Marco' })
+  await expect(row.getByRole('status')).toContainText('Taking longer than usual', { timeout: 9000 })
+  await page.evaluate(() => window.fixture?.holdHost(false))
+})
+
+test('host · removed by keyboard, the focus goes to the list, never the page (Codex P2 on #351)', async ({ page }) => {
+  await enter(page)
+  await actions(page, 'Lucía').focus()
+  await page.keyboard.press('Enter')
+  await menu(page, 'Lucía').getByRole('menuitem', { name: 'Remove from call' }).press('Enter')
+  await expect(list(page).locator('.person-name')).toHaveText(['Fixture · you', 'Marco'])
+  await expect(list(page)).toBeFocused()
+})
+
+test('host · the corner keeps room for its three toggles beside the dock (Codex P2 on #351)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/room.html?call=on&people=2')
+  await expect(page.getByRole('button', { name: 'Leave the room' }).first()).toBeVisible()
+  const fits = await page.evaluate(() => {
+    const corner = document.querySelector<HTMLElement>('.panel-toggles')
+    const stage = document.querySelector<HTMLElement>('.room-stage')
+    if (!corner || !stage) return null
+    const room = Number.parseFloat(getComputedStyle(stage).getPropertyValue('--corner-room'))
+    return { room, corner: corner.getBoundingClientRect().width }
+  })
+  expect(fits).not.toBeNull()
+  expect(fits?.room ?? 0).toBeGreaterThanOrEqual((fits?.corner ?? 0) + 12)
+})

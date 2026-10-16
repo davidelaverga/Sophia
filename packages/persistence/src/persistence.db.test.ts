@@ -18,6 +18,7 @@ import {
   readSnapshot,
   recordHostAct,
   recordRoomAct,
+  removedJustNow,
   withActor,
 } from './index.ts'
 
@@ -314,6 +315,17 @@ describe('host acts (migration 0057)', () => {
       withActor(pool, B, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'remove')),
       (err: unknown) => err instanceof DomainError && err.code === 'forbidden',
     )
+  })
+})
+
+describe('a removal just recorded (Codex P2 on #351)', () => {
+  it('is known to the admin who did it, for a few minutes, and to no one else', async () => {
+    const fresh = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal(await withActor(pool, A, 'read', (c) => removedJustNow(c, fresh.projectId, V)), false)
+    await withActor(pool, A, 'write', (c) => recordHostAct(c, fresh.projectId, V, 'remove'))
+    assert.equal(await withActor(pool, A, 'read', (c) => removedJustNow(c, fresh.projectId, V)), true)
+    assert.equal(await withActor(pool, A, 'read', (c) => removedJustNow(c, fresh.projectId, B)), false)
+    assert.equal(await withActor(pool, B, 'read', (c) => removedJustNow(c, fresh.projectId, V)), false)
   })
 })
 
