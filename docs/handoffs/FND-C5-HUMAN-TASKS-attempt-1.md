@@ -112,9 +112,49 @@ A project's members can give people things to do, and say they are done.
     the migrations write») caught the three new event types. They are now listed, with their summary codes.
 - **Studio units** (`task-view.test.ts`, `api/tasks.test.ts`): the D-TASKS matrix as the rows apply it, and the served
   mapping through the generated parser (no quote, unavailable, none, the revision kept).
-- **Browser: NOT run.** P granted no fixture slot in this START. The served fixture answers and specs (create, assign,
-  claim, Done by an editor and an assigned viewer, a stale 409, a deep link after reload, an unavailable origin, A17
-  kept) are left for that bounded step.
+- **`pnpm check`: exit 0. Skips, classified from the raw markers; none counted as passed.**
+  - The integration run's 2 counted skips are the log-compat export and import tests (they need a second runtime
+    unit: `SOPHIA_LOG_COMPAT_EXPORT`, `_IMPORT`).
+  - The design-capture, render-supervisor and runtime-service crossings, which need
+    `SOPHIA_DISPOSABLE_DATABASE_URL`, are separate, unavailable crossing suites.
+  - The unit run's 70 counted skips come from 77 raw markers: 66 «the confined renderer runs on Linux only (here:
+    darwin)», 4 «SOPHIA_TEST_LIVEKIT_URL not set», and the Linux-only /proc and tar scans.
+- **Browser: prepared, NOT run** (see below).
+
+## Served browser checks (FND-C5-SERVED-BROWSER-PREP-01: prepared, NOT run)
+
+Written while 5198/5199 are B's; nothing has been launched. They run with `playwright test -c
+playwright.served.config.ts` once P grants the ports.
+
+- **The served page.** `vite.served.config.ts` now also sets `VITE_SOPHIA_TASKS=1` (vision off, search on), so the
+  Studio reads and writes tasks through `api/tasks.ts` and the generated A39 parsers.
+- **The fixture.** `fixtures/human-tasks-data.ts` answers A39's six routes as the API does:
+  - D-TASKS;
+  - the revision compared, with stale_revision and invalid_state;
+  - create and Done once per key;
+  - a link-only origin, `{available: false}` for one the reader may not follow;
+  - a request refused that carries anything but A39's fields (a quote included).
+
+  Each request is recorded as sent (`task-request:METHOD path body`, `task-read:path`).
+  - `humantasks=seed` gives four tasks: one for nobody, one for the reader from a passage, one for Lucía, and one
+    from a passage the reader may not follow.
+  - `bumpTask` is another member's change meanwhile; `tasksAsProposed` answers once in A17's shape.
+  - Without a seed, the served page answers an empty A39 list.
+- **`e2e-served/human-tasks-served.spec.ts`, 8 cases:**
+  - the brief's list (a link-only passage, an unavailable one redacted, no quote);
+  - an admin claims, releases, assigns and finishes, with each request's exact path and body;
+  - a viewer: no Claim, Release or Assign, Done only on their own, with its body;
+  - a stale 409 said and read again;
+  - `#todo-` focused, again after a reload, and one that isn't there;
+  - a passage's task: the title starts empty, and the request is exactly `{title, ownerId, origin{5 fields}}` with no
+    passage words, title, quote or hash; the tab shows the version link, not a quote;
+  - the report's tab lists only the followable ones;
+  - an A17-shaped answer refused by the generated parser (the negative control).
+- **Not covered here.** The API's 403s for a viewer are proven by the PG suite, not by these synthetic fixture checks,
+  which are not a signed-in App, Auth or API crossing. A17's vision cases (`e2e/room-passage-task.spec.ts`) are
+  unchanged and run under the vision fixture.
+- **An observation to confirm in the browser first.** The Task form's «For» still offers «Anyone», which A39 records
+  as nobody yet (only an editor or an admin may finish it). No product change is made in this preparation.
 
 ## Limits
 

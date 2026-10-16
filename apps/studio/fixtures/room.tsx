@@ -91,6 +91,7 @@ import {
   versionId,
   VERSIONS_HELD,
 } from './report-data.ts'
+import { seededTasks } from './human-tasks-data.ts'
 import { DEMO, DEMO_LABEL, DEMO_VERSION, VIEWER_NAME } from './demo.ts'
 import { ResourcePanel } from '../src/features/resources/ResourcePanel.tsx'
 import {
@@ -193,6 +194,10 @@ interface Fixture {
   holdSearch: (on: boolean) => void
   /** While on, searches fail as an unavailable API's (A38). */
   failSearch: (on: boolean) => void
+  /** Another member changes a human task meanwhile (A39): its owner, its revision moved; the feed doesn't move. */
+  bumpTask: (taskId: string, ownerId: string | null) => void
+  /** The next report's tasks are answered as the A17 proposal, which A39's served parser refuses. */
+  tasksAsProposed: () => void
   /** The next search is answered as the A13 proposal (a recap, meetings), which A38's served parser refuses. */
   searchAsProposed: () => void
   /** Reads of the served board wait while on, as a slow API's do; off, the waiting ones are answered (search-honest.md). */
@@ -636,6 +641,24 @@ const project = {
     ...noReviews(query.get('reviews') === 'fail'),
     heldReads: query.get('reviews') === 'hold' ? waiting() : null,
   },
+  // A39 on the served page (`humantasks=seed`, human-tasks-data.ts): the project's human tasks.
+  humanTasks:
+    query.get('humantasks') === 'seed'
+      ? seededTasks(
+          {
+            projectId: PROJECT,
+            me: ME,
+            role: 'admin',
+            members: new Set(),
+            nameOf: () => null,
+            versions: new Map(),
+            report: { artifactId: REPORT, title: '' },
+          },
+          personId(2),
+          personId(1),
+          versionId(1),
+        )
+      : undefined,
   // A17: the report's tasks (task-data.ts).
   tasks: {
     ...noTasks(nameOf, (id) => Number(id.slice(-1)), query.get('tasks') === 'fail'),
@@ -876,6 +899,13 @@ window.fixture = {
   },
   failSearch: (on) => {
     project.failSearch = on
+  },
+  bumpTask: (id, ownerId) => {
+    const t = project.humanTasks?.list.find((x) => x.taskId === id)
+    if (t) Object.assign(t, { ownerId, revision: t.revision + 1 })
+  },
+  tasksAsProposed: () => {
+    if (project.humanTasks) project.humanTasks.proposedOnce = true
   },
   searchAsProposed: () => {
     project.searchAsProposed = true
