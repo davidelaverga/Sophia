@@ -6179,6 +6179,34 @@ button.contribution-quote:hover {
   }
 }
 
+/* Settings, in one place (docs/plans/account-settings.md): a part a heading and its choices, one under another. */
+.settings-part {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.settings-part:last-child {
+  border-bottom: 0;
+}
+.settings-who {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.settings-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text);
+  font-size: var(--type-small);
+}
+.settings-links {
+  display: flex;
+  gap: 16px;
+  font-size: var(--type-small);
+}
 /* A web address in a message (docs/plans/message-links.md): the halo's link colour, underlined, wrapping inside the
    column however long it is. */
 .msg-link {
