@@ -23,17 +23,33 @@ const failed = (result: unknown): boolean =>
   result.error !== null &&
   result.error !== undefined
 
+/** The part of Supabase's Auth client a sign-out uses: the call, and the word that this device's session went. */
+interface SessionEnd {
+  signOut: (options: { scope: 'local' | 'global' }) => Promise<unknown>
+  onAuthStateChange: (callback: (event: string) => void) => { data: { subscription: { unsubscribe: () => void } } }
+}
+
 /**
  * Ends the session with Supabase (sign-out-scope.md): this device's only, unless the person asked for every device the
- * account is signed in on. supabase-js's own default is every device. A logout that fails (a 5xx, the network) still
- * removes this device's session (supabase-js 2.117.1, `_signOut`): asked for every device, only this one is out.
+ * account is signed in on. supabase-js's own default is every device. A call that fails may or may not have removed
+ * this device's session (supabase-js 2.117.1, `_signOut`): a logout's 5xx removes it, a refresh that failed first
+ * doesn't. Whether it went is what supabase-js says to its listeners (SIGNED_OUT) before the call resolves. Gone, asked
+ * for every device, only this one is out; still here, nothing ended, and the sign-out fails (Codex P1s on #410).
  */
-export async function endSession(
-  auth: { signOut: (options: { scope: 'local' | 'global' }) => Promise<unknown> },
-  everywhere: boolean,
-): Promise<Ended> {
-  const result = await auth.signOut({ scope: everywhere ? 'global' : 'local' })
-  return everywhere && failed(result) ? 'here-only' : 'ended'
+export async function endSession(auth: SessionEnd, everywhere: boolean): Promise<Ended> {
+  // Set by the listener, as the call runs: an object, so what the call changes is read after it.
+  const session = { removed: false }
+  const { data } = auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') session.removed = true
+  })
+  try {
+    const result = await auth.signOut({ scope: everywhere ? 'global' : 'local' })
+    if (!failed(result)) return 'ended'
+    if (!session.removed) throw new Error('The sign-out failed: this device’s session is still here.')
+    return everywhere ? 'here-only' : 'ended'
+  } finally {
+    data.subscription.unsubscribe()
+  }
 }
 
 /** Said on the sign-in when every device was asked and only this one is out. */
