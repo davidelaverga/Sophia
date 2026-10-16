@@ -118,7 +118,7 @@ export const joinTip = (textMode: boolean) =>
 function CheckOpener({ room }: { room: ProjectRoom }) {
   const [open, setOpen] = useState(false)
   return (
-    <span className="device-menu">
+    <span className="device-menu device-check-open">
       <button
         type="button"
         className="device-open has-tip"
