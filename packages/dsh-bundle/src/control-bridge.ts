@@ -377,6 +377,14 @@ export class ControlBridge {
       this.replyService = new ReplyServiceExecutor({ projectId: hello.projectId, runtimeUnitId: this.settings.runtimeUnitId,
         leaseId: this.instanceId }, this.replyServiceSettings, this.ctx.llm, this.transport, this.settings.log,
         (receipt) => this.send(receipt))
+      // A superseded lease fences service replies as it does native ones: every call in flight is aborted and the
+      // bridge goes not ready. Nothing here claims the call stopped at the provider, or settles or releases its cost.
+      const service = this.replyService
+      const native = this.replySuperseded
+      this.replySuperseded = () => {
+        service.dispose()
+        native?.()
+      }
     }
     this.cursor = hello.cursor
     const unrecovered: UnrecoveredBinding[] = []

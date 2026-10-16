@@ -17,6 +17,7 @@ export async function startMockResponses() {
   const requests = []
   const queue = []
   let active = 0
+  let abandoned = 0
   const server = createServer(async (req, res) => {
     let raw = ''
     for await (const chunk of req) raw += chunk
@@ -36,7 +37,10 @@ export async function startMockResponses() {
     const id = `resp_mock_${n}`
     active += 1
     let closed = false
-    res.on('close', () => { closed = true })
+    res.on('close', () => {
+      closed = true
+      if (!res.writableEnded) abandoned += 1
+    })
     // Every answer starts with an opaque reasoning item, as a reasoning model's does, so the next request replays it.
     const reasoning = { id: `rs_mock_${n}`, type: 'reasoning', summary: [], encrypted_content: `mock-encrypted-${n}` }
     const args = typeof step.toolCall?.arguments === 'function' ? step.toolCall.arguments(body) : step.toolCall?.arguments
@@ -76,6 +80,8 @@ export async function startMockResponses() {
      */
     script: (...steps) => { queue.push(...steps) },
     get active() { return active },
+    /** Streamed answers the client closed before they finished (an aborted call). */
+    get abandoned() { return abandoned },
     close: () => new Promise((resolve) => { server.closeAllConnections?.(); server.close(resolve) }),
   }
 }

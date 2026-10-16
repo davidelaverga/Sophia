@@ -150,6 +150,7 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     cpSync(pristine.root, layout.root, { recursive: true, verbatimSymlinks: true })
     const llm = await startMockResponses()
     let runtime = null
+    const extra = []
     const w = {
       projectId,
       layout,
@@ -163,6 +164,19 @@ describe('conversation service crossing (real dsh service executor, API, worker,
         await w.until(() => /readiness=ready/.test(w.stderr()), 'bridge readiness')
       },
       stop: (signal) => runtime?.stop(signal),
+      /** A second LIVE process on the same runtime credential, in its own home: its hello supersedes the first lease. */
+      async startSecond() {
+        const second = homeLayout(join(scratch, `case-${counter++}`))
+        cpSync(pristine.root, second.root, { recursive: true, verbatimSymlinks: true })
+        const other = launchRuntime({
+          unit, runtimeDir: RUNTIME_DIR, layout: second, bridge: { url: base, token: rt.token },
+          overlays: [serviceOverlay(llm.baseURL)],
+          extraEnv: { OPENAI_API_KEY: DUMMY_KEY, SOPHIA_EXECUTOR_DIGEST: runtimeDigest },
+        })
+        extra.push(other)
+        await w.until(() => /readiness=ready/.test(other.stderr()), 'the second bridge readiness')
+        return other
+      },
       stderr: () => runtime?.stderr() ?? '',
       async until(predicate, what, timeoutMs = 45_000) {
         const deadline = Date.now() + timeoutMs
@@ -224,6 +238,7 @@ describe('conversation service crossing (real dsh service executor, API, worker,
       },
     }
     t.after(async () => {
+      for (const other of extra) await other.stop()
       await runtime?.stop()
       await llm.close()
     })
@@ -396,6 +411,30 @@ describe('conversation service crossing (real dsh service executor, API, worker,
     const retire = (await w.stages(r)).find((s) => s.kind === 'retire')
     assert.deepEqual(retire.executor, SERVICE_TUPLE)
     assert.doesNotMatch(w.stderr().split('readiness=ready').at(-1), new RegExp(`unrecovered=.*${r.attempt_id}`), 'adopted, not unrecovered')
+    w.assertPrivate()
+  })
+
+  test('two LIVE runtimes: the superseded one aborts its held call and goes not ready; nothing is published or sent again', async (t) => {
+    const w = await world(t)
+    w.llm.script({ text: `held answer ${ANSWER_CANARY}`, delayMs: 60_000 })
+    await w.start()
+    const r = await w.ask()
+    await w.until(() => w.llm.active > 0, 'the provider call in flight')
+    await w.until(async () => (await w.reservations(r)).length === 1, 'the reservation')
+    const second = await w.startSecond()
+    // The old process is NOT killed: its next commands poll meets the superseded lease and fences its executor.
+    await w.until(() => /readiness=not_ready reason="conversation_lease_superseded"/.test(w.stderr()), 'the old bridge fenced', 60_000)
+    await w.until(() => w.llm.abandoned >= 1, 'the held provider response abandoned by the old process')
+    await w.until(async () => (await w.binding(r)) === 'retired', 'the retired binding')
+    const reply = await w.reply(r)
+    assert.deepEqual([reply.state, reply.reason], ['outcome_unknown', 'runtime_lease_lost'])
+    assert.deepEqual(await w.answers(r), [], 'no late answer')
+    assert.deepEqual((await w.reservations(r)).map((v) => v.state), ['uncertain'], 'the cost stays counted')
+    assert.equal(w.llm.requests.length, 1, 'no second provider call, by either process')
+    assert.equal(await w.creates(r), 1)
+    assert.deepEqual((await w.stages(r)).find((s) => s.kind === 'retire').executor, SERVICE_TUPLE)
+    assert.match(second.stderr(), /readiness=ready/)
+    assert.doesNotMatch(w.stderr(), /reply_service_receipt_retained/, 'the fenced process keeps no receipt for a lease it lost')
     w.assertPrivate()
   })
 

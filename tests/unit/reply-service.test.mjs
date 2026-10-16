@@ -13,7 +13,8 @@ import {
   serviceSettings,
   usedOf,
 } from '../../packages/dsh-bundle/dist/reply-service.js'
-import { TransportError } from '../../packages/dsh-bundle/dist/transport.js'
+import { ServiceTransport, TransportError } from '../../packages/dsh-bundle/dist/transport.js'
+import { createServer } from 'node:http'
 
 const DIGEST = 'a'.repeat(64)
 const ROUTE = 'conversation-service-luna-high-v1'
@@ -403,9 +404,10 @@ describe('bounded requests and retained receipts (#393 review)', () => {
   test('receipts the service cannot take are retained, never dropped; an unconfirmed delivered becomes a terminal failed', async () => {
     const s = scene({ transport: { receipts: () => Promise.reject(new Error('connection reset')) } })
     s.executor.execute(s.command)
-    await until(() => s.retained.length === 1, 'the retained receipt')
-    const [kept] = s.retained
-    assert.deepEqual([kept.commandId, kept.stage, kept.reason, kept.nativeSessionId], [s.command.commandId, 'failed', 'delivery_unconfirmed', `sophia-${s.command.binding.attemptId}`])
+    await until(() => s.retained.length === 2, 'the retained receipts')
+    const [delivered, failed] = s.retained
+    assert.deepEqual([delivered.commandId, delivered.stage, delivered.reason], [s.command.commandId, 'delivered', null], 'kept with its exact identity')
+    assert.deepEqual([failed.commandId, failed.stage, failed.reason, failed.nativeSessionId], [s.command.commandId, 'failed', 'delivery_unconfirmed', `sophia-${s.command.binding.attemptId}`])
     assert.equal(s.llm.prepared.length, 0, 'no call after an unconfirmed delivered')
     assert.ok(!kinds(s.transport).includes('observation'))
     // A refused or a terminal receipt is kept as itself.
@@ -421,6 +423,89 @@ describe('bounded requests and retained receipts (#393 review)', () => {
     await until(() => s.lines.some((l) => l.startsWith('reply_service_receipt_refused')), 'the refusal log')
     await sleep(30)
     assert.deepEqual(s.retained, [])
+  })
+})
+
+/**
+ * A real local service over HTTP (the bridge's own ServiceTransport, not a scripted object): each named endpoint either
+ * answers, or sends its headers and part of a body and then never finishes, the way a stalled server does.
+ */
+async function stallingService(stall) {
+  const seen = []
+  const open = new Set()
+  const server = createServer(async (req, res) => {
+    let raw = ''
+    for await (const chunk of req) raw += chunk
+    const name = req.url.split('?')[0].split('/').at(-1)
+    const body = raw ? JSON.parse(raw) : null
+    seen.push([name, body])
+    if (stall.has(name)) {
+      open.add(res)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.write('{"result":')
+      return
+    }
+    const answers = { claim: { result: 'first' }, go: { result: 'go' } }
+    if (name === 'receipts' || name === 'observations') return res.writeHead(204).end()
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(answers[name] ?? {}))
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const transport = new ServiceTransport({
+    baseUrl: `http://127.0.0.1:${server.address().port}`, token: 'local-only', runtimeUnitId: OWNER.runtimeUnitId, bridgeInstanceId: OWNER.leaseId,
+  })
+  return {
+    transport,
+    seen,
+    close: () => new Promise((resolve) => { for (const res of open) res.destroy(); server.closeAllConnections?.(); server.close(resolve) }),
+  }
+}
+
+describe('stalled HTTP responses are bounded (R-B2-02, real ServiceTransport)', () => {
+  const FAST = { ...SETTINGS, retry: { requestWaitMs: 150, retryWaitMs: 5, maxAttempts: 2 } }
+  for (const [endpoint, stage, reason] of [['claim', 'outcome_unknown', 'claim_unconfirmed'], ['go', 'rejected', 'go_unconfirmed']]) {
+    test(`a ${endpoint} whose body never completes ends within the request wait, with no call`, async (t) => {
+      const service = await stallingService(new Set([endpoint]))
+      t.after(service.close)
+      const llm = scriptedLlm()
+      const executor = new ReplyServiceExecutor(OWNER, FAST, llm, service.transport, () => {}, () => {})
+      const command = createCommand()
+      const began = Date.now()
+      executor.execute(command)
+      await until(() => service.seen.some(([n, b]) => n === 'receipts' && b.receipts[0].stage === stage), `${stage} receipt`)
+      assert.ok(Date.now() - began < 1_500)
+      assert.equal(service.seen.find(([n]) => n === 'receipts')[1].receipts[0].reason, reason)
+      assert.equal(llm.prepared.length, 0)
+    })
+  }
+
+  test('a receipt endpoint that stalls is bounded; Stop and retire still drain, and every receipt is retained', async (t) => {
+    const service = await stallingService(new Set(['receipts']))
+    t.after(service.close)
+    const llm = scriptedLlm()
+    const retained = []
+    const executor = new ReplyServiceExecutor(OWNER, FAST, llm, service.transport, () => {}, (r) => retained.push(r))
+    const command = createCommand()
+    executor.execute(command)
+    await until(() => retained.length === 2, 'delivered and its terminal failed retained')
+    assert.deepEqual(retained.map((r) => r.stage), ['delivered', 'failed'])
+    const began = Date.now()
+    executor.execute(follow(command, 'stop'))
+    executor.execute(follow(command, 'retire'))
+    await until(() => retained.length === 4, 'stop and retire retained')
+    assert.ok(Date.now() - began < 1_500, 'Stop and retire drained within bounds')
+    assert.deepEqual(retained.slice(2).map((r) => [r.stage, r.executor ?? null]), [['checked', null], ['checked', TUPLE]])
+    assert.equal(llm.prepared.length, 0, 'no call after an unconfirmed delivered')
+  })
+
+  test('after dispose (a superseded lease), nothing more is retained and the call is aborted', async () => {
+    const s = scene({ llm: { stream: hanging } })
+    s.executor.execute(s.command)
+    await until(() => s.llm.streamed.length === 1, 'call in flight')
+    s.executor.dispose()
+    await until(() => s.llm.streamed[0].signal.aborted, 'the abort')
+    await sleep(30)
+    assert.deepEqual(s.retained, [])
+    assert.ok(!kinds(s.transport).includes('settle'), 'an abort is not settlement')
   })
 })
 

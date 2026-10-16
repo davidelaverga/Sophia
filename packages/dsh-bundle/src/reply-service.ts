@@ -587,9 +587,9 @@ export class ReplyServiceExecutor {
 
   /**
    * One receipt, sent within bounds; true once the service took it. Unconfirmed after a transient failure, it goes to
-   * the retained queue instead of being dropped. A `delivered` is retained as a terminal `failed`: this executor will
-   * not run the call it announced, so the reply must end rather than stay running. A receipt the service refused (a
-   * 4xx) is not retained: it would block every receipt behind it.
+   * the retained queue with its exact identity instead of being dropped. A `delivered` is followed there by a terminal
+   * `failed`: this executor will not run the call it announced, so the reply must end rather than stay running. A
+   * receipt the service refused (a 4xx) is not retained: it would block every receipt behind it.
    */
   private async post(
     command: ReplyCommand,
@@ -611,9 +611,15 @@ export class ReplyServiceExecutor {
         if (attempt + 1 < maxAttempts) await new Promise((resolve) => setTimeout(resolve, retryWaitMs))
       }
     }
-    const kept = stage === 'delivered' ? this.receiptOf(command, 'failed', 'delivery_unconfirmed', { session: true }) : receipt
-    this.retain(kept)
-    this.log(`reply_service_receipt_retained ${kept.stage}`)
+    // Superseded or disposed: this lease's receipts are no longer the service's to take; the new lease recovers.
+    if (this.disposed) {
+      this.log(`reply_service_receipt_unconfirmed ${stage}`)
+      return false
+    }
+    this.retain(receipt)
+    // A delivered is kept as itself, then followed by a terminal failed: no call follows it, so the reply must end.
+    if (stage === 'delivered') this.retain(this.receiptOf(command, 'failed', 'delivery_unconfirmed', { session: true }))
+    this.log(`reply_service_receipt_retained ${stage}`)
     return false
   }
 
