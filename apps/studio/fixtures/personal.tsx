@@ -370,7 +370,11 @@ function useSimulated() {
         ...s,
         notes: [...s.notes, { id, text, keptBy: 'person', fromTurnId: turnId, createdAt: new Date().toISOString() }],
       }))
-      return Promise.resolve({ ...receipt('keep_note'), noteId: id })
+      // `keepSlow=1`: the note takes 1.5 s on its way, as a slow API's write does.
+      const answer = { ...receipt('keep_note'), noteId: id }
+      return query.has('keepSlow')
+        ? new Promise((done) => window.setTimeout(() => done(answer), 1500))
+        : Promise.resolve(answer)
     },
     forget: (id) => {
       forgotten.push(id)
