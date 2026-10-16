@@ -782,3 +782,40 @@ test('browser-account · ⌘K opens a project by its name (find-projects.md)', a
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(WORK_PROJECT))
 })
+
+test('legal · a sign-out in another tab forgets the views’ unsent words here too (Codex P1 on #366)', async ({
+  context,
+}) => {
+  await serve(context)
+  const page = await signedInTab(context, DAVIDE)
+  await page.goto(`${APP}/app.html`)
+  await expect(account(page)).toBeVisible()
+  const key = viewerKeyOf(DAVIDE.id, WORK_PROJECT)
+  await page.evaluate(
+    (k) => localStorage.setItem(k, JSON.stringify({ lens: 'build', drafts: { build: 'secret plan' } })),
+    key,
+  )
+  await anotherTab(context, null)
+  await expect(page.locator('input[type="email"]')).toBeVisible()
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '{}') as unknown, key))
+    .toEqual({ lens: 'build', drafts: {} })
+})
+
+test('legal · /terms and /privacy keep their address and their page, signed out or in (Codex P1 on #366)', async ({
+  context,
+}) => {
+  await serve(context)
+  const out = await context.newPage()
+  await out.goto(`${APP}/terms`)
+  await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  await out.waitForTimeout(1500)
+  expect(new URL(out.url()).pathname).toBe('/terms')
+  await expect(out.getByRole('heading', { level: 1 })).toHaveText('Terms of use')
+  const signedIn = await signedInTab(context, DAVIDE)
+  await signedIn.goto(`${APP}/privacy`)
+  await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+  await signedIn.waitForTimeout(1500)
+  expect(new URL(signedIn.url()).pathname).toBe('/privacy')
+  await expect(signedIn.getByRole('heading', { level: 1 })).toHaveText('Privacy notice')
+})
