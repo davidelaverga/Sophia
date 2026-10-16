@@ -67,7 +67,7 @@ test('home · crossing 860 px keeps the focus on the need that had it', async ({
   await page.goto(PAGE)
   const presses = (where: string) => page.locator(`${where} button`)
   await expect(presses('.hw-side').nth(1)).toBeVisible()
-  const words = await presses('.hw-side').nth(1).innerText()
+  const words = (await presses('.hw-side').nth(1).textContent()) ?? ''
   await presses('.hw-side').nth(1).focus()
   await page.setViewportSize({ width: 800, height: 900 })
   await expect(presses('.hw-needs-here').nth(1)).toBeFocused()
