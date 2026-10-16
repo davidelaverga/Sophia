@@ -44,6 +44,7 @@ import {
   deliverCaption,
   deliverNotice,
   dropCall,
+  enabling,
   joined,
   leaving,
   reactFrom,
@@ -238,6 +239,9 @@ interface Fixture {
   keep: (text: string) => void
   /** The next «Mark as seen» lands, but its reply is lost. */
   loseNextSeenReply: () => void
+  /** Turning the microphone on waits until `releaseMicrophone`, as a browser still asking for it. */
+  holdMicrophone: () => void
+  releaseMicrophone: () => void
   /** Leaving the call waits until `releaseLeave`, as a slow disconnect. */
   holdLeave: () => void
   /** Leaving the call fails on LiveKit's side, as a disconnect that rejects. */
@@ -887,6 +891,13 @@ window.fixture = {
   },
   loseNextSeenReply: () => {
     project.meeting.seen.loseReply = true
+  },
+  holdMicrophone: () => {
+    enabling.held = true
+  },
+  releaseMicrophone: () => {
+    enabling.held = false
+    for (const done of enabling.waiting.splice(0)) done()
   },
   holdLeave: () => {
     leaving.held = true

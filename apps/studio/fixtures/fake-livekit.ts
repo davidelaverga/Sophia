@@ -36,6 +36,21 @@ export const leaving: { held: boolean; fails: boolean; waiting: (() => void)[] }
   waiting: [],
 }
 
+/** Turning the microphone on waits while held, as a browser still asking for it does (push-to-talk checks). */
+export const enabling: { held: boolean; waiting: (() => void)[] } = { held: false, waiting: [] }
+
+/**
+ * A microphone on its way while held arrives when released (`window.fixture.holdMicrophone`), whatever came meanwhile:
+ * LiveKit still publishes a late enable after a turn-off stopped waiting for it.
+ */
+const arrival = (apply: () => void) =>
+  new Promise<void>((resolve) =>
+    enabling.waiting.push(() => {
+      apply()
+      resolve()
+    }),
+  )
+
 /** `refuse=camera`: the browser refuses the camera, as a blocked permission does; `refuse=switch`, a device switch. */
 const refused = new URLSearchParams(window.location.search).get('refuse')
 /** `backgrounds=unsupported`: the device can't draw a camera background (call-backgrounds.md). */
@@ -217,8 +232,12 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
     (name: 'microphone' | 'camera' | 'screen', key: 'micOn' | 'cameraOn' | 'screenOn') => (on: boolean) => {
       asked.push(`${name}:${on ? 'on' : 'off'}`)
       if (on && refused === name) return Promise.reject(blocked())
-      me[key] = on
-      cb.onChange()
+      const apply = () => {
+        me[key] = on
+        cb.onChange()
+      }
+      if (on && name === 'microphone' && enabling.held) return arrival(apply)
+      apply()
       return Promise.resolve()
     }
   return Promise.resolve({

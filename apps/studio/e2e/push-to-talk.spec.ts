@@ -73,3 +73,37 @@ test('talk · a project kept out of sight takes no Space (Codex P1 on #381)', as
   await page.keyboard.up('Space')
   expect((await asked()).slice(before)).toEqual([])
 })
+
+// The browser still asking for the microphone when Space is let go (Codex P1 on #381): LiveKit publishes a late enable
+// even after a turn-off stopped waiting for it, so the microphone that arrives then must go off again.
+test('talk · a microphone that arrives after Space was let go goes off again', async ({ page }) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.evaluate(() => window.fixture?.holdMicrophone())
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await page.keyboard.up('Space')
+  await page.evaluate(() => window.fixture?.releaseMicrophone())
+  const microphone = () =>
+    page.evaluate(() => (window.fixture?.asked ?? []).filter((a) => a.startsWith('microphone:')).slice(-3))
+  await expect.poll(microphone).toEqual(['microphone:on', 'microphone:off', 'microphone:off'])
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(talking(page)).toHaveCount(0)
+})
+
+test('talk · pressed again before a slow microphone arrives, it stays on while Space is held, then mutes', async ({
+  page,
+}) => {
+  await mic(page).click()
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+  await page.evaluate(() => window.fixture?.holdMicrophone())
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await page.keyboard.up('Space')
+  await page.keyboard.down('Space')
+  await page.evaluate(() => window.fixture?.releaseMicrophone())
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(talking(page)).toHaveText('Talking. Let go of Space to mute again.')
+  await page.keyboard.up('Space')
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+})
