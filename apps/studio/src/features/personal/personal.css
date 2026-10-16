@@ -1975,6 +1975,11 @@
     min-width: 40px;
     min-height: 40px;
   }
+  /* Help now under the field (personal-ai-disclosure.md): its target reaches past its line, which keeps its height. */
+  .places .c3-ai-line .text-button {
+    min-height: 40px;
+    margin-block: -8px;
+  }
   .places .room-pill {
     height: 46px;
   }
