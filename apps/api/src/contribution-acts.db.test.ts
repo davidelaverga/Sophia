@@ -111,7 +111,7 @@ async function previewed(sub: string, projectId: string, id: string, action: 'co
 /** What the act carries from the preview the member was shown. */
 const shown = (p: ContributionActPreview) => ({
   expectedRevision: p.revision,
-  reach: p.reach.map((r) => r.taskId),
+  reach: p.reach.map(({ taskId, kind, restarts }) => ({ taskId, kind, restarts })),
   previewToken: p.previewToken,
 })
 
@@ -173,23 +173,27 @@ async function signed(p: {
   actor: string
   action: string
   revision: number
-  sourceId: string
   expires: number
+  /** v1 also bound the source; v2 binds the reach shown, as taskId:kind:restarts. */
+  version?: 'v1' | 'v2'
+  sourceId?: string
 }) {
   const [k] = await owner<{ secret: Buffer }>(`SELECT secret FROM sophia_secrets.mission_preview_keys WHERE id=1`)
   assert.ok(k)
+  const version = p.version ?? 'v2'
+  const bound =
+    version === 'v1'
+      ? [String(p.revision), p.sourceId ?? '', String(p.expires), '']
+      : [String(p.revision), String(p.expires), '']
   const message = [
-    'sophia.contribution-act-preview.v1',
+    `sophia.contribution-act-preview.${version}`,
     p.projectId,
     p.contributionId,
     p.actor,
     p.action,
-    String(p.revision),
-    p.sourceId,
-    String(p.expires),
-    '',
+    ...bound,
   ].join('|')
-  return `v1.${p.expires}.${createHmac('sha256', k.secret).update(message, 'utf8').digest('hex')}`
+  return `${version}.${p.expires}.${createHmac('sha256', k.secret).update(message, 'utf8').digest('hex')}`
 }
 
 /** A refusal with its status and code. */
@@ -434,11 +438,28 @@ describe('own message correction and withdrawal (A36)', () => {
     )
     const { previewToken: _, ...noProof } = shown(forA)
     refused(await withdraw(editor, projectId, a.contributionId, noProof), 422, 'invalid_request')
-    // A reach other than what the act would change now is stale: the member must look again.
+    // A reach other than the one shown fails the proof: altered, not stale (a task added, or a consequence flipped).
+    const task = { taskId: randomUUID(), kind: 'research', restarts: true }
     refused(
-      await withdraw(editor, projectId, a.contributionId, { ...shown(forA), reach: [randomUUID()] }),
-      409,
-      'stale_revision',
+      await withdraw(editor, projectId, a.contributionId, { ...shown(forA), reach: [task] }),
+      422,
+      'invalid_request',
+    )
+    // An earlier version's proof, though the server's own, is refused before anything is read or done.
+    const v1 = await signed({
+      projectId,
+      contributionId: a.contributionId,
+      actor: editor,
+      action: 'withdraw',
+      revision: 1,
+      expires: Math.floor(Date.now() / 1000) + 600,
+      version: 'v1',
+      sourceId: a.sourceId,
+    })
+    refused(
+      await withdraw(editor, projectId, a.contributionId, { expectedRevision: 1, reach: [], previewToken: v1 }),
+      422,
+      'invalid_request',
     )
     // The server's proof, expired.
     const expired = await signed({
@@ -447,7 +468,6 @@ describe('own message correction and withdrawal (A36)', () => {
       actor: editor,
       action: 'withdraw',
       revision: 1,
-      sourceId: a.sourceId,
       expires: Math.floor(Date.now() / 1000) - 1,
     })
     refused(
@@ -641,13 +661,33 @@ describe('own message correction and withdrawal (A36)', () => {
     )
     const p = await previewed(editor, projectId, said.contributionId, 'withdraw')
     assert.equal(p.reach.length, 101)
-    // Leaving one out is stale; all of them is the act.
+    // Leaving one out alters what was shown: invalid. A task that started reading since makes the proof stale.
     const short = await withdraw(editor, projectId, said.contributionId, {
       ...shown(p),
       reach: shown(p).reach.slice(1),
     })
-    assert.deepEqual([short.status, short.json?.code], [409, 'stale_revision'])
-    const out = await withdraw(editor, projectId, said.contributionId, shown(p))
+    assert.deepEqual([short.status, short.json?.code], [422, 'invalid_request'])
+    // A consequence altered on a task that was shown: invalid too, never taken as a stale proof.
+    const [first, ...rest] = shown(p).reach
+    assert.ok(first)
+    const flipped = await withdraw(editor, projectId, said.contributionId, {
+      ...shown(p),
+      reach: [{ ...first, restarts: !first.restarts }, ...rest],
+    })
+    assert.deepEqual([flipped.status, flipped.json?.code], [422, 'invalid_request'])
+    await owner(
+      `WITH m AS (SELECT (sophia.put_text_source($1,$2,'application/json','{"n":102}')).id AS manifest),
+            d AS (INSERT INTO sophia.source_dependencies(project_id,source_id,derived_source_id) SELECT $1,$3,manifest FROM m),
+            a AS (INSERT INTO sophia.work_attempts(project_id,goal_id,goal_revision,authority_epoch,state)
+                    VALUES($1,$4,1,1,'running') RETURNING id)
+       INSERT INTO sophia.jobs(project_id,kind,input_source_id,state,attempt_id) SELECT $1,'research',manifest,'running',a.id FROM m, a`,
+      [projectId, editor, said.sourceId, seed.goalId],
+    )
+    const moved = await withdraw(editor, projectId, said.contributionId, shown(p))
+    assert.deepEqual([moved.status, moved.json?.code], [409, 'stale_revision'])
+    const now = await previewed(editor, projectId, said.contributionId, 'withdraw')
+    assert.equal(now.reach.length, 102)
+    const out = await withdraw(editor, projectId, said.contributionId, shown(now))
     assert.equal(out.status, 200, JSON.stringify(out.json))
     const [left] = await owner<{ n: string }>(
       `SELECT count(*) AS n FROM sophia.jobs WHERE project_id=$1 AND kind='research' AND state='running'`,

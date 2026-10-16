@@ -27,18 +27,19 @@
 - **Identical words change nothing:** no erasure, no rebuild, no event, no eligibility move. The receipt says
   `changed: false`.
 - **The preview.** `GET .../contributions/{id}/preview?action=correct|withdraw` lists the running work the words reach
-  (`reach`: task, kind, whether it starts again) and signs it. The reach is never cut short: the preview and both
+  (`reach`: task, kind, whether it starts again) and signs it (v2). The reach is never cut short: the preview and both
   acts carry every task, however many (Codex on #396; a case with 101 tasks). The proof is an HMAC under 0018's preview key with its
   own label, binding the member, project, message, act, revision, source, expiry (15 minutes) and the reach shown.
-- **Confirming.** The act sends back `expectedRevision`, `reach` and `previewToken`. Under the project's and the
-  message's locks, any of these gives 409 `stale_revision`:
-  - a moved revision;
-  - a different reach (work started or ended since);
-  - an expired proof;
-  - a withdrawn message.
+- **Confirming.** The act echoes what was shown: `expectedRevision`, `reach` (each `{taskId, kind, restarts}`) and
+  `previewToken`. Under the project's and the message's locks:
+  - the proof is checked against that echo first. A proof not the server's for this member, message and act, an
+    altered echo (a task added or left out, a consequence flipped), or a proof of another version (v1) gives 422;
+  - then the echo against now. These give 409 `stale_revision`: an expired proof, a moved revision, a withdrawn
+    message, or any task added, gone, or with another consequence (a Stop or a Resume since; FND-C3a-FOCUSED-PREVIEW-01).
+    The Studio reads the chat again and keeps the draft.
 
-  A proof not shown to this member for this message and act gives 422. The Studio reads the chat again and keeps the
-  draft.
+  Nothing is erased, revoked, rebuilt or spent on either refusal, and a Stop is never undone. The v2 proof binds the
+  revision, not the source: every change of a message's source moves its revision.
 - **Idempotent per member and key.**
   - The same request answers the same receipt.
   - Another request under the key gives 409 `idempotency_conflict`.

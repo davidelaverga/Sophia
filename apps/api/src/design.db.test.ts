@@ -1500,7 +1500,11 @@ describe('a scoped edit of a published page (B-16..B-18, 0041)', () => {
     assert.deepEqual([preview.json.erases, preview.json.reach], [true, [{ taskId, kind: 'design', restarts: false }]])
     const out = await call(`${message}/withdrawal`, {
       bearer: await token(E),
-      body: { expectedRevision: preview.json.revision, reach: [taskId], previewToken: preview.json.previewToken },
+      body: {
+        expectedRevision: preview.json.revision,
+        reach: preview.json.reach,
+        previewToken: preview.json.previewToken,
+      },
       headers: { 'idempotency-key': randomUUID() },
     })
     assert.equal(out.status, 200, JSON.stringify(out.json))

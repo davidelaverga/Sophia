@@ -137,7 +137,7 @@ function previewOf(acts: MessageActs, at: { n: number; own: Said }, url: URL, se
       kind: 'research' as const,
       restarts: true,
     })),
-    previewToken: `v1.${Math.floor(Date.now() / 1000) + 900}.${'a'.repeat(64)}`,
+    previewToken: `v2.${Math.floor(Date.now() / 1000) + 900}.${'a'.repeat(64)}`,
     expiresAt: new Date(Date.now() + 900_000).toISOString(),
   }
   return json(preview)

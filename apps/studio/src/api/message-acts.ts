@@ -28,10 +28,11 @@ export const previewMessageAct = (
     parseContributionActPreview,
   )
 
-/** What an act sends back of the preview the member was shown. */
+/** What an act sends back of the preview the member was shown: its revision, its reach as listed, its proof. */
 export const proofOf = (preview: ContributionActPreview): ContributionWithdrawal => ({
   expectedRevision: preview.revision,
-  reach: preview.reach.map((r) => r.taskId),
+  // The reach exactly as shown, each task with its consequence: the proof binds it (v2, Codex on #396).
+  reach: preview.reach.map(({ taskId, kind, restarts }) => ({ taskId, kind, restarts })),
   previewToken: preview.previewToken,
 })
 

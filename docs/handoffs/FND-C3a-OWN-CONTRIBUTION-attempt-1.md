@@ -162,6 +162,30 @@ The evidence below is for the commit that carries this section.
   - lint, format, typecheck and contracts clean; units 2360 pass, 0 fail.
   - No UI or contract change, so the browser evidence of exchange 2 stands.
 
+## Focused preview correction (FND-C3a-FOCUSED-PREVIEW-01, P's disposition)
+
+The evidence below is for the commit that carries this section.
+
+- **Codex 4296538639, V-verified.** A Stop after the preview kept the same task ids while the consequence changed
+  from "starts again" to "stops". The id-only proof accepted the old preview: the task was revoked without a rebuild.
+  Reproduced in `research.db.test.ts` (log `pg-preview-consequence-before.log`, 'resolved' instead of
+  'stale_revision').
+- **The protocol, v2, in this branch's unapplied 0068 and A36.**
+  - The preview signs `taskId:kind:restarts` for every task, under a versioned label, with the member, message, act,
+    revision and expiry.
+  - The act echoes the tuples as shown, and the HMAC is verified against that echo. Altered → 422; a v1 proof → 422
+    without effect.
+  - Then expiry, revision and the full current tuple set are compared → 409 when any differs.
+  - Identical words on the shown revision still need no proof.
+  - The client's `proofOf` echoes the tuples. The generated parsers, fixtures and every test caller are updated
+    together.
+- **Results:**
+  - API suites with mission (contribution-acts with tamper vs stale, v1 refusal, 101 and 102 tasks): 133/133.
+  - Persistence research and design 0068 and revocation cases: 15/15. The new Stop case shows zero erasure, the tasks
+    unchanged and the Stop kept.
+  - The browser confirmation path: `message-acts.spec.ts` 14/14 headless. The slot was then released to B (FND-C-FIXTURE-YIELD-01).
+  - lint, format, typecheck and contracts clean; units 2360 pass, 0 fail.
+
 ## Next bounded action
 
 After CI, the automatic review and the browser slot, write the bounded C3a handback. C3b (0069/A37 mentions) does not

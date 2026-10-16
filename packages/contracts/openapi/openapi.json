@@ -31598,7 +31598,8 @@
           },
           "previewToken": {
             "type": "string",
-            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$"
+            "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
           },
           "expiresAt": {
             "type": "string",
@@ -31632,14 +31633,37 @@
           "reach": {
             "type": "array",
             "items": {
-              "type": "string",
-              "format": "uuid"
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "taskId",
+                "kind",
+                "restarts"
+              ],
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "research",
+                    "design"
+                  ]
+                },
+                "restarts": {
+                  "type": "boolean",
+                  "description": "Research whose goal still works starts again without the words, on the same allowance (or waits for Resume while held)."
+                }
+              }
             },
-            "description": "The task ids the preview listed, every one of them, as it listed them. Not bounded here: the preview lists every task the words reach, none left out (Codex on #396)."
+            "description": "The reach exactly as the preview listed it, every task with its kind and restart (Codex on #396). Not bounded: the preview lists every task the words reach. An altered list fails the proof (422); one that is no longer true, as after a Stop or a Resume, is stale (409)."
           },
           "previewToken": {
             "type": "string",
-            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$"
+            "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
           }
         },
         "required": [
@@ -31661,14 +31685,37 @@
           "reach": {
             "type": "array",
             "items": {
-              "type": "string",
-              "format": "uuid"
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "taskId",
+                "kind",
+                "restarts"
+              ],
+              "properties": {
+                "taskId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "research",
+                    "design"
+                  ]
+                },
+                "restarts": {
+                  "type": "boolean",
+                  "description": "Research whose goal still works starts again without the words, on the same allowance (or waits for Resume while held)."
+                }
+              }
             },
-            "description": "The task ids the preview listed, every one of them, as it listed them. Not bounded here: the preview lists every task the words reach, none left out (Codex on #396)."
+            "description": "The reach exactly as the preview listed it, every task with its kind and restart (Codex on #396). Not bounded: the preview lists every task the words reach. An altered list fails the proof (422); one that is no longer true, as after a Stop or a Resume, is stale (409)."
           },
           "previewToken": {
             "type": "string",
-            "pattern": "^v1\\.[0-9]{1,12}\\.[0-9a-f]{64}$"
+            "pattern": "^v2\\.[0-9]{1,12}\\.[0-9a-f]{64}$",
+            "description": "The preview's proof (v2): it binds the revision and the reach as shown. Another version's is refused."
           }
         },
         "required": [

@@ -10,9 +10,11 @@
 --   revoked, research rebuilt on its goal and allowance as 0028/0033 do). Withdrawing a written message erases its
 --   words the same way. Either moves the project's eligibility revision, so a live context that read them is rebuilt.
 -- * Erasing is the member's decision on what it reaches: preview_contribution_act lists the running work that read
---   the words and signs, as preview_mission_withdrawal does (0018, under the same key), the member, project, message,
---   act, revision, source and that list. The act carries the proof and the list it was shown, and is stale when any of
---   them has moved since; it is checked again under the project's and the message's locks.
+--   the words, each task with its kind and whether it starts again, and signs (v2), as preview_mission_withdrawal does
+--   (0018, under the same key), the member, project, message, act, revision and that list. The act echoes the
+--   revision and the list as shown with the proof. Under the project's and the message's locks the proof is checked
+--   against the echo (altered: invalid), then the echo against now (a moved revision, or any task added, gone or with
+--   another consequence, as after a Stop or a Resume: stale, read again). Nothing is done on either refusal.
 -- * Identical words change nothing: no erasure, no rebuild, no event, no paid work woken.
 -- * What a request kept of erased words goes with them: the submit's and an earlier correction's text digests are
 --   redacted, and a retry of either is refused as erased (request_erased) rather than answered with them. A submit's
@@ -75,24 +77,28 @@ SET search_path=pg_catalog,sophia AS $$
  ORDER BY x.task_id $$;
 REVOKE ALL ON FUNCTION sophia.contribution_reach(uuid,uuid) FROM PUBLIC;
 
--- What an act on this message would revoke, as its proof names it: the task ids, in order. Nothing for a message that
--- only shares a source, since withdrawing it erases nothing.
+-- What an act on this message would do to running work, as a preview shows it and its proof binds it: each task as
+-- taskId:kind:restarts, in task order. A Stop or a Resume can change what happens to the same task, so the
+-- consequence is part of what was shown (Codex on #396). Nothing for a message that only shares a source, since
+-- withdrawing it erases nothing.
 CREATE FUNCTION sophia.contribution_reach_shown(c sophia.contributions) RETURNS text[] LANGUAGE sql STABLE
 SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
  SELECT CASE WHEN sophia.contribution_own_text(c)
-  THEN ARRAY(SELECT r.task_id::text FROM sophia.contribution_reach(c.project_id,c.source_id) r ORDER BY r.task_id)
+  THEN ARRAY(SELECT r.task_id::text||':'||r.kind||':'||r.restarts::text
+   FROM sophia.contribution_reach(c.project_id,c.source_id) r ORDER BY r.task_id)
   ELSE '{}'::text[] END $$;
 REVOKE ALL ON FUNCTION sophia.contribution_reach_shown(sophia.contributions) FROM PUBLIC;
 
--- An act preview's proof: an HMAC, under 0018's preview key and its own label, of the member, the project, the message,
--- the act, the message's revision and source, the expiry and exactly the reach shown. No text goes into it.
+-- An act preview's proof (v2): an HMAC, under 0018's preview key and its own versioned label, of the member, the
+-- project, the message, the act, the message's revision (every change of its source moves it), the expiry and exactly
+-- the reach shown, as taskId:kind:restarts in task order. No text goes into it.
 CREATE FUNCTION sophia.contribution_act_tag(p_project uuid, p_contribution uuid, p_actor uuid, p_action text,
- p_revision bigint, p_source uuid, p_expires bigint, p_reach text[]) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
+ p_revision bigint, p_expires bigint, p_reach text[]) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path=pg_catalog,sophia AS $$
  SELECT sophia.mission_hmac((SELECT k.secret FROM sophia_secrets.mission_preview_keys k WHERE k.id=1),
-  concat_ws('|','sophia.contribution-act-preview.v1',p_project::text,p_contribution::text,p_actor::text,p_action,
-   p_revision::text,p_source::text,p_expires::text,array_to_string(p_reach,','))) $$;
-REVOKE ALL ON FUNCTION sophia.contribution_act_tag(uuid,uuid,uuid,text,bigint,uuid,bigint,text[]) FROM PUBLIC;
+  concat_ws('|','sophia.contribution-act-preview.v2',p_project::text,p_contribution::text,p_actor::text,p_action,
+   p_revision::text,p_expires::text,array_to_string(p_reach,','))) $$;
+REVOKE ALL ON FUNCTION sophia.contribution_act_tag(uuid,uuid,uuid,text,bigint,bigint,text[]) FROM PUBLIC;
 
 -- The message an act names, if the calling member may act on it: theirs, still in the discussion, and for a
 -- correction one with words of its own. Callers hold the locks they need.
@@ -111,7 +117,7 @@ END $$;
 REVOKE ALL ON FUNCTION sophia.contribution_actable(uuid,uuid,text) FROM PUBLIC;
 
 -- GET .../contributions/{id}/preview?action=correct|withdraw (A36): what the act would do, for the author about to
--- confirm it, and the proof, valid 15 minutes, it must carry: previewToken, v1.<expiry in epoch seconds>.<tag>.
+-- confirm it, and the proof, valid 15 minutes, it must carry: previewToken, v2.<expiry in epoch seconds>.<tag>.
 CREATE FUNCTION sophia.preview_contribution_act(p_project uuid, p_contribution uuid, p_action text) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.actor_id(); c sophia.contributions; own boolean;
@@ -124,15 +130,16 @@ BEGIN
  RETURN jsonb_build_object('contributionId',c.id,'action',p_action,'revision',c.revision,'erases',own,
   'reach',CASE WHEN own THEN (SELECT coalesce(jsonb_agg(jsonb_build_object('taskId',r.task_id,'kind',r.kind,'restarts',r.restarts)
     ORDER BY r.task_id),'[]') FROM sophia.contribution_reach(p_project,c.source_id) r) ELSE '[]'::jsonb END,
-  'previewToken','v1.'||expires::text||'.'||sophia.contribution_act_tag(p_project,c.id,a,p_action,c.revision,c.source_id,expires,
+  'previewToken','v2.'||expires::text||'.'||sophia.contribution_act_tag(p_project,c.id,a,p_action,c.revision,expires,
     sophia.contribution_reach_shown(c)),
   'expiresAt',to_jsonb(to_timestamp(expires)));
 END $$;
 REVOKE ALL ON FUNCTION sophia.preview_contribution_act(uuid,uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.preview_contribution_act(uuid,uuid,text) TO sophia_api;
 
--- The shape every act request shares: {expectedRevision, reach: [taskId], previewToken}, the revision and the reach
--- the member's preview showed and its proof.
+-- The shape every act request shares: {expectedRevision, reach: [{taskId, kind, restarts}], previewToken}, the
+-- revision and the reach exactly as the member's preview showed them, and its proof. A proof of another version (v1)
+-- is refused before anything is read or done.
 CREATE FUNCTION sophia.contribution_act_request(p_key text, p_request jsonb) RETURNS void LANGUAGE plpgsql IMMUTABLE
 SET search_path=pg_catalog AS $$
 BEGIN
@@ -140,10 +147,11 @@ BEGIN
  IF jsonb_typeof(p_request->'expectedRevision') IS DISTINCT FROM 'number' OR (p_request->>'expectedRevision') !~ '^[1-9][0-9]{0,17}$'
    OR jsonb_typeof(p_request->'reach') IS DISTINCT FROM 'array' THEN
   RAISE EXCEPTION 'Invalid request: it must name the revision and the reach the member was shown' USING ERRCODE='22023'; END IF;
- IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_request->'reach') x WHERE jsonb_typeof(x) IS DISTINCT FROM 'string'
-   OR x #>> '{}' !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') THEN
-  RAISE EXCEPTION 'Invalid request: the reach names tasks' USING ERRCODE='22023'; END IF;
- IF (p_request->>'previewToken') IS NULL OR (p_request->>'previewToken') !~ '^v1\.[0-9]{1,12}\.[0-9a-f]{64}$' THEN
+ IF EXISTS(SELECT 1 FROM jsonb_array_elements(p_request->'reach') x WHERE jsonb_typeof(x) IS DISTINCT FROM 'object'
+   OR (x->>'taskId') IS NULL OR (x->>'taskId') !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+   OR (x->>'kind') IS NULL OR (x->>'kind') NOT IN ('research','design') OR jsonb_typeof(x->'restarts') IS DISTINCT FROM 'boolean') THEN
+  RAISE EXCEPTION 'Invalid request: the reach lists the tasks as shown' USING ERRCODE='22023'; END IF;
+ IF (p_request->>'previewToken') IS NULL OR (p_request->>'previewToken') !~ '^v2\.[0-9]{1,12}\.[0-9a-f]{64}$' THEN
   RAISE EXCEPTION 'Invalid request: it must carry the preview shown to the member' USING ERRCODE='22023'; END IF;
 END $$;
 REVOKE ALL ON FUNCTION sophia.contribution_act_request(text,jsonb) FROM PUBLIC;
@@ -163,22 +171,25 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION sophia.contribution_act_prior(uuid,text,jsonb) FROM PUBLIC;
 
--- The act is what the member was shown, now, under the locks: the same revision, the same reach, the server's proof
--- for this member, message, act, revision and source, not expired.
+-- The act is what the member was shown, now, under the locks. First the proof, against the snapshot the act echoes
+-- (revision and reach as shown): one the server didn't sign for this member, message and act, or a snapshot altered
+-- since, is invalid (422). Then the snapshot against now: expired, a moved revision, or any task added, gone, or
+-- changed in kind or restart (a Stop or a Resume since) is stale (409): authentic, but no longer true, so read again.
 CREATE FUNCTION sophia.contribution_act_confirmed(c sophia.contributions, p_action text, p_request jsonb) RETURNS void
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
-DECLARE reach text[]:=sophia.contribution_reach_shown(c); token text:=p_request->>'previewToken'; expires bigint;
+DECLARE token text:=p_request->>'previewToken'; expires bigint:=split_part(token,'.',2)::bigint;
+ echoed text[]:=ARRAY(SELECT lower(x->>'taskId')||':'||(x->>'kind')||':'||(x->>'restarts')
+  FROM jsonb_array_elements(p_request->'reach') x ORDER BY (x->>'taskId')::uuid);
 BEGIN
- IF c.revision IS DISTINCT FROM (p_request->>'expectedRevision')::bigint THEN
-  RAISE EXCEPTION 'Stale message: it changed since it was shown' USING ERRCODE='40001'; END IF;
- IF ARRAY(SELECT lower(x) FROM jsonb_array_elements_text(p_request->'reach') x ORDER BY 1) IS DISTINCT FROM reach THEN
-  RAISE EXCEPTION 'Stale message: what it would change changed since it was shown' USING ERRCODE='40001'; END IF;
- expires:=split_part(token,'.',2)::bigint;
- IF split_part(token,'.',3) IS DISTINCT FROM
-   sophia.contribution_act_tag(c.project_id,c.id,sophia.actor_id(),p_action,c.revision,c.source_id,expires,reach) THEN
+ IF split_part(token,'.',3) IS DISTINCT FROM sophia.contribution_act_tag(c.project_id,c.id,sophia.actor_id(),p_action,
+   (p_request->>'expectedRevision')::bigint,expires,echoed) THEN
   RAISE EXCEPTION 'Invalid request: this was not shown to this member for this message' USING ERRCODE='22023'; END IF;
  IF expires<extract(epoch FROM now()) THEN
   RAISE EXCEPTION 'Stale message: what was shown has expired' USING ERRCODE='40001'; END IF;
+ IF c.revision IS DISTINCT FROM (p_request->>'expectedRevision')::bigint THEN
+  RAISE EXCEPTION 'Stale message: it changed since it was shown' USING ERRCODE='40001'; END IF;
+ IF echoed IS DISTINCT FROM sophia.contribution_reach_shown(c) THEN
+  RAISE EXCEPTION 'Stale message: what it would change changed since it was shown' USING ERRCODE='40001'; END IF;
 END $$;
 REVOKE ALL ON FUNCTION sophia.contribution_act_confirmed(sophia.contributions,text,jsonb) FROM PUBLIC;
 
@@ -223,12 +234,11 @@ BEGIN
  IF prior IS NOT NULL THEN RETURN prior; END IF;
  PERFORM 1 FROM sophia.contributions WHERE project_id=p_project AND id=p_contribution FOR UPDATE;
  c:=sophia.contribution_actable(p_project,p_contribution,'correct');
- IF c.revision IS DISTINCT FROM (p_request->>'expectedRevision')::bigint THEN
-  RAISE EXCEPTION 'Stale message: it changed since it was shown' USING ERRCODE='40001'; END IF;
  SELECT * INTO old FROM sophia.source_objects WHERE project_id=p_project AND id=c.source_id;
  IF old.state<>'ready' THEN
   RAISE EXCEPTION 'This message''s words are gone already; it can only be withdrawn' USING ERRCODE='22023'; END IF;
- IF old.sha256=digest THEN
+ -- The same words on the revision shown change nothing, and need no proof.
+ IF old.sha256=digest AND c.revision=(p_request->>'expectedRevision')::bigint THEN
   receipt_value:=jsonb_build_object('contributionId',c.id,'projectId',p_project,'operation','correct','revision',c.revision,
    'state','current','changed',false,'cursor',NULL);
   INSERT INTO sophia.contribution_acts(project_id,actor_id,idempotency_key,contribution_id,operation,source_id,semantic_request,receipt)

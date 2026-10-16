@@ -4696,7 +4696,7 @@ async function messageAct(
     (await withActor(pool, actor, 'read', (c) => previewContributionAct(c, w.projectId, contributionId, action)))
   const proof = {
     expectedRevision: preview.revision,
-    reach: preview.reach.map((r) => r.taskId),
+    reach: preview.reach.map(({ taskId, kind, restarts }) => ({ taskId, kind, restarts })),
     previewToken: preview.previewToken,
   }
   const receipt = await withActor(pool, actor, 'write', (c) =>
@@ -4830,6 +4830,37 @@ describe('a message’s author corrects or withdraws what research read (0068, A
       'forbidden',
       'the viewer still cannot control work',
     )
+  })
+
+  it('refuses a proof whose shown consequence changed since: a Stop after the preview, the same task, no longer restarting', async () => {
+    const w = await world()
+    const { receipt } = await started(w, { inputSourceIds: [w.inputSourceId] })
+    const shown = await withActor(pool, E, 'read', (c) =>
+      previewContributionAct(c, w.projectId, w.inputContributionId, 'withdraw'),
+    )
+    assert.deepEqual(shown.reach, [{ taskId: receipt.taskId, kind: 'research', restarts: true }])
+    // The goal is stopped while the member decides: the same task now stops for good.
+    await control(w, 'stop', receipt.goalId)
+    const goal = (await goalOf(w, receipt.goalId)).status
+    assert.ok(['stopping', 'stopped'].includes(goal), goal)
+    const tasksBefore = await tasks(w)
+    assert.equal(
+      await codeOf(messageAct(w, E, w.inputContributionId, 'withdraw', shown)),
+      'stale_revision',
+      'the proof showed a restart that no longer happens',
+    )
+    // Nothing happened: the words stand, the task is as it was, the Stop stands.
+    const source = await one<{ state: string }>(
+      `SELECT state FROM sophia.source_objects WHERE project_id=$1 AND id=$2`,
+      [w.projectId, w.inputSourceId],
+    )
+    assert.equal(source.state, 'ready')
+    assert.deepEqual(await tasks(w), tasksBefore)
+    assert.equal((await goalOf(w, receipt.goalId)).status, goal)
+    // Read again: the preview now says it stops, and that is what the member confirms.
+    const again = await messageAct(w, E, w.inputContributionId, 'withdraw')
+    assert.deepEqual(again.preview.reach, [{ taskId: receipt.taskId, kind: 'research', restarts: false }])
+    assert.equal((await tasks(w)).length, 1, 'no rebuild on a stopped goal')
   })
 
   it('keeps a published report that quoted the words, byte for byte', async () => {
