@@ -6444,6 +6444,11 @@ button.contribution-quote:hover {
   padding: 8px 16px;
   border-bottom: 1px solid var(--line);
   color: var(--text-2);
+}
+
+.activity-reading {
+  margin: 0;
+  color: var(--text-3);
   font-size: var(--type-small);
 }
 

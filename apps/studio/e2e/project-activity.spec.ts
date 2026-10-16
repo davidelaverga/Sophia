@@ -55,3 +55,14 @@ test('activity · an editor’s project menu has no Activity', async ({ page }) 
   await header(page).getByRole('button', { name: 'Fixture project' }).click()
   await expect(page.getByRole('menu', { name: 'Project' }).getByRole('menuitem', { name: 'Activity' })).toHaveCount(0)
 })
+
+test('activity · a slow read says it is reading, then why it takes long (Codex P1 on #355)', async ({ page }) => {
+  await page.clock.install()
+  await open(page, '?hold=activity')
+  const status = sheet(page).getByRole('status')
+  await expect(status).toHaveText('Reading the activity…')
+  await page.clock.runFor(6500)
+  await expect(status).toHaveText(
+    'Taking longer than usual. After a quiet spell, the first answer can take up to a minute.',
+  )
+})
