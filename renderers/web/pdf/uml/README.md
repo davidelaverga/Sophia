@@ -28,8 +28,8 @@ CI (`.github/workflows/uml-supervisor.yml`) builds the render host and runs
 `supervisor-e2e.mjs` in it: a PDF job, a capture job at both targets and a job
 stopped while its guest renders, through the real launchers, kernel and browser,
 against a loopback stand-in of the renderer API. That is CI evidence on a GitHub
-host, not Render acceptance. The width sweep's own 60-second deadline decides its
-outcome; the earlier forecast from the first batch is gone (placement.mjs).
+host, not Render acceptance. The width sweep's own deadline (150 seconds since D-WIDTH; 60 before) decides
+its outcome; the earlier forecast from the first batch is gone (placement.mjs).
 
 ## Qualification fixture
 
@@ -58,7 +58,7 @@ remain available to UML. No host mount or `/dev/kvm` is required.
 The guest calls the existing `confine.mjs` and `bin/confine-chromium` unchanged.
 Its first diagnostic takes two screenshots and prints a PDF with the normal
 30-second launch limit. It then runs the unchanged `probeHost` entry point,
-including the actual PDF/capture kernels and normal 60-second width sweep. Its API
+including the actual PDF/capture kernels and normal width sweep (`SWEEP.maxMs`). Its API
 positive control and token are explicitly synthetic, inside the guest. Those
 controls do **not** prove production API isolation. Actual host/API isolation,
 whole-tree cancellation, memory bounds, output protocol validation and independent

@@ -43,7 +43,7 @@ import {
   pageScript,
   orderScript,
 } from '../capture-page.mjs'
-import { meetingsOf, STYLES } from '../placement.mjs'
+import { meetingsOf, PLACEMENT, STYLES } from '../placement.mjs'
 import { chromiumPath, launchConfined } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -378,6 +378,17 @@ describe('the capture plan (pure)', () => {
   it('admits the two light targets of html-design-v1 and bounds every job', () => {
     assert.deepEqual(Object.keys(CAPTURE_TARGETS), ['w390-light', 'w1280-light'])
     assert.ok(CAPTURE_LIMITS.captures > 0 && CAPTURE_LIMITS.totalBytes > CAPTURE_LIMITS.imageBytes)
+  })
+
+  // D-WIDTH (R1-F01): the owner gave the sweep 150 s for every width rather than fewer widths. What it reads and how
+  // it fails are unchanged; its time stays inside the capture's own 180 s claim (0039), with the 10.6–13.5 s R1's
+  // captures spent outside the sweep.
+  it('sweeps every width of 320–2560px within 150 s, inside the capture claim (D-WIDTH)', () => {
+    assert.equal(SWEEP.maxMs, 150_000)
+    assert.deepEqual([SWEEP.minWidth, SWEEP.maxWidth, SWEEP.height, SWEEP.maxBreakpoints], [320, 2560, 800, 8])
+    assert.deepEqual(SWEEP.heights, [320, 640, 1080, 2160])
+    assert.ok(SWEEP.maxMs + 13_500 < 180_000)
+    assert.deepEqual([PLACEMENT.maxProbes, PLACEMENT.maxChanges], [2_400, 32])
   })
 
   it('reads a job file and refuses one that is malformed', () => {

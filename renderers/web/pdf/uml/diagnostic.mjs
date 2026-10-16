@@ -5,7 +5,7 @@ import net from 'node:net'
 import { channel } from 'node:diagnostics_channel'
 import { probeHost } from '../host-probe.mjs'
 import { launchConfined } from '../confine.mjs'
-import { captureHtml } from '../capture-html.mjs'
+import { captureHtml, SWEEP } from '../capture-html.mjs'
 import { orderScript } from '../capture-page.mjs'
 import { meetingsOf, STYLES, withinTime } from '../placement.mjs'
 // Only trusted fixture code subscribes. Collect bounded numeric timing records
@@ -150,7 +150,7 @@ try {
       qualification: false,
       syntheticApiPositive: true,
       releaseLaunchBudgetMs: 30000,
-      widthSweepBudgetMs: 60000,
+      widthSweepBudgetMs: SWEEP.maxMs,
       checks: suite,
       passed: suite.every((check) => check.ok),
     }),
