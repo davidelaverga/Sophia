@@ -7,6 +7,7 @@ import { EmptyState } from '@sophia/ui'
 import { getProjectActivity } from '../../api/client.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { Sheet } from '../../app/Sheet.tsx'
+import { SLOW_NOTE, useSlow } from '../../app/useSlow.ts'
 import { summaryLabel } from '../work/labels.ts'
 
 interface Props {
@@ -59,6 +60,17 @@ function useActivity({ projectId, identity }: Props) {
   return { entries, before, reading, more: () => read(before), retry: () => read(entries.at(-1)?.sequence ?? null) }
 }
 
+/** While a page is read: said at once, and why it takes long after a few seconds (Codex P1 on #355). */
+function ReadingNote({ reading }: { reading: Reading }) {
+  const slow = useSlow(reading === 'reading')
+  if (reading !== 'reading') return null
+  return (
+    <p className="activity-reading" role="status">
+      {slow ? SLOW_NOTE : 'Reading the activity…'}
+    </p>
+  )
+}
+
 export function ActivitySheet(props: Props) {
   const { entries, before, reading, more, retry } = useActivity(props)
   const [person, setPerson] = useState('')
@@ -77,6 +89,7 @@ export function ActivitySheet(props: Props) {
             ))}
           </select>
         </div>
+        <ReadingNote reading={reading} />
         {reading === 'idle' && entries.length === 0 && <EmptyState>Nothing has happened here yet.</EmptyState>}
         <ul className="activity-list" aria-label="Activity">
           {shown.map((e) => (
