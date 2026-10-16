@@ -70,6 +70,9 @@ export function standingOf(metadata: string | undefined): Standing {
   }
 }
 
+/** Stub (muted-on-tiles.md): nothing is muted yet. */
+export const mutedMic = (_person: RoomParticipant): boolean => false
+
 /**
  * Members hold the input floor; guests never do. Changed by amendment A06 (S1-05A, for Luis's review): viewers
  * may hold it and publish too, since talking with Sophia is not a work grant (work still needs an editor).

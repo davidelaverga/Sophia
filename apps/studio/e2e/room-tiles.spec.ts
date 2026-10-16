@@ -222,3 +222,26 @@ test('tiles · on a phone, a strip of a few keeps each tile a fifth of the width
   expect(widths.length).toBeGreaterThan(1)
   for (const w of widths) expect(w).toBeLessThan(80)
 })
+
+// A muted microphone shows on the tile (docs/plans/muted-on-tiles.md), as it does beside a name without video: yours
+// once you mute it, another's once the host mutes them.
+test('tiles · a muted microphone shows on the tile: yours, and another’s the host muted', async ({ page }) => {
+  await enter(page, 'people=2&video=camera')
+  const muted = (name: string) => tiles(page).filter({ hasText: name }).locator('.tile-muted')
+  const mic = page
+    .getByRole('navigation', { name: 'Room controls' })
+    .getByRole('button', { name: 'Microphone', exact: true })
+  await expect(muted('Fixture')).toHaveCount(0)
+  await mic.click()
+  await expect(muted('Fixture')).toBeVisible()
+  await expect(muted('Fixture')).toContainText('muted')
+  await mic.click()
+  await expect(muted('Fixture')).toHaveCount(0)
+  await page.locator('.panel-toggles [data-panel="people"]').click()
+  await page
+    .getByRole('list', { name: 'People in the call' })
+    .getByRole('button', { name: 'Actions for Marco' })
+    .click()
+  await page.getByRole('menu', { name: 'Actions for Marco' }).getByRole('menuitem', { name: 'Mute microphone' }).click()
+  await expect(muted('Marco')).toBeVisible()
+})
