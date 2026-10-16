@@ -100,6 +100,30 @@ What this does not establish:
 - **Activity.** The file passed once on the integrated source: 6/6, with case 59 at 1.6 s. No new timing campaign. The earlier 10+10 measurement shows lower clock cost; it is not a reproduction of the CI timeout.
 - **Not shown:** the full browser suite was not run locally. The required CI on the integrated head is still owed.
 
+## Served path (FND-B-C1-SERVED-PATH-01)
+
+The fixture pages run with VISION on and answer from the Studio's fixture API. This check runs the served path instead:
+the normal Studio dev server (`vite.config.ts`, VISION unset, `VITE_SOPHIA_CONVERSATIONS=1`) through its `/api` proxy
+to the real API (`apps/api/src/server.ts` on its restricted role, `SOPHIA_CONVERSATIONS=on`, no companion, no reply
+grant) over a local PostgreSQL 17.11. The data comes from `apps/api/scripts/dev-db.ts --json` (synthetic HS256
+identities, one project), with that project's conversation setting enabled by `set_conversation_settings`.
+`apps/studio/playwright.served.config.ts` starts both servers; `e2e-served/c1-served.spec.ts` holds 5 cases, run by hand
+(not in the default suite):
+
+- VISION off: the tab reads the real A33 list (`GET /api/v1/projects/<id>/conversations`), and the project search, a
+  VISION control, is absent.
+- A conversation started with Ask checked is kept and found again after a reload. No reply is awaited, and no replies
+  or runtime path is called. The database recorded the ask as a blocked reply (`no_grant`).
+- An admin erases a conversation: it leaves the list and stays gone after a reload.
+- «Your name» is saved (`PUT /api/v1/me/profile`) and read back after a reload. Another member sees the chosen name; a
+  member without one shows as A member; no address appears on either page.
+- Someone outside the project gets 403 and sees none of its conversations.
+
+The first two runs failed in the test itself: a row shows its words twice, and the database outlives a run (the same
+name already saved leaves Save unavailable). The third run passed 5 of 5 with a row locator and words of its own.
+Conversations have no rename in the Studio, so none is checked. This is a local served check with synthetic identities,
+not hosted Auth or production acceptance.
+
 ## Remaining obligations
 
 - **#382 (Luis, open; its browser job was failing at packet time)** touches `ConversationsView.tsx`, `OpenConversation.tsx` and `fixtures/room.tsx`. Once its accepted head is on main, B merges main again in the final shared Studio slot. Luis then accepts the shared Studio resolutions. Neither #382 nor Luis's branch was merged or edited here.
