@@ -698,7 +698,7 @@ function ProjectBody(props: BodyProps) {
   return withViewer(
     <>
       {lobby}
-      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)}>
+      <main className={pageClass(work, props.plans, view === 'conversations' && VISION)} data-content>
         {/* A view that fails to draw says so in its place, its pulse too; the shell and the call stay (view-boundary.md). */}
         <ViewFailed key={view}>
           {resources ?? <PageBody {...props} />}
@@ -938,7 +938,7 @@ interface NoticeProps {
 function AccessNotice({ blocked, identityName, actions }: NoticeProps) {
   const notice = NOTICE[blocked]
   return (
-    <main className="page notice">
+    <main className="page notice" data-content>
       <h2>{notice.title}</h2>
       <p>{notice.body(identityName)}</p>
       <button type="button" className="pill" onClick={actions[notice.action]}>
