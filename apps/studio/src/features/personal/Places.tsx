@@ -415,7 +415,7 @@ function Home({ v }: { v: View }) {
   const projects = v.projects.data?.projects
   const fresh = !!data && data.turns.length === 0 && data.notes.length === 0
   return (
-    <div className="c-home" data-place-view="home" hidden={!v.shown.includes('home')}>
+    <div className="c-home" data-place-view="home" data-content hidden={!v.shown.includes('home')}>
       <Welcome
         hello={greeting(now.getHours(), null, fresh)}
         name={firstName(props.identity)}
