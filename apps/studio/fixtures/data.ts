@@ -43,6 +43,8 @@ export interface Said {
   id?: string
   /** The entry it answers (A20's reply), by id, with who wrote that and its first words, recorded with the reply. */
   replyTo?: { id: string; actorId: string; excerpt: string }
+  /** When it was said; absent, the fixture's fixed moment (chat-times.md). */
+  at?: string
 }
 
 /** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */
@@ -63,7 +65,7 @@ export const said = (message: string | Said, n: number): DiscussionEntry => ({
   text: typeof message === 'string' ? message : message.text,
   sourceId: SOURCE,
   sha256: '0'.repeat(64),
-  createdAt: AT,
+  createdAt: (typeof message !== 'string' && message.at) || AT,
 })
 
 /** A holder who isn't in the room (`floor=absent`, and a pause because the holder left). */

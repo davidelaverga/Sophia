@@ -177,6 +177,27 @@ const receipt = (operation: PersonalReceipt['operation']): PersonalReceipt => ({
   erased: null,
 })
 
+/** `notes=lots`: eight notes, one with an accent, for Find (personal-notes-write-find.md). */
+function lotsOfNotes(): Space['notes'] {
+  const words = [
+    'Start the deck from one number I trust',
+    'Revisar el número de marzo',
+    'Call Ana about the venue',
+    'Ask finance for the March close',
+    'Book the room for Thursday',
+    'Draft the pilot’s second region',
+    'Thank Bea for the review',
+    'Read the vendor contract',
+  ]
+  return words.map((text, i) => ({
+    id: `note-${String(i + 1)}`,
+    text,
+    keptBy: 'person' as const,
+    fromTurnId: null,
+    createdAt: ago(DAY),
+  }))
+}
+
 /** The space as first read: the query string picks its turns and notes. */
 const firstSpace = (): Space => ({
   companion: query.has('unavailable') ? 'unavailable' : 'rehearsal',
@@ -186,34 +207,36 @@ const firstSpace = (): Space => ({
   notes:
     query.get('notes') === 'none'
       ? []
-      : [
-          {
-            id: 'note-1',
-            text: 'Start the deck from one number I trust',
-            keptBy: query.get('kept') === 'sophia' ? 'sophia' : 'person',
-            fromTurnId: null,
-            createdAt: ago(DAY),
-          },
-          // `many=1`: three notes, a finding, Sophia's suggestion and an unfinished thought (personal-carry checks).
-          ...(query.has('many')
-            ? [
-                {
-                  id: 'note-2',
-                  text: 'Ask finance for the March close',
-                  keptBy: 'sophia' as const,
-                  fromTurnId: null,
-                  createdAt: ago(DAY),
-                },
-                {
-                  id: 'note-3',
-                  text: 'Unfinished: whether the pilot needs a second region',
-                  keptBy: 'person' as const,
-                  fromTurnId: null,
-                  createdAt: ago(DAY),
-                },
-              ]
-            : []),
-        ],
+      : query.getAll('notes').includes('lots')
+        ? lotsOfNotes()
+        : [
+            {
+              id: 'note-1',
+              text: 'Start the deck from one number I trust',
+              keptBy: query.get('kept') === 'sophia' ? 'sophia' : 'person',
+              fromTurnId: null,
+              createdAt: ago(DAY),
+            },
+            // `many=1`: three notes, a finding, Sophia's suggestion and an unfinished thought (personal-carry checks).
+            ...(query.has('many')
+              ? [
+                  {
+                    id: 'note-2',
+                    text: 'Ask finance for the March close',
+                    keptBy: 'sophia' as const,
+                    fromTurnId: null,
+                    createdAt: ago(DAY),
+                  },
+                  {
+                    id: 'note-3',
+                    text: 'Unfinished: whether the pilot needs a second region',
+                    keptBy: 'person' as const,
+                    fromTurnId: null,
+                    createdAt: ago(DAY),
+                  },
+                ]
+              : []),
+          ],
   releases: [],
   epoch: 1,
   days: 2,
