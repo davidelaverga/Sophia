@@ -42,7 +42,7 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
             rows={5}
             maxLength={FEEDBACK_MOST}
             value={words}
-            readOnly={state === 'sent'}
+            readOnly={state === 'sending' || state === 'sent'}
             onChange={(e) => setWords(e.target.value)}
           />
         </div>

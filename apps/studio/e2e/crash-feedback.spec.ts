@@ -83,12 +83,8 @@ test('feedback · the feedback carries the address without its query or fragment
 
 test('crash · an error before Sentry has loaded is still reported (Codex P1 on #367)', async ({ page }) => {
   const sent = await ingest(page)
-  await page.addInitScript(() => {
-    setTimeout(() => {
-      throw new Error('An early failure')
-    }, 0)
-  })
-  await page.goto('/room.html?sentry=1')
+  // `earlyFail=1`: the page throws right after starting the reports, before Sentry's chunk has loaded.
+  await page.goto('/room.html?sentry=1&earlyFail=1')
   await expect.poll(() => sent.some((e) => e.includes('An early failure'))).toBe(true)
 })
 
