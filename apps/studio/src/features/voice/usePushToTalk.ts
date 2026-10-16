@@ -1,13 +1,18 @@
 // Push to talk in the room (docs/plans/push-to-talk.md): listens in the capture phase, so Space held from nowhere is
 // the microphone's before stray typing takes it, and lets go when the key does, or when the window loses focus.
-import { useEffect, useRef, useState } from 'react'
-import { modalOnScreen } from '../../app/shortcuts.ts'
+import { useContext, useEffect, useRef, useState } from 'react'
+import { modalOnScreen, ShortcutScope } from '../../app/shortcuts.ts'
 import { pushToTalk } from './push-to-talk.ts'
 
 const nowhere = (target: EventTarget | null) => target === document.body || target === document.documentElement
 
-/** Whether Space is held to talk now. `setMicrophone` and `micOn` are the call's. */
-export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => void, enabled: boolean): boolean {
+/**
+ * Whether Space is held to talk now, the microphone on (not while the browser still asks, or refused it: Codex P2 on
+ * #381). `setMicrophone` and `micOn` are the call's. A project kept out of sight takes no Space (Codex P1 on #381).
+ */
+export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => void, live: boolean): boolean {
+  const scoped = useContext(ShortcutScope)
+  const enabled = live && scoped
   const [holding, setHolding] = useState(false)
   const now = useRef({ micOn, holding, setMicrophone })
   useEffect(() => {
@@ -50,5 +55,5 @@ export function usePushToTalk(micOn: boolean, setMicrophone: (on: boolean) => vo
       stop()
     }
   }, [enabled])
-  return holding
+  return holding && micOn
 }
