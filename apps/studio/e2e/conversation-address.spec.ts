@@ -41,7 +41,9 @@ test('address · an address naming a conversation opens it', async ({ page }) =>
 
 test('address · one that isn’t there says so, with the newest open', async ({ page }) => {
   await page.goto(`${PAGE}#conversation-00000000-0000-4000-8000-0000000000ff`)
-  await expect(list(page).getByRole('status')).toHaveText('The conversation asked for isn’t here: the newest is open.')
+  await expect(list(page).locator('.conv-note')).toHaveText(
+    'The conversation asked for isn’t here: the newest is open.',
+  )
   await expect(heading(page)).toHaveText('What makes a report worth reading?')
 })
 
