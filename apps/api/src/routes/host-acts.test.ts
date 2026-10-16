@@ -38,4 +38,25 @@ describe('a host act’s evidence', () => {
     await assert.rejects(recordedIfDone(Promise.reject(new Error('down')), record), /down/)
     assert.equal(written, 1, 'a failure that changed nothing records nothing')
   })
+
+  it('a partial batch over people records what `partly` says, never the whole act', async () => {
+    let whole = 0
+    const parts: string[] = []
+    const failure = new PartialMute(1, new Error('down'), [{ identity: 'b', standing: 'editor' }])
+    await assert.rejects(
+      recordedIfDone(
+        Promise.reject(failure),
+        () => {
+          whole += 1
+          return Promise.resolve()
+        },
+        (p) => {
+          parts.push(...p.participants.map((x) => x.identity))
+          return Promise.resolve()
+        },
+      ),
+      failure,
+    )
+    assert.deepEqual([whole, parts], [0, ['b']])
+  })
 })

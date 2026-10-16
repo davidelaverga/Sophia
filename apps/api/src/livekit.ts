@@ -175,23 +175,28 @@ export async function memberInRoom(cfg: LiveKitConfig, roomId: string, identity:
   return !!them && MEMBERS.has(them.standing)
 }
 
+/** A participant whose microphone a host act actually muted, with the standing their token carries. */
+export interface MutedParticipant {
+  readonly identity: string
+  readonly standing: Standing
+}
+
 /**
- * A batch of mutes the room server failed partway through: `muted` tracks were muted before it failed. The act did
- * something, so its evidence is still recorded (routes/host-acts.ts), and the request still reports the failure.
+ * A batch of mutes the room server failed partway through: `muted` tracks were muted before it failed, and, for a
+ * batch over participants, exactly which ones (each counted only once its own mute call succeeded). The act did
+ * something, so what it did is recorded (routes/host-acts.ts), and the request still reports the failure.
  */
 export class PartialMute extends Error {
   readonly muted: number
+  readonly participants: readonly MutedParticipant[]
 
-  constructor(muted: number, cause: unknown) {
+  constructor(muted: number, cause: unknown, participants: readonly MutedParticipant[] = []) {
     super('The room server failed after muting some of them', { cause })
     this.name = 'PartialMute'
     this.muted = muted
+    this.participants = participants
   }
 }
-
-/** A failure after `muted` changes: carried as a PartialMute when any were made, else as it was. */
-const partial = (muted: number, err: unknown): unknown =>
-  muted > 0 ? new PartialMute(muted + (err instanceof PartialMute ? err.muted : 0), err) : err
 
 /**
  * Mute those of these published tracks that are on; how many it muted. One already muted is left as it is and not
@@ -212,7 +217,7 @@ export async function muteUnmuted(
       muted += 1
     }
   } catch (err: unknown) {
-    throw partial(muted, err)
+    throw muted > 0 ? new PartialMute(muted, err) : err
   }
   return muted
 }
@@ -248,16 +253,16 @@ export const stopScreen = (cfg: LiveKitConfig, roomId: string, identity: string)
 /** Mute everyone else's microphone (A31): members and guests, never Sophia's participant. Says how many. */
 export async function muteEveryone(cfg: LiveKitConfig, roomId: string, except: string): Promise<number> {
   const people = await roomParticipants(cfg, roomId)
-  let muted = 0
+  const muted: MutedParticipant[] = []
   try {
     for (const p of people) {
       if (p.identity === except || p.standing === 'sophia' || p.standing === 'unknown') continue
-      if (await muteMicrophone(cfg, roomId, p.identity)) muted += 1
+      if (await muteMicrophone(cfg, roomId, p.identity)) muted.push({ identity: p.identity, standing: p.standing })
     }
   } catch (err: unknown) {
-    throw partial(muted, err)
+    throw muted.length > 0 ? new PartialMute(muted.length, err, muted) : err
   }
-  return muted
+  return muted.length
 }
 
 /** Take a member out of the call (A24): disconnected now; as a member, they may join again. */
