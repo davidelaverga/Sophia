@@ -31,3 +31,8 @@ commits on the branch merge its base forward or touch only this record). 7 files
 ## Remaining obligations
 
 - None: the local run and the capture are done, and the PR is ready for review.
+
+## Next bounded action
+
+- Luis: merge on green with no open P1.
+- Source IDs consulted: none from the source register; the work read this repository only.
