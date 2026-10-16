@@ -89,6 +89,8 @@ export interface BridgeSettings {
   readonly pollWaitMs: number
   /** Upper bound for cancellation to settle before a Hold/Stop receipt reports `outcome_unknown`. */
   readonly settleTimeoutMs: number
+  /** One retained receipt delivery's bound (default 10 s): a service that never answers is retried, not awaited. */
+  readonly receiptWaitMs?: number
   /** The unit's route allowlist beyond `default`, by route id (SMC-M03). */
   readonly routes: Readonly<Record<string, RouteConfig>>
   /** Role id → route id; a role not named runs on `default`. */
@@ -200,7 +202,11 @@ export class ControlBridge {
       ? new ServiceTransport({ ...settings.service, runtimeUnitId: settings.runtimeUnitId, bridgeInstanceId: this.instanceId })
       : null
     const common = { signal: this.stopping.signal, log: settings.log }
-    this.receiptQueue = new RetainedQueue('receipt', (batch) => this.transport!.receipts(batch), {
+    // Each retained delivery attempt is bounded: a request the service accepts but never answers must not block every
+    // later receipt (Stop and retire included) or shutdown's flush. A timed-out batch is sent again; the service
+    // deduplicates receipts by command and stage.
+    const receiptWaitMs = settings.receiptWaitMs ?? 10_000
+    this.receiptQueue = new RetainedQueue('receipt', (batch) => this.transport!.receipts(batch, AbortSignal.timeout(receiptWaitMs)), {
       ...common,
       delayMs: 0,
       onAck: (batch) => this.receiptsAcknowledged(batch),

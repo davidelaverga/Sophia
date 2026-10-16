@@ -179,3 +179,51 @@ for(const mode of ['enabled','disabled','invalid','toggle-disabled','toggle-enab
  assert.equal(r.hook,expected,'hook must match the exact configuration passed to the captured controller')
  assert.equal(r.polls,expected?1:2,'supersession must fence only the exact enabled controller')
 })
+
+// #393 review: a retained receipt whose delivery the service accepts but never answers is retried within its bound,
+// so it neither blocks the receipts behind it nor waits forever. The bridge's own queue and transport, over real HTTP.
+test('a retained receipt delivery that stalls is bounded and sent again', async () => {
+  const scratch = await mkdtempReplyPoll(join(tmpdir(), 'retained-receipt-'))
+  const delivered = []
+  let attempts = 0
+  const open = new Set()
+  const server = createServer(async (req, res) => {
+    let raw = ''
+    for await (const chunk of req) raw += chunk
+    if (req.url !== '/v1/runtime/receipts') return res.writeHead(404).end()
+    attempts += 1
+    if (attempts === 1) {
+      open.add(res)
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.write('{')
+      return
+    }
+    delivered.push(...JSON.parse(raw).receipts)
+    res.writeHead(204).end()
+  })
+  let bridge
+  try {
+    await new Promise((r) => server.listen(0, '127.0.0.1', r))
+    bridge = new ControlBridge({}, {
+      protocolVersion: 1, bundle: 'synthetic', dshVersion: 'synthetic', runtimeUnitId: 'unit',
+      service: { baseUrl: `http://127.0.0.1:${server.address().port}`, token: 'synthetic-only' },
+      workspace: scratch, journalDir: scratch, pollWaitMs: 1, settleTimeoutMs: 1, receiptWaitMs: 150,
+      routes: {}, roleRoutes: {}, research: null, log: () => {},
+    })
+    const receipt = {
+      commandId: 'cmd-retained', attemptId: 'att-retained', stage: 'checked', nativeSessionId: null, nativeSequence: null,
+      evidenceRefs: [], observedAt: new Date().toISOString(), reason: null,
+    }
+    bridge.send(receipt)
+    const deadline = Date.now() + 4000
+    while (delivered.length === 0 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+    assert.equal(attempts, 2, 'the stalled attempt was abandoned and the batch sent again')
+    assert.deepEqual(delivered.map((r) => [r.commandId, r.stage]), [['cmd-retained', 'checked']])
+  } finally {
+    bridge?.stopping.abort()
+    for (const res of open) res.destroy()
+    server.closeAllConnections()
+    await new Promise((r) => server.close(r))
+    await rmReplyPoll(scratch, { recursive: true, force: true })
+  }
+})

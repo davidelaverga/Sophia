@@ -26,6 +26,7 @@ Existing authority: P's FND-B2 packets (implementation, phase 2, service review 
   - A receipt left unconfirmed after a transient failure is kept, with its exact identity, in the bridge's retained queue until acknowledged. An unconfirmed `delivered` is followed there by a terminal `failed`. A 4xx refusal is not retained.
   - Claim, go, preparation and every receipt request are bounded by the request wait as well as Stop.
   - `docs/SOURCE_MAP.md` 2j registers the upstream semantics relied on.
+- **Review exchange 2 (#393, on `cb80fbe5`):** each attempt of the bridge's retained receipt delivery is now bounded (`receiptWaitMs`, default 10 s). A request the service accepts but never answers is retried rather than blocking every later receipt, Stop and retire included, and shutdown's flush. This applies to native receipts as well: a timed-out batch is sent again, and the service deduplicates by command and stage.
 - **Missing:**
   - A production context assembler. Today an ordinary Ask's create is denied as `not_dispatched` if dispatch wins the race (B2-assembly-intake-delta). The joined tests assemble with owner-run setup and pause dispatch for it. Production is not proved.
   - Service mode is unavailable until an operator pins a grant, sets the digest variable and enables `replies`, and the owner approves the context classes.
