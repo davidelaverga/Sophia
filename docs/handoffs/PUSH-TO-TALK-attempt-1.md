@@ -8,9 +8,9 @@ Writable scope: this worktree only (`apps/studio`, `docs/plans`, `docs/handoffs`
 Runtime unit: Luis's Windows host (Playwright through `.claude-guards/safe-run.ps1`, two workers); CI as the run on
 record.
 Existing authority: Luis 2026-10-16, «Seguimos con quality of life»; merges on green with no open P1.
-Ending commit/tree: `73dddf8af349` (tree `ca916bb28f44`), the last commit of `room/push-to-talk`'s own that changes code (later
-commits on the branch merge its base forward or touch only this record). 8 files changed against
-`origin/main` at that commit: `e2e/muted-speech.spec.ts`, `e2e/push-to-talk.spec.ts`, `src/app/shortcuts.ts`, `src/features/voice/RoomDock.tsx`, `src/features/voice/push-to-talk.test.ts`, `src/features/voice/push-to-talk.ts`, `src/features/voice/usePushToTalk.ts`, `docs/plans/push-to-talk.md`. The review notes below name the commit of each later change.
+Ending commit/tree: `08646cc46beb` (tree `519a0f674048`), the last commit of `room/push-to-talk`'s own that changes code (later
+commits on the branch merge its base forward or touch only this record). 11 files changed against
+`origin/main` at that commit: `e2e/muted-speech.spec.ts`, `e2e/push-to-talk.spec.ts`, `fixtures/fake-livekit.ts`, `fixtures/room.tsx`, `src/app/shortcuts.ts`, `src/features/voice/RoomDock.tsx`, `src/features/voice/push-to-talk.test.ts`, `src/features/voice/push-to-talk.ts`, `src/features/voice/usePushToTalk.ts`, `docs/handoffs/PUSH-TO-TALK-attempt-1.md`, `docs/plans/push-to-talk.md`. The review notes below name the commit of each later change.
 
 ## Outcome
 
@@ -35,6 +35,18 @@ commits on the branch merge its base forward or touch only this record). 8 files
   - push-to-talk, muted-speech, room-chat, room-dock, call-keys and every conversation spec: 180/180;
   - commands, goal-controls, segmented-scale and work (stray typing): 220/220;
   - type-aware lint, typecheck and Prettier are clean.
+
+## Review notes
+
+- **Codex P1, out-of-sight project** (`ceb89309` tests, `e158073d` fix): a project kept out of sight takes no Space
+  (`ShortcutScope`), and «Talking» is said only with the microphone on.
+- **Codex P1, slow enable** (tests, then the fix in the next commit):
+  - With the browser still asking, Space let go turned the microphone off before it arrived. LiveKit then published
+    the late enable, so it stayed on.
+  - The fixture can hold the enable (`holdMicrophone` / `releaseMicrophone`), and the check failed on that.
+  - The hook awaits the enable and turns it off again when Space is up by then. A press again before it arrives keeps
+    it, and a second check covers that.
+  - Push-to-talk: 35/35 over five repeats. Room, dock and device specs: 49/49. Lint and typecheck are clean.
 
 ## Remaining obligations
 
