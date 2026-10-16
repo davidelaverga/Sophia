@@ -39,31 +39,48 @@ describe('signing out', () => {
   })
 })
 
+/**
+ * An Auth client as supabase-js answers a sign-out: its result, and whether this device's session goes, which
+ * supabase-js says to its listeners (SIGNED_OUT) before the call resolves.
+ */
+function client(error: Error | null, removes: boolean) {
+  const asked: unknown[] = []
+  const heard = new Set<(event: string) => void>()
+  return {
+    asked,
+    onAuthStateChange: (callback: (event: string) => void) => {
+      heard.add(callback)
+      return { data: { subscription: { unsubscribe: () => heard.delete(callback) } } }
+    },
+    signOut: (options: { scope: 'local' | 'global' }) => {
+      asked.push(options)
+      if (removes) for (const callback of heard) callback('SIGNED_OUT')
+      return Promise.resolve({ error })
+    },
+  }
+}
+
 describe('ending the session (sign-out-scope.md)', () => {
   it('signs out this device only, and every device only when asked', async () => {
-    const asked: unknown[] = []
-    const auth = {
-      signOut: (options: { scope: 'local' | 'global' }) => {
-        asked.push(options)
-        return Promise.resolve({ error: null })
-      },
-    }
-    await endSession(auth, false)
-    await endSession(auth, true)
-    assert.deepEqual(asked, [{ scope: 'local' }, { scope: 'global' }])
+    const auth = client(null, true)
+    assert.equal(await endSession(auth, false), 'ended')
+    assert.equal(await endSession(auth, true), 'ended')
+    assert.deepEqual(auth.asked, [{ scope: 'local' }, { scope: 'global' }])
   })
 })
 
 describe('a sign-out everywhere that only signs out here (Codex P1 on #410)', () => {
-  // supabase-js resolves a failed logout (a 5xx, the network) with `{ error }`, this device's session removed anyway.
-  const failing = { signOut: () => Promise.resolve({ error: new Error('503') }) }
-  const fine = { signOut: () => Promise.resolve({ error: null }) }
+  it('says when every device was asked and only this one is out: the logout failed, this session removed', async () => {
+    // A 5xx from the logout: supabase-js 2.117.1 removes this device's session, then resolves with `{ error }`.
+    assert.equal(await endSession(client(new Error('503'), true), true), 'here-only')
+    // This device's own sign-out has nothing more to say: its session is gone.
+    assert.equal(await endSession(client(new Error('503'), true), false), 'ended')
+  })
 
-  it('says when every device was asked and only this one is out', async () => {
-    assert.equal(await endSession(failing, true), 'here-only')
-    assert.equal(await endSession(fine, true), 'ended')
-    // This device's own sign-out has nothing more to say: its session is gone either way.
-    assert.equal(await endSession(failing, false), 'ended')
+  it('a failure that removed nothing is a sign-out that failed: the person is still in', async () => {
+    // An expired token whose refresh failed: supabase-js returns that error before removing anything.
+    await assert.rejects(endSession(client(new Error('refresh failed'), false), true))
+    await assert.rejects(endSession(client(new Error('refresh failed'), false), false))
   })
 
   it('the sign-in says the other devices may still be signed in', () => {
