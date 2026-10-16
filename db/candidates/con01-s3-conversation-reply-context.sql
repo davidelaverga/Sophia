@@ -299,7 +299,7 @@ BEGIN
     OR (NOT p_ask AND m.seq>=r.cutoff_seq) THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='message '||p_id::text; END IF;
  o_text:='- #'||m.seq::text||' '
-  ||CASE WHEN m.author='sophia' THEN 'Sophia' ELSE 'member '||sophia.conversation_context_quoted(m.author_name) END
+  ||CASE WHEN m.author='sophia' THEN 'Sophia' ELSE 'member '||sophia.conversation_context_quoted(sophia.actor_label(m.project_id,m.actor_id,m.author_name)) END
   ||' at '||sophia.conversation_context_time(m.created_at)||': '||sophia.conversation_context_quoted(m.body)||E'\n';
  o_seq:=m.seq; o_sha256:=encode(sha256(convert_to(m.body,'UTF8')),'hex');
 END $$;
@@ -805,9 +805,12 @@ BEGIN
    IS DISTINCT FROM 'c0d03ea473637eab9be98b68e0216d65 security_barrier=true,security_invoker=true'
  OR (SELECT array_agg(p.oid::regprocedure::text||' '||md5(pg_get_functiondef(p.oid)) ORDER BY p.oid::regprocedure::text COLLATE "C")
       FROM pg_proc p WHERE p.oid IN ('sophia.actor_id()'::regprocedure,'sophia.is_member(uuid)'::regprocedure,
-       'sophia.is_task_kind(text)'::regprocedure,'sophia.mission_capture_default()'::regprocedure))
+       'sophia.is_task_kind(text)'::regprocedure,'sophia.mission_capture_default()'::regprocedure,
+       'sophia.actor_label(uuid,uuid,text)'::regprocedure,'sophia.kept_name(text)'::regprocedure))
    IS DISTINCT FROM ARRAY['sophia.actor_id() 27098852bf55bc01c3c6b938a646491c',
+    'sophia.actor_label(uuid,uuid,text) 8c748d42671b0a38ad081382766d1ffd',
     'sophia.is_member(uuid) 73e40f4a2d8d6af95f8d414c6c2ee784','sophia.is_task_kind(text) ab5390873bf78035cc94d99466f49d12',
+    'sophia.kept_name(text) 6206e79ec9c0e29173324e2fb00f85c9',
     'sophia.mission_capture_default() d3212aa604efc9363d7d30e4ee0777a5'] THEN
   RAISE EXCEPTION 'the read policies, view or functions are not the ones Q13 was reviewed against' USING ERRCODE='55000';
  END IF;
@@ -819,8 +822,11 @@ GRANT SELECT ON sophia.commands, sophia.contributions, sophia.conversation_messa
  sophia.mission_entries, sophia.mission_note_consents, sophia.mission_note_policies, sophia.native_task_view,
  sophia.project_members, sophia.project_revisions, sophia.projects, sophia.source_dependencies, sophia.source_objects,
  sophia.source_texts, sophia.work_attempts TO sophia_conversation_assembler;
+-- FND-B1 amendment (16 October 2026, for V's review): the shared mission reader names people through 0062's
+-- actor_label (a SECURITY DEFINER label that answers only to a member of the project, never an address), so the
+-- assembler executes it too. kept_name, which it calls as its owner, is pinned above and granted to nobody.
 GRANT EXECUTE ON FUNCTION sophia.actor_id(), sophia.is_member(uuid), sophia.is_task_kind(text),
- sophia.mission_capture_default() TO sophia_conversation_assembler;
+ sophia.mission_capture_default(), sophia.actor_label(uuid,uuid,text) TO sophia_conversation_assembler;
 ALTER POLICY members_read ON sophia.commands TO sophia_api, sophia_conversation_assembler;
 ALTER POLICY members_read ON sophia.contributions TO sophia_api, sophia_conversation_assembler;
 ALTER POLICY members_read ON sophia.conversation_messages TO sophia_api, sophia_conversation_assembler;

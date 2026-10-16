@@ -15,6 +15,7 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
       ('mission_note_consents'),('mission_note_policies'),('native_task_view'),('project_members'),('project_revisions'),
       ('projects'),('source_dependencies'),('source_objects'),('source_texts'),('work_attempts')),
      fns(f) AS (VALUES ('actor_id()'),('is_member(uuid)'),('is_task_kind(text)'),('mission_capture_default()'),
+      ('actor_label(uuid, uuid, text)'),
       ('conversation_assembly_project()'),('conversation_assembly_claim(uuid, integer)'),
       ('conversation_assembly_begin(uuid, integer, uuid)'),('conversation_assembly_close(uuid, integer, uuid, text)'),
       ('conversation_assembly_fail(uuid, integer, uuid, text)'),('conversation_record_context(uuid, integer, uuid, jsonb)')),
@@ -24,6 +25,7 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
      -- exactly two reviewed definitions, S3 and S4; neither identity grants any extra execution privilege.
      fn_defs(f,h) AS (VALUES
       ('sophia.actor_id()','27098852bf55bc01c3c6b938a646491c'),
+      ('sophia.actor_label(uuid,uuid,text)','8c748d42671b0a38ad081382766d1ffd'),
       ('sophia.conversation_assembly_begin(uuid,integer,uuid)','2dcfc3e89145bfd589bcad27ace97d2c'),
       ('sophia.conversation_assembly_claim(uuid,integer)','cf3f6396296e09db6e6106ea29246b85'),
       ('sophia.conversation_assembly_close(uuid,integer,uuid,text)','f7e4015a596e08ad598ba466408197b2'),
@@ -38,7 +40,7 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
       ('sophia.conversation_context_grammar()','66e38fe53af563146dda545e3e14f387'),
       ('sophia.conversation_context_kept()','834329209d7e8e58df3251fe00506574'),
       ('sophia.conversation_context_list(jsonb,integer,integer,bigint,boolean,boolean)','b3577a4d563cb020d94aec36c2308deb'),
-      ('sophia.conversation_context_message(sophia.conversation_replies,uuid,boolean)','1796bb525a1046093c0da2471e328d3b'),
+      ('sophia.conversation_context_message(sophia.conversation_replies,uuid,boolean)','5b1d4d0144740dfe6749b181bba2a6aa'),
       ('sophia.conversation_context_message_scrubbed()','ebe2cc860016b02dcb6fa76f997fa7fd'),
       ('sophia.conversation_context_mission(sophia.projects)','79277247fe9f210224170415cf1825c9'),
       ('sophia.conversation_context_quoted(text)','c0e2b18f8e47c8590b21459fb9aca7b9'),
@@ -49,6 +51,7 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
       ('sophia.conversation_record_context(uuid,integer,uuid,jsonb)','55f808251fc28192c89d890231a5833b'),
       ('sophia.is_member(uuid)','73e40f4a2d8d6af95f8d414c6c2ee784'),
       ('sophia.is_task_kind(text)','ab5390873bf78035cc94d99466f49d12'),
+      ('sophia.kept_name(text)','6206e79ec9c0e29173324e2fb00f85c9'),
       ('sophia.mission_capture_default()','d3212aa604efc9363d7d30e4ee0777a5')),
      -- Exact grantees, grantors and options for the entire reviewed callable chain, not only the assembler's
      -- negative allowlist. Extra API/PUBLIC/peer grants on a SECURITY DEFINER entry point are authority too;
@@ -57,7 +60,8 @@ WITH l AS (SELECT * FROM pg_roles WHERE rolname=:'login'),
       SELECT f,'postgres'::text,'postgres'::text,'EXECUTE'::text,false FROM fn_defs
       UNION ALL SELECT 'sophia.'||replace(f,' ',''),'sophia_conversation_assembler','postgres','EXECUTE',false FROM fns
       UNION ALL SELECT f,'sophia_api','postgres','EXECUTE',false FROM fn_defs
-       WHERE f IN ('sophia.actor_id()','sophia.is_member(uuid)','sophia.is_task_kind(text)','sophia.mission_capture_default()')
+       WHERE f IN ('sophia.actor_id()','sophia.is_member(uuid)','sophia.is_task_kind(text)','sophia.mission_capture_default()',
+        'sophia.actor_label(uuid,uuid,text)')
       UNION ALL SELECT f,'sophia_worker','postgres','EXECUTE',false FROM fn_defs
        WHERE f IN ('sophia.actor_id()','sophia.is_member(uuid)','sophia.is_task_kind(text)')),
      fn_acl_actual(f,grantee,grantor,privilege_type,is_grantable) AS (

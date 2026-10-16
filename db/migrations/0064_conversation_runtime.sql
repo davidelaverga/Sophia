@@ -771,7 +771,7 @@ BEGIN
     OR (NOT p_ask AND m.seq>=r.cutoff_seq) THEN
   RAISE EXCEPTION 'context_forged' USING ERRCODE='22023', DETAIL='message '||p_id::text; END IF;
  o_text:='- #'||m.seq::text||' '
-  ||CASE WHEN m.author='sophia' THEN 'Sophia' ELSE 'member '||sophia.conversation_context_quoted(m.author_name) END
+  ||CASE WHEN m.author='sophia' THEN 'Sophia' ELSE 'member '||sophia.conversation_context_quoted(sophia.actor_label(m.project_id,m.actor_id,m.author_name)) END
   ||' at '||sophia.conversation_context_time(m.created_at)||': '||sophia.conversation_context_quoted(m.body)||E'\n';
  o_seq:=m.seq; o_sha256:=encode(sha256(convert_to(m.body,'UTF8')),'hex');
 END $$;

@@ -119,6 +119,7 @@ const READ_RELATIONS = [
 ]
 const READ_HELPERS = [
   'sophia.actor_id()',
+  'sophia.actor_label(uuid,uuid,text)',
   'sophia.conversation_assembly_project()',
   'sophia.is_member(uuid)',
   'sophia.is_task_kind(text)',
@@ -632,6 +633,12 @@ async function operationalDigest(): Promise<string> {
   return hash.digest('hex')
 }
 
+/** A person's label as `c` is answered it (0062 actor_label). */
+const label = (c: pg.PoolClient, project: string, actor: string, kept: string | null) =>
+  c
+    .query<{ v: string | null }>('SELECT sophia.actor_label($1, $2, $3) AS v', [project, actor, kept])
+    .then((r) => r.rows[0]?.v ?? null)
+
 /** Permission must fail before a writer is entered; its transaction is always rolled back. */
 async function deniedAsAssembler(c: pg.PoolClient, sql: string): Promise<void> {
   await c.query(`BEGIN; ${AS_ASSEMBLER}`)
@@ -1088,6 +1095,36 @@ describe('CON-01 N2: a reply’s context, assembled and recorded (L1, disposable
       } finally {
         await b.s.query('ROLLBACK')
         b.s.release(true)
+      }
+    })
+
+    it('labels a member of the claimed project as the API does, and never an outsider, an address or another project', async () => {
+      const target = await scene()
+      const elsewhere = (await seedProject(db.ownerUrl, { admin: A, editors: [C] })).projectId
+      const outsider = randomUUID()
+      await owner(
+        `INSERT INTO sophia.actor_profiles(actor_id, display_name, chosen, revision) VALUES ($1, 'Elena', true, 1)
+           ON CONFLICT (actor_id) DO UPDATE SET display_name = 'Elena', chosen = true`,
+        [E],
+      )
+      const apiLabel = await withActor(api, E, 'read', (c) => label(c, target.projectId, E, 'e@example.test'))
+      assert.equal(apiLabel, 'Elena')
+      const k = await claimAs(target.replyId, 8000)
+      const b = await begin(target.replyId, k)
+      assert.equal((await b.begun).verdict, 'begun')
+      try {
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [E])
+        assert.equal(await label(b.s, target.projectId, E, 'e@example.test'), apiLabel, 'as the API labels the asker')
+        assert.equal(await label(b.s, target.projectId, B, 'b@example.test'), null, 'a kept address is never a name')
+        assert.equal(await label(b.s, elsewhere, C, 'Carla'), null, 'a project the asker is not in')
+        await b.s.query("SELECT set_config('sophia.actor_id',$1,true)", [outsider])
+        assert.equal(await label(b.s, target.projectId, E, 'Kept'), null, 'an outsider is told nothing')
+        assert.equal(await refusal(b.s.query("SELECT sophia.kept_name('x')")), '42501', 'kept_name stays private')
+      } finally {
+        await b.s.query('ROLLBACK')
+        b.s.release(true)
+        // E asks in every scene of this file: their name goes, so later renders read the names their rows kept.
+        await owner('DELETE FROM sophia.actor_profiles WHERE actor_id = $1', [E])
       }
     })
 

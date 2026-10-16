@@ -297,7 +297,11 @@ interface MessageRow {
 async function readWindow(c: pg.PoolClient, b: Binding): Promise<ContextMessage[]> {
   const ids = [...b.window, b.messageId]
   const { rows } = await c.query<MessageRow>(
-    `SELECT id, conversation_id, seq::text AS seq, author, author_name, body, created_at
+    // A member named as the project's members see them (0062's actor_label), never by a kept address; the compiler
+    // (conversation_context_message) names them the same way.
+    `SELECT id, conversation_id, seq::text AS seq, author,
+            CASE WHEN author = 'member' THEN sophia.actor_label(project_id, actor_id, author_name) END AS author_name,
+            body, created_at
        FROM sophia.conversation_messages WHERE project_id = $1 AND conversation_id = $2 AND id = ANY($3::uuid[])`,
     [b.projectId, b.conversationId, ids],
   )
