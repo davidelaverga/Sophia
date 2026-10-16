@@ -69,22 +69,22 @@ const MESSAGES: Readonly<Record<string, string>> = {
   research_limit_reached: 'This review has used its model requests or its allowance; submit what you have or report the blocker.',
   forbidden: 'This review may not read that: a source outside the manifest, or one that was withdrawn.',
   invalid_request:
-    'The service refused the submission as given (check the report has the five section headings, 1 to 40 findings, ' +
-    'each citing only sources you read whole with read_review_source, every page of them, and receipts holding the ' +
-    'receipt of every page you rely on).',
+    'The service refused the submission as given; nothing was published. Check that the report has the five section ' +
+    'headings and 1 to 40 findings, that each finding cites only sources you read whole with read_review_source with the ' +
+    'receipt of every page, and that every criterionId and sourceId is copied exactly from eligibleCriterionIds and ' +
+    'eligibleSourceIds when they are listed; then submit again.',
 }
 
 /**
- * A refusal from the service, as one sentence the model can act on; anything else is a failure to retry later. An
- * `invalid_request` refusal says what to fix when the service did (its bounded `detail`, R1-F02): the model then
- * corrects that field instead of guessing again from the general rule.
+ * A refusal from the service, as one fixed sentence the model can act on; anything else is a failure to retry later.
+ * The service's own words never reach the model: a refusal can quote what the model sent (0042 review_checks quotes a
+ * criterionId), which an admitted source may have put there, and it would read as the framework's instruction (Codex
+ * 4297108266). What to correct comes as data instead: the review's own eligibleCriterionIds and eligibleSourceIds,
+ * which a refused submission carries (R1-F02).
  */
 function serviceProblem(error: unknown): { code: string; message: string } {
   if (error instanceof TransportError && error.code) {
-    const message = MESSAGES[error.code] ?? `The Sophia service refused the operation (${error.code}).`
-    if (error.code === 'invalid_request' && error.detail)
-      return { code: error.code, message: `The service refused it: ${error.detail}. Nothing was published; correct that and call again.` }
-    return { code: error.code, message }
+    return { code: error.code, message: MESSAGES[error.code] ?? `The Sophia service refused the operation (${error.code}).` }
   }
   return { code: 'service_unavailable', message: 'The Sophia service could not be reached; nothing was read or published.' }
 }
