@@ -339,6 +339,8 @@ describe('the report as a web page (html-report-v2)', () => {
       html.includes('<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light dark">'),
     )
     assert.ok(PAGE_CSS.includes('--measure: calc(var(--text-base) * 30)'), 'a reading column of 30 ems')
+    // Sitka Text, wide, set 57 characters a line in the 30-em measure on Windows: Cambria sets 65 (report-page-windows.md).
+    assert.ok(!PAGE_CSS.includes('Sitka Text'), 'no face that sets the measure under 60 characters')
   })
 
   it('runs and loads nothing, whatever the report wrote', () => {
