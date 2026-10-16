@@ -2649,28 +2649,51 @@ async function assertGoalOnlyErrors(urls: TestDatabase) {
   }
 }
 
+/**
+ * What 0067 (FND-B2 provenance, A35) adds after 0064's promotion, set aside when the promotion is compared with the sealed
+ * candidates: its own table, the grants' pinned execution, its guard, and the approvals' widened use (now including
+ * pin_execution). 0067's own tests cover them.
+ */
+const LATER_0067 = {
+  relations: ['conversation_dispatch_provenance'],
+  columns: [
+    'conversation_grants.execution',
+    'conversation_grants.executor_artifact_digest',
+    'conversation_grants.execution_pinned_at',
+  ],
+  constraints: [
+    'conversation_grants.conversation_grants_execution_check',
+    'conversation_grants.conversation_grants_executor_artifact_digest_check',
+    'conversation_grants.conversation_grants_execution_pinned',
+    'conversation_grant_approvals.conversation_grant_approvals_used_by_check',
+  ],
+  triggers: ['conversation_grants.conversation_grants_execution_kept'],
+}
+const notLater = (kind: 'columns' | 'constraints' | 'triggers', name: string) => (row: Record<string, unknown>) =>
+  !LATER_0067[kind].includes(`${String(row.relname)}.${String(row[name])}`)
+
 async function promotedRelations(c: pg.Client) {
   const selected = `n.nspname='sophia' AND t.relname LIKE 'conversation_%'
-    AND t.relname NOT IN ('conversation_executions','conversation_cancellations')`
+    AND t.relname NOT IN ('conversation_executions','conversation_cancellations',${LATER_0067.relations.map((r) => `'${r}'`).join(',')})`
   const result: Record<string, unknown> = {}
   result.constraints = (
     await c.query(`SELECT t.relname,k.conname,k.contype,k.convalidated,
     pg_get_constraintdef(k.oid,true) AS definition FROM pg_constraint k
     JOIN pg_class t ON t.oid=k.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE ${selected} ORDER BY t.relname,k.conname`)
-  ).rows
+  ).rows.filter(notLater('constraints', 'conname'))
   result.columns = (
     await c.query(`SELECT t.relname,a.attname,a.attnum,a.atttypid::regtype::text AS type,
     a.attnotnull,pg_get_expr(d.adbin,d.adrelid) AS default FROM pg_attribute a
     JOIN pg_class t ON t.oid=a.attrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
     WHERE ${selected} AND t.relkind='r' AND a.attnum>0 AND NOT a.attisdropped ORDER BY t.relname,a.attnum`)
-  ).rows
+  ).rows.filter(notLater('columns', 'attname'))
   result.triggers = (
     await c.query(`SELECT t.relname,g.tgname,pg_get_triggerdef(g.oid,true) AS definition
     FROM pg_trigger g JOIN pg_class t ON t.oid=g.tgrelid JOIN pg_namespace n ON n.oid=t.relnamespace
     WHERE ${selected} AND NOT g.tgisinternal ORDER BY t.relname,g.tgname`)
-  ).rows
+  ).rows.filter(notLater('triggers', 'tgname'))
   result.indexes = (
     await c.query(`SELECT t.relname,i.relname AS name,pg_get_indexdef(k.indexrelid) AS definition
     FROM pg_index k JOIN pg_class t ON t.oid=k.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace
@@ -3372,5 +3395,282 @@ describe('trusted CON hello contradictory predispatch evidence', () => {
     } finally {
       await owner.query('ROLLBACK')
     }
+  })
+})
+
+// --- 0067 / A35: a reply attempt's original execution, kept as dispatched (FND-B2, V's provenance disposition) -------
+
+const ARTIFACT = 'a'.repeat(64)
+const OTHER_ARTIFACT = 'b'.repeat(64)
+const SERVICE = { execution: 'service', routeId: 'route-test', executorArtifactDigest: ARTIFACT }
+
+async function lineageOf(projectId: string) {
+  const row = (
+    await owner.query<{ lineage_id: string }>(
+      'SELECT lineage_id FROM sophia.conversation_grants WHERE project_id=$1 AND current',
+      [projectId],
+    )
+  ).rows[0]
+  assert.ok(row)
+  return row.lineage_id
+}
+
+const pin = async (projectId: string, spec: Record<string, unknown> = {}) =>
+  owner.query('SELECT sophia.conversation_pin_execution($1,$2::jsonb)', [
+    projectId,
+    { lineageId: await lineageOf(projectId), approvalRef: `pin-${randomUUID()}`, ...SERVICE, ...spec },
+  ])
+
+async function serviceScene() {
+  const rt = await runtimeProject()
+  await pin(rt.projectId)
+  return nativeScene(rt)
+}
+
+async function provenanceOf(s: NativeScene) {
+  return (
+    await owner.query<Record<string, unknown>>(
+      `SELECT execution,route_id,executor_artifact_digest,runtime_command_id,lineage_id FROM sophia.conversation_dispatch_provenance
+        WHERE project_id=$1 AND attempt_id=$2`,
+      [s.projectId, s.attempt_id],
+    )
+  ).rows[0]
+}
+
+/** A reply ended before it ran, its create scrubbed, and its retire dispatched to the runtime. */
+async function toRetire(s: NativeScene) {
+  assert.equal((await dispatch(s))?.result, 'dispatched')
+  await receipt(s, 'create', 'failed')
+  assert.equal((await dispatch(s, 'native.retire'))?.result, 'dispatched')
+}
+
+async function retireReceipt(s: NativeScene, executor?: unknown) {
+  const c = await command(s, 'retire')
+  return call<number>(s.rt, 'record_receipts', [
+    {
+      commandId: c.id,
+      attemptId: s.attempt_id,
+      nativeSessionId: s.native_session_id,
+      stage: 'checked',
+      observedAt: new Date().toISOString(),
+      ...(executor === undefined ? {} : { executor }),
+    },
+  ])
+}
+
+const bindingState = async (s: NativeScene) =>
+  (await owner.query<{ state: string }>('SELECT state FROM sophia.execution_bindings WHERE id=$1', [s.binding_id]))
+    .rows[0]?.state
+
+async function helloBinding(s: NativeScene) {
+  const hello = await call<{ bindings: Record<string, unknown>[] }>(s.rt, 'hello', {
+    protocolVersion: 1,
+    roles: [{ id: 'sophia-conversation-v1', route: 'route-test', presetDigest: 'synthetic' }],
+  })
+  return hello.bindings.find((b) => b.attemptId === s.attempt_id)
+}
+
+describe('conversation execution provenance (0067, A35)', () => {
+  it('pins a lineage to service once, before it dispatches; the tuple and a service route never change after', async () => {
+    const rt = await runtimeProject()
+    await assert.rejects(
+      api.query('SELECT sophia.conversation_pin_execution($1,$2::jsonb)', [rt.projectId, {}]),
+      denied('42501'),
+    )
+    await assert.rejects(pin(rt.projectId, { executorArtifactDigest: 'short' }), denied('22023'))
+    await assert.rejects(pin(rt.projectId, { routeId: 'another-route' }), denied('22023'))
+    await assert.rejects(
+      owner.query(
+        "UPDATE sophia.conversation_grants SET execution='service',executor_artifact_digest=$2,execution_pinned_at=now() WHERE project_id=$1",
+        [rt.projectId, ARTIFACT],
+      ),
+      denied('42501'),
+      'only the pin function pins',
+    )
+    const approvalRef = `pin-${randomUUID()}`
+    await pin(rt.projectId, { approvalRef })
+    await pin(rt.projectId, { approvalRef }) // the same pin, replayed
+    await assert.rejects(pin(rt.projectId, { executorArtifactDigest: OTHER_ARTIFACT }), denied('55000'))
+    await assert.rejects(
+      owner.query('UPDATE sophia.conversation_grants SET executor_artifact_digest=$2 WHERE project_id=$1', [
+        rt.projectId,
+        OTHER_ARTIFACT,
+      ]),
+      denied('55000'),
+    )
+    await assert.rejects(
+      owner.query('SELECT sophia.conversation_set_grant($1,$2::jsonb)', [rt.projectId, { routeId: 'another-route' }]),
+      denied('55000'),
+      'a service lineage keeps its route',
+    )
+    // A native lineage that has dispatched is not pinned afterwards.
+    const native = await nativeScene()
+    assert.equal((await dispatch(native))?.result, 'dispatched')
+    await assert.rejects(pin(native.projectId), denied('55000'))
+  })
+
+  it('copies the tuple at dispatch, before anything runs; a service create carries it, a native one does not', async () => {
+    const s = await serviceScene()
+    assert.equal(await provenanceOf(s), undefined, 'nothing before dispatch')
+    assert.equal((await dispatch(s))?.result, 'dispatched')
+    const c = await command(s)
+    assert.deepEqual(await provenanceOf(s), {
+      execution: 'service',
+      route_id: 'route-test',
+      executor_artifact_digest: ARTIFACT,
+      runtime_command_id: c.id,
+      lineage_id: await lineageOf(s.projectId),
+    })
+    const body = (await owner.query('SELECT body FROM sophia.runtime_commands WHERE id=$1', [c.id])).rows[0]?.body
+    assert.deepEqual(body.payload.conversation.execution, SERVICE)
+    const n = await nativeScene()
+    assert.equal((await dispatch(n))?.result, 'dispatched')
+    assert.deepEqual(
+      { ...(await provenanceOf(n)), runtime_command_id: null, lineage_id: null },
+      {
+        execution: 'native',
+        route_id: 'route-test',
+        executor_artifact_digest: null,
+        runtime_command_id: null,
+        lineage_id: null,
+      },
+    )
+    const nativeBody = (
+      await owner.query('SELECT body FROM sophia.runtime_commands WHERE id=$1', [(await command(n)).id])
+    ).rows[0]?.body
+    assert.equal('execution' in nativeBody.payload.conversation, false)
+  })
+
+  it('is kept as dispatched: no update, delete or truncate, and no login reads or writes it', async () => {
+    const s = await serviceScene()
+    assert.equal((await dispatch(s))?.result, 'dispatched')
+    const where = [s.projectId, s.attempt_id]
+    await assert.rejects(
+      owner.query(
+        "UPDATE sophia.conversation_dispatch_provenance SET execution='native',executor_artifact_digest=NULL WHERE project_id=$1 AND attempt_id=$2",
+        where,
+      ),
+      denied('55000'),
+    )
+    await assert.rejects(
+      owner.query('DELETE FROM sophia.conversation_dispatch_provenance WHERE project_id=$1 AND attempt_id=$2', where),
+      denied('55000'),
+    )
+    await owner.query('BEGIN')
+    try {
+      await assert.rejects(owner.query('TRUNCATE sophia.conversation_dispatch_provenance CASCADE'), denied('55000'))
+    } finally {
+      await owner.query('ROLLBACK')
+    }
+    for (const pool of [api, worker]) {
+      await assert.rejects(pool.query('SELECT * FROM sophia.conversation_dispatch_provenance'), denied('42501'))
+      await assert.rejects(
+        pool.query(
+          "INSERT INTO sophia.conversation_dispatch_provenance(project_id,attempt_id,reply_id,runtime_command_id,lineage_id,execution,route_id) VALUES($1,$2,$2,$2,$2,'native','route-test')",
+          [s.projectId, randomUUID()],
+        ),
+        denied('42501'),
+      )
+    }
+    assert.equal((await provenanceOf(s))?.execution, 'service')
+  })
+
+  it('survives the scrub of its create, and only a service attempt projects it in hello; grant changes never follow', async () => {
+    const s = await serviceScene()
+    await toRetire(s)
+    const c = await command(s)
+    const body = (await owner.query('SELECT body FROM sophia.runtime_commands WHERE id=$1', [c.id])).rows[0]?.body
+    assert.deepEqual(body.payload, { scrubbed: true })
+    assert.deepEqual((await helloBinding(s))?.provenance, SERVICE)
+    // A new grant lineage (no outstanding reservation) with another route cannot reclassify the dispatched attempt.
+    await owner.query('SELECT sophia.conversation_new_lineage($1,$2::jsonb)', [
+      s.projectId,
+      {
+        unit: 'calls_tokens',
+        routeId: 'route-other',
+        credentialRef: 'synthetic-credential-ref',
+        ownerResourceRef: 'synthetic-owner-resource-ref',
+        approvalRef: `lineage-${randomUUID()}`,
+        expiresAt: new Date(Date.now() + 600_000).toISOString(),
+        maxCallsPerReply: 1,
+        totalCallCap: 1,
+        replyTokenCap: 10,
+        totalTokenCap: 10,
+        subjects: [E],
+      },
+    ])
+    assert.deepEqual((await helloBinding(s))?.provenance, SERVICE)
+    const n = await nativeScene()
+    await toRetire(n)
+    assert.equal('provenance' in ((await helloBinding(n)) ?? {}), false)
+  })
+
+  it('retires a service attempt only on its exact service claim: omission, native, wrong route or digest refuse', async () => {
+    const s = await serviceScene()
+    await toRetire(s)
+    for (const executor of [
+      undefined,
+      { execution: 'native' },
+      { ...SERVICE, routeId: 'route-other' },
+      { ...SERVICE, executorArtifactDigest: OTHER_ARTIFACT },
+      { execution: 'service', routeId: 'route-test' },
+      { ...SERVICE, extra: true },
+    ]) {
+      await assert.rejects(retireReceipt(s, executor), (e: unknown) => denied('42501')(e) || denied('22023')(e))
+      assert.notEqual(await bindingState(s), 'retired', JSON.stringify(executor))
+    }
+    assert.equal(await retireReceipt(s, SERVICE), 1)
+    assert.equal(await bindingState(s), 'retired')
+    assert.equal(await retireReceipt(s, SERVICE), 0, 'the same receipt again changes nothing')
+    await assert.rejects(retireReceipt(s, undefined), denied('42501'), 'a replay cannot drop its claim')
+  })
+
+  it('refuses a service claim for a native or unknown attempt, whose own cleanup is unchanged', async () => {
+    const n = await nativeScene()
+    await toRetire(n)
+    await assert.rejects(retireReceipt(n, SERVICE), denied('42501'))
+    assert.notEqual(await bindingState(n), 'retired')
+    assert.equal(await retireReceipt(n), 1)
+    assert.equal(await bindingState(n), 'retired')
+    const k = await nativeScene()
+    await toRetire(k)
+    assert.equal(await retireReceipt(k, { execution: 'native' }), 1, 'a native claim on a native attempt')
+    // A replay under the same command and stage keeps the claim it was recorded with.
+    await assert.rejects(retireReceipt(k), denied('23505'))
+    assert.equal(await retireReceipt(k, { execution: 'native' }), 0)
+  })
+
+  it('a service attempt with an uncertain reservation: no redispatch, retired with its cost unchanged', async () => {
+    const s = await serviceScene()
+    await go(s)
+    await receipt(s, 'create', 'delivered')
+    await call(s.rt, 'conversation_reserve', { ...(await request(s)), ordinal: 1, call: callBound })
+    await receipt(s, 'create', 'outcome_unknown')
+    assert.equal((await reply(s))?.state, 'outcome_unknown')
+    const counted = await counters(s)
+    const reservations = async () =>
+      (
+        await owner.query<{ call_ordinal: number; state: string; amount_tokens: string }>(
+          'SELECT call_ordinal,state,amount_tokens FROM sophia.conversation_reservations WHERE reply_id=$1',
+          [s.replyId],
+        )
+      ).rows
+    const reserved = await reservations()
+    assert.equal(reserved[0]?.state, 'uncertain')
+    const creates = async () =>
+      (
+        await owner.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM sophia.runtime_commands WHERE project_id=$1 AND binding_id=$2 AND kind='create'",
+          [s.projectId, s.binding_id],
+        )
+      ).rows[0]?.n
+    assert.equal(await creates(), 1)
+    assert.deepEqual((await helloBinding(s))?.provenance, SERVICE)
+    assert.equal((await dispatch(s, 'native.retire'))?.result, 'dispatched')
+    assert.equal(await retireReceipt(s, SERVICE), 1)
+    assert.equal(await bindingState(s), 'retired')
+    assert.deepEqual(await counters(s), counted, 'reserved, spent and uncertain counters unchanged')
+    assert.deepEqual(await reservations(), reserved)
+    assert.equal(await creates(), 1, 'nothing dispatched again')
   })
 })
