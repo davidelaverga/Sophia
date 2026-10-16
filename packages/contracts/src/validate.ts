@@ -56,6 +56,7 @@ import {
   validateWorkResult,
   validateSourceReviewProposal,
   validateSourceReviewAvailability,
+  validateDesignEditReceipt,
   validateReceipt,
   validateRoomSession,
   validateRoomToken,
@@ -142,6 +143,7 @@ export const parseWorkReceipt = parser('WorkReceipt', validateWorkReceipt)
 export const parseWorkResult = parser('WorkResult', validateWorkResult)
 export const parseSourceReviewProposal = parser('SourceReviewProposal', validateSourceReviewProposal)
 export const parseSourceReviewAvailability = parser('SourceReviewAvailability', validateSourceReviewAvailability)
+export const parseDesignEditReceipt = parser('DesignEditReceipt', validateDesignEditReceipt)
 
 /** An error body when the reply is one, else null: callers fall back to the HTTP status. */
 export function asErrorBody(value: unknown): ErrorBody | null {
