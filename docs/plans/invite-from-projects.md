@@ -14,7 +14,7 @@
 
 ## What changes
 
-- **Migration 0054:** `sophia.invitable_people(project)`.
+- **Migration 0055:** `sophia.invitable_people(project)`.
   - It is for an admin of the project only (403 otherwise).
   - It lists everyone who is an active member of another project the admin is in, with the latest email the room
     keeps for them.
@@ -24,7 +24,7 @@
     - anyone with an open member invitation to this project;
     - anyone whose address isn't known yet.
 - **Contract amendment A26:** `GET /api/v1/projects/{projectId}/invitable` returns `{ people: [{ actorId, email }] }`,
-  at most 500, ordered by address. `/ready` requires 0054.
+  at most 500, ordered by address. `/ready` requires 0055.
 - **The writes stay as they are:** each chosen person gets the same member invitation as a typed email (one
   `createInvitation`, one key each). It is mailed, waits in their list, and only they can accept it.
 - **Studio, the Members tab, above the email field:**
@@ -41,7 +41,7 @@
   - an admin is offered a member of another project, known by address;
   - a current member, the admin themselves, and someone with an open invitation are not offered;
   - an editor is refused.
-- `readiness.db.test.ts`: not ready without 0054.
+- `readiness.db.test.ts`: not ready without 0055.
 - `invite-from-projects.spec.ts`:
   - an admin chooses two people and invites them, both are sent with the role chosen, and the list drops them;
   - with nobody to offer, no section shows;
