@@ -67,7 +67,7 @@ const BASELINE = [
   ['0055_invitable_people.sql', 'adac7a01bddd353064b297246d619f7c3267a62f493e7f2ecba10322b7cbf6c4'],
   ['0056_member_roles.sql', '37238a27e28fe51eeddd2da0ed8776b16a8601ab52b0b599c425ea647029f580'],
   ['0057_project_activity.sql', '69d4d52992590ea84d2fcf99ac819266de9aee7bdabce121b44643647760c6af'],
-  ['0058_remove_member.sql', '82e1d9171ea9afad05d571a35e880389690c60fc0d9592bda2a8244453e0913b'],
+  ['0058_remove_member.sql', 'fe7027b96ee83ef889a1f48555a643adb2daecdb5cf1a396587eec92bb18b19b'],
   ['0059_archive_project.sql', 'c81ba64153c5dd418cd68569b8a23850ef420d93f3273084bbc42970bf8070c9'],
   ['0060_room_acts.sql', '8d0412b655e6e1459d59b63175c6f387ab19c864e4d61295307ecd8e2dc959d8'],
   ['0061_activity_names.sql', 'd9722532332e05515c946f4f337e96039c88a56caa94447a82c6ccc5055d78af'],

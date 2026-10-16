@@ -253,6 +253,28 @@ function feed(n: number, source: 'camera' | 'screen'): VideoFeed {
   return made
 }
 
+/** The viewer's own camera, once they turn it on: local, as LiveKit's own track is (room-basics.md). */
+export function ownFeed(identity: string): VideoFeed {
+  const key = `${identity}:camera`
+  const known = kept.get(key)
+  if (known) return known
+  const media = stream('You', false)
+  const made: VideoFeed = {
+    key,
+    identity,
+    source: 'camera',
+    local: true,
+    attach: (el) => {
+      el.srcObject = media
+    },
+    detach: (el) => {
+      el.srcObject = null
+    },
+  }
+  kept.set(key, made)
+  return made
+}
+
 /** The cameras on (`video=camera`), or one person's shared screen (`video=screen`, `screenBy`). */
 export function feeds(): VideoFeed[] {
   if (video === 'camera') return here().map(({ i }) => feed(i + 1, 'camera'))

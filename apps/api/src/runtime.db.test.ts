@@ -97,6 +97,8 @@ before(async () => {
   app = buildApp({
     pool,
     verifyActor: createActorVerifier({ issuer: ISSUER, audience: 'authenticated', secret: SECRET }),
+    // The CON reply runtime's routes are served only with conversations on (#385 review).
+    conversations: true,
   })
   await app.listen({ host: '127.0.0.1', port: 0 })
   base = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`
