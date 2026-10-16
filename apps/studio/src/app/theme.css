@@ -6556,7 +6556,7 @@ button.contribution-quote:hover {
 }
 .in-project-people li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 4px 12px;
   min-height: 36px;
@@ -6573,6 +6573,11 @@ button.contribution-quote:hover {
 .in-project-people .form-error {
   grid-column: 1 / -1;
   margin: 0;
+}
+/* Asked to confirm, Remove takes its own line under the row: the name and the role stay in sight. */
+.in-project-people .confirm {
+  grid-column: 1 / -1;
+  justify-self: end;
 }
 
 /* A project's activity (docs/plans/project-activity.md): who, what on whom, when; one line each. */

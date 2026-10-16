@@ -32,6 +32,7 @@ const DONE: Readonly<Record<string, string>> = {
   'room.host_muted': 'Muted in the call',
   'room.host_removed': 'Took out of the call',
   'project.member_role': 'Changed the role of',
+  'project.member_removed': 'Removed from the project',
 }
 
 const what = (e: ActivityEntry) => DONE[e.summaryCode] ?? summaryLabel(e.summaryCode, e.type)

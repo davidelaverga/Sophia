@@ -181,6 +181,7 @@ const REQUIRED_SCHEMA = `SELECT to_regproc('sophia.admit_goal_command') IS NOT N
   AND to_regprocedure('sophia.invitable_people(uuid)') IS NOT NULL
   AND to_regprocedure('sophia.change_member_role(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.project_activity(uuid,bigint,integer)') IS NOT NULL
+  AND to_regprocedure('sophia.remove_member(uuid,uuid,text)') IS NOT NULL
   AND to_regprocedure('sophia.name_from_room(uuid)') IS NOT NULL
   AND ${COLUMNS.map(([table, column]) => columnExists(table, column)).join('\n  AND ')} AS ok`
 
@@ -233,7 +234,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   projectRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   projectionRoutes(app, { pool: deps.pool })
   goalTargetRoutes(app, { pool: deps.pool })
-  activityRoutes(app, { pool: deps.pool })
+  activityRoutes(app, { pool: deps.pool, livekit: deps.livekit })
   commandRoutes(app, { pool: deps.pool })
   conversationRoutes(app, { pool: deps.pool })
   missionRoutes(app, { pool: deps.pool })
