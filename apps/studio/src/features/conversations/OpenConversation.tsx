@@ -41,6 +41,8 @@ import type { NextAskSource } from './useNextAsk.ts'
 import { clock, dayOf, sameDay, when } from '../../app/time-words.ts'
 import { LinkedText } from '../../app/LinkedText.tsx'
 import { RichText } from '../../app/RichText.tsx'
+import { CopyLink } from '../resources/CopyLink.tsx'
+import { CONVERSATION, linkHash } from '../resources/link.ts'
 
 interface Props {
   projectId: string
@@ -123,15 +125,7 @@ export function OpenConversation(props: Props) {
   return (
     <section ref={section} className="conv-open" aria-label="Open conversation">
       <Head conversation={c} me={me} head={head} onBack={props.onBack} context={props.context} />
-      {/* A scrolled region the keyboard reaches (arrows scroll it); from the keyboard, every time shows there. */}
-      <div
-        ref={follow.scroll}
-        className="conv-scroll"
-        role="region"
-        aria-label="Messages"
-        tabIndex={0}
-        onScroll={follow.onScroll}
-      >
+      <Thread follow={follow}>
         <Messages
           read={read}
           me={me}
@@ -141,7 +135,7 @@ export function OpenConversation(props: Props) {
           propose={props.writer === true ? { projectId: props.projectId, identity } : null}
           onQuote={onQuote}
         />
-      </div>
+      </Thread>
       {props.writer === true && (
         <ConversationComposer
           conversationId={c.id}
@@ -232,10 +226,43 @@ function Head(props: {
       </div>
       <div className="conv-head-acts">
         <Output output={c.output} />
+        <CopyLink href={() => conversationLink(c.id)} />
         <ContextToggle context={context} />
       </div>
     </header>
   )
+}
+
+/**
+ * The thread in its own scroll, a region the keyboard reaches (arrows scroll it; from the keyboard, every time shows
+ * there), and «New messages ↓» over its foot while what came is out of sight (conversation-moves.md).
+ */
+function Thread({ follow, children }: { follow: ReturnType<typeof useFollow>; children: ReactNode }) {
+  return (
+    <>
+      <div
+        ref={follow.scroll}
+        className="conv-scroll"
+        role="region"
+        aria-label="Messages"
+        tabIndex={0}
+        onScroll={follow.onScroll}
+      >
+        {children}
+      </div>
+      {follow.unseen && (
+        <button type="button" className="pill conv-new-pill" onClick={follow.toEnd}>
+          New messages <span aria-hidden>↓</span>
+        </button>
+      )}
+    </>
+  )
+}
+
+/** This conversation's own address (#375): the page's, with the conversation named in its fragment. */
+const conversationLink = (id: string) => {
+  const { origin, pathname, search } = window.location
+  return `${origin}${pathname}${search}${linkHash(id, CONVERSATION)}`
 }
 
 /** «Context»: opens the project's context where it is a panel (under 1180 px); over that it is a pane, and this hides. */
@@ -285,18 +312,30 @@ function Faces({ conversation: c }: { conversation: ConversationSummary }) {
 function useFollow() {
   const scroll = useRef<HTMLDivElement>(null)
   const atEnd = useRef(true)
+  // Grown at its end while the reader is away from it: «New messages» says so (conversation-moves.md).
+  const [unseen, setUnseen] = useState(false)
   const onScroll = () => {
     const el = scroll.current
     if (el) atEnd.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+    if (atEnd.current) setUnseen(false)
   }
   const grown = useCallback(() => {
     const el = scroll.current
     if (el && atEnd.current) el.scrollTop = el.scrollHeight
+    else if (el) setUnseen(true)
   }, [])
   const sent = () => {
     atEnd.current = true
   }
-  return { scroll, onScroll, grown, sent }
+  const toEnd = () => {
+    const el = scroll.current
+    if (!el) return
+    atEnd.current = true
+    setUnseen(false)
+    el.scrollTop = el.scrollHeight
+    el.focus({ preventScroll: true })
+  }
+  return { scroll, onScroll, grown, sent, unseen, toEnd }
 }
 
 /** What the conversation made: its page in small and its name, in the head; it opens in the document viewer. */

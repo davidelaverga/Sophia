@@ -64,6 +64,7 @@ import {
   sophiaAsked,
   type SophiaState,
 } from './fake-people.ts'
+import type { ConversationMessage } from '../src/api/vision.ts'
 import {
   installFixtureApi,
   publish,
@@ -199,6 +200,8 @@ interface Fixture {
   failOlderMessages: (on: boolean) => void
   /** The second conversation gets a message: it is the newest now, and the list says so when read again (A18). */
   conversationMoves: () => void
+  /** Someone writes in the open conversation (the newest), and the feed moves (conversation-moves.md). */
+  conversationMessage: (name: string, text: string) => void
   /** The brief's reads fail, or read again. */
   failMission: (on: boolean) => void
   /** While on, the brief's reads wait; off, the waiting ones are answered. */
@@ -792,6 +795,14 @@ window.fixture = {
   conversationMoves: () => {
     const moved = project.conversations?.list.find((c) => c.id === CONVERSATION.briefs)
     if (moved) moved.lastAt = '2026-10-06T10:00:00.000Z'
+  },
+  conversationMessage: (name, text) => {
+    const all: Partial<Record<string, ConversationMessage[]>> | undefined = project.conversations?.messages
+    const thread = all?.[CONVERSATION.reading]
+    if (!thread) return
+    const at = new Date().toISOString()
+    thread.push({ id: `m-${String(thread.length + 1)}`, author: 'member', actorId: personId(1), name, text, at })
+    publish(project)
   },
   failMission: (on) => {
     project.missionFails = on
