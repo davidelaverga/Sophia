@@ -3744,3 +3744,17 @@ test('the sheet’s H is not pressed while the meeting’s recap covers it (Code
   await expect(sheet.getByRole('group', { name: 'Stop' })).toHaveCount(0)
   await expect(recap).toBeVisible()
 })
+
+// A task's link (docs/plans/work-copy-links.md): «Copy link» in its sheet copies the address that opens that task.
+test('a task’s «Copy link» copies the address that opens it, in another page too', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(`${PAGE}?two=1#task-pane-copy`)
+  const sheet = page.getByRole('dialog', { name: 'Word each state' })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  await expect(sheet.getByRole('button', { name: 'Link copied' })).toBeVisible()
+  const link = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(link).hash).toBe('#task-pane-copy')
+  const other = await context.newPage()
+  await other.goto(link)
+  await expect(other.getByRole('dialog', { name: 'Word each state' })).toBeVisible()
+})

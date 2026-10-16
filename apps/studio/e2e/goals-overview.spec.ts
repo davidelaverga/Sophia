@@ -88,3 +88,19 @@ test('@phone · goals · the list fits the width, and a row opens its sheet', as
   await page.getByRole('button', { name: 'Reports export to PDF reliably', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Reports export to PDF reliably' })).toBeVisible()
 })
+
+// A goal's link (docs/plans/work-copy-links.md): «Copy link» in its sheet copies the address that opens that goal, though
+// a goal opened from the list doesn't write its anchor to the address bar.
+test('goals · «Copy link» in the sheet copies the address that opens that goal', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto('/room.html?demo=1&place=goals')
+  await page.getByRole('button', { name: ROLLOUT, exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: ROLLOUT })
+  await sheet.getByRole('button', { name: 'Copy link' }).click()
+  await expect(sheet.getByRole('button', { name: 'Link copied' })).toBeVisible()
+  const link = await page.evaluate(() => navigator.clipboard.readText())
+  expect(new URL(link).hash).toMatch(/^#goal-/)
+  const other = await context.newPage()
+  await other.goto(link)
+  await expect(other.getByRole('dialog', { name: ROLLOUT })).toBeVisible()
+})
