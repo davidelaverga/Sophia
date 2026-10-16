@@ -34,3 +34,13 @@ test('boundary · Try again draws the view anew, once what it reads is whole aga
   await expect(failed(page)).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Resources', level: 2 })).toBeVisible()
 })
+
+test('boundary · in Tasks, its pulse is the view’s too: drawn inside the view’s boundary (Codex P1 on #416)', async ({
+  page,
+}) => {
+  await page.goto('/room.html?demo=1&place=work')
+  const pulse = page.locator('aside.pulse')
+  await expect(pulse).toBeVisible()
+  // A pulse that fails to draw is then the view's failure, said in its place; the boundary's own way is checked above.
+  expect(await pulse.evaluate((el) => el.closest('[data-view-boundary]') !== null)).toBe(true)
+})
