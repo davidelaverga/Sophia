@@ -46,17 +46,24 @@ function Progress({ plan }: { plan: Glanced | undefined }) {
   )
 }
 
-/** The reports this goal's work made (goal-reports.md): a title opens it in the viewer; none, or no viewer, no section. */
-function GoalReports({ reports }: { reports: readonly ArtifactVersion[] }) {
+/**
+ * The reports this goal's work made (goal-reports.md): a title opens it in the viewer, the sheet closed first, one at a
+ * time (Codex P1 on #414); none, or no viewer, no section.
+ */
+function GoalReports({ reports, onLeave }: { reports: readonly ArtifactVersion[]; onLeave: () => void }) {
   const viewer = useDocumentViewer()
   if (!viewer || reports.length === 0) return null
+  const open = (artifactId: string) => {
+    onLeave()
+    viewer.open({ artifactId })
+  }
   return (
     <section className="goal-sheet-section goal-reports" aria-label="Reports">
       <h3 className="field-label">Reports</h3>
       <ul>
         {reports.map((r) => (
           <li key={r.artifactId}>
-            <button type="button" className="text-button" onClick={() => viewer.open({ artifactId: r.artifactId })}>
+            <button type="button" className="text-button" onClick={() => open(r.artifactId)}>
               {r.title ?? 'Untitled report'}
             </button>
             {r.versionNumber !== undefined && <span className="goal-report-version">v{r.versionNumber}</span>}
@@ -87,7 +94,7 @@ export function GoalSheet({ goal, plan, notes, reports = [], onClose, onOpenAsk,
           </p>
         )}
         <Progress plan={plan} />
-        <GoalReports reports={reports} />
+        <GoalReports reports={reports} onLeave={onClose} />
         <GoalNotes goalId={goal.id} {...notes} />
         {goal.criteria.length > 0 && (
           <section className="goal-sheet-section" aria-label="Done when">
