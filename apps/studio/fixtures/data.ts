@@ -52,6 +52,8 @@ export interface Said {
   correctedAt?: string
   /** When its author withdrew it (A36): then only its place shows, never its words. */
   withdrawnAt?: string
+  /** The members it mentions (A37), by actor id. */
+  mentions?: string[]
 }
 
 /** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */

@@ -15,6 +15,8 @@ interface ImportMetaEnv {
   readonly VITE_SOPHIA_VISION?: string
   /** "1" once A36's message corrections and withdrawals are deployed: the chat offers them (app/message-acts.ts). */
   readonly VITE_SOPHIA_MESSAGE_ACTS?: string
+  /** "1" once A37's mentions are deployed: the chat offers them and Home lists them (app/mentions.ts). */
+  readonly VITE_SOPHIA_MENTIONS?: string
 }
 
 interface ImportMeta {

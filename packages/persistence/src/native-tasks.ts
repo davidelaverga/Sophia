@@ -76,6 +76,8 @@ interface DiscussionRow {
   corrected_at: Date | null
   withdrawn_at: Date | null
   kind: NonNullable<DiscussionEntry['kind']>
+  /** Who it mentions (A37), read only with revisions; never whether they looked. */
+  mentions: string[] | null
 }
 
 /**
@@ -86,7 +88,8 @@ interface DiscussionRow {
 const DISCUSSION_PAGE = `SELECT * FROM (
      SELECT ct.id, ct.actor_id, sophia.actor_label(ct.project_id, ct.actor_id, ct.author_name) AS author_name, ct.intent, ct.origin, t.body, s.id AS source_id, s.sha256, ct.created_at,
             ct.revision, ct.state, ct.corrected_at, ct.withdrawn_at,
-            CASE WHEN jsonb_typeof(ct.semantic_request->'source') = 'null' THEN 'text' ELSE 'reference' END AS kind
+            CASE WHEN jsonb_typeof(ct.semantic_request->'source') = 'null' THEN 'text' ELSE 'reference' END AS kind,
+            CASE WHEN $4::boolean AND ct.state = 'current' THEN sophia.contribution_recipients(ct.project_id, ct.id) END AS mentions
        FROM sophia.contributions ct
        LEFT JOIN sophia.source_objects s ON s.project_id = ct.project_id AND s.id = ct.source_id AND ct.state = 'current'
        LEFT JOIN sophia.source_texts t ON t.project_id = s.project_id AND t.source_id = s.id
@@ -179,6 +182,7 @@ function discussionEntry(r: DiscussionRow, revisions: boolean): DiscussionEntry 
           revision: safeInt(r.revision, 'revision'),
           correctedAt: r.corrected_at === null ? null : iso(r.corrected_at),
           kind: r.kind,
+          mentions: r.mentions ?? [],
         }
       : {}),
   }
