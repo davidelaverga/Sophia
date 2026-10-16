@@ -22,6 +22,9 @@
   - «Mute everyone» with no one to mute records nothing either.
   - `recordedIfDone` holds the rule: the act's own result decides whether evidence is written.
 
+- **A long name stays in its row.** An account name may be an email of up to 320 characters with no break. The name's
+  track is capped at 40 % of the row and wraps anywhere, so the act and its time stay inside the sheet on a phone.
+
 Not here: making a host act's evidence survive a database failure after LiveKit acted (the first P2). That needs an
 intent written before the call and reconciled after, which is a design of its own, so it stays on the list.
 
@@ -32,4 +35,5 @@ intent written before the call and reconciled after, which is a design of its ow
   - a guest's knock is listed under the name they gave;
   - the editor's «let in» is listed with the guest as its target.
 - **`readiness.db.test.ts`:** not ready without 0061.
+- **`project-activity.spec.ts`:** at 390 px, a 120-character unbroken name wraps, and the time stays in the row.
 - **`host-acts.test.ts`:** an act that did nothing records nothing, and one that did records once.
