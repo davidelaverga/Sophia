@@ -121,6 +121,10 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next request to revise the page is refused, a design under way (revise-section.md). */
+  failEdit: () => void
+  /** While on, requests to revise the page wait for their replies; off, they answer. */
+  holdEdit: (on: boolean) => void
   /** The next read of the earlier discussion fails, as an unavailable API's (discussion-earlier.md). */
   failEarlier: () => void
   /** The next host control fails, as an unreachable room server's (host-controls.md). */
@@ -452,6 +456,8 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failEdit: false,
+  editHeld: null as (() => void)[] | null,
   failEarlier: false,
   failHost: false,
   hostHeld: null as (() => void)[] | null,
@@ -613,6 +619,14 @@ window.fixture = {
   },
   failReplies: (on) => {
     project.failReplies = on
+  },
+  failEdit: () => {
+    project.failEdit = true
+  },
+  holdEdit: (on) => {
+    const held = project.editHeld ?? []
+    project.editHeld = on ? [] : null
+    if (!on) for (const reply of held) reply()
   },
   failEarlier: () => {
     project.failEarlier = true
