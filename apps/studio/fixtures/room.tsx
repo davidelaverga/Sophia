@@ -238,6 +238,8 @@ interface Fixture {
   failNextAct: () => void
   /** The `n`th message comes to mention the viewer, its words and revision unchanged (a mention-only correction, A37). */
   mentionMeIn: (n: number) => void
+  /** The `n`th message no longer mentions the viewer, its words and revision unchanged (A37). */
+  unmentionMeIn: (n: number) => void
   /** The next previews list this many running research tasks as reading the words. */
   reachNextPreview: (tasks: number) => void
   /** Acts on messages land, but their replies wait until `releaseActs`. */
@@ -480,17 +482,22 @@ const project = {
   // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
   // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
   // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
-  messages: (query.get('discussion') === 'mentioned'
-    ? ['Sounds good to me.', MENTIONING]
-    : query.get('discussion') === 'mine'
-      ? [
-          { text: 'Meet at nine by the north door.', me: true },
-          'Sounds good to me.',
-          { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
-        ]
-      : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
-        ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-        : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
+  // `mentionOld=1` with `discussion=60`: the third message, beyond the chat's 50, mentions the viewer (A37).
+  messages: (query.get('mentionOld') === '1'
+    ? Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) =>
+        i === 2 ? { text: `Message ${i + 1}`, mentions: [ME] } : `Message ${i + 1}`,
+      )
+    : query.get('discussion') === 'mentioned'
+      ? ['Sounds good to me.', MENTIONING]
+      : query.get('discussion') === 'mine'
+        ? [
+            { text: 'Meet at nine by the north door.', me: true },
+            'Sounds good to me.',
+            { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
+          ]
+        : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+          ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+          : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
     string | Said
   )[],
   contributions: new Map(),
@@ -896,10 +903,19 @@ window.fixture = {
   reachNextPreview: (tasks) => {
     project.messageActs.reach = tasks
   },
+  // Named again after being removed is a new occurrence of the viewer's mention (A37).
   mentionMeIn: (n) => {
     const m = project.messages[n]
     if (m === undefined) return
-    project.messages[n] = { ...(typeof m === 'string' ? { text: m } : m), id: idOf(m, n), mentions: [ME] }
+    const said = typeof m === 'string' ? { text: m } : m
+    if (said.mentions?.includes(ME)) return
+    project.messages[n] = { ...said, id: idOf(m, n), mentions: [ME], occurrence: (said.occurrence ?? 0) + 1 }
+    publish(project)
+  },
+  unmentionMeIn: (n) => {
+    const m = project.messages[n]
+    if (m === undefined || typeof m === 'string') return
+    project.messages[n] = { ...m, id: idOf(m, n), mentions: (m.mentions ?? []).filter((id) => id !== ME) }
     publish(project)
   },
   holdActs: () => {

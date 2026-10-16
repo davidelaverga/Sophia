@@ -13,7 +13,10 @@ const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?
 const bar = (page: Page) => page.locator('#converse-draft')
 const MARCO = '00000000-0000-4000-8000-0000000000b1'
 const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
-const NEED = `mention:00000000-0000-4000-8000-0000000000aa:2:${MENTIONED_IN}`
+const PROJECT = '00000000-0000-4000-8000-0000000000aa'
+const NEED = `mention:${PROJECT}:2.1:${MENTIONED_IN}`
+const entryIdOf = (n: number) => `00000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}`
+const seenOf = async (page: Page) => (await served(page)).filter((s) => s.startsWith('seen:'))
 
 /** In the call, out of Sophia's conversation: the bar writes to the room (room-discussion.spec.ts). */
 async function enter(page: Page, query = '') {
@@ -163,7 +166,122 @@ test('mentions · a message that comes to mention the reader while it is shown i
   // A mention-only correction by its author: same words, same revision, the reader now named.
   await page.evaluate(() => window.fixture?.mentionMeIn(1))
   await expect(entry.locator('.contribution-mentions')).toHaveText('to you')
+  await expect.poll(() => served(page)).toContain(`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`)
+})
+
+test('mentions · removed and named again on the same words is a new occurrence: each is acknowledged once, by its own id', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mine')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect(line(page, 'Sounds good to me.')).toBeInViewport()
+  await page.evaluate(() => window.fixture?.mentionMeIn(1))
+  await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`])
+  // Same words, same revision: removed, then named again while the chat shows it.
+  await page.evaluate(() => window.fixture?.unmentionMeIn(1))
+  await expect(line(page, 'Sounds good to me.').locator('.contribution-mentions')).toHaveCount(0)
+  await page.evaluate(() => window.fixture?.mentionMeIn(1))
   await expect
-    .poll(() => served(page))
-    .toContain('seen:mention:00000000-0000-4000-8000-0000000000aa:1:00000000-0000-4000-8000-000000000002')
+    .poll(() => seenOf(page))
+    .toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`, `seen:mention:${PROJECT}:1.2:${entryIdOf(1)}`])
+  // Shown again, nothing more is sent.
+  await page.evaluate(() => window.fixture?.say('Another message.'))
+  await expect(discussion(page).getByText('Another message.')).toBeVisible()
+  await page.waitForTimeout(300)
+  expect(await seenOf(page)).toHaveLength(2)
+})
+
+test('mentions · a sliver at the chat’s edge is not reading it; the message in view is', async ({ page }) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mine')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  for (let i = 0; i < 25; i++) await page.evaluate((n) => window.fixture?.say(`Filler ${n}`), i)
+  await expect(discussion(page).getByText('Filler 24')).toBeVisible()
+  const target = line(page, 'Sounds good to me.')
+  const visible = () =>
+    target.evaluate((el) => {
+      const box = el.closest('.conversation-history')?.getBoundingClientRect()
+      const r = el.getBoundingClientRect()
+      return box ? Math.max(0, Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top)) : -1
+    })
+  /** Scrolls the chat so only `px` of the message shows at its top edge. */
+  const sliver = (px: number) =>
+    target.evaluate((el, n) => {
+      const box = el.closest('.conversation-history')
+      if (box) box.scrollTop += el.getBoundingClientRect().bottom - (box.getBoundingClientRect().top + n)
+    }, px)
+  // Out of view when it comes to name the reader (its «to you» line makes it taller), then only 4 px of it shown.
+  await sliver(-200)
+  expect(await visible()).toBe(0)
+  await page.evaluate(() => window.fixture?.mentionMeIn(1))
+  await expect(target.locator('.contribution-mentions')).toHaveText('to you')
+  await sliver(4)
+  expect(await visible()).toBeGreaterThan(0)
+  expect(await visible()).toBeLessThanOrEqual(6)
+  await page.waitForTimeout(600)
+  expect(await seenOf(page)).toEqual([])
+  // Brought into view, it is read.
+  await target.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+  await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${entryIdOf(1)}`])
+})
+
+test('mentions · a message taller than the chat is read once it fills the chat', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 560 })
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mine')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  const long = Array.from({ length: 160 }, (_, i) => `Line ${i} of a long note about the door plan.`).join(' ')
+  await page.evaluate((text) => window.fixture?.say(text), long)
+  await page.evaluate(() => window.fixture?.say('After the long one.'))
+  await expect(discussion(page).getByText('After the long one.')).toBeVisible()
+  const tall = line(page, 'Line 159 of a long note')
+  await expect(tall).toBeVisible()
+  const sizes = await tall.evaluate((el) => ({
+    view: el.closest('.conversation-history')?.clientHeight ?? 0,
+    height: el.getBoundingClientRect().height,
+    id: el.getAttribute('data-message') ?? '',
+  }))
+  expect(sizes.height).toBeGreaterThan(sizes.view * 1.7) // 60% of it can never show at once
+  const n = Number(sizes.id.slice(-12)) - 1
+  await page.evaluate((i) => window.fixture?.mentionMeIn(i), n)
+  await tall.evaluate((el) => el.scrollIntoView({ block: 'start' }))
+  await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${sizes.id}`])
+})
+
+test('mentions · the address brings its message into view once: later messages don’t pull the reader back', async ({
+  page,
+}) => {
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  await expect(leave(page)).toBeVisible()
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).toBeInViewport()
+  for (let i = 0; i < 20; i++) await page.evaluate((k) => window.fixture?.say(`Later ${k}`), i)
+  const history = page.locator('.conversation-history')
+  await history.evaluate((el) => {
+    el.scrollTop = el.scrollHeight
+  })
+  await page.evaluate(() => window.fixture?.say('One more.'))
+  await expect(discussion(page).getByText('One more.')).toBeInViewport()
+  await expect(discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)).not.toBeInViewport()
+})
+
+test('mentions · a message beyond the chat’s 50 is found in a few earlier pages, shown and then seen', async ({
+  page,
+}) => {
+  const old = entryIdOf(2)
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=60&mentionOld=1#message-${old}`)
+  await expect(leave(page)).toBeVisible()
+  await expect(discussion(page).locator(`[data-message="${old}"]`)).toBeInViewport()
+  expect((await served(page)).filter((s) => s.startsWith('discussion:'))).toHaveLength(1)
+  await expect.poll(() => seenOf(page)).toEqual([`seen:mention:${PROJECT}:1.1:${old}`])
+})
+
+test('mentions · an address naming no message of the chat says so, and nothing is marked', async ({ page }) => {
+  await page.goto(
+    '/room.html?call=on&people=2&floor=1&discussion=mentioned#message-00000000-0000-4000-8000-0000000000ff',
+  )
+  await expect(leave(page)).toBeVisible()
+  await expect(page.getByText('The message you opened isn’t in the chat anymore.')).toBeVisible()
+  await page.waitForTimeout(300)
+  expect((await seenOf(page)).filter((s) => s.includes('0000000000ff'))).toEqual([])
 })

@@ -12898,7 +12898,7 @@
                 "1"
               ]
             },
-            "description": "1: also the messages that mention the person (A37): kind mention, ref.kind contribution, ref.id the message, ref.within its revision; the id is `mention:<projectId>:<revision>:<contributionId>`. Without it, only A15's kinds, for a reader that knows no other."
+            "description": "1: also the messages that mention the person (A37): kind mention, ref.kind contribution, ref.id the message, ref.within `<revision>.<occurrence>` (the message's revision, and which asking this is: a recipient named again after being removed is a new occurrence); the id is `mention:<projectId>:<revision>.<occurrence>:<contributionId>`. Seen acts on that exact occurrence only: an earlier one's seen answers 204 and clears nothing newer. Without it, only A15's kinds, for a reader that knows no other."
           }
         ]
       }

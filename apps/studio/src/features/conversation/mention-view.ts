@@ -26,3 +26,42 @@ export function mentionWords(ids: readonly string[], me: string, members: Readon
   if (names.length <= 1) return `to ${names[0] ?? ''}`
   return `to ${names.slice(0, -1).join(', ')} and ${names.at(-1) ?? ''}`
 }
+
+/**
+ * Whether a message is shown enough to count as seen (A37): at least 60% of it in the chat's view, or, for one taller
+ * than the chat, at least 60% of the chat's height filled by it. A sliver at the edge is not reading it.
+ */
+export function readable(visible: number, height: number, view: number): boolean {
+  if (visible <= 0 || height <= 0) return false
+  return visible >= 0.6 * Math.min(height, view > 0 ? view : height)
+}
+
+/** What became of a message the address named (a mention from Home), said in the chat when it can't be shown. */
+export type AddressState = 'none' | 'looking' | 'found' | 'gone' | 'further'
+
+export const ADDRESS_WORDS: Readonly<Partial<Record<AddressState, string>>> = {
+  gone: 'The message you opened isn’t in the chat anymore.',
+  further: 'The message you opened is further back. Earlier messages shows more.',
+}
+
+/** At most this many earlier pages are read to find a message the address names (50 each). */
+export const ADDRESS_PAGES = 4
+
+/**
+ * The next step in looking for a message the address names: found (bring it into view), gone (withdrawn, or not there
+ * by the chat's start), further (not within ADDRESS_PAGES earlier pages), read an earlier page, or wait for one being read.
+ */
+export function nextLook(at: {
+  found: boolean
+  withdrawn: boolean
+  reading: boolean
+  offered: boolean
+  atStart: boolean
+  pages: number
+}): 'found' | 'gone' | 'further' | 'load' | 'wait' {
+  if (at.found) return 'found'
+  if (at.withdrawn) return 'gone'
+  if (at.reading) return 'wait'
+  if (at.offered && at.pages < ADDRESS_PAGES) return 'load'
+  return at.atStart || !at.offered ? 'gone' : 'further'
+}

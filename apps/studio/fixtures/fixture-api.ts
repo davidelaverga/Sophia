@@ -102,6 +102,8 @@ interface Project {
   messageActs?: MessageActs
   /** The members read fails (`members=fail`, A37). */
   membersFail?: boolean
+  /** The viewer's mentions marked seen (A37), by need id. */
+  mentionsSeen?: Set<string>
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -681,14 +683,45 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 
 /** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
 const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
-  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) }) ?? needSeen(method, url)
+  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) }) ??
+  needSeen(project, method, url)
 
-/** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, answered 204 as the API does. */
-function needSeen(method: string, url: URL): Response | undefined {
+/** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, that exact occurrence no longer listed; 204 as the API. */
+function needSeen(project: Project, method: string, url: URL): Response | undefined {
   const marked = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(url.pathname)
   if (method !== 'POST' || !marked) return undefined
-  served.push(`seen:${decodeURIComponent(marked[1] ?? '')}`)
+  const id = decodeURIComponent(marked[1] ?? '')
+  served.push(`seen:${id}`)
+  ;(project.mentionsSeen ??= new Set()).add(id)
   return new Response(null, { status: 204 })
+}
+
+/**
+ * The viewer's waiting mentions in the room (A37), as the API lists them: each message of the room that names them, by
+ * its revision and occurrence, until that occurrence is seen; never a withdrawn one.
+ */
+function roomMentionNeeds(project: Project) {
+  return project.messages.flatMap((m, n) => {
+    if (typeof m === 'string' || m.withdrawnAt || !m.mentions?.includes(membership.actorId)) return []
+    const revision = m.revision ?? 1
+    const id = idOf(m, n)
+    const need = `mention:${PROJECT}:${String(revision)}.${String(m.occurrence ?? 1)}:${id}`
+    if (project.mentionsSeen?.has(need)) return []
+    return [
+      {
+        id: need,
+        kind: 'mention',
+        // Its first words, as the API's first_words cuts them (0065: 140 characters).
+        title: m.text.length > 140 ? `${m.text.slice(0, 139)}…` : m.text,
+        projectId: PROJECT,
+        projectTitle: PROJECT_NAME,
+        expiresAt: null,
+        detail: 'A member mentioned you',
+        at: m.at ?? new Date().toISOString(),
+        ref: needRef('contribution', id, `${String(revision)}.${String(m.occurrence ?? 1)}`),
+      },
+    ]
+  })
 }
 
 /** The vision's proposed reads, and A18's writes; undefined for any other request. */
@@ -769,7 +802,7 @@ export function needsAnswer(now = Date.now(), mentions = false) {
 /** The message that mentions the viewer (A37): Marco's, on its revision 2, its current words. */
 export const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
 const MENTION_NEED = (at: string) => ({
-  id: `mention:${PROJECT}:2:${MENTIONED_IN}`,
+  id: `mention:${PROJECT}:2.1:${MENTIONED_IN}`,
   kind: 'mention',
   title: 'Can you check the door plan before Friday?',
   projectId: PROJECT,
@@ -777,7 +810,7 @@ const MENTION_NEED = (at: string) => ({
   expiresAt: null,
   detail: 'Marco mentioned you',
   at,
-  ref: needRef('contribution', MENTIONED_IN, '2'),
+  ref: needRef('contribution', MENTIONED_IN, '2.1'),
 })
 
 /** The person's archived projects (A30): this one, when it is. */
@@ -792,9 +825,11 @@ function archivedListAnswer(project: Project): Response {
 function ownRead(project: Project, url: URL) {
   if (url.pathname === '/api/v1/projects') return projectListAnswer(project)
   if (url.pathname === '/api/v1/projects/archived') return archivedListAnswer(project)
-  if (url.pathname === '/api/v1/me/needs')
-    return json(needsAnswer(Date.now(), url.searchParams.get('mentions') === '1'))
-  return undefined
+  if (url.pathname !== '/api/v1/me/needs') return undefined
+  // With mentions=1 (A37), the room's own mentions of the viewer, as its messages name them now.
+  const needs = needsAnswer(Date.now())
+  if (url.searchParams.get('mentions') !== '1') return json(needs)
+  return json({ ...needs, needs: [...needs.needs, ...roomMentionNeeds(project)] })
 }
 
 /** The proposed reads of the vision (A13's search, A14's focus); undefined for any other request. */

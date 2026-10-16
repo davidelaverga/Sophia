@@ -30,16 +30,20 @@
   The same words with other recipients change only who is mentioned: there is no new revision, nothing is erased,
   revoked, rebuilt or woken, and the event is `contribution.mentioned`. Drafts are never recorded, so they never
   mention anyone. Earlier messages get no recipients.
+- **Occurrences** (FND-C3b-ATTENTION-OCCURRENCE-01, V on #409). Each time a recipient is asked anew is its own
+  occurrence: named first is 1, and named again after being removed is one more, even with the same words on the same
+  revision. A kept recipient keeps its occurrence.
 - **Needs** (`GET /api/v1/me/needs?mentions=1`).
   - Without the opt-in the answer is exactly A15's kinds, so a strict reader before A37 never meets the new one.
   - With it, each pending mention is listed while all of these hold: the recipient is an active member, the project
     is not archived, and the message stands on that revision with its words.
   - A listed mention has kind `mention`; title the message's current first words; detail «<author's current label>
-    mentioned you» (D-NAMES, never an address); ref `{kind: contribution, id: message, within: revision}`; id
-    `mention:<projectId>:<revision>:<contributionId>`.
+    mentioned you» (D-NAMES, never an address); ref `{kind: contribution, id: message, within:
+    <revision>.<occurrence>}`; id `mention:<projectId>:<revision>.<occurrence>:<contributionId>`.
 - **Seen** (`POST /api/v1/me/needs/{id}/seen`).
-  - It marks that revision's mention seen.
-  - A seen naming an older revision answers 204 and clears nothing newer.
+  - It marks exactly that occurrence on that revision seen; the current one's seen again changes nothing.
+  - A seen saved for an earlier occurrence or revision answers 204 and clears nothing newer.
+  - A bare revision (the form before occurrences) or a malformed `within` gives 404.
   - Someone not an active member, or not mentioned, gets 404.
 - **Readers.**
   - With `revisions=1`, an entry carries `mentions`: whom it names now, never whether they looked.
@@ -56,11 +60,18 @@
 - **The discussion.** A message that names members says «to Marco and you» under its words.
 - **Home** (with its Needs view). A mention is listed with its words and who mentioned. Opening it goes to the
   project's room at that message (`#message-<id>`); the room opens its chat there.
-- **Seen.** The chat marks a mention seen only once its message is shown: the chat open in the room, and the entry in
-  the chat's scrolled view (Codex on #409). Nothing is marked when:
+- **Seen.** The chat marks seen exactly the occurrences the Needs read lists as waiting for the reader
+  (`useMentionAttention.ts`; never an id made up in the browser). It does so once the message is readable in the open
+  chat: at least 60% of it in view, or 60% of the chat's height for a message taller than the chat. A sliver at the
+  edge doesn't count. Each occurrence is marked once. Nothing is marked when:
   - the chat is closed;
   - the project failed to read;
-  - the message is beyond the chat's window.
+  - the message isn't shown.
+- **The address** (`#message-<id>`). It brings its message into view once for each time it is followed; later
+  messages never pull the reader back.
+  - When the message isn't among those shown, at most four earlier pages are read to find it.
+  - Withdrawn, or not found by the chat's start: «The message you opened isn't in the chat anymore.»
+  - Not found within those pages: «The message you opened is further back.»
 - **The members read.** Until it has loaded, nobody is offered and no recipient is named, never «a former member»
   for someone who may still be one.
 - **The files:**

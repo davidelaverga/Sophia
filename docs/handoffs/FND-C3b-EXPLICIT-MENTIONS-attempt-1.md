@@ -115,6 +115,38 @@ The evidence below is for the commit that carries this section.
   - lint, format, typecheck and contracts clean; units 2364 pass, 0 fail.
 - **What happens next.** Any later finding goes to P for a focused, split or owner disposition.
 
+## Focused attention-occurrence correction (FND-C3b-ATTENTION-OCCURRENCE-01, P's disposition)
+
+The evidence below is for the commit that carries this section; logs are in the operator journal (C3b-occurrence-logs).
+
+- **V-C3b-1, merge-blocking.** V's real API/PG sequence: same words, remove, re-add, then the old seen cleared the
+  new attention.
+  - Reproduced in `mentions.db.test.ts`: on d14c5891 the re-added mention had the old one's identity (log
+    `pg-occurrence-before.log`).
+  - Fix in the unapplied 0069: an `occurrence` per recipient, one more on each re-add. The need's `within` is
+    `<revision>.<occurrence>`, carried through list_needs, Need/ref, the generated parser, the API and the Studio.
+  - `mark_mention_seen` acts only on that revision and occurrence: a delayed old seen answers 204 and clears nothing,
+    and the current one is idempotent.
+  - Same words still make no revision, erasure or wake. An unrelated reply need stays.
+  - A mutation (no occurrence increment) fails the case.
+- **4297960036.** The chat acknowledges the Needs read's own ids, so a re-added occurrence is a new id. On the mounted
+  chat, remove and re-add send `…:1.1:…` and `…:1.2:…` once each.
+- **4297960051.**
+  - The readable rule: 60% of the entry, or 60% of the chat for a taller one.
+  - The browser shows a ≤6 px sliver not acknowledged and a 3× tall message acknowledged.
+  - On d14c5891 the tall message was never acknowledged (defect confirmed). On d14c5891 the 4 px sliver was *not*
+    acknowledged in this fixture either (its failure there is the id format only), so V's edge hypothesis is guarded,
+    not confirmed.
+- **4297960043.** The address is handled once per follow; later messages don't pull the reader back (on d14c5891 they
+  did).
+- **4297960058.** An older target is found within at most four earlier pages, and only after the first read (a real
+  bug caught: it once concluded before the snapshot arrived). A missing target says so and nothing is marked.
+  Positive browser case: a target beyond 50, one page read, shown, seen.
+- **Results:**
+  - PG: 159/159; research and design 15/15.
+  - Browser: mentions 14/14, ×3 42/42; broad regression 170/170.
+  - Units 2368 pass, 0 fail; lint, format, typecheck and contracts clean; artifacts reproduced.
+
 ## Next bounded action
 
 Read the automatic review on this head once (at most two consolidated exchanges), then hand back to P. The next

@@ -34,19 +34,19 @@ export async function markReplySeen(c: pg.PoolClient, turnId: string): Promise<b
 }
 
 /**
- * markNeedSeen for a mention (A37): the person has looked at the message on that revision; a seen for another revision
- * changes nothing. False when they are not an active member or are not mentioned. Call inside withActor(..., "write").
+ * markNeedSeen for a mention (A37): the person has looked at the message on that revision, for that occurrence of being
+ * asked; a seen for another revision or occurrence changes nothing. False when they are not an active member or are not
+ * mentioned. Call inside withActor(..., "write").
  */
 export async function markMentionSeen(
   c: pg.PoolClient,
   projectId: string,
   contributionId: string,
-  revision: string,
+  at: { revision: string; occurrence: string },
 ): Promise<boolean> {
-  const { rows } = await c.query<{ marked: boolean }>('SELECT sophia.mark_mention_seen($1, $2, $3::bigint) AS marked', [
-    projectId,
-    contributionId,
-    revision,
-  ])
+  const { rows } = await c.query<{ marked: boolean }>(
+    'SELECT sophia.mark_mention_seen($1, $2, $3::bigint, $4::bigint) AS marked',
+    [projectId, contributionId, at.revision, at.occurrence],
+  )
   return onlyRow(rows, 'mark_mention_seen').marked
 }

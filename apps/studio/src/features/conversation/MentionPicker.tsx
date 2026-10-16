@@ -2,14 +2,10 @@
 // chooses up to five members, by their current display names, before sending a message to the room; the message
 // names them, and each finds it among what needs them. Nothing is read from the words: a name typed in the message
 // mentions nobody. A viewer writes as before and is never offered the choice.
-import { useEffect, useRef, useState, type RefObject } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { ProjectMember } from '@sophia/contracts'
 import { getProjectMembers } from '../../api/client.ts'
-import { markNeedSeen } from '../../api/needs.ts'
-import { tokenSubject } from '../../app/auth-callback.ts'
-import { MESSAGE } from '../resources/link.ts'
-import { useAddressed } from '../resources/useAddressed.ts'
 import { MENTIONS } from '../../app/mentions.ts'
 import type { Identity } from '../../app/dev-identity.ts'
 import { useMembership } from '../access/useAccess.ts'
@@ -110,54 +106,4 @@ export function MentionedLine(props: {
 }) {
   if (!props.known || !props.ids || props.ids.length === 0) return null
   return <span className="contribution-mentions">{mentionWords(props.ids, props.me, props.byId)}</span>
-}
-
-/** A mention's need id (A37): `mention:<projectId>:<revision>:<contributionId>`. */
-export const mentionNeedId = (projectId: string, revision: number, contributionId: string) =>
-  `mention:${projectId}:${String(revision)}:${contributionId}`
-
-/**
- * A message that mentions the reader is seen once it is shown (Codex on #409): the chat on screen (`inView`) and the
- * entry itself in the chat's scrolled view. Then, once per revision, its need is marked seen and Home reads its needs
- * again. A message beyond the chat's window, a closed chat, a project that failed to read: nothing is marked.
- */
-export function useMentionsSeen(
-  identity: Identity,
-  history: RefObject<HTMLElement | null>,
-  inView: boolean,
-  shown: string,
-) {
-  const client = useQueryClient()
-  const marked = useRef(new Set<string>())
-  useEffect(() => {
-    const root = history.current
-    if (!MENTIONS || !inView || !root || typeof IntersectionObserver === 'undefined') return undefined
-    const observer = new IntersectionObserver(
-      (seen) => {
-        for (const entry of seen) {
-          const id =
-            entry.isIntersecting && entry.target instanceof HTMLElement ? entry.target.dataset.mentionNeed : undefined
-          if (!id || marked.current.has(id)) continue
-          marked.current.add(id)
-          const again = () =>
-            client.invalidateQueries({ queryKey: ['vision', 'needs', tokenSubject(identity.token) ?? identity.token] })
-          // A write that fails is tried again the next time the message is shown.
-          void markNeedSeen(identity.token, id).then(again, () => marked.current.delete(id))
-        }
-      },
-      { root, threshold: 0.6 },
-    )
-    for (const el of root.querySelectorAll('[data-mention-need]')) observer.observe(el)
-    return () => observer.disconnect()
-  }, [client, identity.token, history, inView, shown])
-}
-
-/** A message named in the address (#message-<id>, a mention from Home): brought into the chat's view once shown. */
-export function useMessageAddressed(history: RefObject<HTMLElement | null>, inView: boolean, shown: string) {
-  const named = useAddressed(MESSAGE)
-  useEffect(() => {
-    if (!inView || !named.id) return
-    const el = history.current?.querySelector(`[data-message="${CSS.escape(named.id)}"]`)
-    el?.scrollIntoView({ block: 'center' })
-  }, [history, inView, named.id, named.seq, shown])
 }

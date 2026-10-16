@@ -173,11 +173,11 @@ describe('explicit mentions in room messages (A37)', () => {
           projectId,
           'contribution',
           r.contributionId,
-          '1',
+          '1.1',
         ],
       ],
     )
-    assert.equal(viewerNeeds[0]?.id, `mention:${projectId}:1:${r.contributionId}`)
+    assert.equal(viewerNeeds[0]?.id, `mention:${projectId}:1.1:${r.contributionId}`)
     assert.equal((await mentionsOf(other)).length, 1)
     assert.deepEqual(await mentionsOf(admin), [])
     assert.ok(!JSON.stringify(viewerNeeds).includes('@sophia.test'))
@@ -235,10 +235,10 @@ describe('explicit mentions in room messages (A37)', () => {
     assert.deepEqual(await mentionsOf(b), [])
     const cNeeds = await mentionsOf(c)
     assert.deepEqual(cNeeds.map(saidOf), [
-      [`mention:${projectId}:2:${m.contributionId}`, '2', 'Plan v2.', 'A member mentioned you'],
+      [`mention:${projectId}:2.1:${m.contributionId}`, '2.1', 'Plan v2.', 'A member mentioned you'],
     ])
     // A seen for revision 1 is stale: 204, and the revision 2 mention stays.
-    assert.equal(await seen(c, `mention:${projectId}:1:${m.contributionId}`), 204)
+    assert.equal(await seen(c, `mention:${projectId}:1.1:${m.contributionId}`), 204)
     assert.equal((await mentionsOf(c)).length, 1)
 
     // Explicit recipients [B, D]: C removed (no longer asked), D added (asked), B kept and seen (not asked again).
@@ -248,7 +248,7 @@ describe('explicit mentions in room messages (A37)', () => {
     assert.deepEqual(await mentionsOf(b), [])
     assert.deepEqual(
       (await mentionsOf(d)).map((n) => [n.ref.within, n.title]),
-      [['3', 'Plan v3.']],
+      [['3.1', 'Plan v3.']],
     )
     // The old words are in no need.
     for (const who of [b, c, d]) {
@@ -265,6 +265,72 @@ describe('explicit mentions in room messages (A37)', () => {
       [projectId, m.contributionId],
     )
     assert.equal(Number(left?.n), 0)
+  })
+
+  it('gives each new attention its own occurrence: a delayed old seen never clears a re-added mention; the current seen is idempotent (V on #409)', async () => {
+    const [admin, author, recipient] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [author, recipient] })
+    // An unrelated need of the recipient's (Sophia's reply in their space), which no mention seen may touch.
+    await owner(`INSERT INTO sophia.personal_spaces(owner_id, turn_seq) VALUES ($1, 1)`, [recipient])
+    await owner(
+      `INSERT INTO sophia.personal_turns(owner_id,id,seq,author,body,reply_to,reply,asked_at)
+       VALUES ($1,$2,1,'sophia','A reply waiting.',NULL,NULL,NULL)`,
+      [recipient, randomUUID()],
+    )
+    const others = async () =>
+      parseNeedList((await call(recipient, '/api/v1/me/needs?mentions=1')).json).needs.filter(
+        (n) => n.kind !== 'mention',
+      )
+    const kept = await others()
+    assert.equal(kept.length, 1)
+
+    const message = await said(author, projectId, 'Same words.', [recipient])
+    const [old] = await mentionsOf(recipient)
+    assert.ok(old)
+    // Same words: removed, then named again. No new text revision.
+    assert.equal((await correct(author, projectId, message.contributionId, 'Same words.', [])).status, 200)
+    assert.deepEqual(await mentionsOf(recipient), [])
+    assert.equal((await correct(author, projectId, message.contributionId, 'Same words.', [recipient])).status, 200)
+    const [fresh] = await mentionsOf(recipient)
+    assert.ok(fresh)
+    assert.notEqual(fresh.id, old.id, 'a new occurrence has its own identity')
+    assert.equal(fresh.ref.id, old.ref.id)
+    const [row] = await owner<{ revision: string; source_id: string }>(
+      `SELECT revision, source_id FROM sophia.contributions WHERE project_id=$1 AND id=$2`,
+      [projectId, message.contributionId],
+    )
+    assert.deepEqual(
+      [row?.revision, row?.source_id],
+      ['1', message.sourceId],
+      'same words: no text revision, same source',
+    )
+    // The old seen arrives late: 204, and the re-added mention still waits.
+    assert.equal(await seen(recipient, old.id), 204)
+    assert.deepEqual(
+      (await mentionsOf(recipient)).map((n) => n.id),
+      [fresh.id],
+    )
+    // The current seen clears it; again, it is the same answer and changes nothing.
+    assert.equal(await seen(recipient, fresh.id), 204)
+    assert.deepEqual(await mentionsOf(recipient), [])
+    assert.equal(await seen(recipient, fresh.id), 204)
+    assert.deepEqual(await mentionsOf(recipient), [])
+    // Nothing else of theirs was cleared.
+    assert.deepEqual(await others(), kept)
+  })
+
+  it('keeps a text revision’s stale seen stale, and the kept waiting mention one item on its new revision', async () => {
+    const [admin, author, recipient] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [author, recipient] })
+    const message = await said(author, projectId, 'First words.', [recipient])
+    const [old] = await mentionsOf(recipient)
+    assert.ok(old)
+    assert.equal((await correct(author, projectId, message.contributionId, 'Second words.')).status, 200)
+    const now = await mentionsOf(recipient)
+    assert.equal(now.length, 1)
+    assert.notEqual(now[0]?.id, old.id)
+    assert.equal(await seen(recipient, old.id), 204)
+    assert.equal((await mentionsOf(recipient)).length, 1, 'the earlier revision’s seen clears nothing')
   })
 
   it('changes only who is mentioned for the same words: no revision, nothing erased or woken; an [] clears; a viewer keeps their own words without recipients', async () => {
@@ -292,7 +358,7 @@ describe('explicit mentions in room messages (A37)', () => {
     )
     assert.deepEqual(
       (await mentionsOf(viewer)).map((n) => n.ref.within),
-      ['1'],
+      ['1.1'],
     )
     // [] clears every recipient.
     assert.equal((await correct(author, projectId, m.contributionId, 'Same words.', [])).status, 200)
@@ -335,7 +401,9 @@ describe('explicit mentions in room messages (A37)', () => {
     assert.equal(kept.status, 200, kept.raw)
     // A malformed or foreign mention id: 404.
     assert.equal(await seen(c, `mention:${projectId}:x:${m.contributionId}`), 404)
-    assert.equal(await seen(c, `mention:${projectId}:2:${m.contributionId}`), 404, 'not mentioned')
+    assert.equal(await seen(c, `mention:${projectId}:2.1:${m.contributionId}`), 404, 'not mentioned')
+    // A bare revision (before occurrences) names nothing.
+    assert.equal(await seen(c, `mention:${projectId}:2:${m.contributionId}`), 404)
     // The restricted role reads no mention row itself.
     await assert.rejects(
       withActor(pool, author, 'read', (cl) => cl.query('SELECT * FROM sophia.contribution_mentions')),

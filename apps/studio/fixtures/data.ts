@@ -54,6 +54,8 @@ export interface Said {
   withdrawnAt?: string
   /** The members it mentions (A37), by actor id. */
   mentions?: string[]
+  /** Which asking of the viewer this is (A37): one more each time they are named again after being removed. */
+  occurrence?: number
 }
 
 /** The `n`th message's entry id in the discussion (0-based), as the snapshot lists it. */

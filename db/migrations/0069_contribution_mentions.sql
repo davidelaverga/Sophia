@@ -15,9 +15,11 @@
 --   - a withdrawal ends every one.
 --   The same words with other recipients change only who is mentioned: no new revision, nothing erased, rebuilt or
 --   woken. Drafts are never recorded, so they never mention anyone. Earlier messages get no recipients.
+-- * Each time a recipient is asked anew (named first, or named again after being removed) is its own occurrence, so its
+--   need has its own identity, `mention:<project>:<revision>.<occurrence>:<message>` (V on #409): a seen saved for an
+--   earlier occurrence or revision answers 204 and clears nothing newer; the current one's seen is idempotent.
 -- * A recipient's need (A15, opted in with mentions=1) lists their pending mentions on the message's current revision,
---   while they are an active member, the project is not archived, and the message stands with its words. Looking at
---   one marks that revision's attention seen; a seen for an older revision answers 204 and clears nothing newer.
+--   while they are an active member, the project is not archived, and the message stands with its words.
 -- * Recipients are read by members through contribution_recipients, never their seen state.
 -- submit_contribution, correct_contribution and withdraw_contribution are 0068's with the mention steps; 0068 is not
 -- edited, nor is anything before it.
@@ -26,6 +28,8 @@ BEGIN;
 CREATE TABLE sophia.contribution_mentions (
  project_id uuid NOT NULL, contribution_id uuid NOT NULL, recipient_id uuid NOT NULL,
  revision bigint NOT NULL CHECK(revision>0), state text NOT NULL CHECK(state IN ('pending','seen','retired')),
+ -- Which asking this is: 1 when first named, one more each time named again after being removed.
+ occurrence bigint NOT NULL DEFAULT 1 CHECK(occurrence>0),
  mentioned_at timestamptz NOT NULL DEFAULT now(), changed_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(project_id,contribution_id,recipient_id),
  FOREIGN KEY(project_id,contribution_id) REFERENCES sophia.contributions(project_id,id)
@@ -74,7 +78,8 @@ SET search_path=pg_catalog,sophia AS $$
 REVOKE ALL ON FUNCTION sophia.mentions_current(sophia.contributions) FROM PUBLIC;
 
 -- Bind a message's mentions to its committed revision (the rules in the header): kept ones move to it as they are
--- (waiting or seen), added ones wait, removed ones end.
+-- (waiting or seen, the same occurrence), added ones wait, a removed one named again waits as a new occurrence, removed
+-- ones end.
 CREATE FUNCTION sophia.mentions_bind(p_project uuid, p_contribution uuid, p_revision bigint, p_recipients uuid[])
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 BEGIN
@@ -86,7 +91,8 @@ BEGIN
  INSERT INTO sophia.contribution_mentions(project_id,contribution_id,recipient_id,revision,state)
  SELECT p_project,p_contribution,r,p_revision,'pending' FROM unnest(p_recipients) r
  ON CONFLICT (project_id,contribution_id,recipient_id) DO UPDATE
-  SET state='pending', revision=EXCLUDED.revision, mentioned_at=now(), changed_at=now()
+  SET state='pending', revision=EXCLUDED.revision, occurrence=sophia.contribution_mentions.occurrence+1,
+   mentioned_at=now(), changed_at=now()
   WHERE sophia.contribution_mentions.state='retired';
 END $$;
 REVOKE ALL ON FUNCTION sophia.mentions_bind(uuid,uuid,bigint,uuid[]) FROM PUBLIC;
@@ -281,7 +287,7 @@ BEGIN
    -- (0069; only with p_mentions, so a reader before A37 never meets the kind).
    SELECT 'mention', sophia.first_words(t.body), cm.project_id, mine.title, NULL::timestamptz,
           left(coalesce(sophia.actor_label(ct.project_id,ct.actor_id,ct.author_name),'A member')||' mentioned you',200),
-          cm.mentioned_at, 'contribution', cm.contribution_id::text, cm.revision::text
+          cm.mentioned_at, 'contribution', cm.contribution_id::text, cm.revision::text||'.'||cm.occurrence::text
      FROM sophia.contribution_mentions cm JOIN mine ON mine.project_id=cm.project_id
      JOIN sophia.contributions ct ON ct.project_id=cm.project_id AND ct.id=cm.contribution_id
       AND ct.state='current' AND ct.revision=cm.revision
@@ -304,9 +310,11 @@ END $$;
 REVOKE ALL ON FUNCTION sophia.list_needs(boolean) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION sophia.list_needs(boolean) TO sophia_api;
 
--- markNeedSeen for a mention (A37): the person has looked at the message on that revision. A seen for another revision
--- changes nothing (a newer one stays asked). False (404) when they are not an active member or are not mentioned.
-CREATE FUNCTION sophia.mark_mention_seen(p_project uuid, p_contribution uuid, p_revision bigint) RETURNS boolean
+-- markNeedSeen for a mention (A37): the person has looked at the message on that revision, for that occurrence of being
+-- asked. A seen for another revision or occurrence changes nothing (a newer one stays asked); the current one's again
+-- changes nothing more. False (404) when they are not an active member or are not mentioned.
+CREATE FUNCTION sophia.mark_mention_seen(p_project uuid, p_contribution uuid, p_revision bigint, p_occurrence bigint)
+RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,sophia AS $$
 DECLARE a uuid:=sophia.actor_id(); m sophia.contribution_mentions;
 BEGIN
@@ -315,13 +323,13 @@ BEGIN
  SELECT * INTO m FROM sophia.contribution_mentions
   WHERE project_id=p_project AND contribution_id=p_contribution AND recipient_id=a FOR UPDATE;
  IF NOT FOUND THEN RETURN false; END IF;
- IF m.state='pending' AND m.revision=p_revision THEN
+ IF m.state='pending' AND m.revision=p_revision AND m.occurrence=p_occurrence THEN
   UPDATE sophia.contribution_mentions SET state='seen', changed_at=now()
    WHERE project_id=p_project AND contribution_id=p_contribution AND recipient_id=a;
  END IF;
  RETURN true;
 END $$;
-REVOKE ALL ON FUNCTION sophia.mark_mention_seen(uuid,uuid,bigint) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION sophia.mark_mention_seen(uuid,uuid,bigint) TO sophia_api;
+REVOKE ALL ON FUNCTION sophia.mark_mention_seen(uuid,uuid,bigint,bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION sophia.mark_mention_seen(uuid,uuid,bigint,bigint) TO sophia_api;
 
 COMMIT;

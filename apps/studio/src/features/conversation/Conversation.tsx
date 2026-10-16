@@ -18,7 +18,10 @@ import { Composer } from './Composer.tsx'
 import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
-import { MentionedLine, mentionNeedId, useMemberNames, useMentionsSeen, useMessageAddressed } from './MentionPicker.tsx'
+import { MentionedLine, useMemberNames } from './MentionPicker.tsx'
+import { ADDRESS_WORDS, type AddressState } from './mention-view.ts'
+import { useMentionsSeen, useMessageAddressed, useMyMentions } from './useMentionAttention.ts'
+import type { Earlier } from './EarlierDiscussion.tsx'
 import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
@@ -84,7 +87,7 @@ export function Conversation(props: Props) {
   const replies = useReplies(projectId, identity, snapshot?.cursor)
   const earlier = useEarlierDiscussion(projectId, identity, discussion, history, withdrawnNow)
   const acts = useMessageActs(projectId, identity, earlier.revise)
-  const members = useMentionShown(props, history, earlier.entries)
+  const members = useMentionShown(props, history, earlier)
   useReplyGone(replying, earlier.withdrawn, setReplying)
   return (
     <div className="conversation">
@@ -92,7 +95,7 @@ export function Conversation(props: Props) {
         {empty && (
           <EmptyState className="chat-empty">Messages stay in this conversation. Notes live in the brief.</EmptyState>
         )}
-        <EarlierLine earlier={earlier} />
+        <TopLines earlier={earlier} address={members.address} />
         <Discussion
           entries={earlier.entries}
           withdrawn={earlier.withdrawn}
@@ -138,27 +141,47 @@ export function Conversation(props: Props) {
  * An entry's attributes: its id for the address (#message-, A37); a mention of the reader carries its need's id, so
  * the chat can say when it was shown; with replies (A20), its own anchor and focus.
  */
-const entryAttrs = (entry: DiscussionEntry, me: string, projectId: string, replies: boolean) => ({
-  'data-message': entry.id,
-  ...(me && entry.revision !== undefined && entry.mentions?.includes(me)
-    ? { 'data-mention-need': mentionNeedId(projectId, entry.revision, entry.id) }
-    : {}),
-  ...(replies ? { id: `entry-${entry.id}`, tabIndex: -1 } : {}),
-})
+const entryAttrs = (entry: DiscussionEntry, waiting: ReadonlyMap<string, string>, replies: boolean) => {
+  const need = waiting.get(entry.id)
+  return {
+    'data-message': entry.id,
+    ...(need ? { 'data-mention-need': need } : {}),
+    ...(replies ? { id: `entry-${entry.id}`, tabIndex: -1 } : {}),
+  }
+}
 
 /**
  * The project's members, to say whom a message mentions; the mentions the reader was shown are seen, and a message
  * named in the address is brought into view (A37).
  */
-function useMentionShown(props: Props, history: RefObject<HTMLDivElement | null>, entries: readonly DiscussionEntry[]) {
+function useMentionShown(props: Props, history: RefObject<HTMLDivElement | null>, earlier: Earlier) {
   const { projectId, identity, me } = props
   const inView = props.inView ?? false
   // Whom each names too: a mention-only correction keeps the revision, and the newly named entry is observed (Codex on #409).
   const shown =
-    entries.map((e) => `${e.id}@${String(e.revision ?? 0)}:${(e.mentions ?? []).join('+')}`).join(',') + projectId + me
-  useMentionsSeen(identity, history, inView, shown)
-  useMessageAddressed(history, inView, shown)
-  return { ...useMemberNames(projectId, identity), projectId }
+    earlier.entries.map((e) => `${e.id}@${String(e.revision ?? 0)}:${(e.mentions ?? []).join('+')}`).join(',') +
+    projectId +
+    me
+  // The occurrences the service lists as waiting for the reader, never an id made up here (V on #409).
+  const waiting = useMyMentions(identity, projectId, props.snapshot?.cursor)
+  useMentionsSeen(identity, history, inView, waiting, shown)
+  const address = useMessageAddressed(history, inView, earlier, props.snapshot !== undefined, shown)
+  return { ...useMemberNames(projectId, identity), projectId, waiting, address }
+}
+
+/** The chat's top: what it says of a message the address named when it can't show it (A37), then the earlier ones. */
+function TopLines({ earlier, address }: { earlier: Earlier; address: AddressState }) {
+  const words = ADDRESS_WORDS[address]
+  return (
+    <>
+      {words && (
+        <p className="chat-status" role="status">
+          {words}
+        </p>
+      )}
+      <EarlierLine earlier={earlier} />
+    </>
+  )
 }
 
 /** Nothing to show yet: no message, no withdrawn one's place (A36), no turn with Sophia. */
@@ -331,8 +354,8 @@ interface DiscussionProps {
   withdrawn: readonly WithdrawnEntry[]
   /** The reader's own message acts (the message acts flag's); absent, no message offers them. */
   acts: MessageActsOf | undefined
-  /** The project's members by id, to say whom a message mentions (A37), once read; and the project. */
-  named: { known: boolean; byId: ReadonlyMap<string, ProjectMember>; projectId: string }
+  /** The project's members by id, to say whom a message mentions (A37), once read; the mentions waiting for the reader. */
+  named: { known: boolean; byId: ReadonlyMap<string, ProjectMember>; waiting: ReadonlyMap<string, string> }
   me: string
   names: ReadonlyMap<string, string>
   /** What each reply answers, by the reply's entry id (A20). */
@@ -343,7 +366,6 @@ interface DiscussionProps {
 
 function Discussion(props: DiscussionProps) {
   const { entries, withdrawn, acts, named, me, names: known, replies, onReply } = props
-  const { projectId } = named
   const now = useNow()
   if (entries.length === 0 && withdrawn.length === 0) return null
   const items = discussionItems(entries, withdrawn)
@@ -368,7 +390,7 @@ function Discussion(props: DiscussionProps) {
           </span>
         )
         return (
-          <li key={entry.id} className="contribution" {...entryAttrs(entry, me, projectId, !!onReply)}>
+          <li key={entry.id} className="contribution" {...entryAttrs(entry, named.waiting, !!onReply)}>
             {days[i] && <span className="chat-day">{days[i]}</span>}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>

@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ProjectMember } from '@sophia/contracts'
-import { canMention, labelOf, mentionWords, MOST_MENTIONS, nameable, toggled } from './mention-view.ts'
+import {
+  ADDRESS_PAGES,
+  canMention,
+  labelOf,
+  mentionWords,
+  MOST_MENTIONS,
+  nameable,
+  nextLook,
+  readable,
+  toggled,
+} from './mention-view.ts'
 
 const ME = '00000000-0000-4000-8000-0000000000a1'
 const member = (n: number, name: string | null, role: ProjectMember['role'] = 'editor'): ProjectMember => ({
@@ -42,5 +52,38 @@ describe('mentionWords', () => {
       nameable([member(1, 'Marco'), { actorId: ME, role: 'admin', name: 'Me' }], ME).map((m) => m.name),
       ['Marco'],
     )
+  })
+})
+
+describe('readable', () => {
+  it('counts a message seen once 60% of it shows; a sliver at the edge is not reading it', () => {
+    assert.equal(readable(4, 100, 400), false)
+    assert.equal(readable(59, 100, 400), false)
+    assert.equal(readable(60, 100, 400), true)
+    assert.equal(readable(0, 100, 400), false)
+  })
+
+  it('counts a message taller than the chat once it fills 60% of the chat, which 60% of itself never could', () => {
+    // 2000 px tall in a 400 px chat: at most 400 px of it shows, 20% of it.
+    assert.equal(readable(400, 2000, 400), true)
+    assert.equal(readable(240, 2000, 400), true)
+    assert.equal(readable(200, 2000, 400), false)
+    assert.equal(readable(12, 2000, 400), false)
+  })
+})
+
+describe('nextLook', () => {
+  const base = { found: false, withdrawn: false, reading: false, offered: true, atStart: false, pages: 0 }
+  it('shows a message found; says a withdrawn one is gone; waits for a page being read', () => {
+    assert.equal(nextLook({ ...base, found: true }), 'found')
+    assert.equal(nextLook({ ...base, withdrawn: true }), 'gone')
+    assert.equal(nextLook({ ...base, reading: true }), 'wait')
+  })
+
+  it('reads at most a few earlier pages, then says it is further back; at the start, gone', () => {
+    assert.equal(nextLook({ ...base, pages: ADDRESS_PAGES - 1 }), 'load')
+    assert.equal(nextLook({ ...base, pages: ADDRESS_PAGES }), 'further')
+    assert.equal(nextLook({ ...base, offered: false, atStart: true }), 'gone')
+    assert.equal(nextLook({ ...base, offered: false }), 'gone')
   })
 })

@@ -7,8 +7,9 @@ import { markMentionSeen, markReplySeen, readNeeds, withActor } from '@sophia/pe
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const KINDS = new Set(['decision', 'permission', 'guest', 'reply', 'mention'])
-const REVISION = /^[1-9][0-9]{0,18}$/
-/** The largest revision a bigint holds: past it, the need names nothing (404), never a database failure. */
+/** A mention's `within` (A37): `<revision>.<occurrence>`, each a positive integer. */
+const OCCURRENCE = /^([1-9][0-9]{0,18})\.([1-9][0-9]{0,18})$/
+/** The largest number a bigint holds: past it, the need names nothing (404), never a database failure. */
 const MOST_REVISION = 9223372036854775807n
 
 /** A need's id, read back (`<kind>:<projectId, or personal>:<within, or ->:<ref id>`, each part escaped); null if not one. */
@@ -34,6 +35,22 @@ const notFound = (requestId: string) => ({
   retry: 'never',
   requestId,
 })
+
+/**
+ * markNeedSeen for a mention (A37): that occurrence's attention on that revision is seen; an older one's seen changes
+ * nothing (204). False (404) for a `within` that is not `<revision>.<occurrence>`, or a need that is not the person's.
+ */
+async function mentionSeen(
+  pool: pg.Pool,
+  actorId: string,
+  need: { project: string; within: string | null; ref: string },
+) {
+  const at = OCCURRENCE.exec(need.within ?? '')
+  const [revision, occurrence] = [at?.[1], at?.[2]]
+  if (!revision || !occurrence || !UUID.test(need.ref)) return false
+  if (BigInt(revision) > MOST_REVISION || BigInt(occurrence) > MOST_REVISION) return false
+  return withActor(pool, actorId, 'write', (c) => markMentionSeen(c, need.project, need.ref, { revision, occurrence }))
+}
 
 export function needsRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): void {
   // mentions=1 (A37): the person's pending mentions too. Without it, exactly A15's kinds, for a reader that knows no other.
@@ -66,11 +83,7 @@ export function needsRoutes(app: FastifyInstance, { pool }: { pool: pg.Pool }): 
       const need = parseNeedId(req.params.id)
       if (!need) return reply.status(404).send(notFound(req.id))
       if (need.kind === 'mention') {
-        // A37: that revision's attention is seen; an older revision's seen changes nothing (204), never a newer one.
-        if (!need.within || !REVISION.test(need.within) || !UUID.test(need.ref) || BigInt(need.within) > MOST_REVISION)
-          return reply.status(404).send(notFound(req.id))
-        const { project, ref, within } = need
-        const marked = await withActor(pool, req.actorId, 'write', (c) => markMentionSeen(c, project, ref, within))
+        const marked = await mentionSeen(pool, req.actorId, need)
         return marked ? reply.status(204).send() : reply.status(404).send(notFound(req.id))
       }
       if (need.kind !== 'reply') return reply.status(204).send()
