@@ -16,21 +16,23 @@ async function openForm(page: Page, url: string) {
   return form(page)
 }
 
-test('ask off · the new conversation says Sophia doesn’t answer yet as soon as Ask Sophia is checked', async ({
+test('ask off · the new conversation says Sophia doesn’t answer yet whenever Ask Sophia is checked', async ({
   page,
 }) => {
   const f = await openForm(page, `${PAGE}&ask=off`)
   const ask = f.getByRole('checkbox', { name: 'Ask Sophia' })
-  await expect(f.getByText(unanswered)).toHaveCount(0)
-  await ask.check()
+  // The form asks Sophia by default (talk-store NO_WORDS): said before anything is pressed.
+  await expect(ask).toBeChecked()
   await expect(f.getByText(unanswered)).toBeVisible()
   await expect(ask).toHaveAccessibleDescription(unanswered)
   await ask.uncheck()
   await expect(f.getByText(unanswered)).toHaveCount(0)
+  await ask.check()
+  await expect(f.getByText(unanswered)).toBeVisible()
 })
 
 test('ask off · where Sophia answers, the form says nothing more', async ({ page }) => {
   const f = await openForm(page, PAGE)
-  await f.getByRole('checkbox', { name: 'Ask Sophia' }).check()
+  await expect(f.getByRole('checkbox', { name: 'Ask Sophia' })).toBeChecked()
   await expect(f.getByText(unanswered)).toHaveCount(0)
 })

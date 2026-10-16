@@ -658,7 +658,7 @@ test('browser-account · at Home the palette and the index know the places’ ke
     expect(words).toContain(w)
   }
   await page.keyboard.press('Escape')
-  await page.keyboard.press('Control+/')
+  await page.keyboard.press('ControlOrMeta+/')
   const index = page.getByRole('dialog', { name: 'Keyboard shortcuts' })
   await expect(index).toBeVisible()
   await expect(index.locator('.keys-list li')).toContainText([/Home\s*H$/, /Personal\s*P$/, /Your projects\s*W$/])
