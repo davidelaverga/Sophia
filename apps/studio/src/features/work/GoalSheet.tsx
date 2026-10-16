@@ -5,6 +5,7 @@ import type { Goal } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { Sheet } from '../../app/Sheet.tsx'
 import { GoalNotes, type NotesFor } from './GoalNotes.tsx'
+import { GoalTargetSection } from './GoalTargets.tsx'
 import { Asks } from './GoalParts.tsx'
 import { Criteria } from './Criteria.tsx'
 import { HEALTH_LABEL, healthOf, stateLine, wayLine, type Glanced } from './goals-glance.ts'
@@ -54,6 +55,7 @@ export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }
           {health === 'paused' && ` · ${stateLine(goal, plan?.glance)}`}
         </p>
         <p className="goal-outcome">{goal.outcome}</p>
+        <GoalTargetSection goalId={goal.id} at={notes} />
         <Asks asks={asks} onOpen={onOpenAsk} inGoal />
         {way && (
           <p className="goal-sheet-way">

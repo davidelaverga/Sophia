@@ -158,7 +158,7 @@ export const EVENT_TYPES = [
     'progress',
   ]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready']),
-  ...suffixed('goal.', ['held', 'stopped']),
+  ...suffixed('goal.', ['held', 'stopped', 'target_set']),
 ]
 
 const COMMAND_KINDS = ['steer', 'request_review', 'hold', 'stop', 'resume', 'native_task', 'create', 'input', 'inspect']
@@ -213,7 +213,7 @@ export const SUMMARY_CODES = [
   ...suffixed('contribution.', ['discuss', 'ask_sophia', 'propose_work']),
   ...suffixed('native_task.', [...TASK_SUMMARIES, ...TASK_ENDINGS]),
   ...suffixed('runtime.', ['hello', 'ready', 'not_ready', 'unrecovered']),
-  ...suffixed('goal.', ['held', 'stopped']),
+  ...suffixed('goal.', ['held', 'stopped', 'target']),
 ]
 
 // What the room shows about LiveKit: counts, never a person (review finding CX-0007). Sophia is the one participant

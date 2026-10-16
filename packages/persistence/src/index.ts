@@ -262,3 +262,4 @@ export {
   type DesignCaptureRefs,
   type DesignRoles,
 } from './design.ts'
+export { readGoalTargets, readProjectMembers, setGoalTarget } from './goal-targets.ts'

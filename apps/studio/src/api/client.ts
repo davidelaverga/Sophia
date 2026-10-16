@@ -10,6 +10,10 @@ import type {
   ProjectRenamed,
   ProjectLeft,
   DiscussionPage,
+  GoalTargetList,
+  GoalTargetRequest,
+  GoalTargetSet,
+  ProjectMembers,
   Receipt,
   RoomToken,
   RoomTokenRequest,
@@ -22,6 +26,9 @@ import {
   parseProjectRenamed,
   parseProjectLeft,
   parseDiscussionPage,
+  parseGoalTargetList,
+  parseGoalTargetSet,
+  parseProjectMembers,
   parseReceipt,
   parseRoomToken,
   parseSnapshot,
@@ -117,6 +124,44 @@ export function getDiscussionPage(token: string, projectId: string, before: stri
     return readBody(res, parseDiscussionPage, 'safe_read')
   }
   return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** A JSON read under the person's token, validated as `parse` (A25's goal targets and members). */
+function readJson<T>(token: string, path: `/api/${string}`, parse: (value: unknown) => T): Promise<T> {
+  const read = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(path), { headers: auth(token), signal: limit })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parse, 'safe_read')
+  }
+  return inTime(READ_TIMEOUT_MS, read)
+}
+
+/** listGoalTargets (A25): the project's goals' owners and target dates. */
+export const getGoalTargets = (token: string, projectId: string): Promise<GoalTargetList> =>
+  readJson(token, `/api/v1/projects/${projectId}/goal-targets`, parseGoalTargetList)
+
+/** listProjectMembers (A25): the project's active members, with the names the room keeps. */
+export const getProjectMembers = (token: string, projectId: string): Promise<ProjectMembers> =>
+  readJson(token, `/api/v1/projects/${projectId}/members`, parseProjectMembers)
+
+/** setGoalTarget (A25): editors and admins, compare-and-set on the target's revision (0 for none yet). */
+export async function setGoalTarget(
+  token: string,
+  projectId: string,
+  goalId: string,
+  body: GoalTargetRequest,
+): Promise<GoalTargetSet> {
+  const send = async (limit: AbortSignal) => {
+    const res = await fetch(apiUrl(`/api/v1/projects/${projectId}/goals/${goalId}/target`), {
+      method: 'PUT',
+      headers: { ...auth(token), 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: limit,
+    })
+    if (!res.ok) throw await toError(res)
+    return readBody(res, parseGoalTargetSet, 'never')
+  }
+  return inTime(READ_TIMEOUT_MS, send)
 }
 
 /** An admin's act on a member in the call (A24): mute their microphone, or take them out. No key: twice is once. */

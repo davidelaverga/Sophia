@@ -214,6 +214,31 @@ describe('guest invitations', () => {
   })
 })
 
+describe('a project’s members (A25)', () => {
+  it('lists the active members with their roles, named once they opened the project; an outsider is refused', async () => {
+    const [admin, editor, viewer] = [randomUUID(), randomUUID(), randomUUID()]
+    const { projectId } = await seedProject(db.ownerUrl, { admin, editors: [editor], viewers: [viewer] })
+    const opens = async (sub: string) =>
+      call(`/api/v1/projects/${projectId}/membership`, { method: 'GET', bearer: await token(sub) })
+    assert.equal((await opens(admin)).status, 200)
+    assert.equal((await opens(editor)).status, 200)
+    const listed = await call(`/api/v1/projects/${projectId}/members`, { method: 'GET', bearer: await token(viewer) })
+    assert.equal(listed.status, 200)
+    assert.deepEqual(listed.json, {
+      members: [
+        { actorId: admin, role: 'admin', name: `${admin.slice(0, 8)}@sophia.test` },
+        { actorId: editor, role: 'editor', name: `${editor.slice(0, 8)}@sophia.test` },
+        { actorId: viewer, role: 'viewer', name: null },
+      ],
+    })
+    const outsider = await call(`/api/v1/projects/${projectId}/members`, {
+      method: 'GET',
+      bearer: await token(randomUUID()),
+    })
+    assert.equal(outsider.status, 403)
+  })
+})
+
 describe('member invitations', () => {
   it('email the invited person, and only they can accept, signed in with that address', async () => {
     const created = await invite(A, { kind: 'member', role: 'editor', email: 'ana@example.com' })
