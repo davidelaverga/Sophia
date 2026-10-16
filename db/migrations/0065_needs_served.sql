@@ -1,24 +1,23 @@
 -- What needs the calling person (A15, docs/plans/needs-served.md, #365 section 2): served from what the service already
 -- keeps. A need leaves where it lives: a decision when it is answered, expires or is superseded; a guest when let in,
 -- declined or gone. Only a reply has a seen mark, the person's last seen personal turn, which only moves forward and
--- only through markNeedSeen (A15) — a read of the space never moves it. A reply is unread when it comes after both that
--- mark and the person's own last turn: spaces that exist at rollout read as the person left them (their last word
--- answered by what came after it), neither all unread nor a reply hidden. The turn order never goes back, erasure
--- included (0021), so the mark stays valid. A permission (a native tool's request) has no record yet: A13's waits are
+-- only through markNeedSeen (A15) — a read of the space, a later turn of the person's, an opened need never move it.
+-- A reply is unread when it comes after the mark. Spaces that exist at rollout start at the person's own last turn
+-- (their last word answered what came before it), once, here: neither all their history unread nor a waiting reply
+-- hidden; a space made later starts at 0. The turn order never goes back, erasure included (0021), so the mark stays
+-- valid. A permission (a native tool's request) has no record yet: A13's waits are
 -- computed (commission, wake, refusal), none of kind native_permission, so none is listed until one is kept.
 -- 0001–0064 are not edited.
 BEGIN;
 
-ALTER TABLE sophia.personal_spaces ADD COLUMN last_seen_turn_seq bigint
- CHECK(last_seen_turn_seq IS NULL OR last_seen_turn_seq>=0);
+ALTER TABLE sophia.personal_spaces ADD COLUMN last_seen_turn_seq bigint NOT NULL DEFAULT 0
+ CHECK(last_seen_turn_seq>=0);
 
--- The turn up to which the person has read Sophia's replies: their seen mark, or their own last turn when later.
-CREATE FUNCTION sophia.replies_read_through(p_owner uuid) RETURNS bigint LANGUAGE sql STABLE
-SET search_path=pg_catalog,sophia AS $$
- SELECT greatest(
-  coalesce((SELECT s.last_seen_turn_seq FROM sophia.personal_spaces s WHERE s.owner_id=p_owner),0),
-  coalesce((SELECT max(t.seq) FROM sophia.personal_turns t WHERE t.owner_id=p_owner AND t.author='person'),0)) $$;
-REVOKE ALL ON FUNCTION sophia.replies_read_through(uuid) FROM PUBLIC;
+-- At rollout only: each existing space starts at its person's own last turn (Codex on #390: after this, only the seen
+-- POST moves the mark; a later turn of theirs acknowledges nothing).
+UPDATE sophia.personal_spaces s SET last_seen_turn_seq=t.seq
+  FROM (SELECT owner_id, max(seq) AS seq FROM sophia.personal_turns WHERE author='person' GROUP BY owner_id) t
+ WHERE t.owner_id=s.owner_id;
 
 -- One part of a need's id, escaped so the id stays injective: '%' and ':' inside a part never read as a separator.
 CREATE FUNCTION sophia.need_part(p_part text) RETURNS text LANGUAGE sql IMMUTABLE
@@ -65,11 +64,12 @@ BEGIN
      FROM sophia.room_lobby l JOIN mine ON mine.project_id=l.project_id
     WHERE l.status='waiting' AND sophia.can_edit(l.project_id)
    UNION ALL
-   -- Sophia's replies after what the person has read (A10).
+   -- Sophia's replies after the person's seen mark (A10).
    SELECT 'reply', sophia.first_words(t.body), NULL::uuid, NULL::text, NULL::timestamptz, NULL::text, t.created_at,
           'personal_turn', t.id::text, NULL::text
      FROM sophia.personal_turns t
-    WHERE t.owner_id=a AND t.author='sophia' AND t.seq>sophia.replies_read_through(a)
+    WHERE t.owner_id=a AND t.author='sophia'
+      AND t.seq>coalesce((SELECT s.last_seen_turn_seq FROM sophia.personal_spaces s WHERE s.owner_id=a),0)
  ), kept AS (
    SELECT f.*, f.kind||':'||coalesce(f.project_id::text,'personal')||':'||coalesce(sophia.need_part(f.within),'-')
             ||':'||sophia.need_part(f.ref_id) AS id
@@ -95,7 +95,7 @@ BEGIN
  IF a IS NULL THEN RAISE EXCEPTION 'Unauthenticated' USING ERRCODE='42501'; END IF;
  SELECT t.seq INTO seen FROM sophia.personal_turns t WHERE t.owner_id=a AND t.id=p_turn AND t.author='sophia';
  IF NOT FOUND THEN RETURN false; END IF;
- UPDATE sophia.personal_spaces SET last_seen_turn_seq=greatest(coalesce(last_seen_turn_seq,0),seen) WHERE owner_id=a;
+ UPDATE sophia.personal_spaces SET last_seen_turn_seq=greatest(last_seen_turn_seq,seen) WHERE owner_id=a;
  RETURN true;
 END $$;
 REVOKE ALL ON FUNCTION sophia.mark_reply_seen(uuid) FROM PUBLIC;

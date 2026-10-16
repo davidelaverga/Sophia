@@ -210,23 +210,27 @@ describe('what needs the calling person (A15)', () => {
     assert.deepEqual((await needsOf(admin)).needs, [])
   })
 
-  it('lists Sophia’s replies after the person’s last word; seen moves forward only, and a later reply stays', async () => {
+  it('lists Sophia’s replies after the seen mark; only seen moves it, forward only, and a later reply stays', async () => {
     const [ana, other] = [randomUUID(), randomUUID()]
-    // At rollout: Ana asked (1), Sophia answered (2), Ana wrote again (3): reply 2 was answered, so it is read; then
-    // Sophia answered twice (4, 5).
+    // A space made after the rollout starts at 0: Ana asked (1), Sophia answered (2), Ana wrote again (3), Sophia
+    // answered twice (4, 5). Ana writing again acknowledged nothing (Codex on #390): 2 is unread until seen.
     const [, two, , four, five] = await space(ana, ['person', 'sophia', 'person', 'sophia', 'sophia'])
     const replies = async () => (await needsOf(ana)).needs.filter((n) => n.kind === 'reply').map((n) => n.ref.id)
-    assert.deepEqual(await replies(), [five, four])
+    assert.deepEqual(await replies(), [five, four, two])
     const fourNeed = (await needsOf(ana)).needs.find((n) => n.ref.id === four)
     assert.equal(fourNeed?.id, `reply:personal:-:${four}`)
     assert.equal(fourNeed?.projectId, null)
     assert.match(fourNeed?.title ?? '', /^Sophia answers turn 4/)
-    // Seeing 4 leaves 5; seeing 2 afterwards never moves the mark back.
+    // Seeing 4 sees what came before it (2) and leaves 5; seeing 2 afterwards never moves the mark back.
     assert.equal(await seen(ana, `reply:personal:-:${four}`), 204)
     assert.deepEqual(await replies(), [five])
     assert.equal(await seen(ana, `reply:personal:-:${two}`), 204)
     assert.deepEqual(await replies(), [five])
     assert.equal(await seen(ana, `reply:personal:-:${four}`), 204) // again: the same
+    // A turn of Ana's own, reading her space, reading this list: none of them sees 5.
+    await space(ana, ['person'])
+    await call('/api/v1/personal', await token(ana))
+    assert.deepEqual(await replies(), [five])
     // Nobody else reads or marks them: another person's turn is not theirs (404), and their list has none of Ana's.
     assert.equal(await seen(other, `reply:personal:-:${five}`), 404)
     assert.deepEqual((await needsOf(other)).needs, [])

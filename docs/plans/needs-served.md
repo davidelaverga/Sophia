@@ -35,13 +35,17 @@
 any background refetch acknowledge nothing. A required decision or a waiting guest is never acknowledged by being
 seen: it leaves only at its own record.
 
-- `personal_spaces.last_seen_turn_seq` is new. It only moves forward, and only through the seen POST: reading the
-  space never moves it.
-- A reply counts as read up to the greater of that mark and the person's own last turn. Someone who wrote after a
-  reply has seen it.
-- So spaces that exist when this is deployed read as their people left them: neither all their history unread, nor a
-  reply that is waiting hidden.
+- `personal_spaces.last_seen_turn_seq` is new. It only moves forward, and only through the seen POST. Reading the
+  space, the person's own later turn and an opened need never move it (Codex on #390).
+- A reply is unread when it comes after the mark.
+- **At rollout only**, each existing space's mark is set to its person's own last turn. Their last word answered what
+  came before it, so neither all their history reads unread nor a waiting reply is hidden. A space made later starts
+  at 0.
 - The personal turn order never goes back, erasure included (0021), so the mark stays valid after an erasure.
+- **A client consequence (Luis):** a reply read in the personal space stays a need on Home until a seen POST names it.
+  The Studio posts seen only when a reply is opened from Home. For the space to acknowledge what it shows, it would
+  post seen for the newest reply actually in sight, as Home's open does: an explicit, observed turn, never a
+  background read.
 
 ## The id
 
@@ -94,9 +98,11 @@ characters once escaped in the path, so a decision's seen POST could not reach t
     and an answered one are not. Seen answers 204 and the decision stays; once answered, it leaves.
   - **Guests:** a waiting guest is listed for the admin and the editor, not the viewer. The guest's own read is 403.
     Once let in, it leaves.
-  - **Replies:** the rollout start (a reply the person answered is read). Seen moves forward and never back, and is
-    idempotent. Another person can't mark or read them (404, empty). A new reply after the mark is listed.
+  - **Replies:** a later turn of the person's, a space read and a list read acknowledge nothing. Seen moves forward
+    and never back, and is idempotent. Another person can't mark or read them (404, empty). A new reply after the
+    mark is listed.
   - **Ids:** malformed and foreign ids are 404; another kind's well-formed id is 204.
   - **Membership:** a left member and an archived project read nothing; an empty list is still an answer.
   - **Escaping:** the id is read back escaped.
-- `readiness.db.test.ts`: not ready without the needs migration.
+- `readiness.db.test.ts`: not ready without 0065. A space that exists before 0065 starts at its person's last turn
+  (3); one with only Sophia's turn starts at 0.
