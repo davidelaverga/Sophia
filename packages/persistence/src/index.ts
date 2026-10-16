@@ -269,4 +269,4 @@ export {
   readProjectMembers,
   setGoalTarget,
 } from './goal-targets.ts'
-export { readProjectActivity, recordHostAct } from './activity.ts'
+export { pendingMemberRemoval, readProjectActivity, recordHostAct, removeMember } from './activity.ts'

@@ -133,9 +133,11 @@ interface Props {
   onChoose: (kind: DeviceKind, id: string) => void
   /** Under the cameras, the camera's background. */
   background?: BackgroundChoice
+  /** Last, whether your own camera shows mirrored here (room-basics.md). */
+  mirror?: { on: boolean; toggle: () => void }
 }
 
-export function DeviceMenu({ kinds, label, list, onChoose, background }: Props) {
+export function DeviceMenu({ kinds, label, list, onChoose, background, mirror }: Props) {
   const [open, setOpen] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   const shown = kinds.filter((k) => k !== 'audiooutput' || canChooseOutput())
@@ -182,6 +184,14 @@ export function DeviceMenu({ kinds, label, list, onChoose, background }: Props) 
               <MenuSep />
               <MenuHead>Background</MenuHead>
               <BackgroundItems can={can} onChoose={(id) => closeThen(() => background.onChoose(id))} />
+            </>
+          )}
+          {mirror && (
+            <>
+              <MenuSep />
+              <MenuItem checked={mirror.on} toggle onClick={() => closeThen(mirror.toggle)}>
+                Mirror my video
+              </MenuItem>
             </>
           )}
         </Menu>
