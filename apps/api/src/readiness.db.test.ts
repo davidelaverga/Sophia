@@ -38,6 +38,7 @@ const ROOM_ACTS = '0060_room_acts.sql'
 const ACTIVITY_NAMES = '0061_activity_names.sql'
 const PROFILES = '0062_actor_profiles.sql'
 const NEEDS = '0065_needs_served.sql'
+const UPDATES = '0066_project_updates.sql'
 
 let dir: string
 let db: TestDatabase
@@ -185,6 +186,9 @@ describe('readiness across 0043', () => {
       { [talked]: 3, [quiet]: 0 },
       'the seen mark at rollout',
     )
+    await through(UPDATES)
+    assert.deepEqual(await ready(), [503, { ready: false, reason: 'schema' }], 'without 0066')
+    await migrate(UPDATES)
     await current()
     assert.deepEqual(await ready(), [200, { ready: true }], 'with all')
   })

@@ -266,6 +266,8 @@ export type ProjectArchiveRequest = { "archived": boolean; };
 export type ProjectArchived = { "projectId": string; "archived": boolean; "cursor": string; };
 export type Profile = { "displayName": string | null; "chosen": boolean; "revision": number; };
 export type ProfileUpdate = { "displayName": string; "expectedRevision": number; };
+export type ProjectUpdates = { "fromSequence": string | null; "toSequence": string; "more": boolean; "decided": ReadonlyArray<{ "decisionId": string; "statement": string; "proposedBy": string | null; "decidedBy": string | null; "at": string | null; "undoable": boolean; }>; "made": ReadonlyArray<{ "artifactId": string; "artifactVersionId": string; "title": string; "versionNumber": number; "askedBy": string | null; }>; "noted": ReadonlyArray<{ "entryId": string; "kind": string; "text": string; "authoredBy": "member" | "sophia"; "actorId": string; "at": string; }>; "open": ReadonlyArray<{ "proposalId": string; "statement": string; }>; "work": ReadonlyArray<{ "taskId": string; "kind": string; "state": string; }>; "names": Readonly<Record<string, string>>; };
+export type ProjectSeenRequest = { "sequence": string; };
 export interface Operations {
   "createProject": { method: "POST"; path: "/api/v1/projects"; request: ProjectCreate; response: ProjectCreated; };
   "listProjects": { method: "GET"; path: "/api/v1/projects"; request: undefined; response: ProjectList; };
@@ -428,4 +430,6 @@ export interface Operations {
   "muteEveryoneInCall": { method: "POST"; path: "/api/v1/projects/{projectId}/room/mute-all"; request: undefined; response: undefined; };
   "getMyProfile": { method: "GET"; path: "/api/v1/me/profile"; request: undefined; response: Profile; };
   "updateMyProfile": { method: "PUT"; path: "/api/v1/me/profile"; request: ProfileUpdate; response: Profile; };
+  "readProjectUpdates": { method: "GET"; path: "/api/v1/projects/{projectId}/since"; request: undefined; response: ProjectUpdates; };
+  "markProjectSeen": { method: "PUT"; path: "/api/v1/projects/{projectId}/seen"; request: ProjectSeenRequest; response: undefined; };
 }
