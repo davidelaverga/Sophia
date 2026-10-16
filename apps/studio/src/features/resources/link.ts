@@ -11,6 +11,8 @@ export const DECISION = '#decision-'
 export const GOAL = '#goal-'
 /** A native request on a resource, by its id: its resource's sheet opens and the request takes the focus (needs-api.md). */
 export const REQUEST = '#request-'
+/** A message in the room's chat, by its id: the chat opens on it (a mention, from Home's «needs you», A37). */
+export const MESSAGE = '#message-'
 
 export const linkHash = (id: string, prefix = RESOURCE) => `${prefix}${encodeURIComponent(id)}`
 

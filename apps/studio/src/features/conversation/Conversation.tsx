@@ -18,7 +18,7 @@ import { Composer } from './Composer.tsx'
 import { authorLabel, withAuthors } from './conversation-view.ts'
 import { EarlierLine, useEarlierDiscussion } from './EarlierDiscussion.tsx'
 import { EditedMark, MessageActions, useHandedFocus, WithdrawnWords, type Acted } from './MessageActions.tsx'
-import { MentionedLine, useMemberNames } from './MentionPicker.tsx'
+import { MentionedLine, mentionNeedId, useMemberNames, useMentionsSeen, useMessageAddressed } from './MentionPicker.tsx'
 import { actsOf, discussionItems, lastSaidAt } from './message-acts.ts'
 import { NoticeCard } from './NoticeCard.tsx'
 import { quoteOf } from './replies.ts'
@@ -41,6 +41,8 @@ interface Props {
   onDraft: (text: string) => void
   /** Closes the panel, so the room's dock shows (Composer). */
   onShowRoom: () => void
+  /** The chat is on screen (its tab open in the room): only then is a mention seen (A37). */
+  inView?: boolean
 }
 
 /** Opening the panel (or resizing it) keeps the newest line in view while the reader follows along. */
@@ -82,7 +84,7 @@ export function Conversation(props: Props) {
   const replies = useReplies(projectId, identity, snapshot?.cursor)
   const earlier = useEarlierDiscussion(projectId, identity, discussion, history, withdrawnNow)
   const acts = useMessageActs(projectId, identity, earlier.revise)
-  const named = useMemberNames(projectId, identity).byId
+  const members = useMentionShown(props, history, earlier.entries)
   useReplyGone(replying, earlier.withdrawn, setReplying)
   return (
     <div className="conversation">
@@ -95,7 +97,7 @@ export function Conversation(props: Props) {
           entries={earlier.entries}
           withdrawn={earlier.withdrawn}
           acts={acts}
-          named={named}
+          named={members}
           me={me}
           names={names}
           replies={replies.of}
@@ -130,6 +132,31 @@ export function Conversation(props: Props) {
       />
     </div>
   )
+}
+
+/**
+ * An entry's attributes: its id for the address (#message-, A37); a mention of the reader carries its need's id, so
+ * the chat can say when it was shown; with replies (A20), its own anchor and focus.
+ */
+const entryAttrs = (entry: DiscussionEntry, me: string, projectId: string, replies: boolean) => ({
+  'data-message': entry.id,
+  ...(me && entry.revision !== undefined && entry.mentions?.includes(me)
+    ? { 'data-mention-need': mentionNeedId(projectId, entry.revision, entry.id) }
+    : {}),
+  ...(replies ? { id: `entry-${entry.id}`, tabIndex: -1 } : {}),
+})
+
+/**
+ * The project's members, to say whom a message mentions; the mentions the reader was shown are seen, and a message
+ * named in the address is brought into view (A37).
+ */
+function useMentionShown(props: Props, history: RefObject<HTMLDivElement | null>, entries: readonly DiscussionEntry[]) {
+  const { projectId, identity, me } = props
+  const inView = props.inView ?? false
+  const shown = entries.map((e) => `${e.id}@${String(e.revision ?? 0)}`).join(',') + projectId + me
+  useMentionsSeen(identity, history, inView, shown)
+  useMessageAddressed(history, inView, shown)
+  return { ...useMemberNames(projectId, identity), projectId }
 }
 
 /** Nothing to show yet: no message, no withdrawn one's place (A36), no turn with Sophia. */
@@ -302,8 +329,8 @@ interface DiscussionProps {
   withdrawn: readonly WithdrawnEntry[]
   /** The reader's own message acts (the message acts flag's); absent, no message offers them. */
   acts: MessageActsOf | undefined
-  /** The project's members by id, to say whom a message mentions (A37); empty without the mentions flag. */
-  named: ReadonlyMap<string, ProjectMember>
+  /** The project's members by id, to say whom a message mentions (A37), once read; and the project. */
+  named: { known: boolean; byId: ReadonlyMap<string, ProjectMember>; projectId: string }
   me: string
   names: ReadonlyMap<string, string>
   /** What each reply answers, by the reply's entry id (A20). */
@@ -312,7 +339,9 @@ interface DiscussionProps {
   onReply: ((replying: Replying) => void) | undefined
 }
 
-function Discussion({ entries, withdrawn, acts, named, me, names: known, replies, onReply }: DiscussionProps) {
+function Discussion(props: DiscussionProps) {
+  const { entries, withdrawn, acts, named, me, names: known, replies, onReply } = props
+  const { projectId } = named
   const now = useNow()
   if (entries.length === 0 && withdrawn.length === 0) return null
   const items = discussionItems(entries, withdrawn)
@@ -337,7 +366,7 @@ function Discussion({ entries, withdrawn, acts, named, me, names: known, replies
           </span>
         )
         return (
-          <li key={entry.id} className="contribution" {...(onReply ? { id: `entry-${entry.id}`, tabIndex: -1 } : {})}>
+          <li key={entry.id} className="contribution" {...entryAttrs(entry, me, projectId, !!onReply)}>
             {days[i] && <span className="chat-day">{days[i]}</span>}
             {answers && <Quote answers={answers} here={here.has(answers.id)} me={me} names={names} />}
             <span className="contribution-author">{author}</span>
@@ -350,7 +379,7 @@ function Discussion({ entries, withdrawn, acts, named, me, names: known, replies
             ) : (
               words
             )}
-            <MentionedLine ids={entry.mentions} me={me} byId={named} />
+            <MentionedLine ids={entry.mentions} me={me} byId={named.byId} known={named.known} />
             {onReply && (
               <button
                 type="button"

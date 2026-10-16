@@ -50,6 +50,8 @@ const VIEW_OF: Readonly<Record<WireNeed['kind'], View>> = {
  * resource (and the task that holds its wait, for the record); a task in Tasks' fragment.
  */
 export interface NeedAt {
+  /** A message in the room's chat (a mention, A37): the chat opens on it. */
+  messageId?: string
   taskId?: string
   decisionId?: string
   requestId?: string
@@ -67,6 +69,8 @@ export type Where = { place: 'personal' } | { projectId: string; view: View; at:
  */
 export function atOf(ref: WireNeed['ref']): NeedAt {
   if (ref.kind === 'work_decision') return { decisionId: ref.id }
+  // A mention (A37): its message, which the room's chat opens on; it is seen once shown there (useMentionsSeen).
+  if (ref.kind === 'contribution') return { messageId: ref.id }
   if (ref.kind === 'work_wait')
     return {
       requestId: ref.id,

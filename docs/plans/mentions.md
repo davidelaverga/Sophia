@@ -54,7 +54,14 @@
   message, then cleared. A viewer never sees it. The request carries `mentions` only when someone is chosen.
 - **The discussion.** A message that names members says «to Marco and you» under its words.
 - **Home** (with its Needs view). A mention is listed with its words and who mentioned. Opening it goes to the
-  project's room and marks it seen.
+  project's room at that message (`#message-<id>`); the room opens its chat there.
+- **Seen.** The chat marks a mention seen only once its message is shown: the chat open in the room, and the entry in
+  the chat's scrolled view (Codex on #409). Nothing is marked when:
+  - the chat is closed;
+  - the project failed to read;
+  - the message is beyond the chat's window.
+- **The members read.** Until it has loaded, nobody is offered and no recipient is named, never «a former member»
+  for someone who may still be one.
 - **The files:**
   - `features/conversation/MentionPicker.tsx` and `mention-view.ts` (unit-tested);
   - the hooks in `Composer.tsx`, `useRoomMessage.ts`, `Conversation.tsx`, `api/needs.ts`, `useNeeds.ts`,

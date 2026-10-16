@@ -65,6 +65,7 @@ import {
   type SophiaState,
 } from './fake-people.ts'
 import {
+  MENTIONED_IN,
   installFixtureApi,
   publish,
   releaseSources,
@@ -75,6 +76,7 @@ import {
   unexpected,
 } from './fixture-api.ts'
 import { messageActsOf } from './message-acts.ts'
+import { ME } from './data.ts'
 import { missionWrites } from './mission-writes.ts'
 import {
   briefNotice,
@@ -314,6 +316,14 @@ declare global {
   }
 }
 
+/** Another member's message that mentions the viewer (A37): the one Home's mention need names. */
+const MENTIONING = {
+  id: MENTIONED_IN,
+  text: 'Can you check the door plan before Friday?',
+  revision: 2,
+  mentions: [ME],
+}
+
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
 // `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
@@ -467,20 +477,24 @@ const project = {
   // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
   // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
   // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
-  messages: (query.get('discussion') === 'mine'
-    ? [
-        { text: 'Meet at nine by the north door.', me: true },
-        'Sounds good to me.',
-        { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
-      ]
-    : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
-      ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-      : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
+  // `discussion=mentioned`: another member's message that mentions the viewer, on its revision 2 (A37).
+  messages: (query.get('discussion') === 'mentioned'
+    ? ['Sounds good to me.', MENTIONING]
+    : query.get('discussion') === 'mine'
+      ? [
+          { text: 'Meet at nine by the north door.', me: true },
+          'Sounds good to me.',
+          { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
+        ]
+      : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+        ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+        : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
     string | Said
   )[],
   contributions: new Map(),
   // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
   messageActs: messageActsOf(query),
+  membersFail: query.get('members') === 'fail',
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,

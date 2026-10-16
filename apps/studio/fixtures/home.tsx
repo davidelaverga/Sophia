@@ -315,7 +315,7 @@ const say = (text: string) => pressed.push(`say ${text}`)
 const openPress = (
   view: string,
   projectId: string,
-  where: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string },
+  where: { taskId?: string; decisionId?: string; requestId?: string; resourceId?: string; messageId?: string },
 ) =>
   `open ${view} ${projectId}${
     where.requestId
@@ -324,7 +324,9 @@ const openPress = (
         ? ` #decision-${where.decisionId}`
         : where.taskId
           ? ` #task-${where.taskId}`
-          : ''
+          : where.messageId
+            ? ` #message-${where.messageId}`
+            : ''
   }`
 
 /** A personal log for the check of the seen mark: `log`, thirty turns in a short scrollport, the named reply (t9) the last, below the fold; `hidden`, the same under `hidden`. */

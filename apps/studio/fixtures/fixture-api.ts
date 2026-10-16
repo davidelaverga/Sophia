@@ -100,6 +100,8 @@ interface Project {
   messages: (string | Said)[]
   /** Its members' message corrections and withdrawals (A36, message-acts.ts); absent, the page has none. */
   messageActs?: MessageActs
+  /** The members read fails (`members=fail`, A37). */
+  membersFail?: boolean
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -534,6 +536,8 @@ function goalTargetsRead(project: Project): Response {
 
 /** The project's members (A25): the viewer and the two others the room fixture names, with roles as changed (A27). */
 function membersRead(project: Project): Response {
+  // `members=fail` (A37): the read fails, so nobody is offered or named until it is read.
+  if (project.membersFail) return unavailable()
   const roleOf = (actorId: string, start: Membership['role']) => project.memberRoles?.get(actorId) ?? start
   const gone = project.removedMembers ?? new Set<string>()
   return json({
@@ -677,7 +681,15 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
 
 /** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
 const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
-  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) })
+  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) }) ?? needSeen(method, url)
+
+/** markNeedSeen (A15, A37's mention): recorded as `seen:<id>`, answered 204 as the API does. */
+function needSeen(method: string, url: URL): Response | undefined {
+  const marked = /^\/api\/v1\/me\/needs\/([^/]+)\/seen$/.exec(url.pathname)
+  if (method !== 'POST' || !marked) return undefined
+  served.push(`seen:${decodeURIComponent(marked[1] ?? '')}`)
+  return new Response(null, { status: 204 })
+}
 
 /** The vision's proposed reads, and A18's writes; undefined for any other request. */
 function visionAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
@@ -755,7 +767,7 @@ export function needsAnswer(now = Date.now(), mentions = false) {
 }
 
 /** The message that mentions the viewer (A37): Marco's, on its revision 2, its current words. */
-const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
+export const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
 const MENTION_NEED = (at: string) => ({
   id: `mention:${PROJECT}:2:${MENTIONED_IN}`,
   kind: 'mention',

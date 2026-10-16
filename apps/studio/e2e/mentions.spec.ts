@@ -12,6 +12,8 @@ const line = (page: Page, words: string) => discussion(page).locator('.contribut
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
 const bar = (page: Page) => page.locator('#converse-draft')
 const MARCO = '00000000-0000-4000-8000-0000000000b1'
+const MENTIONED_IN = '00000000-0000-4000-8000-00000000003a'
+const NEED = `mention:00000000-0000-4000-8000-0000000000aa:2:${MENTIONED_IN}`
 
 /** In the call, out of Sophia's conversation: the bar writes to the room (room-discussion.spec.ts). */
 async function enter(page: Page, query = '') {
@@ -99,7 +101,7 @@ test('mentions · at most five; taking one off frees a place', async ({ page }) 
   await expect(page.getByText('Mentions Lucía')).toBeVisible()
 })
 
-test('mentions · Home lists a message that mentions the person; opening it goes to the room and marks it seen', async ({
+test('mentions · Home lists a message that mentions the person; opening it goes to that message in the room, without marking it', async ({
   page,
 }) => {
   await page.goto('/home.html?needs=api&mentions=1')
@@ -108,11 +110,44 @@ test('mentions · Home lists a message that mentions the person; opening it goes
   await expect(mention).toContainText('Marco mentioned you')
   await expect(mention).toHaveAccessibleName(/Read$/)
   await mention.click()
+  // Opened, not yet seen: the room marks it once the message is shown there (Codex on #409).
   await expect
     .poll(() => page.evaluate(() => window.homeFixture?.pressed ?? []))
-    .toEqual([
-      'open studio 00000000-0000-4000-8000-0000000000aa',
-      'seen mention:00000000-0000-4000-8000-0000000000aa:2:00000000-0000-4000-8000-00000000003a',
-    ])
-  await expect(list.getByRole('button').filter({ hasText: 'door plan' })).toHaveCount(0)
+    .toEqual([`open studio 00000000-0000-4000-8000-0000000000aa #message-${MENTIONED_IN}`])
+  await page.waitForTimeout(300)
+  expect(await page.evaluate(() => window.homeFixture?.pressed ?? [])).toHaveLength(1)
+  await expect(mention).toBeVisible()
+})
+
+test('mentions · the room opens its chat on the message the address names, and marks the mention seen once it is shown', async ({
+  page,
+}) => {
+  await page.goto(`/room.html?call=on&people=2&floor=1&discussion=mentioned#message-${MENTIONED_IN}`)
+  await expect(leave(page)).toBeVisible()
+  const entry = discussion(page).locator(`[data-message="${MENTIONED_IN}"]`)
+  await expect(entry).toBeInViewport()
+  await expect(entry.locator('.contribution-mentions')).toHaveText('to you')
+  await expect.poll(() => served(page)).toContain(`seen:${NEED}`)
+  expect((await served(page)).filter((s) => s === `seen:${NEED}`)).toHaveLength(1)
+})
+
+test('mentions · with the chat closed, nothing is marked; opening it marks the mention once shown', async ({
+  page,
+}) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mentioned')
+  await expect(leave(page)).toBeVisible()
+  await page.waitForTimeout(500)
+  expect((await served(page)).some((s) => s.startsWith('seen:'))).toBe(false)
+  await chatToggle(page).click()
+  await expect.poll(() => served(page)).toContain(`seen:${NEED}`)
+})
+
+test('mentions · until the members are read, nobody is offered and no recipient is named', async ({ page }) => {
+  await page.goto('/room.html?call=on&people=2&floor=1&discussion=mentioned&members=fail')
+  await expect(leave(page)).toBeVisible()
+  await chatToggle(page).click()
+  await expect(discussion(page).getByText('Can you check the door plan before Friday?')).toBeVisible()
+  await expect(page.locator('.contribution-mentions')).toHaveCount(0)
+  await expect(page.getByText('a former member')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Mention' })).toHaveCount(0)
 })

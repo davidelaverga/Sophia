@@ -78,6 +78,26 @@ provider, voice or production call was made.
   - the preview GET holding Cancel (C3a).
 - **The browser slot** is released at handback.
 
+## Repair exchange 1 (Codex on abc1bd95)
+
+The evidence below is for the commit that carries this section.
+
+- **Codex 4297738046, P1: a mention marked seen before it was shown.** Home now routes to `#message-<id>`; the room
+  opens its chat on it and scrolls the entry into view.
+  - The seen mark comes from the chat itself (`useMentionsSeen`): only with the chat on screen in the room
+    (`chatInView`) and the entry intersecting the chat's scrolled view, once per revision.
+  - Home no longer marks a mention on open.
+  - Nothing is marked for a message beyond the window, a closed chat or a failed read.
+- **Codex 4297738072, P2: an unloaded members read taken as empty.** `useMemberNames` reports `known`. Until the read
+  succeeds, the picker isn't offered and no recipient line is drawn.
+- **Reproduced before the fix:** four new browser cases fail on abc1bd95's Studio source and pass now (logs
+  `browser-c3b-r1-old.log`, `browser-c3b-r1.log`).
+- **Results:**
+  - `mentions.spec.ts` 7/7;
+  - the broad room, chat and Home regression: 163/163;
+  - lint, format, typecheck and contracts clean; units 2364 pass, 0 fail.
+  - No SQL or contract change, so the PG evidence above stands.
+
 ## Next bounded action
 
 Read the automatic review on this head once (at most two consolidated exchanges), then hand back to P. The next
