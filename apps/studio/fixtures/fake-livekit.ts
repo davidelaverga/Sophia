@@ -17,6 +17,7 @@ import { listenToSophia } from '../src/features/voice/sophia-channel.ts'
 import {
   allowSound,
   feeds,
+  ownFeed,
   onPeopleChange,
   others,
   setSophia,
@@ -235,7 +236,7 @@ export function connectRoom(_serverUrl: string, _token: string, cb: RoomCallback
       allowSound()
       return Promise.resolve()
     },
-    feeds,
+    feeds: () => (me.cameraOn ? [ownFeed(me.identity), ...feeds()] : feeds()),
     setMicrophone: device('microphone', 'micOn'),
     setCamera: device('camera', 'cameraOn'),
     setScreenShare: device('screen', 'screenOn'),
