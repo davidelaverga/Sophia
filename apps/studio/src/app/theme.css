@@ -5945,6 +5945,19 @@ button.contribution-quote:hover {
   display: grid;
   gap: 8px;
 }
+.goal-reports ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The report's version after its title, quiet (goal-reports.md). */
+.goal-report-version {
+  margin-left: 8px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
 .goal-sheet-section .field-label {
   margin: 0;
 }

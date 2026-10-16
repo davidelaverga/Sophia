@@ -1,9 +1,10 @@
 // A goal's sheet (docs/plans/goals-overview.md): its health, its outcome, what in it waits on the viewer (with the
 // presses), what else stands in its way, how far it has gone and what comes next, what done means, and the way to its
 // plan in Tasks; and its notes (goal-notes.md).
-import type { Goal } from '@sophia/contracts'
+import type { ArtifactVersion, Goal } from '@sophia/contracts'
 import { Button } from '@sophia/ui'
 import { Sheet } from '../../app/Sheet.tsx'
+import { useDocumentViewer } from '../artifacts/viewer-context.ts'
 import { GoalNotes, type NotesFor } from './GoalNotes.tsx'
 import { GoalTargetSection } from './GoalTargets.tsx'
 import { Asks } from './GoalParts.tsx'
@@ -15,6 +16,8 @@ interface Props {
   goal: Goal
   plan: Glanced | undefined
   notes: NotesFor
+  /** The reports its work made, newest first (goal-reports.md). */
+  reports?: readonly ArtifactVersion[]
   onClose: () => void
   onOpenAsk: ((ask: Ask) => void) | undefined
   /** Tasks, with this goal chosen; undefined while it has no plan there. */
@@ -43,7 +46,28 @@ function Progress({ plan }: { plan: Glanced | undefined }) {
   )
 }
 
-export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }: Props) {
+/** The reports this goal's work made (goal-reports.md): a title opens it in the viewer; none, or no viewer, no section. */
+function GoalReports({ reports }: { reports: readonly ArtifactVersion[] }) {
+  const viewer = useDocumentViewer()
+  if (!viewer || reports.length === 0) return null
+  return (
+    <section className="goal-sheet-section goal-reports" aria-label="Reports">
+      <h3 className="field-label">Reports</h3>
+      <ul>
+        {reports.map((r) => (
+          <li key={r.artifactId}>
+            <button type="button" className="text-button" onClick={() => viewer.open({ artifactId: r.artifactId })}>
+              {r.title ?? 'Untitled report'}
+            </button>
+            {r.versionNumber !== undefined && <span className="goal-report-version">v{r.versionNumber}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+export function GoalSheet({ goal, plan, notes, reports = [], onClose, onOpenAsk, onOpenTasks }: Props) {
   const health = healthOf(goal, plan)
   const way = wayLine(plan?.glance)
   const asks = (plan?.asks ?? []).map((ask) => ({ ask, goal }))
@@ -63,6 +87,7 @@ export function GoalSheet({ goal, plan, notes, onClose, onOpenAsk, onOpenTasks }
           </p>
         )}
         <Progress plan={plan} />
+        <GoalReports reports={reports} />
         <GoalNotes goalId={goal.id} {...notes} />
         {goal.criteria.length > 0 && (
           <section className="goal-sheet-section" aria-label="Done when">

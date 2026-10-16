@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Snapshot } from '@sophia/contracts'
 import { EmptyState, Skeleton } from '@sophia/ui'
 import type { Identity } from '../../app/dev-identity.ts'
+import { goalReports } from './goal-reports.ts'
 import { TaskCard } from '../conversation/TaskCard.tsx'
 import { workHeading } from '../conversation/conversation-view.ts'
 import { GoalTabs } from './GoalTabs.tsx'
@@ -218,7 +219,10 @@ function Listed({ snapshot, projectId, identity, entry, onOpenGoal, summary, con
   if (summary) {
     if (!snapshot?.goals.length) return null
     const notes = { projectId, identity, me: me ?? '', names: names ?? NO_NAMES, cursor: snapshot.cursor }
-    return <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} />
+    const reports = (goalId: string) => goalReports(goalId, snapshot.work, snapshot.artifacts)
+    return (
+      <GoalsOverview goals={snapshot.goals} plans={given} notes={notes} onOpenGoal={onOpenGoal} reports={reports} />
+    )
   }
   return (
     <SearchQuery.Provider value={query}>
