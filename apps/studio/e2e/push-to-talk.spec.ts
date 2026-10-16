@@ -62,6 +62,22 @@ test('talk · the window losing focus while Space is held mutes again', async ({
   await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
 })
 
+test('talk · the page hidden while Space is held mutes again, with no keyup or blur (Codex P1 on #381)', async ({
+  page,
+}) => {
+  await mic(page).click()
+  await nowhere(page)
+  await page.keyboard.down('Space')
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'true')
+  // A phone's app switch or a screen lock: the page goes hidden, and neither the key's release nor a blur comes.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true })
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+  await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
+})
+
 test('talk · a project kept out of sight takes no Space (Codex P1 on #381)', async ({ page }) => {
   await mic(page).click()
   await expect(mic(page)).toHaveAttribute('aria-pressed', 'false')
