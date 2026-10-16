@@ -14,7 +14,9 @@ const added = (page: Page) => pane(page).locator('.task-added')
 const tasksTab = (page: Page) => pane(page).getByRole('tab', { name: /^Tasks/ })
 const rows = (page: Page) => pane(page).getByRole('list', { name: 'Tasks' }).getByRole('listitem')
 const served = (page: Page) => page.evaluate(() => [...(window.fixture?.served ?? [])])
-const writes = async (page: Page) => (await served(page)).filter((s) => s.startsWith('task:'))
+// The fixture's ledger shares one prefix: a task write is `task:create` or `task:done`, while a read of the report's
+// native task (the report origin, #383) is `task:<revision>`. Only the writes are counted here.
+const writes = async (page: Page) => (await served(page)).filter((s) => /^task:(create|done)$/.test(s))
 const reads = async (page: Page) => (await served(page)).filter((s) => s === 'tasks:read').length
 
 async function open(page: Page, query = '') {
