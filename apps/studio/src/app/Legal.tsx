@@ -1,7 +1,24 @@
 // A legal document (docs/plans/terms-privacy.md): the terms of use or the privacy notice, in a reading column, with the
 // way to the other one and back to Sophia. Plain links: it reads before sign-in, with nothing of the Studio loaded.
 import { Mark } from './Mark.tsx'
-import { SECTIONS, TITLES, UPDATED, type LegalDoc, type LegalSection } from './legal-text.ts'
+import { CONTACT_EMAIL, SECTIONS, TITLES, UPDATED, type LegalDoc, type LegalSection } from './legal-text.ts'
+
+/** A line's words, the contact address in them a mailto link (legal-contact.md). */
+function Words({ line }: { line: string }) {
+  const [before, ...after] = line.split(CONTACT_EMAIL)
+  if (after.length === 0) return line
+  return (
+    <>
+      {before}
+      {after.map((rest, i) => (
+        <span key={`${String(i)}-${rest}`}>
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
+          {rest}
+        </span>
+      ))}
+    </>
+  )
+}
 
 /** A list's items start with «· »: consecutive ones make one list. */
 function Body({ body }: { body: LegalSection['body'] }) {
@@ -18,11 +35,15 @@ function Body({ body }: { body: LegalSection['body'] }) {
         Array.isArray(run) ? (
           <ul key={run[0]}>
             {run.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item}>
+                <Words line={item} />
+              </li>
             ))}
           </ul>
         ) : (
-          <p key={run}>{run}</p>
+          <p key={run}>
+            <Words line={run} />
+          </p>
         ),
       )}
     </>
