@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const REPORT = '00000000-0000-4000-8000-0000000000b1'
 const ROLLOUT = 'Roll the new onboarding out to every region'
-const origin = (page: Page) => page.getByRole('note', { name: 'What it was made for' })
+const origin = (page: Page) => page.getByRole('group', { name: 'What it was made for' })
 
 test.beforeEach(async ({ page }) => {
   await page.route(

@@ -7,7 +7,7 @@
 
 ## What changes
 
-- **`ReportOrigin`**, above the Document tab's text:
+- **`ReportOrigin`**, above the Document tab's text, a group named «What it was made for» (not a note: the pane's one note says why a format isn't shown):
   - «Made for» the goal's title, as a press. It opens Goals with that goal's sheet (`#goal-<id>`, through the project's
     way across views: `project-go.tsx` gains a `goals` arrival).
   - «Asked» and what was asked, on a single line that ends in an ellipsis, with the whole question in its title.
