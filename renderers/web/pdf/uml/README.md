@@ -114,9 +114,12 @@ a descendant. The worker was suspended after collecting its complete log.
 If the original suite reports a failed capture check, the diagnostic now runs
 one additional capture of its exact fixture through the unchanged kernel and
 prints each receipt check's detail. The original suite still determines failure;
-this diagnostic receipt never promotes it to success. The launch, width sweep,
-host wall time and output limits stay unchanged. This logging extension has not
-been run on Render and needs a fresh bounded test authorization.
+this diagnostic receipt never promotes it to success. Its sweep gets only the time
+the host's 240-second watchdog leaves after a 60-second reserve (at most
+`SWEEP.maxMs`), and the separate timing diagnostic runs only when 90 seconds remain,
+so the detail is printed before the watchdog. The launch, host wall time and output
+limits stay unchanged. This logging extension has not been run on Render and needs a
+fresh bounded test authorization.
 
 The namespace supervisor's cancellation path was exercised separately in the
 private Linux lab with an owned init and descendant. Both `SIGTERM` and

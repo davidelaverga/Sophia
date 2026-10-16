@@ -159,10 +159,30 @@ try {
   await new Promise((resolve) => server.close(() => resolve(undefined)))
   fs.rmSync('/run/uml-private', { recursive: true, force: true })
 }
+// The host stops this guest after 240 s of wall time (host-qa.py) and of CPU
+// (landlock-launch.py), counted from before the guest boots. The diagnostics
+// that follow the original suite keep back this much for the boot before this
+// script, a capture's targets after its sweep, and shutdown (#387 review): with
+// the sweep's 150 s, a second full-length sweep would not fit.
+const WATCHDOG_MS = 240_000
+const RESERVE_MS = 60_000
+const leftMs = () => WATCHDOG_MS - RESERVE_MS - performance.now()
 // Preserve the original suite's failure. Its summary omits a check's detailed
 // reason, so a failed capture gets one bounded diagnostic receipt with the same
-// source fixture, targets, original kernel and normal deadlines.
-if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
+// source fixture, targets and original kernel, its sweep given only the time the
+// watchdog leaves (never more than SWEEP.maxMs): the original suite's verdict
+// stands either way, and a shorter sweep that runs out says so in its own detail.
+const detailSweepMs = Math.min(SWEEP.maxMs, Math.floor(leftMs()))
+if (suite.some((check) => check.check === 'capture_checks' && !check.ok) && detailSweepMs < 1000) {
+  console.log(
+    JSON.stringify({
+      event: 'UML_CAPTURE_FAILURE_DETAIL',
+      qualification: false,
+      diagnosticOnly: true,
+      skipped: 'no time left under the host watchdog for another capture',
+    }),
+  )
+} else if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
   const source = fs.mkdtempSync('/tmp/uml-width-source-')
   const output = fs.mkdtempSync('/tmp/uml-width-output-')
   const fixture = `<!doctype html><html lang="it"><head><meta charset="utf-8">
@@ -185,7 +205,7 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         language: 'it',
         targets: ['w390-light', 'w1280-light'],
       },
-      { env: process.env },
+      { env: process.env, sweepMs: detailSweepMs },
     )
     flushWidthTimings('failure-detail')
     console.log(
@@ -194,6 +214,7 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         qualification: false,
         diagnosticOnly: true,
         fixtureSha256: sha256,
+        sweepBudgetMs: detailSweepMs,
         status: receipt.status,
         error: receipt.error,
         checks: receipt.checks,
@@ -201,7 +222,16 @@ if (suite.some((check) => check.check === 'capture_checks' && !check.ok)) {
         captureCount: receipt.captures.length,
       }),
     )
-    await timeWidthProbe(source)
+    // Its own windows are 60 s, after a browser launch of up to 30 s.
+    if (leftMs() >= 90_000) await timeWidthProbe(source)
+    else
+      console.log(
+        JSON.stringify({
+          event: 'UML_WIDTH_TIMING',
+          diagnosticOnly: true,
+          skipped: 'no time left under the host watchdog',
+        }),
+      )
   } finally {
     fs.rmSync(source, { recursive: true, force: true })
     fs.rmSync(output, { recursive: true, force: true })
