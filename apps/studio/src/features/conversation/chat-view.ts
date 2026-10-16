@@ -24,8 +24,10 @@ export interface ChatTurn {
   sequence: number
   state: 'sending' | 'responding' | 'complete' | 'refused' | 'unknown'
   reason: string | null
-  /** Its place in the chat (Arrivals): when it was sent. */
+  /** Its place in the chat (Arrivals): the order it was sent in, not a time. */
   at: number
+  /** When it was sent, by the clock (ms): what its time says (chat-times.md). */
+  sentAt: number
 }
 
 /** Duplicate/out-of-session packets cannot append another reply. No content is written to browser storage. */
