@@ -38,3 +38,8 @@ commits on the branch merge its base forward or touch only this record). 4 files
 ## Remaining obligations
 
 - The real magic-link return, when the local stack answers again.
+
+## Next bounded action
+
+- Luis: merge on green with no open P1.
+- Source IDs consulted: none from the source register; the work read this repository only.
