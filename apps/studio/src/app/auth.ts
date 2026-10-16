@@ -22,6 +22,7 @@ import { linkAcceptance, type LinkAcceptance } from './link-accept.ts'
 import { passkeysWorkOn } from './passkey-domain.ts'
 import { profileFromMetadata, providerOf } from './profile.ts'
 import { forgetPendingUnlock, pendingUnlock, refuseOtherAccount } from './provider-leave.ts'
+import { endSession } from './sign-out.ts'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -155,7 +156,10 @@ function subscribeToSession(client: SupabaseClient, onState: (state: AuthState) 
 interface Auth {
   state: AuthState
   chooseDev: (i: Identity | null) => void
+  /** This device's session ends; the account stays signed in elsewhere (sign-out-scope.md). */
   signOut: () => Promise<void>
+  /** Every device the account is signed in on is signed out, this one too. */
+  signOutEverywhere: () => Promise<void>
   /** The person said the offered account is theirs: sign in with the link's session. */
   acceptLink: () => Promise<void>
   /** Not theirs: the link's session is dropped, and nothing was signed in. */
@@ -192,17 +196,21 @@ export function useAuth(): Auth {
 
   useEffect(() => (supabase ? subscribeToSession(supabase, setState) : undefined), [])
 
+  // Signing out: this device's session, or every device's when asked (sign-out-scope.md).
+  const leave = async (everywhere: boolean) => {
+    if (supabase) await endSession(supabase.auth, everywhere)
+    else saveIdentity(null)
+    setState({ status: 'signed_out' })
+  }
+
   return {
     state,
     chooseDev: (i) => {
       saveIdentity(i)
       setState(i ? { status: 'signed_in', identity: i } : { status: 'signed_out' })
     },
-    signOut: async () => {
-      if (supabase) await supabase.auth.signOut()
-      else saveIdentity(null)
-      setState({ status: 'signed_out' })
-    },
+    signOut: () => leave(false),
+    signOutEverywhere: () => leave(true),
     acceptLink: async () => {
       if (state.status !== 'link_offer') return
       const { account } = state

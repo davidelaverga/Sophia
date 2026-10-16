@@ -12,8 +12,13 @@ export async function signOutForgetting(signOut: () => Promise<void>, forget: ()
   }
 }
 
-/** Ends the session with Supabase (stub: sign-out-scope.md). */
-export const endSession = (
-  _auth: { signOut: (options: { scope: 'local' | 'global' }) => Promise<unknown> },
-  _everywhere: boolean,
-): Promise<void> => Promise.resolve()
+/**
+ * Ends the session with Supabase (sign-out-scope.md): this device's only, unless the person asked for every device the
+ * account is signed in on. supabase-js's own default is every device.
+ */
+export async function endSession(
+  auth: { signOut: (options: { scope: 'local' | 'global' }) => Promise<unknown> },
+  everywhere: boolean,
+): Promise<void> {
+  await auth.signOut({ scope: everywhere ? 'global' : 'local' })
+}

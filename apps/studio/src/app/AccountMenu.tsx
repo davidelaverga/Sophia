@@ -22,7 +22,10 @@ export interface AccountActions {
   data: () => void
   privacy: () => void
   chooseDev: (identity: Identity | null) => void
+  /** This device only (sign-out-scope.md). */
   signOut: () => void
+  /** Every device the account is on: Settings asks first. */
+  signOutEverywhere: () => void
 }
 
 /** Where the menu is: in the places D opens your data; in a project it takes you home first. */
@@ -129,6 +132,7 @@ function AccountSheet(props: {
       identity={props.identity}
       onData={leaveFor(actions.data)}
       onPrivacy={leaveFor(actions.privacy)}
+      onSignOutEverywhere={leaveFor(actions.signOutEverywhere)}
       onPasskeys={() => onSheet('passkeys')}
       onFeedback={() => onSheet('feedback')}
       onClose={close}

@@ -1,7 +1,7 @@
 // Settings, in one place (docs/plans/account-settings.md): the account, the theme, a call's defaults, your data and
 // help, gathered from where the Studio already keeps each choice. The avatar's menu opens it; nothing here is new state.
 import { useState } from 'react'
-import { Segmented } from '@sophia/ui'
+import { ConfirmButton, Segmented } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
 import { askCommands } from './CommandsHost.tsx'
@@ -19,6 +19,8 @@ interface Props {
   onPrivacy: () => void
   onPasskeys: () => void
   onFeedback: () => void
+  /** Every device the account is on, after asking (sign-out-scope.md). */
+  onSignOutEverywhere: () => void
   onClose: () => void
 }
 
@@ -66,7 +68,11 @@ function Calls() {
   )
 }
 
-function Account({ identity, onPasskeys }: Pick<Props, 'identity' | 'onPasskeys'>) {
+function Account({
+  identity,
+  onPasskeys,
+  onSignOutEverywhere,
+}: Pick<Props, 'identity' | 'onPasskeys' | 'onSignOutEverywhere'>) {
   const how = signedInWith(identity.provider)
   return (
     <Part title="Account">
@@ -83,6 +89,15 @@ function Account({ identity, onPasskeys }: Pick<Props, 'identity' | 'onPasskeys'
           Passkeys
         </button>
       )}
+      {/* The menu's Sign out is this device's; every device is asked for here, and asked about (sign-out-scope.md). */}
+      <ConfirmButton
+        label="Sign out of all devices"
+        warning="Every device signed in to this account is signed out, this one too."
+        confirm="Sign out everywhere"
+        keep="Stay signed in"
+        className="text-button"
+        onConfirm={onSignOutEverywhere}
+      />
     </Part>
   )
 }
@@ -91,7 +106,11 @@ export function SettingsSheet(props: Props) {
   const [theme, setTheme] = useTheme()
   return (
     <Sheet id="settings-title" title="Settings" onClose={props.onClose} className="settings-sheet">
-      <Account identity={props.identity} onPasskeys={props.onPasskeys} />
+      <Account
+        identity={props.identity}
+        onPasskeys={props.onPasskeys}
+        onSignOutEverywhere={props.onSignOutEverywhere}
+      />
       <Part title="Appearance">
         <Segmented role="group" label="Theme" size="sm" items={THEMES} value={theme} onChange={setTheme} />
       </Part>
