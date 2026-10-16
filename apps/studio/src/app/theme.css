@@ -2645,6 +2645,11 @@ button.contribution-quote:hover {
   .device-menu {
     display: none;
   }
+  /* Before joining the dock has only Join and its check, so the check stands there on a phone too (phone-devices.md):
+     its sheet chooses the microphone and the camera, a phone's front or back. */
+  .device-menu.device-check-open {
+    display: inline-flex;
+  }
 }
 /* The check before joining (docs/plans/device-check.md): the camera's picture over a row per device, the voice's meter
    beside the microphone, and Join at its foot. The picture is mirrored, as a person expects to see themselves. */
