@@ -65,7 +65,11 @@ function useRoleChange({ projectId, identity }: SheetContext) {
     setState({ busy: member.actorId, failed: null })
     removeMember(identity.token, projectId, member.actorId, key).then(
       async () => {
+        // Done: a later removal of the same person (invited back) is a new one (Codex P2 on #356).
+        keys.current.delete(member.actorId)
         setState({ busy: null, failed: null })
+        // The row goes with the read below: the focus goes to the list's heading first (Codex P1 on #356).
+        document.getElementById('in-project-title')?.focus()
         await client.invalidateQueries({ queryKey: ['members', projectId, identity.name] })
       },
       (err: unknown) =>
@@ -87,7 +91,7 @@ export function InProject({ context }: { context: SheetContext }) {
   if (members.length === 0) return null
   return (
     <section className="in-project">
-      <h3 className="field-label" id="in-project-title">
+      <h3 className="field-label" id="in-project-title" tabIndex={-1}>
         In this project
       </h3>
       <ul className="in-project-people" aria-labelledby="in-project-title">
