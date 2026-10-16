@@ -29,27 +29,33 @@ SET search_path=pg_catalog,sophia AS $$
   ORDER BY x.sequence LIMIT 1 $$;
 REVOKE ALL ON FUNCTION sophia.update_asker(uuid,uuid,uuid) FROM PUBLIC;
 
--- Who asked for a report version: the task that produced it. A rendition-only version (0034, 0040: change_facts
--- renditionOnly, its parent the version it renders) produced nothing of its own, so it is the version it renders, through
--- any renditions of renditions, up to the first version a task produced; that version's source must still be readable.
--- An amendment's parent is the version it replaces, never its asker: a current version whose own admission the reader
--- may not read gives null, never an older version's requester (Codex on #391).
-CREATE FUNCTION sophia.version_asker(p_project uuid, p_version uuid, p_reader uuid) RETURNS uuid LANGUAGE sql STABLE
+-- Who asked for a report version (Codex on #391; V's provenance disposition). Provenance is decided before privacy:
+-- - The task that produced the version has an admitting event: it is that event's actor when the reader may read it,
+--   else null. No other record is consulted, so a private admission never falls back to an older requester.
+-- - It has none: only a proven rendition (0032, 0034, 0040) names another origin. The version's trigger says
+--   kind 'rendition' with its render job and origin task, and that render job, kind 'rendition', rendered exactly the
+--   version's parent, of the same artifact. Its origin task's admitting event names the asker, when readable.
+-- - Anything else (an arbitrary parent, an amendment's or a design edit's parent, a version marked renditionOnly without
+--   that proof) answers null.
+CREATE FUNCTION sophia.version_asker(p_project uuid, p_version uuid, p_reader uuid) RETURNS uuid LANGUAGE plpgsql STABLE
 SET search_path=pg_catalog,sophia AS $$
- WITH RECURSIVE lineage AS (
-   SELECT v.id, v.parent_id, v.job_id, v.source_id,
-          coalesce((v.change_facts->>'renditionOnly')::boolean,false) AS rendition, 0 AS depth
-     FROM sophia.artifact_versions v WHERE v.project_id=p_project AND v.id=p_version
-   UNION ALL
-   SELECT p.id, p.parent_id, p.job_id, p.source_id,
-          coalesce((p.change_facts->>'renditionOnly')::boolean,false), l.depth+1
-     FROM lineage l JOIN sophia.artifact_versions p ON p.project_id=p_project AND p.id=l.parent_id
-    WHERE l.rendition AND l.depth<32
- )
- SELECT sophia.update_asker(p_project, l.job_id, p_reader)
-   FROM lineage l JOIN sophia.source_objects s ON s.project_id=p_project AND s.id=l.source_id AND s.state='ready' AND s.eligible
-  WHERE NOT l.rendition
-  ORDER BY l.depth LIMIT 1 $$;
+DECLARE v sophia.artifact_versions; origin uuid;
+BEGIN
+ SELECT * INTO v FROM sophia.artifact_versions WHERE project_id=p_project AND id=p_version;
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ IF v.job_id IS NOT NULL AND EXISTS(SELECT 1 FROM sophia.project_events x WHERE x.project_id=p_project
+     AND x.entity_type='job' AND x.entity_id=v.job_id AND x.type='native_task.admitted') THEN
+  RETURN sophia.update_asker(p_project, v.job_id, p_reader);
+ END IF;
+ IF v.trigger->>'kind' IS DISTINCT FROM 'rendition' OR v.parent_id IS NULL THEN RETURN NULL; END IF;
+ SELECT r.parent_job_id INTO origin
+   FROM sophia.render_jobs r JOIN sophia.artifact_versions b ON b.project_id=r.project_id AND b.id=r.base_version_id
+  WHERE r.project_id=p_project AND r.job_id=v.job_id AND r.kind='rendition' AND r.base_version_id=v.parent_id
+    AND b.artifact_id=v.artifact_id AND r.job_id::text=v.trigger->>'renderJobId'
+    AND r.parent_job_id::text=v.trigger->>'taskId';
+ IF origin IS NULL THEN RETURN NULL; END IF;
+ RETURN sophia.update_asker(p_project, origin, p_reader);
+END $$;
 REVOKE ALL ON FUNCTION sophia.version_asker(uuid,uuid,uuid) FROM PUBLIC;
 
 -- readProjectUpdates: the window after the member's mark, up to toSequence, as current records; 42501 for anyone who
