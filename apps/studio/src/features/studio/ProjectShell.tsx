@@ -670,8 +670,9 @@ function ProjectBody(props: BodyProps) {
       <LobbyPanel
         projectId={projectId}
         identity={identity}
-        lobby={snapshot?.lobby ?? []}
+        lobby={snapshot?.lobby}
         canDecide={canInvite(membership)}
+        projectTitle={snapshot?.title}
       />
     </>
   )

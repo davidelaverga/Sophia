@@ -2308,6 +2308,17 @@
     text-align: left;
   }
 }
+/* A note written straight in, and Find from six notes (docs/plans/personal-notes-write-find.md). */
+.places .c3-write-note,
+.places .c3-find-notes {
+  width: 100%;
+  margin: 6px 0 4px;
+}
+.places .c3-find-none {
+  margin: 4px 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
 /* Carry only what you choose (CarryPackage, Davide's chapter 1): a reviewed package of notes, in the notes panel. */
 .places .c3-pack-open {
   justify-self: start;
