@@ -43,7 +43,7 @@ import {
   pageScript,
   orderScript,
 } from '../capture-page.mjs'
-import { meetingsOf, STYLES } from '../placement.mjs'
+import { meetingsOf, PLACEMENT, STYLES } from '../placement.mjs'
 import { chromiumPath, launchConfined } from '../confine.mjs'
 
 const sha = (data: string | Uint8Array): string => createHash('sha256').update(data).digest('hex')
@@ -67,6 +67,12 @@ function unavailable(): string | null {
 }
 const why = unavailable()
 const skip = why ?? false
+
+/**
+ * The sweep's time for a heavy page whose test checks no width (D-WIDTH, R1-F01): the 60 s it had before, so what the
+ * test measures is unchanged and a capture stays inside CI's 120 s a test. The sweep's own tests keep SWEEP.maxMs.
+ */
+const HEAVY = { env, sweepMs: 60_000 }
 
 /** This file's captures keep their scratch here, so the leftover-process check sees only its own browsers. */
 const SCRATCH = fs.mkdtempSync(path.join(os.tmpdir(), 'sophia-capture-test-'))
@@ -378,6 +384,17 @@ describe('the capture plan (pure)', () => {
   it('admits the two light targets of html-design-v1 and bounds every job', () => {
     assert.deepEqual(Object.keys(CAPTURE_TARGETS), ['w390-light', 'w1280-light'])
     assert.ok(CAPTURE_LIMITS.captures > 0 && CAPTURE_LIMITS.totalBytes > CAPTURE_LIMITS.imageBytes)
+  })
+
+  // D-WIDTH (R1-F01): the owner gave the sweep 150 s for every width rather than fewer widths. What it reads and how
+  // it fails are unchanged; its time stays inside the capture's own 180 s claim (0039), with the 10.6–13.5 s R1's
+  // captures spent outside the sweep.
+  it('sweeps every width of 320–2560px within 150 s, inside the capture claim (D-WIDTH)', () => {
+    assert.equal(SWEEP.maxMs, 150_000)
+    assert.deepEqual([SWEEP.minWidth, SWEEP.maxWidth, SWEEP.height, SWEEP.maxBreakpoints], [320, 2560, 800, 8])
+    assert.deepEqual(SWEEP.heights, [320, 640, 1080, 2160])
+    assert.ok(SWEEP.maxMs + 13_500 < 180_000)
+    assert.deepEqual([PLACEMENT.maxProbes, PLACEMENT.maxChanges], [2_400, 32])
   })
 
   it('reads a job file and refuses one that is malformed', () => {
@@ -1345,7 +1362,7 @@ describe('the confined capture kernel', () => {
           <h2 class="narrow">${'x'.repeat(MAX_LINES)}</h2><h2 class="narrow">${'y'.repeat(400)}</h2></section></main>`,
           ),
         ),
-        { env },
+        HEAVY,
       )
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       for (const target of ['w390-light', 'w1280-light']) {
@@ -1513,7 +1530,7 @@ describe('the confined capture kernel', () => {
           </section></main>`,
           ),
         ),
-        { env },
+        HEAVY,
       )
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       const expected: [string, string][] = [
@@ -1543,7 +1560,7 @@ describe('the confined capture kernel', () => {
           ),
           { targets: ['w1280-light'] },
         ),
-        { env },
+        HEAVY,
       )
       assert.equal(many.status, 'succeeded', JSON.stringify(many.error))
       assert.equal(outcome(many, 'blocks_visible', 'w1280-light'), 'failed', 'a run past the bound is not seen')
@@ -2292,7 +2309,7 @@ describe('the confined capture kernel', () => {
             `<main><section data-section="s1"><h2>Findings</h2><p data-block="b1">Text.</p>${labels}</section></main>`,
           ),
         ),
-        { env },
+        HEAVY,
       )
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       assert.ok(jsonbBytes(receipt) <= RECEIPT_BYTES, `the receipt weighs ${String(jsonbBytes(receipt))} bytes`)
@@ -2945,7 +2962,7 @@ describe('the confined capture kernel', () => {
           <p data-block="b2" class="gen">Not free, over a black box.</p><div>${marks}</div></section></main>`,
           ),
         ),
-        { env },
+        HEAVY,
       )
       assert.equal(receipt.status, 'succeeded', JSON.stringify(receipt.error))
       for (const target of ['w390-light', 'w1280-light']) {
