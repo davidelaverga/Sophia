@@ -115,10 +115,14 @@ If the original suite reports a failed capture check, the diagnostic now runs
 one additional capture of its exact fixture through the unchanged kernel and
 prints each receipt check's detail. The original suite still determines failure;
 this diagnostic receipt never promotes it to success. Its sweep gets only the time
-the host's 240-second watchdog leaves after a 60-second reserve (at most
-`SWEEP.maxMs`), and the separate timing diagnostic runs only when 90 seconds remain,
-so the detail is printed before the watchdog. The launch, host wall time and output
-limits stay unchanged. This logging extension has not been run on Render and needs a
+the QA host's 240-second wall watchdog (`host-qa.py`) leaves after a 60-second
+reserve (at most `SWEEP.maxMs`). The separate timing diagnostic runs only when its
+whole budget remains before that reserve: a 30-second browser launch, a 30-second
+page load, a 60-second measurement window and a 5-second close, 125 seconds. The
+detail is printed before either. These are the QA fixture's bounds: a production
+job's wall time is the supervisor's 270 seconds (the 180-second PNG claim plus its
+90-second UML margin), and the 240-second CPU limit (`landlock-launch.py`) applies
+to both. The launch, host wall time and output limits stay unchanged. This logging extension has not been run on Render and needs a
 fresh bounded test authorization.
 
 The namespace supervisor's cancellation path was exercised separately in the
