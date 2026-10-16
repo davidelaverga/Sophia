@@ -29,6 +29,8 @@ import { ProjectContext } from './ProjectContext.tsx'
 import { NO_WORDS, START, useKept, withEntry } from './talk-store.ts'
 import { useReadAgain } from './useReadAgain.ts'
 import { useArrival } from '../studio/project-go.tsx'
+import { CONVERSATION, showInAddress } from '../resources/link.ts'
+import { useAddressed } from '../resources/useAddressed.ts'
 import { fitQuestion } from './new-conversation.ts'
 import './conversations.css'
 
@@ -110,7 +112,7 @@ function useArrivals(
 export function ConversationsView({ projectId, identity, membership, cursor }: Props) {
   const { me, writer } = readerOf(membership)
   const { list, all, settled } = useList(projectId, identity, cursor)
-  const { open, choose, ask, missing } = useChosen(all, settled)
+  const { open, choose, ask, missing, picked } = useChosen(all, settled)
   const panes = usePanes()
   const talk = useTalk(projectId, accountOf(identity))
   const start = useStart(projectId, identity, talk, (id) => {
@@ -120,6 +122,7 @@ export function ConversationsView({ projectId, identity, membership, cursor }: P
   useArrivals(ask, writer, talk, start, panes)
   // The one open, unless the form for a new one is in its place.
   const shown = start.starting ? undefined : open
+  useInAddress({ shown, picked, screen: panes.screen }, ask, panes.show)
   // Opened from the form (the same question), its title takes the focus the form had (Codex on #266).
   const openOne = (id: string, fromForm = false) => {
     start.close()
@@ -386,6 +389,8 @@ function Open(props: {
  */
 function useChosen(all: readonly ConversationSummary[], settled: boolean) {
   const [chosen, setChosen] = useState<string | null>(null)
+  // Opened by a person (a row, the form, another view, the address), not the newest by default (conversation-address.md).
+  const [picked, setPicked] = useState(false)
   // One asked for from elsewhere (`ask`) waits for the list read again before the newest takes its place, and then
   // says it isn't there (`missing`) rather than opening another in silence.
   const [wanted, setWanted] = useState<string | null>(null)
@@ -396,13 +401,43 @@ function useChosen(all: readonly ConversationSummary[], settled: boolean) {
     choose: (id: string) => {
       setWanted(null)
       setChosen(id)
+      setPicked(true)
     },
     ask: (id: string) => {
       setWanted(id)
       setChosen(id)
+      setPicked(true)
     },
     missing: wanted !== null && settled && !all.some((c) => c.id === wanted),
+    picked,
   }
+}
+
+/**
+ * The open conversation in the address (conversation-address.md): an address naming one opens it, on a phone too; one a
+ * person opened is written there while it is on screen, and taken away for the list or the form. The newest open by
+ * default never writes it, and a fragment under another prefix is left alone.
+ */
+function useInAddress(
+  open: { shown: ConversationSummary | undefined; picked: boolean; screen: 'list' | 'thread' },
+  ask: (id: string) => void,
+  show: () => void,
+) {
+  const named = useAddressed(CONVERSATION)
+  const follow = useRef({ ask, show })
+  useEffect(() => {
+    follow.current = { ask, show }
+  })
+  useEffect(() => {
+    if (named.id === null) return
+    follow.current.ask(named.id)
+    follow.current.show()
+  }, [named.id, named.seq])
+  const written = open.picked && open.screen === 'thread' ? (open.shown?.id ?? null) : null
+  useEffect(() => {
+    if (!open.picked || (written === null && !window.location.hash.startsWith(CONVERSATION))) return
+    showInAddress(written, CONVERSATION)
+  }, [open.picked, written])
 }
 
 /**
