@@ -721,6 +721,47 @@ describe('project activity (A28)', () => {
   })
 })
 
+describe('removing a member (A29)', () => {
+  const remove = (actor: string, projectId: string, target: string, key = randomUUID()) =>
+    call(actor, 'POST', `/api/v1/projects/${projectId}/members/${target}/removal`, {}, { 'idempotency-key': key })
+  const count = async (actor: string, projectId: string) =>
+    ((await call(actor, 'GET', `/api/v1/projects/${projectId}/members`)).json.members as unknown[]).length
+
+  it('an admin removes an editor: they can no longer read it, it counts one fewer, and it is kept on record', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    const key = randomUUID()
+    const removed = await remove(A, projectId, B, key)
+    assert.equal(removed.status, 200)
+    assert.deepEqual({ ...removed.json, cursor: typeof removed.json.cursor }, { actorId: B, cursor: 'string' })
+    assert.equal((await call(B, 'GET', `/api/v1/projects/${projectId}/snapshot`)).status, 403)
+    assert.equal(await count(V, projectId), 2)
+    const kept = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.project_events
+        WHERE project_id = $1 AND type = 'project.member_removed' AND actor_id = $2 AND entity_id = $3`,
+      [projectId, A, B],
+    )
+    assert.equal(kept, 1)
+    const removal = await ownerCount(
+      `SELECT count(*)::int AS n FROM sophia.room_removals
+        WHERE project_id = $1 AND identity = $2 AND reason = 'removed' AND lobby_entry_id IS NULL AND state <> 'cancelled'`,
+      [projectId, B],
+    )
+    assert.equal(removal, 1)
+    const again = await remove(A, projectId, B, key)
+    assert.deepEqual([again.status, again.json], [200, removed.json])
+  })
+
+  it('admins only; never oneself; the target a member', async () => {
+    const { projectId } = await seedProject(db.ownerUrl, { admin: A, editors: [B], viewers: [V] })
+    assert.equal((await remove(B, projectId, V)).status, 403)
+    assert.equal((await remove(C, projectId, V)).status, 403)
+    const self = await remove(A, projectId, A)
+    assert.deepEqual([self.status, self.json.code], [422, 'invalid_request'])
+    assert.equal((await remove(A, projectId, C)).status, 422)
+    assert.equal(await count(V, projectId), 3)
+  })
+})
+
 describe('snapshot + SSE replay', () => {
   it("delivers another member's admitted command live, then replays without duplicates", async () => {
     const snap = parseSnapshot((await call(A, 'GET', `/api/v1/projects/${seed.projectId}/snapshot`)).json)
