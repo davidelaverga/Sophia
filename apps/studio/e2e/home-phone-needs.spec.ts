@@ -80,7 +80,10 @@ test('home · crossing 860 px leaves a focus outside the list where it was', asy
   await page.setViewportSize({ width: 1000, height: 900 })
   await page.goto(PAGE)
   await page.locator('.hw-side button').nth(1).focus()
-  const outside = page.locator('.hw-col button').first()
+  // Marked before the resize: under 861 px the list mounts inside .hw-col, and a locator read again would find its row.
+  const control = page.locator('.hw-col button:not(.hw-row)').first()
+  await control.evaluate((el) => el.setAttribute('data-probe', 'outside'))
+  const outside = page.locator('[data-probe="outside"]')
   await outside.focus()
   await page.setViewportSize({ width: 800, height: 900 })
   await expect(outside).toBeFocused()
