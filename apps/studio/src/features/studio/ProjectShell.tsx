@@ -777,7 +777,9 @@ function WithViewer({ projectId, identity, view, room, panel, looking, snapshot,
       cursor={snapshot?.cursor}
       show={studio ? showRenderOf(snapshot, room, { projectId, identity }) : undefined}
       chatUnread={panel.unread}
-      call={<PanelCallSwitches room={room} looking={looking} keys={studio} />}
+      // The keys work wherever the pane covers a dock: the Studio's in the room, the mini dock's in every other view,
+      // whose commands stay registered under the pane; the tips say them (Codex P2 on #326).
+      call={<PanelCallSwitches room={room} looking={looking} />}
       note={room.mediaError ?? room.error}
     >
       {children}

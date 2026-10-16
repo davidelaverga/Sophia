@@ -103,6 +103,7 @@ import { sophiaArrives, stopScene } from './room-scene.ts'
 import { DEMO_GOALS, goalsAdmitted, goalsSettled } from './demo-goals.ts'
 import { demoResources, demoServedGoals } from './demo-work.ts'
 import { bootTheme } from '../src/app/theme.ts'
+import { startCrashReports } from '../src/app/crash-report.ts'
 
 interface Fixture {
   /** A background update: an event on the project's stream, and a new snapshot and brief behind it. */
@@ -122,6 +123,8 @@ interface Fixture {
   releaseMessages: () => void
   /** While on, the read of which messages answer which fails (A20). */
   failReplies: (on: boolean) => void
+  /** The next room token is refused, so that join fails and offers Try again. */
+  failToken: () => void
   /** The next request to revise the page is refused, a design under way (revise-section.md). */
   failEdit: () => void
   /** While on, requests to revise the page wait for their replies; off, they answer. */
@@ -304,6 +307,13 @@ declare global {
 
 const query = new URLSearchParams(window.location.search)
 bootTheme(query.get('theme'))
+// As main.tsx starts them: on here only with `?sentry=1` (fixtures/crash-dsn.ts, crash-feedback.md).
+startCrashReports()
+// `earlyFail=1`: a failure while Sentry's chunk is still on its way, as a first render's could be (Codex P1 on #367).
+if (query.has('earlyFail'))
+  setTimeout(() => {
+    throw new Error('An early failure')
+  }, 0)
 // `welcome=1`: the project was just joined, as accepting a member's invitation leaves it (newcomer-welcome.md).
 if (query.get('welcome') === '1')
   rememberWelcome({ projectId: PROJECT, inviter: 'Lucia', role: 'editor', at: Date.now() })
@@ -378,6 +388,31 @@ function floorMoves(actorId: string): void {
     endPause()
   }
   floorTo.push(nameOf(actorId))
+}
+
+/**
+ * The goals' owners and dates the page asks for (`targets=`), by goal id; `late` makes the admin change the viewer's,
+ * past its date (goal-overdue-health.md).
+ */
+function goalTargetsAsked(
+  wanted: string | null,
+): [string, { ownerId: string; targetDate: string; revision: number }][] {
+  if (wanted !== '1' && wanted !== 'mine' && wanted !== 'late') return []
+  const rollout: [string, { ownerId: string; targetDate: string; revision: number }] = [
+    '00000000-0000-4000-8000-000000009001',
+    { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 },
+  ]
+  if (wanted === '1') return [rollout]
+  if (wanted === 'late')
+    return [
+      rollout,
+      ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-10-25', revision: 1 }],
+    ]
+  return [
+    rollout,
+    ['00000000-0000-4000-8000-000000009002', { ownerId: membership.actorId, targetDate: '2026-11-20', revision: 1 }],
+    ['00000000-0000-4000-8000-000000009003', { ownerId: membership.actorId, targetDate: '2026-10-01', revision: 1 }],
+  ]
 }
 
 /** Four messages over two days in the viewer's zone: yesterday's evening, this morning (chat-times.md). */
@@ -461,6 +496,7 @@ const project = {
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
+  failToken: false,
   failEdit: false,
   editHeld: null as (() => void)[] | null,
   failEarlier: false,
@@ -468,12 +504,9 @@ const project = {
   staleTarget: false,
   // `archived=1`: the project is archived (archive-project.md).
   archived: query.get('archived') === '1',
-  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md).
-  goalTargets: new Map(
-    query.get('targets') === '1'
-      ? [['00000000-0000-4000-8000-000000009001', { ownerId: personId(1), targetDate: '2026-10-30', revision: 1 }]]
-      : [],
-  ),
+  // `targets=1`: the rollout is Marco's, due 30 October 2026 (goal-owner-date.md); `targets=mine` adds the admin change
+  // as the viewer's, due 20 November, and the completed pilot as theirs, due 1 October (goal-overdue.md).
+  goalTargets: new Map(goalTargetsAsked(query.get('targets'))),
   hostHeld: null as (() => void)[] | null,
   // The demo publishes both its versions (the second region's revision), unless `versions=` says otherwise.
   reportVersions: Math.min(VERSIONS_HELD, Math.max(1, Number(query.get('versions')) || (DEMO ? 2 : 1))),
@@ -639,6 +672,9 @@ window.fixture = {
   },
   failReplies: (on) => {
     project.failReplies = on
+  },
+  failToken: () => {
+    project.failToken = true
   },
   failEdit: () => {
     project.failEdit = true

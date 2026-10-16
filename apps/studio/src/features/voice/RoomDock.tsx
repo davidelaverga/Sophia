@@ -15,6 +15,9 @@ import type { DeviceKind } from './device-preference.ts'
 import { DeviceCheck } from './DeviceCheck.tsx'
 import { DeviceMenu } from './DeviceMenu.tsx'
 import { micOnJoin } from './mic-preference.ts'
+import { useMirror } from './mirror-preference.ts'
+import { callClock, callClockWords } from './call-clock.ts'
+import { useNow } from '../../app/use-now.ts'
 import { PassMenu } from './PassMenu.tsx'
 import { ReactMenu } from './ReactMenu.tsx'
 import { Reactions } from './Reactions.tsx'
@@ -132,9 +135,9 @@ function CheckOpener({ room }: { room: ProjectRoom }) {
             list={room.listDevices}
             onChoose={(kind, id) => void room.switchDevice(kind, id)}
             onClose={() => setOpen(false)}
-            onJoin={() => {
+            onJoin={(chosen) => {
               setOpen(false)
-              void room.join()
+              void room.join(chosen)
             }}
           />,
           document.body,
@@ -213,6 +216,7 @@ export function TextMode({ on, onVoice }: { on: boolean; onVoice: () => void }) 
 }
 
 function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | undefined }) {
+  const mirror = useMirror()
   return (
     <>
       <Toggle
@@ -243,6 +247,7 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         list={room.listDevices}
         onChoose={(kind, id) => void room.switchDevice(kind, id)}
         background={{ supported: room.backgroundsSupported, onChoose: (id) => void room.setBackground(id) }}
+        mirror={mirror}
       />
       {canShareScreen && (
         <Toggle
@@ -254,6 +259,18 @@ function MediaToggles({ room, me }: { room: ProjectRoom; me: RoomParticipant | u
         />
       )}
     </>
+  )
+}
+
+/** How long this person's call has run, before Leave (room-basics.md): its time, and in words for a screen reader. */
+function CallClock({ since }: { since: number | null }) {
+  const now = useNow(1000)
+  if (since === null) return null
+  const ran = now - since
+  return (
+    <span className="dock-time" role="timer" aria-label={callClockWords(ran)}>
+      {callClock(ran)}
+    </span>
   )
 }
 
@@ -281,6 +298,7 @@ function LiveControls({ room, floor, projectId, identity, snapshot, sophia, onPa
         </>
       )}
       <span className="dock-sep" aria-hidden />
+      <CallClock since={room.liveSince} />
       <button
         type="button"
         className="round leave has-tip"

@@ -4,6 +4,7 @@
 // personal space's own sheets are. Locally the dev identity is chosen in its head. It is the kit's menu, and closes
 // like any popover (usePopover): Escape returns to the avatar, a press anywhere else closes it.
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Menu, MenuHead, MenuItem, MenuSep, Tip, usePopover } from '@sophia/ui'
 import { authMode, passkeysOffered } from './auth.ts'
 import { Avatar } from './Avatar.tsx'
@@ -13,6 +14,8 @@ import { PasskeySheet } from './PasskeySheet.tsx'
 import { keyLabel, onMac } from './shortcuts.ts'
 import { signedInWith } from './profile.ts'
 import { type Theme, useTheme } from './theme.ts'
+import { reportsOn } from './crash-report.ts'
+import { FeedbackSheet } from './FeedbackSheet.tsx'
 
 export interface AccountActions {
   data: () => void
@@ -106,6 +109,7 @@ interface Props {
 export function AccountMenu({ identity, where, actions }: Props) {
   const [open, setOpen] = useState(false)
   const [passkeys, setPasskeys] = useState(false)
+  const [feedback, setFeedback] = useState(false)
   const menu = usePopover(open, () => setOpen(false))
   // The item goes with the menu: its button takes the focus first, so a sheet the item opens gives it back there.
   const pick = (run: () => void) => () => {
@@ -141,6 +145,8 @@ export function AccountMenu({ identity, where, actions }: Props) {
           <MenuItem detail={keyLabel('mod+/', onMac)} onClick={pick(() => askCommands('index'))}>
             Keyboard shortcuts
           </MenuItem>
+          {/* Only where it goes somewhere: a Studio with no crash service offers no dead end (crash-feedback.md). */}
+          {reportsOn() && <MenuItem onClick={pick(() => setFeedback(true))}>Send feedback</MenuItem>}
           <MenuSep />
           {passkeysOffered && authMode !== 'dev' && (
             <MenuItem onClick={pick(() => setPasskeys(true))}>Passkeys</MenuItem>
@@ -148,7 +154,9 @@ export function AccountMenu({ identity, where, actions }: Props) {
           <MenuItem onClick={pick(actions.signOut)}>Sign out</MenuItem>
         </Menu>
       )}
-      {passkeys && <PasskeySheet onClose={() => setPasskeys(false)} />}
+      {/* Both sheets go over the page, not inside the bar, whose blur would hold a fixed sheet within its own box. */}
+      {passkeys && createPortal(<PasskeySheet onClose={() => setPasskeys(false)} />, document.body)}
+      {feedback && createPortal(<FeedbackSheet onClose={() => setFeedback(false)} />, document.body)}
     </div>
   )
 }

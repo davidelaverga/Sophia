@@ -74,6 +74,12 @@ function WriteNote({ onWrite }: { onWrite: (text: string) => Promise<boolean> })
         readOnly={sending}
         onChange={(e) => setText(e.target.value)}
       />
+      {/* While it goes, said: the field alone, read-only, doesn't say why (Codex P2 on #363). */}
+      {sending && (
+        <span className="c3-write-status" role="status">
+          Keeping…
+        </span>
+      )}
     </Field>
   )
 }
@@ -265,7 +271,8 @@ function NotesTop(props: {
   const { packing, notes, find } = props
   return (
     <>
-      {!packing && <WriteNote onWrite={props.onWrite} />}
+      {/* Once the notes are read: a note is written against the space they came with (Codex P2 on #363). */}
+      {!packing && notes !== undefined && <WriteNote onWrite={props.onWrite} />}
       {notes?.length === 0 && <EmptyState className="ps-empty">{NOTES_EMPTY}</EmptyState>}
       {!packing && find.offered && <FindNotes typed={find.typed} onTyped={find.setTyped} found={find.shown.length} />}
     </>

@@ -60,3 +60,28 @@ test('@phone · home · a long note wraps under its title, whole, as in the side
   expect(read.cut).toBe(false)
   expect(read.lines).toBeGreaterThan(1)
 })
+
+// The focus stays on a need when Home changes columns (docs/plans/home-needs-focus.md; Codex P2 on #289).
+test('home · crossing 860 px keeps the focus on the need that had it', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await page.goto(PAGE)
+  const presses = (where: string) => page.locator(`${where} button`)
+  await expect(presses('.hw-side').nth(1)).toBeVisible()
+  const words = (await presses('.hw-side').nth(1).textContent()) ?? ''
+  await presses('.hw-side').nth(1).focus()
+  await page.setViewportSize({ width: 800, height: 900 })
+  await expect(presses('.hw-needs-here').nth(1)).toBeFocused()
+  await expect(presses('.hw-needs-here').nth(1)).toHaveText(words)
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await expect(presses('.hw-side').nth(1)).toBeFocused()
+})
+
+test('home · crossing 860 px leaves a focus outside the list where it was', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await page.goto(PAGE)
+  await page.locator('.hw-side button').nth(1).focus()
+  const outside = page.locator('.hw-col button').first()
+  await outside.focus()
+  await page.setViewportSize({ width: 800, height: 900 })
+  await expect(outside).toBeFocused()
+})

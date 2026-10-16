@@ -2514,7 +2514,8 @@ button.contribution-quote:hover {
     clip: rect(0 0 0 0);
     white-space: nowrap;
   }
-  .dock :is(.floor-label, .dock-sep) {
+  /* The phone's one row of squares: no separators, and no clock (room-basics.md), as Meet's phone dock. */
+  .dock :is(.floor-label, .dock-sep, .dock-time) {
     display: none;
   }
   /* Who holds the floor stays said to a screen reader; the eye finds it in the room. */
@@ -2532,6 +2533,16 @@ button.contribution-quote:hover {
   height: 20px;
   margin: 0 4px;
   background: var(--line-2);
+  flex: none;
+}
+/* How long the call has run, before Leave (docs/plans/room-basics.md): quiet, its digits not moving the dock. */
+.dock-time {
+  min-width: 4ch;
+  padding: 0 4px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
   flex: none;
 }
 .dock-note {
@@ -2658,11 +2669,25 @@ button.contribution-quote:hover {
   margin: 0;
   padding: 16px;
 }
+/* The picture, the words over it while the camera is off, and the switches at its foot share one cell. */
+.device-preview > * {
+  grid-area: 1 / 1;
+}
 .device-preview-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
+}
+.device-preview[data-camera='off'] .device-preview-video {
+  visibility: hidden;
+}
+/* The microphone and the camera for the join (docs/plans/prejoin-toggles.md), on the picture as Meet has them. */
+.device-preview-switches {
+  align-self: end;
+  display: flex;
+  gap: 12px;
+  padding-bottom: 12px;
 }
 .device-rows {
   display: grid;
@@ -2874,6 +2899,15 @@ button.contribution-quote:hover {
 .tile-more {
   padding: 0;
 }
+/* Your tile, hidden for this call (docs/plans/room-basics.md): where it was, what it is, and Show. */
+.tile-hidden-self {
+  align-content: center;
+  gap: 4px;
+  padding: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+  text-align: center;
+}
 .tile-more button {
   display: grid;
   place-items: center;
@@ -3043,9 +3077,12 @@ button.contribution-quote:hover {
   left: 10px;
   bottom: 10px;
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
-  height: 22px;
-  padding: 0 7px;
+  max-width: calc(100% - 20px);
+  /* At least a line, and as many as the other screens' offers wrap to (Codex P2 on #358). */
+  min-height: 22px;
+  padding: 2px 7px;
   border-radius: var(--r-1);
   background: rgb(var(--void-rgb) / 0.66);
   font-size: 12px;
@@ -5738,6 +5775,10 @@ button.contribution-quote:hover {
 .goals-list-head .field-label {
   margin: 0;
 }
+/* «Mine», before the search, at the head's end (goal-overdue.md). */
+.goals-mine {
+  margin-left: auto;
+}
 .goals-search {
   width: min(280px, 100%);
 }
@@ -6240,6 +6281,90 @@ button.contribution-quote:hover {
   font-size: var(--type-small);
 }
 
+/* What continuing means, under the sign-in (docs/plans/terms-privacy.md): small, quiet, its links underlined. */
+/* Above `.screen-body p`, which sets the screen's paragraphs in the second ink. */
+.screen-body p.signin-legal {
+  margin-top: 12px;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
+.signin-legal a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Under the pointer the link answers in the full ink (press-answers.spec). */
+.signin-legal a:hover {
+  color: var(--text);
+}
+
+/* The terms and the privacy notice: a reading column on the page's ground, the mark above, the way on below. */
+.legal {
+  min-height: 100dvh;
+  padding: 32px 16px 48px;
+  background: var(--bg);
+  color: var(--text);
+}
+.legal-head,
+.legal-doc,
+.legal-foot {
+  max-width: 680px;
+  margin-inline: auto;
+}
+.legal-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  text-decoration: none;
+}
+.legal-doc h1 {
+  margin: 40px 0 4px;
+  font-size: var(--type-view);
+  letter-spacing: -0.025em;
+}
+.legal-updated {
+  margin: 0 0 24px;
+  color: var(--text-3);
+  font: var(--type-label) / var(--lh-small) var(--mono);
+}
+.legal-doc h2 {
+  margin: 28px 0 8px;
+  font-size: var(--type-head);
+  font-weight: 600;
+}
+.legal-doc p,
+.legal-doc li {
+  color: var(--text-2);
+  font-size: var(--type-title);
+  line-height: 1.6;
+}
+.legal-doc p {
+  margin: 0 0 10px;
+}
+.legal-doc ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+.legal-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 40px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.legal-foot a {
+  color: var(--text-2);
+}
+
+/* Room to write feedback (docs/plans/crash-feedback.md). */
+.feedback-words textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
 /* Everyone in the call, in the side panel (docs/plans/host-controls.md): a row each, the admin's menu at its end. */
 .people {
   display: grid;
@@ -6303,6 +6428,10 @@ button.contribution-quote:hover {
   margin: 2px 0 0;
   color: var(--text-3);
   font-size: var(--type-small);
+}
+/* A date that has passed, on a goal not completed (docs/plans/goal-overdue.md). */
+.goal-row-target[data-due='overdue'] {
+  color: var(--rose);
 }
 .goal-target-form {
   display: grid;
