@@ -19,6 +19,10 @@ interface ProfileFixture {
   failNextRead: boolean
   /** Answer the next save only after this many milliseconds (0: at once), as a cold server does. */
   slowNextSaveMs: number
+  /** Hold the next read until `releaseRead`, as a slow server does. */
+  holdNextRead: boolean
+  /** Let a held read answer. */
+  releaseRead: () => void
   /** Every save the page sent: its key and its body, in order. */
   saves: { key: string; body: unknown }[]
   /** Change the name as another device would, for a token (else the first one read): the revision moves on. */
@@ -35,6 +39,9 @@ declare global {
 
 const kept = new Map<string, Kept>()
 
+/** Reads held by `holdNextRead`, each waiting for `releaseRead`. */
+const heldReads: (() => void)[] = []
+
 const keptFor = (token: string): Kept => {
   const found = kept.get(token)
   if (found) return found
@@ -48,6 +55,10 @@ const fixture: ProfileFixture = {
   loseNextReply: false,
   failNextRead: false,
   slowNextSaveMs: 0,
+  holdNextRead: false,
+  releaseRead: () => {
+    for (const release of heldReads.splice(0)) release()
+  },
   saves: [],
   changeElsewhere: (name, token) => {
     const k = keptFor(token ?? [...kept.keys()][0] ?? '')
@@ -132,10 +143,17 @@ function saved(init: RequestInit | undefined): Response | Promise<Response> {
 }
 
 /** A read of the profile, or once a 503 when the page asked for one. */
-function read(init: RequestInit | undefined): Response {
+function answerRead(init: RequestInit | undefined): Response {
   if (!fixture.failNextRead) return json(keptFor(tokenOf(init)).profile)
   fixture.failNextRead = false
   return refusal(503, 'unavailable', 'Unavailable')
+}
+
+/** A read, held until `releaseRead` when the page asked for that; it answers what is kept when let through. */
+function read(init: RequestInit | undefined): Response | Promise<Response> {
+  if (!fixture.holdNextRead) return answerRead(init)
+  fixture.holdNextRead = false
+  return new Promise<Response>((resolve) => heldReads.push(() => resolve(answerRead(init))))
 }
 
 /** GET and PUT /api/v1/me/profile; null for any other request. */

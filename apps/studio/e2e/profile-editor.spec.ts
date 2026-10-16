@@ -134,6 +134,31 @@ test('profile · after a conflict nothing is saved until the name kept now is re
   expect(await kept(page)).toEqual({ displayName: 'Ana', chosen: true, revision: 2 })
 })
 
+test('profile · while the conflict’s fresh read is pending, Save stays unavailable', async ({ page }) => {
+  const sheet = await openSheet(page)
+  const field = sheet.getByRole('textbox', { name: 'Name' })
+  const save = sheet.getByRole('button', { name: 'Save' })
+  await page.evaluate(() => {
+    window.profileFixture?.changeElsewhere('Bea from the phone')
+    if (window.profileFixture) window.profileFixture.holdNextRead = true
+  })
+  await field.fill('Ana')
+  await save.click()
+  // The PUT was refused as stale and the fresh GET is held: nothing may be saved over the revision known to be stale.
+  await expect.poll(() => saves(page).then((sent) => sent.length)).toBe(1)
+  await expect(save).toBeDisabled()
+  await expect(field).toHaveAttribute('readonly', '')
+  await expect(sheet.getByRole('status')).toHaveCount(0)
+  await page.waitForTimeout(500)
+  await expect(save).toBeDisabled()
+  expect(await saves(page)).toHaveLength(1)
+  await page.evaluate(() => window.profileFixture?.releaseRead())
+  await expect(sheet.getByRole('status')).toHaveText(
+    'Changed elsewhere to «Bea from the phone». Save to use yours instead.',
+  )
+  await expect(save).toBeEnabled()
+})
+
 test('profile · a save that takes long says so after six seconds, then says it saved', async ({ page }) => {
   const sheet = await openSheet(page)
   await page.evaluate(() => {
