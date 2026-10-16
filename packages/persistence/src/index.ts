@@ -86,10 +86,12 @@ export {
   runtimeResearchRender,
   runtimeResearchRenderResult,
 } from './research-render.ts'
+export { correctContribution, previewContributionAct, withdrawContribution } from './contribution-acts.ts'
 export {
   admitNativeTask,
   readDiscussion,
   readDiscussionPage,
+  readRevisedDiscussion,
   readNativeTask,
   readNativeTasks,
   readResearchVersion,
@@ -97,6 +99,7 @@ export {
   readTaskStandings,
   submitContribution,
   type ContributionOrigin,
+  type RevisedDiscussion,
   type ReportVersion,
   type ReportVersionText,
   type ResearchVersions,

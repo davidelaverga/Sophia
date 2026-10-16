@@ -476,6 +476,59 @@ describe('the bridge against the real API (fake LiveKit and Google)', () => {
     assert.deepEqual([source.status, source.state, source.text], ['ok', 'withdrawn', null])
   })
 
+  it('a message corrected or withdrawn by its author rebuilds Sophia’s context, which reads only its current words (0068, A36)', async () => {
+    const said = await call(`/api/v1/projects/${seed.projectId}/contributions`, {
+      bearer: await token(E),
+      key: true,
+      body: {
+        intent: 'discuss',
+        text: 'The pilot opens on Monday.',
+        source: null,
+        threadId: null,
+        artifactVersionId: null,
+      },
+    })
+    assert.equal(said.status, 202)
+    const message = `/api/v1/projects/${seed.projectId}/contributions/${String(said.json.contributionId)}`
+    const act = async (action: 'correct' | 'withdraw', text?: string) => {
+      const shown = await call(`${message}/preview?action=${action}`, { bearer: await token(E) })
+      assert.equal(shown.status, 200, JSON.stringify(shown.json))
+      const proof = { expectedRevision: shown.json.revision, reach: [], previewToken: shown.json.previewToken }
+      const connections = lives.length
+      const done = await call(`${message}/${action === 'correct' ? 'correction' : 'withdrawal'}`, {
+        bearer: await token(E),
+        key: true,
+        body: text === undefined ? proof : { ...proof, text },
+      })
+      assert.equal(done.status, 200, JSON.stringify(done.json))
+      // The project's eligibility moved: the bridge rebuilds the provider context at once, as a forgotten note does.
+      await until('the bridge rebuilt the provider context', () => lives.length === connections + 1, 5000)
+      live = lives.at(-1) as FakeLive
+      live.events.setupComplete()
+      await until('voice ready again', async () => (await snapshot()).room.sophia.voice === 'ready')
+    }
+
+    await act('correct', 'The pilot opens on Tuesday.')
+    const status = await ask(live, 'corrected-status', 'project_status', {})
+    assert.equal(status.status, 'ok')
+    assert.ok(JSON.stringify(status).includes('The pilot opens on Tuesday.'))
+    assert.ok(!JSON.stringify(status).includes('Monday'))
+    const read = await ask(live, 'corrected-source', 'read_selected_source', {
+      contributionId: said.json.contributionId,
+    })
+    assert.deepEqual([read.status, read.text], ['ok', 'The pilot opens on Tuesday.'])
+
+    await act('withdraw')
+    const withdrawnStatus = await ask(live, 'withdrawn-status', 'project_status', {})
+    assert.equal(withdrawnStatus.status, 'ok')
+    assert.ok(!JSON.stringify(withdrawnStatus).includes('The pilot opens on'))
+    const gone = await ask(live, 'withdrawn-source', 'read_selected_source', {
+      contributionId: said.json.contributionId,
+    })
+    assert.notEqual(gone.status, 'ok')
+    assert.ok(!JSON.stringify(gone).includes('The pilot opens on'))
+  })
+
   it('a viewer can take the floor and talk with Sophia, but cannot change the mission by voice', async () => {
     const snap = await snapshot()
     const moved = await call(`/api/v1/rooms/${snap.room.id}/input-floor`, {

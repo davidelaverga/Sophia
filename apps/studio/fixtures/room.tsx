@@ -74,6 +74,7 @@ import {
   served,
   unexpected,
 } from './fixture-api.ts'
+import { messageActsOf } from './message-acts.ts'
 import { missionWrites } from './mission-writes.ts'
 import {
   briefNotice,
@@ -227,6 +228,14 @@ interface Fixture {
   sophiaWalks: (anchor: string) => void
   /** The next message to the room lands, but its reply is lost: the page can't tell it was recorded. */
   loseNextContributionReply: () => void
+  /** A36 (message-acts.md): the next act on a message is stale, its message corrected elsewhere first. */
+  staleNextAct: () => void
+  /** The next act on a message lands, but its reply is lost. */
+  loseNextActReply: () => void
+  /** The next act on a message fails as an unavailable API's. */
+  failNextAct: () => void
+  /** The next previews list this many running research tasks as reading the words. */
+  reachNextPreview: (tasks: number) => void
   /** The next show lands, but its reply is lost: the page can't tell it was committed. */
   loseNextFocusReply: () => void
   /** The next close of the meeting lands, but its reply is lost. */
@@ -454,10 +463,21 @@ const project = {
   },
   // `discussion=60`: that many messages from another member, more than the snapshot's 50 (discussion-earlier.md);
   // `discussion=days`: two from yesterday and two from today; `discussion=yesterday`, yesterday's two (chat-times.md).
-  messages: (query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
-    ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
-    : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (string | Said)[],
+  // `discussion=mine`: the viewer's own written message, another member's, and the viewer's own shared report (A36).
+  messages: (query.get('discussion') === 'mine'
+    ? [
+        { text: 'Meet at nine by the north door.', me: true },
+        'Sounds good to me.',
+        { text: 'The pilot report, version 2.', me: true, kind: 'reference' },
+      ]
+    : query.get('discussion') === 'days' || query.get('discussion') === 'yesterday'
+      ? overTwoDays().slice(0, query.get('discussion') === 'days' ? 4 : 2)
+      : Array.from({ length: Number(query.get('discussion')) || 0 }, (_, i) => `Message ${i + 1}`)) as (
+    string | Said
+  )[],
   contributions: new Map(),
+  // `acts=1`: the viewer's messages offer Edit and Withdraw (message-acts.md, A36).
+  messageActs: messageActsOf(query),
   loseContributionReply: false,
   messagesHeld: null as (() => void)[] | null,
   failReplies: false,
@@ -844,6 +864,18 @@ window.fixture = {
   },
   loseNextContributionReply: () => {
     project.loseContributionReply = true
+  },
+  staleNextAct: () => {
+    project.messageActs.staleNext = true
+  },
+  loseNextActReply: () => {
+    project.messageActs.loseNextReply = true
+  },
+  failNextAct: () => {
+    project.messageActs.failNext = true
+  },
+  reachNextPreview: (tasks) => {
+    project.messageActs.reach = tasks
   },
   loseNextFocusReply: () => {
     project.showing.loseReply = true

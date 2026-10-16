@@ -70,6 +70,7 @@ import { searchHits, searchPage } from './search-data.ts'
 import { SOURCE_REVIEW } from './source-review-data.ts'
 import { closed, digestOf, MEETING, markSeen, meetingList, recapOf, soFarOf, type Meeting } from './meeting-data.ts'
 import { profileAnswer } from './profile-data.ts'
+import { discussionPageOf, messageActAnswer, snapshotDiscussion, type MessageActs } from './message-acts.ts'
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } })
 
@@ -97,6 +98,8 @@ interface Project {
   /** The door shut under the shell (`window.fixture.shutDoor`): every snapshot read from now on is refused (403). */
   doorShut?: boolean
   messages: (string | Said)[]
+  /** Its members' message corrections and withdrawals (A36, message-acts.ts); absent, the page has none. */
+  messageActs?: MessageActs
   /** The viewer's messages to the room, by their Idempotency-Key: the same key again replays the receipt. */
   contributions?: Map<string, { text: string; receipt: ContributionReceipt }>
   /** The next message lands, but its reply is lost on the way (`window.fixture.loseNextContributionReply`). */
@@ -295,8 +298,11 @@ function eventStream(project: Project, after: number, signal: AbortSignal | null
  * The project's snapshot now, with someone at the door when the page asked for it (`lobby=waiting`), and the research
  * task in its work on the Work page (`place=work`).
  */
-function snapshotOf(project: Project) {
-  const now = snapshot(project.revision, project.exchange, project.messages, project.goals, project.room)
+function snapshotOf(project: Project, revisions = false) {
+  const now = {
+    ...snapshot(project.revision, project.exchange, project.messages, project.goals, project.room),
+    ...snapshotDiscussion(project, revisions),
+  }
   const running = project.researching ? researchRunning(project.researching.reads).task : null
   const work = running
     ? { ...now, work: [running] }
@@ -644,22 +650,21 @@ function discussionPage(project: Project, url: URL): Response {
     }
     return new Response(JSON.stringify(problem), { status: 422, headers: { 'content-type': 'application/json' } })
   }
-  const start = Math.max(0, end - 50)
-  const entries = all.slice(start, end)
-  return json({ entries, before: start > 0 ? (entries[0]?.id ?? null) : null })
+  return json(discussionPageOf(project, end, url.searchParams.get('revisions') === '1'))
 }
 
 /** The snapshot as the API serves it; refused once the door is shut under the shell (`window.fixture.shutDoor`). */
-function snapshotAnswer(project: Project) {
+function snapshotAnswer(project: Project, url: URL) {
   served.push(`snapshot:${project.revision}`)
-  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project))
+  const revisions = url.searchParams.get('revisions') === '1'
+  return project.doorShut ? refused('You no longer have access to this project') : json(snapshotOf(project, revisions))
 }
 
 function answer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
   const signal = init?.signal
   const base = `/api/v1/projects/${PROJECT}`
   const path = url.pathname
-  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project)
+  if (method === 'GET' && path === `${base}/snapshot`) return snapshotAnswer(project, url)
   const records = recordsAnswer(project, method, url, init)
   if (records !== undefined) return records
   if (method === 'GET' && path === `${base}/membership`) return membershipRead(project)
@@ -670,8 +675,14 @@ function answer(project: Project, method: string, url: URL, init: RequestInit | 
   return answerReports(project, method, url, init)
 }
 
+/** A message's correction or withdrawal and their preview (A36, message-acts.ts); undefined for any other request. */
+const actAnswer = (project: Project, method: string, url: URL, init: RequestInit | undefined) =>
+  messageActAnswer(project, method, url, init, { served, publish: () => publish(project) })
+
 /** The vision's proposed reads, and A18's writes; undefined for any other request. */
 function visionAnswer(project: Project, method: string, url: URL, init: RequestInit | undefined) {
+  const act = actAnswer(project, method, url, init)
+  if (act !== undefined) return act
   if (method === 'GET') return visionRead(project, url)
   return method === 'POST' ? talkWritten(project, url.pathname, init) : undefined
 }
