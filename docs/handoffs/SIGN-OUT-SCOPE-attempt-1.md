@@ -66,12 +66,22 @@ commits on the branch merge its base forward or touch only this record). 12 file
   - A failed call that removed the session is `here-only` when every device was asked.
   - One that removed nothing throws, and App keeps the person in, as for any sign-out that fails.
   - `app-auth`, `account-settings` and `account-menu`: 34/34.
+- **Codex P1 on #410, third: the other devices aren't out at once.** A global sign-out revokes the refresh tokens, and
+  an access token already given lives to its expiry. That's 3600 s (`jwt_expiry` in `supabase/config.toml`, Supabase's
+  default), and the API checks only signature and expiry (`apps/api/src/auth.ts`).
+  - The checks came first (`79d3a88c`) and failed.
+  - The fix (`13f68f57`): the question's words live in `EVERYWHERE` (`sign-out.ts`). Its warning says it as it is:
+    this one signs out now, the others within an hour, when their sign-in next renews.
+  - `account-settings` and `app-auth`: 30/30. Captures (`evaluacion-2026-10-16/capturas/everywhere-*.png`): the
+    warning wraps to two lines, desktop and phone.
 
 ## Remaining obligations
 
 - Stacked on #398 (Settings). Once #398 merges, this PR moves to main.
-- **A follow-up:** a sign-out that fails keeps the person in but says nothing. A toast there needs App's `leaving`,
-  outside React, to reach `useToast`.
+- **For Davide (API):** ending the other devices at once means checking the token's session against revoked sessions
+  server-side. Noted on issue #365. If `jwt_expiry` changes, the warning's «within an hour» changes with it.
+- **A follow-up (Codex P2):** a sign-out that fails keeps the person in but says nothing. A toast there needs App's
+  `leaving`, outside React, to reach `useToast`.
 
 ## Next bounded action
 
