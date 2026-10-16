@@ -4,6 +4,7 @@ import type { Goal, NativeTask } from '@sophia/contracts'
 import {
   floorView,
   mediaMessage,
+  mutedMic,
   orderParticipants,
   presenceRole,
   presenceSlots,
@@ -116,6 +117,13 @@ describe('floor view', () => {
 
 describe('what sets someone apart', () => {
   const guest = { ...person('g', 'Luis'), standing: 'guest' as const }
+
+  it('says a microphone is muted when it is off, and never for a listener, who has none (muted-on-tiles.md)', () => {
+    assert.equal(mutedMic({ ...davide, micOn: false }), true)
+    assert.equal(mutedMic({ ...guest, micOn: false }), true)
+    assert.equal(mutedMic(davide), false)
+    assert.equal(mutedMic({ ...davide, micOn: false, standing: 'viewer' }), false)
+  })
 
   it('says one thing about a person, or nothing', () => {
     assert.equal(presenceRole(davide, true), 'has the floor')
