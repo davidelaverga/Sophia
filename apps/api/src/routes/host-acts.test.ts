@@ -6,8 +6,9 @@ import { recordedIfDone } from './host-acts.ts'
 describe('a host act’s evidence', () => {
   it('is not written for an act that did nothing: no microphone, nothing on, no one to mute', async () => {
     let written = 0
-    const record = async () => {
+    const record = () => {
       written += 1
+      return Promise.resolve()
     }
     for (const done of [false, 0]) await recordedIfDone(Promise.resolve(done), record)
     assert.equal(written, 0)
@@ -15,8 +16,9 @@ describe('a host act’s evidence', () => {
 
   it('is written once for an act that did something', async () => {
     let written = 0
-    const record = async () => {
+    const record = () => {
       written += 1
+      return Promise.resolve()
     }
     await recordedIfDone(Promise.resolve(true), record)
     await recordedIfDone(Promise.resolve(2), record)

@@ -13828,7 +13828,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^[1-9][0-9]*$"
+              "pattern": "^[1-9][0-9]{0,18}$"
             }
           }
         ],
@@ -30434,7 +30434,7 @@
         "properties": {
           "sequence": {
             "type": "string",
-            "pattern": "^[1-9][0-9]*$"
+            "pattern": "^[1-9][0-9]{0,18}$"
           },
           "occurredAt": {
             "type": "string",
@@ -30534,7 +30534,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "pattern": "^[1-9][0-9]*$"
+                "pattern": "^[1-9][0-9]{0,18}$"
               },
               {
                 "type": "null"

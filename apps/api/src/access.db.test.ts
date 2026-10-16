@@ -12,6 +12,7 @@ import { after, before, describe, it } from 'node:test'
 import {
   parseInvitation,
   parseInvitationPreview,
+  parseActivityPage,
   parseLobbyEntry,
   parseMembership,
   parseRoomSession,
@@ -112,13 +113,10 @@ describe('guest invitations', () => {
       (await call('/api/v1/join/knock', { bearer: await guestToken(G), body: { ...link, displayName: 'Rosa' } })).json,
     )
     await call(`/api/v1/lobby/${knocked.id}/decision`, { bearer: await token(B), body: { decision: 'admit' } })
-    const read = await call(`/api/v1/projects/${seed.projectId}/activity`, { method: 'GET', bearer: await token(A) })
-    type Entry = {
-      type: string
-      actor: { id: string; name: string | null }
-      target: { id: string; name: string | null } | null
-    }
-    const lobby = (read.json.entries as Entry[]).filter((e) => e.type === 'room.lobby_changed').slice(0, 2)
+    const read = parseActivityPage(
+      (await call(`/api/v1/projects/${seed.projectId}/activity`, { method: 'GET', bearer: await token(A) })).json,
+    )
+    const lobby = read.entries.filter((e) => e.type === 'room.lobby_changed').slice(0, 2)
     assert.deepEqual(
       lobby.map((e) => [e.actor.id, e.actor.name, e.target?.id ?? null, e.target?.name ?? null]),
       [

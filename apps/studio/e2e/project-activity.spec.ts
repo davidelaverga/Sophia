@@ -72,6 +72,11 @@ test('activity · a long unbroken name wraps inside its row; the act and its tim
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await open(page)
+  // Every row shares the columns: the acts start at one edge, whatever the name before them.
+  const lefts = await sheet(page)
+    .locator('.activity-what')
+    .evaluateAll((all) => all.slice(0, 8).map((w) => Math.round(w.getBoundingClientRect().left)))
+  expect(new Set(lefts).size).toBe(1)
   const row = rows(page).first()
   await row.locator('.activity-who').evaluate((w) => {
     w.textContent = `${'a'.repeat(60)}@${'example'.repeat(6)}.test`
