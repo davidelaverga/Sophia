@@ -9,7 +9,8 @@
 
 - **How long:** a quiet clock in the dock, before Leave. It counts from when this person's call went live
   (`room.liveSince`), as «12:04», or «1:02:05» past an hour. It has `role="timer"`, and its name says it in words
-  («In the call for 12 minutes»). `call-clock.ts` (pure) does the words.
+  («In the call for 12 minutes»). `call-clock.ts` (pure) does the words. The phone's dock, a single row of squares,
+  leaves it out, as Meet's phone dock does.
 - **Mirror my video:** a checkbox item in the dock's «Video settings», under the background. Unchecked, your camera
   shows as others see it. It is kept on this device (`mirror-preference.ts`, on by default, one store that the dock and
   the stage both read).

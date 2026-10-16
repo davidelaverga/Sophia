@@ -20,13 +20,14 @@ test('basics · the dock says how long the call has run', async ({ page }) => {
   await page.goto('/room.html?call=on&people=2')
   const clock = dock(page).getByRole('timer')
   await expect(clock).toHaveText('0:00')
-  await page.clock.runFor(65_000)
+  await page.clock.fastForward(65_000)
   await expect(clock).toHaveText('1:05')
   await expect(clock).toHaveAccessibleName('In the call for 1 minute')
 })
 
 test('basics · your tile hides from your own gallery for this call, and shows again', async ({ page }) => {
-  await page.goto('/room.html?call=on&people=2')
+  // The gallery is there with cameras on; without them the stage is Sophia's light alone.
+  await page.goto('/room.html?call=on&people=2&video=camera')
   await expect(mine(page)).toBeVisible()
   await mine(page).hover()
   await mine(page).getByRole('button', { name: 'Hide my tile' }).click()
@@ -40,7 +41,7 @@ test('basics · your tile hides from your own gallery for this call, and shows a
 })
 
 test('basics · your camera is mirrored until you say otherwise, and the choice is kept here', async ({ page }) => {
-  await page.goto('/room.html?call=on&people=2')
+  await page.goto('/room.html?call=on&people=2&video=camera')
   await dock(page).getByRole('button', { name: 'Camera', exact: true }).click()
   const video = mine(page).locator('video')
   await expect(video).toHaveClass(/mirrored/)
