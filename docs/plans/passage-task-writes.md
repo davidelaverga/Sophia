@@ -20,6 +20,15 @@
 - `writes` counts the passage tasks' writes only, `task:create` and `task:done`. The read is #383's purpose.
 - The fixture's records are unchanged.
 
+## Also: the slow activity read (#355)
+
+- **The failing check:** «a slow read says it is reading, then why it takes long» also failed on main's runs. It timed
+  out at line 65 in #399's run and in #407's re-run.
+- **Why:** the slow timer starts in an effect after the read's render (`useSlow`). On a busy runner, the single
+  `clock.runFor(6500)` came before the effect, so the note never came.
+- **The change:** the check moves the clock a second at a time until the note is said, 20 seconds at most. Locally:
+  25/25 over five repeats.
+
 ## Checks
 
 - `room-passage-task.spec.ts` on main with the change: all its checks pass.
