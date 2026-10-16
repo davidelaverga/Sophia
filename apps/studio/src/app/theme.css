@@ -6500,3 +6500,46 @@ button.contribution-quote:hover {
   grid-column: 1 / -1;
   margin: 0;
 }
+
+/* A project's activity (docs/plans/project-activity.md): who, what on whom, when; one line each. */
+.activity {
+  display: grid;
+  gap: 12px;
+}
+.activity-filter {
+  justify-self: start;
+}
+.activity-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.activity-list li {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-small);
+}
+.activity-who {
+  color: var(--text);
+}
+.activity-what {
+  color: var(--text-2);
+}
+.activity-when {
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.activity-earlier {
+  justify-self: center;
+}
+.activity-reading {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--type-small);
+}
