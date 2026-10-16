@@ -6,8 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 const dock = (page: Page) => page.getByRole('navigation', { name: 'Room controls' })
 const gallery = (page: Page) => page.getByRole('list', { name: 'In the room' })
 const mine = (page: Page) => gallery(page).locator('li.tile', { has: page.locator('[data-mark="you"]') })
-const yourTile = (page: Page) => page.getByRole('button', { name: 'Your tile' })
-const tileMenu = (page: Page) => page.getByRole('menu', { name: 'Your tile' })
+const videoMenu = (page: Page) => page.getByRole('menu', { name: 'Video settings' })
 
 test.beforeEach(async ({ page }) => {
   await page.route(
@@ -30,12 +29,13 @@ test('basics · your tile hides from your own gallery for this call, and shows a
   await page.goto('/room.html?call=on&people=2')
   await expect(mine(page)).toBeVisible()
   await mine(page).hover()
-  await yourTile(page).click()
-  await tileMenu(page).getByRole('menuitem', { name: 'Hide my tile' }).click()
+  await mine(page).getByRole('button', { name: 'Hide my tile' }).click()
   await expect(mine(page)).toHaveCount(0)
   const hidden = gallery(page).locator('li', { hasText: 'Your tile is hidden' })
-  await expect(hidden).toBeVisible()
-  await hidden.getByRole('button', { name: 'Show' }).click()
+  const show = hidden.getByRole('button', { name: 'Show' })
+  // The press went with the tile: the focus waits on Show, never the page.
+  await expect(show).toBeFocused()
+  await show.click()
   await expect(mine(page)).toBeVisible()
 })
 
@@ -44,9 +44,8 @@ test('basics · your camera is mirrored until you say otherwise, and the choice 
   await dock(page).getByRole('button', { name: 'Camera', exact: true }).click()
   const video = mine(page).locator('video')
   await expect(video).toHaveClass(/mirrored/)
-  await mine(page).hover()
-  await yourTile(page).click()
-  const mirror = tileMenu(page).getByRole('menuitemcheckbox', { name: 'Mirror my video' })
+  await dock(page).getByRole('button', { name: 'Video settings' }).click()
+  const mirror = videoMenu(page).getByRole('menuitemcheckbox', { name: 'Mirror my video' })
   await expect(mirror).toHaveAttribute('aria-checked', 'true')
   await mirror.click()
   await expect(video).not.toHaveClass(/mirrored/)

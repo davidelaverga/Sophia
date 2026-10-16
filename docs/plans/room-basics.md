@@ -10,11 +10,13 @@
 - **How long:** a quiet clock in the dock, before Leave. It counts from when this person's call went live
   (`room.liveSince`), as «12:04», or «1:02:05» past an hour. It has `role="timer"`, and its name says it in words
   («In the call for 12 minutes»). `call-clock.ts` (pure) does the words.
-- **Your own tile** gets a press, «Your tile», where other people's tiles have Pin. It opens a menu:
-  - **Mirror my video**, checked, offered while your camera is on. Unchecked, your camera shows as others see it. It
-    is kept on this device (`mirror-preference.ts`, on by default).
-  - **Hide my tile:** your tile leaves your own gallery, for this call only. The others still see you. In its place, a
-    small item at the end of the tiles says «Your tile is hidden» with «Show».
+- **Mirror my video:** a checkbox item in the dock's «Video settings», under the background. Unchecked, your camera
+  shows as others see it. It is kept on this device (`mirror-preference.ts`, on by default, one store that the dock and
+  the stage both read).
+  - Not in a menu on the tile: a tile clips what overflows it (`overflow: hidden`), and a small tile would cut a menu.
+- **Hide my tile:** a press on your own tile, where other people's tiles have Pin. Your tile leaves your own gallery,
+  for this call only, and the others still see you. In its place, a small item at the end of the tiles says «Your tile
+  is hidden» with «Show», and it takes the focus the press had.
 - **The kit's `MenuItem`** gains `toggle`. With it, an item that turns one thing on or off is a `menuitemcheckbox`,
   where a `checked` item without it stays one of a set (`menuitemradio`).
 - **The fixture:** the viewer's camera, once turned on, gives a local feed (`fake-people.ts`), as LiveKit's local
