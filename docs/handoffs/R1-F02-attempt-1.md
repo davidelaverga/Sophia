@@ -5,7 +5,7 @@ Native session: Claude Code `local_775c886b-f077-43c7-a07c-74868ab14b5c`.
 Starting worktree/commit: `foundation/review-f02-20261016` from `main` at `f6be9fa7cd7b83ca688878390d474f0f2899bf69`.  
 Ending commit/tree and changed files: resolve from the commit containing this record; `packages/dsh-bundle/src/
 {review-tools.ts,transport.ts}`, `tests/unit/review-tools.test.mjs`, `apps/api/src/coordination.db.test.ts`,
-`config/runtime-unit.json`,
+`package.json` (`test:db` builds the bundle first), `config/runtime-unit.json`,
 `config/dsh/profile/pnpm-lock.yaml` (recorded bundle identity) and this record.
 
 ## Outcome
@@ -45,6 +45,16 @@ API's), `coordination.db.test.ts` "the R1 review, replayed": the task read the b
 read whole, a submission whose findings name the criteriaRef refused 422 with "A finding names a criterion this review
 does not have: <criteriaRef>" and nothing published, then the same review with the criterion's id published once
 (`changes_required`), replayed on resend. Run locally on PostgreSQL 17.11 (50 of 50); CI runs it on PostgreSQL 16.
+
+Joined, the bridge's own tools on the real service, `coordination.db.test.ts` "the R1 review through the bridge's own
+tools": the built `reviewTools` and `ServiceTransport` (packages/dsh-bundle/dist), with the world's runtime capability
+and bridge instance, against the test's listening API on PostgreSQL. The exact R1 read input returns the task; every
+page of both sources is read with its receipts; the R1 submission (every finding's criterionId the criteriaRef) is sent
+unchanged and refused, and the model gets the service's reason, the criteria's ids and the readable sourceIds, with
+nothing published; the corrected review publishes once (`changes_required`, every source read whole) and its resend
+answers the same result. A stopped review reads nothing and publishes nothing through the same tools. On the bundle
+before this patch, the joined review test fails. `test:db` now builds the bundle first; the test loads it by path,
+not as a dependency of the API, so no workspace copy of the bundle is linked into another package.
 
 ## Decisions and changes
 
