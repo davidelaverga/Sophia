@@ -3244,6 +3244,10 @@ button.contribution-quote:hover {
 }
 /* The toast (Toast.tsx): one line for a result whose place is not on screen, above the floor, so it never covers the
    dock or a message bar. The time it has left runs along its foot. */
+/* What a view's boundary holds draws as if it weren't there: its children stay the page's own boxes (view-boundary.md). */
+.view-body {
+  display: contents;
+}
 /* A view that failed to draw (view-boundary.md): its place says so, quietly, with its two ways on; the shell stays. */
 .view-failed {
   display: grid;
